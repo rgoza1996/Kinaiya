@@ -68,6 +68,72 @@ async def test_incomplete_provider_response_fails_honestly():
         await provider.close()
 
 
+@pytest.mark.parametrize("encoded", ['{"values":[1,2,3]}', "[]", "{bad"])
+async def test_meta_plugin_adapter_decodes_arguments_and_serializes_history(encoded):
+    observed = []
+
+    def respond(request):
+        observed.append(json.loads(request.content))
+        return httpx.Response(
+            200,
+            json={
+                "status": "completed",
+                "output": [
+                    {
+                        "type": "message",
+                        "phase": "final_answer",
+                        "content": [
+                            {
+                                "type": "output_text",
+                                "text": json.dumps(
+                                    {
+                                        "tool": "plugin_call",
+                                        "arguments": {
+                                            "plugin_id": "public_stats",
+                                            "plugin_arguments_json": encoded,
+                                        },
+                                    }
+                                ),
+                            }
+                        ],
+                    }
+                ],
+            },
+        )
+
+    provider = MetaResponsesProvider(
+        api_key="synthetic-key",
+        allow_cloud=True,
+        structured_actions=True,
+        transport=httpx.MockTransport(respond),
+    )
+    history = {
+        "tool": "plugin_call",
+        "arguments": {
+            "plugin_id": "public_stats",
+            "arguments": {"values": [1, 2]},
+        },
+    }
+    try:
+        messages = [{"role": "assistant", "content": json.dumps(history)}]
+        if encoded.startswith('{"values"'):
+            result = json.loads(await provider.complete(messages))
+            assert result["arguments"] == {
+                "plugin_id": "public_stats",
+                "arguments": {"values": [1, 2, 3]},
+            }
+        else:
+            with pytest.raises(ProviderError):
+                await provider.complete(messages)
+        prior = json.loads(
+            next(m["content"] for m in observed[0]["input"] if m["role"] == "assistant")
+        )
+        assert json.loads(prior["arguments"]["plugin_arguments_json"]) == {"values": [1, 2]}
+        assert "arguments" not in prior["arguments"]
+    finally:
+        await provider.close()
+
+
 def test_local_only_never_silently_discloses_to_cloud():
     with pytest.raises(ProviderError, match="Cloud disclosure"):
         CompatibleTextProvider("https://cloud.invalid/v1", "synthetic")

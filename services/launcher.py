@@ -267,6 +267,23 @@ def serve(args):
                 raise SystemExit("skills.enabled must be a boolean")
             if skill_config["enabled"]:
                 skill_service = SkillService(args.data_dir.resolve() / "skills", workspace)
+        plugin_service = None
+        if plugin_config := config.get("plugins"):
+            from services.agent.plugin_service import PluginService
+
+            if not isinstance(plugin_config, dict) or set(plugin_config) - {"enabled", "suites"}:
+                raise SystemExit("plugins accepts enabled and owner-held suites only")
+            if type(plugin_config.get("enabled")) is not bool:
+                raise SystemExit("plugins.enabled must be a boolean")
+            suites = plugin_config.get("suites", {})
+            if not isinstance(suites, dict) or len(suites) > 128:
+                raise SystemExit("plugins.suites must be a bounded owner mapping")
+            if plugin_config["enabled"]:
+                plugin_service = PluginService(
+                    args.data_dir.resolve() / "plugins",
+                    workspace,
+                    {key: Path(value) for key, value in suites.items()},
+                )
         runtime = AgentRuntime(
             journal,
             provider(config, "agent", resource_state=resource_state),
@@ -275,6 +292,7 @@ def serve(args):
             selector_registry=selector,
             mcp_host=mcp_host,
             skill_service=skill_service,
+            plugin_service=plugin_service,
         )
         if resources_enabled:
             from services.resources.client import ResourceClient

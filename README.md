@@ -234,6 +234,16 @@ instructions. Packages default to local-only disclosure. The [Agent skill
 boundary](docs/adr/0010-agent-skills.md) records the tested workflow and the
 remaining registry, upstream compatibility and execution-adapter work.
 
+An optional [isolated compute-plugin host](docs/adr/0016-compute-plugins.md) can
+retain ordinary Python/JSON algorithms independently of the LLM that authored
+them. Owner-held acceptance suites and reviewed promotion gate activation;
+`/plugins` controls and direct owner invocation require no inference. Agent can
+discover and call approved versions with task pins and native result receipts.
+The [public CSV acquisition evidence](evaluation/evidence/compute-plugins-2026-10-27.json)
+records real source generation, isolated execution, rejected updates and rollback.
+General dependency installation, hooks, foreign plugin adapters and full autonomous
+capability acquisition remain open.
+
 Optional voice runs in a separate Python with the `voice` extra and preinstalled
 Kokoro/Whisper weights: `python -m packages.providers.voice_worker`. Model downloads
 are disabled by default; a clean-machine model installer is still a roadmap task.

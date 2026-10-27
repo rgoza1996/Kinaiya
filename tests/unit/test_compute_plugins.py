@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from pathlib import Path
 
 import pytest
 
@@ -99,6 +100,89 @@ def test_valid_registration_evaluation_activation_invocation(ctx):
     )
     assert isinstance(receipt["elapsed_ms"], int)
     assert len(reg.versions()) == 1
+
+
+def test_boolean_does_not_match_numeric_owner_expectation(ctx):
+    reg, _, suite = ctx
+    suite.write_text(
+        json.dumps(
+            _suite_doc(
+                cases=[
+                    {
+                        "input": {"a": 1, "b": 0},
+                        "expected": {"sum": 1},
+                    }
+                ]
+            )
+        )
+    )
+    manifest = _manifest(
+        output_schema={
+            "type": "object",
+            "properties": {"sum": {"type": ["integer", "boolean"]}},
+            "required": ["sum"],
+            "additionalProperties": False,
+        }
+    )
+    version = reg.register_bytes(b"def run(a):\n    return {'sum': True}\n", manifest)
+    assert reg.evaluate(version)["passed"] is False
+
+
+def test_storage_byte_bounds_and_durable_distinct_task_pins(ctx):
+    reg, path, suite = ctx
+    version = reg.register_bytes(ADD_SRC.encode(), _manifest())
+    reg.pin(version, task_id="first")
+    reg.pin(version, task_id="first")  # recovery is idempotent
+    reg.pin(version, task_id="second")
+    reg.close()
+    reopened = PluginRegistry(path / "root", {"adder": suite})
+    try:
+        reopened.unpin(version, task_id="first")
+        with pytest.raises(PE.PluginError, match="pinned"):
+            reopened.remove(version)
+        reopened.unpin(version, task_id="second")
+        source = reopened.root / "versions" / version / "source.py"
+        source.write_bytes(b"x" * 65_537)
+        with pytest.raises(PE.PluginError, match="byte bound"):
+            reopened.inspect(version)
+    finally:
+        reopened.close()
+
+
+def test_registry_ancestor_symlink_rejected_before_directory_creation(tmp_path):
+    target = tmp_path / "target"
+    target.mkdir()
+    link = tmp_path / "link"
+    link.symlink_to(target, target_is_directory=True)
+    with pytest.raises(PE.PluginError, match="symlink"):
+        PluginRegistry(link / "new-registry", {})
+    assert not (target / "new-registry").exists()
+
+
+def test_retained_real_agent_candidate_replays_without_model_inference(tmp_path):
+    root = Path(__file__).resolve().parents[2]
+    artifacts = root / "evaluation/plugins/csv_stats"
+    evidence = json.loads(
+        (root / "evaluation/evidence/compute-plugins-2026-10-27.json").read_text()
+    )
+    source = (artifacts / "candidate.py.txt").read_bytes()
+    assert hashlib.sha256(source).hexdigest() == evidence["source_sha256"]
+    suite = artifacts / "owner-acceptance.json"
+    registry = PluginRegistry(tmp_path / "registry", {"public_csv_stats": suite})
+    try:
+        version = registry.register_bytes(
+            source, json.loads((artifacts / "manifest.json").read_text())
+        )
+        assert version == evidence["version_id"]
+        report = registry.evaluate(version)
+        assert report["passed"] and report["cases"] == 4
+        assert report["suite_sha256"] == evidence["acceptance"]["suite_sha256"]
+        registry.promote(version, report["report_id"], reviewed=True)
+        result = registry.run(version, {"csv": "value,label\n2,a\n8,b\n5,c\n", "column": "value"})
+        assert result["output"] == evidence["direct_without_llm"]["output"]
+        assert result["receipt"]["output_sha256"] == evidence["result_sha256"]
+    finally:
+        registry.close()
 
 
 def test_content_addressed_dedup_and_immutable(ctx):
@@ -379,8 +463,10 @@ def test_unsafe_roots_and_symlinks(tmp_path):
 
 
 def test_oversize_and_malformed_input_output(ctx):
-    reg, _, _ = ctx
+    reg, _, suite = ctx
     vid = reg.register_bytes(ADD_SRC.encode(), _manifest())
+    report = reg.evaluate(vid)
+    reg.promote(vid, report["report_id"], reviewed=True)
     with pytest.raises(PE.PluginError):
         reg.run(vid, {"a": "x" * 70000, "b": 1})
     with pytest.raises(PE.PluginError):
@@ -399,12 +485,14 @@ def test_oversize_and_malformed_input_output(ctx):
     with pytest.raises(PE.PluginError):
         reg.run(vid, {"a": float("nan"), "b": 1})
     # Output schema violations are native failures, never success evidence.
-    bad_out = b"def run(arguments):\n    return {'wrong': 1}\n"
+    bad_out = b"def run(arguments):\n    return {'wrong': 1} if arguments['a'] == 99 else {'sum': arguments['a'] + arguments['b']}\n"
     bv = reg.register_bytes(bad_out, _manifest())
-    with pytest.raises(PE.PluginError):
-        reg.run(bv, {"a": 1, "b": 2})
+    report = reg.evaluate(bv)
+    reg.promote(bv, report["report_id"], reviewed=True)
+    with pytest.raises(PE.PluginError, match="output failed schema"):
+        reg.run(bv, {"a": 99, "b": 2})
     # A result may carry 'success' DATA only when the schema allows it.
-    data_src = b"def run(arguments):\n    return {'sum': 3, 'success': True}\n"
+    data_src = b"def run(arguments):\n    return {'sum': arguments['a'] + arguments['b'], 'success': True}\n"
     man2 = _manifest(
         output_schema={
             "type": "object",
@@ -413,7 +501,13 @@ def test_oversize_and_malformed_input_output(ctx):
             "additionalProperties": False,
         }
     )
+    suite_doc = _suite_doc()
+    for case in suite_doc["cases"]:
+        case["expected"]["success"] = True
+    suite.write_text(json.dumps(suite_doc))
     dv = reg.register_bytes(data_src, man2)
+    report = reg.evaluate(dv)
+    reg.promote(dv, report["report_id"], reviewed=True)
     got = reg.run(dv, {"a": 1, "b": 2})
     assert got["output"] == {"sum": 3, "success": True}
 

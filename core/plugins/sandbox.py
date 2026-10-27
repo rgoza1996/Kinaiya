@@ -228,6 +228,18 @@ def _communicate_bounded(
         if cancel_event is not None and cancel_event.is_set():
             _kill_group(proc)
             raise PluginCandidateFailure("candidate cancelled; group killed")
+        # Pipe EOF may precede process exit. Wait within the same deadline;
+        # killing here would occasionally turn a valid result into SIGKILL.
+        while proc.poll() is None:
+            if cancel_event is not None and cancel_event.is_set():
+                raise PluginCandidateFailure("candidate cancelled; group killed")
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise PluginCandidateFailure(f"candidate wall timeout after {timeout_s}s")
+            try:
+                proc.wait(timeout=min(remaining, 0.1))
+            except subprocess.TimeoutExpired:
+                pass
     finally:
         if proc.poll() is None:
             _kill_group(proc)

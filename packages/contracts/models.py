@@ -190,6 +190,8 @@ class ToolAction(WireModel):
         "mcp_call",
         "skills_list",
         "skill_load",
+        "plugins_list",
+        "plugin_call",
         "finish",
     ]
     arguments: dict[str, Any] = Field(default_factory=dict)
@@ -200,3 +202,28 @@ class ProviderInfo(WireModel):
     model: str
     local: bool
     streaming: bool = False
+
+
+class PluginControl(WireModel):
+    idempotency_key: str = Field(min_length=1, max_length=128)
+    operation: Literal[
+        "register",
+        "inspect",
+        "evaluate",
+        "promote",
+        "rollback",
+        "disable",
+        "remove",
+        "scope",
+        "run",
+    ]
+    path: str | None = Field(default=None, min_length=1, max_length=1024)
+    manifest: dict | None = None
+    plugin_id: str | None = Field(default=None, min_length=1, max_length=64)
+    version_id: str | None = Field(default=None, min_length=1, max_length=128)
+    report_id: str | None = Field(default=None, min_length=1, max_length=128)
+    reviewed: bool = False
+    content_scope: Literal["local_only", "public_synthetic", "private_cloud_authorized"] | None = (
+        None
+    )
+    arguments: dict | None = None

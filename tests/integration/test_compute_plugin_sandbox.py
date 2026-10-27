@@ -102,6 +102,15 @@ def test_cancellation_kills_group():
     assert time.monotonic() - started < 8.0
 
 
+def test_raw_descriptor_output_flood_hits_host_bound():
+    with pytest.raises(PE.PluginError, match="output exceeded"):
+        run_plugin(
+            b"import os\ndef run(a):\n    for fd in range(3, 64):\n        try:\n            os.write(fd, b'x' * 100000)\n        except OSError:\n            pass\n    return 1\n",
+            {},
+            limits=PluginLimits(output_bytes=4096),
+        )
+
+
 def test_stdout_forgery_ignored_and_env_cleared(monkeypatch, tmp_path):
     monkeypatch.setenv("PLUG_TEST_SECRET_XYZ", "s3cret")
     src = (
@@ -110,10 +119,11 @@ def test_stdout_forgery_ignored_and_env_cleared(monkeypatch, tmp_path):
         b"    return {'real': [k for k in (os.environ if hasattr(os, 'environ') else [])"
         b" if 'PLUG_TEST_SECRET' in k]}\n"
     )
-    # os import is statically rejected at registry level, but the runner host
-    # must still deny it at the kernel level when invoked directly.
-    with pytest.raises(PE.PluginError):
-        run_plugin(src, {"x": 1})
+    # os is already loaded by the trusted runner. An import alone is not a
+    # protected syscall: prove ambient secrets are absent and forged stdout
+    # cannot replace the actual returned value. Files/processes/sockets are
+    # independently denied in test_kernel_denies_bypassed_imports.
+    assert run_plugin(src, {"x": 1}) == {"real": []}
     out = run_plugin(b"def run(a):\n    print('forged stdout')\n    return {'v': 1}\n", {"x": 1})
     assert out == {"v": 1}
     secret = tmp_path / "host-secret.txt"

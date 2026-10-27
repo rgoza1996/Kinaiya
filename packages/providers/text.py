@@ -167,6 +167,7 @@ class MetaResponsesProvider:
         if self.structured_actions:
             messages = [dict(message) for message in messages]
             wire = (
+                "\nFor plugin_call, put the approved id in plugin_id and JSON-encode the input object in plugin_arguments_json. "
                 "\nStrict response wire serialization: for mcp_call, put the configured server id "
                 "in arguments.server_id, the exact tool name in arguments.mcp_tool, and JSON-encode "
                 "the target argument object into arguments.mcp_arguments_json. For mcp_list, use "
@@ -194,6 +195,11 @@ class MetaResponsesProvider:
                         }
                     elif action["tool"] == "mcp_list" and "tool" in args:
                         args["mcp_tool"] = args.pop("tool")
+                    elif action["tool"] == "plugin_call":
+                        action["arguments"] = {
+                            "plugin_id": args["plugin_id"],
+                            "plugin_arguments_json": json.dumps(args["arguments"], allow_nan=False),
+                        }
                     message["content"] = json.dumps(action)
                 except (ValueError, KeyError, TypeError):
                     pass
@@ -215,6 +221,8 @@ class MetaResponsesProvider:
                     "summary",
                     "skill_id",
                     "resource",
+                    "plugin_id",
+                    "plugin_arguments_json",
                 )
             }
             fields.update(
@@ -303,6 +311,17 @@ class MetaResponsesProvider:
                     "tool": args.get("mcp_tool"),
                     "arguments": decoded,
                 }
+            elif action.get("tool") == "plugin_call":
+                encoded = args.get("plugin_arguments_json")
+                if not isinstance(encoded, str) or len(encoded) > 65536:
+                    raise ProviderError("Plugin arguments require bounded JSON object text")
+                try:
+                    decoded = json.loads(encoded)
+                except (ValueError, RecursionError) as exc:
+                    raise ProviderError("Plugin arguments are invalid JSON") from exc
+                if not isinstance(decoded, dict):
+                    raise ProviderError("Plugin arguments must decode to an object")
+                action["arguments"] = {"plugin_id": args.get("plugin_id"), "arguments": decoded}
             elif action.get("tool") == "mcp_list":
                 action["arguments"] = {
                     key: value for key, value in args.items() if key in {"server_id", "after"}

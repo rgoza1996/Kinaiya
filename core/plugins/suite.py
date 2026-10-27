@@ -22,13 +22,15 @@ import json
 from pathlib import Path
 from typing import Any
 
+from core.plugins.storage import read_bytes
+
 MAX_SUITE_BYTES = 256 * 1024
 MAX_SUITE_CASES = 64
 
 
 def canonical_bytes(doc: Any) -> bytes:
     """Canonical JSON bytes used for pinning hashes."""
-    return json.dumps(doc, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return json.dumps(doc, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
 
 
 def suite_hash_of(suite_path: Path | str) -> str:
@@ -36,10 +38,10 @@ def suite_hash_of(suite_path: Path | str) -> str:
     from core.plugins.errors import PluginIntegrityError
 
     try:
-        doc = json.loads(Path(suite_path).read_text(encoding="utf-8"))
-    except (OSError, ValueError) as exc:
+        doc = json.loads(read_bytes(Path(suite_path), MAX_SUITE_BYTES))
+        return hashlib.sha256(canonical_bytes(doc)).hexdigest()
+    except (OSError, ValueError, RecursionError) as exc:
         raise PluginIntegrityError(f"suite unreadable: {exc}") from exc
-    return hashlib.sha256(canonical_bytes(doc)).hexdigest()
 
 
 def load_suite(suite_path: Path | str, *, expected_plugin_id: str) -> tuple[list[dict], str]:
@@ -48,14 +50,14 @@ def load_suite(suite_path: Path | str, *, expected_plugin_id: str) -> tuple[list
     from core.plugins.schemas import check_json_value
 
     try:
-        raw = Path(suite_path).read_bytes()
+        raw = read_bytes(Path(suite_path), MAX_SUITE_BYTES)
     except OSError as exc:
         raise PluginIntegrityError(f"suite unreadable: {exc}") from exc
     if len(raw) > MAX_SUITE_BYTES:
         raise PluginIntegrityError(f"suite exceeds {MAX_SUITE_BYTES} bytes ({len(raw)})")
     try:
         doc = json.loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, ValueError) as exc:
+    except (UnicodeDecodeError, ValueError, RecursionError) as exc:
         raise PluginIntegrityError(f"suite is not valid JSON: {exc}") from exc
     if not isinstance(doc, dict):
         raise PluginIntegrityError("suite must be an object")

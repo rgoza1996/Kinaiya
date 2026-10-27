@@ -731,13 +731,14 @@ def _outcome_entry(evidence: list[dict]) -> JournalEntry:
     )
 
 
-async def test_converse_rejects_external_only_outcome() -> None:
+@pytest.mark.parametrize("receipt_kind", ["external", "extension"])
+async def test_converse_rejects_external_only_outcome(receipt_kind) -> None:
     journal = InMemoryJournal(channel="converse")
     runtime = ConverseRuntime(journal, ScriptedProvider([]))
     external = [
         {
             "evidence_id": "e1",
-            "kind": "external",
+            "kind": receipt_kind,
             "summary": "mcp synth/echo receipt",
             "sha256": "ab" * 32,
             "objective_revision": 1,

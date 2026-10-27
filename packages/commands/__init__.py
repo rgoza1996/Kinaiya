@@ -43,6 +43,11 @@ DEFINITIONS = {
         "list|inspect|install|enable|disable|update|rollback|remove|scope ...",
     ),
     "skill": ("Start normal Agent work with one selected skill", [], "<qualified-id> [request]"),
+    "plugins": (
+        "Inspect or manage compute plugins without inference",
+        [],
+        "list [after]|inspect <version>|control '<JSON>'",
+    ),
 }
 
 
@@ -91,6 +96,10 @@ class Registry:
                     and (
                         name != "resources"
                         or getattr(self.runtime, "resource_client", None) is not None
+                    )
+                    and (
+                        name != "plugins"
+                        or getattr(self.runtime, "plugin_service", None) is not None
                     ),
                 }
                 for name, (description, aliases, syntax) in DEFINITIONS.items()
@@ -261,6 +270,8 @@ class Registry:
             return await self._invoke_skill(args[0], args[1:], request)
         if name == "skills":
             return await self._skills_control(args)
+        if name == "plugins":
+            return await self._plugins_control(args, request)
         if name == "help":
             if len(args) > 1:
                 raise ValueError("Usage: /help [command]")
@@ -364,6 +375,34 @@ class Registry:
             explicit_skill=skill_id,
         )
         return {"accepted_task_id": task.task_id, "state": task.state.value, "skill_id": skill_id}
+
+    async def _plugins_control(self, args, request):
+        from services.agent.plugin_controls import (
+            PluginControl,
+            apply_plugin_control,
+            require_plugins,
+        )
+
+        service = require_plugins(self.runtime)
+        if not args or args[0] == "list":
+            if len(args) > 2:
+                raise ValueError("Usage: /plugins list [after]")
+            return service.list_owner(after=int(args[1]) if len(args) == 2 else 0)
+        if args[0] == "inspect" and len(args) == 2:
+            fields = {"operation": "inspect", "version_id": args[1]}
+        elif args[0] == "control" and len(args) == 2 and len(args[1]) <= 65_536:
+            fields = json.loads(args[1])
+            if not isinstance(fields, dict) or "idempotency_key" in fields:
+                raise ValueError("Plugin control must be an object; command supplies its identity")
+        else:
+            raise ValueError("Usage: /plugins list [after]|inspect <version>|control '<JSON>'")
+        fields["idempotency_key"] = (
+            "command:"
+            + hashlib.sha256(
+                (request.session_id + ":" + request.idempotency_key).encode()
+            ).hexdigest()
+        )
+        return await apply_plugin_control(self.runtime, PluginControl(**fields))
 
     async def _skills_control(self, args):
         from services.agent.skill_controls import SkillControl, apply_skill_control, require_skills

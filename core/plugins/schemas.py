@@ -83,7 +83,6 @@ _ALLOWED_KEYS = frozenset(
         "description",
         "default",
         "examples",
-        "format",
         "readOnly",
         "writeOnly",
         "deprecated",
@@ -118,8 +117,8 @@ def check_schema_profile(schema: Any) -> None:
     if not isinstance(schema, dict):
         raise PluginRegistrationError("schema must be an object")
     try:
-        encoded = json.dumps(schema, sort_keys=True, separators=(",", ":"))
-    except (TypeError, ValueError) as exc:
+        encoded = json.dumps(schema, sort_keys=True, separators=(",", ":"), allow_nan=False)
+    except (TypeError, ValueError, RecursionError) as exc:
         raise PluginRegistrationError(f"schema is not JSON-serializable: {exc}") from exc
     if len(encoded) > MAX_SCHEMA_CHARS:
         raise PluginRegistrationError(f"schema exceeds {MAX_SCHEMA_CHARS} bytes ({len(encoded)})")
@@ -158,6 +157,14 @@ def check_schema_profile(schema: Any) -> None:
                 visit(value, depth + 1, is_schema)
 
     visit(schema)
+    try:
+        import jsonschema
+
+        jsonschema.Draft202012Validator.check_schema(schema)
+    except ImportError as exc:
+        raise PluginRegistrationError("jsonschema is required for compute plugins") from exc
+    except jsonschema.SchemaError as exc:
+        raise PluginRegistrationError(f"Invalid schema: {exc.message[:300]}") from exc
 
 
 def check_json_value(value: Any, *, what: str = "value") -> bytes:

@@ -25,6 +25,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import tempfile
 import threading
 import time
@@ -44,6 +45,7 @@ from core.plugins.manifest import PluginManifest
 from core.plugins.sandbox import EVAL_LIMITS, RUN_LIMITS, run_plugin
 from core.plugins.schemas import check_schema_profile, validate_against
 from core.plugins.sourcecheck import decode_source
+from core.plugins.storage import read_bytes
 from core.plugins.suite import load_suite, suite_hash_of
 
 MAX_VERSIONS = 128
@@ -58,7 +60,7 @@ def _sha256(data: bytes) -> str:
 
 
 def _canonical(obj: Any) -> bytes:
-    return json.dumps(obj, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return json.dumps(obj, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
 
 
 def _atomic_write_json(path: Path, obj: Any) -> None:
@@ -66,8 +68,10 @@ def _atomic_write_json(path: Path, obj: Any) -> None:
     fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=".tmp-")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            json.dump(obj, fh, indent=2, sort_keys=True)
+            json.dump(obj, fh, indent=2, sort_keys=True, allow_nan=False)
             fh.write("\n")
+            fh.flush()
+            os.fsync(fh.fileno())
         os.replace(tmp, path)
     except BaseException:
         try:
@@ -95,16 +99,18 @@ class PluginRegistry:
             raise PluginStateError(f"unsafe registry root: {raw_root!r}")
         if raw_root.is_symlink():
             raise PluginStateError(f"registry root is a symlink: {raw_root}")
+        if any(part.is_symlink() for part in [raw_root.absolute(), *raw_root.absolute().parents]):
+            raise PluginStateError(f"registry root resolves via symlink: {raw_root}")
         try:
-            raw_root.mkdir(parents=True, exist_ok=True)
+            raw_root.mkdir(mode=0o700, parents=True, exist_ok=True)
         except OSError as exc:
             raise PluginStateError(f"registry root unusable: {exc}") from exc
         if raw_root.is_symlink() or not raw_root.is_dir():
             raise PluginStateError(f"registry root unsafe: {raw_root}")
         try:
-            real = os.path.realpath(raw_root)
-            absolute = str(raw_root.absolute())
-            if real != absolute and real != os.path.realpath(absolute):
+            if any(
+                part.is_symlink() for part in [raw_root.absolute(), *raw_root.absolute().parents]
+            ):
                 # Symlink component in the root path; fail closed.
                 raise PluginStateError(f"registry root resolves via symlink: {raw_root}")
         except OSError as exc:
@@ -133,32 +139,31 @@ class PluginRegistry:
                 raise PluginStateError(f"suite path unusable: {exc}") from exc
             cleaned[pid] = sp
         self.suites = cleaned
-        self._versions.mkdir(parents=True, exist_ok=True)
-        self._reports.mkdir(parents=True, exist_ok=True)
-        if self._versions.is_symlink() or self._reports.is_symlink():
-            raise PluginStateError("registry subdirectory is a symlink")
-        if not self._active_file.exists():
-            _atomic_write_json(self._active_file, {"plugins": {}})
-        if not self._pins_file.exists():
-            _atomic_write_json(self._pins_file, {"pinned": []})
-        if self._active_file.is_symlink() or self._pins_file.is_symlink():
-            raise PluginStateError("registry state file is a symlink")
-        # Single-writer nonblocking OS file lock, held for the lifecycle.
+        # Lock before inspecting or mutating durable state, including startup.
+        fd = os.open(self._lock_file, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
         try:
-            fd = os.open(self._lock_file, os.O_CREAT | os.O_RDWR, 0o600)
-        except OSError as exc:
-            raise PluginStateError(f"cannot open registry lock: {exc}") from exc
-        try:
+            info = os.fstat(fd)
+            if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_mode & 0o077:
+                raise PluginStateError("unsafe registry lock")
             fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except (BlockingIOError, OSError) as exc:
-            try:
-                os.close(fd)
-            except OSError:
-                pass
-            raise PluginStateError(
-                "registry locked by another writer (single writer only)"
-            ) from exc
+        except (OSError, PluginStateError) as exc:
+            os.close(fd)
+            raise PluginStateError("registry lock unavailable or already owned") from exc
         self._lock_fd = fd
+        try:
+            self._versions.mkdir(mode=0o700, parents=True, exist_ok=True)
+            self._reports.mkdir(mode=0o700, parents=True, exist_ok=True)
+            if self._versions.is_symlink() or self._reports.is_symlink():
+                raise PluginStateError("registry subdirectory is a symlink")
+            if self._active_file.is_symlink() or self._pins_file.is_symlink():
+                raise PluginStateError("registry state file is a symlink")
+            if not self._active_file.exists():
+                _atomic_write_json(self._active_file, {"plugins": {}})
+            if not self._pins_file.exists():
+                _atomic_write_json(self._pins_file, {"pinned": {}})
+        except BaseException:
+            self.close()
+            raise
 
     def close(self) -> None:
         """Release the lifecycle file lock. Idempotent."""
@@ -242,7 +247,7 @@ class PluginRegistry:
         if vdir.exists():
             if vdir.is_symlink():
                 raise PluginIntegrityError("version directory is a symlink")
-            stored = json.loads((vdir / "meta.json").read_text(encoding="utf-8"))
+            _, stored = self._verified_source(version_id)
             if stored.get("source_sha256") != meta["source_sha256"]:
                 raise PluginIntegrityError("version directory collision with other bytes")
             return version_id
@@ -321,11 +326,13 @@ class PluginRegistry:
             if not entry.is_file():
                 raise PluginIntegrityError(f"version file missing: {name}")
         try:
-            meta = json.loads((vdir / "meta.json").read_text(encoding="utf-8"))
-            raw = (vdir / "source.py").read_bytes()
+            meta = json.loads(read_bytes(vdir / "meta.json", 65_536))
+            if not isinstance(meta, dict):
+                raise PluginIntegrityError("version metadata must be an object")
+            raw = read_bytes(vdir / "source.py", 65_536)
         except OSError as exc:
             raise PluginIntegrityError(f"version unreadable: {exc}") from exc
-        except ValueError as exc:
+        except (ValueError, RecursionError) as exc:
             raise PluginIntegrityError(f"version metadata invalid: {exc}") from exc
         if _sha256(raw) != meta.get("source_sha256"):
             raise PluginIntegrityError(f"source tampering detected: {version_id}")
@@ -336,7 +343,7 @@ class PluginRegistry:
         manifest.check_supported()
         try:
             stored_manifest = PluginManifest.model_validate_json(
-                (vdir / "manifest.json").read_bytes()
+                read_bytes(vdir / "manifest.json", 65_536)
             )
         except ValueError as exc:
             raise PluginIntegrityError(f"stored manifest invalid: {exc}") from exc
@@ -353,8 +360,8 @@ class PluginRegistry:
         if self._active_file.is_symlink():
             raise PluginIntegrityError("activation file is a symlink")
         try:
-            doc = json.loads(self._active_file.read_text(encoding="utf-8"))
-        except (OSError, ValueError) as exc:
+            doc = json.loads(read_bytes(self._active_file, 262_144))
+        except (OSError, ValueError, RecursionError) as exc:
             raise PluginIntegrityError(f"activation pointer unreadable: {exc}") from exc
         if not isinstance(doc, dict) or not isinstance(doc.get("plugins"), dict):
             raise PluginIntegrityError("activation pointer malformed")
@@ -375,20 +382,53 @@ class PluginRegistry:
             raise PluginIntegrityError("activation history malformed")
         return entry
 
-    def _read_pins(self) -> set[str]:
+    def _read_pins(self) -> dict[str, str]:
         if self._pins_file.is_symlink():
             raise PluginIntegrityError("pins file is a symlink")
         try:
-            doc = json.loads(self._pins_file.read_text(encoding="utf-8"))
-        except (OSError, ValueError) as exc:
-            raise PluginIntegrityError(f"pins unreadable: {exc}") from exc
-        pinned = doc.get("pinned", [])
-        if not isinstance(pinned, list) or not all(isinstance(v, str) for v in pinned):
+            doc = json.loads(read_bytes(self._pins_file, 65_536))
+            pins = doc["pinned"]
+        except (OSError, ValueError, KeyError, TypeError, RecursionError) as exc:
+            raise PluginIntegrityError("pins unreadable") from exc
+        if isinstance(pins, list):
+            pins = {"legacy:" + str(i): value for i, value in enumerate(pins)}
+        if (
+            not isinstance(pins, dict)
+            or len(pins) > 256
+            or any(
+                not isinstance(key, str) or len(key) > 200 or not isinstance(value, str)
+                for key, value in pins.items()
+            )
+        ):
             raise PluginIntegrityError("pins malformed")
-        return set(pinned)
+        return pins
 
-    def _write_pins(self, pins: set[str]) -> None:
-        _atomic_write_json(self._pins_file, {"pinned": sorted(pins)})
+    def _write_pins(self, pins: dict[str, str]) -> None:
+        _atomic_write_json(self._pins_file, {"pinned": pins})
+
+    def _approval(self, meta: dict, entry: dict | None) -> None:
+        if not isinstance(entry, dict) or entry.get("disabled") is True:
+            raise PluginStateError("Plugin is inactive or disabled")
+        report_id = entry.get("approved", {}).get(meta["version_id"])
+        if not isinstance(report_id, str):
+            raise PluginPromotionError("Plugin version has not been owner-approved")
+        report = self._load_report(report_id)
+        manifest = PluginManifest.model_validate(meta["manifest"])
+        suite = self.suites.get(meta["plugin_id"])
+        if (
+            suite is None
+            or report.get("passed") is not True
+            or any(
+                (
+                    report.get("version_id") != meta["version_id"],
+                    report.get("source_sha256") != meta["source_sha256"],
+                    report.get("manifest_sha256") != _sha256(manifest.canonical().encode()),
+                    report.get("suite_sha256") != suite_hash_of(suite),
+                    report.get("plugin_id") != meta["plugin_id"],
+                )
+            )
+        ):
+            raise PluginPromotionError("Approved plugin no longer matches its acceptance report")
 
     def _load_report(self, report_id: str) -> dict:
         if (
@@ -402,8 +442,8 @@ class PluginRegistry:
         if path.is_symlink():
             raise PluginPromotionError("report is a symlink")
         try:
-            doc = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, ValueError) as exc:
+            doc = json.loads(read_bytes(path, 1_048_576))
+        except (OSError, ValueError, RecursionError) as exc:
             raise PluginPromotionError(f"unknown report: {exc}") from exc
         if not isinstance(doc, dict):
             raise PluginPromotionError("stored report invalid")
@@ -483,7 +523,7 @@ class PluginRegistry:
                         "failure": f"{type(exc).__name__}: {exc}"[:300],
                     }
                 )
-                reasons.append(f"FAIL case {index}: {type(exc).__name__}")[:300]
+                reasons.append(f"FAIL case {index}: {type(exc).__name__}"[:300])
                 continue
             try:
                 validate_against(output_schema, actual, what=f"case {index} output")
@@ -500,7 +540,7 @@ class PluginRegistry:
                 )
                 reasons.append(f"FAIL case {index}: output schema: {exc}"[:300])
                 continue
-            if actual == case["expected"]:
+            if _canonical(actual) == _canonical(case["expected"]):
                 case_results.append(
                     {
                         "input": case["input"],
@@ -624,6 +664,7 @@ class PluginRegistry:
                 history = entry.get("history", [])
                 if previous not in history:
                     history.append(previous)
+            entry.setdefault("approved", {})[version_id] = report_id
             entry["active"] = version_id
             entry["disabled"] = False
             self._write_active_doc(doc)
@@ -651,7 +692,8 @@ class PluginRegistry:
             current = entry.get("active")
             if current is None:
                 return None
-            self._verified_source(current)
+            _, meta = self._verified_source(current)
+            self._approval(meta, entry)
             return current
 
     def rollback(self, plugin_id: str, *, actor: str = "owner", reviewed: bool = False) -> str:
@@ -675,7 +717,9 @@ class PluginRegistry:
             if not history:
                 raise PluginPromotionError("no previous version to roll back to")
             target = history[-1]
-            self._verified_source(target)
+            _, meta = self._verified_source(target)
+            # Disabled state revokes runs, but an explicit reviewed rollback may restore it.
+            self._approval(meta, {**entry, "disabled": False})
             suite_path = self.suites.get(plugin_id)
             if suite_path is not None:
                 try:
@@ -719,7 +763,7 @@ class PluginRegistry:
             _, meta = self._verified_source(version_id)
             plugin_id = meta["plugin_id"]
             pins = self._read_pins()
-            if version_id in pins:
+            if version_id in pins.values():
                 raise PluginStateError(f"version is pinned for running tasks: {version_id}")
             doc = self._read_active_doc()
             entry = doc["plugins"].get(plugin_id)
@@ -740,31 +784,62 @@ class PluginRegistry:
                     entry["active"] = None
                 entry["history"] = [h for h in (entry.get("history") or []) if h != version_id]
                 self._write_active_doc(doc)
-            if version_id in pins:
-                pins.discard(version_id)
-                self._write_pins(pins)
         self._audit({"event": "remove", "version_id": version_id})
 
-    def pin(self, version_id: str) -> None:
-        """Hold a version for running tasks; removal then refuses it."""
+    def pin(self, version_id: str, *, task_id: str | None = None) -> None:
         self._ensure_open()
+        if task_id is not None and (
+            not isinstance(task_id, str) or re.fullmatch(r"[A-Za-z0-9_-]{1,128}", task_id) is None
+        ):
+            raise PluginStateError("Invalid task pin identity")
         with self._thread:
-            self._ensure_open()
             self._verified_source(version_id)
             pins = self._read_pins()
-            pins.add(version_id)
+            key = (
+                "task:" + task_id + ":" + version_id
+                if task_id is not None
+                else "anonymous:" + uuid.uuid4().hex
+            )
+            if key not in pins and len(pins) >= 256:
+                raise PluginStateError("Plugin task pin bound exceeded")
+            pins[key] = version_id
             self._write_pins(pins)
-        self._audit({"event": "pin", "version_id": version_id})
 
-    def unpin(self, version_id: str) -> None:
-        """Release a pin held by :meth:`pin`."""
+    def unpin(self, version_id: str, *, task_id: str | None = None) -> None:
         self._ensure_open()
         with self._thread:
-            self._ensure_open()
             pins = self._read_pins()
-            pins.discard(version_id)
+            if task_id is not None:
+                pins.pop("task:" + task_id + ":" + version_id, None)
+            else:
+                key = next(
+                    (
+                        key
+                        for key, value in pins.items()
+                        if value == version_id and not key.startswith("task:")
+                    ),
+                    None,
+                )
+                if key is not None:
+                    pins.pop(key)
             self._write_pins(pins)
-        self._audit({"event": "unpin", "version_id": version_id})
+
+    def reconcile_task_pins(self, tasks: dict[str, dict[str, str]]) -> None:
+        """Startup only: replace task references from the native task journal."""
+        with self._thread:
+            self._ensure_open()
+            pins = {k: v for k, v in self._read_pins().items() if not k.startswith("task:")}
+            for task_id, versions in tasks.items():
+                if re.fullmatch(r"[A-Za-z0-9_-]{1,128}", task_id) is None or len(versions) > 16:
+                    raise PluginStateError("Invalid recovered task pin identity")
+                for plugin_id, version_id in versions.items():
+                    _, meta = self._verified_source(version_id)
+                    if meta["plugin_id"] != plugin_id:
+                        raise PluginStateError("Recovered plugin identity does not match version")
+                    pins["task:" + task_id + ":" + version_id] = version_id
+            if len(pins) > 256:
+                raise PluginStateError("Plugin task pin bound exceeded")
+            self._write_pins(pins)
 
     # -- invocation -------------------------------------------------------
 
@@ -795,8 +870,7 @@ class PluginRegistry:
             source_sha256 = meta["source_sha256"]
             doc = self._read_active_doc()
             entry = doc["plugins"].get(plugin_id)
-            if isinstance(entry, dict) and entry.get("disabled") is True:
-                raise PluginStateError(f"plugin disabled: {plugin_id}")
+            self._approval(meta, entry)
             input_schema = json.loads(json.dumps(manifest.input_schema))
             output_schema = json.loads(json.dumps(manifest.output_schema))
         validate_against(input_schema, arguments, what="arguments")
@@ -813,8 +887,7 @@ class PluginRegistry:
                 raise PluginIntegrityError("candidate source changed during run")
             fresh_doc = self._read_active_doc()
             fresh_entry = fresh_doc["plugins"].get(plugin_id)
-            if isinstance(fresh_entry, dict) and fresh_entry.get("disabled") is True:
-                raise PluginStateError(f"plugin disabled during run: {plugin_id}")
+            self._approval(fresh_meta, fresh_entry)
         receipt = {
             "version_id": version_id,
             "source_sha256": source_sha256,
