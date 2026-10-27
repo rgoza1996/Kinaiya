@@ -14,6 +14,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 
 from core.policy import ApprovalError, PolicyDenied
 from packages.contracts.models import (
@@ -41,6 +42,20 @@ def create_app(runtime: AgentRuntime, auth: Any) -> FastAPI:
     require_actor = auth.require("owner", "decisions")
 
     app = FastAPI(title="Kinaiya Seed Agent", version="0.1.0")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=list(auth.allowed_origins),
+        allow_methods=["GET", "POST"],
+        allow_headers=["Authorization", "Content-Type"],
+    )
+
+    @app.get("/health")
+    async def health():
+        return {
+            "service": "agent",
+            "provider": runtime.provider.info.model_dump(),
+            "status": "ready",
+        }
 
     def _http(exc: Exception) -> HTTPException:
         if isinstance(exc, TaskNotFound):
@@ -99,7 +114,7 @@ def create_app(runtime: AgentRuntime, auth: Any) -> FastAPI:
             "harness": "seed-v1",
             "event_protocol": "1.0",
             "contract_schema": "1.0",
-            "tools": ["read_file", "write_file", "search", "shell", "finish"],
+            "tools": ["read_file", "write_file", "search", "shell", "read_transcript", "finish"],
             "steering": "safe-boundary",
             "cancellation": True,
             "approvals": {"digest_bound": True, "one_use": True, "expiring": True},

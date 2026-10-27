@@ -120,6 +120,9 @@ def main():
 
     import uvicorn
 
+    # Installation is a separate owner action; voice requests never download weights.
+    os.environ.setdefault("HF_HUB_OFFLINE", "1")
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--data-dir", type=Path, default=Path("data"))

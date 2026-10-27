@@ -34,6 +34,7 @@ from packages.contracts.interfaces import Journal, TextProvider
 from packages.contracts.models import (
     AppendRequest,
     ApprovalResolution,
+    Evidence,
     InterruptRequest,
     SteerRequest,
     Task,
@@ -382,6 +383,10 @@ class AgentRuntime:
             return rec.task.model_copy(deep=True)
         if rec.task.state in TERMINAL:
             raise TaskTerminal(f"task {task_id} is already {rec.task.state}")
+        if rec.pending_steer is not None:
+            raise StaleRevision(
+                "Another steering revision is pending; wait for its applied acknowledgment"
+            )
         if request.expected_objective_revision != rec.task.objective_revision:
             raise StaleRevision(
                 f"stale revision {request.expected_objective_revision}; "
@@ -901,6 +906,9 @@ class AgentRuntime:
             "arguments": args,
             "approved": False,
         }
+        # Clear before publishing: an owner can resolve the durable request while
+        # the append HTTP response is still in flight. Never erase that signal.
+        rec.resume.clear()
         rec.task.state = TaskState.AWAITING_APPROVAL
         await self._append(
             rec,
@@ -911,9 +919,9 @@ class AgentRuntime:
                 "arguments": args,
                 "action_digest": digest,
                 "objective_revision": rec.task.objective_revision,
+                "expires_at": approval.expires_at,
             },
         )
-        rec.resume.clear()
         while True:
             await rec.resume.wait()
             rec.resume.clear()
@@ -974,7 +982,9 @@ class AgentRuntime:
             # One-use intent is now committed to this exact execution.
             rec.pending = None
         try:
-            if tool == "read_file":
+            if tool == "read_transcript":
+                out, evidence = await self._read_transcript(rec, args)
+            elif tool == "read_file":
                 out, evidence = run_read(
                     self.policy,
                     str(args.get("path", "")),
@@ -1036,3 +1046,40 @@ class AgentRuntime:
         if tool in ("write_file", "shell"):
             rec.failed_effect = False
         rec.history.append({"role": "user", "content": observation_text(True, out)})
+
+    async def _read_transcript(self, rec, args):
+        event_ids = args.get("event_ids", [])
+        limit = int(args.get("limit", 8))
+        if not isinstance(event_ids, list) or len(event_ids) > 20 or not 1 <= limit <= 20:
+            raise ToolFailure("Transcript retrieval is limited to 20 entries per request")
+        if event_ids:
+            entries = [await self.journal.resolve(event_id) for event_id in event_ids]
+        else:
+            entries = await self.journal.read(
+                after=max(0, int(args.get("after", 0))), session_id=rec.task.session_id, limit=limit
+            )
+        if any(e.session_id != rec.task.session_id or e.epoch != rec.task.epoch for e in entries):
+            raise PolicyDenied("Transcript reference outside the task's current session epoch")
+        selected, size = [], 0
+        for entry in entries:
+            text = entry.payload.get("text", "")[:2000]
+            size += len(text)
+            if size > 12000:
+                break
+            selected.append(
+                {
+                    "event_id": entry.event_id,
+                    "kind": entry.kind,
+                    "origin": entry.origin,
+                    "sequence": entry.sequence,
+                    "revision": entry.payload.get("revision", 1),
+                    "text": text,
+                }
+            )
+        evidence = Evidence(
+            kind="read",
+            summary=f"Retrieved {len(selected)} scoped journal entries",
+            output=json.dumps({"event_ids": [e["event_id"] for e in selected]}),
+            objective_revision=rec.task.objective_revision,
+        )
+        return json.dumps(selected), evidence

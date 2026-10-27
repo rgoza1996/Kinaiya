@@ -168,7 +168,7 @@ class ApprovalResolution(WireModel):
 
 
 class ToolAction(WireModel):
-    tool: Literal["read_file", "write_file", "search", "shell", "finish"]
+    tool: Literal["read_file", "write_file", "search", "shell", "read_transcript", "finish"]
     arguments: dict[str, Any] = Field(default_factory=dict)
 
 

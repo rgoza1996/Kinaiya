@@ -7,6 +7,7 @@ import os
 import signal
 import subprocess
 import sys
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -17,6 +18,44 @@ from services.common.auth import Auth, load_or_create_tokens
 
 ROOT = Path(__file__).resolve().parents[1]
 PORTS = {"session": 8760, "agent": 8761, "converse": 8762, "decisions": 8763}
+
+
+def supervise(commands, *, popen=subprocess.Popen, sleep=time.sleep):
+    """Failed/unloaded components do not stop their healthy peers."""
+    children = {name: [popen(command), command, 0] for name, command in commands.items()}
+    try:
+        while children:
+            for name, (child, command, attempts) in list(children.items()):
+                code = child.poll()
+                if code is None:
+                    continue
+                if code != 0 and attempts < 3:
+                    sleep(0.1 * (attempts + 1))
+                    children[name] = [popen(command), command, attempts + 1]
+                    print(
+                        json.dumps(
+                            {"service": name, "event": "restarted", "attempt": attempts + 1}
+                        ),
+                        flush=True,
+                    )
+                else:
+                    children.pop(name)
+                    print(
+                        json.dumps({"service": name, "event": "unavailable", "exit_code": code}),
+                        flush=True,
+                    )
+            sleep(0.1)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        for child, _, _ in children.values():
+            if child.poll() is None:
+                child.send_signal(signal.SIGINT)
+        for child, _, _ in children.values():
+            try:
+                child.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                child.kill()
 
 
 def load_config(path):
@@ -31,6 +70,8 @@ def provider(config, role):
     profile = dict(config["providers"][role])
     kind = profile.pop("kind")
     if kind == "meta":
+        if role == "agent":
+            profile.setdefault("structured_actions", True)
         return MetaResponsesProvider(**profile)
     if kind == "compatible":
         key_ref = profile.pop("api_key_env", None)
@@ -97,47 +138,27 @@ def serve(args):
     auth = Auth(tokens, tuple(config.get("origins", [])))
     service = args.service
     if service == "all":
-        children = []
-        try:
-            for name in ("session", "agent", "converse", "decisions"):
-                children.append(
-                    subprocess.Popen(
-                        [
-                            sys.executable,
-                            "-m",
-                            "services.launcher",
-                            "--data-dir",
-                            str(args.data_dir.resolve()),
-                            "--config",
-                            str(config_path.resolve()),
-                            "--workspace",
-                            str(args.workspace.resolve()),
-                            "serve",
-                            name,
-                        ]
-                    )
-                )
-            print(
-                "Independent session/Agent/Converse/Decisions processes started; Ctrl-C stops all.",
-                flush=True,
-            )
-            while all(child.poll() is None for child in children):
-                for child in children:
-                    try:
-                        child.wait(timeout=0.5)
-                    except subprocess.TimeoutExpired:
-                        pass
-        except KeyboardInterrupt:
-            pass
-        finally:
-            for child in children:
-                if child.poll() is None:
-                    child.send_signal(signal.SIGINT)
-            for child in children:
-                try:
-                    child.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    child.kill()
+        commands = {
+            name: [
+                sys.executable,
+                "-m",
+                "services.launcher",
+                "--data-dir",
+                str(args.data_dir.resolve()),
+                "--config",
+                str(config_path.resolve()),
+                "--workspace",
+                str(args.workspace.resolve()),
+                "serve",
+                name,
+            ]
+            for name in PORTS
+        }
+        print(
+            "Independent processes started; failed components restart at most three times.",
+            flush=True,
+        )
+        supervise(commands)
         return
     if service == "session":
         from services.session.api import create_app
@@ -146,22 +167,34 @@ def serve(args):
         app = create_app(Store(args.data_dir / "journal.sqlite"), auth)
     elif service == "agent":
         from core.policy import ToolPolicy
-
         from services.agent import AgentRuntime, create_app
 
         args.workspace.mkdir(parents=True, exist_ok=True)
         journal = JournalClient(config["session_url"], tokens["agent"])
+        protected = (
+            ROOT / "core",
+            ROOT / "services/agent",
+            ROOT / "services/session",
+            ROOT / "packages/contracts",
+            ROOT / "evaluation",
+            ROOT / "Roadmap.md",
+            args.data_dir.resolve(),
+            Path.home() / ".config/muse",
+        )
+        workspace = args.workspace.resolve()
+        if workspace in {Path("/"), Path("/tmp"), Path("/run"), Path("/proc"), Path.home()} or any(
+            workspace == root.resolve()
+            or workspace.is_relative_to(root.resolve())
+            or root.resolve().is_relative_to(workspace)
+            for root in protected
+        ):
+            raise SystemExit(
+                "Use a dedicated worker workspace disjoint from core, evaluation, settings and credentials"
+            )
         policy = ToolPolicy(
             args.workspace,
             **config.get("policy", {}),
-            protected_roots=(
-                ROOT / "core",
-                ROOT / "services/agent",
-                ROOT / "services/session",
-                ROOT / "packages/contracts",
-                ROOT / "evaluation",
-                args.data_dir.resolve(),
-            ),
+            protected_roots=protected,
         )
         runtime = AgentRuntime(journal, provider(config, "agent"), args.workspace, policy)
 

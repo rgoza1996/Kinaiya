@@ -234,7 +234,14 @@ async def test_http_task_lifecycle_and_capabilities(tmp_path):
             assert caps.status_code == 200
             body = caps.json()
             assert body["harness"] == "seed-v1"
-            assert body["tools"] == ["read_file", "write_file", "search", "shell", "finish"]
+            assert body["tools"] == [
+                "read_file",
+                "write_file",
+                "search",
+                "shell",
+                "read_transcript",
+                "finish",
+            ]
             assert body["approvals"] == {"digest_bound": True, "one_use": True, "expiring": True}
             for _ in range(200):
                 got = await client.get(f"/v1/agent/tasks/{task_id}", headers=bearer(tokens))

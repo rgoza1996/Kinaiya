@@ -1,6 +1,7 @@
 import asyncio
 import json
 
+import httpx
 import pytest
 
 from packages.contracts.models import (
@@ -183,3 +184,63 @@ async def test_grounded_notice_needs_runtime_evidence_and_current_revision(conve
     )
     with pytest.raises(ValueError, match="evidenced"):
         await runtime.outcome_notice(outcome)
+
+
+async def test_task_finishing_during_classification_does_not_deadlock_router(conversation):
+    store, session = conversation
+    task = Task(
+        session_id=session.session_id,
+        thread_id=session.thread_id,
+        epoch=1,
+        objective="Original work",
+        idempotency_key="original",
+        state="running",
+    )
+
+    class FinishedDuringClassification(RecordingAgent):
+        calls = 0
+
+        async def status(self):
+            return [task]
+
+        async def steer(self, *args, **kwargs):
+            self.calls += 1
+            request = httpx.Request("POST", "http://agent/v1/steer")
+            raise httpx.HTTPStatusError(
+                "Task already finished",
+                request=request,
+                response=httpx.Response(409, request=request),
+            )
+
+    source = store.append(
+        AppendRequest(
+            session_id=session.session_id,
+            thread_id=session.thread_id,
+            epoch=1,
+            kind="conversation.user",
+            payload={"text": "Use another filename", "final": True},
+            idempotency_key="correction",
+        ),
+        "owner",
+    )
+    agent = FinishedDuringClassification()
+    classifier = ModelClassifier(
+        ScriptedProvider(
+            [
+                json.dumps(
+                    {
+                        "route": "steer",
+                        "target_task_id": task.task_id,
+                        "expected_objective_revision": 1,
+                    }
+                )
+            ]
+        )
+    )
+    worker = DecisionsWorker(LocalJournal(store, "decisions"), agent, classifier)
+    await worker.tick()
+    await worker.tick()
+    assert agent.calls == 1
+    assert store.cursor("decisions", worker.consumer) >= source.sequence
+    rejected = store.read(kinds=["routing.dispatch"])
+    assert len(rejected) == 1 and rejected[0].payload["state"] == "rejected"

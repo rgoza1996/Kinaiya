@@ -10,7 +10,7 @@ from urllib.parse import urlparse
 
 import httpx
 
-from packages.contracts.models import ProviderInfo
+from packages.contracts.models import ProviderInfo, ToolAction
 
 
 class ProviderError(RuntimeError):
@@ -139,6 +139,7 @@ class MetaResponsesProvider:
         allow_cloud=False,
         max_tokens=2048,
         reasoning_effort="xhigh",
+        structured_actions=False,
         transport=None,
     ):
         if not allow_cloud:
@@ -154,6 +155,7 @@ class MetaResponsesProvider:
             raise ProviderError("Meta credential is unavailable")
         self.info = ProviderInfo(provider="meta", model=model, local=False, streaming=True)
         self.model, self.max_tokens, self.effort = model, max_tokens, reasoning_effort
+        self.structured_actions = structured_actions
         self.http = httpx.AsyncClient(
             base_url=base_url.rstrip("/") + "/",
             timeout=120,
@@ -162,13 +164,52 @@ class MetaResponsesProvider:
         )
 
     def body(self, messages, stream):
-        return {
+        body = {
             "model": self.model,
             "input": messages,
             "stream": stream,
             "max_output_tokens": self.max_tokens,
             "reasoning": {"effort": self.effort},
         }
+        if self.structured_actions:
+            fields = {
+                key: {"type": ["string", "null"]}
+                for key in ("path", "content", "pattern", "command", "summary")
+            }
+            fields.update(
+                {
+                    key: {"type": ["integer", "null"]}
+                    for key in ("objective_revision", "max_bytes", "after", "limit")
+                }
+            )
+            fields["timeout_s"] = {"type": ["number", "null"]}
+            fields["event_ids"] = {"type": ["array", "null"], "items": {"type": "string"}}
+            schema = {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "tool": {
+                        "type": "string",
+                        "enum": ToolAction.model_json_schema()["properties"]["tool"]["enum"],
+                    },
+                    "arguments": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "properties": fields,
+                        "required": list(fields),
+                    },
+                },
+                "required": ["tool", "arguments"],
+            }
+            body["text"] = {
+                "format": {
+                    "type": "json_schema",
+                    "name": "kinaiya_tool_action",
+                    "strict": True,
+                    "schema": schema,
+                }
+            }
+        return body
 
     async def complete(self, messages):
         response = await self.http.post("responses", json=self.body(messages, False))
@@ -177,16 +218,27 @@ class MetaResponsesProvider:
         data = response.json()
         if data.get("status") in {"failed", "incomplete"}:
             raise ProviderError("Meta response did not complete within its token budget")
+        messages = [item for item in data.get("output", []) if item.get("type") == "message"]
+        final_messages = [
+            item for item in messages if item.get("phase") in {"final", "final_answer"}
+        ]
         texts = [
             part["text"]
-            for item in data.get("output", [])
-            if item.get("type") == "message"
+            for item in final_messages or messages
+            if item.get("phase") != "commentary"
             for part in item.get("content", [])
             if part.get("type") == "output_text"
         ]
         if not texts:
             raise ProviderError("Meta returned no output text")
-        return "".join(texts)
+        text = "".join(texts)
+        if self.structured_actions:
+            action = json.loads(text)
+            action["arguments"] = {
+                key: value for key, value in action["arguments"].items() if value is not None
+            }
+            return json.dumps(action)
+        return text
 
     async def stream(self, messages):
         terminal = False

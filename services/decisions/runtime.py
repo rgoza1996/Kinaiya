@@ -3,6 +3,8 @@
 import asyncio
 import json
 
+import httpx
+
 from packages.contracts.models import (
     AppendRequest,
     Decision,
@@ -124,13 +126,12 @@ class DecisionsWorker:
                 and t.epoch == source.epoch
                 and t.state not in {"succeeded", "failed", "cancelled"}
             ]
-            result = (
-                await self.classifier.classify(source, context, tasks)
-                if self.enabled
-                else {"route": "ignore", "reason_code": "agent_disabled_no_replay"}
-            )
-            if source.kind == "conversation.converse":
+            if not self.enabled:
+                result = {"route": "ignore", "reason_code": "agent_disabled_no_replay"}
+            elif source.kind == "conversation.converse":
                 result = {"route": "ignore", "reason_code": "assistant_has_no_user_authority"}
+            else:
+                result = await self.classifier.classify(source, context, tasks)
             if source.payload.get("outcome_event_id"):
                 result = {"route": "ignore", "reason_code": "outcome_feedback_loop_prevented"}
             target = next((t for t in tasks if t.task_id == result.get("target_task_id")), None)
@@ -163,6 +164,37 @@ class DecisionsWorker:
             )
         if not self.enabled or decision.route == "ignore":
             return decision
+        try:
+            await self.dispatch(source, decision)
+        except (httpx.HTTPStatusError, ValueError) as exc:
+            # A task can finish or advance revisions during classification. Replaying
+            # that same stale control forever must not block later user messages.
+            if isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code not in {
+                403,
+                404,
+                409,
+            }:
+                raise
+            await self.journal.append(
+                AppendRequest(
+                    session_id=source.session_id,
+                    thread_id=source.thread_id,
+                    epoch=source.epoch,
+                    kind="routing.dispatch",
+                    payload={
+                        "decision_id": decision.decision_id,
+                        "state": "rejected",
+                        "reason": "source_or_target_changed",
+                        "target_task_id": decision.target_task_id,
+                        "error_type": type(exc).__name__,
+                    },
+                    causes=[source.event_id],
+                    idempotency_key=f"dispatch-rejected:{decision.decision_id}",
+                )
+            )
+        return decision
+
+    async def dispatch(self, source, decision):
         if decision.route == "queue":
             await self.agent.submit(
                 TaskRequest(
@@ -199,7 +231,6 @@ class DecisionsWorker:
                 ),
                 actor="decisions",
             )
-        return decision
 
     async def tick(self):
         cursor = await self.journal.cursor(self.consumer)

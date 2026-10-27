@@ -444,7 +444,7 @@ def run_search(
             try:
                 if cand.is_symlink() and not cand.exists():
                     continue
-                text = cand.read_text(encoding="utf-8", errors="strict")
+                text = policy.read_bytes(cand, READ_LIMIT).decode("utf-8", errors="strict")
             except (OSError, UnicodeDecodeError, ValueError):
                 continue
             for lineno, line in enumerate(text.splitlines(), 1):

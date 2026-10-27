@@ -25,7 +25,7 @@ ALLOWED_KINDS = {
         "approval.resolved",
         "artifact.updated",
     },
-    "decisions": {"routing.decided"},
+    "decisions": {"routing.decided", "routing.dispatch"},
     "resources": {"resource.changed"},
 }
 
