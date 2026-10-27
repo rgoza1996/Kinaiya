@@ -1,6 +1,6 @@
 # Kinaiya — Product Specification, Technical Plan, and Roadmap
 
-**Specification version:** 0.2  
+**Specification version:** 0.2.1  
 **Decision baseline:** October 26, 2026  
 **Status:** Pre-implementation design baseline. Requirements and acceptance criteria below are not claims of implemented functionality.  
 **Repository:** `rgoza1996/Kinaiya`  
@@ -65,7 +65,7 @@ Kinaiya Agent starts with a minimal protected core and a usable seed harness. It
 
 This is not restricted to changing a system prompt, selecting a predefined workflow, or generating JSON configuration. The agent must eventually be able to implement new context strategies, tool wrappers, planning behavior, memory retrieval, delegation policies, and execution helpers in code.
 
-**Research question:** Under equal and explicitly recorded budgets, can model- and task-specific generated harnesses outperform a fixed baseline without changing the objective, corrupting evaluation, or bypassassing permissions?
+**Research question:** Under equal and explicitly recorded budgets, can model- and task-specific generated harnesses outperform a fixed baseline without changing the objective, corrupting evaluation, or bypassing permissions?
 
 Improvement is a hypothesis to test, not a promised outcome of every experiment. Rejected candidates and negative results are valid research output.
 
@@ -95,7 +95,7 @@ The platform is Kinaiya. Korina is the initial/default character identity. Users
 | D12 | The trusted core is immutable to Agent and extensions. | Self-building must not rewrite permission enforcement, goals, or evaluation rules. |
 | D13 | Converse prefers local GPU inference; Agent may use local or cloud models. | Resource management and provider adapters are first-class components. |
 | D14 | A constrained machine may unload Converse to make room for local work. | The application and standalone Agent remain usable during the handoff. |
-| D15 | Permissions are user-configurable, including YOLO mode. | Users can grant broad autonomy without silently surrendering the protected core. |
+| D15 | Permissions are user-configurable, including YOLO mode. | Users can grant broad action autonomy without silently surrendering the protected core. |
 | D16 | Flutter is the application framework. | Desktop, web, Android, and iOS share UI/protocol code; native integration is still required where applicable. |
 | D17 | Spritesheets and JSON manifests are the character format. | Skeletal and layered animation are not required for this roadmap. |
 | D18 | Animation communicates real state; Converse directs emotional expression. | Motion is presentation, not a substitute for task evidence. |
@@ -109,7 +109,8 @@ The platform is Kinaiya. Korina is the initial/default character identity. Users
 | D26 | Users can point Agent at ClawHub or a GitHub repository to install skills. | Support discovery, inspection, pinned installation, activation, updates, removal, and rollback. |
 | D27 | MCP is a first-class Agent integration surface. | Connect local and remote MCP servers through the permission/tool broker, independently of Converse. |
 | D28 | Agent supports plugins and conventional extension management. | Provide a versioned executable plugin interface and explicit compatibility reporting for foreign runtimes. |
-| D29 | Kinaiya provides Hermes-style slash commands. | Share a command registry across Agent Chat and the interactive CLI, with discovery, skill commands, aliases, and direct controls. |
+| D29 | Hermes-style slash commands belong exclusively to Agent-facing interfaces. | Share a registry across Agent Chat and the Agent CLI; never expose its parser, autocomplete, or command palette in Converse. |
+| D30 | Converse is designed for non-developers. | Use ordinary voice/text conversation, clearly labeled buttons, and approachable settings; technical commands are neither required nor presented as its interaction model. |
 
 **Proposed engineering defaults, not additional owner requirements:** Python for the initial host services, SQLite behind a single local storage service, JSON Schema for contracts, authenticated HTTP/WebSocket control transport, and a WebRTC-based mobile media layer. Specific libraries, versions, and endpoint names remain replaceable implementation choices.
 
@@ -641,7 +642,15 @@ An optional minimized floating companion is a later desktop surface, not a repla
 
 ### 15.5 Command palette and extension management
 
-Agent Chat provides `/` autocomplete, searchable command help, argument hints, and a non-text command palette backed by the same registry as the interactive CLI. A skills/MCP/plugins management surface supports discovery, install/configure, enable/disable, health, update, and removal. These ordinary application controls do not depend on intelligent UI generation or on Converse being loaded. Sections 31–32 define behavior and permission boundaries.
+Agent Chat provides `/` autocomplete, searchable command help, argument hints, and an Agent-only non-text command palette backed by the same registry as the interactive Agent CLI. A skills/MCP/plugins management surface supports discovery, install/configure, enable/disable, health, update, and removal. These ordinary application controls do not depend on intelligent UI generation or on Converse being loaded. Sections 31–32 define behavior and permission boundaries.
+
+### 15.6 Converse is command-free and non-developer-friendly
+
+Converse has no slash-command parser, command palette, slash autocomplete, or requirement to learn technical command names. This applies to Character View, any Converse text interface, the floating companion, and Converse's mobile/call surfaces. Plugin installation must not add command UI to those surfaces.
+
+Users interact through ordinary speech or text and clearly labeled controls. For example, they can say “stop working on that,” ask “what are you doing?”, change a voice through settings, or approve an explained action through a button. Natural-language task requests still follow Decisions and the existing permission rules; the interface must not ask users to retype them as slash commands.
+
+Keep essential controls, account setup, and permission explanations approachable. Advanced Agent tooling is available when the user deliberately opens Agent Chat or the Agent CLI, not imposed on the conversational experience. Both experiences can access authorized capabilities without forcing non-developers to operate the technical command interface.
 
 ## 16. Character packs and animation
 
@@ -1237,6 +1246,8 @@ Use blinded or randomized listening where feasible. Do not optimize personality 
 | AT44 | Slash-like text appears in code, a quote, a tool result, or an unknown command. | No accidental command execution; escaped text is literal and unknown commands show suggestions. |
 | AT45 | A quick-command alias loops, includes shell metacharacters, or attempts a policy change. | Cycles/invalid arguments are rejected; execution uses explicit policy and authenticated user authority. |
 | AT46 | A task is resumed after plugin/skill/harness updates. | Recorded versions remain available or incompatibility is reported; no silent dependency substitution. |
+| AT47 | A user enters slash-like text or discusses a command in Converse. | No command parser, command autocomplete, or direct slash dispatch runs; ordinary conversation remains available. |
+| AT48 | A plugin adds commands or the user switches between Agent Chat and Converse on desktop/mobile. | Command controls remain Agent-only; Converse retains natural-language input, plain controls, and no leaked command palette or slash shortcuts. |
 
 Contract and deterministic safety tests should run in ordinary CI without paid APIs or GPUs. Hardware/provider tests run in a separate opt-in tier. Synthetic fixtures must remain clearly labeled.
 
@@ -1464,17 +1475,19 @@ For research comparisons, log the complete skill/MCP/plugin dependency set and p
 
 M1A establishes skill installation, MCP, and command foundations; M4A adds executable-plugin lifecycle and harness composition. Maintain a compatibility matrix by skill metadata profile, runtime/OS, plugin API version, MCP protocol/transport, and command surface.
 
-The first conformance set includes portable skills from both ecosystems, a script-bearing skill, a missing-prerequisite skill, a conflicting-name case, local/remote MCP fixtures, and a plugin with a command/hook. Tests must prove use, not only parsing or listing. AT33–AT46 cover the additional cross-system failure cases.
+The first conformance set includes portable skills from both ecosystems, a script-bearing skill, a missing-prerequisite skill, a conflicting-name case, local/remote MCP fixtures, and a plugin with a command/hook. Tests must prove use, not only parsing or listing. AT33–AT48 cover the additional cross-system failure cases and the Agent-only command boundary.
 
 ## 32. Slash commands and direct Agent controls
 
-### 32.1 Interaction model
+### 32.1 Interaction model and Agent-only scope
 
-Kinaiya should feel familiar to someone using Hermes: type `/` for discovery, select a command, see argument hints, and invoke a skill by name. Hermes documents a shared registry for multiple command surfaces and dynamic commands for installed skills; this is the interaction reference, not a promise to clone every Hermes command verbatim. [S16]
+Kinaiya Agent's work interface should feel familiar to someone using Hermes: type `/` for discovery, select a command, see argument hints, and invoke a skill by name. Hermes documents a shared registry for multiple command surfaces and dynamic commands for installed skills; this is the interaction reference, not a promise to clone every Hermes command verbatim. [S16]
 
-Use one versioned command registry for Agent Chat, interactive CLI, help, autocomplete, and the Flutter command palette. Later messaging/mobile surfaces consume the same definitions and explicitly declare any unavailable commands. No LLM inference is needed merely to discover, parse, authorize, or dispatch a deterministic control.
+**Slash commands belong exclusively to Agent-facing interfaces. Converse has no slash commands.** Character View, Converse text input, the floating companion, and Converse's mobile/call experience stay natural-language-first and friendly to non-developers. They do not register a slash parser, display command suggestions, or expose a technical command palette.
 
-Each definition includes canonical ID/name, aliases, description, argument schema, execution type, owner/origin, supported surfaces, permission requirements, target scope, confirmation behavior, and availability. Help shows why an installed command is unavailable, such as a missing credential, disabled plugin, unloaded provider, or unsupported adapter capability.
+Use one versioned command registry for Agent Chat, the interactive Agent CLI, Agent help/autocomplete, and an Agent-only Flutter command palette. Later messaging/mobile surfaces may consume those definitions only when explicitly operating as an Agent interface; sharing the Flutter application or transport does not make commands globally available. No LLM inference is needed merely to discover, parse, authorize, or dispatch a deterministic Agent control.
+
+Each definition includes canonical ID/name, aliases, description, argument schema, execution type, owner/origin, supported Agent surfaces, permission requirements, target scope, confirmation behavior, and availability. Help shows why an installed command is unavailable, such as a missing credential, disabled plugin, unloaded provider, or unsupported adapter capability. Plugin-defined commands inherit the same Agent-only restriction.
 
 ### 32.2 Dispatch classes and routing
 
@@ -1529,16 +1542,18 @@ Support user aliases to existing commands and optional execution shortcuts. Pref
 
 ### 32.5 Parsing, safety, and feedback
 
-Recognize commands only from an explicit command input/palette submission, with a documented leading-slash grammar. Code blocks, pasted paths, quoted messages, and tool output are not commands. Provide a literal-text escape and do not send an unknown `/command` to the LLM as though it were a valid action; show help/suggestions instead.
+Recognize slash commands only from an explicit Agent command input/palette submission, with a documented leading-slash grammar. Converse input is never parsed or forwarded as a slash-command invocation; slash-like text there remains conversational content. Natural-language requests continue to use Decisions and normal authorization, not an implicit command bridge.
+
+Within Agent interfaces, code blocks, pasted paths, quoted messages, and tool output are not commands. Provide a literal-text escape and do not send an unknown `/command` to the LLM as though it were a valid action; show help/suggestions instead. This command-validation behavior must not introduce command-error screens into Converse.
 
 Do not treat command arguments as a shell program unless the user deliberately configured that command type. Handle quoting, Unicode, multiline arguments, and redaction consistently across CLI and Flutter. Sensitive setup fields belong in secure input controls, not saved chat text.
 
 Every command returns an immediate structured acknowledgment or validation error. Long-running work returns a task/install-operation ID and progress, not a premature completion message. Duplicate transport submissions use idempotency keys, and clients show the real result after reconnect.
 
-Command availability is capability-driven for external Agent adapters. Never forward a Kinaiya slash command blindly into another runtime with potentially different semantics. Translate through the adapter or label it unsupported. GUI buttons and slash commands should exercise the same underlying handlers so their permissions and behavior cannot drift.
+Command availability is capability-driven for external Agent adapters. Never forward a Kinaiya slash command blindly into another runtime with potentially different semantics. Translate through the adapter or label it unsupported. GUI buttons and slash commands should exercise the same underlying authorized operations so permissions and behavior cannot drift; sharing those operations does not expose command syntax or a command parser to Converse users.
 
 ### 32.6 Delivery criteria
 
-Ship the registry, help/autocomplete, direct status/stop controls, session/model selection, and skill invocations in M1A. Add plugin-provided commands and user execution shortcuts with M4A. Add richer UI/messaging presentation only after those shared semantics are tested.
+Ship the registry, help/autocomplete, direct status/stop controls, session/model selection, and skill invocations in M1A. Add plugin-provided commands and user execution shortcuts with M4A. Add richer Agent UI/messaging presentation only after those shared semantics are tested. AT47–AT48 must also verify that Converse remains command-free after plugin activation, view changes, and mobile integration.
 
-The required result is an Agent that remains practical to operate like a conventional agent while retaining Kinaiya's adaptive harness: users can discover capabilities, install a skill, connect an MCP server, run a workflow, inspect work, or stop it without involving Converse or paying for a model call just to manipulate application controls.
+The required result is an Agent that remains practical to operate like a conventional agent while retaining Kinaiya's adaptive harness: users can discover capabilities, install a skill, connect an MCP server, run a workflow, inspect work, or stop it without involving Converse or paying for a model call just to manipulate application controls. Converse remains the separate, approachable conversational experience; users do not need to learn these commands to talk with their character or request authorized work.
