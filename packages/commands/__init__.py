@@ -78,7 +78,7 @@ class Registry:
                     "description": description,
                     "syntax": "/" + name + (" " + syntax if syntax else ""),
                     "arguments_schema": {"type": "array", "items": {"type": "string"}},
-                    "execution_type": "runtime_control",
+                    "execution_type": "skill_invocation" if name == "skill" else "runtime_control",
                     "origin": "kinaiya-core",
                     "surfaces": ["agent-chat", "agent-cli"],
                     "permissions": ["owner"],

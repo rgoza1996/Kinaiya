@@ -294,6 +294,7 @@ class CommandDef {
     this.origin = '',
     this.aliases = const [],
     this.syntax = '',
+    this.executionType = '',
   });
 
   factory CommandDef.fromJson(Map<String, Object?> json) {
@@ -304,6 +305,7 @@ class CommandDef {
       origin: json['origin'] as String? ?? '',
       aliases: (json['aliases'] as List? ?? []).cast<String>(),
       syntax: json['syntax'] as String? ?? '',
+      executionType: json['execution_type'] as String? ?? '',
     );
   }
 
@@ -313,6 +315,19 @@ class CommandDef {
   final String origin;
   final List<String> aliases;
   final String syntax;
+
+  /// Backend-declared execution class. `runtime_control` runs a
+  /// deterministic owner-authenticated handler without model inference;
+  /// `skill_invocation` starts normal Agent work. Unknown or missing
+  /// classes fail closed to inference so they cannot bypass consent.
+  /// The `skill` entry is always inference even when a stale backend still
+  /// labels it `runtime_control` (Lead corrects it to `skill_invocation`).
+  final String executionType;
+
+  bool get isDeterministic =>
+      executionType == 'runtime_control' && name != 'skill';
+
+  bool get requiresInference => !isDeterministic;
 
   bool matches(String input) => name == input || aliases.contains(input);
 }

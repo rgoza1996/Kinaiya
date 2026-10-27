@@ -29,6 +29,18 @@ cost. Provider billing receipts are unavailable; catalog-derived dollars are est
 Requests bypassing the proxy are forbidden for development workers. No Wonder calls
 are authorized by the current implementation assignment.
 
+The proxy supports only the metered `POST /v1/responses`, read-only model discovery
+and its local budget endpoint. A nonblocking OS file lock owns the ledger for the
+server lifetime; writes use an owner-only temporary file, fsync and atomic replace.
+Restart reconciliation preserves prior admission charges and every unresolved
+reservation, including requests whose usage is absent or malformed. Only complete
+nonnegative integer input/output counters (with consistent legacy aliases and valid
+cached-token counts) release a reservation. The persisted usage is normalized to
+counts, excluding arbitrary upstream debug fields. This is development admission
+control, not a provider invoice, multi-user quota service or protection against a
+device administrator altering the ledger. Offline regression tests use synthetic
+upstreams; no credentials or paid inference are needed.
+
 Benchmark methodology: synthetic fixtures, independent supervisor evidence, same
 model/tool/token limits for comparisons, and explicit sample counts. Generated/decoded
 audio timing is distinct from audible playback. Never label server timestamps as

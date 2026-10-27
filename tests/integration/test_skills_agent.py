@@ -165,6 +165,10 @@ async def test_owner_lifecycle_commands_use_no_model_and_preserve_builtin_stop(e
 async def test_explicit_manual_skill_command_is_a_normal_idempotent_agent_task(env):
     root, workspace, _, session, service, provider, runtime, commands = env
     skill_id = await activate(service, package(root / "source", extra="manual-only: true\n"))
+    await commands.refresh_skill_commands()
+    definitions = {row["name"]: row for row in commands.definitions()["commands"]}
+    assert definitions["skill"]["execution_type"] == "skill_invocation"
+    assert definitions["recipe"]["execution_type"] == "skill_invocation"
     provider.responses.extend(
         [
             json.dumps(
@@ -426,5 +430,8 @@ async def test_large_command_catalog_uses_bounded_pages_and_qualified_ids(env):
     await commands.refresh_skill_commands()
     definitions = commands.definitions()
     assert definitions["skill_commands_truncated"] is True
-    assert not any(row["execution_type"] == "skill_invocation" for row in definitions["commands"])
+    assert not any(
+        row["execution_type"] == "skill_invocation" and row["name"] != "skill"
+        for row in definitions["commands"]
+    )
     assert len((await service.list_owner(after=64))["skills"]) == 1
