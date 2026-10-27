@@ -64,13 +64,7 @@ class _BookSheetState extends State<BookSheet> {
         ),
       ),
       actions: [
-        TextButton(
-          onPressed: () {
-            Navigator.of(context).pop();
-            widget.onOpenAgent();
-          },
-          child: const Text('Skip'),
-        ),
+        TextButton(onPressed: widget.onOpenAgent, child: const Text('Skip')),
         if (_index < _panels.length - 1)
           FilledButton(
             onPressed: () => _pages.nextPage(

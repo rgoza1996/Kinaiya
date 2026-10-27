@@ -21,6 +21,31 @@ AppState wiredState() {
 }
 
 void main() {
+  testWidgets(
+    'skipping the mascot Agent introduction keeps the home route during a resource pause',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      final state = wiredState()
+        ..converseEnabled = false
+        ..resourcePhase = 'local_work'
+        ..resourcesConfigured = true;
+      await tester.pumpWidget(KinaiyaApp(state: state));
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.tap(find.bySemanticsLabel('Open Agent Chat'));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('A short note before Agent Chat'), findsOneWidget);
+      await tester.tap(find.text('Skip'));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(state.view, AppView.agent);
+      expect(find.text('Kinaiya'), findsOneWidget);
+      expect(find.text('Send task'), findsOneWidget);
+      expect(find.byType(AlertDialog), findsNothing);
+      await tester.pumpWidget(const SizedBox.shrink());
+      state.dispose();
+      semantics.dispose();
+    },
+  );
+
   testWidgets('converse has no command UI; slash text stays ordinary', (
     tester,
   ) async {

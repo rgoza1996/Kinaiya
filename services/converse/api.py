@@ -66,12 +66,12 @@ def create_app(runtime, auth, speech=None):
         except ValueError as exc:
             raise HTTPException(409, str(exc)) from exc
 
-    @app.post("/v1/converse/enabled", dependencies=owner)
+    @app.post("/v1/converse/enabled", dependencies=[Depends(auth.require("owner", "resources"))])
     async def enabled(request: EnabledRequest):
+        runtime.enabled = request.enabled
         if not request.enabled:
             for session_id in list(runtime.playback):
                 await runtime.interrupt(session_id)
-        runtime.enabled = request.enabled
         return {"enabled": runtime.enabled}
 
     @app.post("/v1/converse/delivery", dependencies=owner)
@@ -83,11 +83,15 @@ def create_app(runtime, auth, speech=None):
 
     @app.post("/v1/converse/transcribe", dependencies=owner)
     async def transcribe(file: UploadFile):
+        if not runtime.enabled:
+            raise HTTPException(409, "Converse is off; direct Agent Chat remains available")
         if speech is None:
             raise HTTPException(503, "Configure an STT provider in settings")
         data = await file.read(10_000_001)
         if len(data) > 10_000_000:
             raise HTTPException(413, "Recording exceeds 10 MB temporary limit")
+        if not runtime.enabled:
+            raise HTTPException(409, "Converse is off; direct Agent Chat remains available")
         return await speech.transcribe(data, file.filename or "recording.wav")
 
     @app.post("/v1/converse/speech", dependencies=owner)

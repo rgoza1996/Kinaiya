@@ -150,6 +150,15 @@ def create_app(runtime: AgentRuntime, auth: Any, commands=None) -> FastAPI:
             return {"servers": []}
         return {"servers": host.list_servers()}
 
+    @app.get("/v1/resources")
+    async def resources(actor: str = Depends(require_owner)):
+        if runtime.resource_client is None:
+            return {"configured": False}
+        try:
+            return await runtime.resource_client.status()
+        except Exception as exc:
+            raise HTTPException(503, "Resource coordination is unavailable") from exc
+
     @app.post("/v1/approvals/{approval_id}/resolve")
     async def resolve_approval(
         approval_id: str, body: ApprovalResolution, actor: str = Depends(require_owner)

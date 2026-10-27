@@ -116,6 +116,7 @@ class AgentRuntime:
         selector_registry=None,
         mcp_host: Any | None = None,
         skill_service: Any | None = None,
+        resource_client: Any | None = None,
     ) -> None:
         self.journal = journal
         self.provider = provider
@@ -127,6 +128,7 @@ class AgentRuntime:
         # mcp_list/mcp_call tools are unknown and honestly unavailable.
         self.mcp_host = mcp_host
         self.skill_service = skill_service
+        self.resource_client = resource_client
         self._tasks: dict[str, _Record] = {}
         # Scoped (session_id, idempotency_key) so keys never collide across
         # sessions; restored by recover for terminal and paused tasks alike.
@@ -576,6 +578,10 @@ class AgentRuntime:
         workers: list[tuple[_Record, asyncio.Task[None]]] = []
         for rec in self._tasks.values():
             if rec.task.state in TERMINAL:
+                # Completion evidence precedes the resource-release callback.
+                # Keep its client alive until bounded terminal cleanup finishes.
+                if rec.worker is not None and not rec.worker.done():
+                    workers.append((rec, rec.worker))
                 continue
             rec.closing = True
             rec.cancel_requested = True
@@ -602,6 +608,9 @@ class AgentRuntime:
         service, self.skill_service = self.skill_service, None
         if service is not None:
             service.close()
+        client, self.resource_client = self.resource_client, None
+        if client is not None:
+            await client.close()
 
     # -- approvals ------------------------------------------------------
     async def resolve_approval(
@@ -886,6 +895,22 @@ class AgentRuntime:
         finally:
             if self.skill_service is not None:
                 await self.skill_service.release_task(rec.task.task_id)
+            if self.resource_client is not None and rec.task.state in TERMINAL and not rec.closing:
+                try:
+                    await self.resource_client.task_finished(rec.task.task_id)
+                except Exception:
+                    # Native task evidence remains authoritative. Restoration
+                    # is a separate unconfirmed resource transition.
+                    print(
+                        json.dumps(
+                            {
+                                "service": "agent",
+                                "resource_restore": "unconfirmed",
+                                "task_id": rec.task.task_id,
+                            }
+                        ),
+                        flush=True,
+                    )
 
     async def _verify_finish_files(self, rec: _Record) -> str | None:
         """Re-read every file written in the current revision before accepting finish.

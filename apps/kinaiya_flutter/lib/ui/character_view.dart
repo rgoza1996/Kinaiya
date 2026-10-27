@@ -50,6 +50,7 @@ class _CharacterViewState extends State<CharacterView> {
   /// turn play strictly in order and never interleave.
   SpeechQueue _speechQueue = SpeechQueue();
   StreamSubscription<JournalEntry>? _noticeSubscription;
+  StreamSubscription<int>? _resourceSubscription;
   Future<void> _interruptBarrier = Future.value();
   bool _pollingBridge = false;
   int _captureEpoch = 0;
@@ -86,6 +87,21 @@ class _CharacterViewState extends State<CharacterView> {
         _enqueueSpeak(api, entry, _s.turnNonce, <String>{});
       }
     });
+    _resourceSubscription = _s.resourceStops.listen((_) {
+      if (!mounted) return;
+      _armOwner++;
+      _voiceRequest++;
+      _pendingClip = null;
+      _pollTimer?.cancel();
+      _speechQueue = SpeechQueue();
+      setState(() {
+        _armed = _recording = _speaking = _voiceBusy = _transcribing =
+            _clipOpen = false;
+      });
+      unawaited(_audio.stopArmed());
+      unawaited(_audio.cancelRecording());
+      unawaited(_audio.stopPlayback());
+    });
   }
 
   @override
@@ -116,6 +132,7 @@ class _CharacterViewState extends State<CharacterView> {
   void dispose() {
     _pollTimer?.cancel();
     _noticeSubscription?.cancel();
+    _resourceSubscription?.cancel();
     _armOwner++;
     _voiceRequest++;
     // Invalidate every in-flight callback: stale completions must not
@@ -139,7 +156,10 @@ class _CharacterViewState extends State<CharacterView> {
     if (api != null) {
       try {
         final health = await api.converseHealth();
-        widget.state.converseEnabled = (health['enabled'] as bool?) ?? true;
+        widget.state.converseEnabled =
+            ((health['enabled'] as bool?) ?? true) &&
+            !_s.resourceStatusStale &&
+            (_s.resourcesConfigured != true || _s.resourcePhase == 'ready');
       } catch (_) {
         // Factual status surfaces through the connection indicator.
       }
@@ -147,6 +167,8 @@ class _CharacterViewState extends State<CharacterView> {
   }
 
   AppState get _s => widget.state;
+  bool get _converseAvailable =>
+      _s.connected && _s.converseEnabled && !_s.resourceStatusStale;
 
   /// Sends a turn. Interruptible mid-SSE: when a turn is already in flight,
   /// the new utterance invalidates the old nonce first, so the old loop
@@ -155,7 +177,7 @@ class _CharacterViewState extends State<CharacterView> {
   Future<void> _send({String? overrideText, String inputMode = 'text'}) async {
     final text = (overrideText ?? _input.text).trim();
     final api = _s.client;
-    if (text.isEmpty || api == null || !_s.connected) return;
+    if (text.isEmpty || api == null || !_converseAvailable) return;
     final nonce = ++_s.turnNonce;
     _s.busyConverse = true;
     _speechQueue = SpeechQueue();
@@ -541,8 +563,9 @@ class _CharacterViewState extends State<CharacterView> {
       }
       return;
     }
-    if (!_s.connected || _s.client == null) return;
+    if (!_converseAvailable || _s.client == null) return;
     await _audio.configureVad(endSilenceMs: _endSilenceMs);
+    if (!mounted || owner != _armOwner || !_converseAvailable) return;
     final result = await _audio.startArmed();
     if (!mounted || owner != _armOwner) return;
     if (result != 'armed') {
@@ -663,9 +686,17 @@ class _CharacterViewState extends State<CharacterView> {
   }
 
   Future<void> _importRecording() async {
+    if (!_converseAvailable) return;
+    final request = ++_voiceRequest;
     final recording = await _audio.chooseRecording();
     final api = _s.client;
-    if (!mounted || !_s.connected || recording == null || api == null) return;
+    if (!mounted ||
+        !_converseAvailable ||
+        request != _voiceRequest ||
+        recording == null ||
+        api == null) {
+      return;
+    }
     await _onBarge();
     setState(() => _mood = 'listening');
     try {
@@ -685,6 +716,7 @@ class _CharacterViewState extends State<CharacterView> {
   }
 
   Future<void> _toggleMic() async {
+    if (!_converseAvailable) return;
     if (_armed) {
       _s.appendHistory(
         AppView.character,
@@ -737,8 +769,15 @@ class _CharacterViewState extends State<CharacterView> {
       }
       return;
     }
+    final request = ++_voiceRequest;
     final status = await _audio.startRecording();
-    if (!mounted) return;
+    // Pause/disposal already cancel the adapter's pending mic generation.
+    // An older completion must never cancel a newer user-owned recording.
+    if (!mounted || request != _voiceRequest) return;
+    if (!_converseAvailable) {
+      await _audio.cancelRecording();
+      return;
+    }
     if (status == 'recording') {
       setState(() {
         _recording = true;
@@ -775,10 +814,14 @@ class _CharacterViewState extends State<CharacterView> {
         final pack = snap.data;
         return Column(
           children: [
-            if (!_s.converseEnabled)
+            if (_s.resourceStatusStale || !_s.converseEnabled)
               MaterialBanner(
-                content: const Text(
-                  'Converse is off. Direct Agent Chat remains available.',
+                content: Text(
+                  _s.resourceStatusStale
+                      ? 'Resource status is unavailable. Voice availability is unconfirmed; Agent Chat remains available.'
+                      : _s.resourcePhase == 'local_work'
+                      ? 'Voice is paused for local work. Agent Chat and approvals remain available.'
+                      : 'Converse is off. Direct Agent Chat remains available.',
                 ),
                 actions: [
                   TextButton(
@@ -848,7 +891,7 @@ class _CharacterViewState extends State<CharacterView> {
                                   ? Theme.of(context).colorScheme.primary
                                   : null,
                             ),
-                            onPressed: _s.connected
+                            onPressed: _converseAvailable
                                 ? () => _setArmed(!_armed)
                                 : null,
                           ),
@@ -890,7 +933,9 @@ class _CharacterViewState extends State<CharacterView> {
                           IconButton(
                             tooltip: 'Use audio recording',
                             icon: const Icon(Icons.audio_file),
-                            onPressed: _s.connected ? _importRecording : null,
+                            onPressed: _converseAvailable
+                                ? _importRecording
+                                : null,
                           ),
                         if (_voiceReady && !_armed)
                           IconButton(
@@ -898,7 +943,7 @@ class _CharacterViewState extends State<CharacterView> {
                                 ? 'Stop recording'
                                 : 'Record voice',
                             icon: Icon(_recording ? Icons.stop : Icons.mic),
-                            onPressed: _s.connected ? _toggleMic : null,
+                            onPressed: _converseAvailable ? _toggleMic : null,
                           ),
                         Expanded(
                           child: TextField(
@@ -923,7 +968,7 @@ class _CharacterViewState extends State<CharacterView> {
                           ),
                         FilledButton(
                           onPressed:
-                              _s.connected &&
+                              _converseAvailable &&
                                   !_s.busyConverse &&
                                   _s.converseDraft.trim().isNotEmpty
                               ? () => _send()

@@ -454,6 +454,9 @@ class KinaiyaClient {
   Future<Map<String, Object?>> agentHealth() =>
       _get(agentBase, '/health', auth: false);
 
+  Future<Map<String, Object?>> resourceStatus() =>
+      _get(agentBase, '/v1/resources');
+
   // -- Agent-only command registry (Lead-owned; absence is honest) ---------
 
   /// Returns null when the endpoint is unavailable; never fakes execution.

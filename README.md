@@ -240,6 +240,12 @@ are disabled by default; a clean-machine model installer is still a roadmap task
 Ming 3 Tiny, VibeVoice Realtime 0.5B and Supertonic 3 remain selected candidates with
 unconfigured backends; they are not represented as verified integrations.
 
+An opt-in [CPU voice resource coordinator](docs/adr/0013-resource-handoff.md)
+can own that worker, verify process release for an explicit local-work handoff,
+and restore voice when a bound Agent task finishes. `/resources` controls stay
+in Agent Chat; approvals remain usable while Converse is paused. GPU scheduling,
+local text-model unloading and complete M6 reliability remain open.
+
 Provider keys belong in secret references/environment variables. Development Meta
 Contributor profiles are for public code and synthetic inputs only. The live test
 requires an explicit paid-inference flag and a budget proxy; ordinary CI is offline
