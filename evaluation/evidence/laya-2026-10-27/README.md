@@ -53,6 +53,12 @@ original worker. A real boundary probe first caught upstream fallback for an
 unknown short model alias; a strict pre-inference alias guard fixed it. The
 retained failure and successful single/batch/auth checks are in the v4 report.
 Resource-coordinator ownership and the broader voice gates remain open.
+The same pinned worker also passed the broader native profile in the separately
+provisioned CPU environment (five classifier calls around 2.10–2.19 seconds).
+The CPU startup watcher had a stamp-filename error, so no CPU startup latency is
+claimed. The current change passed 706 local Python tests, Ruff and unchanged
+contract export. A bounded read-only actual Muse Contributor/xhigh review found
+no actionable issues; it did not run tests and is not human approval.
 
 These are consulted development results. V1 missed a mandatory cancellation;
 v2 confused stopping speech with stopping work. V3's perfect development result
@@ -169,6 +175,6 @@ vocabulary bytes were unchanged by this compatibility normalization. Unversioned
 local paths do not become Hub revisions. The opt-in first-party worker now
 supports explicit manifest identity; unpinned local paths still report not ready.
 
-The implementation's deterministic suite passed 653 Python and 15 Node tests,
+The original adapter's deterministic suite passed 653 Python and 15 Node tests,
 Ruff, unchanged contract export and dependency audit. Real Laya probe failures
 remain failures; CI fixtures do not convert them into a successful promotion.

@@ -1741,6 +1741,246 @@
       "actual_http_status": 200,
       "cause": "Upstream resolves unknown short alias to auto-routing; single-model registry prevented other model loads, but explicit alias must also be required. Added PinnedRouter predict/predict_batch guards before retry.",
       "heldout_requeried": false
+    },
+    "cpu": {
+      "startup": {
+        "recorded_unix": 1793144240.1632128,
+        "pid": 626286,
+        "health": {
+          "status": "ok",
+          "loaded": [
+            "kinaiya-v4"
+          ],
+          "revisions": {
+            "kinaiya-v4": null
+          },
+          "device": "cpu",
+          "device_is_preference": false,
+          "checkpoint_devices": {
+            "kinaiya-v4": "cpu"
+          },
+          "cpu_fallbacks": {
+            "kinaiya-v4": {
+              "count": 0,
+              "last_reason": null
+            }
+          }
+        },
+        "artifact_sha256": "5363e1728bf8026ca0a9a248d9e2c3b125f3de08888ba4b9c133531260798339",
+        "worker_sha256": "a09d54074129973ddd349486f026a7a03be2869ff4b3bd99369c85f980355fd4",
+        "startup_seconds": null,
+        "condition": "Existing clean CPU environment, verified private snapshot, no downloads. Startup watcher observed readiness but failed reading the CPU stamp because launcher used shared GPU stamp filename. Corrected filename; no startup latency claimed and no server restart needed."
+      },
+      "native": {
+        "record_sha256": "fdaabbefd46c6eda241bc2778e5059a7ca2cb63123742385a70a078afc140be4",
+        "context_profile": "preceding_converse",
+        "all_passed": true,
+        "cases": [
+          {
+            "case": "unfinished",
+            "status": "passed",
+            "classifier_seconds": 2.1862638119928306,
+            "decision": {
+              "schema_version": "1.0",
+              "decision_id": "window-26ff2efb12413bc781f6e7837e8c4259",
+              "prompt_chars": 1642,
+              "history_chars": 60,
+              "context_entries": 1,
+              "classification_reused": false,
+              "source_event_id": "6e54cb9d-76f7-479f-8a9a-0a22274f0797",
+              "source_sequence": 3,
+              "source_revision": 1,
+              "conversation": "WAIT_FOR_NEXT_WINDOW",
+              "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
+              "target_task_id": null,
+              "expected_objective_revision": null,
+              "reason_code": "laya_typed_choices",
+              "classifier_ms": 2098.809393995907
+            },
+            "native_task_id": "f850a3ae-4450-4f16-a0ac-a6ebf62950e3",
+            "no_new_work_or_reply": true,
+            "journal_kinds": [
+              "agent.command",
+              "conversation.converse",
+              "conversation.window",
+              "routing.window_status",
+              "routing.window_decided",
+              "routing.window_status",
+              "converse.window_state"
+            ],
+            "files": {}
+          },
+          {
+            "case": "backchannel",
+            "status": "passed",
+            "classifier_seconds": 2.146638759993948,
+            "decision": {
+              "schema_version": "1.0",
+              "decision_id": "window-65f94fc5eca9e90dd98b19c9561eb3be",
+              "prompt_chars": 1619,
+              "history_chars": 60,
+              "context_entries": 1,
+              "classification_reused": false,
+              "source_event_id": "b0aec63b-8c8d-4969-8cc5-1d10074479f3",
+              "source_sequence": 3,
+              "source_revision": 1,
+              "conversation": "IGNORE",
+              "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
+              "target_task_id": null,
+              "expected_objective_revision": null,
+              "reason_code": "laya_typed_choices",
+              "classifier_ms": 2065.210203989409
+            },
+            "native_task_id": "b5110a97-ade1-4c09-9da3-2bdc00e8a4af",
+            "no_new_work_or_reply": true,
+            "journal_kinds": [
+              "agent.command",
+              "conversation.converse",
+              "conversation.window",
+              "routing.window_status",
+              "routing.window_decided",
+              "routing.window_status"
+            ],
+            "files": {}
+          },
+          {
+            "case": "steer",
+            "status": "passed",
+            "classifier_seconds": 2.1072898560087197,
+            "decision": {
+              "schema_version": "1.0",
+              "decision_id": "window-79acc9b43d2574ce49bb3abe7fc46e55",
+              "prompt_chars": 1637,
+              "history_chars": 60,
+              "context_entries": 1,
+              "classification_reused": false,
+              "source_event_id": "38b94cde-763e-4411-9475-0b20586e864a",
+              "source_sequence": 3,
+              "source_revision": 1,
+              "conversation": "RESPOND_WITHOUT_INTERRUPTING_USER",
+              "agent_route": "STEER_CURRENT_TASK",
+              "target_task_id": "8166a7f9-597b-4a53-87a9-ca1d4068bb88",
+              "expected_objective_revision": 1,
+              "reason_code": "laya_typed_choices",
+              "classifier_ms": 2028.9781559986295
+            },
+            "native_task_id": "8166a7f9-597b-4a53-87a9-ca1d4068bb88",
+            "approval_required_before_write": true,
+            "approval_digest": "sha256:a1b1af0f5b0457f30c4268fed92fd26a2393ca29587f98781a250ac26e545f83",
+            "journal_kinds": [
+              "agent.command",
+              "conversation.converse",
+              "conversation.window",
+              "routing.window_status",
+              "routing.window_decided",
+              "routing.window_status",
+              "agent.command",
+              "routing.window_dispatch",
+              "converse.window_state",
+              "converse.window_state",
+              "conversation.converse",
+              "agent.command",
+              "approval.requested",
+              "approval.resolved",
+              "agent.tool",
+              "agent.outcome"
+            ],
+            "files": {
+              "steered.txt": "75393b6fb37c6ce401cfa44dbe6fef46d13010dd61a2b51468cc477fc2997766"
+            }
+          },
+          {
+            "case": "interrupt",
+            "status": "passed",
+            "classifier_seconds": 2.0966022850043373,
+            "decision": {
+              "schema_version": "1.0",
+              "decision_id": "window-d48f7da623e1d48686eab0f19704aa5c",
+              "prompt_chars": 1633,
+              "history_chars": 60,
+              "context_entries": 1,
+              "classification_reused": false,
+              "source_event_id": "bd2c3a89-5044-4e56-a858-28956d66e94e",
+              "source_sequence": 3,
+              "source_revision": 1,
+              "conversation": "RESPOND_INTERRUPT_USER",
+              "agent_route": "INTERRUPT_CURRENT_TASK",
+              "target_task_id": "fb3fc10d-b4ab-473f-b917-feccc4fa58fc",
+              "expected_objective_revision": 1,
+              "reason_code": "laya_typed_choices",
+              "classifier_ms": 2012.6406630006386
+            },
+            "native_task_id": "fb3fc10d-b4ab-473f-b917-feccc4fa58fc",
+            "no_file_written": true,
+            "journal_kinds": [
+              "agent.command",
+              "conversation.converse",
+              "conversation.window",
+              "routing.window_status",
+              "routing.window_decided",
+              "routing.window_status",
+              "agent.command",
+              "routing.window_dispatch",
+              "converse.window_state",
+              "agent.outcome",
+              "converse.window_state",
+              "conversation.converse"
+            ],
+            "files": {}
+          },
+          {
+            "case": "queue",
+            "status": "passed",
+            "classifier_seconds": 2.148150038003223,
+            "decision": {
+              "schema_version": "1.0",
+              "decision_id": "window-602fc1d75e8a898212788e59cdee25ed",
+              "prompt_chars": 1646,
+              "history_chars": 60,
+              "context_entries": 1,
+              "classification_reused": false,
+              "source_event_id": "b89569f2-fa82-4255-873d-0bb2b8c8f71c",
+              "source_sequence": 3,
+              "source_revision": 1,
+              "conversation": "RESPOND_WITHOUT_INTERRUPTING_USER",
+              "agent_route": "QUEUE_UNTIL_TASK_DONE",
+              "target_task_id": "16ae7ba0-36f6-4ad7-80af-892542014c5c",
+              "expected_objective_revision": 1,
+              "reason_code": "laya_typed_choices",
+              "classifier_ms": 2062.8655869950308
+            },
+            "native_task_id": "16ae7ba0-36f6-4ad7-80af-892542014c5c",
+            "queued_until_native_completion": true,
+            "approval_required_for_partial_followup": true,
+            "replay_created_no_duplicate": true,
+            "journal_kinds": [
+              "agent.command",
+              "conversation.converse",
+              "conversation.window",
+              "routing.window_status",
+              "routing.window_decided",
+              "routing.window_status",
+              "routing.window_dispatch",
+              "converse.window_state",
+              "converse.window_state",
+              "conversation.converse",
+              "agent.tool",
+              "agent.outcome",
+              "agent.command",
+              "routing.window_dispatch",
+              "approval.requested",
+              "approval.resolved",
+              "agent.tool",
+              "agent.outcome"
+            ],
+            "files": {
+              "first.txt": "5efea180ad7b89255140e8399a84988847510226615303949552bd235c8f5084",
+              "followup.txt": "b8c26b3ebb5d93d5ecc211156eb3c7a4daa726d51e15d3a6b2b304d0721060f4"
+            }
+          }
+        ],
+        "limits": "Actual Laya classification and native tool effects; text input and Agent/Converse inference are synthetic. Not ASR, paid inference, audio playback or human microphone proof. Minimal is a positive control, not the broader-context acceptance gate."
+      }
     }
   },
   "data_files": {
@@ -1759,5 +1999,36 @@
     "Physical microphone, echo, audible latency and full voice acceptance remain unverified.",
     "Model weights are local measured artifacts, not distributed in this repository.",
     "The heldout split is consumed and must not inform further training/tuning."
-  ]
+  ],
+  "verification": {
+    "local_python_tests_passed": 706,
+    "command": "PYTHONPATH=. python -m pytest -m 'not live' -q",
+    "warning": "Existing Starlette/httpx test-client deprecation",
+    "ruff_check_and_format": "passed",
+    "contract_export": "passed; generated schemas unchanged",
+    "model_tests": "Actual pinned local GPU worker both native profiles and CPU worker broader profile passed; no Meta inference.",
+    "automated_review": {
+      "cli": "actual Muse Code CLI",
+      "model": "muse-spark-1.3-contributor",
+      "contributor_mode": "on",
+      "reasoning_effort": "xhigh",
+      "reviewed_code_head": "69db2e51e7c9d0682d310950c11a4755f86260c8",
+      "model_calls": 1,
+      "input_tokens": 25348,
+      "output_tokens": 15584,
+      "cached_input_tokens": 0,
+      "result": "No actionable findings within bounded inline artifact/worker/identity scope; no tests executed by reviewer; not human approval."
+    }
+  },
+  "meta_budget_checkpoint": {
+    "limit_usd": 25,
+    "admission_limit_usd": 22,
+    "billing_reported_usd": null,
+    "contributor_estimated_usd": 0.9153251140000002,
+    "admission_estimated_usd": 19.996421600000016,
+    "reserved_usd": 1.5558100499999998,
+    "conservative_including_reserves_usd": 21.552231650000017,
+    "new_calls_for_training_inference_probes": 0,
+    "new_calls_for_automated_review": 1
+  }
 }
