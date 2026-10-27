@@ -85,6 +85,11 @@ class _Record:
     pending: dict[str, Any] | None = None
     pending_steer: dict[str, Any] | None = None
     last_tool_ok: bool | None = None
+    # Set when a required effect (write/shell) fails in the current
+    # revision; cleared by a later successful write/shell or by steering.
+    # Reads/searches never clear it, so an unrelated read cannot hide a
+    # failed effect from finish.
+    failed_effect: bool = False
     cancel_requested: bool = False
     closing: bool = False
     proc_slot: dict[str, RunningProc | None] = field(default_factory=dict)
@@ -110,12 +115,23 @@ class AgentRuntime:
         self.policy = policy
         self.max_steps = max(1, int(max_steps))
         self._tasks: dict[str, _Record] = {}
-        self._submit_idem: dict[str, tuple[str, str]] = {}
+        # Scoped (session_id, idempotency_key) so keys never collide across
+        # sessions; restored by recover for terminal and paused tasks alike.
+        self._submit_idem: dict[tuple[str, str], tuple[str, str]] = {}
         self._closed = False
 
     # -- journal ------------------------------------------------------
     async def _append(self, rec: _Record, kind: str, payload: dict[str, Any]) -> None:
         rec.journal_seq += 1
+        # Every entry carries the task reference and top-level state so
+        # observers (Converse grounding, Decisions routing) can find the
+        # task without parsing nested blobs. Outcome entries additionally
+        # carry the complete Task snapshot, built by the caller.
+        payload = {
+            "task_id": rec.task.task_id,
+            "state": rec.task.state.value,
+            **payload,
+        }
         await self.journal.append(
             AppendRequest(
                 session_id=rec.task.session_id,
@@ -127,6 +143,23 @@ class AgentRuntime:
                 idempotency_key=f"agent:{rec.task.task_id}:{kind}:{rec.journal_seq}",
             )
         )
+
+    def _outcome_payload(self, rec: _Record, state: str, extra: dict[str, Any]) -> dict[str, Any]:
+        """Complete task snapshot for a terminal/awaiting outcome entry."""
+        return {
+            "task_id": rec.task.task_id,
+            "session_id": rec.task.session_id,
+            "thread_id": rec.task.thread_id,
+            "epoch": rec.task.epoch,
+            "objective": rec.task.objective,
+            "objective_revision": rec.task.objective_revision,
+            "idempotency_key": rec.task.idempotency_key,
+            "source_event_ids": list(rec.task.source_event_ids),
+            "evidence": [e.model_dump(mode="json") for e in rec.task.evidence],
+            "task": rec.task.model_dump(mode="json"),
+            **extra,
+            "state": state,
+        }
 
     # -- actors -------------------------------------------------------
     @staticmethod
@@ -141,20 +174,135 @@ class AgentRuntime:
             return
         raise PolicyDenied(f"{op} requires owner or decisions actor, got {actor!r}")
 
+    async def _require_session(self, session_id: str) -> Any:
+        """Fail closed when the session is unknown to the journal."""
+        try:
+            return await self.journal.session(session_id)
+        except Exception as exc:
+            raise ValueError(f"unknown session {session_id!r}") from exc
+
+    def _check_task_epoch(self, rec: _Record, session: Any) -> str | None:
+        """Return an error when the task's thread/epoch is no longer current."""
+        if (rec.task.thread_id, rec.task.epoch) != (session.thread_id, session.epoch):
+            return (
+                f"stale session epoch: task is thread {rec.task.thread_id} "
+                f"epoch {rec.task.epoch}, session is now thread "
+                f"{session.thread_id} epoch {session.epoch}; refusing to execute"
+            )
+        return None
+
+    async def _epoch_error(self, rec: _Record) -> str | None:
+        """Re-validate thread/epoch before a side effect or finish."""
+        try:
+            session = await self.journal.session(rec.task.session_id)
+        except Exception as exc:
+            return f"session unavailable before execution: {exc}"
+        return self._check_task_epoch(rec, session)
+
+    async def _validated_source_texts(
+        self,
+        source_event_ids: list[str],
+        *,
+        session_id: str,
+        thread_id: str,
+        epoch: int,
+        source_revision: int | None,
+        op: str,
+    ) -> list[str]:
+        """Resolve decisions-carried sources to exact authenticated user text.
+
+        Every source must resolve through the journal to a finalized,
+        authenticated-user ``conversation.user`` entry (or its authenticated
+        revision) in this session/thread/epoch and at the current source
+        revision. Classifier-invented, cross-session, stale, assistant, or
+        unfinalized sources are rejected.
+        """
+        resolve = getattr(self.journal, "resolve", None)
+        if resolve is None:
+            raise PolicyDenied(
+                f"decisions-routed {op} cannot be validated: journal has no resolve"
+            )
+        texts: list[str] = []
+        for source_id in source_event_ids:
+            try:
+                resolved = await resolve(source_id)
+            except Exception as exc:
+                raise PolicyDenied(
+                    f"decisions-routed {op} carries an unresolvable source {source_id!r}"
+                ) from exc
+            if (
+                resolved.session_id != session_id
+                or resolved.thread_id != thread_id
+                or resolved.epoch != epoch
+            ):
+                raise PolicyDenied(
+                    f"decisions-routed {op} source {source_id!r} is outside "
+                    "the current session/thread/epoch"
+                )
+            if resolved.kind != "conversation.user":
+                raise PolicyDenied(
+                    f"decisions-routed {op} source {source_id!r} is not a user message"
+                )
+            if resolved.origin != "authenticated-user":
+                raise PolicyDenied(
+                    f"decisions-routed {op} source {source_id!r} is not authenticated"
+                )
+            if resolved.payload.get("final") is not True:
+                raise PolicyDenied(
+                    f"decisions-routed {op} source {source_id!r} is not finalized"
+                )
+            current_revision = resolved.payload.get("revision", 1)
+            if source_revision is not None and source_revision != current_revision:
+                raise PolicyDenied(
+                    f"decisions-routed {op} source {source_id!r} is at revision "
+                    f"{current_revision}, request carries {source_revision}"
+                )
+            text = resolved.payload.get("text", "")
+            if not isinstance(text, str) or not text.strip():
+                raise PolicyDenied(
+                    f"decisions-routed {op} source {source_id!r} has no usable text"
+                )
+            texts.append(text)
+        return texts
+
     # -- interface: submit --------------------------------------------
     async def submit(self, request: TaskRequest, actor: str = "owner") -> Task:
         self._check_actor(actor, list(request.source_event_ids), "submit")
+        session = await self._require_session(request.session_id)
+        if (request.thread_id, request.epoch) != (session.thread_id, session.epoch):
+            raise StaleRevision(
+                f"submit targets thread {request.thread_id} epoch {request.epoch}; "
+                f"session is now thread {session.thread_id} epoch {session.epoch}"
+            )
+        objective = request.objective
+        if actor == "decisions":
+            texts = await self._validated_source_texts(
+                list(request.source_event_ids),
+                session_id=request.session_id,
+                thread_id=request.thread_id,
+                epoch=request.epoch,
+                source_revision=request.source_revision,
+                op="submit",
+            )
+            expected = "\n".join(texts)
+            if objective != expected:
+                raise PolicyDenied(
+                    "decisions-routed submit objective does not match "
+                    "the resolved authenticated source text"
+                )
+            objective = expected
         payload = {
             "session_id": request.session_id,
             "thread_id": request.thread_id,
             "epoch": request.epoch,
-            "objective": request.objective,
+            "objective": objective,
             "source_event_ids": list(request.source_event_ids),
             "source_revision": request.source_revision,
         }
         digest = _payload_hash(payload)
-        if request.idempotency_key in self._submit_idem:
-            old_digest, task_id = self._submit_idem[request.idempotency_key]
+        idem_key = (request.session_id, request.idempotency_key)
+        if idem_key in self._submit_idem:
+            old_digest, task_id = self._submit_idem[idem_key]
             if old_digest != digest:
                 raise IdemConflict("idempotency key reuses a conflicting submit payload")
             return self._copy(task_id)
@@ -162,7 +310,7 @@ class AgentRuntime:
             session_id=request.session_id,
             thread_id=request.thread_id,
             epoch=request.epoch,
-            objective=request.objective,
+            objective=objective,
             objective_revision=request.source_revision,
             state=TaskState.ACCEPTED,
             source_event_ids=list(request.source_event_ids),
@@ -170,16 +318,22 @@ class AgentRuntime:
         )
         rec = _Record(task=task)
         self._tasks[task.task_id] = rec
-        self._submit_idem[request.idempotency_key] = (digest, task.task_id)
+        self._submit_idem[idem_key] = (digest, task.task_id)
         await self._append(
             rec,
             "agent.command",
             {
                 "op": "submit",
                 "actor": actor,
-                "objective": request.objective,
+                "session_id": request.session_id,
+                "thread_id": request.thread_id,
+                "epoch": request.epoch,
+                "objective": objective,
                 "objective_revision": task.objective_revision,
                 "source_event_ids": list(request.source_event_ids),
+                "source_revision": request.source_revision,
+                "idempotency_key": request.idempotency_key,
+                "payload_digest": digest,
             },
         )
         rec.worker = asyncio.create_task(self._run(rec))
@@ -189,8 +343,25 @@ class AgentRuntime:
     async def steer(self, task_id: str, request: SteerRequest, actor: str = "owner") -> Task:
         rec = self._get(task_id)
         self._check_actor(actor, list(request.source_event_ids), "steer")
+        instruction = request.instruction
+        if actor == "decisions":
+            texts = await self._validated_source_texts(
+                list(request.source_event_ids),
+                session_id=rec.task.session_id,
+                thread_id=rec.task.thread_id,
+                epoch=rec.task.epoch,
+                source_revision=None,
+                op="steer",
+            )
+            expected = "\n".join(texts)
+            if instruction != expected:
+                raise PolicyDenied(
+                    "decisions-routed steer instruction does not match "
+                    "the resolved authenticated source text"
+                )
+            instruction = expected
         payload = {
-            "instruction": request.instruction,
+            "instruction": instruction,
             "expected_objective_revision": request.expected_objective_revision,
             "source_event_ids": list(request.source_event_ids),
         }
@@ -207,9 +378,12 @@ class AgentRuntime:
                 f"stale revision {request.expected_objective_revision}; "
                 f"current is {rec.task.objective_revision}"
             )
+        stale = await self._epoch_error(rec)
+        if stale is not None:
+            raise StaleRevision(stale)
         rec.steer_idem[request.idempotency_key] = (digest, task_id)
         rec.pending_steer = {
-            "instruction": request.instruction,
+            "instruction": instruction,
             "actor": actor,
             "source_event_ids": list(request.source_event_ids),
         }
@@ -237,9 +411,20 @@ class AgentRuntime:
             for e in rec.task.evidence
             if e.objective_revision == rec.task.objective_revision
         ]
-        rec.task.objective = pending["instruction"]
-        rec.task.objective_revision += 1
+        new_revision = rec.task.objective_revision + 1
+        # Keep the original goal and append the authenticated revision
+        # constraint; never silently replace the whole task with an
+        # isolated fragment. Any objective change invalidates prior evidence.
+        rec.task.objective = (
+            f"{rec.task.objective}\n\n[Revision {new_revision} constraint "
+            f"from {pending['actor']}]: {pending['instruction']}"
+        )
+        for source_id in pending["source_event_ids"]:
+            if source_id not in rec.task.source_event_ids:
+                rec.task.source_event_ids.append(source_id)
+        rec.task.objective_revision = new_revision
         rec.last_tool_ok = None
+        rec.failed_effect = False
         rec.history.append(
             {
                 "role": "user",
@@ -281,9 +466,23 @@ class AgentRuntime:
         rec = self._get(task_id)
         if actor not in ("owner", "decisions"):
             raise PolicyDenied(f"interrupt requires owner or decisions actor, got {actor!r}")
+        if actor == "decisions":
+            if not request.source_event_ids:
+                raise PolicyDenied(
+                    "decisions-routed interrupt must carry authentic user source event IDs"
+                )
+            await self._validated_source_texts(
+                list(request.source_event_ids),
+                session_id=rec.task.session_id,
+                thread_id=rec.task.thread_id,
+                epoch=rec.task.epoch,
+                source_revision=request.source_revision,
+                op="interrupt",
+            )
         payload = {
             "expected_objective_revision": request.expected_objective_revision,
             "reason": request.reason,
+            "source_event_ids": list(request.source_event_ids),
         }
         digest = _payload_hash(payload)
         if request.idempotency_key in rec.interrupt_idem:
@@ -298,6 +497,9 @@ class AgentRuntime:
                 f"stale revision {request.expected_objective_revision}; "
                 f"current is {rec.task.objective_revision}"
             )
+        stale = await self._epoch_error(rec)
+        if stale is not None:
+            raise StaleRevision(stale)
         rec.interrupt_idem[request.idempotency_key] = (digest, task_id)
         rec.cancel_requested = True
         rec.task.state = TaskState.CANCEL_REQUESTED
@@ -315,7 +517,9 @@ class AgentRuntime:
         return rec.task.model_copy(deep=True)
 
     # -- interface: status / wait / close ------------------------------
-    def status(self, task_id: str | None = None) -> Task | list[Task]:
+    # Async like every other AgentAdapter method, so the same adapter
+    # serves Decisions and HTTP clients without a sync/async split.
+    async def status(self, task_id: str | None = None) -> Task | list[Task]:
         if task_id is None:
             return [rec.task.model_copy(deep=True) for rec in self._tasks.values()]
         return self._copy(task_id)
@@ -399,34 +603,72 @@ class AgentRuntime:
     async def recover(self) -> list[Task]:
         """Rebuild task state from the journal without re-executing anything.
 
-        Uncertain non-terminal work resumes as paused: the owner must
-        explicitly resubmit. Writes are never blindly retried.
+        Reads the journal in bounded pages (<=200 entries, the journal
+        maximum). Terminal tasks are restored from their complete outcome
+        snapshots so Converse can ground on them, and submit idempotency is
+        restored under scoped (session, idempotency) keys. Uncertain
+        non-terminal work resumes as paused: the owner must explicitly
+        resubmit. No worker is ever recreated, so an acknowledged write is
+        never replayed after a restart.
         """
-        entries = await self.journal.read(after=0, limit=10000)
         seen: dict[str, dict[str, Any]] = {}
-        outcomes: set[str] = set()
-        for entry in entries:
-            refs = entry.task_refs or []
-            if entry.kind == "agent.command" and entry.payload.get("op") == "submit":
-                for ref in refs:
-                    seen.setdefault(ref, entry.payload)
-            elif entry.kind == "agent.outcome":
-                outcomes.update(refs)
+        outcomes: dict[str, dict[str, Any]] = {}
+        after = 0
+        while True:
+            batch = await self.journal.read(after=after, limit=200)
+            if not batch:
+                break
+            after = batch[-1].sequence
+            for entry in batch:
+                refs = entry.task_refs or []
+                if entry.kind == "agent.command" and entry.payload.get("op") == "submit":
+                    for ref in refs:
+                        seen.setdefault(ref, entry.payload)
+                elif entry.kind == "agent.outcome":
+                    for ref in refs:
+                        outcomes[ref] = entry.payload
+            if len(batch) < 200:
+                break
         recovered: list[Task] = []
         for task_id, payload in seen.items():
-            if task_id in self._tasks or task_id in outcomes:
+            if task_id in self._tasks:
                 continue
-            task = Task(
-                task_id=task_id,
-                session_id=payload.get("session_id", ""),
-                thread_id=payload.get("thread_id", ""),
-                epoch=payload.get("epoch", 1),
-                objective=payload.get("objective", ""),
-                objective_revision=payload.get("objective_revision", 1),
-                state=TaskState.PAUSED,
-                summary="recovered paused; uncertain writes not retried; resubmit to continue",
-                idempotency_key=payload.get("idempotency_key", task_id),
-            )
+            digest = payload.get("payload_digest")
+            if (
+                digest is not None
+                and payload.get("session_id")
+                and payload.get("idempotency_key")
+            ):
+                self._submit_idem[
+                    (payload["session_id"], payload["idempotency_key"])
+                ] = (digest, task_id)
+            if task_id in outcomes:
+                snapshot = outcomes[task_id].get("task")
+                if snapshot is None:
+                    continue  # outcome without a snapshot cannot be grounded
+                task = Task.model_validate(snapshot)
+                if task.state not in TERMINAL:
+                    task.state = TaskState.PAUSED
+                    task.summary = (
+                        "recovered paused; outcome snapshot was non-terminal; "
+                        "uncertain writes not retried; resubmit to continue"
+                    )
+            else:
+                task = Task(
+                    task_id=task_id,
+                    session_id=payload.get("session_id", ""),
+                    thread_id=payload.get("thread_id", ""),
+                    epoch=payload.get("epoch", 1),
+                    objective=payload.get("objective", ""),
+                    objective_revision=payload.get("objective_revision", 1),
+                    state=TaskState.PAUSED,
+                    summary=(
+                        "recovered paused; uncertain writes not retried; "
+                        "resubmit to continue"
+                    ),
+                    source_event_ids=list(payload.get("source_event_ids", [])),
+                    idempotency_key=payload.get("idempotency_key", task_id),
+                )
             rec = _Record(task=task)
             rec.done.set()
             self._tasks[task_id] = rec
@@ -455,14 +697,16 @@ class AgentRuntime:
             return
         rec.task.state = TaskState.FAILED
         rec.task.error = error
-        await self._append(rec, "agent.outcome", {"state": "failed", "error": error})
+        await self._append(
+            rec, "agent.outcome", self._outcome_payload(rec, "failed", {"error": error})
+        )
         rec.done.set()
 
     async def _succeed(self, rec: _Record, summary: str) -> None:
         rec.task.state = TaskState.VERIFYING
         if rec.cancel_requested:
             rec.task.state = TaskState.CANCELLED
-            await self._append(rec, "agent.outcome", {"state": "cancelled"})
+            await self._append(rec, "agent.outcome", self._outcome_payload(rec, "cancelled", {}))
             rec.done.set()
             return
         rec.task.state = TaskState.SUCCEEDED
@@ -470,11 +714,7 @@ class AgentRuntime:
         await self._append(
             rec,
             "agent.outcome",
-            {
-                "state": "succeeded",
-                "summary": summary,
-                "evidence": [e.model_dump(mode="json") for e in rec.task.evidence],
-            },
+            self._outcome_payload(rec, "succeeded", {"summary": summary}),
         )
         rec.done.set()
 
@@ -483,7 +723,7 @@ class AgentRuntime:
             return
         rec.task.state = TaskState.CANCELLED
         rec.task.error = "cancelled by owner"
-        await self._append(rec, "agent.outcome", {"state": "cancelled"})
+        await self._append(rec, "agent.outcome", self._outcome_payload(rec, "cancelled", {}))
         rec.done.set()
 
     async def _run(self, rec: _Record) -> None:
@@ -495,6 +735,7 @@ class AgentRuntime:
                     await self._cancel(rec)
                     return
                 await self._apply_steer(rec)
+                revision_before = rec.task.objective_revision
                 messages = build_messages(
                     rec.task.objective,
                     rec.task.objective_revision,
@@ -513,8 +754,26 @@ class AgentRuntime:
                     await self._cancel(rec)
                     return
                 # A steer that landed while inference was in flight applies
-                # at this boundary, before the (possibly stale) response.
-                await self._apply_steer(rec)
+                # at this boundary, and the response inferred under the old
+                # revision is discarded, never executed under the new one.
+                if (
+                    rec.pending_steer is not None
+                    or rec.task.objective_revision != revision_before
+                ):
+                    await self._apply_steer(rec)
+                    rec.history.append({"role": "assistant", "content": text[:2000]})
+                    rec.history.append(
+                        {
+                            "role": "user",
+                            "content": observation_text(
+                                False,
+                                "in-flight response discarded: the objective was "
+                                "revised during inference; re-plan under the "
+                                "current revision",
+                            ),
+                        }
+                    )
+                    continue
                 try:
                     action = parse_action(text)
                 except ValueError as exc:
@@ -545,10 +804,40 @@ class AgentRuntime:
             else:
                 await self._fail(rec, f"runtime error: {exc}")
 
+    async def _verify_finish_files(self, rec: _Record) -> str | None:
+        """Re-read every file written in the current revision before accepting finish.
+
+        A prior write followed by deletion or modification cannot claim a
+        verified success. Only the latest evidence per path is checked, so
+        an overwritten file is verified against its final content.
+        """
+        latest: dict[str, Any] = {}
+        for e in rec.task.evidence:
+            if e.objective_revision == rec.task.objective_revision and e.kind == "file" and e.path:
+                latest[e.path] = e
+        for path, evidence in latest.items():
+            candidate = Path(path)
+            try:
+                if not candidate.is_file():
+                    return f"finish verification failed: {path} is missing after the write"
+                digest = hashlib.sha256(candidate.read_bytes()).hexdigest()
+            except OSError as exc:
+                return f"finish verification failed: cannot re-read {path}: {exc}"
+            if digest != evidence.sha256:
+                return (
+                    f"finish verification failed: {path} changed after the write "
+                    f"(expected sha256 {evidence.sha256}, found {digest})"
+                )
+        return None
+
     async def _finish(self, rec: _Record, args: dict[str, Any], raw: str) -> None:
         _ = raw
         if rec.cancel_requested:
             await self._cancel(rec)
+            return
+        stale = await self._epoch_error(rec)
+        if stale is not None:
+            await self._fail(rec, stale)
             return
         revision = args.get("objective_revision")
         if revision != rec.task.objective_revision:
@@ -563,8 +852,19 @@ class AgentRuntime:
         if not current:
             await self._fail(rec, "finish with no current-revision evidence")
             return
+        if rec.failed_effect:
+            await self._fail(
+                rec,
+                "finish while a required effect failed in this revision; "
+                "a later unrelated read cannot hide it",
+            )
+            return
         if rec.last_tool_ok is not True:
             await self._fail(rec, "finish while a required tool has failed; not reporting success")
+            return
+        unverified = await self._verify_finish_files(rec)
+        if unverified is not None:
+            await self._fail(rec, unverified)
             return
         summary = str(args.get("summary", "") or "").strip()
         await self._succeed(rec, summary or "done")
@@ -572,6 +872,10 @@ class AgentRuntime:
     async def _execute(self, rec: _Record, tool: str, args: dict[str, Any], raw: str) -> None:
         if rec.cancel_requested:
             await self._cancel(rec)
+            return
+        stale = await self._epoch_error(rec)
+        if stale is not None:
+            await self._fail(rec, stale)
             return
         revision = rec.task.objective_revision
         digest = self.policy.digest_for(tool, args, revision)
@@ -655,6 +959,10 @@ class AgentRuntime:
         approval_id: str | None,
     ) -> None:
         revision = rec.task.objective_revision
+        stale = await self._epoch_error(rec)
+        if stale is not None:
+            await self._fail(rec, stale)
+            return
         rec.history.append({"role": "assistant", "content": raw[:2000]})
         if approval_id is not None:
             # One-use intent is now committed to this exact execution.
@@ -702,10 +1010,14 @@ class AgentRuntime:
                 {"tool": tool, "ok": False, "evidence": exc.evidence.model_dump(mode="json")},
             )
             rec.last_tool_ok = False
+            if tool in ("write_file", "shell"):
+                rec.failed_effect = True
             rec.history.append({"role": "user", "content": observation_text(False, str(exc))})
             return
         except (ToolFailure, PolicyDenied, ApprovalError, OSError) as exc:
             rec.last_tool_ok = False
+            if tool in ("write_file", "shell"):
+                rec.failed_effect = True
             rec.history.append({"role": "user", "content": observation_text(False, str(exc))})
             return
         rec.task.evidence.append(evidence)
@@ -713,4 +1025,6 @@ class AgentRuntime:
             rec, "agent.tool", {"tool": tool, "ok": True, "evidence": evidence.model_dump(mode="json")}
         )
         rec.last_tool_ok = True
+        if tool in ("write_file", "shell"):
+            rec.failed_effect = False
         rec.history.append({"role": "user", "content": observation_text(True, out)})

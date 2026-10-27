@@ -126,6 +126,16 @@ class ToolPolicy:
         return self.allow_shell or self.yolo
 
     # -- path scoping ---------------------------------------------------
+    def is_protected(self, resolved: Path) -> bool:
+        """True when an already-resolved path falls under a protected root."""
+        for root in self.protected_roots:
+            try:
+                resolved.relative_to(root)
+            except ValueError:
+                continue
+            return True
+        return False
+
     def resolve_path(self, path: str | Path) -> Path:
         """Canonicalize and enforce workspace containment plus protected roots.
 

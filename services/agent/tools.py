@@ -3,9 +3,14 @@
 Every path is scoped by ``ToolPolicy`` (canonicalized, workspace-contained,
 protected roots excluded, symlinks resolved). Shell commands run inside
 bubblewrap with the workspace mounted read-write at ``/workspace``,
-system runtimes read-only, a cleared environment, and no network namespace
-by default. Credentials, home directories, and protected source are never
-mounted. If bubblewrap itself is missing, shell fails closed.
+system runtimes read-only, a cleared environment, and full namespace
+isolation (user, pid, uts, ipc, cgroup, plus net unless the ``network``
+grant explicitly allows it). There is no fallback: if bubblewrap is
+missing, or a nested protected root cannot be covered read-only, or the
+namespaces cannot be established, shell fails closed instead of running
+less isolated. Credentials, home directories, and protected source are
+never mounted. Subprocess output is bounded; cancellation kills the whole
+process group.
 """
 
 from __future__ import annotations
@@ -32,6 +37,11 @@ SEARCH_LINE_LIMIT = 500
 OUTPUT_LIMIT = 4000
 SHELL_DEFAULT_TIMEOUT = 60.0
 SHELL_MAX_TIMEOUT = 120.0
+# Retained subprocess output is bounded: collection keeps at most this many
+# bytes (the rest is drained and noted as truncated), and a hard ceiling
+# kills runaway output instead of buffering it without limit.
+SHELL_OUTPUT_CAP = 262144
+SHELL_OUTPUT_HARD_MAX = 2 * 1024 * 1024
 
 
 class ToolFailure(Exception):
@@ -39,7 +49,7 @@ class ToolFailure(Exception):
 
 
 class ShellUnavailable(ToolFailure):
-    """Bubblewrap is missing: shell fails closed, never silently unprotected."""
+    """Bubblewrap is missing or unusable: shell fails closed, never unprotected."""
 
 
 _netns_probe: bool | None = None
@@ -50,7 +60,12 @@ def bwrap_path() -> str | None:
 
 
 def netns_works() -> bool:
-    """Probe once whether this host allows a network namespace sandbox."""
+    """Diagnostic probe: whether this host can create a network namespace.
+
+    Kept for operational diagnostics only. Shell construction no longer
+    consults it: isolation flags are always requested and a kernel denial
+    fails the command closed instead of silently dropping the flag.
+    """
     global _netns_probe
     if _netns_probe is None:
         exe = bwrap_path()
@@ -79,10 +94,24 @@ def netns_works() -> bool:
     return _netns_probe
 
 
+def _sandbox_path(policy: ToolPolicy, host_path: Path) -> Path:
+    """Map a workspace-contained host path to its path inside the sandbox."""
+    return Path("/workspace") / host_path.relative_to(policy.workspace)
+
+
 def build_bwrap_args(
-    workspace: Path, command: str, network_allowed: bool
+    policy: ToolPolicy, command: str, network_allowed: bool
 ) -> tuple[list[str], bool]:
-    """Bubblewrap argv plus whether the network namespace is isolated."""
+    """Bubblewrap argv plus whether the network namespace is isolated.
+
+    Always requests user/pid/uts/ipc/cgroup isolation, plus a network
+    namespace unless ``network_allowed`` is an explicit grant. PID isolation
+    is mandatory even when networking is granted, so ``/proc`` inside the
+    sandbox cannot expose host supervisor environments or ``/proc/PID/root``.
+    Nested protected roots are over-mounted read-only; a nested protected
+    root that cannot be covered (missing on the host) rejects shell
+    construction instead of running with it writable.
+    """
     exe = bwrap_path()
     if exe is None:
         raise ShellUnavailable(
@@ -95,7 +124,24 @@ def build_bwrap_args(
         "--ro-bind", "/bin", "/bin",
         "--ro-bind", "/lib", "/lib",
         "--ro-bind", "/lib64", "/lib64",
-        "--bind", str(workspace), "/workspace",
+        "--bind", str(policy.workspace), "/workspace",
+    ]
+    # A protected root nested inside the workspace would otherwise be
+    # writable through the workspace bind. Cover each one read-only; the
+    # later mount wins over the earlier bind in bubblewrap.
+    for root in policy.protected_roots:
+        try:
+            root.relative_to(policy.workspace)
+        except ValueError:
+            continue  # outside the workspace: never mounted, nothing to cover
+        if not root.exists():
+            raise PolicyDenied(
+                f"shell unavailable on this layout: protected root {root} "
+                "is nested in the workspace but missing on the host, "
+                "so it cannot be over-mounted read-only"
+            )
+        args += ["--ro-bind", str(root), str(_sandbox_path(policy, root))]
+    args += [
         "--tmpfs", "/tmp",
         "--proc", "/proc",
         "--dev", "/dev",
@@ -103,18 +149,20 @@ def build_bwrap_args(
         "--clearenv",
         "--setenv", "PATH", "/usr/bin:/bin",
         "--setenv", "HOME", "/tmp",
+        "--unshare-user",
+        "--unshare-pid",
+        "--unshare-uts",
+        "--unshare-ipc",
+        "--unshare-cgroup",
         "--chdir", "/workspace",
     ]
     isolated = True
     if network_allowed:
+        # Explicit grant: networking stays, every other namespace is still
+        # isolated (PID isolation is never optional).
         isolated = False
-    elif netns_works():
-        args.append("--unshare-net")
     else:
-        # Platform cannot create the namespace (observed in containers
-        # without loopback setup rights). Report honestly; do not claim
-        # isolation that was not established.
-        isolated = False
+        args.append("--unshare-net")
     args += ["/bin/bash", "-c", command]
     return args, isolated
 
@@ -134,9 +182,49 @@ class RunningProc:
         except (ProcessLookupError, PermissionError, OSError):
             pass
         try:
+            self._proc.kill()
+        except (ProcessLookupError, PermissionError, OSError):
+            pass
+        try:
             await asyncio.wait_for(self._proc.wait(), timeout=5)
         except (TimeoutError, Exception):
             pass
+
+
+async def _collect_bounded(
+    proc: asyncio.subprocess.Process, timeout: float
+) -> tuple[bytes, bool]:
+    """Drain merged stdout/stderr up to the retention cap within the timeout.
+
+    Returns (retained bytes, truncated). Kills the child on timeout or when
+    output exceeds the hard ceiling. Cancellation also kills the group.
+    """
+    buf = bytearray()
+    total = 0
+    truncated = False
+    try:
+        async with asyncio.timeout(timeout):
+            assert proc.stdout is not None
+            while True:
+                chunk = await proc.stdout.read(65536)
+                if not chunk:
+                    break
+                total += len(chunk)
+                room = SHELL_OUTPUT_CAP - len(buf)
+                if room > 0:
+                    buf += chunk[:room]
+                if total > SHELL_OUTPUT_CAP:
+                    truncated = True
+                if total > SHELL_OUTPUT_HARD_MAX:
+                    await asyncio.shield(RunningProc(proc).kill())
+                    raise ToolFailure(
+                        "shell output exceeded the 2 MiB bound; killed"
+                    )
+            await proc.wait()
+    except TimeoutError:
+        await asyncio.shield(RunningProc(proc).kill())
+        raise ToolFailure(f"shell timed out after {timeout:.0f}s; killed") from None
+    return bytes(buf), truncated
 
 
 async def run_shell(
@@ -155,11 +243,7 @@ async def run_shell(
     policy.check_shell(
         approval_id=approval_id, digest=digest, objective_revision=objective_revision
     )
-    argv, isolated = build_bwrap_args(policy.workspace, command, policy.network)
-    if not isolated:
-        prefix = "[network namespace unavailable in environment] " if not policy.network else ""
-    else:
-        prefix = ""
+    argv, isolated = build_bwrap_args(policy, command, policy.network)
     try:
         proc = await asyncio.create_subprocess_exec(
             *argv,
@@ -170,22 +254,30 @@ async def run_shell(
     except FileNotFoundError as exc:
         raise ShellUnavailable(f"shell unavailable: {exc}") from exc
     handle = RunningProc(proc)
+    # Publish the handle before awaiting so interrupt/close can kill the
+    # group; it is cleared only after the child is reaped or killed below.
     if proc_slot is not None:
         proc_slot["proc"] = handle
     try:
         try:
-            raw, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-        except TimeoutError:
-            await handle.kill()
-            raise ToolFailure(f"shell timed out after {timeout:.0f}s; killed") from None
+            raw, truncated = await _collect_bounded(proc, timeout)
+        except asyncio.CancelledError:
+            # Even when our own await is cancelled, the child group must die
+            # before the slot is cleared; shield the kill from the cancel.
+            await asyncio.shield(handle.kill())
+            raise
         output = raw.decode("utf-8", errors="replace")
+        if truncated:
+            output += f"\n…[truncated subprocess output to {SHELL_OUTPUT_CAP} bytes]"
         code = proc.returncode if proc.returncode is not None else 124
         evidence = command_evidence(
             command, code, output, objective_revision,
             f"shell exit={code}: {command[:120]}",
             network_isolated=isolated,
         )
-        observation = prefix + (output[-OUTPUT_LIMIT:] if len(output) > OUTPUT_LIMIT else output)
+        observation = output[-OUTPUT_LIMIT:] if len(output) > OUTPUT_LIMIT else output
+        if truncated:
+            observation = "[output truncated] " + observation
         if code != 0:
             raise _FailedWithEvidence(
                 f"shell exited {code}: {observation[-1000:]}", evidence
@@ -246,6 +338,24 @@ def run_write(
     return f"wrote {len(data)} bytes to {resolved} sha256={evidence.sha256}", evidence
 
 
+def _prune_walk(policy: ToolPolicy, dirpath: str, dirnames: list[str]) -> None:
+    """Drop walk entries that escape the workspace or enter protected roots."""
+    keep: list[str] = []
+    for name in dirnames:
+        full = Path(dirpath) / name
+        if full.is_symlink():
+            continue
+        try:
+            resolved = full.resolve()
+            resolved.relative_to(policy.workspace)
+        except (ValueError, OSError):
+            continue
+        if policy.is_protected(resolved):
+            continue
+        keep.append(name)
+    dirnames[:] = keep
+
+
 def run_search(
     policy: ToolPolicy,
     pattern: str,
@@ -268,13 +378,20 @@ def run_search(
         else:
             candidates = []
             for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
-                # Never descend into symlinked dirs; never leave the workspace.
-                dirnames[:] = [
-                    d for d in dirnames
-                    if not (Path(dirpath) / d).is_symlink()
-                ]
+                # Never descend into symlinked dirs, escapes, or protected roots.
+                _prune_walk(policy, dirpath, dirnames)
                 for name in filenames:
                     full = Path(dirpath) / name
+                    try:
+                        resolved = full.resolve()
+                    except OSError:
+                        continue
+                    try:
+                        resolved.relative_to(policy.workspace)
+                    except ValueError:
+                        continue
+                    if policy.is_protected(resolved):
+                        continue
                     if full.is_symlink():
                         try:
                             full.resolve().relative_to(policy.workspace)

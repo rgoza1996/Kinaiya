@@ -1,11 +1,12 @@
 """HTTP surface for the seed Agent.
 
-``create_app(runtime, auth)`` builds the FastAPI app. ``auth`` is
-``services.common.auth.Auth`` when the lead has provided it, else any object
-exposing ``require(role)`` (see ``auth_adapter.StubAuth``). Only the owner
-may submit, steer, interrupt, or resolve approvals over direct HTTP; the
-decisions service identity will ride the same ``require`` seam once the
-lead wires it.
+``create_app(runtime, auth)`` builds the FastAPI app. ``auth`` must be a
+configured ``services.common.auth.Auth``; there is no fallback. Passing
+``None`` (or anything without ``require``) fails closed at construction so
+the service can never listen without real Bearer [REDACTED] Owner and the
+decisions service identity may submit, steer, interrupt, and read status;
+only the owner may resolve approvals. The decisions actor must additionally
+carry validated journal source references, enforced by the runtime.
 """
 
 from __future__ import annotations
@@ -21,7 +22,6 @@ from packages.contracts.models import (
     SteerRequest,
     TaskRequest,
 )
-from services.agent.auth_adapter import default_auth
 from services.agent.runtime import (
     AgentRuntime,
     IdemConflict,
@@ -31,9 +31,14 @@ from services.agent.runtime import (
 )
 
 
-def create_app(runtime: AgentRuntime, auth: Any = None) -> FastAPI:
-    auth = auth if auth is not None else default_auth()
+def create_app(runtime: AgentRuntime, auth: Any) -> FastAPI:
+    if auth is None or not hasattr(auth, "require"):
+        raise RuntimeError(
+            "seed Agent HTTP requires a configured Auth; "
+            "refusing to start without bearer verification"
+        )
     require_owner = auth.require("owner")
+    require_actor = auth.require("owner", "decisions")
 
     app = FastAPI(title="Kinaiya Seed Agent", version="0.1.0")
 
@@ -49,29 +54,29 @@ def create_app(runtime: AgentRuntime, auth: Any = None) -> FastAPI:
         return HTTPException(status_code=500, detail=str(exc))
 
     @app.post("/v1/agent/tasks", status_code=201)
-    async def create_task(body: TaskRequest, actor: str = Depends(require_owner)) -> Any:
+    async def create_task(body: TaskRequest, actor: str = Depends(require_actor)) -> Any:
         try:
             return await runtime.submit(body, actor=actor)
         except Exception as exc:  # mapped above
             raise _http(exc) from exc
 
     @app.get("/v1/agent/tasks")
-    async def list_tasks(actor: str = Depends(require_owner)) -> Any:
+    async def list_tasks(actor: str = Depends(require_actor)) -> Any:
         _ = actor
-        return runtime.status(None)
+        return await runtime.status(None)
 
     @app.get("/v1/agent/tasks/{task_id}")
-    async def get_task(task_id: str, actor: str = Depends(require_owner)) -> Any:
+    async def get_task(task_id: str, actor: str = Depends(require_actor)) -> Any:
         _ = actor
         try:
-            result = runtime.status(task_id)
+            result = await runtime.status(task_id)
         except Exception as exc:
             raise _http(exc) from exc
         return result
 
     @app.post("/v1/agent/tasks/{task_id}/steer")
     async def steer_task(
-        task_id: str, body: SteerRequest, actor: str = Depends(require_owner)
+        task_id: str, body: SteerRequest, actor: str = Depends(require_actor)
     ) -> Any:
         try:
             return await runtime.steer(task_id, body, actor=actor)
@@ -80,7 +85,7 @@ def create_app(runtime: AgentRuntime, auth: Any = None) -> FastAPI:
 
     @app.post("/v1/agent/tasks/{task_id}/interrupt")
     async def interrupt_task(
-        task_id: str, body: InterruptRequest, actor: str = Depends(require_owner)
+        task_id: str, body: InterruptRequest, actor: str = Depends(require_actor)
     ) -> Any:
         try:
             return await runtime.interrupt(task_id, body, actor=actor)
@@ -88,7 +93,7 @@ def create_app(runtime: AgentRuntime, auth: Any = None) -> FastAPI:
             raise _http(exc) from exc
 
     @app.get("/v1/agents/capabilities")
-    async def capabilities(actor: str = Depends(require_owner)) -> Any:
+    async def capabilities(actor: str = Depends(require_actor)) -> Any:
         _ = actor
         return {
             "harness": "seed-v1",

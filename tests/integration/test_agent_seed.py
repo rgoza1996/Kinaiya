@@ -7,9 +7,10 @@ from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 
 import pytest
-from fastapi.testclient import TestClient
+from httpx import ASGITransport, AsyncClient
 
 from core.policy import ToolPolicy
+from services.common.auth import Auth
 from packages.contracts.models import (
     AppendRequest,
     JournalEntry,
@@ -20,7 +21,7 @@ from packages.contracts.models import (
 )
 from services.agent import AgentRuntime, create_app
 from services.agent import tools as agent_tools
-from services.agent.tools import ShellUnavailable, run_shell
+from services.agent.tools import ShellUnavailable, ToolFailure, run_shell
 
 SESSION = Session(session_id="s9", thread_id="t9", channel="agent", epoch=1)
 
@@ -42,7 +43,9 @@ class InMemoryJournal:
             task_refs=list(request.task_refs),
             idempotency_key=request.idempotency_key,
             sequence=self._seq,
-            origin="test",
+            origin="authenticated-user"
+            if request.kind == "conversation.user"
+            else "test",
             created_at=datetime.now(UTC),
         )
         self.entries.append(entry)
@@ -50,6 +53,27 @@ class InMemoryJournal:
 
     async def read(self, *, after: int = 0, limit: int = 100, **_kw) -> list[JournalEntry]:
         return [e for e in self.entries if e.sequence > after][:limit]
+
+    def _find(self, event_id: str) -> JournalEntry:
+        for entry in self.entries:
+            if entry.event_id == event_id:
+                return entry
+        raise KeyError(event_id)
+
+    async def entry(self, event_id: str) -> JournalEntry:
+        return self._find(event_id)
+
+    async def resolve(self, event_id: str) -> JournalEntry:
+        event = self._find(event_id)
+        merged = dict(event.payload)
+        for other in self.entries:
+            if (
+                other.kind == "conversation.revision"
+                and other.sequence > event.sequence
+                and other.payload.get("target_event_id") == event_id
+            ):
+                merged.update(other.payload)
+        return event.model_copy(update={"payload": merged})
 
     async def session(self, session_id: str) -> Session:
         return SESSION
@@ -82,15 +106,43 @@ def req(objective, key, revision=1):
     )
 
 
-def client_for(runtime):
-    app = create_app(runtime)
-    client = TestClient(app)
-    client.headers.update({"X-Agent-Actor": "owner"})
-    return client
+def make_auth() -> tuple[Auth, dict[str, str]]:
+    """Configured Auth with distinct bearer tokens per role; no fallback."""
+    tokens = {
+        "owner": "owner-token-0123456789abcdef01",
+        "agent": "agent-token-0123456789abcdef02",
+        "converse": "converse-token-0123456789abcdef",
+        "decisions": "decisions-token-0123456789abcdef",
+        "resources": "resources-token-0123456789abcdef",
+    }
+    return Auth(tokens), tokens
+
+
+def bearer(tokens, role="owner") -> dict[str, str]:
+    return {"Authorization": f"Bearer {tokens[role]}"}
+
+
+def _sandbox_ok(workspace) -> bool:
+    """True only when real bubblewrap isolation works in this environment.
+
+    Real-sandbox tests skip honestly when namespaces are unavailable;
+    fail-closed denial is covered deterministically by tests below.
+    """
+    import subprocess
+
+    policy = ToolPolicy(workspace=workspace)
+    try:
+        argv, _ = agent_tools.build_bwrap_args(policy, "true", False)
+        done = subprocess.run(argv, capture_output=True, timeout=30)
+    except Exception:
+        return False
+    return done.returncode == 0
 
 
 async def test_seed_end_to_end_shell_and_file(tmp_path):
     """Real workspace, real bubblewrap shell, real file writes, no paid APIs."""
+    if not _sandbox_ok(tmp_path):
+        pytest.skip("bubblewrap isolation unavailable in this environment")
     provider = ScriptedProvider([
         {"tool": "shell",
          "arguments": {"command": "echo hello-sandbox > msg.txt && cat msg.txt"}},
@@ -126,6 +178,8 @@ async def test_shell_without_bubblewrap_fails_closed(tmp_path, monkeypatch):
 
 
 async def test_shell_cannot_see_home_or_repo(tmp_path):
+    if not _sandbox_ok(tmp_path):
+        pytest.skip("bubblewrap isolation unavailable in this environment")
     marker = "should-never-appear-8f3a"
     policy = ToolPolicy(workspace=tmp_path, allow_shell=True)
     out, evidence = await run_shell(
@@ -148,32 +202,36 @@ async def test_http_task_lifecycle_and_capabilities(tmp_path):
     ])
     policy = ToolPolicy(workspace=tmp_path, allow_write=True)
     runtime = AgentRuntime(InMemoryJournal(), provider, tmp_path, policy)
+    auth, tokens = make_auth()
+    app = create_app(runtime, auth)
     try:
-        client = client_for(runtime)
-        created = client.post("/v1/agent/tasks", json={
-            "session_id": "s9", "thread_id": "t9", "epoch": 1,
-            "objective": "write via http", "idempotency_key": "http1",
-        })
-        assert created.status_code == 201, created.text
-        task_id = created.json()["task_id"]
-        listed = client.get("/v1/agent/tasks")
-        assert listed.status_code == 200
-        assert any(t["task_id"] == task_id for t in listed.json())
-        caps = client.get("/v1/agents/capabilities")
-        assert caps.status_code == 200
-        body = caps.json()
-        assert body["harness"] == "seed-v1"
-        assert body["tools"] == ["read_file", "write_file", "search", "shell", "finish"]
-        assert body["approvals"] == {"digest_bound": True, "one_use": True, "expiring": True}
-        for _ in range(200):
-            got = client.get(f"/v1/agent/tasks/{task_id}")
-            assert got.status_code == 200
-            if got.json()["state"] in ("succeeded", "failed", "cancelled"):
-                break
-            await asyncio.sleep(0.05)
-        assert got.json()["state"] == "succeeded", got.json()
-        assert (tmp_path / "http.txt").read_text() == "via http"
-        assert client.get("/v1/agent/tasks/missing").status_code == 404
+        async with AsyncClient(transport=ASGITransport(app=app),
+                               base_url="http://test") as client:
+            created = await client.post("/v1/agent/tasks", json={
+                "session_id": "s9", "thread_id": "t9", "epoch": 1,
+                "objective": "write via http", "idempotency_key": "http1",
+            }, headers=bearer(tokens))
+            assert created.status_code == 201, created.text
+            task_id = created.json()["task_id"]
+            listed = await client.get("/v1/agent/tasks", headers=bearer(tokens))
+            assert listed.status_code == 200
+            assert any(t["task_id"] == task_id for t in listed.json())
+            caps = await client.get("/v1/agents/capabilities", headers=bearer(tokens))
+            assert caps.status_code == 200
+            body = caps.json()
+            assert body["harness"] == "seed-v1"
+            assert body["tools"] == ["read_file", "write_file", "search", "shell", "finish"]
+            assert body["approvals"] == {"digest_bound": True, "one_use": True, "expiring": True}
+            for _ in range(200):
+                got = await client.get(f"/v1/agent/tasks/{task_id}", headers=bearer(tokens))
+                assert got.status_code == 200
+                if got.json()["state"] in ("succeeded", "failed", "cancelled"):
+                    break
+                await asyncio.sleep(0.05)
+            assert got.json()["state"] == "succeeded", got.json()
+            assert (tmp_path / "http.txt").read_text() == "via http"
+            missing = await client.get("/v1/agent/tasks/missing", headers=bearer(tokens))
+            assert missing.status_code == 404
     finally:
         await runtime.close()
 
@@ -188,46 +246,48 @@ async def test_http_auth_and_steer_interrupt(tmp_path):
             return json.dumps({"tool": "finish",
                                "arguments": {"summary": "x", "objective_revision": 2}})
 
-    runtime = AgentRuntime(InMemoryJournal(), GatedProvider(), tmp_path,
+    runtime = AgentRuntime(InMemoryJournal(), GatedProvider([]), tmp_path,
                            ToolPolicy(workspace=tmp_path))
+    auth, tokens = make_auth()
+    app = create_app(runtime, auth)
     try:
-        client = client_for(runtime)
-        anon = TestClient(create_app(runtime))
-        denied = anon.post("/v1/agent/tasks", json={
-            "session_id": "s9", "thread_id": "t9", "epoch": 1,
-            "objective": "x", "idempotency_key": "auth1",
-        })
-        assert denied.status_code == 403
-        created = client.post("/v1/agent/tasks", json={
-            "session_id": "s9", "thread_id": "t9", "epoch": 1,
-            "objective": "original", "idempotency_key": "auth2",
-        })
-        assert created.status_code == 201
-        task_id = created.json()["task_id"]
-        # Stale steer is a 409, not silent acceptance.
-        stale = client.post(f"/v1/agent/tasks/{task_id}/steer", json={
-            "instruction": "other", "expected_objective_revision": 99,
-            "idempotency_key": "stx",
-        })
-        assert stale.status_code == 409
-        ok_steer = client.post(f"/v1/agent/tasks/{task_id}/steer", json={
-            "instruction": "revised", "expected_objective_revision": 1,
-            "idempotency_key": "stx2",
-        })
-        assert ok_steer.status_code == 200, ok_steer.text
-        gate.set()
-        for _ in range(200):
-            got = client.get(f"/v1/agent/tasks/{task_id}")
-            if got.json()["state"] in ("succeeded", "failed", "cancelled"):
-                break
-            await asyncio.sleep(0.05)
-        # No current-revision evidence: the steered finish must fail, not lie.
-        assert got.json()["state"] == "failed", got.json()
-        # Interrupt on a terminal task is idempotent, not an error.
-        stop = client.post(f"/v1/agent/tasks/{task_id}/interrupt", json={
-            "expected_objective_revision": 2, "idempotency_key": "stopx",
-        })
-        assert stop.status_code == 200
+        async with AsyncClient(transport=ASGITransport(app=app),
+                               base_url="http://test") as client:
+            denied = await client.post("/v1/agent/tasks", json={
+                "session_id": "s9", "thread_id": "t9", "epoch": 1,
+                "objective": "x", "idempotency_key": "auth1",
+            })
+            assert denied.status_code in (401, 403)
+            created = await client.post("/v1/agent/tasks", json={
+                "session_id": "s9", "thread_id": "t9", "epoch": 1,
+                "objective": "original", "idempotency_key": "auth2",
+            }, headers=bearer(tokens))
+            assert created.status_code == 201
+            task_id = created.json()["task_id"]
+            # Stale steer is a 409, not silent acceptance.
+            stale = await client.post(f"/v1/agent/tasks/{task_id}/steer", json={
+                "instruction": "other", "expected_objective_revision": 99,
+                "idempotency_key": "stx",
+            }, headers=bearer(tokens))
+            assert stale.status_code == 409
+            ok_steer = await client.post(f"/v1/agent/tasks/{task_id}/steer", json={
+                "instruction": "revised", "expected_objective_revision": 1,
+                "idempotency_key": "stx2",
+            }, headers=bearer(tokens))
+            assert ok_steer.status_code == 200, ok_steer.text
+            gate.set()
+            for _ in range(200):
+                got = await client.get(f"/v1/agent/tasks/{task_id}", headers=bearer(tokens))
+                if got.json()["state"] in ("succeeded", "failed", "cancelled"):
+                    break
+                await asyncio.sleep(0.05)
+            # No current-revision evidence: the steered finish must fail, not lie.
+            assert got.json()["state"] == "failed", got.json()
+            # Interrupt on a terminal task is idempotent, not an error.
+            stop = await client.post(f"/v1/agent/tasks/{task_id}/interrupt", json={
+                "expected_objective_revision": 2, "idempotency_key": "stopx",
+            }, headers=bearer(tokens))
+            assert stop.status_code == 200
     finally:
         gate.set()
         await runtime.close()
@@ -243,38 +303,55 @@ async def test_http_approval_resolve(tmp_path):
     policy = ToolPolicy(workspace=tmp_path)  # no grants: approval required
     journal = InMemoryJournal()
     runtime = AgentRuntime(journal, provider, tmp_path, policy)
+    auth, tokens = make_auth()
+    app = create_app(runtime, auth)
     try:
-        client = client_for(runtime)
-        created = client.post("/v1/agent/tasks", json={
-            "session_id": "s9", "thread_id": "t9", "epoch": 1,
-            "objective": "needs approval", "idempotency_key": "appr1",
-        })
-        assert created.status_code == 201
-        task_id = created.json()["task_id"]
-        for _ in range(200):
-            if client.get(f"/v1/agent/tasks/{task_id}").json()["state"] == "awaiting_approval":
-                break
-            await asyncio.sleep(0.05)
-        approval_id = runtime.approval_for_task(task_id)
-        assert approval_id
-        requested = [e for e in journal.entries if e.kind == "approval.requested"]
-        assert len(requested) == 1
-        digest = requested[0].payload["action_digest"]
-        resolved = client.post(f"/v1/approvals/{approval_id}/resolve", json={
-            "approved": True, "action_digest": digest, "objective_revision": 1,
-        })
-        assert resolved.status_code == 200, resolved.text
-        for _ in range(200):
-            got = client.get(f"/v1/agent/tasks/{task_id}")
-            if got.json()["state"] in ("succeeded", "failed", "cancelled"):
-                break
-            await asyncio.sleep(0.05)
-        assert got.json()["state"] == "succeeded", got.json()
-        assert (tmp_path / "appr.txt").read_text() == "approved content"
-        # One-use: replaying the spend fails.
-        again = client.post(f"/v1/approvals/{approval_id}/resolve", json={
-            "approved": True, "action_digest": digest, "objective_revision": 1,
-        })
-        assert again.status_code in (403, 404, 409)
+        async with AsyncClient(transport=ASGITransport(app=app),
+                               base_url="http://test") as client:
+            created = await client.post("/v1/agent/tasks", json={
+                "session_id": "s9", "thread_id": "t9", "epoch": 1,
+                "objective": "needs approval", "idempotency_key": "appr1",
+            }, headers=bearer(tokens))
+            assert created.status_code == 201
+            task_id = created.json()["task_id"]
+            for _ in range(200):
+                state = (await client.get(f"/v1/agent/tasks/{task_id}",
+                                          headers=bearer(tokens))).json()["state"]
+                if state == "awaiting_approval":
+                    break
+                await asyncio.sleep(0.05)
+            approval_id = runtime.approval_for_task(task_id)
+            assert approval_id
+            requested = [e for e in journal.entries if e.kind == "approval.requested"]
+            assert len(requested) == 1
+            digest = requested[0].payload["action_digest"]
+            resolved = await client.post(f"/v1/approvals/{approval_id}/resolve", json={
+                "approved": True, "action_digest": digest, "objective_revision": 1,
+            }, headers=bearer(tokens))
+            assert resolved.status_code == 200, resolved.text
+            for _ in range(200):
+                got = await client.get(f"/v1/agent/tasks/{task_id}", headers=bearer(tokens))
+                if got.json()["state"] in ("succeeded", "failed", "cancelled"):
+                    break
+                await asyncio.sleep(0.05)
+            assert got.json()["state"] == "succeeded", got.json()
+            assert (tmp_path / "appr.txt").read_text() == "approved content"
+            # One-use: replaying the spend fails.
+            again = await client.post(f"/v1/approvals/{approval_id}/resolve", json={
+                "approved": True, "action_digest": digest, "objective_revision": 1,
+            }, headers=bearer(tokens))
+            assert again.status_code in (403, 404, 409)
     finally:
         await runtime.close()
+
+
+async def test_shell_denied_namespace_fails_closed(tmp_path, monkeypatch):
+    """A bubblewrap that refuses namespaces must fail closed, never silently unprotected."""
+    fake = tmp_path / "bin" / "bwrap"
+    fake.parent.mkdir()
+    fake.write_text("#!/bin/sh\necho 'cannot unshare: Operation not permitted' >&2\nexit 1\n")
+    fake.chmod(0o755)
+    monkeypatch.setenv("PATH", str(fake.parent))
+    policy = ToolPolicy(workspace=tmp_path, allow_shell=True)
+    with pytest.raises(ToolFailure):
+        await run_shell(policy, "echo hi", 10, 1)

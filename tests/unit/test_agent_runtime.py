@@ -52,7 +52,9 @@ class InMemoryJournal:
             task_refs=list(request.task_refs),
             idempotency_key=request.idempotency_key,
             sequence=self._seq,
-            origin="test",
+            origin="authenticated-user"
+            if request.kind == "conversation.user"
+            else "test",
             created_at=datetime.now(UTC),
         )
         self.entries.append(entry)
@@ -81,6 +83,27 @@ class InMemoryJournal:
         if search is not None:
             out = [e for e in out if search in json.dumps(e.payload)]
         return out[:limit]
+
+    def _find(self, event_id: str) -> JournalEntry:
+        for entry in self.entries:
+            if entry.event_id == event_id:
+                return entry
+        raise KeyError(event_id)
+
+    async def entry(self, event_id: str) -> JournalEntry:
+        return self._find(event_id)
+
+    async def resolve(self, event_id: str) -> JournalEntry:
+        event = self._find(event_id)
+        merged = dict(event.payload)
+        for other in self.entries:
+            if (
+                other.kind == "conversation.revision"
+                and other.sequence > event.sequence
+                and other.payload.get("target_event_id") == event_id
+            ):
+                merged.update(other.payload)
+        return event.model_copy(update={"payload": merged})
 
     async def session(self, session_id: str) -> Session:
         if session_id != self.session_obj.session_id:
@@ -172,8 +195,50 @@ def make_runtime(tmp_path, provider, **policy_kw):
 
 async def poll_for(predicate, timeout=10.0):
     async with asyncio.timeout(timeout):
-        while not predicate():
+        while True:
+            result = predicate()
+            if asyncio.iscoroutine(result):
+                result = await result
+            if result:
+                return
             await asyncio.sleep(0.02)
+
+
+async def _evdone(runtime, task_id) -> bool:
+    return len((await runtime.status(task_id)).evidence) >= 1
+
+
+async def _is_state(runtime, task_id, state) -> bool:
+    return (await runtime.status(task_id)).state == state
+
+
+async def _user_text(journal, text, key, session=SESSION):
+    """Plant a finalized authenticated-user message in a test journal."""
+    return await journal.append(
+        AppendRequest(
+            session_id=session.session_id,
+            thread_id=session.thread_id,
+            epoch=session.epoch,
+            kind="conversation.user",
+            payload={"text": text, "final": True},
+            idempotency_key=key,
+        )
+    )
+
+
+def _sandbox_ok(workspace) -> bool:
+    """True only when real bubblewrap isolation works in this environment."""
+    import subprocess
+
+    from services.agent import tools as agent_tools
+
+    policy = ToolPolicy(workspace=workspace)
+    try:
+        argv, _ = agent_tools.build_bwrap_args(policy, "true", False)
+        done = subprocess.run(argv, capture_output=True, timeout=30)
+    except Exception:
+        return False
+    return done.returncode == 0
 
 
 async def test_standalone_actual_file_task(tmp_path):
@@ -277,14 +342,25 @@ async def test_duplicate_submit_conflicting_payload_rejected(tmp_path):
 
 async def test_actor_rules(tmp_path):
     provider = ScriptedProvider([])
-    runtime, _, _ = make_runtime(tmp_path, provider)
+    runtime, journal, _ = make_runtime(tmp_path, provider)
     try:
         with pytest.raises(PolicyDenied):
             await runtime.submit(task_req(key="a"), actor="intruder")
         with pytest.raises(PolicyDenied):
             await runtime.submit(task_req(key="b"), actor="decisions")
-        task = await runtime.submit(task_req(key="c", sources=["evt-1"]), actor="decisions")
+        with pytest.raises(PolicyDenied):
+            await runtime.submit(task_req(key="b2", sources=["evt-missing"]), actor="decisions")
+        entry = await _user_text(journal, "do the thing", "u1")
+        with pytest.raises(PolicyDenied):
+            await runtime.submit(
+                task_req("invented by classifier", "b3", sources=[entry.event_id]),
+                actor="decisions",
+            )
+        task = await runtime.submit(
+            task_req("do the thing", "c", sources=[entry.event_id]), actor="decisions"
+        )
         assert task.task_id
+        assert task.objective == "do the thing"
         # decisions actor must carry sources for steer too
         with pytest.raises(PolicyDenied):
             await runtime.steer(
@@ -299,12 +375,14 @@ async def test_actor_rules(tmp_path):
 
 async def test_decisions_submit_with_sources_ok(tmp_path):
     provider = ScriptedProvider([])
-    runtime, _, _ = make_runtime(tmp_path, provider)
+    runtime, journal, _ = make_runtime(tmp_path, provider)
     try:
+        entry = await _user_text(journal, "do the thing", "u2")
         task = await runtime.submit(
-            task_req(key="d", sources=["evt-user-1"]), actor="decisions"
+            task_req("do the thing", "d", sources=[entry.event_id]), actor="decisions"
         )
-        assert task.source_event_ids == ["evt-user-1"]
+        assert task.source_event_ids == [entry.event_id]
+        assert task.objective == "do the thing"
     finally:
         await runtime.close()
 
@@ -337,8 +415,8 @@ async def test_cancellation_during_inference(tmp_path):
     try:
         task = await runtime.submit(task_req())
         await poll_for(lambda: provider.hung.is_set())
-        # /status must not wait for the model: it is synchronous.
-        current = runtime.status(task.task_id)
+        # /status must not wait for the model (async, but never blocks on it).
+        current = await runtime.status(task.task_id)
         assert current.state in (TaskState.RUNNING, TaskState.ACCEPTED)
         interrupted = await asyncio.wait_for(
             runtime.interrupt(
@@ -355,6 +433,8 @@ async def test_cancellation_during_inference(tmp_path):
 
 
 async def test_interrupt_kills_running_shell(tmp_path):
+    if not _sandbox_ok(tmp_path):
+        pytest.skip("bubblewrap isolation unavailable in this environment")
     async def slow_shell():
         return {"tool": "shell",
                 "arguments": {"command": "sleep 60", "objective_revision": 1}}
@@ -400,7 +480,7 @@ async def test_steer_applies_and_stale_finish_fails(tmp_path):
     runtime, _, _ = make_runtime(tmp_path, provider)
     try:
         task = await runtime.submit(task_req())
-        await poll_for(lambda: len(runtime.status(task.task_id).evidence) >= 1)
+        await poll_for(lambda: _evdone(runtime, task.task_id))
         steered = await runtime.steer(
             task.task_id,
             SteerRequest(instruction="do something else",
@@ -411,7 +491,7 @@ async def test_steer_applies_and_stale_finish_fails(tmp_path):
         final = await runtime.wait(task.task_id, timeout=10)
         assert final.state == TaskState.FAILED
         assert "stale" in (final.error or "").lower()
-        assert runtime.status(task.task_id).objective_revision == 2
+        assert (await runtime.status(task.task_id)).objective_revision == 2
     finally:
         gate.set()
         await runtime.close()
@@ -420,19 +500,20 @@ async def test_steer_applies_and_stale_finish_fails(tmp_path):
 async def test_steer_requires_reverification_then_succeeds(tmp_path):
     gate = asyncio.Event()
 
-    async def gated_new_work():
+    async def gated_stale_write():
         await gate.wait()
-        return write_action(path="v2.txt", content="reverified", revision=2)
+        return write_action(path="stale.txt", content="stale plan", revision=1)
 
     provider = ScriptedProvider([
         write_action(path="v1.txt", content="old"),
-        gated_new_work,
+        gated_stale_write,
+        write_action(path="v2.txt", content="reverified", revision=2),
         finish_action(revision=2, summary="new plan done"),
     ])
     runtime, _, _ = make_runtime(tmp_path, provider)
     try:
         task = await runtime.submit(task_req())
-        await poll_for(lambda: len(runtime.status(task.task_id).evidence) >= 1)
+        await poll_for(lambda: _evdone(runtime, task.task_id))
         await runtime.steer(
             task.task_id,
             SteerRequest(instruction="write v2 instead",
@@ -473,8 +554,7 @@ async def test_approval_flow_write_without_grant(tmp_path):
     runtime2 = AgentRuntime(journal2, provider, tmp_path, policy2)
     try:
         task = await runtime2.submit(task_req())
-        await poll_for(lambda: runtime2.status(task.task_id).state
-                       == TaskState.AWAITING_APPROVAL)
+        await poll_for(lambda: _is_state(runtime2, task.task_id, TaskState.AWAITING_APPROVAL))
         approval_id = runtime2.approval_for_task(task.task_id)
         assert approval_id
         requested = [e for e in journal2.entries if e.kind == "approval.requested"]
@@ -516,8 +596,7 @@ async def test_denied_approval_fails_task(tmp_path):
     runtime = AgentRuntime(InMemoryJournal(SESSION), provider, tmp_path, policy)
     try:
         task = await runtime.submit(task_req())
-        await poll_for(lambda: runtime.status(task.task_id).state
-                       == TaskState.AWAITING_APPROVAL)
+        await poll_for(lambda: _is_state(runtime, task.task_id, TaskState.AWAITING_APPROVAL))
         approval_id = runtime.approval_for_task(task.task_id)
         args = {"path": "note.txt", "content": "hello agent", "objective_revision": 1}
         digest = policy.digest_for("write_file", args, 1)
@@ -576,7 +655,7 @@ async def test_wait_timeout_and_unknown_task(tmp_path):
         with pytest.raises(TaskNotFound):
             await runtime.wait("nope", timeout=0.1)
         with pytest.raises(TaskNotFound):
-            runtime.status("nope")
+            await runtime.status("nope")
     finally:
         await runtime.close()
 
