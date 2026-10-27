@@ -44,6 +44,7 @@ from packages.ecosystem.skills import (
     SkillManager,
     SourceRef,
     _make_dirs_no_follow,
+    _open_dir_fd,
     _parse_skill_md_bytes,
     _require_real_dir,
 )
@@ -83,6 +84,7 @@ MAX_RESOURCE_PATH = 1024
 
 _LOCK_FILENAME = "controller.lock"
 _SCOPES_FILENAME = "scopes.json"
+_SCOPE_PENDING_FILENAME = "scope-change.pending"
 _SCOPES_MAX_BYTES = 65_536
 _SCOPES_MAX_ENTRIES = 4096
 
@@ -264,6 +266,9 @@ class SkillService:
             workspace = Path(workspace)
         if not isinstance(root, Path) or not isinstance(workspace, Path):
             raise _fail("root and workspace must be paths")
+        root_real, workspace_real = Path(os.path.realpath(root)), Path(os.path.realpath(workspace))
+        if root_real.is_relative_to(workspace_real) or workspace_real.is_relative_to(root_real):
+            raise _fail("Skill control root must be disjoint from the Agent workspace")
         self._closed = False
         self._lock = asyncio.Lock()
         # Create the control root without following ancestor links, then pin
@@ -276,12 +281,16 @@ class SkillService:
         self._lock_path = self._root / _LOCK_FILENAME
         self._lock_fd = self._take_lock(self._lock_path)
         try:
+            if os.path.lexists(self._root / _SCOPE_PENDING_FILENAME):
+                raise _fail(
+                    "Unfinished skill scope change; owner must inspect persisted scopes before clearing scope-change.pending"
+                )
             self._manager = SkillManager(self._root, workspace=self._workspace)
         except Exception:
             self._release_lock()
             raise
         try:
-            self._scopes: dict[str, str] = self._load_scopes()
+            self._scopes: dict[str, dict[str, str]] = self._load_scopes()
         except Exception:
             self._release_lock()
             raise
@@ -303,7 +312,7 @@ class SkillService:
             ) from None
         try:
             st = os.fstat(fd)
-            if not _stat.S_ISREG(st.st_mode):
+            if not _stat.S_ISREG(st.st_mode) or st.st_nlink != 1 or st.st_uid != os.geteuid():
                 raise _fail(f"controller lock is not a regular file: {path}")
             # Enforce owner-only access on our own control file.
             try:
@@ -359,7 +368,7 @@ class SkillService:
             raise _fail("skill controller is closed")
 
     # -- owner scopes (protected root, no-follow, temp+fsync+replace) ------
-    def _load_scopes(self) -> dict[str, str]:
+    def _load_scopes(self) -> dict[str, dict[str, str]]:
         try:
             st = os.lstat(self._scopes_path)
         except FileNotFoundError:
@@ -405,11 +414,21 @@ class SkillService:
             raise _fail("skill scopes is corrupt")
         if len(data) > _SCOPES_MAX_ENTRIES:
             raise _fail("skill scopes holds too many entries")
-        scopes: dict[str, str] = {}
+        scopes: dict[str, dict[str, str]] = {}
         for key, value in data.items():
             if not isinstance(key, str) or not SKILL_ID_RE.match(key):
                 raise _fail(f"skill scopes entry is corrupt: {key!r}")
-            if not isinstance(value, str) or value not in VALID_SCOPES:
+            if (
+                not isinstance(value, dict)
+                or len(value) > MAX_PINS + 1
+                or any(
+                    not isinstance(digest, str)
+                    or re.fullmatch(r"sha256:[0-9a-f]{64}", digest) is None
+                    or not isinstance(scope, str)
+                    or scope not in VALID_SCOPES
+                    for digest, scope in value.items()
+                )
+            ):
                 raise _fail(f"skill scopes entry is corrupt: {key!r}")
             scopes[key] = value
         return scopes
@@ -472,11 +491,39 @@ class SkillService:
             except OSError:
                 pass
 
-    def _effective_scope(self, skill_id: str) -> str:
-        scope = self._scopes.get(skill_id, DEFAULT_SCOPE)
+    def _effective_scope(self, skill_id: str, digest: str | None = None) -> str:
+        if digest is None:
+            digest = self._manager._record(skill_id).digest
+        scope = self._scopes.get(skill_id, {}).get(digest, DEFAULT_SCOPE)
         return scope if scope in VALID_SCOPES else DEFAULT_SCOPE
 
-    def _set_scope(self, skill_id: str, scope: str) -> None:
+    def _persist_scopes(self) -> None:
+        """Record durable intent before replacing grants; unfinished intent
+        refuses restart instead of resurrecting an older permissive grant.
+        """
+        root_fd = _open_dir_fd(self._root, "skill root")
+        try:
+            fd = os.open(
+                _SCOPE_PENDING_FILENAME,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
+                0o600,
+                dir_fd=root_fd,
+            )
+            try:
+                os.fsync(fd)
+            finally:
+                os.close(fd)
+            os.fsync(root_fd)
+            self._write_scopes()
+            os.fsync(root_fd)
+            os.unlink(_SCOPE_PENDING_FILENAME, dir_fd=root_fd)
+            os.fsync(root_fd)
+        except OSError as exc:
+            raise _fail(f"Skill scope persistence failed: {exc}") from None
+        finally:
+            os.close(root_fd)
+
+    def _set_scope(self, skill_id: str, scope: str, *, preserve_pins: bool = False) -> None:
         """Persist one owner scope; fail closed to ``local_only`` on error.
 
         A persistence failure never leaves a broader scope in force for this
@@ -484,16 +531,24 @@ class SkillService:
         caller gets an explicit error instead of silent disclosure.
         """
         previous = self._scopes.get(skill_id)
-        self._scopes[skill_id] = scope
+        # An update is new content. Prior review of a name cannot authorize
+        # changed bytes, and review of a new public version cannot authorize
+        # an old private task pin. Retain only active, separately reviewed pins.
+        grants = {}
+        if preserve_pins and previous:
+            active = {pin.digest for pin in self._pins.values() if pin.skill_id == skill_id}
+            grants = {digest: value for digest, value in previous.items() if digest in active}
+        grants[self._manager._record(skill_id).digest] = scope
+        self._scopes[skill_id] = grants
         try:
-            self._write_scopes()
+            self._persist_scopes()
         except SkillServiceError:
-            self._scopes[skill_id] = DEFAULT_SCOPE
+            self._scopes[skill_id] = {}
             if previous is None:
                 del self._scopes[skill_id]
             raise
         except SkillError as exc:
-            self._scopes[skill_id] = DEFAULT_SCOPE
+            self._scopes[skill_id] = {}
             if previous is None:
                 del self._scopes[skill_id]
             raise _fail(f"skill scope persistence failed: {exc}") from None
@@ -526,7 +581,7 @@ class SkillService:
         flags must allow the requested invocation.
         """
         local, contributor = _provider_flags(provider_info)
-        if not record.enabled or record.status in ("disabled", "needs_adapter"):
+        if not record.enabled or record.status != "ready":
             raise _fail(f"skill is not enabled: {record.id}")
         if invocation == "user" and not record.user_invocable:
             raise _fail(f"skill is not user-invocable: {record.id}")
@@ -672,7 +727,7 @@ class SkillService:
                     if checked_id in self._scopes:
                         del self._scopes[checked_id]
                         try:
-                            self._write_scopes()
+                            self._persist_scopes()
                         except SkillError as exc:
                             raise self._wrap(exc) from None
                     self._manager.remove(checked_id, authority=authority)
@@ -693,7 +748,7 @@ class SkillService:
                 # failure fails closed: the skill stays installed but its
                 # effective scope is local_only, reported as an error.
                 try:
-                    self._set_scope(record.id, checked_scope)
+                    self._set_scope(record.id, checked_scope, preserve_pins=True)
                 except SkillError as exc:
                     raise self._wrap(exc) from None
             result = copy.deepcopy(record.metadata())
@@ -891,6 +946,13 @@ class SkillService:
             if pin is None:
                 pin = self._capture_pin(checked_task, record)
                 self._store_pin(pin)
+            local, contributor = _provider_flags(provider_info)
+            if not _scope_allows(
+                self._effective_scope(checked_id, pin.digest), local=local, contributor=contributor
+            ):
+                raise _fail(
+                    "Pinned skill version is unavailable under this model disclosure policy"
+                )
             # Pinned author controls still apply on top of the current ones.
             if checked_invocation == "user" and not pin.user_invocable:
                 raise _fail(f"skill is not user-invocable: {checked_id} (pinned version)")
@@ -899,7 +961,12 @@ class SkillService:
             try:
                 if checked_resource is None:
                     _, body = _parse_skill_md_bytes(pin.blobs["SKILL.md"])
-                    content: dict[str, Any] = {"body": body}
+                    content: dict[str, Any] = {
+                        "body": body,
+                        "instruction_path": "SKILL.md",
+                        "instruction_sha256": "sha256:"
+                        + hashlib.sha256(pin.blobs["SKILL.md"]).hexdigest(),
+                    }
                 else:
                     data = pin.blobs.get(checked_resource)
                     if data is None:
@@ -956,3 +1023,37 @@ class SkillService:
                 self._pinned_bytes -= pin.total_bytes
             if self._pinned_bytes < 0:  # pragma: no cover - internal invariant
                 self._pinned_bytes = 0
+
+    async def validate_task(
+        self, task_id: str, provider_info: Any, *, user_skill_id: str | None = None
+    ) -> None:
+        """Recheck retained context before inference without loading bodies.
+
+        A task may deliberately select a small resource from a package whose
+        instructions exceed the context profile; checking revocation must not
+        require serializing those oversized instructions again.
+        """
+        checked_task = _check_task_id(task_id)
+        async with self._lock:
+            self._ensure_open()
+            local, contributor = _provider_flags(provider_info)
+            for (task, skill_id), pin in self._pins.items():
+                if task != checked_task:
+                    continue
+                invocation = "user" if skill_id == user_skill_id else "model"
+                record = self._current_record(skill_id)
+                self._deny_unless_disclosable(
+                    record, self._effective_scope(skill_id), provider_info, invocation=invocation
+                )
+                if not _scope_allows(
+                    self._effective_scope(skill_id, pin.digest),
+                    local=local,
+                    contributor=contributor,
+                ):
+                    raise _fail(
+                        "Pinned skill version is unavailable under this model disclosure policy"
+                    )
+                if (invocation == "model" and not pin.model_invocable) or (
+                    invocation == "user" and not pin.user_invocable
+                ):
+                    raise _fail("Pinned skill invocation is disabled")

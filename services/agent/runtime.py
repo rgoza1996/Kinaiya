@@ -99,6 +99,8 @@ class _Record:
     steer_idem: dict[str, tuple[str, str]] = field(default_factory=dict)
     interrupt_idem: dict[str, tuple[str, str]] = field(default_factory=dict)
     source_revisions: dict[str, int] = field(default_factory=dict)
+    explicit_skill: str | None = None
+    used_skills: set[str] = field(default_factory=set)
 
 
 class AgentRuntime:
@@ -113,6 +115,7 @@ class AgentRuntime:
         max_steps: int = 12,
         selector_registry=None,
         mcp_host: Any | None = None,
+        skill_service: Any | None = None,
     ) -> None:
         self.journal = journal
         self.provider = provider
@@ -123,6 +126,7 @@ class AgentRuntime:
         # Optional broker for owner-configured MCP servers. None means the
         # mcp_list/mcp_call tools are unknown and honestly unavailable.
         self.mcp_host = mcp_host
+        self.skill_service = skill_service
         self._tasks: dict[str, _Record] = {}
         # Scoped (session_id, idempotency_key) so keys never collide across
         # sessions; restored by recover for terminal and paused tasks alike.
@@ -281,8 +285,15 @@ class AgentRuntime:
         return texts
 
     # -- interface: submit --------------------------------------------
-    async def submit(self, request: TaskRequest, actor: str = "owner") -> Task:
+    async def submit(
+        self, request: TaskRequest, actor: str = "owner", *, explicit_skill: str | None = None
+    ) -> Task:
         self._check_actor(actor, list(request.source_event_ids), "submit")
+        if explicit_skill is not None:
+            if actor != "owner" or self.skill_service is None:
+                raise PolicyDenied("Explicit skill invocation requires owner and configured skills")
+            if not isinstance(explicit_skill, str) or not 1 <= len(explicit_skill) <= 256:
+                raise ValueError("Invalid explicit skill id")
         session = await self._require_session(request.session_id)
         if (request.thread_id, request.epoch) != (session.thread_id, session.epoch):
             raise StaleRevision(
@@ -314,6 +325,8 @@ class AgentRuntime:
             "source_event_ids": list(request.source_event_ids),
             "source_revision": request.source_revision,
         }
+        if explicit_skill is not None:
+            payload["explicit_skill"] = explicit_skill
         digest = _payload_hash(payload)
         idem_key = (request.session_id, request.idempotency_key)
         if idem_key in self._submit_idem:
@@ -332,7 +345,7 @@ class AgentRuntime:
             idempotency_key=request.idempotency_key,
             harness_version=self.selector_registry.active if self.selector_registry else "seed-v1",
         )
-        rec = _Record(task=task)
+        rec = _Record(task=task, explicit_skill=explicit_skill)
         if actor == "decisions":
             rec.source_revisions = dict.fromkeys(request.source_event_ids, request.source_revision)
         self._tasks[task.task_id] = rec
@@ -353,6 +366,7 @@ class AgentRuntime:
                 "idempotency_key": request.idempotency_key,
                 "payload_digest": digest,
                 "harness_version": task.harness_version,
+                "explicit_skill": explicit_skill,
             },
         )
         rec.worker = asyncio.create_task(self._run(rec))
@@ -585,6 +599,9 @@ class AgentRuntime:
         host, self.mcp_host = self.mcp_host, None
         if host is not None:
             await host.close()
+        service, self.skill_service = self.skill_service, None
+        if service is not None:
+            service.close()
 
     # -- approvals ------------------------------------------------------
     async def resolve_approval(
@@ -781,11 +798,24 @@ class AgentRuntime:
         if rec.task.state == TaskState.ACCEPTED:
             rec.task.state = TaskState.RUNNING
         try:
+            if rec.explicit_skill:
+                await self._dispatch(
+                    rec, "skill_load", {"skill_id": rec.explicit_skill}, "", "", approval_id=None
+                )
+                if rec.last_tool_ok is not True:
+                    await self._fail(rec, "Selected skill is unavailable under the current policy")
+                    return
             for _ in range(self.max_steps):
                 if rec.cancel_requested or rec.closing:
                     await self._cancel(rec)
                     return
                 await self._apply_steer(rec)
+                # Revocation applies before the next model request, including
+                # content already retained in this task's bounded history.
+                if self.skill_service is not None:
+                    await self.skill_service.validate_task(
+                        rec.task.task_id, self.provider.info, user_skill_id=rec.explicit_skill
+                    )
                 revision_before = rec.task.objective_revision
                 messages = build_messages(
                     rec.task.objective,
@@ -794,6 +824,7 @@ class AgentRuntime:
                     rec.history,
                     self._grants(),
                     self._mcp_server_ids(),
+                    self.skill_service is not None,
                 )
                 try:
                     text = await self.provider.complete(messages)
@@ -852,6 +883,9 @@ class AgentRuntime:
                 rec.done.set()
             else:
                 await self._fail(rec, f"runtime error: {exc}")
+        finally:
+            if self.skill_service is not None:
+                await self.skill_service.release_task(rec.task.task_id)
 
     async def _verify_finish_files(self, rec: _Record) -> str | None:
         """Re-read every file written in the current revision before accepting finish.
@@ -907,7 +941,7 @@ class AgentRuntime:
         ):
             await self._fail(
                 rec,
-                "finish with only unverified external MCP receipts; "
+                "finish with only unverified external content receipts; "
                 "independent native evidence is required to report success",
             )
             return
@@ -1034,7 +1068,8 @@ class AgentRuntime:
         if stale is not None:
             await self._fail(rec, stale)
             return
-        rec.history.append({"role": "assistant", "content": raw[:2000]})
+        if raw:
+            rec.history.append({"role": "assistant", "content": raw[:2000]})
         if approval_id is not None:
             # One-use intent is now committed to this exact execution.
             rec.pending = None
@@ -1094,6 +1129,8 @@ class AgentRuntime:
                     approval_id=approval_id,
                     digest=digest,
                 )
+            elif tool in {"skills_list", "skill_load"}:
+                out, evidence = await self._skill_result(rec, tool, args)
             else:
                 raise ToolFailure(f"unknown tool {tool!r}")
         except _FailedWithEvidence as exc:
@@ -1125,7 +1162,62 @@ class AgentRuntime:
         rec.last_tool_ok = True
         if tool in ("write_file", "shell", "mcp_call"):
             rec.failed_effect = False
-        rec.history.append({"role": "user", "content": observation_text(True, out)})
+        if tool in {"skills_list", "skill_load"}:
+            rec.history.append(
+                {
+                    "role": "user",
+                    "content": "[ok; untrusted skill content] " + out,
+                    "context_kind": "skill",
+                }
+            )
+        else:
+            rec.history.append({"role": "user", "content": observation_text(True, out)})
+
+    async def _skill_result(self, rec, tool, args):
+        if self.skill_service is None:
+            raise ToolFailure("No skill controller configured")
+        try:
+            if tool == "skills_list":
+                if set(args) - {"after"}:
+                    raise ValueError("skills_list accepts only after")
+                result = await self.skill_service.catalog(
+                    self.provider.info, after=args.get("after", 0)
+                )
+            else:
+                if set(args) - {"skill_id", "resource"}:
+                    raise ValueError("skill_load accepts only skill_id and resource")
+                skill_id = args.get("skill_id")
+                result = await self.skill_service.load(
+                    rec.task.task_id,
+                    skill_id,
+                    self.provider.info,
+                    invocation="user" if skill_id == rec.explicit_skill else "model",
+                    resource=args.get("resource"),
+                )
+                rec.used_skills.add(skill_id)
+            output = json.dumps(result, ensure_ascii=False, sort_keys=True)
+            if len(output) > 11500:
+                raise ValueError("Skill result exceeds this model context profile")
+        except Exception as exc:
+            raise ToolFailure(str(exc)) from exc
+        return output, Evidence(
+            kind="external",
+            summary=(
+                f"{tool} {result.get('id', 'catalog')} {result.get('digest', '')}: "
+                "untrusted skill content receipt; not task-effect evidence"
+            ),
+            sha256=_payload_hash(result),
+            output=json.dumps(
+                {
+                    key: value
+                    for key, value in result.items()
+                    if key not in {"body", "resource_text"}
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+            ),
+            objective_revision=rec.task.objective_revision,
+        )
 
     async def _read_transcript(self, rec, args):
         event_ids = args.get("event_ids", [])

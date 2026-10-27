@@ -9,7 +9,7 @@ import shlex
 import sqlite3
 from pathlib import Path
 
-from packages.contracts.models import TERMINAL_STATES, AppendRequest, InterruptRequest
+from packages.contracts.models import TERMINAL_STATES, AppendRequest, InterruptRequest, TaskRequest
 
 
 def parse(text):
@@ -32,6 +32,12 @@ DEFINITIONS = {
     "new": ("Create an Agent session without cancelling existing work", [], "[name]"),
     "history": ("Inspect the most recent 100 journal entries", [], ""),
     "clear": ("Clear the client view; preserve the journal and running tasks", [], ""),
+    "skills": (
+        "Inspect or manage installed skills without inference",
+        [],
+        "list|inspect|install|enable|disable|update|rollback|remove|scope ...",
+    ),
+    "skill": ("Start normal Agent work with one selected skill", [], "<qualified-id> [request]"),
 }
 
 
@@ -41,6 +47,9 @@ class Registry:
         self.journal = owner_journal or runtime.journal
         self.profiles = profiles or {}
         self.lock = asyncio.Lock()
+        self._skill_commands = []
+        self._skill_targets = {}
+        self._skills_truncated = False
         if path:
             path = Path(path)
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -70,11 +79,77 @@ class Registry:
                     "permissions": ["owner"],
                     "target_scope": "agent",
                     "confirmation": "explicit-owner-submission",
-                    "available": True,
+                    "available": name not in {"skill", "skills"}
+                    or getattr(self.runtime, "skill_service", None) is not None,
                 }
                 for name, (description, aliases, syntax) in DEFINITIONS.items()
-            ],
+            ]
+            + self._skill_commands,
+            "skill_commands_truncated": self._skills_truncated,
         }
+
+    async def refresh_skill_commands(self):
+        """Bound owner command discovery; large catalogs use qualified /skill."""
+        service = getattr(self.runtime, "skill_service", None)
+        self._skill_commands, self._skill_targets = [], {}
+        self._skills_truncated = False
+        if service is None:
+            return
+        rows, after = [], 0
+        for _ in range(8):
+            page = await service.list_owner(after=after, limit=8)
+            rows.extend(page["skills"])
+            after = page["next_after"]
+            if after is None:
+                break
+        if after is not None:
+            # A collision may exist beyond this bounded window. Do not pick
+            # a publisher based on catalog ordering; use explicit qualified ids.
+            self._skills_truncated = True
+            return
+        reserved = set(DEFINITIONS) | {
+            alias for _, aliases, _ in DEFINITIONS.values() for alias in aliases
+        }
+        counts = {}
+        for row in rows:
+            counts[row["name"]] = counts.get(row["name"], 0) + 1
+        for row in rows:
+            name = row["name"]
+            if re.fullmatch(r"[a-z][a-z0-9_-]*", name) is None or (
+                name in reserved
+                or counts[name] != 1
+                or not row.get("user_invocable", True)
+                or not row.get("bare_invocable", False)
+            ):
+                continue
+            available = row.get("enabled", False) and row.get("status") == "ready"
+            info = self.runtime.provider.info
+            contributor = info.provider == "meta" or "contributor" in info.model.lower()
+            scope = row.get("scope", "local_only")
+            available = available and (
+                info.local
+                or scope == "public_synthetic"
+                or (not contributor and scope == "private_cloud_authorized")
+            )
+            self._skill_commands.append(
+                {
+                    "id": "skill:" + row["id"],
+                    "name": name,
+                    "aliases": [],
+                    "description": row["description"][:80],
+                    "syntax": "/" + name + " [request]",
+                    "arguments_schema": {"type": "array", "items": {"type": "string"}},
+                    "execution_type": "skill_invocation",
+                    "origin": row["id"],
+                    "surfaces": ["agent-chat", "agent-cli"],
+                    "permissions": ["owner"],
+                    "target_scope": "agent",
+                    "confirmation": "explicit-owner-submission",
+                    "available": available,
+                }
+            )
+            if available:
+                self._skill_targets[name] = row["id"]
 
     async def execute(self, request, actor="owner"):
         if actor != "owner":
@@ -113,11 +188,20 @@ class Registry:
                 if parsed is None:
                     result = self._reply("error", None, error="literal_text", literal=request.input)
                 else:
+                    await self.refresh_skill_commands()
                     name, args = parsed
                     name = next(
                         (n for n, (_, aliases, _) in DEFINITIONS.items() if name in aliases), name
                     )
-                    if name not in DEFINITIONS:
+                    if name in self._skill_targets:
+                        result = self._reply(
+                            "ok",
+                            name,
+                            result=await self._invoke_skill(
+                                self._skill_targets[name], args, request
+                            ),
+                        )
+                    elif name not in DEFINITIONS:
                         result = self._reply(
                             "error",
                             name,
@@ -158,6 +242,12 @@ class Registry:
 
     async def _dispatch(self, name, args, request):
         runtime = self.runtime
+        if name == "skill":
+            if not args:
+                raise ValueError("Usage: /skill <qualified-id> [request]")
+            return await self._invoke_skill(args[0], args[1:], request)
+        if name == "skills":
+            return await self._skills_control(args)
         if name == "help":
             if len(args) > 1:
                 raise ValueError("Usage: /help [command]")
@@ -245,6 +335,53 @@ class Registry:
             ]
         if name == "clear":
             return {"clear_view": True, "journal_preserved": True}
+
+    async def _invoke_skill(self, skill_id, args, request):
+        task = await self.runtime.submit(
+            TaskRequest(
+                session_id=request.session_id,
+                thread_id=request.thread_id,
+                epoch=request.epoch,
+                objective=" ".join(args)
+                or "Follow the selected skill's procedure within current permissions.",
+                idempotency_key="skill-command:"
+                + hashlib.sha256(request.idempotency_key.encode()).hexdigest(),
+            ),
+            actor="owner",
+            explicit_skill=skill_id,
+        )
+        return {"accepted_task_id": task.task_id, "state": task.state.value, "skill_id": skill_id}
+
+    async def _skills_control(self, args):
+        from services.agent.skill_controls import SkillControl, apply_skill_control, require_skills
+
+        if not args or args[0] == "list":
+            if len(args) > 2:
+                raise ValueError("Usage: /skills list [after]")
+            return await require_skills(self.runtime).list_owner(
+                after=int(args[1]) if len(args) == 2 else 0
+            )
+        operation, rest = args[0], args[1:]
+        fields = {"operation": operation}
+        if operation in {"install", "install_archive"} and len(rest) in {1, 2}:
+            fields["source"] = rest[0]
+            if len(rest) == 2:
+                fields["content_scope"] = rest[1]
+        elif operation in {"update", "update_archive"} and len(rest) in {2, 3}:
+            fields.update(skill_id=rest[0], source=rest[1])
+            if len(rest) == 3:
+                fields["content_scope"] = rest[2]
+        elif operation == "scope" and len(rest) == 2:
+            fields.update(skill_id=rest[0], content_scope=rest[1])
+        elif operation in {"inspect", "enable", "disable", "rollback", "remove"} and len(rest) == 1:
+            fields["skill_id"] = rest[0]
+        else:
+            raise ValueError(
+                "Usage: /skills list|inspect|install|install_archive|enable|disable|update|update_archive|rollback|remove|scope ..."
+            )
+        result = await apply_skill_control(self.runtime, SkillControl(**fields))
+        await self.refresh_skill_commands()
+        return result
 
     def close(self):
         self.db.close()

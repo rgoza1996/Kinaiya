@@ -1,93 +1,59 @@
-# ADR 0009: Skill controller with task pins and disclosure policy
+# ADR 0009: Skill controller, task pins and disclosure grants
 
-Implements the controller/pinning portion of issue #28 on top of the
-reviewed skills foundation (ADR 0007). New code lives only in
-`services/agent/skill_service.py`, with coverage in
-`tests/integration/test_skill_service.py` (19 tests). The foundation
-(`packages/ecosystem/skills.py`), runtime, commands, providers,
-contracts, launcher, seed, and app surfaces are untouched; the lead
-integrates those concurrently.
+The controller in `services/agent/skill_service.py` extends ADR 0007 for issue
+#28. Agent/API/command integration is described in ADR 0010. This remains an
+experimental Linux implementation, not the complete M1A compatibility gate.
 
-## What the controller owns
+A no-follow, owner-only regular lockfile and nonblocking `flock` permit one
+live controller per protected root. An asyncio lock serializes lifecycle,
+scopes and pins. The root must be disjoint from Agent's workspace before any
+control file is created. The base Agent does not import the optional YAML
+skill dependency until skills are explicitly configured.
 
-- **One live controller per root.** Construction creates the control root
-  without following links, takes a non-blocking `fcntl.flock` on a
-  no-follow regular `0600` lockfile, then builds `SkillManager(root,
-  workspace)`. A second live instance for the same root is rejected;
-  `close()` is synchronous, idempotent, and releases the lock.
-- **Serialized access.** Every async API holds one `asyncio.Lock`, so
-  registry, scope-file, and pin mutations are serialized on the single
-  event loop. There is no cross-process mutation protocol beyond the
-  lockfile, and no filesystem-plus-SQLite transaction: registry and scope
-  writes are each atomic (exclusive temp file, fsync, replace), but they
-  are not one atomic unit.
-- **Owner scopes.** `local_only` (default), `public_synthetic`, and
-  `private_cloud_authorized` persist in `scopes.json` inside the protected
-  root (bounded no-follow reads, exclusive temp+fsync+replace). Installs
-  and updates may set a scope only when the owner explicitly supplies it;
-  scope persistence failure fails closed to `local_only` and raises
-  instead of silently permitting disclosure. Unknown or corrupt scope
-  state refuses service rather than guessing.
-- **Model disclosure policy (trusted code, never prompts).**
-  Local-provider models may see enabled, model-invocable skills. Every
-  Meta provider counts as Contributor even under aliases, so Contributor
-  callers see only `public_synthetic`. Other cloud providers see
-  `public_synthetic` or `private_cloud_authorized`. Filtering happens
-  before ids, names, or descriptions are exported. Disabled, manual-only,
-  and model-disabled skills never appear in the model catalog.
-- **Task pins.** The first `load` for a task+skill captures exactly one
-  verified snapshot via `manager._verified_blobs(record)` — metadata,
-  invocation flags, source provenance, digest, and all resource bytes.
-  Later loads for the same task+skill reuse those pinned bytes across
-  updates and rollbacks; removal refuses while dependent pins exist, and
-  `release_task` drops pins idempotently. Every load rechecks the
-  *current* enabled state, author flags, and owner scope/provider policy,
-  so revocation blocks subsequent disclosure of existing pins; the pinned
-  author flags must allow the invocation as well. Bounds: at most 32 pins
-  and 32 MiB retained, refused explicitly before exceeding. Returned
-  structures are copies, so callers cannot mutate pins.
-- **Bounded outputs.** Owner pages carry at most 8 rows; the model
-  catalog carries at most 4 rows with descriptions capped at 80 chars in
-  at most 1600 JSON chars. Every `load` response is at most 12000 JSON
-  chars; oversized bodies fail with a needs-smaller-resource error naming
-  the `resource=` alternative, instead of silent truncation. Resources
-  load as UTF-8 text only (with path and SHA-256); binary is refused, and
-  nothing here materializes or executes scripts.
+Owner grants are `local_only` by default, `public_synthetic`, or
+`private_cloud_authorized`. Grants bind the exact whole-package digest.
+Updating bytes without another explicit grant makes the new version local
+only. Active older pins retain their separately reviewed grants across an
+explicitly scoped update; reviewing a new public version cannot disclose an
+older private pin. Explicit scope changes discard historical grants. Current
+revocation and each pinned digest are checked before every read and before
+subsequent Agent inference. Already transmitted in-flight requests cannot be
+recalled by revocation.
 
-## Explicitly not claimed
+Scope persistence uses a durable intent marker before atomic replacement.
+An unfinished `scope-change.pending` refuses restart until the owner inspects
+persisted scopes and clears the marker. Write failures restrict the affected
+in-memory grant and return an error. Failure before an intent marker can be
+written cannot establish durable revocation; the requested change is not
+acknowledged. Registry, directory and scope updates are not one transaction.
+A changed digest without a matching persisted grant remains local only.
+No automatic crash repair or administrator-tamper defense is claimed.
 
-- **Not full M1A.** No Agent tool/command/API/Flutter exposure, no
-  runtime wiring, no provider onboarding: `authority="owner"` and
-  `invocation="user"` are internal interfaces for the trusted launcher
-  and command integration, never model tool arguments. The lead owns that
-  integration and the network-fetch responsibility (this service rejects
-  URL-looking sources instead of fetching).
-- **No crash recovery.** A crash between the registry write and the scope
-  write (or vice versa) can leave the two out of sync; restart refuses
-  changed or tampered content (verification fails) but never calls it
-  recovered. Task restart must not silently resume an old pin: the
-  runtime must `release_task` finished, cancelled, failed, or uncertain
-  tasks (it already pauses uncertain recovered tasks) and use fresh task
-  ids per incarnation.
-- **No upstream conformance.** A valid portable package is not proof of
-  OpenClaw/Hermes runtime compatibility; dependency installation and
-  execution remain unimplemented and refused by the foundation.
-- **Single-controller scope.** The OS lock rejects a second *live*
-  controller, but backup, replication, or administrator edits under the
-  root are outside the threat model, as with the foundation's control
-  directories.
+Every Meta adapter counts as Contributor, including model aliases. Contributor
+receives only explicitly public/synthetic packages. Other configured cloud
+providers require an appropriate owner grant; local models may load eligible
+local content. Model catalog filtering precedes exporting ids/descriptions.
+Manual-only and author-disabled model invocation are enforced in code.
 
-## Verification
+The first selected load captures verified package bytes for a task/skill.
+Later loads use that snapshot through updates and rollback. Current and pinned
+author restrictions both apply. Removal reports active dependent tasks and
+refuses until their pins are released. Runtime finish/failure/cancellation
+releases pins; recovered uncertain tasks stay paused and never resume them.
+Bounds are 32 pins and 32 MiB retained. Returned data cannot mutate stored
+snapshots. Resources are UTF-8 text with exact path/hash; no code executes on
+load. Owner pages contain at most eight records, model pages at most four
+records/1600 JSON characters, and loads at most 12000 JSON characters. The
+Agent uses a slightly smaller bound to preserve its observation envelope.
+Oversized content refuses explicitly; selecting a small resource remains
+possible and revocation checking does not reload an oversized body.
 
-`tests/integration/test_skill_service.py`: 19 tests covering synthetic
-install/enable/load/resource roundtrips, script/license preservation
-without execution, model/user and manual-only restrictions, default
-`local_only` with Meta-alias denial before any export, the other-cloud
-scope matrix, scope persistence across restart, revocation blocking an
-existing pin with re-enable readmission, pin immutability across updates
-(new tasks get the new version), removal refusal with dependent listing
-and release-gated removal, two-controller rejection, malformed inputs,
-no-follow scope/lockfiles, bounded pages and payloads, pin-memory bounds,
-and fail-closed scope writes. The 53 reviewed foundation/boundary tests
-are untouched and still pass; the full offline suite result is recorded
-in the delivery report.
+Verification: 19 controller tests and 17 Agent/boundary tests exercise real
+synthetic files and journal operations. Added lead regressions cover grants
+across changed/private versions, failed revocation across restart, root
+intersection and hardlinked locks, large catalogs, cancellation and partial
+content selection. The 53 foundation tests remain intact. Full offline Python
+verification passed 289 tests. Real Contributor task evidence is in
+`evaluation/evidence/skills-2026-10-27.json`; it proves one synthetic procedure,
+not upstream conformance, dependency execution or autonomous capability
+acquisition.
