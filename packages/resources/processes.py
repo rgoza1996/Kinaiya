@@ -299,33 +299,23 @@ def _bootstrap_path() -> str:
 
 
 def _make_config_fd(raw: bytes) -> tuple[int, Any | None]:
-    """Sealed memfd (fallback: anonymous temp file) holding bounded config."""
-    try:
-        fd = os.memfd_create("worker-config", 0)
-    except (AttributeError, OSError):
-        import tempfile
-
-        tmp = tempfile.TemporaryFile(prefix="worker-config-")
-        tmp.write(raw)
-        tmp.seek(0)
-        return tmp.fileno(), tmp
-    off = 0
-    while off < len(raw):
-        off += os.write(fd, raw[off:])
+    """Sealed memfd holding bounded config; inability to seal refuses spawn."""
+    fd = os.memfd_create("worker-config", os.MFD_CLOEXEC | os.MFD_ALLOW_SEALING)
     try:
         import fcntl
 
+        off = 0
+        while off < len(raw):
+            off += os.write(fd, raw[off:])
         fcntl.fcntl(
             fd,
             fcntl.F_ADD_SEALS,
             fcntl.F_SEAL_SHRINK | fcntl.F_SEAL_GROW | fcntl.F_SEAL_WRITE | fcntl.F_SEAL_SEAL,
         )
-    except Exception:
-        pass
-    try:
         os.lseek(fd, 0, os.SEEK_SET)
-    except OSError:
-        pass
+    except BaseException:
+        os.close(fd)
+        raise
     return fd, None
 
 
@@ -487,7 +477,9 @@ class WorkerManager:
                 "owned_pid": pid,
                 "owned_pgid": managed.pgid,
                 "error": error,
-                "rss_bytes": _rss_bytes(pid) if pid is not None else None,
+                "rss_bytes": _rss_bytes(pid)
+                if pid is not None and self._identity_ok(managed)
+                else None,
                 "group_rss_bytes": self._group_rss(managed),
                 "mem_available_bytes": _mem_available_bytes(),
                 # Raw child output is never exposed: known-secret scrubbing cannot
@@ -534,6 +526,7 @@ class WorkerManager:
         stat = _proc_stat_full(managed.process.pid)
         return (
             stat is not None
+            and _pidfd_pid(managed.leader_fd) == managed.process.pid
             and stat[0] not in _ZOMBIE_STATES
             and stat[1] == os.getpid()
             and stat[2] == managed.pgid
@@ -671,6 +664,7 @@ class WorkerManager:
             raw = json.dumps(
                 {
                     "nonce": nonce,
+                    "parent_pid": os.getpid(),
                     "argv": list(spec.argv),
                     "cwd": str(spec.cwd),
                     "env": spec.child_env(),
@@ -1053,6 +1047,16 @@ class WorkerManager:
         if managed.drains:
             await asyncio.gather(*managed.drains, return_exceptions=True)
             managed.drains = []
+        # Cancelling readers alone leaves pipe transports bound to an event
+        # loop that may then close. Close the owned read ends explicitly; this
+        # never sends a signal to a numeric PID or invokes Process.kill().
+        transport = getattr(managed.process, "_transport", None)
+        if transport is not None:
+            for descriptor in (1, 2):
+                pipe = transport.get_pipe_transport(descriptor)
+                if pipe is not None:
+                    pipe.close()
+            await asyncio.sleep(0)
 
     def _capture_members(self, managed: _Managed) -> None:
         """Adopt pidfds for current group members. Identity-gated; never signals.
@@ -1160,7 +1164,7 @@ class WorkerManager:
             # nothing owned left to inspect or signal.
             return {"ok": True, "worker_id": worker_id, "already": True}
         pid, pgid = proc.pid, managed.pgid
-        rss_before = _rss_bytes(pid)
+        rss_before = _rss_bytes(pid) if self._identity_ok(managed) else None
         group_rss_before = self._group_rss(managed)
         evidence: dict[str, Any] = {
             "pid": pid,

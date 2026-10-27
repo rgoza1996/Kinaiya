@@ -6,9 +6,9 @@ Audio is transient by default. Client playback, not this server, measures audibi
 
 import asyncio
 import base64
+import io
 import json
 import os
-import tempfile
 import threading
 import time
 from pathlib import Path
@@ -22,23 +22,37 @@ from packages.providers.speech import RETAINED_TTS
 from services.common.auth import Auth, load_or_create_tokens
 
 
-def create_app(auth: Auth, *, stt_model="tiny.en", voice="af_heart"):
+def create_app(auth: Auth, *, stt_model="tiny.en", voice="af_heart", resource_policy=None):
     app = FastAPI(title="Kinaiya local voice worker")
     models = {}
     lock = threading.Lock()
+
+    def allow_inference():
+        if resource_policy is None:
+            return
+        from services.resources.state import read_record
+
+        try:
+            state = read_record(Path(resource_policy))
+        except Exception as exc:
+            raise HTTPException(503, "Resource policy unavailable; voice inference paused") from exc
+        if state.phase != "ready" or not state.desired_converse:
+            raise HTTPException(409, "Voice inference paused for resource coordination")
 
     @app.get("/health")
     async def health():
         return {
             "service": "local-voice",
             "device": "cpu",
+            "pid": os.getpid(),
             "loaded": list(models),
             "tts_profile": "Kokoro 82M",
             "retained_candidates": list(RETAINED_TTS),
             "other_profiles": "not_configured",
         }
 
-    def recognize(path):
+    def recognize(data):
+        allow_inference()
         from faster_whisper import WhisperModel
 
         with lock:
@@ -50,7 +64,9 @@ def create_app(auth: Auth, *, stt_model="tiny.en", voice="af_heart"):
                     cpu_threads=4,
                     local_files_only=True,
                 )
-            segments, info = models["stt"].transcribe(str(path), beam_size=3, language="en")
+            # A named temporary file survives SIGKILL. Decode from memory so
+            # forced resource unload cannot leave an audio file on disk.
+            segments, info = models["stt"].transcribe(io.BytesIO(data), beam_size=3, language="en")
             return {
                 "text": " ".join(s.text.strip() for s in segments).strip(),
                 "language": info.language,
@@ -61,24 +77,20 @@ def create_app(auth: Auth, *, stt_model="tiny.en", voice="af_heart"):
 
     @app.post("/v1/audio/transcriptions", dependencies=[Depends(auth.require("converse", "owner"))])
     async def transcribe(file: Annotated[UploadFile, File()]):
+        allow_inference()
         data = await file.read(10_000_001)
         if len(data) > 10_000_000:
             raise HTTPException(413, "Audio exceeds temporary buffer limit")
-        suffix = Path(file.filename or "audio.wav").suffix
-        if suffix not in {".wav", ".webm", ".ogg", ".mp3", ".m4a"}:
-            suffix = ".wav"
-        with tempfile.NamedTemporaryFile(suffix=suffix) as temporary:
-            temporary.write(data)
-            temporary.flush()
-            start = time.perf_counter()
-            result = await asyncio.to_thread(recognize, temporary.name)
-            return {**result, "stt_seconds": time.perf_counter() - start, "retained_audio": False}
+        start = time.perf_counter()
+        result = await asyncio.to_thread(recognize, data)
+        return {**result, "stt_seconds": time.perf_counter() - start, "retained_audio": False}
 
     class Synthesis(BaseModel):
         input: str = Field(min_length=1, max_length=16000)
         profile: str = "Kokoro 82M"
 
     def generate(text):
+        allow_inference()
         import numpy as np
         from kokoro import KPipeline
 
@@ -108,6 +120,7 @@ def create_app(auth: Auth, *, stt_model="tiny.en", voice="af_heart"):
 
     @app.post("/v1/audio/speech", dependencies=[Depends(auth.require("converse", "owner"))])
     async def speech(request: Synthesis):
+        allow_inference()
         if request.profile != "Kokoro 82M":
             raise HTTPException(503, "Selected retained profile needs its configured backend")
         return StreamingResponse(generate(request.input), media_type="application/x-ndjson")
@@ -126,9 +139,14 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--data-dir", type=Path, default=Path("data"))
+    parser.add_argument("--resource-policy", type=Path)
     parser.add_argument("--stt-model", default=os.environ.get("KINAIYA_STT_MODEL", "tiny.en"))
     args = parser.parse_args()
-    app = create_app(Auth(load_or_create_tokens(args.data_dir)), stt_model=args.stt_model)
+    app = create_app(
+        Auth(load_or_create_tokens(args.data_dir)),
+        stt_model=args.stt_model,
+        resource_policy=args.resource_policy,
+    )
     uvicorn.run(app, host="127.0.0.1", port=args.port, log_level="warning")
 
 

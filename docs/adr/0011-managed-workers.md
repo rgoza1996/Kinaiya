@@ -1,8 +1,8 @@
 # ADR 0011: Owner-controlled local worker lifecycle
 
-Status: experimental implementation for GitHub #9 / Roadmap 14.2-14.4, pending
-lead review, policy/coordinator wiring, and live voice handoff. Do not use on
-real voice/services yet.
+Status: experimental Linux implementation for GitHub #9 / Roadmap 14.2-14.4.
+The opt-in CPU voice coordinator and measured live handoff are described in
+[ADR 0013](0013-resource-handoff.md). GPU and general inference scheduling remain open.
 
 ## Context
 
@@ -10,8 +10,8 @@ Roadmap 14.2-14.4 requires resource policies, safe handoff (unload Converse,
 admit Agent work, verify release, restore profile), and no deadlock on
 approvals. This ADR covers only the lowest layer: spawning, tracking, and
 reaping local worker subprocesses defined solely by trusted owner
-configuration. Policy, coordination, wiring, and live voice handoff stay with
-the lead and are explicitly out of scope here.
+configuration. Policy and coordination are separate from this low-level
+process host and are covered by ADR 0013.
 
 Lead review of 8f6bbb7 found the numeric group-signalling boundary unsafe: TERM
 was gated on `/proc` start-time identity, but the later KILL loop signalled
@@ -145,10 +145,9 @@ with a reaping callback that can never exec or be overwritten; start/stop report
   reports handle liveness plus scans and says so instead of over-claiming.
 - `/proc` identity and pidfds are Linux-only; without pidfd support the module
   refuses to spawn rather than falling back to numeric signalling.
-- Admission policy using these facts, coordinator wiring, Converse handoff,
-  and any voice/UX behavior remain lead-owned and unverified here. This is not
-  complete M6, not a real GPU/conversation handoff, and makes no API budget or
-  model pricing changes. No live-resource admission until the lead verifies.
+- Admission and the first-party CPU voice handoff are verified separately in
+  ADR 0013. This process host alone does not satisfy complete M6 or prove GPU
+  allocation release, and makes no API budget or model pricing changes.
 - Remaining non-guarantee: no hostile daemon/cgroup containment is claimed;
   untracked escaped descendants stay explicitly unverified, never signalled.
   GPU remains unknown/unverified.

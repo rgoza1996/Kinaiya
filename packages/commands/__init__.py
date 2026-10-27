@@ -32,6 +32,11 @@ DEFINITIONS = {
     "new": ("Create an Agent session without cancelling existing work", [], "[name]"),
     "history": ("Inspect the most recent 100 journal entries", [], ""),
     "clear": ("Clear the client view; preserve the journal and running tasks", [], ""),
+    "resources": (
+        "Inspect policy or explicitly hand local voice resources to work",
+        [],
+        "status|profile <name>|handoff <bytes> [task-id]|restore|converse on|off",
+    ),
     "skills": (
         "Inspect or manage installed skills without inference",
         [],
@@ -79,8 +84,14 @@ class Registry:
                     "permissions": ["owner"],
                     "target_scope": "agent",
                     "confirmation": "explicit-owner-submission",
-                    "available": name not in {"skill", "skills"}
-                    or getattr(self.runtime, "skill_service", None) is not None,
+                    "available": (
+                        name not in {"skill", "skills"}
+                        or getattr(self.runtime, "skill_service", None) is not None
+                    )
+                    and (
+                        name != "resources"
+                        or getattr(self.runtime, "resource_client", None) is not None
+                    ),
                 }
                 for name, (description, aliases, syntax) in DEFINITIONS.items()
             ]
@@ -242,6 +253,8 @@ class Registry:
 
     async def _dispatch(self, name, args, request):
         runtime = self.runtime
+        if name == "resources":
+            return await self._resources_control(args, request)
         if name == "skill":
             if not args:
                 raise ValueError("Usage: /skill <qualified-id> [request]")
@@ -382,6 +395,39 @@ class Registry:
         result = await apply_skill_control(self.runtime, SkillControl(**fields))
         await self.refresh_skill_commands()
         return result
+
+    async def _resources_control(self, args, request):
+        client = getattr(self.runtime, "resource_client", None)
+        if client is None:
+            raise ValueError("Resource coordination is not configured")
+        try:
+            if not args or args == ["status"]:
+                return await client.status()
+            fields = {
+                "operation": args[0],
+                "idempotency_key": "command:"
+                + hashlib.sha256(
+                    (request.session_id + request.idempotency_key).encode()
+                ).hexdigest(),
+            }
+            if args[0] == "profile" and len(args) == 2:
+                fields["profile"] = args[1]
+            elif args[0] == "handoff" and len(args) in {2, 3}:
+                fields["required_bytes"] = int(args[1])
+                if len(args) == 3:
+                    fields["task_id"] = args[2]
+            elif args[0] == "converse" and len(args) == 2 and args[1] in {"on", "off"}:
+                fields["enabled"] = args[1] == "on"
+            elif args != ["restore"]:
+                raise ValueError(
+                    "Usage: /resources status|profile <name>|handoff <bytes> [task-id]|restore|converse on|off"
+                )
+            result = await client.action(fields)
+            if result.get("ok") is not True:
+                raise ValueError(result.get("error", "Resource transition is unconfirmed"))
+            return result
+        except Exception as exc:
+            raise ValueError(str(exc)) from exc
 
     def close(self):
         self.db.close()

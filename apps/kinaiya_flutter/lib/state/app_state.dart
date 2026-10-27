@@ -47,6 +47,15 @@ class AppState extends ChangeNotifier {
   final Set<String> _seenNotices = {};
   final _noticeEvents = StreamController<JournalEntry>.broadcast();
   Stream<JournalEntry> get outcomeNotices => _noticeEvents.stream;
+  final _resourceStops = StreamController<int>.broadcast();
+  Stream<int> get resourceStops => _resourceStops.stream;
+  Timer? _resourcesPoll;
+  bool _pollingResources = false;
+  bool? resourcesConfigured;
+  bool resourceStatusStale = false;
+  String resourcePhase = '';
+  String? _resourceController;
+  int _resourceRevision = -1;
 
   AppView view = AppView.character;
 
@@ -101,6 +110,12 @@ class AppState extends ChangeNotifier {
   void connect(ConnectionProfile profile, {KinaiyaClient? injected}) {
     client?.close();
     _noticesPoll?.cancel();
+    _resourcesPoll?.cancel();
+    resourcesConfigured = null;
+    resourceStatusStale = false;
+    resourcePhase = '';
+    _resourceController = null;
+    _resourceRevision = -1;
     final generation = ++_connectionGeneration;
     connection = profile;
     client = injected ?? clientFactory?.call(profile);
@@ -173,6 +188,11 @@ class AppState extends ChangeNotifier {
         const Duration(seconds: 1),
         (_) => refreshNotices(),
       );
+      _resourcesPoll = Timer.periodic(
+        const Duration(seconds: 2),
+        (_) => refreshResources(),
+      );
+      unawaited(refreshResources());
     } catch (_) {
       if (generation != _connectionGeneration) return;
       connected = false;
@@ -234,9 +254,80 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  Future<void> refreshResources({bool force = false}) async {
+    final api = client;
+    if (api == null ||
+        _pollingResources ||
+        (resourcesConfigured == false && !force)) {
+      return;
+    }
+    _pollingResources = true;
+    final generation = _connectionGeneration;
+    try {
+      final status = await api.resourceStatus().timeout(
+        const Duration(seconds: 4),
+      );
+      if (generation != _connectionGeneration) return;
+      if (status['configured'] == false) {
+        resourcesConfigured = false;
+        resourceStatusStale = false;
+        notifyListeners();
+        return;
+      }
+      final policy = status['policy'];
+      if (policy is! Map ||
+          policy['revision'] is! int ||
+          policy['desired_converse'] is! bool ||
+          policy['phase'] is! String ||
+          status['controller_id'] is! String) {
+        throw const FormatException('Invalid resource status');
+      }
+      resourcesConfigured = true;
+      final wasStale = resourceStatusStale;
+      resourceStatusStale = false;
+      final controller = status['controller_id'] as String;
+      final revision = (policy['revision'] as num).toInt();
+      if (_resourceController != controller) {
+        _resourceController = controller;
+        _resourceRevision = -1;
+      }
+      if (revision < _resourceRevision) {
+        throw const FormatException('Obsolete resource status');
+      }
+      if (revision == _resourceRevision && !wasStale) return;
+      _resourceRevision = revision;
+      resourcePhase = policy['phase'] as String? ?? 'failed';
+      converseEnabled =
+          resourcePhase == 'ready' && policy['desired_converse'] == true;
+      if (!converseEnabled) {
+        turnNonce++;
+        voiceNonce++;
+        speechEpoch++;
+        busyConverse = false;
+        _resourceStops.add(revision);
+      }
+      notifyListeners();
+    } catch (_) {
+      if (generation != _connectionGeneration) return;
+      if (!resourceStatusStale && resourcesConfigured == true) {
+        turnNonce++;
+        voiceNonce++;
+        speechEpoch++;
+        busyConverse = false;
+        converseEnabled = false;
+        _resourceStops.add(-1);
+      }
+      resourceStatusStale = true;
+      notifyListeners();
+    } finally {
+      _pollingResources = false;
+    }
+  }
+
   void disconnect() {
     _connectionGeneration++;
     _noticesPoll?.cancel();
+    _resourcesPoll?.cancel();
     client?.close();
     client = null;
     connected = false;
@@ -248,9 +339,12 @@ class AppState extends ChangeNotifier {
 
   @override
   void dispose() {
+    _connectionGeneration++;
     _noticesPoll?.cancel();
+    _resourcesPoll?.cancel();
     client?.close();
     _noticeEvents.close();
+    _resourceStops.close();
     super.dispose();
   }
 

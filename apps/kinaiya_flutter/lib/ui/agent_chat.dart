@@ -180,6 +180,7 @@ class _AgentChatState extends State<AgentChat> {
         ),
       );
       await _refreshTasks();
+      if (name == 'resources') await _s.refreshResources(force: true);
     } on ApiException {
       _s.agentNotice = "Couldn't run that command. Check the connection.";
       _s.touch();

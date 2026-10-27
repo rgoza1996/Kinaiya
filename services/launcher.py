@@ -17,7 +17,7 @@ from packages.contracts.models import TaskRequest, new_id
 from services.common.auth import Auth, load_or_create_tokens
 
 ROOT = Path(__file__).resolve().parents[1]
-PORTS = {"session": 8760, "agent": 8761, "converse": 8762, "decisions": 8763}
+PORTS = {"session": 8760, "agent": 8761, "converse": 8762, "decisions": 8763, "resources": 8764}
 
 
 def supervise(commands, *, popen=subprocess.Popen, sleep=time.sleep):
@@ -64,7 +64,7 @@ def load_config(path):
     return json.loads(path.read_text())
 
 
-def provider(config, role):
+def provider(config, role, *, resource_state=None):
     from packages.providers.text import CompatibleTextProvider, MetaResponsesProvider
 
     profile = dict(config["providers"][role])
@@ -72,15 +72,21 @@ def provider(config, role):
     if kind == "meta":
         if role == "agent":
             profile.setdefault("structured_actions", True)
-        return MetaResponsesProvider(**profile)
-    if kind == "compatible":
+        result = MetaResponsesProvider(**profile)
+    elif kind == "compatible":
         key_ref = profile.pop("api_key_env", None)
         if key_ref:
             profile["api_key"] = os.environ.get(key_ref, "")
-        return CompatibleTextProvider(**profile)
-    raise SystemExit(
-        f"Unsupported {role} provider kind {kind}; configure a live provider explicitly"
-    )
+        result = CompatibleTextProvider(**profile)
+    else:
+        raise SystemExit(
+            f"Unsupported {role} provider kind {kind}; configure a live provider explicitly"
+        )
+    if resource_state is not None:
+        from services.resources.providers import ResourceBoundProvider
+
+        result = ResourceBoundProvider(result, resource_state, role)
+    return result
 
 
 def initialize(args):
@@ -137,6 +143,10 @@ def serve(args):
     tokens = load_or_create_tokens(args.data_dir)
     auth = Auth(tokens, tuple(config.get("origins", [])))
     service = args.service
+    resources_enabled = (
+        isinstance(config.get("resources"), dict) and config["resources"].get("enabled") is True
+    )
+    resource_state = args.data_dir.resolve() / "resources-state.json" if resources_enabled else None
     if service == "all":
         commands = {
             name: [
@@ -153,6 +163,7 @@ def serve(args):
                 name,
             ]
             for name in PORTS
+            if name != "resources" or resources_enabled
         }
         print(
             "Independent processes started; failed components restart at most three times.",
@@ -160,7 +171,11 @@ def serve(args):
         )
         supervise(commands)
         return
-    if service == "session":
+    if service == "resources":
+        from services.resources.launcher import resource_app
+
+        app = resource_app(args, config, auth, tokens, ROOT)
+    elif service == "session":
         from services.session.api import create_app
         from services.session.store import Store
 
@@ -177,6 +192,9 @@ def serve(args):
             ROOT / "services/agent",
             ROOT / "services/session",
             ROOT / "packages/contracts",
+            ROOT / "packages/resources",
+            ROOT / "services/resources",
+            ROOT / "packages/providers",
             ROOT / "evaluation",
             ROOT / "Roadmap.md",
             args.data_dir.resolve(),
@@ -251,16 +269,26 @@ def serve(args):
                 skill_service = SkillService(args.data_dir.resolve() / "skills", workspace)
         runtime = AgentRuntime(
             journal,
-            provider(config, "agent"),
+            provider(config, "agent", resource_state=resource_state),
             args.workspace,
             policy,
             selector_registry=selector,
             mcp_host=mcp_host,
             skill_service=skill_service,
         )
+        if resources_enabled:
+            from services.resources.client import ResourceClient
+
+            runtime.resource_client = ResourceClient(
+                config.get("resources_url", "http://127.0.0.1:8764"), tokens["owner"]
+            )
         owner_journal = JournalClient(config["session_url"], tokens["owner"])
         profiles = {
-            name: (lambda profile=profile: provider({"providers": {"agent": profile}}, "agent"))
+            name: (
+                lambda profile=profile: provider(
+                    {"providers": {"agent": profile}}, "agent", resource_state=resource_state
+                )
+            )
             for name, profile in config.get("agent_profiles", {}).items()
         }
         commands = Registry(
@@ -293,7 +321,9 @@ def serve(args):
         from services.decisions.runtime import OutcomeWorker
 
         journal = JournalClient(config["session_url"], tokens["converse"])
-        runtime = ConverseRuntime(journal, provider(config, "converse"))
+        runtime = ConverseRuntime(
+            journal, provider(config, "converse", resource_state=resource_state)
+        )
         voice = config.get("voice")
         speech = (
             SpeechClient(voice["url"], tokens["converse"], profile=voice["profile"])
@@ -329,7 +359,7 @@ def serve(args):
         worker = DecisionsWorker(
             JournalClient(config["session_url"], tokens["decisions"]),
             AgentClient(config["agent_url"], tokens["decisions"]),
-            ModelClassifier(provider(config, "decisions")),
+            ModelClassifier(provider(config, "decisions", resource_state=resource_state)),
             enabled=config.get("agent_enabled", True),
         )
         app = create_app(worker, auth)

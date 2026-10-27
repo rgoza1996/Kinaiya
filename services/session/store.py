@@ -298,8 +298,8 @@ class LocalJournal:
         return self.store.session(session_id)
 
     async def sessions(self):
-        if self.role != "owner":
-            raise PermissionError("Listing sessions requires owner")
+        if self.role not in {"owner", "resources"}:
+            raise PermissionError("Listing sessions requires owner or resources")
         return self.store.sessions()
 
     async def create_session(self, request):

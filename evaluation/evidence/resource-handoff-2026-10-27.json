@@ -1,0 +1,358 @@
+{
+  "schema_version": "1.0",
+  "synthetic_only": true,
+  "device": "cpu",
+  "gpu_verified": false,
+  "physical_playback_stopped": "unconfirmed",
+  "checks": {
+    "agent_commands_and_core_services_while_converse_off": true,
+    "old_speech_rejected_after_restore": 409,
+    "task_bound_automatic_restore_new_pid": true,
+    "fresh_stt_tts_after_restore": true
+  },
+  "failures": [],
+  "warm_voice": {
+    "pid": 351299,
+    "health": {
+      "service": "local-voice",
+      "device": "cpu",
+      "pid": 351299,
+      "loaded": [
+        "stt",
+        "tts"
+      ],
+      "tts_profile": "Kokoro 82M",
+      "retained_candidates": [
+        "Ming 3 Tiny",
+        "VibeVoice Realtime 0.5B",
+        "Kokoro 82M",
+        "Supertonic 3"
+      ],
+      "other_profiles": "not_configured"
+    },
+    "rss_bytes": 2927927296,
+    "stt_text": "Please create a new file named proof containing only the number seven.",
+    "tts_samples": 70800
+  },
+  "converse_turn": {
+    "events": [
+      {
+        "type": "accepted",
+        "source_event_id": "6bd29293-9db4-4d69-bd51-c2cc67809cce",
+        "generation_epoch": 1
+      },
+      {
+        "type": "text",
+        "entry": {
+          "schema_version": "1.0",
+          "session_id": "02208d9d-ab33-4ab7-9eff-295caf841650",
+          "thread_id": "ae9479e8-03c6-4898-b72d-20373c4d8caf",
+          "epoch": 1,
+          "kind": "conversation.converse",
+          "payload": {
+            "text": "Hi there, glad to connect for this quick test.",
+            "final": true,
+            "revision": 1,
+            "generation_epoch": 1,
+            "runtime_id": "228f31f6-3a1c-4c85-825d-46873f8553b0",
+            "chunk_id": "92ca5f72-9567-45cd-9e19-07c076b9ed72",
+            "delivery": "generated"
+          },
+          "causes": [
+            "6bd29293-9db4-4d69-bd51-c2cc67809cce"
+          ],
+          "task_refs": [],
+          "idempotency_key": "reply:6bd29293-9db4-4d69-bd51-c2cc67809cce:0",
+          "event_id": "0a996065-4c74-4d2d-9d07-27baa1ec3302",
+          "sequence": 3,
+          "origin": "converse",
+          "created_at": "2026-10-27T11:35:28.322633Z"
+        }
+      },
+      {
+        "type": "done",
+        "generation_epoch": 1
+      }
+    ],
+    "text": "Hi there, glad to connect for this quick test."
+  },
+  "task_id": "f1e6b0da-42e3-4a10-94f9-2557530c6491",
+  "handoff": {
+    "schema_version": "1.0",
+    "controller_id": "271c03d6-7ff0-490d-9269-5345db907c6d",
+    "policy": {
+      "revision": 10,
+      "profile": "local_work_priority",
+      "phase": "local_work",
+      "desired_converse": true,
+      "lease_id": "66bb0d80-b650-4923-a5d5-f1a86520c257",
+      "lease_task_id": "f1e6b0da-42e3-4a10-94f9-2557530c6491",
+      "required_bytes": 268435456,
+      "restore_bytes": 3062145024,
+      "reason": "Explicit local work handoff"
+    },
+    "workers": {
+      "voice": {
+        "id": "voice",
+        "state": "stopped",
+        "ready": false,
+        "readiness": "verified",
+        "owned_pid": 351299,
+        "owned_pgid": null,
+        "error": null,
+        "rss_bytes": null,
+        "group_rss_bytes": null,
+        "mem_available_bytes": 44934897664,
+        "log_tail_stdout": "",
+        "log_tail_stderr": "",
+        "log_stdout_bytes": 0,
+        "log_stderr_bytes": 511,
+        "last_transition": {
+          "event": "stopped",
+          "at": "2026-10-27T11:35:36.245315+00:00",
+          "duration_s": 0.4299046950036427
+        },
+        "stop_evidence": {
+          "pid": 351299,
+          "pgid": 351299,
+          "rss_before_bytes": 2927927296,
+          "group_rss_before_bytes": 2927927296,
+          "mem_available_bytes": 42839379968,
+          "term_sent": true,
+          "kill_sent": false,
+          "reaped": true,
+          "group_empty": true,
+          "residual_pids": [],
+          "ownership_verified": true,
+          "duration_s": 0.4299046950036427,
+          "at": "2026-10-27T11:35:36.245294+00:00"
+        }
+      }
+    },
+    "worker_count": 1,
+    "closed": false,
+    "gpu": "unknown/unverified",
+    "memory_available_bytes": 44934897664,
+    "coverage": "managed local voice process; no GPU allocator proof",
+    "local_text_worker_unmanaged": false,
+    "client_notification_pending": false,
+    "physical_playback_stopped": "unconfirmed"
+  },
+  "task": {
+    "schema_version": "1.0",
+    "task_id": "f1e6b0da-42e3-4a10-94f9-2557530c6491",
+    "session_id": "b742ec17-84cd-4fc6-a228-3734e14dc778",
+    "thread_id": "861b787a-80dd-47f1-a57e-c80fc5c40d81",
+    "epoch": 1,
+    "objective": "Write resource-proof.txt with exactly 'public synthetic resource handoff proof', without a terminal newline. Then use native read_file to verify it and finish with the current objective revision. Do not use shell or other files.",
+    "objective_revision": 1,
+    "state": "succeeded",
+    "summary": "Wrote resource-proof.txt with exact content and no newline (39 bytes verified), confirmed via native read_file.",
+    "evidence": [
+      {
+        "schema_version": "1.0",
+        "evidence_id": "928c20fb-e89a-4842-9820-238519f5987d",
+        "kind": "file",
+        "summary": "wrote <synthetic-workspace>/resource-proof.txt",
+        "path": "<synthetic-workspace>/resource-proof.txt",
+        "sha256": "6d96c925e85ae97cc6a6c6bb4337e5689b44e2d60bae34ec0625485613cb5694",
+        "exit_code": null,
+        "output": "",
+        "objective_revision": 1
+      },
+      {
+        "schema_version": "1.0",
+        "evidence_id": "2fde461a-8a02-40ec-a958-37b0bb02f438",
+        "kind": "read",
+        "summary": "read <synthetic-workspace>/resource-proof.txt",
+        "path": "<synthetic-workspace>/resource-proof.txt",
+        "sha256": "6d96c925e85ae97cc6a6c6bb4337e5689b44e2d60bae34ec0625485613cb5694",
+        "exit_code": null,
+        "output": "",
+        "objective_revision": 1
+      }
+    ],
+    "remaining_required_work": [],
+    "source_event_ids": [],
+    "idempotency_key": "resource-proof-task",
+    "harness_version": "seed-v1",
+    "error": null
+  },
+  "artifact_sha256": "6d96c925e85ae97cc6a6c6bb4337e5689b44e2d60bae34ec0625485613cb5694",
+  "owner_approvals": 1,
+  "restored": {
+    "schema_version": "1.0",
+    "controller_id": "271c03d6-7ff0-490d-9269-5345db907c6d",
+    "policy": {
+      "revision": 12,
+      "profile": "local_work_priority",
+      "phase": "ready",
+      "desired_converse": true,
+      "lease_id": null,
+      "lease_task_id": null,
+      "required_bytes": 0,
+      "restore_bytes": 3062145024,
+      "reason": "Voice API ready; model weights load on demand"
+    },
+    "workers": {
+      "voice": {
+        "id": "voice",
+        "state": "running",
+        "ready": true,
+        "readiness": "verified",
+        "owned_pid": 351634,
+        "owned_pgid": 351634,
+        "error": null,
+        "rss_bytes": 60309504,
+        "group_rss_bytes": 60309504,
+        "mem_available_bytes": 45268160512,
+        "log_tail_stdout": "",
+        "log_tail_stderr": "",
+        "log_stdout_bytes": 0,
+        "log_stderr_bytes": 0,
+        "last_transition": {
+          "event": "started",
+          "at": "2026-10-27T11:35:47.702187+00:00",
+          "duration_s": 0.37203729699831456
+        },
+        "stop_evidence": {
+          "pid": 351299,
+          "pgid": 351299,
+          "rss_before_bytes": 2927927296,
+          "group_rss_before_bytes": 2927927296,
+          "mem_available_bytes": 42839379968,
+          "term_sent": true,
+          "kill_sent": false,
+          "reaped": true,
+          "group_empty": true,
+          "residual_pids": [],
+          "ownership_verified": true,
+          "duration_s": 0.4299046950036427,
+          "at": "2026-10-27T11:35:36.245294+00:00"
+        }
+      }
+    },
+    "worker_count": 1,
+    "closed": false,
+    "gpu": "unknown/unverified",
+    "memory_available_bytes": 45268160512,
+    "coverage": "managed local voice process; no GPU allocator proof",
+    "local_text_worker_unmanaged": false,
+    "client_notification_pending": false,
+    "physical_playback_stopped": "unconfirmed"
+  },
+  "restored_voice_health_before_inference": {
+    "service": "local-voice",
+    "device": "cpu",
+    "pid": 351634,
+    "loaded": [],
+    "tts_profile": "Kokoro 82M",
+    "retained_candidates": [
+      "Ming 3 Tiny",
+      "VibeVoice Realtime 0.5B",
+      "Kokoro 82M",
+      "Supertonic 3"
+    ],
+    "other_profiles": "not_configured"
+  },
+  "restored_voice_health_after_inference": {
+    "service": "local-voice",
+    "device": "cpu",
+    "pid": 351634,
+    "loaded": [
+      "stt",
+      "tts"
+    ],
+    "tts_profile": "Kokoro 82M",
+    "retained_candidates": [
+      "Ming 3 Tiny",
+      "VibeVoice Realtime 0.5B",
+      "Kokoro 82M",
+      "Supertonic 3"
+    ],
+    "other_profiles": "not_configured"
+  },
+  "source_sha256": {
+    "packages/commands/__init__.py": "800775675e21468e4ee7d33db66854fad8146b02ffbe68056435f0eb349e6f2b",
+    "packages/providers/voice_worker.py": "0af118c3bfb4449ad85e505dba0c6c2e3e478b08a55487a82c3dfc8d756a8fa8",
+    "packages/resources/__init__.py": "382c4c1eeced27f864b934a4f7891b7dd0a3655f500242f7aae55c88e6c0f98e",
+    "packages/resources/_bootstrap.py": "0689a68ed813fd11e336f4a96a1fc4c60e908cf627c9dece6037f2d88b0da9f2",
+    "packages/resources/processes.py": "f5c789f7929d7e8531c2464f633dd17a122fc674c2abec75ef448579a744c66b",
+    "services/agent/app.py": "770488ff8a8c34f3f27672395c8ea8958e47d15ded146f78aa446797b9fbfbd0",
+    "services/agent/runtime.py": "db138d70576e6a3cb116ef31f964353251fc9b9e9623b2f67dc4513a76f74a72",
+    "services/converse/api.py": "03d83513b0d6976901ffe8449943f52ffe2d510e10bdec8d26f8a7f82ad6c948",
+    "services/launcher.py": "3da7887bdda968760d86c36175d0a07f8086ef0350dfa9277239d7e1747a7556",
+    "services/resources/__init__.py": "ac83c951f140c8232d46b28b7a832259a808ab25d0705f92c7fa2c560efeebae",
+    "services/resources/api.py": "00501710ce6f1d469af205389149c991e5a60d978de0a2a9d923b94dcbdc4312",
+    "services/resources/client.py": "541ce28ab53b5690ed84de9988f265426b2f6ef04d1cda4fcc6df9276b32963a",
+    "services/resources/coordinator.py": "f59bc8c7d53296bb937abca6d49c26970bc55eaaf54ae2eccab6931a15110b12",
+    "services/resources/launcher.py": "cc8cd0362cccc64222ba25c86bd8f6856c34c087e71a52de7438e0df5bb59903",
+    "services/resources/providers.py": "78b6abbdc649069d38a957caa171af29bd389723acbeb8cb7a1a3f5989d74d8c",
+    "services/resources/state.py": "08967bcfa84390858ef376ed159f97869c8950c612abcde46ec0a06a0c2d39d2",
+    "services/session/api.py": "1d7908ad20f7b53fb795fd1dada350ca9fa3639e774ed5462aaf7f59a5cbb457",
+    "services/session/store.py": "123eaa88fde50095a6ead854c4db8abc4dd86e124f181d653f1cb4ef9f835a98",
+    "tests/integration/test_resource_handoff.py": "f88c2ac15c67aaa1553434b3739d2c0dab250f52baecfb9b9473e5053238d711",
+    "tests/integration/test_resource_parent.py": "e695ad59ae6d9e8b560e2194a4160da44f4a409480b80cf254d65739b0111567"
+  },
+  "result": "passed",
+  "source_base_commit": "b89a924bc3247f9752bd761110f0f8814d796e3d",
+  "environment": {
+    "host_platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",
+    "controller_python": "3.12.3",
+    "voice_python": "3.13",
+    "stt_model": "Systran/faster-whisper-tiny.en",
+    "tts_model": "hexgrad/Kokoro-82M",
+    "offline_weights": true
+  },
+  "input_wav_sha256": "0d07319ac4a15f3463c292648874559e00514c2c9c868debd1260a48c801a754",
+  "prior_attempts": [
+    {
+      "result": "failed",
+      "stage": "first STT request",
+      "reason": "Explicit tiny model absent from offline cache; no model downloaded, no Meta call made. Fresh retry explicitly selected cached tiny.en."
+    }
+  ],
+  "limits": [
+    "Manual CPU voice worker handoff only; local Converse text worker release is refused when unmanaged.",
+    "Declared admission headroom is checked against kernel MemAvailable; no cgroup hard reservation or Agent job memory enforcement.",
+    "No GPU allocator, VRAM, device-loss, graphics contention, latency-percentile or hostile daemon containment proof.",
+    "Core HTTP services remained available; client physical playback stop remains unconfirmed. Flutter cancellation is covered by widget/bridge tests.",
+    "This real Agent file task was small; it does not benchmark a demanding local model job.",
+    "Private beta readiness and complete M6 are not claimed."
+  ],
+  "prior_verified_run": {
+    "task_id": "18e8a7d2-3bf8-41cd-9688-ce6adb0bc420",
+    "result": "passed",
+    "warm_rss_bytes": 2924195840,
+    "new_pid": 349508
+  },
+  "automated_review": {
+    "model": "muse-spark-1.3-contributor",
+    "reasoning_effort": "xhigh",
+    "read_only": true,
+    "model_calls": 29,
+    "human_approval": false,
+    "disposition": [
+      "Inactive task handoff now refuses before interruption.",
+      "Terminal callback retries transient transport loss with the same durable key; uncertain intents remain refused.",
+      "UI displays stale status, cancels local voice and accepts same-revision recovery.",
+      "Measurement identity now rechecks pidfd bind-back.",
+      "Credential migration finding rejected: resources role has existed since foundation commit 38f709c.",
+      "Historical restore high-water memory is intentionally retained conservatively.",
+      "Numeric parent-reuse finding rejected: getppid plus PR_SET_PDEATHSIG refers to the actual parent, not a newly reused numeric process.",
+      "Disable-before-interrupt is retained to fail closed if journal publication fails; controller reports failure."
+    ]
+  },
+  "evidence_projection": "Native file/read workspace prefixes are normalized to <synthetic-workspace>; hashes and task IDs are unchanged.",
+  "client_verification": {
+    "source_sha256": {
+      "apps/kinaiya_flutter/lib/api/client.dart": "01941c67cc772e33aeace77c6fa5256d873f44d5b41f6352657c0bb1347a1528",
+      "apps/kinaiya_flutter/lib/state/app_state.dart": "617486a20344a188977e8ae4067a2152952af85b4613550a7279357c926faf36",
+      "apps/kinaiya_flutter/lib/ui/agent_chat.dart": "a6157d205bf99d4df8c1e21f538e1c1c02fba99a4f4f1d93f6151072bff74a51",
+      "apps/kinaiya_flutter/lib/ui/character_view.dart": "5a0ea7a31721704837d921b033575427b929b6c4951e3429076a37a5bca334e8",
+      "apps/kinaiya_flutter/test/resource_state_test.dart": "260842d1542b84b57d062edc8755984b92cf7a0f294cb7dae424f27f8be827c5"
+    },
+    "scope": "Backend live probe uses direct HTTP. Client resource pause, disabled voice controls, late mic callback ownership and restoration are verified separately by Flutter widget/bridge checks and local browser inspection.",
+    "physical_microphone_or_hearing_proof": false
+  }
+}

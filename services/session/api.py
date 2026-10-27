@@ -45,7 +45,7 @@ def create_app(store: Store, auth: Auth) -> FastAPI:
     async def create(request: SessionRequest):
         return store.create_session(request)
 
-    @app.get("/v1/sessions", dependencies=[Depends(auth.require("owner"))])
+    @app.get("/v1/sessions", dependencies=[Depends(auth.require("owner", "resources"))])
     async def sessions():
         return store.sessions()
 

@@ -10,9 +10,11 @@ No shell, no inherited parent env/secrets on the command line.
 
 from __future__ import annotations
 
+import ctypes
 import json
 import os
 import re
+import signal
 import sys
 
 MAX_CONFIG_BYTES = 1048576
@@ -108,6 +110,17 @@ def main() -> None:
         _die(2)
     validated = _valid_cfg(cfg, nonce)
     if validated is None:
+        _die(2)
+    # The managed leader must not outlive its controller after grant/exec.
+    # Check around prctl to cover controller death before the flag is armed.
+    parent = cfg.get("parent_pid")
+    if type(parent) is not int or parent <= 0 or os.getppid() != parent:
+        _die(2)
+    try:
+        libc = ctypes.CDLL(None, use_errno=True)
+        if libc.prctl(1, int(signal.SIGKILL), 0, 0, 0) != 0 or os.getppid() != parent:
+            _die(2)
+    except Exception:
         _die(2)
     argv, cwd, env = validated
     for fd in (grant_fd, config_fd):
