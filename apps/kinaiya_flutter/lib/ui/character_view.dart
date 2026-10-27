@@ -173,7 +173,10 @@ class _CharacterViewState extends State<CharacterView> {
 
   AppState get _s => widget.state;
   bool get _converseAvailable =>
-      _s.connected && _s.converseEnabled && !_s.resourceStatusStale;
+      _s.sessionAuthenticated &&
+      _s.converseInferenceAllowed &&
+      _s.converseEnabled &&
+      !_s.resourceStatusStale;
 
   /// Sends a turn. Interruptible mid-SSE: when a turn is already in flight,
   /// the new utterance invalidates the old nonce first, so the old loop
@@ -182,7 +185,20 @@ class _CharacterViewState extends State<CharacterView> {
   Future<void> _send({String? overrideText, String inputMode = 'text'}) async {
     final text = (overrideText ?? _input.text).trim();
     final api = _s.client;
-    if (text.isEmpty || api == null || !_converseAvailable) return;
+    if (text.isEmpty || api == null || !_converseAvailable) {
+      if (text.isNotEmpty && api != null && mounted) {
+        _s.appendHistory(
+          AppView.character,
+          ChatMsg(
+            role: 'system',
+            text:
+                'Kinaiya is not ready to chat right now. Direct Agent Chat remains available.',
+          ),
+        );
+      }
+      return;
+    }
+    if (!_s.converseCanInfer) return;
     final nonce = ++_s.turnNonce;
     _s.busyConverse = true;
     _speechQueue = SpeechQueue();
@@ -568,7 +584,8 @@ class _CharacterViewState extends State<CharacterView> {
       }
       return;
     }
-    if (!_converseAvailable || _s.client == null) return;
+    if (!_converseAvailable || !_s.converseCanInfer || _s.client == null)
+      return;
     await _audio.configureVad(endSilenceMs: _endSilenceMs);
     if (!mounted || owner != _armOwner || !_converseAvailable) return;
     final result = await _audio.startArmed();
@@ -649,7 +666,7 @@ class _CharacterViewState extends State<CharacterView> {
         _pendingClip = null;
         final request = _voiceRequest;
         final api = _s.client;
-        if (api == null) return;
+        if (api == null || !_s.converseCanInfer) return;
         try {
           final extension = recording.mime.contains('ogg')
               ? 'ogg'
@@ -691,7 +708,7 @@ class _CharacterViewState extends State<CharacterView> {
   }
 
   Future<void> _importRecording() async {
-    if (!_converseAvailable) return;
+    if (!_converseAvailable || !_s.converseCanInfer) return;
     final request = ++_voiceRequest;
     final recording = await _audio.chooseRecording();
     final api = _s.client;
@@ -721,7 +738,7 @@ class _CharacterViewState extends State<CharacterView> {
   }
 
   Future<void> _toggleMic() async {
-    if (!_converseAvailable) return;
+    if (!_converseAvailable || !_s.converseCanInfer) return;
     if (_armed) {
       _s.appendHistory(
         AppView.character,

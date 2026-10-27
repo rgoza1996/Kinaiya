@@ -43,6 +43,23 @@ class AppState extends ChangeNotifier {
   bool connected = false;
   bool agentOnline = false;
   bool converseOnline = false;
+
+  /// Owner session authentication, distinct from inference availability.
+  /// True once listSessions succeeds for the live generation; deterministic
+  /// owner controls (status/stop/help/permissions/approval/recovery) use
+  /// this, not inference consent.
+  bool sessionAuthenticated = false;
+
+  /// Per-role positive verification plus disclosure consent. Each role fails
+  /// closed on missing/malformed/unavailable/unconsented provider metadata
+  /// while the other authorized role stays useful.
+  bool agentInferenceAllowed = false;
+  bool converseInferenceAllowed = false;
+
+  /// Last verified provider metadata per role (generation-bound). Null when
+  /// the role has no verified metadata for the live connection.
+  Map<String, Object?>? agentProvider;
+  Map<String, Object?>? converseProvider;
   int _connectionGeneration = 0;
 
   /// Live connection epoch. Views capture this before an await and drop
@@ -131,6 +148,38 @@ class AppState extends ChangeNotifier {
       a.converseUrl == b.converseUrl &&
       a.ownerToken == b.ownerToken;
 
+  /// Positive per-role provider verification plus disclosure consent.
+  /// Local metadata (local == true with nonempty provider/model) allows
+  /// local inference under any profile. Cloud metadata (local == false)
+  /// requires cloudDevelopment, or metaContributor with exactly
+  /// provider `meta` and model `muse-spark-1.3-contributor` (never
+  /// substring matches). Clean permits only local. Missing, malformed,
+  /// or unconsented metadata fails closed.
+  static bool providerAllows(Object? info, BackendProfile consent) {
+    if (info is! Map) return false;
+    final local = info['local'];
+    final provider = info['provider'];
+    final model = info['model'];
+    if (local is! bool) return false;
+    if (provider is! String || provider.isEmpty) return false;
+    if (model is! String || model.isEmpty) return false;
+    if (local) return true;
+    switch (consent) {
+      case BackendProfile.clean:
+        return false;
+      case BackendProfile.cloudDevelopment:
+        return true;
+      case BackendProfile.metaContributor:
+        return provider == 'meta' && model == 'muse-spark-1.3-contributor';
+    }
+  }
+
+  /// Authenticated inference gates. Deterministic owner controls use
+  /// [sessionAuthenticated] alone; inference submissions require the
+  /// per-role flag as well.
+  bool get agentCanInfer => sessionAuthenticated && agentInferenceAllowed;
+  bool get converseCanInfer => sessionAuthenticated && converseInferenceAllowed;
+
   void connect(ConnectionProfile profile, {KinaiyaClient? injected}) {
     final previous = connection;
     final backendChanged = previous != null && !_sameBackend(previous, profile);
@@ -179,11 +228,28 @@ class AppState extends ChangeNotifier {
     final generation = ++_connectionGeneration;
     connection = profile;
     client = injected ?? clientFactory?.call(profile);
-    connected = injected != null;
-    agentOnline = converseOnline = connected;
+    // Per-role consent resets on every (re)connect until verified.
+    sessionAuthenticated = false;
+    agentInferenceAllowed = false;
+    converseInferenceAllowed = false;
+    agentProvider = null;
+    converseProvider = null;
+    agentOnline = false;
+    converseOnline = false;
+    connected = false;
+    if (injected != null) {
+      // Explicitly trusted test seam (see existing tests): injected
+      // transports bypass live health verification.
+      sessionAuthenticated = true;
+      agentInferenceAllowed = true;
+      converseInferenceAllowed = true;
+      agentOnline = true;
+      converseOnline = true;
+      connected = true;
+    }
     connectionError = client == null
         ? 'Connection is not configured yet.'
-        : connected
+        : injected != null
         ? null
         : 'Checking services…';
     notifyListeners();
@@ -229,14 +295,22 @@ class AppState extends ChangeNotifier {
     if (api == null) return;
     try {
       await api.listSessions().timeout(const Duration(seconds: 10));
-      final clouds = <Map>[];
+      if (generation != _connectionGeneration || !identical(api, client)) {
+        return;
+      }
+      sessionAuthenticated = true;
+      // Per-role health plus provider metadata, still generation-bound.
+      // Each role fails closed independently; a healthy consented role
+      // stays useful when the other role is missing, malformed,
+      // unavailable or unconsented.
+      Object? agentInfo;
+      Object? converseInfo;
       final states = await Future.wait([
         api
             .agentCapabilities()
             .then((_) async {
               final health = await api.agentHealth();
-              final info = health['provider'];
-              if (info is Map && info['local'] == false) clouds.add(info);
+              agentInfo = health['provider'];
               return true;
             })
             .timeout(const Duration(seconds: 5))
@@ -244,38 +318,64 @@ class AppState extends ChangeNotifier {
         api
             .converseHealth()
             .then((v) {
-              if (generation == _connectionGeneration) {
+              if (generation == _connectionGeneration &&
+                  identical(api, client)) {
                 converseEnabled = v['enabled'] == true;
               }
-              final info = v['provider'];
-              if (info is Map && info['local'] == false) clouds.add(info);
+              converseInfo = v['provider'];
               return true;
             })
             .timeout(const Duration(seconds: 5))
             .catchError((Object _) => false),
       ]);
-      if (generation != _connectionGeneration) return;
-      agentOnline = states[0];
-      converseOnline = states[1];
-      final consent = connection!.backendProfile;
-      final cloudAllowed =
-          clouds.isEmpty ||
-          consent == BackendProfile.cloudDevelopment ||
-          (consent == BackendProfile.metaContributor &&
-              clouds.every(
-                (v) =>
-                    v['provider'] == 'meta' &&
-                    '${v['model']}'.contains('contributor'),
-              ));
-      connected = (agentOnline || converseOnline) && cloudAllowed;
-      if (!cloudAllowed) {
-        connectionError =
-            'Cloud inference is configured. Choose matching disclosure consent in Connection setup before sending text or audio.';
-        notifyListeners();
+      if (generation != _connectionGeneration || !identical(api, client)) {
         return;
       }
-      connectionError =
-          'Last check (${DateTime.now().toUtc().toIso8601String()}): session authenticated. Agent ${agentOnline ? 'ready' : 'unavailable'}; Converse ${converseOnline ? (converseEnabled ? 'ready' : 'off') : 'unavailable'}.';
+      agentOnline = states[0];
+      converseOnline = states[1];
+      agentProvider = agentInfo is Map<String, Object?>
+          ? agentInfo as Map<String, Object?>
+          : agentInfo is Map
+          ? (agentInfo as Map).cast<String, Object?>()
+          : null;
+      converseProvider = converseInfo is Map<String, Object?>
+          ? converseInfo as Map<String, Object?>
+          : converseInfo is Map
+          ? (converseInfo as Map).cast<String, Object?>()
+          : null;
+      final consent = connection!.backendProfile;
+      agentInferenceAllowed = agentOnline && providerAllows(agentInfo, consent);
+      converseInferenceAllowed =
+          converseOnline && providerAllows(converseInfo, consent);
+      connected =
+          sessionAuthenticated &&
+          (agentInferenceAllowed || converseInferenceAllowed);
+      if (!connected) {
+        if (agentOnline || converseOnline) {
+          // At least one service answered but no role earned consent:
+          // disclosure, malformed, or missing provider metadata.
+          connectionError =
+              'Cloud inference is configured. Choose matching disclosure consent in Connection setup before sending text or audio.';
+        } else {
+          connectionError =
+              'Last check (${DateTime.now().toUtc().toIso8601String()}): session authenticated. Agent unavailable; Converse unavailable.';
+        }
+      } else {
+        final agentLabel = !agentOnline
+            ? 'unavailable'
+            : agentInferenceAllowed
+            ? 'ready'
+            : 'blocked (check disclosure consent)';
+        final converseLabel = !converseOnline
+            ? 'unavailable'
+            : converseInferenceAllowed
+            ? (converseEnabled ? 'ready' : 'off')
+            : 'blocked (check disclosure consent)';
+        connectionError =
+            'Last check (${DateTime.now().toUtc().toIso8601String()}): session authenticated. Agent $agentLabel; Converse $converseLabel.';
+      }
+      _noticesPoll?.cancel();
+      _resourcesPoll?.cancel();
       _noticesPoll = Timer.periodic(
         const Duration(seconds: 1),
         (_) => refreshNotices(),
@@ -287,9 +387,70 @@ class AppState extends ChangeNotifier {
       unawaited(refreshResources());
     } catch (_) {
       if (generation != _connectionGeneration) return;
+      sessionAuthenticated = false;
+      agentInferenceAllowed = false;
+      converseInferenceAllowed = false;
+      agentOnline = false;
+      converseOnline = false;
+      agentProvider = null;
+      converseProvider = null;
       connected = false;
       connectionError =
           'Session authentication or connection failed. Check setup.';
+    }
+    notifyListeners();
+  }
+
+  /// Revalidates Agent inference after a deterministic `/model` profile
+  /// switch. Clears the previous grant first so no further Agent input is
+  /// accepted until the new provider metadata is positively verified.
+  /// Generation-bound: a reconnect during the check drops the stale result.
+  Future<void> revalidateAgentInference() async {
+    final api = client;
+    final profile = connection;
+    final generation = _connectionGeneration;
+    if (api == null || profile == null) return;
+    agentInferenceAllowed = false;
+    agentProvider = null;
+    connected =
+        sessionAuthenticated &&
+        (agentInferenceAllowed || converseInferenceAllowed);
+    notifyListeners();
+    try {
+      await api.agentCapabilities().timeout(const Duration(seconds: 5));
+      final health = await api.agentHealth().timeout(
+        const Duration(seconds: 5),
+      );
+      if (!ownsConnection(generation, api)) return;
+      agentOnline = true;
+      final info = health['provider'];
+      agentProvider = info is Map<String, Object?>
+          ? info
+          : info is Map
+          ? (info as Map).cast<String, Object?>()
+          : null;
+      agentInferenceAllowed = providerAllows(info, profile.backendProfile);
+      connected =
+          sessionAuthenticated &&
+          (agentInferenceAllowed || converseInferenceAllowed);
+      final agentLabel = agentInferenceAllowed
+          ? 'ready'
+          : 'blocked (check disclosure consent)';
+      final converseLabel = !converseOnline
+          ? 'unavailable'
+          : converseInferenceAllowed
+          ? (converseEnabled ? 'ready' : 'off')
+          : 'blocked (check disclosure consent)';
+      connectionError =
+          'Last check (${DateTime.now().toUtc().toIso8601String()}): session authenticated. Agent $agentLabel; Converse $converseLabel.';
+    } catch (_) {
+      if (!ownsConnection(generation, api)) return;
+      agentOnline = false;
+      agentInferenceAllowed = false;
+      agentProvider = null;
+      connected =
+          sessionAuthenticated &&
+          (agentInferenceAllowed || converseInferenceAllowed);
     }
     notifyListeners();
   }
@@ -423,6 +584,13 @@ class AppState extends ChangeNotifier {
     client?.close();
     client = null;
     connected = false;
+    sessionAuthenticated = false;
+    agentInferenceAllowed = false;
+    converseInferenceAllowed = false;
+    agentOnline = false;
+    converseOnline = false;
+    agentProvider = null;
+    converseProvider = null;
     turnNonce++;
     voiceNonce++;
     speechEpoch = 0;
