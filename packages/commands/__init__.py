@@ -43,6 +43,11 @@ DEFINITIONS = {
         "list|inspect|install|enable|disable|update|rollback|remove|scope ...",
     ),
     "skill": ("Start normal Agent work with one selected skill", [], "<qualified-id> [request]"),
+    "mcp": (
+        "Manage MCP server connections without inference",
+        [],
+        "list|inspect <id>|configure <profile.json>|test|enable|disable|reconnect|remove <id>|reconcile",
+    ),
     "plugins": (
         "Inspect or manage compute plugins without inference",
         [],
@@ -100,6 +105,9 @@ class Registry:
                     and (
                         name != "plugins"
                         or getattr(self.runtime, "plugin_service", None) is not None
+                    )
+                    and (
+                        name != "mcp" or getattr(self.runtime, "mcp_controller", None) is not None
                     ),
                 }
                 for name, (description, aliases, syntax) in DEFINITIONS.items()
@@ -203,58 +211,59 @@ class Registry:
                     "INSERT INTO commands VALUES (?,?,?,NULL)",
                     (request.session_id, request.idempotency_key, digest),
                 )
-            try:
-                parsed = parse(request.input)
-                if parsed is None:
-                    result = self._reply("error", None, error="literal_text", literal=request.input)
-                else:
-                    await self.refresh_skill_commands()
-                    name, args = parsed
-                    name = next(
-                        (n for n, (_, aliases, _) in DEFINITIONS.items() if name in aliases), name
-                    )
-                    if name in self._skill_targets:
-                        result = self._reply(
-                            "ok",
-                            name,
-                            result=await self._invoke_skill(
-                                self._skill_targets[name], args, request
-                            ),
-                        )
-                    elif name not in DEFINITIONS:
-                        result = self._reply(
-                            "error",
-                            name,
-                            error="Unknown command",
-                            suggestions=difflib.get_close_matches(name, DEFINITIONS, n=3),
-                        )
-                    else:
-                        result = self._reply(
-                            "ok", name, result=await self._dispatch(name, args, request)
-                        )
-                await self.runtime.journal.append(
-                    AppendRequest(
-                        session_id=session.session_id,
-                        thread_id=session.thread_id,
-                        epoch=session.epoch,
-                        kind="agent.command",
-                        idempotency_key="command:" + request.idempotency_key,
-                        payload={
-                            "op": "control",
-                            "actor": "owner",
-                            "input": request.input,
-                            "response": result,
-                        },
-                    )
+        # The durable intent reserves this key. Slow connection/IO work
+        # must not hold the command registry lock and block status/stop.
+        try:
+            parsed = parse(request.input)
+            if parsed is None:
+                result = self._reply("error", None, error="literal_text", literal=request.input)
+            else:
+                await self.refresh_skill_commands()
+                name, args = parsed
+                name = next(
+                    (n for n, (_, aliases, _) in DEFINITIONS.items() if name in aliases), name
                 )
-            except (ValueError, KeyError) as exc:
-                result = self._reply("error", None, error=str(exc))
+                if name in self._skill_targets:
+                    result = self._reply(
+                        "ok",
+                        name,
+                        result=await self._invoke_skill(self._skill_targets[name], args, request),
+                    )
+                elif name not in DEFINITIONS:
+                    result = self._reply(
+                        "error",
+                        name,
+                        error="Unknown command",
+                        suggestions=difflib.get_close_matches(name, DEFINITIONS, n=3),
+                    )
+                else:
+                    result = self._reply(
+                        "ok", name, result=await self._dispatch(name, args, request)
+                    )
+            await self.runtime.journal.append(
+                AppendRequest(
+                    session_id=session.session_id,
+                    thread_id=session.thread_id,
+                    epoch=session.epoch,
+                    kind="agent.command",
+                    idempotency_key="command:" + request.idempotency_key,
+                    payload={
+                        "op": "control",
+                        "actor": "owner",
+                        "input": request.input,
+                        "response": result,
+                    },
+                )
+            )
+        except (ValueError, KeyError) as exc:
+            result = self._reply("error", None, error=str(exc))
+        async with self.lock:
             with self.db:
                 self.db.execute(
                     "UPDATE commands SET result=? WHERE session=? AND key=?",
                     (json.dumps(result), request.session_id, request.idempotency_key),
                 )
-            return result
+        return result
 
     @staticmethod
     def _reply(status, command, **fields):
@@ -272,6 +281,8 @@ class Registry:
             return await self._skills_control(args)
         if name == "plugins":
             return await self._plugins_control(args, request)
+        if name == "mcp":
+            return await self._mcp_control(args, request)
         if name == "help":
             if len(args) > 1:
                 raise ValueError("Usage: /help [command]")
@@ -312,17 +323,35 @@ class Registry:
             if args:
                 if args[0] not in self.profiles:
                     raise ValueError("Unknown configured profile")
-                if any(t.state not in TERMINAL_STATES for t in await runtime.status()):
-                    raise ValueError("Finish or stop active work before selecting another profile")
-                runtime.provider = self.profiles[args[0]]()
+                async with runtime.integration_lock:
+                    if any(t.state not in TERMINAL_STATES for t in await runtime.status()):
+                        raise ValueError(
+                            "Finish or stop active work before selecting another profile"
+                        )
+                    runtime.provider = self.profiles[args[0]]()
             return {"active": runtime.provider.info.model_dump(), "profiles": sorted(self.profiles)}
         if name in {"permissions", "yolo"}:
             if name == "yolo":
                 if args not in (["on"], ["off"]):
                     raise ValueError("Usage: /yolo on|off")
-                runtime.policy.set_permissions(actor="owner", yolo=args == ["on"])
-                if (host := getattr(runtime, "mcp_host", None)) is not None:
-                    await host.reset_connections(actor="owner")
+
+                async def apply_yolo():
+                    runtime.policy.set_permissions(actor="owner", yolo=args == ["on"])
+                    if (controller := getattr(runtime, "mcp_controller", None)) is not None:
+                        await controller.retire_connections(actor="owner")
+                    elif (host := getattr(runtime, "mcp_host", None)) is not None:
+                        await host.reset_connections(actor="owner")
+
+                if args == ["on"]:
+                    async with runtime.integration_lock:
+                        if any(t.state not in TERMINAL_STATES for t in await runtime.status()):
+                            raise ValueError(
+                                "Finish or stop active work before expanding YOLO grants"
+                            )
+                        await apply_yolo()
+                else:
+                    # Revocation is immediate, including during active work.
+                    await apply_yolo()
             elif args:
                 raise ValueError("Usage: /permissions")
             return {
@@ -375,6 +404,48 @@ class Registry:
             explicit_skill=skill_id,
         )
         return {"accepted_task_id": task.task_id, "state": task.state.value, "skill_id": skill_id}
+
+    async def _mcp_control(self, args, request):
+        from packages.contracts.models import MCPControl
+        from services.agent.mcp_controls import (
+            apply_mcp_control,
+            require_mcp_controller,
+        )
+
+        service = require_mcp_controller(self.runtime)
+        snapshot = service.snapshot()
+        if not args or args == ["list"]:
+            return snapshot
+        if len(args) == 2 and args[0] == "inspect":
+            selected = [row for row in snapshot["servers"] if row["id"] == args[1]]
+            if not selected:
+                raise ValueError("Unknown MCP server")
+            return {"revision": snapshot["revision"], "server": selected[0]}
+        fields = {
+            "operation": args[0],
+            "expected_revision": snapshot["revision"],
+            "idempotency_key": "command:"
+            + hashlib.sha256(
+                (request.session_id + ":" + request.idempotency_key).encode()
+            ).hexdigest(),
+        }
+        if args[0] == "configure" and len(args) == 2:
+            raw = self.runtime.policy.read_bytes(args[1], maximum=262_145)
+            try:
+                fields["config"] = json.loads(raw)
+            except (ValueError, RecursionError) as exc:
+                raise ValueError("MCP profile must contain bounded valid JSON") from exc
+            fields["reviewed"] = True
+        elif args == ["reconcile"]:
+            fields["reviewed"] = True
+        elif len(args) == 2 and args[0] in {"enable", "disable", "remove", "test", "reconnect"}:
+            fields["server_id"] = args[1]
+            fields["reviewed"] = args[0] == "enable"
+        else:
+            raise ValueError(
+                "Usage: /mcp list|inspect <id>|configure <profile.json>|test|enable|disable|reconnect|remove <id>|reconcile"
+            )
+        return await apply_mcp_control(self.runtime, MCPControl(**fields))
 
     async def _plugins_control(self, args, request):
         from services.agent.plugin_controls import (

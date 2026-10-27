@@ -121,6 +121,7 @@ class AgentRuntime:
         skill_service: Any | None = None,
         resource_client: Any | None = None,
         plugin_service: Any | None = None,
+        mcp_controller: Any | None = None,
     ) -> None:
         self.journal = journal
         self.provider = provider
@@ -130,7 +131,13 @@ class AgentRuntime:
         self.selector_registry = selector_registry
         # Optional broker for owner-configured MCP servers. None means the
         # mcp_list/mcp_call tools are unknown and honestly unavailable.
+        self.mcp_controller = mcp_controller
+        if mcp_controller is not None:
+            if mcp_host is not None and mcp_host is not mcp_controller.host:
+                raise ValueError("Managed MCP must use its controller's host")
+            mcp_host = mcp_controller.host
         self.mcp_host = mcp_host
+        self.integration_lock = asyncio.Lock()
         self.skill_service = skill_service
         self.resource_client = resource_client
         self.plugin_service = plugin_service
@@ -294,6 +301,14 @@ class AgentRuntime:
 
     # -- interface: submit --------------------------------------------
     async def submit(
+        self, request: TaskRequest, actor: str = "owner", *, explicit_skill: str | None = None
+    ) -> Task:
+        # Management checks and task acceptance share one boundary. A task
+        # cannot appear between the idle check and a server definition swap.
+        async with self.integration_lock:
+            return await self._submit(request, actor, explicit_skill=explicit_skill)
+
+    async def _submit(
         self, request: TaskRequest, actor: str = "owner", *, explicit_skill: str | None = None
     ) -> Task:
         self._check_actor(actor, list(request.source_event_ids), "submit")
@@ -514,6 +529,8 @@ class AgentRuntime:
     async def interrupt(
         self, task_id: str, request: InterruptRequest, actor: str = "owner"
     ) -> Task:
+        if self._closed:
+            raise ValueError("Agent is closing")
         rec = self._get(task_id)
         if actor not in ("owner", "decisions"):
             raise PolicyDenied(f"interrupt requires owner or decisions actor, got {actor!r}")
@@ -549,19 +566,26 @@ class AgentRuntime:
                 f"current is {rec.task.objective_revision}"
             )
         rec.interrupt_idem[request.idempotency_key] = (digest, task_id)
+        already_requested = rec.cancel_requested
+        recovered_paused = rec.task.state == TaskState.PAUSED and rec.worker is None
         rec.cancel_requested = True
         rec.task.state = TaskState.CANCEL_REQUESTED
         # Never wait for the model: signal, kill the child group, return.
         proc = rec.proc_slot.get("proc")
         if proc is not None:
             await proc.kill()
-        worker, rec.worker = rec.worker, None
-        if worker is not None and not worker.done():
+        worker = rec.worker
+        if worker is not None and not worker.done() and not already_requested:
             worker.cancel()
         rec.resume.set()
         await self._append(
             rec, "agent.command", {"op": "interrupt", "actor": actor, "reason": request.reason}
         )
+        if recovered_paused:
+            rec.task.summary = "Cancelled recovered work without replay; prior uncertain effects remain unreconciled."
+            await self._cancel(rec)
+            if self.plugin_service is not None:
+                await self.plugin_service.release_task(task_id)
         return rec.task.model_copy(deep=True)
 
     # -- interface: status / wait / close ------------------------------
@@ -610,7 +634,10 @@ class AgentRuntime:
                 rec.task.state = TaskState.PAUSED
                 rec.done.set()
         host, self.mcp_host = self.mcp_host, None
-        if host is not None:
+        controller, self.mcp_controller = self.mcp_controller, None
+        if controller is not None:
+            await controller.close()
+        elif host is not None:
             await host.close()
         service, self.skill_service = self.skill_service, None
         if service is not None:
@@ -665,6 +692,10 @@ class AgentRuntime:
 
     # -- recovery ---------------------------------------------------------
     async def recover(self) -> list[Task]:
+        async with self.integration_lock:
+            return await self._recover()
+
+    async def _recover(self) -> list[Task]:
         """Rebuild task state from the journal without re-executing anything.
 
         Reads the journal in bounded pages (<=200 entries, the journal
@@ -678,6 +709,7 @@ class AgentRuntime:
         seen: dict[str, dict[str, Any]] = {}
         outcomes: dict[str, dict[str, Any]] = {}
         plugin_pins: dict[str, dict[str, str]] = {}
+        journal_numbers: dict[str, int] = {}
         after = 0
         while True:
             batch = await self.journal.read(after=after, limit=200)
@@ -686,6 +718,14 @@ class AgentRuntime:
             after = batch[-1].sequence
             for entry in batch:
                 refs = entry.task_refs or []
+                if entry.origin == "agent-supervisor":
+                    for ref in refs:
+                        prefix = f"agent:{ref}:{entry.kind}:"
+                        key = entry.idempotency_key
+                        if key.startswith(prefix):
+                            suffix = key[len(prefix) :]
+                            if suffix.isdecimal() and len(suffix) <= 19:
+                                journal_numbers[ref] = max(journal_numbers.get(ref, 0), int(suffix))
                 if entry.origin == "agent-supervisor" and isinstance(
                     entry.payload.get("plugin_versions"), dict
                 ):
@@ -735,6 +775,7 @@ class AgentRuntime:
                     harness_version=payload.get("harness_version", "seed-v1"),
                 )
             rec = _Record(task=task)
+            rec.journal_seq = journal_numbers.get(task_id, 0)
             pins = plugin_pins.get(task_id, {})
             if len(pins) > 16 or any(
                 not isinstance(k, str) or not isinstance(v, str) for k, v in pins.items()

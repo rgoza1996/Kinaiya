@@ -457,6 +457,15 @@ class KinaiyaClient {
   Future<Map<String, Object?>> resourceStatus() =>
       _get(agentBase, '/v1/resources');
 
+  Future<Map<String, Object?>> mcpManagement() =>
+      _get(agentBase, '/v1/mcp/management');
+
+  Future<Map<String, Object?>> controlMcp(Map<String, Object?> body) => _post(
+    agentBase,
+    '/v1/mcp/control',
+    body,
+  ).timeout(const Duration(seconds: 140));
+
   // -- Agent-only command registry (Lead-owned; absence is honest) ---------
 
   /// Returns null when the endpoint is unavailable; never fakes execution.

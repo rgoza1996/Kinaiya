@@ -1273,9 +1273,14 @@ class MCPHost:
         configs: list[MCPConfig],
         policy: ToolPolicy,
         secret_resolver: SecretResolver | None = None,
+        *,
+        access_guard: Callable[[], None] | None = None,
+        definition_guard: Callable[[], None] | None = None,
     ) -> None:
         self._policy = policy
         self._resolver = secret_resolver
+        self._access_guard = access_guard
+        self._definition_guard = definition_guard
         self._configs: dict[str, MCPConfig] = {}
         self._actors: dict[str, _ServerActor] = {}
         self._host_lock = asyncio.Lock()
@@ -1301,6 +1306,8 @@ class MCPHost:
 
     async def replace_configs(self, *, actor: str, configs: list[MCPConfig]) -> None:
         """Owner/lead-only reconfiguration; closes every live session first."""
+        if self._definition_guard is not None:
+            self._definition_guard()
         if actor != "owner":
             raise PolicyDenied(f"permission change requires owner, got {actor!r}")
         if len(configs) > 16:
@@ -1328,13 +1335,19 @@ class MCPHost:
 
     def list_servers(self) -> list[dict[str, Any]]:
         """Metadata only: never secret values, never credentials."""
+        accessible = True
+        if self._access_guard is not None:
+            try:
+                self._access_guard()
+            except Exception:
+                accessible = False
         out = []
         for config in self._configs.values():
             out.append(
                 {
                     "id": config.id,
                     "transport": config.transport,
-                    "enabled": config.enabled,
+                    "enabled": config.enabled and accessible,
                     "allowed_tools": sorted(config.allowed_tools),
                     "endpoint": config.sanitized_endpoint(),
                     "timeout_seconds": config.timeout_seconds,
@@ -1348,6 +1361,8 @@ class MCPHost:
 
     async def _submit(self, server_id: str, op: dict[str, Any], timeout: float) -> Any:
         async with self._host_lock:
+            if self._access_guard is not None:
+                self._access_guard()
             if self._closed:
                 raise MCPTransportError("mcp host is closed")
             config = self._configs.get(server_id)
@@ -1359,7 +1374,10 @@ class MCPHost:
             fut = await actor.submit(op)
         bound = timeout + 30.0
         try:
-            return await asyncio.wait_for(asyncio.shield(fut), timeout=bound)
+            result = await asyncio.wait_for(asyncio.shield(fut), timeout=bound)
+            if self._access_guard is not None:
+                self._access_guard()
+            return result
         except TimeoutError as exc:
             actor.cancel_operation(fut)
             fut.add_done_callback(_consume_future)
