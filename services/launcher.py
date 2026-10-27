@@ -73,11 +73,18 @@ def provider(config, role, *, resource_state=None):
         if role == "agent":
             profile.setdefault("structured_actions", True)
         result = MetaResponsesProvider(**profile)
-    elif kind == "compatible":
+    elif kind in {"compatible", "laya"}:
+        if kind == "laya" and role != "decisions":
+            raise SystemExit("Laya is a typed Decisions provider, not an Agent or Converse model")
         key_ref = profile.pop("api_key_env", None)
         if key_ref:
             profile["api_key"] = os.environ.get(key_ref, "")
-        result = CompatibleTextProvider(**profile)
+        if kind == "laya":
+            from packages.providers.laya import LayaRoutingProvider
+
+            result = LayaRoutingProvider(**profile)
+        else:
+            result = CompatibleTextProvider(**profile)
     else:
         raise SystemExit(
             f"Unsupported {role} provider kind {kind}; configure a live provider explicitly"
@@ -407,10 +414,16 @@ def serve(args):
         from services.decisions.window_routing import WindowAgentDispatcher, WindowClassifier
         from services.decisions.window_worker import WindowDecisionsWorker
 
+        window_chars = config.get("decisions_window_chars", 36000)
+        if type(window_chars) is not int or not 256 <= window_chars <= 36000:
+            raise SystemExit("decisions_window_chars must be an integer from 256 to 36000")
         worker = DecisionsWorker(
             JournalClient(config["session_url"], tokens["decisions"]),
             AgentClient(config["agent_url"], tokens["decisions"]),
-            ModelClassifier(provider(config, "decisions", resource_state=resource_state)),
+            ModelClassifier(
+                provider(config, "decisions", resource_state=resource_state),
+                window_chars=window_chars,
+            ),
             enabled=config.get("agent_enabled", True),
         )
         windows_enabled = config.get("streaming_windows", {}).get("enabled", True)
@@ -418,7 +431,7 @@ def serve(args):
             WindowDecisionsWorker(
                 worker.journal,
                 worker.agent,
-                WindowClassifier(worker.classifier.provider),
+                WindowClassifier(worker.classifier.provider, window_chars=window_chars),
                 agent_enabled=worker.enabled,
                 timeout=config.get("streaming_windows", {}).get("classification_timeout_s", 5),
             )

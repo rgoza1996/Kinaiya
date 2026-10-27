@@ -13,10 +13,11 @@ from packages.contracts.models import (
     TaskRequest,
 )
 from packages.providers.disclosure import entry_allowed
+from packages.providers.text import ProviderRefusal
 
 
 class ModelClassifier:
-    def __init__(self, provider, window_chars=12000):
+    def __init__(self, provider, window_chars=36000):
         self.provider = provider
         self.window_chars = window_chars
 
@@ -37,8 +38,8 @@ class ModelClassifier:
         body = json.dumps(
             {
                 "context": [
-                    {"kind": e.kind, "text": e.payload.get("text", "")}
-                    for e in context
+                    {"kind": e.kind, "text": e.payload.get("text", "")[:2000]}
+                    for e in context[-12:]
                     if entry_allowed(self.provider.info, e)
                 ],
                 "latest": {"kind": source.kind, "text": source.payload.get("text", "")},
@@ -48,7 +49,7 @@ class ModelClassifier:
                         "objective_revision": t.objective_revision,
                         "state": t.state,
                     }
-                    for t in tasks
+                    for t in tasks[:8]
                 ],
             }
         )
@@ -56,13 +57,19 @@ class ModelClassifier:
             body = json.dumps(
                 {
                     "context": [],
-                    "latest": source.payload.get("text", "")[:8000],
+                    "latest": {"kind": source.kind, "text": source.payload.get("text", "")},
                     "tasks": [
-                        {"task_id": t.task_id, "objective_revision": t.objective_revision}
+                        {
+                            "task_id": t.task_id,
+                            "objective_revision": t.objective_revision,
+                            "state": t.state,
+                        }
                         for t in tasks[:5]
                     ],
                 }
             )
+        if len(body) > self.window_chars:
+            raise ProviderRefusal("Current message exceeds classifier context bound")
         raw = await self.provider.complete(
             [{"role": "system", "content": instructions}, {"role": "user", "content": body}]
         )
@@ -105,13 +112,20 @@ class DecisionsWorker:
             # Window replies carry no new owner authority; their paired native
             # window decision already owns routing, independently of this path.
             return None
-        previous = await self.journal.read(
-            after=source.sequence,
-            session_id=source.session_id,
-            kinds=["routing.decided"],
-            limit=200,
-        )
-        recorded = next((e for e in previous if source.event_id in e.causes), None)
+        after, recorded = source.sequence, None
+        while True:
+            previous = await self.journal.read(
+                after=after,
+                session_id=source.session_id,
+                kinds=["routing.decided", "routing.classification_refused"],
+                limit=200,
+            )
+            recorded = next((e for e in previous if source.event_id in e.causes), None)
+            if recorded is not None or len(previous) < 200:
+                break
+            after = previous[-1].sequence
+        if recorded and recorded.kind == "routing.classification_refused":
+            return None
         if recorded:
             decision = Decision.model_validate(recorded.payload)
         else:
@@ -141,7 +155,29 @@ class DecisionsWorker:
             elif source.kind == "conversation.converse":
                 result = {"route": "ignore", "reason_code": "assistant_has_no_user_authority"}
             else:
-                result = await self.classifier.classify(source, context, tasks)
+                try:
+                    result = await self.classifier.classify(source, context, tasks)
+                except ProviderRefusal as exc:
+                    # A truncated or invalid result is not an ignore decision.
+                    # Persist the refusal before advancing this consumer so an
+                    # unroutable entry cannot starve later messages/sessions.
+                    await self.journal.append(
+                        AppendRequest(
+                            session_id=source.session_id,
+                            thread_id=source.thread_id,
+                            epoch=source.epoch,
+                            kind="routing.classification_refused",
+                            payload={
+                                "source_event_id": source.event_id,
+                                "source_revision": source.payload.get("revision", 1),
+                                "reason": "provider_refused",
+                                "error_type": type(exc).__name__,
+                            },
+                            causes=[source.event_id],
+                            idempotency_key=f"classification-refused:{source.event_id}",
+                        )
+                    )
+                    return None
             if source.payload.get("outcome_event_id"):
                 result = {"route": "ignore", "reason_code": "outcome_feedback_loop_prevented"}
             target = next((t for t in tasks if t.task_id == result.get("target_task_id")), None)

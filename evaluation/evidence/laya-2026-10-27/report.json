@@ -1,0 +1,1826 @@
+{
+  "schema_version": "1.0",
+  "status": "experimental_unpromoted",
+  "issue": "https://github.com/rgoza1996/Kinaiya/issues/53",
+  "source_base_commit": "b59b34a1ec4443a54ea408633e83bf66dda96df7",
+  "source_file_sha256": {
+    "packages/providers/laya.py": "f59bc6393e2b53d796fe95d2ab3064048f52e24ed08d01df7290aa73641caf7d",
+    "packages/providers/text.py": "03ebff915a95e6739ccb0b9f21102dc77cd5d35045dfad31bc1c81783ba278f8",
+    "services/decisions/runtime.py": "ca88b58804893a169d73479bdad8a44ca721553c3608dab960be6acfe8f015fe",
+    "services/decisions/window_routing.py": "8752d3193d68307d00fddbaca92eee719c805fe0381854e22f02743f07c58dab",
+    "services/decisions/window_worker.py": "bd6c424abc1d28ebe66a082e220018ff617e02aeb2106d24fa7e56e85719be74",
+    "services/session/store.py": "15926e48aa414faa9fb18d96de23a3ee10108c3b78e6f467f65eb1c39cb36f6a",
+    "scripts/probe_laya_native.py": "02dfabdfb3bcb1dfa3f670fb99bca912ce905ecd33b32f35bc6af47d83ed4258"
+  },
+  "labels": "Lead-authored public synthetic references; not independent human judgments.",
+  "protocol_sha256": "2ac24ac880ce44c61de0506912852bb70b484a02f1376352bb96abbbbad17225",
+  "calibration": {
+    "cases": 24,
+    "sha256": "8c921d43c43843021fba7067594a5e908fe5dbfde99c3604132b3491a3d2252d"
+  },
+  "heldout": {
+    "cases": 24,
+    "sha256": "7ccb89e9b13620bcff02cacff83f388cda6d527a774619bab14a97f344d65d47",
+    "queried": false,
+    "reason": "Candidate fails broader native integration; preserve the unseen split."
+  },
+  "promotion_gate": {
+    "mandatory_spec_examples_all_correct": true,
+    "heldout_conversation_accuracy_min": 0.9,
+    "heldout_agent_route_accuracy_min": 0.9,
+    "heldout_target_accuracy_min": 0.9,
+    "false_work_routes_on_ignored_speech_allowed": 0,
+    "false_interruptions_on_backchannels_or_speech_only_stops_allowed": 0,
+    "silent_truncation_allowed": 0,
+    "native_permission_source_epoch_invariants_required": true
+  },
+  "baseline": {
+    "description": "Fixed ignore for Agent, ready/noninterrupting response for Converse, NONE target. A comparison only; never a runtime fallback.",
+    "agent_route_correct": 11,
+    "agent_route_total": 24,
+    "conversation_correct": 9,
+    "conversation_total": 16,
+    "target_correct": 2,
+    "target_total": 11,
+    "false_work_routes_on_ignored": 0
+  },
+  "laya": {
+    "source_commit": "b9fe351ce81e2d974bca2bf219c1e4030c0a05ea",
+    "version": "0.4.16",
+    "wheel_sha256": "50608f467b1e368b4be8f1dda52e8ff31e46b2a10cce2b857ad9be0cd37e0f05",
+    "hub_repository": "convaiinnovations/laya",
+    "hub_revision": "7b928d828b7b0e022f929d9bd2e44165aa270148",
+    "english_weights_sha256": "891102d372688fc2a094dac56a384bc537b87c63f21f9f3dac0be2b7cbc8d86c",
+    "typed_weights_sha256": "4fa56de72383a9d3efa9cfa78955733c81b9fc8067a587ca4beb82c78107a24e"
+  },
+  "runtime": {
+    "cpu": {
+      "python": "3.12.3",
+      "packages": {
+        "laya": "0.4.16",
+        "torch": "2.9.1+cpu",
+        "transformers": "5.17.0",
+        "safetensors": "0.8.0",
+        "huggingface_hub": "1.32.0",
+        "numpy": "2.2.6",
+        "tokenizers": "0.23.3",
+        "fastapi": "0.162.0",
+        "uvicorn": "0.54.0",
+        "httpx": "0.28.1",
+        "python-multipart": "0.0.32"
+      }
+    },
+    "gpu": {
+      "python": "3.13.11",
+      "packages": {
+        "laya": "0.4.16",
+        "torch": "2.9.1+rocm6.3",
+        "transformers": "5.17.0",
+        "safetensors": "0.8.0",
+        "huggingface_hub": "1.32.0",
+        "numpy": "2.2.6",
+        "tokenizers": "0.23.2",
+        "fastapi": "0.136.0",
+        "uvicorn": "0.45.0",
+        "httpx": "0.28.1",
+        "python-multipart": "0.0.26"
+      }
+    },
+    "cpu_model": "AMD Ryzen 7 5800X",
+    "cpu_physical_cores": 8,
+    "cpu_logical_threads": 16,
+    "threads_per_worker": 4,
+    "gpu_name": "AMD Radeon Graphics",
+    "gpu_architecture": "gfx1201",
+    "hip": "6.3.42134-a9a80e791",
+    "gpu_total_bytes": 34208743424,
+    "gpu_api_name": "cuda (ROCm, not NVIDIA)",
+    "server_max_resident_models": 1,
+    "server_max_concurrent": 2
+  },
+  "class_agreement_cpu_gpu": {
+    "cases": 24,
+    "all_choice_answers_agree": 24,
+    "max_raw_probability_delta": 0.008900000000000019
+  },
+  "calibration_profiles": [
+    {
+      "name": "initial",
+      "health": {
+        "ready": true,
+        "model": "english",
+        "revision": "7b928d828b7b0e022f929d9bd2e44165aa270148",
+        "device": "cpu"
+      },
+      "reference_sha256": "8c921d43c43843021fba7067594a5e908fe5dbfde99c3604132b3491a3d2252d",
+      "adapter_sha256": "e94b6d29851a5d26fde5c381373119d84a43c7a4420597afd46ac508cdf3e2b6",
+      "raw_record_sha256": "a39ea0e77c0152308935c678cce670dfc9b63289ed7a722754b0efd46a2b8be7",
+      "first_request_seconds": 1.7343592830002308,
+      "warm_http_seconds": {
+        "n": 23,
+        "p50": 1.6437038959993515,
+        "p95": 2.0179554959904635,
+        "max": 2.0634456440020585
+      },
+      "questions_sha256s": [
+        "2a6d1089398e6cc9bd5bb6b499858f5336c673b660f680bcc125e04d236e67ed",
+        "2d1e290795540e0964bb9260a505f81dfd6a8f9b3a059cd2c59b1ff9b743e768",
+        "2d2937921de527bd2389125b48196c6cfdbfcc3830f415496923cb51554f1c5f",
+        "40ed3666dd94a00732364856adffe163db6d2abf9121f894e7a1ae8d04d1d064",
+        "725c500ee54407bc86fffbce6a8098609b6bc909444b64fb26be9f1114b93400",
+        "a698244f954d9a52651a340471493395f7994d8a58e7f53b77922905ebbe33dc"
+      ],
+      "summary": {
+        "n": 24,
+        "agent_route_correct": 10,
+        "agent_route_accuracy": 0.4166666666666667,
+        "conversation_correct": 11,
+        "conversation_total": 16,
+        "conversation_accuracy": 0.6875,
+        "target_correct": 9,
+        "target_total": 11,
+        "target_accuracy": 0.8181818181818182,
+        "false_work_routes_on_ignored": 11,
+        "http_seconds": {
+          "p50": 1.6489542410054128,
+          "p95": 2.0179554959904635,
+          "min": 0.3957512199995108,
+          "max": 2.0634456440020585
+        },
+        "errors": {},
+        "route_confusion": [
+          {
+            "expected": "IGNORE_FOR_IMMEDIATE_ROUTING",
+            "predicted": "QUEUE_UNTIL_TASK_DONE",
+            "count": 2
+          },
+          {
+            "expected": "IGNORE_FOR_IMMEDIATE_ROUTING",
+            "predicted": "STEER_CURRENT_TASK",
+            "count": 4
+          },
+          {
+            "expected": "STEER_CURRENT_TASK",
+            "predicted": "QUEUE_UNTIL_TASK_DONE",
+            "count": 1
+          },
+          {
+            "expected": "INTERRUPT_CURRENT_TASK",
+            "predicted": "INTERRUPT_CURRENT_TASK",
+            "count": 2
+          },
+          {
+            "expected": "QUEUE_UNTIL_TASK_DONE",
+            "predicted": "QUEUE_UNTIL_TASK_DONE",
+            "count": 2
+          },
+          {
+            "expected": "STEER_CURRENT_TASK",
+            "predicted": "STEER_CURRENT_TASK",
+            "count": 2
+          },
+          {
+            "expected": "QUEUE_UNTIL_TASK_DONE",
+            "predicted": "STEER_CURRENT_TASK",
+            "count": 1
+          },
+          {
+            "expected": "IGNORE_FOR_IMMEDIATE_ROUTING",
+            "predicted": "INTERRUPT_CURRENT_TASK",
+            "count": 1
+          },
+          {
+            "expected": "STEER_CURRENT_TASK",
+            "predicted": "INTERRUPT_CURRENT_TASK",
+            "count": 1
+          },
+          {
+            "expected": "ignore",
+            "predicted": "queue",
+            "count": 2
+          },
+          {
+            "expected": "queue",
+            "predicted": "queue",
+            "count": 1
+          },
+          {
+            "expected": "steer",
+            "predicted": "steer",
+            "count": 2
+          },
+          {
+            "expected": "interrupt",
+            "predicted": "interrupt",
+            "count": 1
+          },
+          {
+            "expected": "ignore",
+            "predicted": "interrupt",
+            "count": 1
+          },
+          {
+            "expected": "ignore",
+            "predicted": "steer",
+            "count": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "natural-labels",
+      "health": {
+        "ready": true,
+        "model": "english",
+        "revision": "7b928d828b7b0e022f929d9bd2e44165aa270148",
+        "device": "cpu"
+      },
+      "reference_sha256": "8c921d43c43843021fba7067594a5e908fe5dbfde99c3604132b3491a3d2252d",
+      "adapter_sha256": "4579e281b457e9e09d0eabf133b4ef5e325a9fe4dc15f7a187598f5c2217754a",
+      "raw_record_sha256": "b05c7367a8f257a76197f9cf3a9849c01988b99ef3d43fee7e65bfc736e41e8a",
+      "first_request_seconds": 1.7320100419892697,
+      "warm_http_seconds": {
+        "n": 23,
+        "p50": 1.6573235339892562,
+        "p95": 1.968471619009506,
+        "max": 1.9926717060006922
+      },
+      "questions_sha256s": [
+        "7ac2a90ac7b86580d42eeca58fbf934eb398235c6e630b28a192ea23f8596698",
+        "8214317c7d830350a7ea97dfb0636c5a61356e04cbb385355644f9b0e543fe02",
+        "934b3f5138dd111a96dde7b402ec27221690834ac5aee1394bd5eeb2800afc3a",
+        "df4a80f0ace5d3044d0231a2b83f2d41ae828715808e03c9789f9b053c904923",
+        "df8fbed1434f86b5cd35f8cf818dd05ffbb31af988205c5d87d1ebe5c27539bf",
+        "dff91600de700b8eed18a3f7e06abee75a04df30e3e5712a0419d52e9fac4312"
+      ],
+      "summary": {
+        "n": 24,
+        "agent_route_correct": 13,
+        "agent_route_accuracy": 0.5416666666666666,
+        "conversation_correct": 6,
+        "conversation_total": 16,
+        "conversation_accuracy": 0.375,
+        "target_correct": 9,
+        "target_total": 11,
+        "target_accuracy": 0.8181818181818182,
+        "false_work_routes_on_ignored": 4,
+        "http_seconds": {
+          "p50": 1.6707452349946834,
+          "p95": 1.968471619009506,
+          "min": 0.4578382859908743,
+          "max": 1.9926717060006922
+        },
+        "errors": {},
+        "route_confusion": [
+          {
+            "expected": "IGNORE_FOR_IMMEDIATE_ROUTING",
+            "predicted": "IGNORE_FOR_IMMEDIATE_ROUTING",
+            "count": 5
+          },
+          {
+            "expected": "STEER_CURRENT_TASK",
+            "predicted": "STEER_CURRENT_TASK",
+            "count": 2
+          },
+          {
+            "expected": "INTERRUPT_CURRENT_TASK",
+            "predicted": "INTERRUPT_CURRENT_TASK",
+            "count": 2
+          },
+          {
+            "expected": "QUEUE_UNTIL_TASK_DONE",
+            "predicted": "STEER_CURRENT_TASK",
+            "count": 2
+          },
+          {
+            "expected": "IGNORE_FOR_IMMEDIATE_ROUTING",
+            "predicted": "STEER_CURRENT_TASK",
+            "count": 1
+          },
+          {
+            "expected": "STEER_CURRENT_TASK",
+            "predicted": "IGNORE_FOR_IMMEDIATE_ROUTING",
+            "count": 2
+          },
+          {
+            "expected": "QUEUE_UNTIL_TASK_DONE",
+            "predicted": "IGNORE_FOR_IMMEDIATE_ROUTING",
+            "count": 1
+          },
+          {
+            "expected": "IGNORE_FOR_IMMEDIATE_ROUTING",
+            "predicted": "INTERRUPT_CURRENT_TASK",
+            "count": 1
+          },
+          {
+            "expected": "ignore",
+            "predicted": "ignore",
+            "count": 2
+          },
+          {
+            "expected": "queue",
+            "predicted": "ignore",
+            "count": 1
+          },
+          {
+            "expected": "steer",
+            "predicted": "steer",
+            "count": 1
+          },
+          {
+            "expected": "interrupt",
+            "predicted": "interrupt",
+            "count": 1
+          },
+          {
+            "expected": "ignore",
+            "predicted": "interrupt",
+            "count": 1
+          },
+          {
+            "expected": "ignore",
+            "predicted": "steer",
+            "count": 1
+          },
+          {
+            "expected": "steer",
+            "predicted": "interrupt",
+            "count": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "typed-natural-labels",
+      "health": {
+        "ready": true,
+        "model": "typed-decisions",
+        "revision": "7b928d828b7b0e022f929d9bd2e44165aa270148",
+        "device": "cpu"
+      },
+      "reference_sha256": "8c921d43c43843021fba7067594a5e908fe5dbfde99c3604132b3491a3d2252d",
+      "adapter_sha256": "4579e281b457e9e09d0eabf133b4ef5e325a9fe4dc15f7a187598f5c2217754a",
+      "raw_record_sha256": "7409d3b035e8b7de64b185e35507f86a7192064a823a119d934262e676af32de",
+      "first_request_seconds": 1.7422658809955465,
+      "warm_http_seconds": {
+        "n": 23,
+        "p50": 1.647369117999915,
+        "p95": 1.9770472990057897,
+        "max": 2.046757133997744
+      },
+      "questions_sha256s": [
+        "7ac2a90ac7b86580d42eeca58fbf934eb398235c6e630b28a192ea23f8596698",
+        "8214317c7d830350a7ea97dfb0636c5a61356e04cbb385355644f9b0e543fe02",
+        "934b3f5138dd111a96dde7b402ec27221690834ac5aee1394bd5eeb2800afc3a",
+        "df4a80f0ace5d3044d0231a2b83f2d41ae828715808e03c9789f9b053c904923",
+        "df8fbed1434f86b5cd35f8cf818dd05ffbb31af988205c5d87d1ebe5c27539bf",
+        "dff91600de700b8eed18a3f7e06abee75a04df30e3e5712a0419d52e9fac4312"
+      ],
+      "summary": {
+        "n": 24,
+        "agent_route_correct": 13,
+        "agent_route_accuracy": 0.5416666666666666,
+        "conversation_correct": 8,
+        "conversation_total": 16,
+        "conversation_accuracy": 0.5,
+        "target_correct": 9,
+        "target_total": 11,
+        "target_accuracy": 0.8181818181818182,
+        "false_work_routes_on_ignored": 3,
+        "http_seconds": {
+          "p50": 1.647919961003936,
+          "p95": 1.9770472990057897,
+          "min": 0.4605365509924013,
+          "max": 2.046757133997744
+        },
+        "errors": {},
+        "route_confusion": [
+          {
+            "expected": "IGNORE_FOR_IMMEDIATE_ROUTING",
+            "predicted": "IGNORE_FOR_IMMEDIATE_ROUTING",
+            "count": 6
+          },
+          {
+            "expected": "STEER_CURRENT_TASK",
+            "predicted": "IGNORE_FOR_IMMEDIATE_ROUTING",
+            "count": 2
+          },
+          {
+            "expected": "INTERRUPT_CURRENT_TASK",
+            "predicted": "IGNORE_FOR_IMMEDIATE_ROUTING",
+            "count": 1
+          },
+          {
+            "expected": "QUEUE_UNTIL_TASK_DONE",
+            "predicted": "IGNORE_FOR_IMMEDIATE_ROUTING",
+            "count": 2
+          },
+          {
+            "expected": "STEER_CURRENT_TASK",
+            "predicted": "STEER_CURRENT_TASK",
+            "count": 2
+          },
+          {
+            "expected": "INTERRUPT_CURRENT_TASK",
+            "predicted": "INTERRUPT_CURRENT_TASK",
+            "count": 1
+          },
+          {
+            "expected": "QUEUE_UNTIL_TASK_DONE",
+            "predicted": "STEER_CURRENT_TASK",
+            "count": 1
+          },
+          {
+            "expected": "IGNORE_FOR_IMMEDIATE_ROUTING",
+            "predicted": "STEER_CURRENT_TASK",
+            "count": 1
+          },
+          {
+            "expected": "ignore",
+            "predicted": "ignore",
+            "count": 2
+          },
+          {
+            "expected": "queue",
+            "predicted": "ignore",
+            "count": 1
+          },
+          {
+            "expected": "steer",
+            "predicted": "steer",
+            "count": 1
+          },
+          {
+            "expected": "interrupt",
+            "predicted": "interrupt",
+            "count": 1
+          },
+          {
+            "expected": "ignore",
+            "predicted": "interrupt",
+            "count": 1
+          },
+          {
+            "expected": "ignore",
+            "predicted": "steer",
+            "count": 1
+          },
+          {
+            "expected": "steer",
+            "predicted": "ignore",
+            "count": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "typed-trained-budget",
+      "health": {
+        "ready": true,
+        "model": "typed-decisions",
+        "revision": "7b928d828b7b0e022f929d9bd2e44165aa270148",
+        "device": "cpu"
+      },
+      "reference_sha256": "8c921d43c43843021fba7067594a5e908fe5dbfde99c3604132b3491a3d2252d",
+      "adapter_sha256": "e66612f2026e71b4ca35f30df2bc2516ed85486408fd6fb847007be2ef031161",
+      "raw_record_sha256": "3b56e9935f78ed99dd6f6b0a9d5b8e25fd1825cf3867fdf8bc8347baec9bd5fe",
+      "first_request_seconds": 1.7752421599871013,
+      "warm_http_seconds": {
+        "n": 23,
+        "p50": 1.6572435519919964,
+        "p95": 1.951269074997981,
+        "max": 2.047667407998233
+      },
+      "questions_sha256s": [
+        "7ac2a90ac7b86580d42eeca58fbf934eb398235c6e630b28a192ea23f8596698",
+        "8214317c7d830350a7ea97dfb0636c5a61356e04cbb385355644f9b0e543fe02",
+        "934b3f5138dd111a96dde7b402ec27221690834ac5aee1394bd5eeb2800afc3a",
+        "df4a80f0ace5d3044d0231a2b83f2d41ae828715808e03c9789f9b053c904923",
+        "df8fbed1434f86b5cd35f8cf818dd05ffbb31af988205c5d87d1ebe5c27539bf",
+        "dff91600de700b8eed18a3f7e06abee75a04df30e3e5712a0419d52e9fac4312"
+      ],
+      "summary": {
+        "n": 24,
+        "agent_route_correct": 13,
+        "agent_route_accuracy": 0.5416666666666666,
+        "conversation_correct": 8,
+        "conversation_total": 16,
+        "conversation_accuracy": 0.5,
+        "target_correct": 9,
+        "target_total": 11,
+        "target_accuracy": 0.8181818181818182,
+        "false_work_routes_on_ignored": 3,
+        "http_seconds": {
+          "p50": 1.6652374899931601,
+          "p95": 1.951269074997981,
+          "min": 0.6199519869987853,
+          "max": 2.047667407998233
+        },
+        "errors": {},
+        "route_confusion": [
+          {
+            "expected": "IGNORE_FOR_IMMEDIATE_ROUTING",
+            "predicted": "IGNORE_FOR_IMMEDIATE_ROUTING",
+            "count": 6
+          },
+          {
+            "expected": "STEER_CURRENT_TASK",
+            "predicted": "IGNORE_FOR_IMMEDIATE_ROUTING",
+            "count": 2
+          },
+          {
+            "expected": "INTERRUPT_CURRENT_TASK",
+            "predicted": "IGNORE_FOR_IMMEDIATE_ROUTING",
+            "count": 1
+          },
+          {
+            "expected": "QUEUE_UNTIL_TASK_DONE",
+            "predicted": "IGNORE_FOR_IMMEDIATE_ROUTING",
+            "count": 2
+          },
+          {
+            "expected": "STEER_CURRENT_TASK",
+            "predicted": "STEER_CURRENT_TASK",
+            "count": 2
+          },
+          {
+            "expected": "INTERRUPT_CURRENT_TASK",
+            "predicted": "INTERRUPT_CURRENT_TASK",
+            "count": 1
+          },
+          {
+            "expected": "QUEUE_UNTIL_TASK_DONE",
+            "predicted": "STEER_CURRENT_TASK",
+            "count": 1
+          },
+          {
+            "expected": "IGNORE_FOR_IMMEDIATE_ROUTING",
+            "predicted": "STEER_CURRENT_TASK",
+            "count": 1
+          },
+          {
+            "expected": "ignore",
+            "predicted": "ignore",
+            "count": 2
+          },
+          {
+            "expected": "queue",
+            "predicted": "ignore",
+            "count": 1
+          },
+          {
+            "expected": "steer",
+            "predicted": "steer",
+            "count": 1
+          },
+          {
+            "expected": "interrupt",
+            "predicted": "interrupt",
+            "count": 1
+          },
+          {
+            "expected": "ignore",
+            "predicted": "interrupt",
+            "count": 1
+          },
+          {
+            "expected": "ignore",
+            "predicted": "steer",
+            "count": 1
+          },
+          {
+            "expected": "steer",
+            "predicted": "ignore",
+            "count": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "typed-gpu",
+      "health": {
+        "ready": true,
+        "model": "typed-decisions",
+        "revision": "7b928d828b7b0e022f929d9bd2e44165aa270148",
+        "device": "cuda"
+      },
+      "reference_sha256": "8c921d43c43843021fba7067594a5e908fe5dbfde99c3604132b3491a3d2252d",
+      "adapter_sha256": "e66612f2026e71b4ca35f30df2bc2516ed85486408fd6fb847007be2ef031161",
+      "raw_record_sha256": "cf1752561092bec598e03310d77b474c4a93047eb594ea0a4e9b4cdbd5808f3e",
+      "first_request_seconds": 0.5465890340128681,
+      "warm_http_seconds": {
+        "n": 23,
+        "p50": 0.03383486000529956,
+        "p95": 0.039417631007381715,
+        "max": 0.050847055012127385
+      },
+      "questions_sha256s": [
+        "7ac2a90ac7b86580d42eeca58fbf934eb398235c6e630b28a192ea23f8596698",
+        "8214317c7d830350a7ea97dfb0636c5a61356e04cbb385355644f9b0e543fe02",
+        "934b3f5138dd111a96dde7b402ec27221690834ac5aee1394bd5eeb2800afc3a",
+        "df4a80f0ace5d3044d0231a2b83f2d41ae828715808e03c9789f9b053c904923",
+        "df8fbed1434f86b5cd35f8cf818dd05ffbb31af988205c5d87d1ebe5c27539bf",
+        "dff91600de700b8eed18a3f7e06abee75a04df30e3e5712a0419d52e9fac4312"
+      ],
+      "summary": {
+        "n": 24,
+        "agent_route_correct": 13,
+        "agent_route_accuracy": 0.5416666666666666,
+        "conversation_correct": 8,
+        "conversation_total": 16,
+        "conversation_accuracy": 0.5,
+        "target_correct": 9,
+        "target_total": 11,
+        "target_accuracy": 0.8181818181818182,
+        "false_work_routes_on_ignored": 3,
+        "http_seconds": {
+          "p50": 0.03414543300459627,
+          "p95": 0.050847055012127385,
+          "min": 0.022990470999502577,
+          "max": 0.5465890340128681
+        },
+        "errors": {},
+        "route_confusion": [
+          {
+            "expected": "IGNORE_FOR_IMMEDIATE_ROUTING",
+            "predicted": "IGNORE_FOR_IMMEDIATE_ROUTING",
+            "count": 6
+          },
+          {
+            "expected": "STEER_CURRENT_TASK",
+            "predicted": "IGNORE_FOR_IMMEDIATE_ROUTING",
+            "count": 2
+          },
+          {
+            "expected": "INTERRUPT_CURRENT_TASK",
+            "predicted": "IGNORE_FOR_IMMEDIATE_ROUTING",
+            "count": 1
+          },
+          {
+            "expected": "QUEUE_UNTIL_TASK_DONE",
+            "predicted": "IGNORE_FOR_IMMEDIATE_ROUTING",
+            "count": 2
+          },
+          {
+            "expected": "STEER_CURRENT_TASK",
+            "predicted": "STEER_CURRENT_TASK",
+            "count": 2
+          },
+          {
+            "expected": "INTERRUPT_CURRENT_TASK",
+            "predicted": "INTERRUPT_CURRENT_TASK",
+            "count": 1
+          },
+          {
+            "expected": "QUEUE_UNTIL_TASK_DONE",
+            "predicted": "STEER_CURRENT_TASK",
+            "count": 1
+          },
+          {
+            "expected": "IGNORE_FOR_IMMEDIATE_ROUTING",
+            "predicted": "STEER_CURRENT_TASK",
+            "count": 1
+          },
+          {
+            "expected": "ignore",
+            "predicted": "ignore",
+            "count": 2
+          },
+          {
+            "expected": "queue",
+            "predicted": "ignore",
+            "count": 1
+          },
+          {
+            "expected": "steer",
+            "predicted": "steer",
+            "count": 1
+          },
+          {
+            "expected": "interrupt",
+            "predicted": "interrupt",
+            "count": 1
+          },
+          {
+            "expected": "ignore",
+            "predicted": "interrupt",
+            "count": 1
+          },
+          {
+            "expected": "ignore",
+            "predicted": "steer",
+            "count": 1
+          },
+          {
+            "expected": "steer",
+            "predicted": "ignore",
+            "count": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "finetuned-v1-gpu",
+      "health": {
+        "status": "ok",
+        "loaded": [
+          "kinaiya-v1"
+        ],
+        "revisions": {
+          "kinaiya-v1": null
+        },
+        "device": "cuda",
+        "device_is_preference": false,
+        "checkpoint_devices": {
+          "kinaiya-v1": "cuda"
+        },
+        "cpu_fallbacks": {
+          "kinaiya-v1": {
+            "count": 0,
+            "last_reason": null
+          }
+        },
+        "external_local_manifest_sha256": "78af3801528ccbe5f5f45f310c9137a686bbbff40716314145a117fc4a09df49"
+      },
+      "reference_sha256": "8c921d43c43843021fba7067594a5e908fe5dbfde99c3604132b3491a3d2252d",
+      "adapter_sha256": "e948e125b519b5fcb309ed17ef88b714f12e50538439be6e85a5a7b409bb44d7",
+      "raw_record_sha256": "c187d3abfd9a0c1740b1576493a8836901a1d5065ad4430a695ca4e6a1aee621",
+      "first_request_seconds": 0.5151556130003883,
+      "warm_http_seconds": {
+        "n": 23,
+        "p50": 0.034448142992914654,
+        "p95": 0.04002503299852833,
+        "max": 0.052700360989547335
+      },
+      "questions_sha256s": [
+        "7ac2a90ac7b86580d42eeca58fbf934eb398235c6e630b28a192ea23f8596698",
+        "8214317c7d830350a7ea97dfb0636c5a61356e04cbb385355644f9b0e543fe02",
+        "934b3f5138dd111a96dde7b402ec27221690834ac5aee1394bd5eeb2800afc3a",
+        "df4a80f0ace5d3044d0231a2b83f2d41ae828715808e03c9789f9b053c904923",
+        "df8fbed1434f86b5cd35f8cf818dd05ffbb31af988205c5d87d1ebe5c27539bf",
+        "dff91600de700b8eed18a3f7e06abee75a04df30e3e5712a0419d52e9fac4312"
+      ],
+      "summary": {
+        "n": 24,
+        "agent_route_correct": 22,
+        "agent_route_accuracy": 0.9166666666666666,
+        "conversation_correct": 16,
+        "conversation_total": 16,
+        "conversation_accuracy": 1.0,
+        "target_correct": 9,
+        "target_total": 11,
+        "target_accuracy": 0.8181818181818182,
+        "false_work_routes_on_ignored": 0,
+        "http_seconds": {
+          "p50": 0.03460709949285956,
+          "p95": 0.052700360989547335,
+          "min": 0.024464345013257116,
+          "max": 0.5151556130003883
+        },
+        "errors": {},
+        "route_confusion": [
+          {
+            "expected": "IGNORE_FOR_IMMEDIATE_ROUTING",
+            "predicted": "IGNORE_FOR_IMMEDIATE_ROUTING",
+            "count": 7
+          },
+          {
+            "expected": "STEER_CURRENT_TASK",
+            "predicted": "STEER_CURRENT_TASK",
+            "count": 3
+          },
+          {
+            "expected": "INTERRUPT_CURRENT_TASK",
+            "predicted": "IGNORE_FOR_IMMEDIATE_ROUTING",
+            "count": 1
+          },
+          {
+            "expected": "QUEUE_UNTIL_TASK_DONE",
+            "predicted": "QUEUE_UNTIL_TASK_DONE",
+            "count": 3
+          },
+          {
+            "expected": "INTERRUPT_CURRENT_TASK",
+            "predicted": "INTERRUPT_CURRENT_TASK",
+            "count": 1
+          },
+          {
+            "expected": "STEER_CURRENT_TASK",
+            "predicted": "IGNORE_FOR_IMMEDIATE_ROUTING",
+            "count": 1
+          },
+          {
+            "expected": "ignore",
+            "predicted": "ignore",
+            "count": 4
+          },
+          {
+            "expected": "queue",
+            "predicted": "queue",
+            "count": 1
+          },
+          {
+            "expected": "steer",
+            "predicted": "steer",
+            "count": 2
+          },
+          {
+            "expected": "interrupt",
+            "predicted": "interrupt",
+            "count": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "finetuned-v2-gpu",
+      "health": {
+        "status": "ok",
+        "loaded": [
+          "kinaiya-v2"
+        ],
+        "revisions": {
+          "kinaiya-v2": null
+        },
+        "device": "cuda",
+        "device_is_preference": false,
+        "checkpoint_devices": {
+          "kinaiya-v2": "cuda"
+        },
+        "cpu_fallbacks": {
+          "kinaiya-v2": {
+            "count": 0,
+            "last_reason": null
+          }
+        },
+        "external_local_manifest_sha256": "034f469eaf6433bdfe738566e32671f35ceed445b594ba6e9f9bb449be9670ea"
+      },
+      "reference_sha256": "8c921d43c43843021fba7067594a5e908fe5dbfde99c3604132b3491a3d2252d",
+      "adapter_sha256": "d21684af284e91dfabb74e8cc62ce19f00e452e11adeda1187797a96094ce528",
+      "raw_record_sha256": "ce4f19b47c4b1771f6e81eb84580460bf354d4813d9b33528776097c5af26b30",
+      "first_request_seconds": 0.4848472860030597,
+      "warm_http_seconds": {
+        "n": 23,
+        "p50": 0.035575753994635306,
+        "p95": 0.04049133700027596,
+        "max": 0.05222572300408501
+      },
+      "questions_sha256s": [
+        "7ac2a90ac7b86580d42eeca58fbf934eb398235c6e630b28a192ea23f8596698",
+        "8214317c7d830350a7ea97dfb0636c5a61356e04cbb385355644f9b0e543fe02",
+        "934b3f5138dd111a96dde7b402ec27221690834ac5aee1394bd5eeb2800afc3a",
+        "df4a80f0ace5d3044d0231a2b83f2d41ae828715808e03c9789f9b053c904923",
+        "df8fbed1434f86b5cd35f8cf818dd05ffbb31af988205c5d87d1ebe5c27539bf",
+        "dff91600de700b8eed18a3f7e06abee75a04df30e3e5712a0419d52e9fac4312"
+      ],
+      "summary": {
+        "n": 24,
+        "agent_route_correct": 23,
+        "agent_route_accuracy": 0.9583333333333334,
+        "conversation_correct": 16,
+        "conversation_total": 16,
+        "conversation_accuracy": 1.0,
+        "target_correct": 11,
+        "target_total": 11,
+        "target_accuracy": 1.0,
+        "false_work_routes_on_ignored": 1,
+        "http_seconds": {
+          "p50": 0.03593176799768116,
+          "p95": 0.05222572300408501,
+          "min": 0.027401965999160893,
+          "max": 0.4848472860030597
+        },
+        "errors": {},
+        "route_confusion": [
+          {
+            "expected": "IGNORE_FOR_IMMEDIATE_ROUTING",
+            "predicted": "IGNORE_FOR_IMMEDIATE_ROUTING",
+            "count": 7
+          },
+          {
+            "expected": "STEER_CURRENT_TASK",
+            "predicted": "STEER_CURRENT_TASK",
+            "count": 4
+          },
+          {
+            "expected": "INTERRUPT_CURRENT_TASK",
+            "predicted": "INTERRUPT_CURRENT_TASK",
+            "count": 2
+          },
+          {
+            "expected": "QUEUE_UNTIL_TASK_DONE",
+            "predicted": "QUEUE_UNTIL_TASK_DONE",
+            "count": 3
+          },
+          {
+            "expected": "ignore",
+            "predicted": "ignore",
+            "count": 3
+          },
+          {
+            "expected": "queue",
+            "predicted": "queue",
+            "count": 1
+          },
+          {
+            "expected": "steer",
+            "predicted": "steer",
+            "count": 2
+          },
+          {
+            "expected": "interrupt",
+            "predicted": "interrupt",
+            "count": 1
+          },
+          {
+            "expected": "ignore",
+            "predicted": "interrupt",
+            "count": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "finetuned-v3-gpu",
+      "health": {
+        "status": "ok",
+        "loaded": [
+          "kinaiya-v3"
+        ],
+        "revisions": {
+          "kinaiya-v3": null
+        },
+        "device": "cuda",
+        "device_is_preference": false,
+        "checkpoint_devices": {
+          "kinaiya-v3": "cuda"
+        },
+        "cpu_fallbacks": {
+          "kinaiya-v3": {
+            "count": 0,
+            "last_reason": null
+          }
+        },
+        "external_local_manifest_sha256": "c8d9966f2c4f7ba73dc801893699ab50e9124e01007ac99414f96c2742b16e2e"
+      },
+      "reference_sha256": "8c921d43c43843021fba7067594a5e908fe5dbfde99c3604132b3491a3d2252d",
+      "adapter_sha256": "b61fbd70f67916f0a8b64360fda667d3f24d8aae4c8ac5f46a8aa0700ef1de98",
+      "raw_record_sha256": "61a77d45b4c61a3d766323a1d64456a05ae42a388f1322e8a24863ee02506740",
+      "first_request_seconds": 0.5423959379986627,
+      "warm_http_seconds": {
+        "n": 23,
+        "p50": 0.03504377999342978,
+        "p95": 0.04036160800023936,
+        "max": 0.05332926100527402
+      },
+      "questions_sha256s": [
+        "7ac2a90ac7b86580d42eeca58fbf934eb398235c6e630b28a192ea23f8596698",
+        "8214317c7d830350a7ea97dfb0636c5a61356e04cbb385355644f9b0e543fe02",
+        "934b3f5138dd111a96dde7b402ec27221690834ac5aee1394bd5eeb2800afc3a",
+        "df4a80f0ace5d3044d0231a2b83f2d41ae828715808e03c9789f9b053c904923",
+        "df8fbed1434f86b5cd35f8cf818dd05ffbb31af988205c5d87d1ebe5c27539bf",
+        "dff91600de700b8eed18a3f7e06abee75a04df30e3e5712a0419d52e9fac4312"
+      ],
+      "summary": {
+        "n": 24,
+        "agent_route_correct": 24,
+        "agent_route_accuracy": 1.0,
+        "conversation_correct": 16,
+        "conversation_total": 16,
+        "conversation_accuracy": 1.0,
+        "target_correct": 11,
+        "target_total": 11,
+        "target_accuracy": 1.0,
+        "false_work_routes_on_ignored": 0,
+        "http_seconds": {
+          "p50": 0.03592386149830418,
+          "p95": 0.05332926100527402,
+          "min": 0.02603787899715826,
+          "max": 0.5423959379986627
+        },
+        "errors": {},
+        "route_confusion": [
+          {
+            "expected": "IGNORE_FOR_IMMEDIATE_ROUTING",
+            "predicted": "IGNORE_FOR_IMMEDIATE_ROUTING",
+            "count": 7
+          },
+          {
+            "expected": "STEER_CURRENT_TASK",
+            "predicted": "STEER_CURRENT_TASK",
+            "count": 4
+          },
+          {
+            "expected": "INTERRUPT_CURRENT_TASK",
+            "predicted": "INTERRUPT_CURRENT_TASK",
+            "count": 2
+          },
+          {
+            "expected": "QUEUE_UNTIL_TASK_DONE",
+            "predicted": "QUEUE_UNTIL_TASK_DONE",
+            "count": 3
+          },
+          {
+            "expected": "ignore",
+            "predicted": "ignore",
+            "count": 4
+          },
+          {
+            "expected": "queue",
+            "predicted": "queue",
+            "count": 1
+          },
+          {
+            "expected": "steer",
+            "predicted": "steer",
+            "count": 2
+          },
+          {
+            "expected": "interrupt",
+            "predicted": "interrupt",
+            "count": 1
+          }
+        ]
+      }
+    }
+  ],
+  "training": [
+    {
+      "candidate": 1,
+      "record_sha256": "05ecd2a3cccfe3423a6c92cab404fa56421b98d812dfce448b2d72b2572b258f",
+      "dataset_manifest_sha256": "2d36d30bf3758022aed54df8192f010fbbe0bcec17c683fd3a4001f8d0f21fed",
+      "training_dataset_sha256": "9a399b933910dcd6bb6c6d5c6a2c1e5789dc8e0ee5ea12f00cf21a2c08fb1ed5",
+      "validation_dataset_sha256": "d2393577dcb844fce6307185922126a7085ddfa320a67987c9b89b6cfb25571f",
+      "base_model_sha256": "4fa56de72383a9d3efa9cfa78955733c81b9fc8067a587ca4beb82c78107a24e",
+      "continuation_local_manifest_sha256": null,
+      "runtime_manifest_sha256": "78af3801528ccbe5f5f45f310c9137a686bbbff40716314145a117fc4a09df49",
+      "runtime_files": [
+        {
+          "path": "model.safetensors",
+          "size_bytes": 842609220,
+          "sha256": "47522eb62a18c2c36b92b68f140767009a5d33ce69e0e71631ce2dc35855cd53"
+        },
+        {
+          "path": "rl_agent_config.json",
+          "size_bytes": 5206,
+          "sha256": "85e43bb070c29cee32b076454c28a02969d16a2fb7836ac65f7739d1446d15df"
+        },
+        {
+          "path": "encoder/config.json",
+          "size_bytes": 2084,
+          "sha256": "5268d24ad3b77c8151de5dcb0762ba4391619aad9ab0bda33e36fb083cfeae6d"
+        },
+        {
+          "path": "tokenizer/tokenizer.json",
+          "size_bytes": 3583325,
+          "sha256": "0b3214f8efe1327290428b84e5d344ff3f2442686c1b89fb7b42c13a79ce6779"
+        },
+        {
+          "path": "tokenizer/tokenizer_config.json",
+          "size_bytes": 378,
+          "sha256": "68acf857b869285d8c3ac2757ddd26e6f8030fb275d6800131521eb736084608"
+        }
+      ],
+      "config": {
+        "epochs": 8,
+        "micro_batch": 4,
+        "grad_accum": 4,
+        "encoder_lr": 1e-05,
+        "head_lr": 0.0001,
+        "min_lr": 1e-06,
+        "weight_decay": 0.01,
+        "grad_clip": 1.0,
+        "loss": "soft-ce",
+        "rl_samples": 4,
+        "sigma_start": 0.4,
+        "sigma_end": 0.1,
+        "w_sph": 0.75,
+        "w_rps": 1.0,
+        "shuffle_options": [
+          "choice"
+        ],
+        "option_layout": null,
+        "freeze_encoder": false,
+        "calib_max": 128,
+        "calib_frac": 0.1,
+        "calib_seed": 20260922,
+        "seed": 53,
+        "max_len": 1024,
+        "head_max_len": 256,
+        "amp": null,
+        "gradient_checkpointing": true,
+        "log_every": 10,
+        "label_smoothing": 0.05,
+        "text_column": "text",
+        "label_column": "label",
+        "question_id": "label",
+        "instructions": null,
+        "eval_data": "calibration-as-validation-v1.jsonl",
+        "target_error": 0.1,
+        "min_abstain_n": 10
+      },
+      "elapsed_seconds": 279.8606984615326,
+      "peak_allocated_bytes": 8548494848,
+      "peak_reserved_bytes": 9212788736,
+      "per_process_fraction_limit": 0.65,
+      "train_items": 724,
+      "internal_calibration_items": 80,
+      "development_validation_items": 59,
+      "skipped": {},
+      "epoch_loss": [
+        0.5040084944410219,
+        0.1901563047868771,
+        0.18136864834727504,
+        0.18120975438402503,
+        0.1809884686002415,
+        0.18095250518282474,
+        0.18092994482477726,
+        0.18092881110162365
+      ],
+      "development_validation_before": {
+        "items": 59,
+        "loss": 1.1032,
+        "accuracy": 0.5085,
+        "mean_confidence": 0.4676,
+        "ece": 0.2024,
+        "brier": 0.6499,
+        "brier_top1": 0.2753,
+        "by_type": {
+          "choice": {
+            "items": 59,
+            "loss": 1.1032,
+            "accuracy": 0.5085,
+            "mean_confidence": 0.4676,
+            "ece": 0.2024,
+            "brier": 0.6499,
+            "brier_top1": 0.2753
+          }
+        }
+      },
+      "development_validation_after": {
+        "items": 59,
+        "loss": 0.2428,
+        "accuracy": 0.9322,
+        "mean_confidence": 0.905,
+        "ece": 0.1132,
+        "brier": 0.1269,
+        "brier_top1": 0.0575,
+        "by_type": {
+          "choice": {
+            "items": 59,
+            "loss": 0.2428,
+            "accuracy": 0.9322,
+            "mean_confidence": 0.905,
+            "ece": 0.1132,
+            "brier": 0.1269,
+            "brier_top1": 0.0575
+          }
+        }
+      },
+      "upstream_report_caveat": "Upstream calls the eval file held_out. It is the repeatedly consulted development validation split, not Kinaiya heldout-v1 or independent human evaluation."
+    },
+    {
+      "candidate": 2,
+      "record_sha256": "d3c39e266065d453f7daa4e9326505042b612ca99b1514f12e5d035a96f26b3b",
+      "dataset_manifest_sha256": "f443722281b986bc26206bfc6210dc93ce433dcc1e48309a030f7d0d991af133",
+      "training_dataset_sha256": "2f728a30145d55257c91dfaa682feb5dc29f5a98e76ffc9748fb9865ec1bf49d",
+      "validation_dataset_sha256": "d2393577dcb844fce6307185922126a7085ddfa320a67987c9b89b6cfb25571f",
+      "base_model_sha256": "47522eb62a18c2c36b92b68f140767009a5d33ce69e0e71631ce2dc35855cd53",
+      "continuation_local_manifest_sha256": "78af3801528ccbe5f5f45f310c9137a686bbbff40716314145a117fc4a09df49",
+      "runtime_manifest_sha256": "034f469eaf6433bdfe738566e32671f35ceed445b594ba6e9f9bb449be9670ea",
+      "runtime_files": [
+        {
+          "path": "model.safetensors",
+          "size_bytes": 842609220,
+          "sha256": "a64cbe046152ad9fdc975bac05988ffa08c4e57fb27306c80b3da0b3b2c82524"
+        },
+        {
+          "path": "rl_agent_config.json",
+          "size_bytes": 5222,
+          "sha256": "c1cada96c9072adc353a1868e1e0ac8097c377e7b1dc68b52a2e44cf0f4fc59e"
+        },
+        {
+          "path": "encoder/config.json",
+          "size_bytes": 2084,
+          "sha256": "5268d24ad3b77c8151de5dcb0762ba4391619aad9ab0bda33e36fb083cfeae6d"
+        },
+        {
+          "path": "tokenizer/tokenizer.json",
+          "size_bytes": 3583325,
+          "sha256": "0b3214f8efe1327290428b84e5d344ff3f2442686c1b89fb7b42c13a79ce6779"
+        },
+        {
+          "path": "tokenizer/tokenizer_config.json",
+          "size_bytes": 443,
+          "sha256": "e3888868082b1876b1d883863faca38df799a582e5e84ade6d5c86884ab12390"
+        }
+      ],
+      "config": {
+        "epochs": 4,
+        "micro_batch": 4,
+        "grad_accum": 4,
+        "encoder_lr": 5e-06,
+        "head_lr": 5e-05,
+        "min_lr": 1e-06,
+        "weight_decay": 0.01,
+        "grad_clip": 1.0,
+        "loss": "soft-ce",
+        "rl_samples": 4,
+        "sigma_start": 0.4,
+        "sigma_end": 0.1,
+        "w_sph": 0.75,
+        "w_rps": 1.0,
+        "shuffle_options": [
+          "choice"
+        ],
+        "option_layout": null,
+        "freeze_encoder": false,
+        "calib_max": 128,
+        "calib_frac": 0.1,
+        "calib_seed": 20260922,
+        "seed": 5302,
+        "max_len": 1024,
+        "head_max_len": 256,
+        "amp": null,
+        "gradient_checkpointing": true,
+        "log_every": 10,
+        "label_smoothing": 0.05,
+        "text_column": "text",
+        "label_column": "label",
+        "question_id": "label",
+        "instructions": null,
+        "eval_data": "calibration-as-validation-v1.jsonl",
+        "target_error": 0.1,
+        "min_abstain_n": 10
+      },
+      "elapsed_seconds": 316.61898374557495,
+      "peak_allocated_bytes": 8547369984,
+      "peak_reserved_bytes": 9210691584,
+      "per_process_fraction_limit": 0.65,
+      "train_items": 1676,
+      "internal_calibration_items": 128,
+      "development_validation_items": 59,
+      "skipped": {},
+      "epoch_loss": [
+        0.2275734650846882,
+        0.18192287194842655,
+        0.18181795753129626,
+        0.18179248102667223
+      ],
+      "development_validation_before": {
+        "items": 59,
+        "loss": 0.2431,
+        "accuracy": 0.9322,
+        "mean_confidence": 0.9049,
+        "ece": 0.1133,
+        "brier": 0.1271,
+        "brier_top1": 0.0576,
+        "by_type": {
+          "choice": {
+            "items": 59,
+            "loss": 0.2431,
+            "accuracy": 0.9322,
+            "mean_confidence": 0.9049,
+            "ece": 0.1133,
+            "brier": 0.1271,
+            "brier_top1": 0.0576
+          }
+        }
+      },
+      "development_validation_after": {
+        "items": 59,
+        "loss": 0.0556,
+        "accuracy": 0.9831,
+        "mean_confidence": 0.9518,
+        "ece": 0.0498,
+        "brier": 0.0136,
+        "brier_top1": 0.0071,
+        "by_type": {
+          "choice": {
+            "items": 59,
+            "loss": 0.0556,
+            "accuracy": 0.9831,
+            "mean_confidence": 0.9518,
+            "ece": 0.0498,
+            "brier": 0.0136,
+            "brier_top1": 0.0071
+          }
+        }
+      },
+      "upstream_report_caveat": "Upstream calls the eval file held_out. It is the repeatedly consulted development validation split, not Kinaiya heldout-v1 or independent human evaluation."
+    },
+    {
+      "candidate": 3,
+      "record_sha256": "881ee7a5102d57b31c75b5c0f48efed64a59a5d59f52011810be2377d8ad8356",
+      "dataset_manifest_sha256": "dc949c38305d83d722b308630dfce9c25a2bc0ce374a4f7edf2e0893886f2e71",
+      "training_dataset_sha256": "44b28f742dfca6da7612a3340c68484b8aae77b46ae588d1d9f60fdb0493292b",
+      "validation_dataset_sha256": "d2393577dcb844fce6307185922126a7085ddfa320a67987c9b89b6cfb25571f",
+      "base_model_sha256": "a64cbe046152ad9fdc975bac05988ffa08c4e57fb27306c80b3da0b3b2c82524",
+      "continuation_local_manifest_sha256": "034f469eaf6433bdfe738566e32671f35ceed445b594ba6e9f9bb449be9670ea",
+      "runtime_manifest_sha256": "c8d9966f2c4f7ba73dc801893699ab50e9124e01007ac99414f96c2742b16e2e",
+      "runtime_files": [
+        {
+          "path": "model.safetensors",
+          "size_bytes": 842609220,
+          "sha256": "88110331955c4c720e7361acb5dd052efa71342f664557d23c6facc83f0eed77"
+        },
+        {
+          "path": "rl_agent_config.json",
+          "size_bytes": 5207,
+          "sha256": "e8d0373888b995c571e74675c8fb09d4827908555e4c1db5721b145d269d52a6"
+        },
+        {
+          "path": "encoder/config.json",
+          "size_bytes": 2084,
+          "sha256": "5268d24ad3b77c8151de5dcb0762ba4391619aad9ab0bda33e36fb083cfeae6d"
+        },
+        {
+          "path": "tokenizer/tokenizer.json",
+          "size_bytes": 3583325,
+          "sha256": "0b3214f8efe1327290428b84e5d344ff3f2442686c1b89fb7b42c13a79ce6779"
+        },
+        {
+          "path": "tokenizer/tokenizer_config.json",
+          "size_bytes": 443,
+          "sha256": "e3888868082b1876b1d883863faca38df799a582e5e84ade6d5c86884ab12390"
+        }
+      ],
+      "config": {
+        "epochs": 3,
+        "micro_batch": 4,
+        "grad_accum": 4,
+        "encoder_lr": 5e-06,
+        "head_lr": 5e-05,
+        "min_lr": 1e-06,
+        "weight_decay": 0.01,
+        "grad_clip": 1.0,
+        "loss": "soft-ce",
+        "rl_samples": 4,
+        "sigma_start": 0.4,
+        "sigma_end": 0.1,
+        "w_sph": 0.75,
+        "w_rps": 1.0,
+        "shuffle_options": [
+          "choice"
+        ],
+        "option_layout": null,
+        "freeze_encoder": false,
+        "calib_max": 128,
+        "calib_frac": 0.1,
+        "calib_seed": 20260922,
+        "seed": 5303,
+        "max_len": 1024,
+        "head_max_len": 256,
+        "amp": null,
+        "gradient_checkpointing": true,
+        "log_every": 10,
+        "label_smoothing": 0.05,
+        "text_column": "text",
+        "label_column": "label",
+        "question_id": "label",
+        "instructions": null,
+        "eval_data": "calibration-as-validation-v1.jsonl",
+        "target_error": 0.1,
+        "min_abstain_n": 10
+      },
+      "elapsed_seconds": 321.0598886013031,
+      "peak_allocated_bytes": 8545294336,
+      "peak_reserved_bytes": 9202302976,
+      "per_process_fraction_limit": 0.65,
+      "train_items": 2276,
+      "internal_calibration_items": 128,
+      "development_validation_items": 59,
+      "skipped": {},
+      "epoch_loss": [
+        0.18745570098211978,
+        0.18076494941078716,
+        0.18074970748701077
+      ],
+      "development_validation_before": {
+        "items": 59,
+        "loss": 0.0555,
+        "accuracy": 0.9831,
+        "mean_confidence": 0.9515,
+        "ece": 0.0498,
+        "brier": 0.0135,
+        "brier_top1": 0.0071,
+        "by_type": {
+          "choice": {
+            "items": 59,
+            "loss": 0.0555,
+            "accuracy": 0.9831,
+            "mean_confidence": 0.9515,
+            "ece": 0.0498,
+            "brier": 0.0135,
+            "brier_top1": 0.0071
+          }
+        }
+      },
+      "development_validation_after": {
+        "items": 59,
+        "loss": 0.0592,
+        "accuracy": 1.0,
+        "mean_confidence": 0.9481,
+        "ece": 0.0519,
+        "brier": 0.0135,
+        "brier_top1": 0.0093,
+        "by_type": {
+          "choice": {
+            "items": 59,
+            "loss": 0.0592,
+            "accuracy": 1.0,
+            "mean_confidence": 0.9481,
+            "ece": 0.0519,
+            "brier": 0.0135,
+            "brier_top1": 0.0093
+          }
+        }
+      },
+      "upstream_report_caveat": "Upstream calls the eval file held_out. It is the repeatedly consulted development validation split, not Kinaiya heldout-v1 or independent human evaluation."
+    }
+  ],
+  "public_datasets": [
+    {
+      "file": "train-v1.jsonl.gz",
+      "uncompressed_sha256": "9a399b933910dcd6bb6c6d5c6a2c1e5789dc8e0ee5ea12f00cf21a2c08fb1ed5",
+      "compressed_sha256": "07047ac7786c4e6843057ef59fa6c6edc3f03080eb05b71b7f4c98bf86ebfe24",
+      "compressed_bytes": 18657
+    },
+    {
+      "file": "calibration-as-validation-v1.jsonl.gz",
+      "uncompressed_sha256": "d2393577dcb844fce6307185922126a7085ddfa320a67987c9b89b6cfb25571f",
+      "compressed_sha256": "f681279d4ccdc16a9d5b52265668f54b257b0d9fe76907cb8a681756f5fcff47",
+      "compressed_bytes": 2009
+    },
+    {
+      "file": "train-v2.jsonl.gz",
+      "uncompressed_sha256": "2f728a30145d55257c91dfaa682feb5dc29f5a98e76ffc9748fb9865ec1bf49d",
+      "compressed_sha256": "56ce9781d6c4646974ac4d1368988742f39abd5b69427c9709829530dfbc506f",
+      "compressed_bytes": 41404
+    },
+    {
+      "file": "train-v3.jsonl.gz",
+      "uncompressed_sha256": "44b28f742dfca6da7612a3340c68484b8aae77b46ae588d1d9f60fdb0493292b",
+      "compressed_sha256": "e9d216359bdfad34fdfb781cd6c54ced2df70c2d2ec74691072666c5eebca1a5",
+      "compressed_bytes": 56961
+    }
+  ],
+  "latency_percentiles": "Median uses statistics.median; p95 is sorted[ceil(.95*(n-1))]. Warm-only excludes the first request after preload.",
+  "native_probes": [
+    {
+      "profile": "minimal",
+      "all_passed": true,
+      "record_sha256": "0312e9a01d80b6bf7a1fd51f3add6983efaa5e32e20dc2f34524e8a172f66c29",
+      "cases": [
+        {
+          "case": "unfinished",
+          "status": "passed",
+          "classifier_seconds": 0.08480522799072787,
+          "conversation": "WAIT_FOR_NEXT_WINDOW",
+          "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
+          "raw_choices": {
+            "conversation": "unfinished",
+            "agent_route": "conversation",
+            "target": "NONE"
+          },
+          "files_sha256": {},
+          "approval_required_before_write": false,
+          "queued_until_native_completion": false,
+          "approval_required_for_partial_followup": false,
+          "replay_created_no_duplicate": false
+        },
+        {
+          "case": "backchannel",
+          "status": "passed",
+          "classifier_seconds": 0.07408297900110483,
+          "conversation": "IGNORE",
+          "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
+          "raw_choices": {
+            "conversation": "backchannel",
+            "agent_route": "conversation",
+            "target": "NONE"
+          },
+          "files_sha256": {},
+          "approval_required_before_write": false,
+          "queued_until_native_completion": false,
+          "approval_required_for_partial_followup": false,
+          "replay_created_no_duplicate": false
+        },
+        {
+          "case": "steer",
+          "status": "passed",
+          "classifier_seconds": 0.07294953800737858,
+          "conversation": "RESPOND_WITHOUT_INTERRUPTING_USER",
+          "agent_route": "STEER_CURRENT_TASK",
+          "raw_choices": {
+            "conversation": "ready",
+            "agent_route": "correction",
+            "target": "t0"
+          },
+          "files_sha256": {
+            "steered.txt": "75393b6fb37c6ce401cfa44dbe6fef46d13010dd61a2b51468cc477fc2997766"
+          },
+          "approval_required_before_write": true,
+          "queued_until_native_completion": false,
+          "approval_required_for_partial_followup": false,
+          "replay_created_no_duplicate": false
+        },
+        {
+          "case": "interrupt",
+          "status": "passed",
+          "classifier_seconds": 0.07311801800096873,
+          "conversation": "RESPOND_INTERRUPT_USER",
+          "agent_route": "INTERRUPT_CURRENT_TASK",
+          "raw_choices": {
+            "conversation": "urgent",
+            "agent_route": "cancellation",
+            "target": "t0"
+          },
+          "files_sha256": {},
+          "approval_required_before_write": false,
+          "queued_until_native_completion": false,
+          "approval_required_for_partial_followup": false,
+          "replay_created_no_duplicate": false
+        },
+        {
+          "case": "queue",
+          "status": "passed",
+          "classifier_seconds": 0.07166255199990701,
+          "conversation": "RESPOND_WITHOUT_INTERRUPTING_USER",
+          "agent_route": "QUEUE_UNTIL_TASK_DONE",
+          "raw_choices": {
+            "conversation": "ready",
+            "agent_route": "new_task",
+            "target": "t0"
+          },
+          "files_sha256": {
+            "first.txt": "5efea180ad7b89255140e8399a84988847510226615303949552bd235c8f5084",
+            "followup.txt": "b8c26b3ebb5d93d5ecc211156eb3c7a4daa726d51e15d3a6b2b304d0721060f4"
+          },
+          "approval_required_before_write": false,
+          "queued_until_native_completion": true,
+          "approval_required_for_partial_followup": true,
+          "replay_created_no_duplicate": true
+        }
+      ],
+      "limits": "Actual Laya classification and native tool effects; text input and Agent/Converse inference are synthetic. Not ASR, paid inference, audio playback or human microphone proof. Minimal is a positive control, not the broader-context acceptance gate."
+    },
+    {
+      "profile": "preceding_converse",
+      "all_passed": false,
+      "record_sha256": "1404ed2d041dc543042ba762bcb83880b1600516d221a83263110011b386b496",
+      "cases": [
+        {
+          "case": "unfinished",
+          "status": "passed",
+          "classifier_seconds": 0.09233996699913405,
+          "conversation": "WAIT_FOR_NEXT_WINDOW",
+          "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
+          "raw_choices": {
+            "conversation": "unfinished",
+            "agent_route": "conversation",
+            "target": "NONE"
+          },
+          "files_sha256": {},
+          "approval_required_before_write": false,
+          "queued_until_native_completion": false,
+          "approval_required_for_partial_followup": false,
+          "replay_created_no_duplicate": false
+        },
+        {
+          "case": "backchannel",
+          "status": "passed",
+          "classifier_seconds": 0.07504913699813187,
+          "conversation": "IGNORE",
+          "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
+          "raw_choices": {
+            "conversation": "backchannel",
+            "agent_route": "conversation",
+            "target": "NONE"
+          },
+          "files_sha256": {},
+          "approval_required_before_write": false,
+          "queued_until_native_completion": false,
+          "approval_required_for_partial_followup": false,
+          "replay_created_no_duplicate": false
+        },
+        {
+          "case": "steer",
+          "status": "failed",
+          "classifier_seconds": 0.07648177300870884,
+          "conversation": "RESPOND_WITHOUT_INTERRUPTING_USER",
+          "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
+          "raw_choices": {
+            "conversation": "ready",
+            "agent_route": "conversation",
+            "target": "NONE"
+          },
+          "files_sha256": {},
+          "approval_required_before_write": false,
+          "queued_until_native_completion": false,
+          "approval_required_for_partial_followup": false,
+          "replay_created_no_duplicate": false
+        },
+        {
+          "case": "interrupt",
+          "status": "failed",
+          "classifier_seconds": 0.07712622299732175,
+          "conversation": "WAIT_FOR_NEXT_WINDOW",
+          "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
+          "raw_choices": {
+            "conversation": "unfinished",
+            "agent_route": "conversation",
+            "target": "NONE"
+          },
+          "files_sha256": {},
+          "approval_required_before_write": false,
+          "queued_until_native_completion": false,
+          "approval_required_for_partial_followup": false,
+          "replay_created_no_duplicate": false
+        },
+        {
+          "case": "queue",
+          "status": "failed",
+          "classifier_seconds": 0.07700776700221468,
+          "conversation": "RESPOND_WITHOUT_INTERRUPTING_USER",
+          "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
+          "raw_choices": {
+            "conversation": "ready",
+            "agent_route": "conversation",
+            "target": "NONE"
+          },
+          "files_sha256": {},
+          "approval_required_before_write": false,
+          "queued_until_native_completion": false,
+          "approval_required_for_partial_followup": false,
+          "replay_created_no_duplicate": false
+        }
+      ],
+      "limits": "Actual Laya classification and native tool effects; text input and Agent/Converse inference are synthetic. Not ASR, paid inference, audio playback or human microphone proof. Minimal is a positive control, not the broader-context acceptance gate."
+    }
+  ],
+  "fresh_process_readiness": {
+    "candidate_v2": {
+      "process_ready_seconds": 12.271208303995081,
+      "poll_interval_seconds": 0.1,
+      "pid": 591577,
+      "health": {
+        "status": "ok",
+        "loaded": [
+          "kinaiya-v2"
+        ],
+        "revisions": {
+          "kinaiya-v2": null
+        },
+        "device": "cuda",
+        "device_is_preference": false,
+        "checkpoint_devices": {
+          "kinaiya-v2": "cuda"
+        },
+        "cpu_fallbacks": {
+          "kinaiya-v2": {
+            "count": 0,
+            "last_reason": null
+          }
+        }
+      },
+      "condition": "Fresh process; warm OS page cache; local artifact; no network downloads"
+    },
+    "candidate_v3": {
+      "process_ready_seconds": 12.374823942998773,
+      "poll_interval_seconds": 0.1,
+      "pid": 595949,
+      "health": {
+        "status": "ok",
+        "loaded": [
+          "kinaiya-v3"
+        ],
+        "revisions": {
+          "kinaiya-v3": null
+        },
+        "device": "cuda",
+        "device_is_preference": false,
+        "checkpoint_devices": {
+          "kinaiya-v3": "cuda"
+        },
+        "cpu_fallbacks": {
+          "kinaiya-v3": {
+            "count": 0,
+            "last_reason": null
+          }
+        }
+      },
+      "condition": "Fresh process; warm OS page cache; local artifact; no network downloads"
+    }
+  },
+  "resource_samples": {
+    "sampled_unix": 1793139855.5518138,
+    "processes": [
+      {
+        "process": "run-laya-reference.py",
+        "pid": 574198,
+        "linux_smaps_rollup": {
+          "Rss_bytes": 2141409280,
+          "Pss_bytes": 2082751488,
+          "Private_Clean_bytes": 126976,
+          "Private_Dirty_bytes": 2038145024
+        }
+      },
+      {
+        "process": "run-laya-typed-reference.py",
+        "pid": 578376,
+        "linux_smaps_rollup": {
+          "Rss_bytes": 2132115456,
+          "Pss_bytes": 2074337280,
+          "Private_Clean_bytes": 1077248,
+          "Private_Dirty_bytes": 2028814336
+        }
+      },
+      {
+        "process": "run-laya-gpu-reference.py",
+        "pid": 580760,
+        "linux_smaps_rollup": {
+          "Rss_bytes": 3582410752,
+          "Pss_bytes": 2868662272,
+          "Private_Clean_bytes": 61734912,
+          "Private_Dirty_bytes": 2626609152
+        }
+      },
+      {
+        "process": "run-laya-finetuned-reference.py",
+        "pid": 585548,
+        "linux_smaps_rollup": {
+          "Rss_bytes": 3601166336,
+          "Pss_bytes": 2877336576,
+          "Private_Clean_bytes": 61558784,
+          "Private_Dirty_bytes": 2630377472
+        }
+      },
+      {
+        "process": "run-laya-finetuned-v2-reference.py",
+        "pid": 591577,
+        "linux_smaps_rollup": {
+          "Rss_bytes": 3601272832,
+          "Pss_bytes": 2877532160,
+          "Private_Clean_bytes": 61624320,
+          "Private_Dirty_bytes": 2630623232
+        }
+      },
+      {
+        "process": "run-laya-finetuned-v3-reference.py",
+        "pid": 595949,
+        "linux_smaps_rollup": {
+          "Rss_bytes": 3598241792,
+          "Pss_bytes": 2874598400,
+          "Private_Clean_bytes": 61726720,
+          "Private_Dirty_bytes": 2627645440
+        }
+      }
+    ],
+    "limits": "Linux RSS/PSS while six independent research servers were resident; not isolated peak inference memory or a production resource handoff benchmark."
+  },
+  "muse_worker": {
+    "model": "muse-spark-1.3-contributor",
+    "contributor": true,
+    "reasoning_effort": "xhigh",
+    "model_steps_cap": 4,
+    "result": "Step cap reached; initial two-file output reviewed and corrected by lead. No completed worker review verdict.",
+    "reported_input_tokens": 157985,
+    "reported_cached_input_tokens": 108627,
+    "reported_output_tokens": 18346,
+    "reported_reasoning_tokens": 10648
+  },
+  "meta_budget_checkpoint": {
+    "authorized_limit_usd": 25,
+    "admission_ceiling_usd": 22,
+    "catalog_contributor_estimate_usd": 0.902793214,
+    "conservative_admission_estimate_usd": 19.9713578,
+    "retained_uncertain_reservations_usd": 1.55581005,
+    "billing_receipts_usd": null,
+    "new_meta_calls_for_local_laya_inference_training_and_native_probes": 0
+  },
+  "verification": {
+    "deterministic_python": 653,
+    "node_audio_bridge": 15,
+    "ruff": "passed",
+    "contract_export": "unchanged",
+    "dependency_audit": "No known vulnerabilities found",
+    "ci": "PR checks recorded separately"
+  },
+  "retained_failures": [
+    "Original worker request schema was rejected by the actual server and was corrected.",
+    "Manual Hub cache did not prove offline startup; public metadata bootstrap remained necessary.",
+    "First evaluation harness summary failed before complete record; fixed and retained.",
+    "First local candidate startup preflight ran before ready; retained and rerun after actual readiness.",
+    "Tokenizer metadata normalization changed a frozen file; continuation preflight rejected it. Original/normalized digests retained; subsequent candidates normalized before freezing.",
+    "First native fixture omitted final=true on a synthetic Converse event; corrected with failed fixture retained.",
+    "Second candidate failed a real UUID target. Third candidate passed minimal control but failed broader-context steer/interrupt/queue."
+  ],
+  "limits": [
+    "Not a human/acoustic benchmark; no audible TTFA, microphone, echo or full M3 claim.",
+    "Calibration labels and training templates share lead authorship; perfect development accuracy did not generalize to preceding conversation.",
+    "Unversioned local checkpoint health remains conservatively not ready; file manifests are separate artifact evidence, not invented Hub revisions.",
+    "GPU Python dependencies were verified in an existing separate environment; clean GPU installation and model publication/installer are unverified.",
+    "All inference is local here; reference alpha.8 provider configuration remains unchanged."
+  ]
+}

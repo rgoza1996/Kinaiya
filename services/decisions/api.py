@@ -23,12 +23,21 @@ def create_app(worker, auth, window_worker=None, window_dispatcher=None):
 
     @app.get("/health")
     async def health():
+        provider = worker.classifier.provider
+        probe = getattr(provider, "health", None)
+        readiness = None
+        if probe is not None:
+            try:
+                readiness = await asyncio.wait_for(probe(), timeout=1)
+            except Exception:
+                readiness = {"ready": False}
         return {
             "service": "decisions",
             "running": worker.running,
             "enabled": worker.enabled,
             "last_error": worker.last_error,
-            "provider": worker.classifier.provider.info.model_dump(),
+            "provider": provider.info.model_dump(),
+            "provider_readiness": readiness,
             "streaming_windows": window_worker is not None,
             "window_error": window_worker.last_error if window_worker else None,
         }
