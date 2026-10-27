@@ -23,48 +23,104 @@ class _AgentChatState extends State<AgentChat> {
   late final TextEditingController _input;
   final Map<String, TextEditingController> _steer = {};
   Timer? _poll;
+  KinaiyaClient? _lastClient;
+  int _lastGeneration = 0;
 
   @override
   void initState() {
     super.initState();
     _input = TextEditingController(text: widget.state.agentDraft);
+    _lastClient = _s.client;
+    _lastGeneration = _s.connectionGeneration;
+    _s.addListener(_handleStateChange);
     _loadRegistry();
     _poll = Timer.periodic(const Duration(seconds: 4), (_) => _refreshTasks());
   }
 
   @override
+  void didUpdateWidget(covariant AgentChat oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.state, widget.state)) {
+      oldWidget.state.removeListener(_handleStateChange);
+      _lastClient = _s.client;
+      _lastGeneration = _s.connectionGeneration;
+      _syncConnectionDraft();
+      _s.addListener(_handleStateChange);
+      _loadRegistry();
+    }
+  }
+
+  @override
   void dispose() {
+    _poll?.cancel();
+    _s.removeListener(_handleStateChange);
     _input.dispose();
     for (final c in _steer.values) {
       c.dispose();
     }
-    _poll?.cancel();
     super.dispose();
   }
 
   AppState get _s => widget.state;
 
-  Future<void> _loadRegistry() async {
-    final api = _s.client;
-    if (api == null) return;
-    try {
-      _s.setCommands(await api.fetchCommands());
-    } catch (_) {
-      _s.setCommands(null);
+  /// Same-view reconnect: the AppState object is identical but its client
+  /// and generation change on connect/disconnect. Reload the registry
+  /// without requiring a tab switch. Stale reloads are dropped inside
+  /// [AppState.refreshCommands].
+  void _handleStateChange() {
+    if (!mounted) return;
+    if (!identical(_lastClient, _s.client) ||
+        _lastGeneration != _s.connectionGeneration) {
+      _lastClient = _s.client;
+      _lastGeneration = _s.connectionGeneration;
+      _syncConnectionDraft();
+      _loadRegistry();
+      unawaited(_refreshTasks());
     }
+  }
+
+  void _syncConnectionDraft() {
+    if (_input.text != _s.agentDraft) _input.text = _s.agentDraft;
+    for (final controller in _steer.values) {
+      controller.clear();
+    }
+  }
+
+  /// Bounded read-only registry reload; never executes a command.
+  Future<void> _loadRegistry() async {
+    await _s.refreshCommands();
   }
 
   Future<void> _refreshTasks() async {
     final api = _s.client;
+    final generation = _s.connectionGeneration;
+    final session = _s.agentSession;
     if (api == null || !mounted) return;
+    if (!_s.ownsConnection(generation, api)) return;
     try {
       final tasks = await api.listTasks();
+      if (!mounted || !_s.ownsConnection(generation, api)) return;
       _s.setTasks(tasks);
-    } catch (_) {}
-    final session = _s.agentSession;
+    } catch (_) {
+      if (!mounted || !_s.ownsConnection(generation, api)) return;
+    }
     if (session == null) return;
+    if (!mounted || !_s.ownsConnection(generation, api)) return;
+    // The approval scan belongs to the session captured before the await;
+    // a reconnect installing a new session drops this stale read.
+    if (_s.agentSession?.sessionId != session.sessionId ||
+        _s.agentSession?.threadId != session.threadId ||
+        _s.agentSession?.epoch != session.epoch) {
+      return;
+    }
     try {
       final entries = await api.recent(sessionId: session.sessionId);
+      if (!mounted || !_s.ownsConnection(generation, api)) return;
+      if (_s.agentSession?.sessionId != session.sessionId ||
+          _s.agentSession?.threadId != session.threadId ||
+          _s.agentSession?.epoch != session.epoch) {
+        return;
+      }
       final found = <ApprovalRequest>[];
       final resolved = entries
           .where((e) => e.kind == 'approval.resolved')
@@ -92,27 +148,52 @@ class _AgentChatState extends State<AgentChat> {
   Future<void> _send() async {
     final text = _input.text.trim();
     final api = _s.client;
+    final generation = _s.connectionGeneration;
     if (text.isEmpty || api == null || !_s.connected || _s.busyAgent) return;
+    if (!_s.ownsConnection(generation, api)) return;
     _s.busyAgent = true;
     _s.touch();
     try {
       if (!text.contains('\n') &&
           !text.contains('\r') &&
           RegExp(r'^/[a-z][a-z0-9_-]*(?:\s|$)').hasMatch(text)) {
-        await _dispatchSlash(api, text);
+        await _dispatchSlash(api, generation, text);
         return;
       }
-      final session =
-          _s.agentSession ?? await _s.ensureSession('agent', name: 'work');
-      final task = await api.createTask(
+      SessionInfo? session = _s.agentSession;
+      if (session == null) {
+        try {
+          session = await _s.ensureSession('agent', name: 'work');
+        } catch (_) {
+          // Stale acquisition (reconnect raced the session read) leaves
+          // the new connection untouched; a fresh send can retry there.
+          if (!_s.ownsConnection(generation, api)) return;
+          rethrow;
+        }
+      }
+      // Recheck after the awaited acquisition: a reconnect must not have
+      // a side effect submitted from a stale session/client.
+      if (!mounted || !_s.ownsConnection(generation, api) || !_s.connected) {
+        return;
+      }
+      final liveApi = _s.client;
+      if (liveApi == null || !identical(liveApi, api)) return;
+      final task = await liveApi.createTask(
         sessionId: session.sessionId,
         threadId: session.threadId,
         epoch: session.epoch,
         objective: text.startsWith(r'\/') ? text.substring(1) : text,
         idempotencyKey: newIdempotencyKey(),
       );
-      _input.clear();
-      _s.setDraft(AppView.agent, '');
+      // Already-sent requests cannot be recalled, but a stale completion
+      // must not mutate the new connection's draft, history or busy state.
+      if (!mounted || !_s.ownsConnection(generation, api)) return;
+      // Clear only the draft that was actually sent; text typed during the
+      // await (same or new connection) survives.
+      if (_input.text.trim() == text) {
+        _input.clear();
+        if (_s.agentDraft.trim() == text) _s.setDraft(AppView.agent, '');
+      }
       _s.agentHistory.add(
         ChatMsg(
           role: 'user',
@@ -120,24 +201,34 @@ class _AgentChatState extends State<AgentChat> {
           note: 'Task ${task.taskId} ${task.state}',
         ),
       );
-      await _refreshTasks();
+      _s.touch();
+      if (_s.ownsConnection(generation, api)) await _refreshTasks();
     } on ApiException catch (e) {
+      if (!_s.ownsConnection(generation, api)) return;
       _s.agentNotice = e.status == 409
           ? 'That request conflicts with current work. Refresh and try again.'
           : "Couldn't reach the Agent service. Check the connection.";
       _s.touch();
     } finally {
-      _s.busyAgent = false;
-      _s.touch();
+      // Cleanup belongs to the originating connection only.
+      if (_s.ownsConnection(generation, api)) {
+        _s.busyAgent = false;
+        _s.touch();
+      }
     }
   }
 
   /// Agent-only slash dispatch. Unknown commands are never sent anywhere;
   /// an unavailable registry is reported honestly with no local execution.
-  Future<void> _dispatchSlash(KinaiyaClient api, String text) async {
+  Future<void> _dispatchSlash(
+    KinaiyaClient api,
+    int generation,
+    String text,
+  ) async {
     final name = text.split(RegExp(r'\s+')).first.substring(1);
     final registry = _s.commands;
     if (registry == null) {
+      if (!_s.ownsConnection(generation, api)) return;
       _s.agentNotice =
           'Command registry unavailable ($name was not run). Plain instructions still work.';
       _s.touch();
@@ -145,22 +236,50 @@ class _AgentChatState extends State<AgentChat> {
     }
     final match = registry.where((c) => c.matches(name)).toList();
     if (match.isEmpty || !match.first.available) {
+      if (!_s.ownsConnection(generation, api)) return;
       _s.agentNotice = 'Unknown command "$name": not sent anywhere.';
       _s.touch();
       return;
     }
     try {
-      final session =
-          _s.agentSession ?? await _s.ensureSession('agent', name: 'work');
-      final out = await api.executeCommand(
+      SessionInfo? session = _s.agentSession;
+      if (session == null) {
+        try {
+          session = await _s.ensureSession('agent', name: 'work');
+        } catch (_) {
+          if (!_s.ownsConnection(generation, api)) return;
+          rethrow;
+        }
+      }
+      // Recheck after acquisition and re-validate against the live
+      // registry: a stale decision must not execute on a new connection.
+      if (!mounted || !_s.ownsConnection(generation, api) || !_s.connected) {
+        return;
+      }
+      final liveRegistry = _s.commands;
+      final liveMatch =
+          liveRegistry?.where((c) => c.matches(name)).toList() ?? [];
+      if (liveMatch.isEmpty || !liveMatch.first.available) {
+        _s.agentNotice = 'Unknown command "$name": not sent anywhere.';
+        _s.touch();
+        return;
+      }
+      final liveApi = _s.client;
+      if (liveApi == null || !identical(liveApi, api)) return;
+      final out = await liveApi.executeCommand(
         sessionId: session.sessionId,
         threadId: session.threadId,
         epoch: session.epoch,
         input: text,
         idempotencyKey: newIdempotencyKey(),
       );
-      _input.clear();
-      _s.setDraft(AppView.agent, '');
+      // Already-sent commands cannot be recalled, but the stale result
+      // must not clear or append into the new connection.
+      if (!mounted || !_s.ownsConnection(generation, api)) return;
+      if (_input.text.trim() == text) {
+        _input.clear();
+        if (_s.agentDraft.trim() == text) _s.setDraft(AppView.agent, '');
+      }
       if (out?['status'] == 'ok' && out?['result'] is Map) {
         final result = (out!['result'] as Map).cast<String, Object?>();
         if (result['clear_view'] == true) _s.agentHistory.clear();
@@ -179,9 +298,13 @@ class _AgentChatState extends State<AgentChat> {
               : out?['error']?.toString(),
         ),
       );
-      await _refreshTasks();
-      if (name == 'resources') await _s.refreshResources(force: true);
+      _s.touch();
+      if (_s.ownsConnection(generation, api)) await _refreshTasks();
+      if (name == 'resources' && _s.ownsConnection(generation, api)) {
+        await _s.refreshResources(force: true);
+      }
     } on ApiException {
+      if (!_s.ownsConnection(generation, api)) return;
       _s.agentNotice = "Couldn't run that command. Check the connection.";
       _s.touch();
     }
@@ -216,8 +339,10 @@ class _AgentChatState extends State<AgentChat> {
 
   Future<void> _steerTask(AgentTask task) async {
     final api = _s.client;
+    final generation = _s.connectionGeneration;
     final instruction = _steer[task.taskId]?.text.trim() ?? '';
     if (api == null || instruction.isEmpty) return;
+    if (!_s.ownsConnection(generation, api)) return;
     try {
       await api.steerTask(
         taskId: task.taskId,
@@ -225,9 +350,13 @@ class _AgentChatState extends State<AgentChat> {
         expectedObjectiveRevision: task.objectiveRevision,
         idempotencyKey: newIdempotencyKey(),
       );
+      // Already-sent steers cannot be recalled; only the originating
+      // connection may consume the result.
+      if (!mounted || !_s.ownsConnection(generation, api)) return;
       _steer[task.taskId]?.clear();
       await _refreshTasks();
     } on ApiException catch (e) {
+      if (!_s.ownsConnection(generation, api)) return;
       _s.agentNotice = e.status == 409
           ? 'That task moved on; refresh before steering again.'
           : "Couldn't steer that task. Check the connection.";
@@ -237,15 +366,19 @@ class _AgentChatState extends State<AgentChat> {
 
   Future<void> _cancelTask(AgentTask task) async {
     final api = _s.client;
+    final generation = _s.connectionGeneration;
     if (api == null) return;
+    if (!_s.ownsConnection(generation, api)) return;
     try {
       await api.interruptTask(
         taskId: task.taskId,
         expectedObjectiveRevision: task.objectiveRevision,
         idempotencyKey: newIdempotencyKey(),
       );
+      if (!mounted || !_s.ownsConnection(generation, api)) return;
       await _refreshTasks();
     } on ApiException {
+      if (!_s.ownsConnection(generation, api)) return;
       _s.agentNotice = "Couldn't stop that task. Check the connection.";
       _s.touch();
     }
@@ -257,7 +390,9 @@ class _AgentChatState extends State<AgentChat> {
     bool ok,
   ) async {
     final api = _s.client;
+    final generation = _s.connectionGeneration;
     if (api == null) return;
+    if (!_s.ownsConnection(generation, api)) return;
     if (approval.isExpired) {
       _s.agentNotice = 'That approval expired and cannot be reused.';
       _s.removeApproval(approval.approvalId);
@@ -276,9 +411,12 @@ class _AgentChatState extends State<AgentChat> {
         actionDigest: approval.actionDigest,
         objectiveRevision: approval.objectiveRevision,
       );
+      // A stale resolve must not remove the new connection's approvals.
+      if (!mounted || !_s.ownsConnection(generation, api)) return;
       _s.removeApproval(approval.approvalId);
       await _refreshTasks();
     } on ApiException {
+      if (!_s.ownsConnection(generation, api)) return;
       _s.agentNotice = "Couldn't record that decision. Check the connection.";
       _s.touch();
     }
