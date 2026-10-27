@@ -21,7 +21,8 @@ source, user conversations, emails, names, documents or credentials enter prompt
 The prototype was inspected by the lead for architectural lessons without copying it.
 
 The run-local Meta proxy admits only Contributor, clamps every output allocation,
-reserves the full catalog context at ordinary Spark rates, and closes admission before
+reserves the full catalog context at twice verified Contributor rates without cache
+discounts, preserves an ordinary-Spark comparison separately, and closes admission before
 $22 including unsettled reservations. A $3 buffer remains inside the user's $25 cap.
 Actual provider token usage and cached tokens are reported separately from calculated
 cost. Provider billing receipts are unavailable; catalog-derived dollars are estimates.

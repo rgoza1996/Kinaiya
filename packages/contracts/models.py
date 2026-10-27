@@ -176,7 +176,9 @@ class CommandRequest(WireModel):
 
 
 class ToolAction(WireModel):
-    tool: Literal["read_file", "write_file", "search", "shell", "read_transcript", "finish"]
+    tool: Literal[
+        "read_file", "write_file", "search", "shell", "read_transcript", "select_context", "finish"
+    ]
     arguments: dict[str, Any] = Field(default_factory=dict)
 
 

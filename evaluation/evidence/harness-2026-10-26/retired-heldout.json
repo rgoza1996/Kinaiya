@@ -1,0 +1,329 @@
+{
+  "cases": [
+    {
+      "case_id": "holdout-01",
+      "expected_ids": [
+        "f0-a"
+      ],
+      "payload": {
+        "files": [
+          {
+            "id": "f0-a",
+            "path": "security/reset.py",
+            "text": "def consume_reset(token):\n    if token.expires_at < now(): raise ExpiredToken\n"
+          },
+          {
+            "id": "f0-b",
+            "path": "templates/reset.html",
+            "text": "Password reset template with expiry text"
+          },
+          {
+            "id": "f0-c",
+            "path": "misc/notes.txt",
+            "text": "Synthetic unrelated maintenance notes."
+          }
+        ],
+        "max_chars": 80,
+        "query": "Locate the reset-password expiry check"
+      }
+    },
+    {
+      "case_id": "holdout-02",
+      "expected_ids": [
+        "f1-a"
+      ],
+      "payload": {
+        "files": [
+          {
+            "id": "f1-b",
+            "path": "logging/messages.py",
+            "text": "Print retry backoff messages without sending requests"
+          },
+          {
+            "id": "f1-c",
+            "path": "misc/notes.txt",
+            "text": "Synthetic unrelated maintenance notes."
+          },
+          {
+            "id": "f1-a",
+            "path": "network/request.py",
+            "text": "for attempt in range(5):\n    if status == 429: sleep(2 ** attempt)\n"
+          }
+        ],
+        "max_chars": 69,
+        "query": "Where does retry backoff stop on rate limiting?"
+      }
+    },
+    {
+      "case_id": "holdout-03",
+      "expected_ids": [
+        "f2-a"
+      ],
+      "payload": {
+        "files": [
+          {
+            "id": "f2-c",
+            "path": "misc/notes.txt",
+            "text": "Synthetic unrelated maintenance notes."
+          },
+          {
+            "id": "f2-a",
+            "path": "calendar/export.py",
+            "text": "start = event.start.astimezone(timezone.utc)\nwrite_ics(start)\n"
+          },
+          {
+            "id": "f2-b",
+            "path": "calendar/theme.py",
+            "text": "Choose calendar widget colors and display timezone label"
+          }
+        ],
+        "max_chars": 64,
+        "query": "Fix timezone-aware calendar export"
+      }
+    },
+    {
+      "case_id": "holdout-04",
+      "expected_ids": [
+        "f3-a"
+      ],
+      "payload": {
+        "files": [
+          {
+            "id": "f3-a",
+            "path": "voice/playback.js",
+            "text": "await context.resume();\nif (generation !== currentGeneration) return;\nsource.start();"
+          },
+          {
+            "id": "f3-b",
+            "path": "voice/labels.js",
+            "text": "const labels = {stop: \"Stop audio\", resume: \"Resume\"};"
+          },
+          {
+            "id": "f3-c",
+            "path": "misc/notes.txt",
+            "text": "Synthetic unrelated maintenance notes."
+          }
+        ],
+        "max_chars": 87,
+        "query": "Audio plays again after stop: locate pending resume scheduling"
+      }
+    },
+    {
+      "case_id": "holdout-05",
+      "expected_ids": [
+        "f4-a"
+      ],
+      "payload": {
+        "files": [
+          {
+            "id": "f4-b",
+            "path": "billing/email.py",
+            "text": "send_customer_email(\"webhook delivery receipt\")"
+          },
+          {
+            "id": "f4-c",
+            "path": "misc/notes.txt",
+            "text": "Synthetic unrelated maintenance notes."
+          },
+          {
+            "id": "f4-a",
+            "path": "billing/webhooks.py",
+            "text": "if store.claim(event.id): apply_event(event)\n"
+          }
+        ],
+        "max_chars": 49,
+        "query": "Find where duplicate webhook deliveries are deduplicated"
+      }
+    },
+    {
+      "case_id": "holdout-06",
+      "expected_ids": [
+        "f5-a"
+      ],
+      "payload": {
+        "files": [
+          {
+            "id": "f5-c",
+            "path": "misc/notes.txt",
+            "text": "Synthetic unrelated maintenance notes."
+          },
+          {
+            "id": "f5-a",
+            "path": "worker/process.py",
+            "text": "start_new_session=True\nos.killpg(process.pid, signal.SIGKILL)\n"
+          },
+          {
+            "id": "f5-b",
+            "path": "worker/format.py",
+            "text": "format deadline and process status as text"
+          }
+        ],
+        "max_chars": 64,
+        "query": "Cancel a child process tree on deadline"
+      }
+    },
+    {
+      "case_id": "holdout-07",
+      "expected_ids": [
+        "f6-a"
+      ],
+      "payload": {
+        "files": [
+          {
+            "id": "f6-a",
+            "path": "journal/store.py",
+            "text": "INSERT INTO cursors(writer,consumer,sequence) VALUES(?,?,?)"
+          },
+          {
+            "id": "f6-b",
+            "path": "journal/models.py",
+            "text": "class Cursor: writer: str; consumer: str; sequence: int"
+          },
+          {
+            "id": "f6-c",
+            "path": "misc/notes.txt",
+            "text": "Synthetic unrelated maintenance notes."
+          }
+        ],
+        "max_chars": 61,
+        "query": "Find active session cursor persistence"
+      }
+    },
+    {
+      "case_id": "holdout-08",
+      "expected_ids": [
+        "f7-a"
+      ],
+      "payload": {
+        "files": [
+          {
+            "id": "f7-b",
+            "path": "media/readme.txt",
+            "text": "Uploaded PNG dimensions should be validated"
+          },
+          {
+            "id": "f7-c",
+            "path": "misc/notes.txt",
+            "text": "Synthetic unrelated maintenance notes."
+          },
+          {
+            "id": "f7-a",
+            "path": "media/validate.py",
+            "text": "with Image.open(upload) as image:\n    assert image.width <= 4096\n"
+          }
+        ],
+        "max_chars": 67,
+        "query": "Select the code validating uploaded PNG dimensions"
+      }
+    },
+    {
+      "case_id": "holdout-09",
+      "expected_ids": [
+        "f8-a"
+      ],
+      "payload": {
+        "files": [
+          {
+            "id": "f8-c",
+            "path": "misc/notes.txt",
+            "text": "Synthetic unrelated maintenance notes."
+          },
+          {
+            "id": "f8-a",
+            "path": "policy/broker.py",
+            "text": "if not grants.shell: raise ApprovalRequired\nrun_isolated(command)\n"
+          },
+          {
+            "id": "f8-b",
+            "path": "ui/permissions.dart",
+            "text": "Text(\"Shell execution permissions\")"
+          }
+        ],
+        "max_chars": 68,
+        "query": "Which function applies permissions before shell execution?"
+      }
+    },
+    {
+      "case_id": "holdout-10",
+      "expected_ids": [
+        "f9-a"
+      ],
+      "payload": {
+        "files": [
+          {
+            "id": "f9-a",
+            "path": "tests/test_steering.py",
+            "text": "assert task.objective_revision == 2\nassert not stale_file.exists()\n"
+          },
+          {
+            "id": "f9-b",
+            "path": "runtime/steering.py",
+            "text": "def steer(task): task.objective_revision += 1"
+          },
+          {
+            "id": "f9-c",
+            "path": "misc/notes.txt",
+            "text": "Synthetic unrelated maintenance notes."
+          }
+        ],
+        "max_chars": 69,
+        "query": "Find the test asserting stale objective results are discarded"
+      }
+    },
+    {
+      "case_id": "holdout-11",
+      "expected_ids": [
+        "f10-a"
+      ],
+      "payload": {
+        "files": [
+          {
+            "id": "f10-b",
+            "path": "models/artifact.py",
+            "text": "class Artifact: sha256: str"
+          },
+          {
+            "id": "f10-c",
+            "path": "misc/notes.txt",
+            "text": "Synthetic unrelated maintenance notes."
+          },
+          {
+            "id": "f10-a",
+            "path": "migrations/004_artifacts.sql",
+            "text": "ALTER TABLE artifacts ADD COLUMN sha256 TEXT;"
+          }
+        ],
+        "max_chars": 47,
+        "query": "Identify the migration adding an artifact hash column"
+      }
+    },
+    {
+      "case_id": "holdout-12",
+      "expected_ids": [
+        "f11-a"
+      ],
+      "payload": {
+        "files": [
+          {
+            "id": "f11-c",
+            "path": "misc/notes.txt",
+            "text": "Synthetic unrelated maintenance notes."
+          },
+          {
+            "id": "f11-a",
+            "path": "api/client.py",
+            "text": "if status == 401: raise Unauthorized\nexcept ConnectError: raise Offline"
+          },
+          {
+            "id": "f11-b",
+            "path": "ui/error_labels.py",
+            "text": "LABELS = [\"Connection failure\", \"Authentication denied\"]"
+          }
+        ],
+        "max_chars": 73,
+        "query": "Where is connection failure distinguished from denied authentication?"
+      }
+    }
+  ],
+  "suite_version": "owner-heldout-v1"
+}

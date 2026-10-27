@@ -161,7 +161,20 @@ class Registry:
         src = Path(source_path)
         if not src.is_file() or src.is_symlink():
             raise RegistrationError(f"not a regular file: {source_path}")
-        raw = src.read_bytes()
+        fd = os.open(src, os.O_RDONLY | os.O_NOFOLLOW)
+        try:
+            import stat
+
+            if not stat.S_ISREG(os.fstat(fd).st_mode):
+                raise RegistrationError("source must be a regular file")
+            with os.fdopen(fd, "rb", closefd=False) as stream:
+                raw = stream.read(65_537)
+        finally:
+            os.close(fd)
+        return self.register_bytes(raw, manifest)
+
+    def register_bytes(self, raw: bytes, manifest: Manifest | dict | None = None) -> str:
+        """The trusted broker supplies bounded, descriptor-checked source bytes."""
         decode_source(raw)
         man = (
             manifest
@@ -171,6 +184,14 @@ class Registry:
         man.check_supported()
         with self._lock:
             return self._store(man, raw, event="register")
+
+    def versions(self) -> list[dict]:
+        result = []
+        for directory in sorted(self._versions.iterdir()):
+            if directory.name.startswith("v-"):
+                _, meta = self._verified_source(directory.name)
+                result.append(meta)
+        return result
 
     def _store(self, manifest: Manifest, raw: bytes, *, event: str) -> str:
         digest = _sha256(
@@ -238,6 +259,9 @@ class Registry:
             raise IntegrityError(f"source tampering detected: {version_id}")
         manifest = Manifest.model_validate(meta["manifest"])
         manifest.check_supported()
+        stored_manifest = Manifest.model_validate_json((vdir / "manifest.json").read_bytes())
+        if manifest.canonical() != stored_manifest.canonical():
+            raise IntegrityError(f"manifest tampering detected: {version_id}")
         digest = _sha256(
             CONTRACT.encode() + b"\x00" + raw + b"\x00" + manifest.canonical().encode()
         )

@@ -110,12 +110,14 @@ class AgentRuntime:
         workspace: Path,
         policy: ToolPolicy,
         max_steps: int = 12,
+        selector_registry=None,
     ) -> None:
         self.journal = journal
         self.provider = provider
         self.workspace = Path(workspace)
         self.policy = policy
         self.max_steps = max(1, int(max_steps))
+        self.selector_registry = selector_registry
         self._tasks: dict[str, _Record] = {}
         # Scoped (session_id, idempotency_key) so keys never collide across
         # sessions; restored by recover for terminal and paused tasks alike.
@@ -323,6 +325,7 @@ class AgentRuntime:
             state=TaskState.ACCEPTED,
             source_event_ids=list(request.source_event_ids),
             idempotency_key=request.idempotency_key,
+            harness_version=self.selector_registry.active if self.selector_registry else "seed-v1",
         )
         rec = _Record(task=task)
         if actor == "decisions":
@@ -344,6 +347,7 @@ class AgentRuntime:
                 "source_revision": request.source_revision,
                 "idempotency_key": request.idempotency_key,
                 "payload_digest": digest,
+                "harness_version": task.harness_version,
             },
         )
         rec.worker = asyncio.create_task(self._run(rec))
@@ -678,6 +682,7 @@ class AgentRuntime:
                     ),
                     source_event_ids=list(payload.get("source_event_ids", [])),
                     idempotency_key=payload.get("idempotency_key", task_id),
+                    harness_version=payload.get("harness_version", "seed-v1"),
                 )
             rec = _Record(task=task)
             rec.done.set()
@@ -984,6 +989,10 @@ class AgentRuntime:
         try:
             if tool == "read_transcript":
                 out, evidence = await self._read_transcript(rec, args)
+            elif tool == "select_context":
+                from services.agent.context import select_context
+
+                out, evidence = await select_context(self, rec.task, args)
             elif tool == "read_file":
                 out, evidence = run_read(
                     self.policy,

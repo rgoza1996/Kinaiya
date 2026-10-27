@@ -1,7 +1,8 @@
 """Run-local Meta admission proxy. Never persists credentials or prompt contents.
 
-Forward only the authorized Contributor model, reserve at the more expensive Spark
-rate and full catalog context before every request, and fail closed on missing usage.
+Forward only the authorized Contributor model. Reserve full context and bounded
+output at twice the verified Contributor rates, ignoring cache discounts for
+admission. Keep the ordinary-Spark comparison separately. Fail closed on missing usage.
 Dollar values computed from tokens are estimates, not a provider billing receipt.
 Run with the workspace Python; Muse --base-url points at this loopback listener.
 """
@@ -73,11 +74,11 @@ class Handler(BaseHTTPRequestHandler):
                 return
             data["max_output_tokens"] = min(int(data.get("max_output_tokens", 16000)), 16000)
             body = json.dumps(data).encode()
-            # Catalog full context, uncached, at ordinary Spark rates. This covers
-            # retained previous_response_id context and reasoning tokens too.
-            reservation = (1_007_997 * 1.25 + 16000 * 4.25) / 1_000_000
+            # Full catalog context, uncached, twice verified Contributor rates.
+            # Includes retained response context and reasoning output.
+            reservation = (1_007_997 * 0.20 + 16000 * 0.40) / 1_000_000
             with LOCK:
-                if STATE["estimated_usd"] + STATE["reserved_usd"] + reservation > 22:
+                if STATE["admission_estimated_usd"] + STATE["reserved_usd"] + reservation > 22:
                     self.local_json(402, {"error": "Run budget admission limit reached"})
                     return
                 record = {
@@ -187,6 +188,9 @@ class Handler(BaseHTTPRequestHandler):
                         record["contributor_estimated_usd"] = contributor
                         record["conservative_estimated_usd"] = conservative
                         STATE["estimated_usd"] += conservative
+                        admission = (inputs * 0.20 + outputs * 0.40) / 1_000_000
+                        record["admission_estimated_usd"] = admission
+                        STATE["admission_estimated_usd"] += admission
                         STATE["contributor_estimated_usd"] += contributor
                         STATE["reported_input_tokens"] += inputs
                         STATE["reported_output_tokens"] += outputs
@@ -234,6 +238,24 @@ def main():
             "pricing_source": "Muse provider catalog 2026-10-26; conservative ordinary Spark reserve",
             "calls": [],
         }
+    )
+    # Migration preserves every usage record and unresolved reservation. The
+    # old ordinary-Spark comparison is retained, rather than represented as
+    # Contributor spending. No cached-token discount is used for admission.
+    STATE["admission_estimated_usd"] = sum(
+        (
+            int(c["reported_usage"].get("input_tokens", 0)) * 0.20
+            + int(c["reported_usage"].get("output_tokens", 0)) * 0.40
+        )
+        / 1_000_000
+        for c in STATE["calls"]
+        if c.get("reported_usage")
+    )
+    STATE["admission_policy"] = (
+        "2x Contributor catalog rates; uncached input; full-context reservations; $3 buffer"
+    )
+    STATE["pricing_source"] = (
+        "Muse provider catalog 2026-10-26; Contributor input 0.10/output 0.20/cached 0.002 USD per million"
     )
     save()
     print(f"Budget proxy listening on 127.0.0.1:{args.port}; admission ceiling $22", flush=True)

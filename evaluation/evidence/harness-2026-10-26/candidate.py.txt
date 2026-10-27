@@ -1,0 +1,72 @@
+import re
+import math
+
+def _tok(s):
+    if not isinstance(s, str) or not s:
+        return []
+    s = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", s)
+    s = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1 \2", s)
+    s = s.replace("_", " ").replace("-", " ").replace("/", " ")
+    return re.findall(r"[a-z0-9]+", s.lower())
+
+def select_context(payload):
+    """TF-IDF filename-boosted ranker, length-normed, greedy budget fill."""
+    # Vs baseline (literal query-word count in content, greedy fill): adds
+    # camel/snake split, filename signal, IDF rarity, length norm, no-noise [].
+    if not isinstance(payload, dict):
+        return []
+    try:
+        budget = int(payload.get("max_chars", 0))
+    except Exception:
+        return []
+    q = payload.get("query", "")
+    files = payload.get("files", [])
+    qt = _tok(q)
+    if not qt or not isinstance(files, list) or not files or budget <= 0:
+        return []
+    qs = set(qt)
+    docs = []
+    df = {}
+    seen = set()
+    for i, f in enumerate(files):
+        if not isinstance(f, dict):
+            continue
+        fid = f.get("id")
+        if not isinstance(fid, str) or not fid or fid in seen:
+            continue
+        seen.add(fid)
+        text = f.get("text") if isinstance(f.get("text"), str) else ""
+        path = f.get("path") if isinstance(f.get("path"), str) else ""
+        ct = {}
+        for t in _tok(text):
+            ct[t] = ct.get(t, 0) + 1
+        pt = {}
+        for t in _tok(path):
+            pt[t] = pt.get(t, 0) + 1
+        for t in qs:
+            if t in ct or t in pt:
+                df[t] = df.get(t, 0) + 1
+        docs.append((i, fid, len(text), ct, pt))
+    if not docs:
+        return []
+    n = len(docs)
+    ranked = []
+    for i, fid, ln, ct, pt in docs:
+        dl = sum(ct.values()) or 1
+        norm = 1.0 + 0.15 * math.log(1.0 + dl / 50.0)
+        s = 0.0
+        for t in qs:
+            tf = ct.get(t, 0) + 2.0 * pt.get(t, 0)
+            if tf:
+                s += (1.0 + math.log(1.0 + tf)) * math.log(1.0 + n / (1.0 + df.get(t, 0))) / norm
+        ranked.append((s, ln, i, fid))
+    ranked.sort(key=lambda r: (-r[0], r[1], r[2], r[3]))
+    out = []
+    used = 0
+    for s, ln, i, fid in ranked:
+        if s <= 0:
+            break
+        if used + ln <= budget:
+            out.append(fid)
+            used += ln
+    return out
