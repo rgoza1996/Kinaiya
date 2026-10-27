@@ -26,6 +26,11 @@ completion notice. The Task status retains its original scope and states that
 previous uncertain effects remain unreconciled. Cancellation does not claim
 that effects were undone.
 
+The shared `/stop` command can return the requested old task to its authenticated
+owner, but its command receipt in another epoch or session stores only task
+identity, original scope, revision and state. It does not persist that task's old
+objective/evidence/body into the command's current scope.
+
 The session service's stale-epoch and causal-reference checks are unchanged.
 The administrative payload identifies the old task without pretending that a
 cross-epoch causal edge is a current-epoch transcript reference. Only native

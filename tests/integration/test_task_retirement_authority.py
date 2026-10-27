@@ -7,8 +7,10 @@ from types import SimpleNamespace
 import pytest
 
 from core.policy import PolicyDenied, ToolPolicy
+from packages.commands import Registry
 from packages.contracts.models import (
     AppendRequest,
+    CommandRequest,
     InterruptRequest,
     MCPControl,
     ProviderInfo,
@@ -352,6 +354,34 @@ async def test_steering_cannot_change_recovered_identity_during_retirement(env, 
         release.set()
         await stopping
     assert (await env.runtime.status(env.task.task_id)).objective_revision == 1
+
+
+@pytest.mark.parametrize("other_session", [False, True])
+async def test_stop_command_journal_does_not_copy_old_context_into_new_epoch(env, other_session):
+    commands = Registry(env.runtime, LocalJournal(env.store, "owner"))
+    selected = (
+        env.store.create_session(SessionRequest(channel="agent")) if other_session else env.current
+    )
+    try:
+        result = await commands.execute(
+            CommandRequest(
+                session_id=selected.session_id,
+                thread_id=selected.thread_id,
+                epoch=selected.epoch,
+                input="/stop " + env.task.task_id,
+                idempotency_key="synthetic-command-stop",
+            )
+        )
+        assert result["status"] == "ok" and result["result"]["state"] == "cancelled"
+        # The authorized owner response may inspect the old task. The current
+        # epoch's command receipt must contain only its administrative identity.
+        assert result["result"]["objective"] == env.task.objective
+        current = [
+            e for e in env.store.read(session_id=selected.session_id) if e.epoch == selected.epoch
+        ]
+        assert current and all(env.task.objective not in e.model_dump_json() for e in current)
+    finally:
+        commands.close()
 
 
 async def test_receipt_cannot_retire_a_task_submitted_later(tmp_path):

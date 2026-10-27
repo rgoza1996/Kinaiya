@@ -240,6 +240,31 @@ class Registry:
                     result = self._reply(
                         "ok", name, result=await self._dispatch(name, args, request)
                     )
+            journal_response = result
+            target = result.get("result")
+            if result.get("command") == "stop" and isinstance(target, dict):
+                target_scope = (
+                    target.get("session_id"),
+                    target.get("thread_id"),
+                    target.get("epoch"),
+                )
+                if target_scope != (session.session_id, session.thread_id, session.epoch):
+                    # Owner inspection can return the old task directly, but
+                    # its objective/evidence must not enter this epoch's receipt.
+                    journal_response = {
+                        **result,
+                        "result": {
+                            key: target[key]
+                            for key in (
+                                "task_id",
+                                "session_id",
+                                "thread_id",
+                                "epoch",
+                                "objective_revision",
+                                "state",
+                            )
+                        },
+                    }
             await self.runtime.journal.append(
                 AppendRequest(
                     session_id=session.session_id,
@@ -251,7 +276,7 @@ class Registry:
                         "op": "control",
                         "actor": "owner",
                         "input": request.input,
-                        "response": result,
+                        "response": journal_response,
                     },
                 )
             )

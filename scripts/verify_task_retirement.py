@@ -253,6 +253,7 @@ async def run(args):
                     name: hashlib.sha256((repository / name).read_bytes()).hexdigest()
                     for name in [
                         "services/agent/runtime.py",
+                        "packages/commands/__init__.py",
                         "packages/contracts/models.py",
                         "services/session/store.py",
                         "scripts/verify_task_retirement.py",
