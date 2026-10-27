@@ -1,0 +1,262 @@
+{
+  "synthetic_only": true,
+  "converse_constructed": false,
+  "model_calls": 0,
+  "owner_api": [
+    {
+      "operation": "configure",
+      "result": {
+        "status": "configured",
+        "server_id": "probe-stdio",
+        "revision": 1
+      },
+      "replay_equal": true
+    },
+    {
+      "operation": "test",
+      "result": {
+        "status": "connected",
+        "server_id": "probe-stdio",
+        "transport": "stdio",
+        "tools": [
+          {
+            "name": "echo",
+            "allowed": true
+          },
+          {
+            "name": "hidden_tool",
+            "allowed": false
+          }
+        ]
+      },
+      "replay_equal": true
+    },
+    {
+      "operation": "enable",
+      "result": {
+        "status": "enabled",
+        "server_id": "probe-stdio",
+        "revision": 2
+      },
+      "replay_equal": true
+    },
+    {
+      "operation": "reconnect",
+      "result": {
+        "status": "connected",
+        "server_id": "probe-stdio",
+        "transport": "stdio",
+        "tools": [
+          {
+            "name": "echo",
+            "allowed": true
+          },
+          {
+            "name": "hidden_tool",
+            "allowed": false
+          }
+        ]
+      },
+      "replay_equal": true
+    },
+    {
+      "operation": "disable",
+      "result": {
+        "status": "disabled",
+        "server_id": "probe-stdio",
+        "revision": 3
+      },
+      "replay_equal": true
+    },
+    {
+      "operation": "remove",
+      "result": {
+        "status": "removed",
+        "server_id": "probe-stdio",
+        "revision": 4
+      },
+      "replay_equal": true
+    },
+    {
+      "operation": "configure",
+      "result": {
+        "status": "configured",
+        "server_id": "probe-http",
+        "revision": 5
+      },
+      "replay_equal": true
+    },
+    {
+      "operation": "test",
+      "result": {
+        "status": "connected",
+        "server_id": "probe-http",
+        "transport": "http",
+        "tools": [
+          {
+            "name": "echo",
+            "allowed": true
+          },
+          {
+            "name": "hidden_tool",
+            "allowed": false
+          }
+        ]
+      },
+      "replay_equal": true
+    },
+    {
+      "operation": "enable",
+      "result": {
+        "status": "enabled",
+        "server_id": "probe-http",
+        "revision": 6
+      },
+      "replay_equal": true
+    },
+    {
+      "operation": "reconnect",
+      "result": {
+        "status": "connected",
+        "server_id": "probe-http",
+        "transport": "http",
+        "tools": [
+          {
+            "name": "echo",
+            "allowed": true
+          },
+          {
+            "name": "hidden_tool",
+            "allowed": false
+          }
+        ]
+      },
+      "replay_equal": true
+    },
+    {
+      "operation": "disable",
+      "result": {
+        "status": "disabled",
+        "server_id": "probe-http",
+        "revision": 7
+      },
+      "replay_equal": true
+    },
+    {
+      "operation": "remove",
+      "result": {
+        "status": "removed",
+        "server_id": "probe-http",
+        "revision": 8
+      },
+      "replay_equal": true
+    },
+    {
+      "operation": "configure",
+      "result": {
+        "status": "configured",
+        "server_id": "browser-http",
+        "revision": 9
+      },
+      "replay_equal": true
+    }
+  ],
+  "actual_cli": {
+    "schema_version": "1.0",
+    "status": "ok",
+    "command": "mcp",
+    "result": {
+      "schema_version": "1.0",
+      "revision": 8,
+      "blocked": false,
+      "servers": []
+    }
+  },
+  "peer_methods": [
+    "initialize",
+    "notifications/initialized",
+    "tools/list",
+    "initialize",
+    "notifications/initialized",
+    "tools/list",
+    "initialize",
+    "notifications/initialized",
+    "tools/list",
+    "initialize",
+    "notifications/initialized",
+    "tools/list"
+  ],
+  "repository_head": "e0a0b6fabdcd2c1706e6de1890fb8beb14f7a82f",
+  "working_tree_clean": true,
+  "recorded_at": "2026-10-27T16:41:49.626989+00:00",
+  "browser_check": {
+    "transport": "real Flutter web and HTTP services on loopback",
+    "connection": "session authenticated; Agent ready; Converse unavailable",
+    "observed_actions": [
+      "test browser-http: connected while disabled",
+      "enable browser-http: enabled",
+      "reconnect browser-http: connected",
+      "disable browser-http: disabled",
+      "remove browser-http: no connections configured",
+      "configure browser-new with explicit review: saved disabled"
+    ],
+    "final_snapshot": {
+      "configured": true,
+      "schema_version": "1.0",
+      "revision": 13,
+      "blocked": false,
+      "servers": [
+        {
+          "id": "browser-new",
+          "transport": "http",
+          "enabled": false,
+          "allowed_tools": [
+            "echo"
+          ],
+          "endpoint": "http://127.0.0.1:8876/mcp",
+          "timeout_seconds": 10.0,
+          "allow_remote": true,
+          "content_scope": "public_synthetic",
+          "credentialed": false,
+          "secret_refs": [],
+          "config_sha256": "3c2aa59a22fc638cea09a48ae4284cdb575f4eed22c1c2e54c62abbc6cec2d4b"
+        }
+      ]
+    },
+    "agent_tasks_after_check": [],
+    "peer_method_counts_after_check": {
+      "initialize": 6,
+      "notifications/initialized": 6,
+      "tools/list": 6
+    },
+    "model_calls_note": "The fixture recorded zero calls during automated API/CLI verification; GUI management created no Agent tasks. No external model provider was configured."
+  },
+  "source_sha256": {
+    "packages/ecosystem/mcp_control.py": "c14c9bb81a4cd832003ef2398744d7958fe80d7cdf2df599a76713ba700fa068",
+    "packages/ecosystem/mcp_host.py": "c3fd149081ac79c854e16b51bdab7954078817b144c91c6176bd1da2e16b5b94",
+    "services/agent/mcp_controls.py": "67782e2d430ee382730f1720e509d11a7065459bccfb4972b537cdf71fb8cacf",
+    "services/agent/runtime.py": "e3585817921b5927b4fb0cab452e7b6deb4b7113d58141261a76fb6bd9508a80",
+    "packages/commands/__init__.py": "ec151296f8dc5f6a1167106c4561675700cf5d882273d9e36bc2a678247bdd9a",
+    "apps/kinaiya_flutter/lib/ui/mcp_settings.dart": "19f5bb2addaff091d6fea8b53217f18d7543a6da29ebf185dddb2eaafc3d6c55",
+    "scripts/verify_mcp_management.py": "71c0742abf7967e6a2c480d9137bd33c4cd14f81c2f98ad46a906c42406b7b99",
+    "evaluation/fixtures/mcp_management_server.py": "016f16daa1a825ba8d0735fccb6d2647fd93ddbcb707dc86f7aa09e6f8837ce9"
+  },
+  "verification": {
+    "python": "487 passed; one existing Starlette deprecation warning",
+    "flutter": "96 passed; analyzer clean; release web build passed",
+    "audio_bridge": "13 passed",
+    "additional_checks": [
+      "ruff check",
+      "ruff format --check",
+      "contract schema regeneration unchanged",
+      "git diff --check"
+    ],
+    "review": "Independent Muse Spark 1.3 Contributor/xhigh review; findings repaired and regression tested. Automated review is not independent human approval."
+  },
+  "limitations": [
+    "Synthetic loopback MCP peers only; not live external-server, OAuth or upstream conformance evidence.",
+    "No MCP tools invoked by this management probe.",
+    "Does not close full Roadmap M1A ecosystem acceptance.",
+    "API/CLI automated evidence source was a clean committed tree; this evidence file is a subsequent recording."
+  ]
+}
