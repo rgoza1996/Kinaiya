@@ -93,15 +93,15 @@ class _AgentChatState extends State<AgentChat> {
     final text = _input.text.trim();
     final api = _s.client;
     if (text.isEmpty || api == null || !_s.connected || _s.busyAgent) return;
-    if (!text.contains('\n') &&
-        !text.contains('\r') &&
-        RegExp(r'^/[a-z][a-z0-9_-]*(?:\s|$)').hasMatch(text)) {
-      await _dispatchSlash(api, text);
-      return;
-    }
     _s.busyAgent = true;
     _s.touch();
     try {
+      if (!text.contains('\n') &&
+          !text.contains('\r') &&
+          RegExp(r'^/[a-z][a-z0-9_-]*(?:\s|$)').hasMatch(text)) {
+        await _dispatchSlash(api, text);
+        return;
+      }
       final session =
           _s.agentSession ?? await _s.ensureSession('agent', name: 'work');
       final task = await api.createTask(
@@ -315,7 +315,12 @@ class _AgentChatState extends State<AgentChat> {
             children: [
               for (final m in _s.agentHistory)
                 MessageBubble(role: m.role, text: m.text, note: m.note),
-              for (final t in _s.tasks) _taskCard(t),
+              if (_s.tasks.isNotEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  child: Text('Worker tasks across sessions · newest first'),
+                ),
+              for (final t in _s.tasks.reversed) _taskCard(t),
               if (_s.tasks.isEmpty && _s.agentHistory.isEmpty)
                 const Padding(
                   padding: EdgeInsets.all(24),

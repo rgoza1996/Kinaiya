@@ -22,20 +22,22 @@ AppState wiredState() {
 }
 
 void main() {
-  test('speech queue serializes independently produced entries in order',
-      () async {
-    final q = SpeechQueue();
-    final order = <int>[];
-    await Future.wait([
-      q.enqueue(() async {
-        await Future.delayed(const Duration(milliseconds: 30));
-        order.add(1);
-      }),
-      q.enqueue(() async => order.add(2)),
-      q.enqueue(() async => order.add(3)),
-    ]);
-    expect(order, [1, 2, 3]);
-  });
+  test(
+    'speech queue serializes independently produced entries in order',
+    () async {
+      final q = SpeechQueue();
+      final order = <int>[];
+      await Future.wait([
+        q.enqueue(() async {
+          await Future.delayed(const Duration(milliseconds: 30));
+          order.add(1);
+        }),
+        q.enqueue(() async => order.add(2)),
+        q.enqueue(() async => order.add(3)),
+      ]);
+      expect(order, [1, 2, 3]);
+    },
+  );
 
   test('stale nonce never owns cleanup; newer turn keeps busy', () {
     expect(turnOwnsCleanup(7, 7), isTrue);
@@ -104,8 +106,9 @@ void main() {
     expect(state.voiceIsLive(v, state.voiceEpoch), isFalse);
   });
 
-  testWidgets('live toggle degrades honestly where voice is unavailable',
-      (tester) async {
+  testWidgets('live toggle degrades honestly where voice is unavailable', (
+    tester,
+  ) async {
     final state = wiredState();
     await tester.pumpWidget(KinaiyaApp(state: state));
     await tester.pump(const Duration(milliseconds: 200));

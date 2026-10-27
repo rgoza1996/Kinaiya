@@ -58,6 +58,7 @@ class AppState extends ChangeNotifier {
   String converseDraft = '';
   String agentDraft = '';
   int converseCursor = 0;
+  String? converseHistorySeededFor;
   int agentCursor = 0;
 
   bool converseEnabled = true;
@@ -167,7 +168,7 @@ class AppState extends ChangeNotifier {
         return;
       }
       connectionError =
-          'Session authenticated. Agent ${agentOnline ? 'ready' : 'unavailable'}; Converse ${converseOnline ? (converseEnabled ? 'ready' : 'off') : 'unavailable'}.';
+          'Last check (${DateTime.now().toUtc().toIso8601String()}): session authenticated. Agent ${agentOnline ? 'ready' : 'unavailable'}; Converse ${converseOnline ? (converseEnabled ? 'ready' : 'off') : 'unavailable'}.';
       _noticesPoll = Timer.periodic(
         const Duration(seconds: 1),
         (_) => refreshNotices(),

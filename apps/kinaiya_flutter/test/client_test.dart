@@ -5,6 +5,19 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:kinaiya_flutter/api/client.dart';
 
+class RedirectProbe extends http.BaseClient {
+  final requests = <http.BaseRequest>[];
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    requests.add(request);
+    return http.StreamedResponse(
+      Stream.value(utf8.encode('{}')),
+      302,
+      headers: {'location': 'https://different-origin.invalid/'},
+    );
+  }
+}
+
 /// Clearly labeled mock transport: no real services, no credentials.
 MockClient mockTransport({bool commandsMissing = true}) {
   return MockClient((http.Request req) async {
@@ -115,6 +128,49 @@ KinaiyaClient mockClient({bool commandsMissing = true}) => KinaiyaClient.mock(
 );
 
 void main() {
+  test(
+    'credentials never follow redirects on JSON, SSE or multipart requests',
+    () async {
+      final transport = RedirectProbe();
+      final api = KinaiyaClient(
+        sessionBase: 'http://fixture',
+        agentBase: 'http://fixture',
+        converseBase: 'http://fixture',
+        ownerToken: 'synthetic-token',
+        httpClient: transport,
+      );
+      await expectLater(api.listSessions(), throwsA(isA<ApiException>()));
+      await expectLater(
+        api.createSession('agent'),
+        throwsA(isA<ApiException>()),
+      );
+      await expectLater(
+        api.transcribe([1, 2], 'synthetic.wav'),
+        throwsA(isA<ApiException>()),
+      );
+      await expectLater(
+        api
+            .streamTurn(
+              sessionId: 's',
+              threadId: 't',
+              epoch: 1,
+              text: 'synthetic',
+              idempotencyKey: 'k',
+            )
+            .toList(),
+        throwsA(isA<ApiException>()),
+      );
+      await expectLater(
+        api.speech(eventId: 'e', generationEpoch: 1).toList(),
+        throwsA(isA<ApiException>()),
+      );
+      expect(transport.requests.length, 5);
+      expect(transport.requests.every((r) => !r.followRedirects), isTrue);
+      expect(transport.requests.every((r) => r.url.host == 'fixture'), isTrue);
+      api.close();
+    },
+  );
+
   test('mock api is labeled and reuses named sessions', () async {
     final api = mockClient();
     expect(isMockApi, isTrue);

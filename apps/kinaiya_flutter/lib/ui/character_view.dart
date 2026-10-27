@@ -166,7 +166,8 @@ class _CharacterViewState extends State<CharacterView> {
       final seedSession =
           _s.converseSession ??
           await _s.ensureSession('converse', name: 'Kinaiya');
-      if (_s.converseCursor == 0) {
+      final historyKey = '${seedSession.sessionId}:${seedSession.epoch}';
+      if (_s.converseHistorySeededFor != historyKey) {
         try {
           final seed = await api.recent(sessionId: seedSession.sessionId);
           for (final e in seed) {
@@ -183,6 +184,9 @@ class _CharacterViewState extends State<CharacterView> {
               );
             }
             if (e.sequence > _s.converseCursor) _s.converseCursor = e.sequence;
+          }
+          if (turnOwnsCleanup(nonce, _s.turnNonce)) {
+            _s.converseHistorySeededFor = historyKey;
           }
           _s.touch();
         } catch (_) {}
@@ -226,6 +230,9 @@ class _CharacterViewState extends State<CharacterView> {
           case 'text':
             final entry = event.entry;
             if (entry == null) break;
+            if (entry.sequence > _s.converseCursor) {
+              _s.converseCursor = entry.sequence;
+            }
             if (assistantIndex < 0) {
               _s.appendHistory(
                 AppView.character,
@@ -240,7 +247,7 @@ class _CharacterViewState extends State<CharacterView> {
               final cur = _s.converseHistory[assistantIndex];
               _s.converseHistory[assistantIndex] = ChatMsg(
                 role: 'kinaiya',
-                text: cur.text + entry.text,
+                text: '${cur.text.trimRight()} ${entry.text.trimLeft()}',
                 eventId: entry.eventId,
               );
               _s.touch();

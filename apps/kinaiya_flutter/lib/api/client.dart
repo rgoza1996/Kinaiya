@@ -44,6 +44,20 @@ class ConverseEvent {
 bool get isMockApi => _mockLabel != null;
 String? _mockLabel;
 
+/// Owner credentials are scoped to the configured service, including on web.
+class _NoRedirectClient extends http.BaseClient {
+  _NoRedirectClient(this.inner);
+  final http.Client inner;
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) {
+    request.followRedirects = false;
+    return inner.send(request);
+  }
+
+  @override
+  void close() => inner.close();
+}
+
 class KinaiyaClient {
   KinaiyaClient({
     required this.sessionBase,
@@ -52,7 +66,7 @@ class KinaiyaClient {
     required String ownerToken,
     http.Client? httpClient,
   }) : _token = ownerToken,
-       _http = httpClient ?? http.Client();
+       _http = _NoRedirectClient(httpClient ?? http.Client());
 
   final String sessionBase;
   final String agentBase;
@@ -68,7 +82,7 @@ class KinaiyaClient {
     required http.Client mockTransport,
     String label = 'mock',
   }) : _token = 'mock-token-not-a-credential',
-       _http = mockTransport {
+       _http = _NoRedirectClient(mockTransport) {
     _mockLabel = label;
   }
 
@@ -104,7 +118,7 @@ class KinaiyaClient {
   }
 
   Map<String, Object?> _decode(http.Response res) {
-    if (res.statusCode >= 400) {
+    if (res.statusCode >= 300) {
       throw ApiException(res.statusCode, _detail(res.body));
     }
     final v = jsonDecode(res.body);
@@ -134,7 +148,7 @@ class KinaiyaClient {
   Future<List<SessionInfo>> listSessions() async {
     final uri = Uri.parse('$sessionBase/v1/sessions');
     final res = await _http.get(uri, headers: _auth);
-    if (res.statusCode >= 400) {
+    if (res.statusCode >= 300) {
       throw ApiException(res.statusCode, _detail(res.body));
     }
     final v = jsonDecode(res.body);
@@ -163,7 +177,7 @@ class KinaiyaClient {
       },
     );
     final res = await _http.get(uri, headers: _auth);
-    if (res.statusCode >= 400) {
+    if (res.statusCode >= 300) {
       throw ApiException(res.statusCode, _detail(res.body));
     }
     final v = jsonDecode(res.body);
@@ -187,7 +201,7 @@ class KinaiyaClient {
       },
     );
     final res = await _http.get(uri, headers: _auth);
-    if (res.statusCode >= 400) {
+    if (res.statusCode >= 300) {
       throw ApiException(res.statusCode, _detail(res.body));
     }
     final v = jsonDecode(res.body);
@@ -225,7 +239,7 @@ class KinaiyaClient {
       'idempotency_key': idempotencyKey,
     });
     final streamed = await _http.send(req);
-    if (streamed.statusCode >= 400) {
+    if (streamed.statusCode >= 300) {
       final body = await streamed.stream.bytesToString();
       throw ApiException(streamed.statusCode, _detail(body));
     }
@@ -304,7 +318,7 @@ class KinaiyaClient {
     );
     final streamed = await _http.send(req);
     final body = await streamed.stream.bytesToString();
-    if (streamed.statusCode >= 400) {
+    if (streamed.statusCode >= 300) {
       throw ApiException(streamed.statusCode, _detail(body));
     }
     return (jsonDecode(body) as Map).cast<String, Object?>();
@@ -324,7 +338,7 @@ class KinaiyaClient {
       'generation_epoch': generationEpoch,
     });
     final streamed = await _http.send(req);
-    if (streamed.statusCode >= 400) {
+    if (streamed.statusCode >= 300) {
       final body = await streamed.stream.bytesToString();
       throw ApiException(streamed.statusCode, _detail(body));
     }
@@ -361,7 +375,7 @@ class KinaiyaClient {
   Future<List<AgentTask>> listTasks() async {
     final uri = Uri.parse('$agentBase/v1/agent/tasks');
     final res = await _http.get(uri, headers: _auth);
-    if (res.statusCode >= 400) {
+    if (res.statusCode >= 300) {
       throw ApiException(res.statusCode, _detail(res.body));
     }
     final v = jsonDecode(res.body);

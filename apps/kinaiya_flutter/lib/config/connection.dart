@@ -84,6 +84,9 @@ class ConnectionProfile {
     if (uri.scheme != 'http' && uri.scheme != 'https') {
       return 'only http(s) URLs are supported';
     }
+    if (uri.userInfo.isNotEmpty || uri.hasQuery || uri.hasFragment) {
+      return 'service URLs cannot contain credentials, queries or fragments';
+    }
     if (uri.scheme == 'http' && !_isLoopback(uri.host)) {
       return 'insecure remote HTTP is rejected; use https or loopback';
     }

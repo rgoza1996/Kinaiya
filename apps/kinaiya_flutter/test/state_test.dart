@@ -21,6 +21,13 @@ void main() {
       contains('insecure'),
     );
     expect(ConnectionProfile.validateServiceUrl('not a url'), isNotNull);
+    for (final url in [
+      'https://user:secret@example.com',
+      'https://example.com?token=secret',
+      'https://example.com#token',
+    ]) {
+      expect(ConnectionProfile.validateServiceUrl(url), isNotNull);
+    }
   });
 
   test(

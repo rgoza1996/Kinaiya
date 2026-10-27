@@ -95,7 +95,7 @@ class ConnectionDot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final label = state.connected ? 'Connected' : 'Not connected';
+    final label = state.connected ? 'Connection checked' : 'Not connected';
     final detail =
         state.connectionError ??
         (state.connected
