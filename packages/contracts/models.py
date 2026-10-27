@@ -79,10 +79,9 @@ class TaskRequest(WireModel):
 
 class Evidence(WireModel):
     evidence_id: str = Field(default_factory=new_id)
-    # "external" is a broker-generated MCP call receipt. It proves a
-    # response was received from the named server/tool and binds the hash
-    # of the bounded returned payload. It NEVER verifies remote side
-    # effects and alone can never support completion.
+    # "external" is a broker receipt for untrusted MCP/skill content.
+    # It binds the observed payload, never proves task effects, and alone
+    # cannot support completion.
     kind: Literal["file", "command", "read", "search", "test", "extension", "external"]
     summary: str
     path: str | None = None
@@ -189,6 +188,8 @@ class ToolAction(WireModel):
         "select_context",
         "mcp_list",
         "mcp_call",
+        "skills_list",
+        "skill_load",
         "finish",
     ]
     arguments: dict[str, Any] = Field(default_factory=dict)

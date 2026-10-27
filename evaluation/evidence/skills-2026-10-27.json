@@ -1,0 +1,119 @@
+{
+  "provider": "muse-spark-1.3-contributor",
+  "synthetic_only": true,
+  "task_id": "b9432bfa-9879-4ac7-b013-a6f1eeac8080",
+  "state": "succeeded",
+  "error": null,
+  "summary": "Created and verified skill-proof.txt with payload content public synthetic skill proof",
+  "command": "/proof-recipe Follow the recipe and its supporting payload to create the verified file.",
+  "duplicate_command_same_task": true,
+  "model_actions": [
+    {
+      "tool": "skills_list",
+      "fields": []
+    },
+    {
+      "tool": "skill_load",
+      "fields": [
+        "resource",
+        "skill_id"
+      ]
+    },
+    {
+      "tool": "write_file",
+      "fields": [
+        "content",
+        "path"
+      ]
+    },
+    {
+      "tool": "read_file",
+      "fields": [
+        "path"
+      ]
+    },
+    {
+      "tool": "finish",
+      "fields": [
+        "objective_revision",
+        "summary"
+      ]
+    }
+  ],
+  "owner_approvals": 1,
+  "skill_id": "local/proof-recipe",
+  "skill_digest": "sha256:150d9f2f20b9bf5bb344597553c7310e3a9b86dc78bc15e7041760807493fb3f",
+  "artifact_sha256": "9c8304ea25542defdff2d2dc44b91debbb0901076ffeb19fbdf5b44f379977e1",
+  "evidence": [
+    {
+      "schema_version": "1.0",
+      "evidence_id": "85231074-4a1e-4744-9433-4f6331c113f7",
+      "kind": "external",
+      "summary": "skill_load local/proof-recipe sha256:150d9f2f20b9bf5bb344597553c7310e3a9b86dc78bc15e7041760807493fb3f: untrusted skill content receipt; not task-effect evidence",
+      "path": null,
+      "sha256": "d598b6a841a5a1c2f6d4e108dd46874d2e8c31d1a082743fed81212757cd6304",
+      "exit_code": null,
+      "output": "{\"allowed_tools\": [], \"description\": \"Public synthetic file proof procedure\", \"digest\": \"sha256:150d9f2f20b9bf5bb344597553c7310e3a9b86dc78bc15e7041760807493fb3f\", \"id\": \"local/proof-recipe\", \"instruction_path\": \"SKILL.md\", \"instruction_sha256\": \"sha256:345b46dade647a61b08eb43f13eab7397c3cd8fbbcc1f1f94f6869db01d64aad\", \"invocation\": \"user\", \"name\": \"proof-recipe\", \"source\": {\"kind\": \"local\", \"name\": \"proof-recipe\", \"namespace\": \"local\", \"raw\": \"/home/roggoz/Disks/SN750/Kinaiya/.dev-run/skills-proof-20261027/source\", \"ref\": null, \"repository\": null, \"subdir\": null}, \"untrusted\": true, \"version\": \"0.0.0\"}",
+      "objective_revision": 1
+    },
+    {
+      "schema_version": "1.0",
+      "evidence_id": "211d28da-b3d9-48ed-b3e4-29d8add0eb82",
+      "kind": "external",
+      "summary": "skills_list catalog : untrusted skill content receipt; not task-effect evidence",
+      "path": null,
+      "sha256": "0ba1b22f703e20ee2afcc5e85e7c74af8083543d78ed419826235f7ffba2782c",
+      "exit_code": null,
+      "output": "{\"next_after\": null, \"skills\": []}",
+      "objective_revision": 1
+    },
+    {
+      "schema_version": "1.0",
+      "evidence_id": "50b93de0-54ad-4a47-90c6-384f6255b58b",
+      "kind": "external",
+      "summary": "skill_load local/proof-recipe sha256:150d9f2f20b9bf5bb344597553c7310e3a9b86dc78bc15e7041760807493fb3f: untrusted skill content receipt; not task-effect evidence",
+      "path": null,
+      "sha256": "43199217a48e7c70d090d702eb056a9896cf4cedfbbc3eeecea7f11f3a5468cd",
+      "exit_code": null,
+      "output": "{\"allowed_tools\": [], \"description\": \"Public synthetic file proof procedure\", \"digest\": \"sha256:150d9f2f20b9bf5bb344597553c7310e3a9b86dc78bc15e7041760807493fb3f\", \"id\": \"local/proof-recipe\", \"invocation\": \"user\", \"name\": \"proof-recipe\", \"resource_path\": \"payload.txt\", \"resource_sha256\": \"sha256:9c8304ea25542defdff2d2dc44b91debbb0901076ffeb19fbdf5b44f379977e1\", \"source\": {\"kind\": \"local\", \"name\": \"proof-recipe\", \"namespace\": \"local\", \"raw\": \"/home/roggoz/Disks/SN750/Kinaiya/.dev-run/skills-proof-20261027/source\", \"ref\": null, \"repository\": null, \"subdir\": null}, \"untrusted\": true, \"version\": \"0.0.0\"}",
+      "objective_revision": 1
+    },
+    {
+      "schema_version": "1.0",
+      "evidence_id": "9730b0c7-8f97-47bd-a2ed-f449435ca153",
+      "kind": "file",
+      "summary": "wrote /home/roggoz/Disks/SN750/Kinaiya/.dev-run/skills-proof-20261027/workspace/skill-proof.txt",
+      "path": "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/skills-proof-20261027/workspace/skill-proof.txt",
+      "sha256": "9c8304ea25542defdff2d2dc44b91debbb0901076ffeb19fbdf5b44f379977e1",
+      "exit_code": null,
+      "output": "",
+      "objective_revision": 1
+    },
+    {
+      "schema_version": "1.0",
+      "evidence_id": "6c556e2e-5a53-4628-adfe-7e87823f19bd",
+      "kind": "read",
+      "summary": "read /home/roggoz/Disks/SN750/Kinaiya/.dev-run/skills-proof-20261027/workspace/skill-proof.txt",
+      "path": "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/skills-proof-20261027/workspace/skill-proof.txt",
+      "sha256": "9c8304ea25542defdff2d2dc44b91debbb0901076ffeb19fbdf5b44f379977e1",
+      "exit_code": null,
+      "output": "",
+      "objective_revision": 1
+    }
+  ],
+  "source_sha256": {
+    "services/agent/runtime.py": "7eaad71280300d3034d0cb89c7654b4db1841240dfb4db70c642041661763094",
+    "services/agent/skill_service.py": "ff0bcfed69d4546664d6407f314d81b8a05a57877fb7b4c728a002c579071623",
+    "services/agent/skill_controls.py": "7e89985c546caa0ab7750a0681ea21d6d6a2fdf96a58778e780d417490a9f870",
+    "packages/ecosystem/skills.py": "5657aa58e6687430d07429128eb8dacfa2422956e3d27c84ca9d07e6b56651db",
+    "packages/commands/__init__.py": "c630440d78d19a4509c99673e075bda97210782931fcdd0dc449d9ae30ab2ad2",
+    "packages/contracts/models.py": "b45a28ad3319692a2ad8f9477ce450abd8b7b17abe75c3157652a185269c9cec",
+    "packages/providers/text.py": "3c0219612a29c86114445b17479fa2e9d716c5a014c4e491b9479a858b2f8544",
+    "harnesses/seed/__init__.py": "5c35543ca22669f6d122f0ad2a11288ee598b0b762729e033168e84dbe6afcef"
+  },
+  "limits": [
+    "One public synthetic skill case; not upstream compatibility, live ClawHub, or general capability acquisition."
+  ],
+  "verified_source_commit": "400923f43e605c772ab78807a5a6a49c12dda35f",
+  "recorded_at": "2026-10-27T09:55:55.275389+00:00"
+}

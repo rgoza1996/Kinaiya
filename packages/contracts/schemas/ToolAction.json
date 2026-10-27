@@ -17,6 +17,8 @@
         "select_context",
         "mcp_list",
         "mcp_call",
+        "skills_list",
+        "skill_load",
         "finish"
       ],
       "title": "Tool",

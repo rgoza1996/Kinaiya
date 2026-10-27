@@ -207,7 +207,15 @@ class MetaResponsesProvider:
         if self.structured_actions:
             fields = {
                 key: {"type": ["string", "null"]}
-                for key in ("path", "content", "pattern", "command", "summary")
+                for key in (
+                    "path",
+                    "content",
+                    "pattern",
+                    "command",
+                    "summary",
+                    "skill_id",
+                    "resource",
+                )
             }
             fields.update(
                 {
