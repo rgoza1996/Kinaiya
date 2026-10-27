@@ -291,7 +291,11 @@ void main() {
       // Same-backend reconnect invalidates, then the new registry loads.
       final newClient = FakeAgentClient(
         commandsHook: () async => [
-          CommandDef(name: 'status', description: 'new backend registry'),
+          CommandDef(
+            name: 'status',
+            description: 'new backend registry',
+            executionType: 'runtime_control',
+          ),
         ],
       );
       state.connect(profileA(), injected: newClient);
@@ -509,7 +513,13 @@ void main() {
       commandsHook: () async {
         calls++;
         if (calls < 3) throw StateError('synthetic transport cut');
-        return [CommandDef(name: 'status', description: 'recovered')];
+        return [
+          CommandDef(
+            name: 'status',
+            description: 'recovered',
+            executionType: 'runtime_control',
+          ),
+        ];
       },
     );
     final state = AppState();

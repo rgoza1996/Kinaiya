@@ -10,6 +10,8 @@ Kokoro PCM frames queue in sentence order. Browser `onended` permits a played ac
 
 Connection setup imports a user-selected owner-only login file or accepts manual input. The launcher exports that credential to a new mode-0600 file. Credentials remain in memory; HTTP requests reject redirects and service URLs reject userinfo, queries and fragments. Backend-reported cloud inference must match the selected disclosure consent before text/audio can be sent, including via Enter. The indicator labels its timestamped last check rather than claiming continuous health monitoring.
 
+Per-role positive verification and owner controls are specified in [ADR 0014](0014-provider-consent.md). Missing provider metadata cannot inherit the other role's inference permission, and uncertain model switches invalidate the previous grant.
+
 The original mascot artwork is included unchanged with a versioned manifest and procedural state motion. It is a single frame; additional animation poses are unfinished. A skippable book sheet links to the work surface.
 
 ## Verification

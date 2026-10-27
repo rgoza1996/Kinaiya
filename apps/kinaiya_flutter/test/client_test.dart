@@ -75,6 +75,7 @@ MockClient mockTransport({bool commandsMissing = true}) {
                 'name': 'status',
                 'description': 'Show status',
                 'available': true,
+                'execution_type': 'runtime_control',
               },
             ],
           }),

@@ -145,18 +145,47 @@ class _AgentChatState extends State<AgentChat> {
     } catch (_) {}
   }
 
+  bool _isSlash(String text) =>
+      !text.contains('\n') &&
+      !text.contains('\r') &&
+      RegExp(r'^/[a-z][a-z0-9_-]*(?:\s|$)').hasMatch(text);
+
+  /// Submit gate for the Send button: deterministic owner controls stay
+  /// enabled without inference; natural text and skill invocations require
+  /// Agent inference. Unknown registry state fails closed to inference.
+  bool _canSubmitText(String text) {
+    if (text.trim().isEmpty || _s.busyAgent) return false;
+    if (!_s.sessionAuthenticated) return false;
+    if (!_isSlash(text)) return _s.agentCanInfer;
+    final name = text.trim().split(RegExp(r'\s+')).first.substring(1);
+    final registry = _s.commands;
+    if (registry == null) return _s.agentCanInfer;
+    final match = registry.where((c) => c.matches(name)).toList();
+    if (match.isEmpty || !match.first.available) return false;
+    if (match.first.requiresInference) return _s.agentCanInfer;
+    return true;
+  }
+
   Future<void> _send() async {
     final text = _input.text.trim();
     final api = _s.client;
     final generation = _s.connectionGeneration;
-    if (text.isEmpty || api == null || !_s.connected || _s.busyAgent) return;
+    if (text.isEmpty || api == null || _s.busyAgent) return;
     if (!_s.ownsConnection(generation, api)) return;
+    if (!_s.sessionAuthenticated) return;
+    final slash = _isSlash(text);
+    if (!slash && !_s.agentCanInfer) {
+      if (!_s.ownsConnection(generation, api)) return;
+      _s.agentNotice =
+          'Agent inference is not available for the current provider and disclosure consent. Deterministic controls (/status, /stop, /help) still work.';
+      _s.touch();
+      return;
+    }
+    if (slash && !_s.sessionAuthenticated) return;
     _s.busyAgent = true;
     _s.touch();
     try {
-      if (!text.contains('\n') &&
-          !text.contains('\r') &&
-          RegExp(r'^/[a-z][a-z0-9_-]*(?:\s|$)').hasMatch(text)) {
+      if (slash) {
         await _dispatchSlash(api, generation, text);
         return;
       }
@@ -172,8 +201,11 @@ class _AgentChatState extends State<AgentChat> {
         }
       }
       // Recheck after the awaited acquisition: a reconnect must not have
-      // a side effect submitted from a stale session/client.
-      if (!mounted || !_s.ownsConnection(generation, api) || !_s.connected) {
+      // a side effect submitted from a stale session/client. Inference may
+      // also have been revoked (for example by a /model switch).
+      if (!mounted ||
+          !_s.ownsConnection(generation, api) ||
+          !_s.agentCanInfer) {
         return;
       }
       final liveApi = _s.client;
@@ -226,11 +258,13 @@ class _AgentChatState extends State<AgentChat> {
     String text,
   ) async {
     final name = text.split(RegExp(r'\s+')).first.substring(1);
+    if (!_s.sessionAuthenticated) return;
     final registry = _s.commands;
     if (registry == null) {
       if (!_s.ownsConnection(generation, api)) return;
-      _s.agentNotice =
-          'Command registry unavailable ($name was not run). Plain instructions still work.';
+      _s.agentNotice = _s.agentCanInfer
+          ? 'Command registry unavailable ($name was not run). Plain instructions still work.'
+          : 'Command registry unavailable ($name was not run). Agent inference is blocked for the current provider and consent.';
       _s.touch();
       return;
     }
@@ -241,7 +275,18 @@ class _AgentChatState extends State<AgentChat> {
       _s.touch();
       return;
     }
+    // Skill invocations and unknown classes start inference; deterministic
+    // runtime controls run without inference. Never invoke a skill just to
+    // discover it was forbidden.
+    if (match.first.requiresInference && !_s.agentCanInfer) {
+      if (!_s.ownsConnection(generation, api)) return;
+      _s.agentNotice =
+          'Agent inference is not available for the current provider and disclosure consent. Deterministic controls (/status, /stop, /help) still work.';
+      _s.touch();
+      return;
+    }
     try {
+      // No session is created for blocked inference (checked above).
       SessionInfo? session = _s.agentSession;
       if (session == null) {
         try {
@@ -253,7 +298,10 @@ class _AgentChatState extends State<AgentChat> {
       }
       // Recheck after acquisition and re-validate against the live
       // registry: a stale decision must not execute on a new connection.
-      if (!mounted || !_s.ownsConnection(generation, api) || !_s.connected) {
+      // Inference may also have been revoked while awaiting the session.
+      if (!mounted ||
+          !_s.ownsConnection(generation, api) ||
+          !_s.sessionAuthenticated) {
         return;
       }
       final liveRegistry = _s.commands;
@@ -264,8 +312,19 @@ class _AgentChatState extends State<AgentChat> {
         _s.touch();
         return;
       }
+      if (liveMatch.first.requiresInference && !_s.agentCanInfer) {
+        _s.agentNotice =
+            'Agent inference is not available for the current provider and disclosure consent. Deterministic controls (/status, /stop, /help) still work.';
+        _s.touch();
+        return;
+      }
       final liveApi = _s.client;
       if (liveApi == null || !identical(liveApi, api)) return;
+      final hasModelArgs =
+          liveMatch.first.name == 'model' &&
+          text.trim().split(RegExp(r'\s+')).length > 1;
+      // A lost acknowledgment is not proof the old provider remains selected.
+      if (hasModelArgs) _s.invalidateAgentInference();
       final out = await liveApi.executeCommand(
         sessionId: session.sessionId,
         threadId: session.threadId,
@@ -302,6 +361,14 @@ class _AgentChatState extends State<AgentChat> {
       if (_s.ownsConnection(generation, api)) await _refreshTasks();
       if (name == 'resources' && _s.ownsConnection(generation, api)) {
         await _s.refreshResources(force: true);
+      }
+      // `/model` stays deterministic, but a successful profile switch
+      // changes the Agent provider: clear and reverify Agent inference
+      // before accepting more input.
+      if (hasModelArgs &&
+          out?['status'] == 'ok' &&
+          _s.ownsConnection(generation, api)) {
+        await _s.revalidateAgentInference();
       }
     } on ApiException {
       if (!_s.ownsConnection(generation, api)) return;
@@ -343,6 +410,14 @@ class _AgentChatState extends State<AgentChat> {
     final instruction = _steer[task.taskId]?.text.trim() ?? '';
     if (api == null || instruction.isEmpty) return;
     if (!_s.ownsConnection(generation, api)) return;
+    // Steering text starts inference; deterministic stop/approval controls
+    // below deliberately do not require it.
+    if (!_s.agentCanInfer) {
+      _s.agentNotice =
+          'Agent inference is not available for the current provider and disclosure consent. Steering is blocked; /status and /stop still work.';
+      _s.touch();
+      return;
+    }
     try {
       await api.steerTask(
         taskId: task.taskId,
@@ -369,6 +444,9 @@ class _AgentChatState extends State<AgentChat> {
     final generation = _s.connectionGeneration;
     if (api == null) return;
     if (!_s.ownsConnection(generation, api)) return;
+    // Deterministic owner stop: works on authenticated sessions even when
+    // inference is blocked.
+    if (!_s.sessionAuthenticated) return;
     try {
       await api.interruptTask(
         taskId: task.taskId,
@@ -393,6 +471,8 @@ class _AgentChatState extends State<AgentChat> {
     final generation = _s.connectionGeneration;
     if (api == null) return;
     if (!_s.ownsConnection(generation, api)) return;
+    // Deterministic owner approval: works without inference.
+    if (!_s.sessionAuthenticated) return;
     if (approval.isExpired) {
       _s.agentNotice = 'That approval expired and cannot be reused.';
       _s.removeApproval(approval.approvalId);
@@ -498,10 +578,7 @@ class _AgentChatState extends State<AgentChat> {
                 const SizedBox(width: 8),
                 SendMascotButton(
                   label: 'Send task',
-                  enabled:
-                      _s.connected &&
-                      !_s.busyAgent &&
-                      _input.text.trim().isNotEmpty,
+                  enabled: _canSubmitText(_input.text),
                   onPressed: _send,
                 ),
               ],
