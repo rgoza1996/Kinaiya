@@ -433,3 +433,43 @@ async def test_native_agent_can_retrieve_ignored_and_unfinished_windows_on_deman
         assert "Mm-hmm." in received and "Could you actually" in received
     finally:
         await agent.close()
+
+
+async def test_slow_classifier_keeps_one_request_and_latest_pending_window(env):
+    class Agent:
+        async def status(self):
+            return []
+
+    class Classifier:
+        def __init__(self):
+            self.calls = []
+            self.entered, self.release = asyncio.Event(), asyncio.Event()
+
+        async def classify(self, source, *args):
+            self.calls.append(source.event_id)
+            self.entered.set()
+            await self.release.wait()
+            return {
+                "conversation": "WAIT_FOR_NEXT_WINDOW",
+                "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
+            }
+
+    classifier = Classifier()
+    worker = WindowDecisionsWorker(LocalJournal(env.store, "decisions"), Agent(), classifier)
+    first = await window(env, "Could you")
+    await worker.tick()
+    await asyncio.wait_for(classifier.entered.wait(), 1)
+    original = next(iter(worker.jobs.values()))[1]
+    for index in range(1, 8):
+        latest = await window(env, "Could you explain " + "comets " * index, index=index)
+        await worker.tick()
+    assert not original.cancelled() and not original.done()
+    assert len(worker.jobs) == 1 and len(worker.pending) == 1
+    classifier.release.set()
+    await asyncio.gather(original)
+    await worker.tick()
+    await asyncio.gather(*(t for _, t in worker.jobs.values()))
+    assert classifier.calls == [first.event_id, latest.event_id]
+    assert env.store.window_decision(first.event_id) is None
+    assert env.store.window_decision(latest.event_id)
+    await worker.close()

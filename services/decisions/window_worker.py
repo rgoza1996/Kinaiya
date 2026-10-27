@@ -197,7 +197,9 @@ class WindowDecisionsWorker:
                 if old is not None and not old[1].done():
                     if hypothesis(old[0]) == hypothesis(source):
                         continue
-                    old[1].cancel()
+                    # Finish the admitted request and discard a stale result.
+                    # Cancelling HTTP cannot recall remote inference and would
+                    # pile up uncertain reservations on a slow provider.
                 self.pending[key] = source
                 self.pending.move_to_end(key)
                 if len(self.pending) > 32:
@@ -209,11 +211,13 @@ class WindowDecisionsWorker:
             if task.done():
                 await asyncio.gather(task, return_exceptions=True)
                 self.jobs.pop(key, None)
-        while self.pending and len(self.jobs) < self.parallel:
+        for _ in range(len(self.pending)):
+            if len(self.jobs) >= self.parallel:
+                break
             key, source = self.pending.popitem(last=False)
             if key in self.jobs:
                 self.pending[key] = source
-                break
+                continue
             self.jobs[key] = (source, asyncio.create_task(self._job(source)))
         return len(entries)
 

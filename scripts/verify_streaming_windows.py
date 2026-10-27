@@ -184,6 +184,76 @@ class Probe:
 
         return wav(pcm), wav(pcm[: (len(pcm) // 4) // 2 * 2])
 
+    async def burst(self):
+        before = await self.budget()
+        self.session = await self.request(
+            self.args.session_port,
+            "/v1/sessions",
+            {"channel": "converse", "name": "Public slow-provider burst verification"},
+        )
+        utterance = str(uuid.uuid4())
+        sources = []
+        for index in range(8):
+            result = await self.request(
+                self.args.converse_port,
+                "/v1/converse/windows",
+                {
+                    **{k: self.session[k] for k in ("session_id", "thread_id", "epoch")},
+                    "utterance_id": utterance,
+                    "window_index": index,
+                    "revision": 1,
+                    "text": "Kinaiya, could you" + ", actually" * index + "...",
+                    "start_ms": 0,
+                    "end_ms": 1000 + index * 200,
+                    "user_speaking": True,
+                    "content_scope": "public_synthetic",
+                },
+            )
+            sources.append(result["entry"])
+            await asyncio.sleep(0.15)
+
+        async def decision():
+            return await self.request(
+                self.args.session_port,
+                "/v1/transcript/windows/" + sources[-1]["event_id"] + "/decision",
+            )
+
+        latest = await self.wait(decision, lambda d: d is not None, timeout=40)
+        assert latest["payload"]["conversation"] == "WAIT_FOR_NEXT_WINDOW", latest
+        entries = await self.entries()
+        assert len([e for e in entries if e["kind"] == "conversation.window"]) == 8
+        assert not [
+            e
+            for e in entries
+            if e["kind"] == "routing.window_status" and e["payload"]["phase"] == "error"
+        ]
+        tasks = await self.request(self.args.agent_port, "/v1/agent/tasks")
+        assert not [t for t in tasks if t["session_id"] == self.session["session_id"]]
+        self.checks = {
+            "all_burst_windows_retained": 8,
+            "latest_decision": latest["payload"],
+            "classifier_starts": len(
+                [
+                    e
+                    for e in entries
+                    if e["kind"] == "routing.window_status"
+                    and e["payload"]["phase"] == "classifying"
+                ]
+            ),
+            "unnecessary_agent_activations": 0,
+        }
+        return {
+            "source_commit": self.args.source_commit,
+            "mode": "actual-provider-overlapping-hypotheses",
+            "checks": self.checks,
+            "budget_before": before,
+            "budget_after": await self.budget(),
+            "limits": [
+                "Synthetic text hypotheses submitted over HTTP; full audio workflow is verified separately.",
+                "Does not establish low-latency model quality or browser audibility.",
+            ],
+        }
+
     async def run(self):
         before = await self.budget()
         assert before["admission_estimated_usd"] + before["reserved_usd"] < 21.9, (
@@ -384,7 +454,7 @@ async def main(args):
         raise SystemExit("Explicit --allow-billable-public-synthetic required")
     probe = Probe(args, json.loads((args.data_dir / "service-tokens.json").read_text()))
     try:
-        result = await probe.run()
+        result = await (probe.burst() if args.burst_only else probe.run())
         args.output.write_text(json.dumps(result, indent=2) + "\n")
         print(json.dumps(result["checks"]))
     except Exception as exc:
@@ -421,4 +491,5 @@ if __name__ == "__main__":
     parser.add_argument("--voice-url", default="http://127.0.0.1:8765")
     parser.add_argument("--budget-url", default="http://127.0.0.1:9790/budget")
     parser.add_argument("--allow-billable-public-synthetic", action="store_true")
+    parser.add_argument("--burst-only", action="store_true")
     asyncio.run(main(parser.parse_args()))
