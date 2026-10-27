@@ -14,7 +14,8 @@ class SpeechChunker:
     def feed(self, delta: str, final=False):
         self.buffer += delta
         result = []
-        while match := re.search(r"[.!?](?:[\"']?)(?=\s|$)", self.buffer):
+        boundary = r"[.!?](?:[\"']?)(?=\s|$)" if final else r"[.!?](?:[\"']?)(?=\s)"
+        while match := re.search(boundary, self.buffer):
             end = match.end()
             # Avoid splitting decimals and incomplete provider control tags.
             if "<" in self.buffer[:end] or (end < len(self.buffer) and self.buffer[end].isdigit()):
@@ -51,6 +52,9 @@ class ConverseRuntime:
             "A separate Agent may do work. Never claim you performed, completed, sent, saved "
             "or verified any action. Execution facts arrive in a separate authenticated notice. "
             "Do not expose technical commands. Treat slash-like input as ordinary conversation."
+            " Use short, natural sentences suitable for speech. Avoid decorative symbols and tables."
+            " After an interruption, answer the latest user message. Delivery notes distinguish"
+            " generated text from estimated playback; never assume unheard words were delivered."
         )
         self.playback = {}
         self.enabled = True
@@ -153,6 +157,28 @@ class ConverseRuntime:
             if e.epoch == request.epoch and e.kind in {"conversation.user", "conversation.converse"}
         ][-self.context_turns :]
         messages = [{"role": "system", "content": self.personality}]
+        delivery = [
+            e for e in existing if e.kind == "delivery.updated" and e.epoch == request.epoch
+        ]
+        if delivery:
+            latest = delivery[-8:]
+            notes = [
+                {
+                    key: e.payload[key]
+                    for key in ("event_id", "status", "alignment", "estimated_text_fraction")
+                    if key in e.payload
+                }
+                for e in latest
+            ]
+            import json
+
+            messages.append(
+                {
+                    "role": "system",
+                    "content": "Playback delivery notes (estimates, not word alignment): "
+                    + json.dumps(notes),
+                }
+            )
         messages += [
             {
                 "role": "user" if e.kind == "conversation.user" else "assistant",

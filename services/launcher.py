@@ -167,6 +167,7 @@ def serve(args):
         app = create_app(Store(args.data_dir / "journal.sqlite"), auth)
     elif service == "agent":
         from core.policy import ToolPolicy
+        from packages.commands import Registry
         from services.agent import AgentRuntime, create_app
 
         args.workspace.mkdir(parents=True, exist_ok=True)
@@ -197,6 +198,14 @@ def serve(args):
             protected_roots=protected,
         )
         runtime = AgentRuntime(journal, provider(config, "agent"), args.workspace, policy)
+        owner_journal = JournalClient(config["session_url"], tokens["owner"])
+        profiles = {
+            name: (lambda profile=profile: provider({"providers": {"agent": profile}}, "agent"))
+            for name, profile in config.get("agent_profiles", {}).items()
+        }
+        commands = Registry(
+            runtime, owner_journal, path=args.data_dir / "commands.sqlite", profiles=profiles
+        )
 
         @asynccontextmanager
         async def agent_lifespan(app):
@@ -212,8 +221,10 @@ def serve(args):
             yield
             await runtime.close()
             await journal.close()
+            await owner_journal.close()
+            commands.close()
 
-        app = create_app(runtime, auth)
+        app = create_app(runtime, auth, commands)
         app.router.lifespan_context = agent_lifespan
     elif service == "converse":
         from packages.providers.speech import SpeechClient
@@ -275,11 +286,28 @@ async def direct_agent(args):
         )
         response.raise_for_status()
         session = response.json()
+        from packages.commands import parse
+
+        if parse(args.objective) is not None:
+            response = await http.post(
+                config["agent_url"] + "/v1/commands/execute",
+                json={
+                    "schema_version": "1.0",
+                    **{k: session[k] for k in ("session_id", "thread_id", "epoch")},
+                    "input": args.objective,
+                    "idempotency_key": new_id(),
+                },
+            )
+            response.raise_for_status()
+            result = response.json()
+            print(json.dumps(result, indent=2))
+            return 0 if result["status"] == "ok" else 1
+        objective = args.objective[1:] if args.objective.startswith("\\/") else args.objective
         request = TaskRequest(
             session_id=session["session_id"],
             thread_id=session["thread_id"],
             epoch=session["epoch"],
-            objective=args.objective,
+            objective=objective,
             idempotency_key=new_id(),
         )
         response = await http.post(

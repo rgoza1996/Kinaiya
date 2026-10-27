@@ -50,3 +50,15 @@ Cloud disclosure, raw-audio retention and unsupported provider profiles stay exp
 Reproduce with `scripts/live_slice.py` against configured running services and an
 empty dedicated synthetic workspace. It requires `--allow-paid-inference` and forces
 Meta traffic through the run-local admission proxy. Default CI never spends inference.
+
+## Prototype conversation behavior retained by the rewrite
+
+The lead compared Kinaiya-Converse's live controller, adaptive VAD, partial-window queue, recorder, interruption handling, playback scheduler, history and response service. These are behavior references, rather than a wholesale port of its shared frontend state. Useful behavior includes user-armed continuous listening, adaptive speech/silence thresholds, minimum speech duration, endpoint silence, independently decodable partial recordings, draining or superseding partial work, sustained barge-in detection, stopping every scheduled audio source, and allowing a reply to an interruption to be interrupted again. Old asynchronous cleanup must never reset a newer turn's capture or speech state.
+
+The rewrite uses session-scoped journal provenance and playback generations. Generated text, scheduled audio, estimated playback and verified task completion remain distinct. Playback notes inform subsequent conversational context without inventing exact word alignment. Sentence chunking waits for a disambiguating boundary so a decimal split across provider deltas is preserved. The Flutter workstream must verify actual local playback completion and live capture independently; the backend voice probe alone does not prove a physical microphone, audible delivery or full prototype parity.
+
+## Direct Agent controls
+
+`packages.commands.Registry` supplies one deterministic owner-only registry to Agent HTTP and CLI. Help, factual status, stop, configured model selection, permissions, temporary YOLO grants, sessions, history and client-view clearing do not invoke Converse, Decisions or a model. Dispatch requires a current Agent session, journals provenance, and persists transport idempotency in the protected data directory. An interrupted dispatch remains uncertain and is never silently replayed. Model changes require no active tasks and can select only owner-configured profiles; YOLO preserves workspace/core boundaries. Built-in command parsing is absent from Converse.
+
+This is the initial command foundation. Dynamic skills, MCP lifecycle, plugin commands, user aliases and the interactive CLI session picker are still separate M1A/M4A work; the registry does not advertise them as installed capabilities.

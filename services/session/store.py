@@ -297,6 +297,16 @@ class LocalJournal:
     async def session(self, session_id):
         return self.store.session(session_id)
 
+    async def sessions(self):
+        if self.role != "owner":
+            raise PermissionError("Listing sessions requires owner")
+        return self.store.sessions()
+
+    async def create_session(self, request):
+        if self.role != "owner":
+            raise PermissionError("Creating sessions requires owner")
+        return self.store.create_session(request)
+
     async def resolve(self, event_id):
         return self.store.resolve(event_id)
 

@@ -17,8 +17,10 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from core.policy import ApprovalError, PolicyDenied
+from packages.commands import Registry
 from packages.contracts.models import (
     ApprovalResolution,
+    CommandRequest,
     InterruptRequest,
     SteerRequest,
     TaskRequest,
@@ -32,7 +34,7 @@ from services.agent.runtime import (
 )
 
 
-def create_app(runtime: AgentRuntime, auth: Any) -> FastAPI:
+def create_app(runtime: AgentRuntime, auth: Any, commands=None) -> FastAPI:
     if auth is None or not hasattr(auth, "require"):
         raise RuntimeError(
             "seed Agent HTTP requires a configured Auth; "
@@ -40,6 +42,7 @@ def create_app(runtime: AgentRuntime, auth: Any) -> FastAPI:
         )
     require_owner = auth.require("owner")
     require_actor = auth.require("owner", "decisions")
+    commands = commands or Registry(runtime)
 
     app = FastAPI(title="Kinaiya Seed Agent", version="0.1.0")
     app.add_middleware(
@@ -127,6 +130,17 @@ def create_app(runtime: AgentRuntime, auth: Any) -> FastAPI:
     ) -> Any:
         try:
             return await runtime.resolve_approval(approval_id, body, actor=actor)
+        except Exception as exc:
+            raise _http(exc) from exc
+
+    @app.get("/v1/commands", dependencies=[Depends(require_owner)])
+    async def command_definitions():
+        return commands.definitions()
+
+    @app.post("/v1/commands/execute")
+    async def command_execute(body: CommandRequest, actor: str = Depends(require_owner)):
+        try:
+            return await commands.execute(body, actor)
         except Exception as exc:
             raise _http(exc) from exc
 

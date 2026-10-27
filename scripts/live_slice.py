@@ -163,7 +163,8 @@ class Probe:
             "transport_replay_deduplicated": True,
         }
         # This is our synthetic fixture's owned artifact, never an arbitrary user file.
-        (self.args.workspace / "proof").unlink()
+        if iteration == 1:
+            (self.args.workspace / "proof").unlink()
         return report
 
     async def steer_case(self):
@@ -249,6 +250,9 @@ async def run(args):
     for profile in config["providers"].values():
         if profile.get("kind") == "meta" and profile["base_url"] != "http://127.0.0.1:9790/v1":
             raise SystemExit("Meta test calls must use the run-local budget proxy")
+    for name in ("proof", "stale.txt", "steered.txt", "direct.txt"):
+        if (args.workspace / name).exists():
+            raise SystemExit(f"Use a fresh synthetic workspace; {name} already exists")
     tokens = json.loads((args.data_dir / "service-tokens.json").read_text())
     speech = SpeechClient(config["voice"]["url"], tokens["converse"])
     probe = Probe(args, tokens["owner"])

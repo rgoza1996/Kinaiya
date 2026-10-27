@@ -244,3 +244,13 @@ async def test_task_finishing_during_classification_does_not_deadlock_router(con
     assert store.cursor("decisions", worker.consumer) >= source.sequence
     rejected = store.read(kinds=["routing.dispatch"])
     assert len(rejected) == 1 and rejected[0].payload["state"] == "rejected"
+
+
+def test_streamed_decimal_boundary_waits_for_disambiguation():
+    from services.converse.runtime import SpeechChunker
+
+    chunker = SpeechChunker()
+    assert chunker.feed("Pi is 3.") == []
+    assert chunker.feed("14. Next sentence! ") == ["Pi is 3.14.", "Next sentence!"]
+    assert chunker.feed("Done.") == []
+    assert chunker.feed("", final=True) == ["Done."]
