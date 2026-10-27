@@ -213,8 +213,39 @@ def serve(args):
                     "evaluation_model_calls": 0,
                 },
             )
+        mcp_host = None
+        mcp_entries = config.get("mcp_servers", [])
+        if mcp_entries:
+            # Optional MCP host activates only with explicit owner-authored
+            # server configs. The module import stays lazy so the Agent runs
+            # without the MCP dependency when nothing is configured.
+            from packages.ecosystem.mcp_host import MCPConfig, MCPHost
+
+            if not isinstance(mcp_entries, list):
+                raise SystemExit("mcp_servers must be a list of owner-authored server configs")
+            try:
+                mcp_configs = [MCPConfig(**entry) for entry in mcp_entries]
+            except Exception as exc:
+                raise SystemExit(f"Invalid mcp_servers configuration: {exc}") from exc
+
+            def _mcp_secret(ref: str) -> str | None:
+                # Secrets resolve only from env:NAME references against the
+                # process environment. Never arbitrary files, Muse helpers,
+                # or model-provided values.
+                if isinstance(ref, str) and ref.startswith("env:"):
+                    name = ref[len("env:") :]
+                    if name:
+                        return os.environ.get(name)
+                return None
+
+            mcp_host = MCPHost(mcp_configs, policy, secret_resolver=_mcp_secret)
         runtime = AgentRuntime(
-            journal, provider(config, "agent"), args.workspace, policy, selector_registry=selector
+            journal,
+            provider(config, "agent"),
+            args.workspace,
+            policy,
+            selector_registry=selector,
+            mcp_host=mcp_host,
         )
         owner_journal = JournalClient(config["session_url"], tokens["owner"])
         profiles = {

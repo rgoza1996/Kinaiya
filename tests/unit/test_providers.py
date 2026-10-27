@@ -75,3 +75,66 @@ def test_local_only_never_silently_discloses_to_cloud():
         MetaResponsesProvider(api_key="synthetic-key", allow_cloud=False)
     with pytest.raises(ProviderError, match="HTTPS"):
         CompatibleTextProvider("http://cloud.invalid/v1", "synthetic", allow_cloud=True)
+
+
+@pytest.mark.parametrize("encoded", ['{"path":"proof","content":"public"}', "[]", "{bad"])
+async def test_meta_mcp_actions_decode_from_strict_schema_fields(encoded):
+    observed = []
+
+    def respond(request):
+        observed.append(json.loads(request.content))
+        return httpx.Response(
+            200,
+            json={
+                "status": "completed",
+                "output": [
+                    {
+                        "type": "message",
+                        "phase": "final_answer",
+                        "content": [
+                            {
+                                "type": "output_text",
+                                "text": json.dumps(
+                                    {
+                                        "tool": "mcp_call",
+                                        "arguments": {
+                                            "server_id": "synth",
+                                            "mcp_tool": "write_text",
+                                            "mcp_arguments_json": encoded,
+                                            "path": None,
+                                        },
+                                    }
+                                ),
+                            }
+                        ],
+                    }
+                ],
+            },
+        )
+
+    provider = MetaResponsesProvider(
+        api_key="synthetic-key",
+        allow_cloud=True,
+        structured_actions=True,
+        transport=httpx.MockTransport(respond),
+    )
+    try:
+        if encoded.startswith('{"path"'):
+            result = json.loads(
+                await provider.complete([{"role": "user", "content": "public synthetic fixture"}])
+            )
+            assert result["arguments"] == {
+                "server_id": "synth",
+                "tool": "write_text",
+                "arguments": {"path": "proof", "content": "public"},
+            }
+            fields = observed[0]["text"]["format"]["schema"]["properties"]["arguments"][
+                "properties"
+            ]
+            assert {"server_id", "mcp_tool", "mcp_arguments_json"} <= fields.keys()
+            assert "wire serialization" in observed[0]["input"][0]["content"]
+        else:
+            with pytest.raises(ProviderError, match="MCP arguments"):
+                await provider.complete([{"role": "user", "content": "public synthetic fixture"}])
+    finally:
+        await provider.close()

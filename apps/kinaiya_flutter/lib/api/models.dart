@@ -166,8 +166,32 @@ class AgentTask {
 
   bool get isTerminal => terminalStates.contains(state);
 
-  /// Grounded success: authoritative succeeded state with evidence.
-  bool get isGroundedSuccess => state == 'succeeded' && evidence.isNotEmpty;
+  /// Grounded success: authoritative succeeded state with independent
+  /// native evidence at the current objective revision. An `external` MCP
+  /// call receipt proves a response arrived, never a verified side effect,
+  /// so external-only evidence is never grounded success.
+  bool get isGroundedSuccess {
+    final current = evidence.where(
+      (e) => e.objectiveRevision == objectiveRevision,
+    );
+    final native = current.where((e) => e.kind != 'external');
+    final independent = native.any(
+      (e) =>
+          {'file', 'command', 'test'}.contains(e.kind) ||
+          (e.kind == 'read' && e.path != null && e.sha256 != null),
+    );
+    return state == 'succeeded' &&
+        remainingRequiredWork.isEmpty &&
+        native.isNotEmpty &&
+        (!current.any((e) => e.kind == 'external') || independent);
+  }
+
+  bool get hasUnverifiedExternalOnly =>
+      state == 'succeeded' &&
+      evidence.any(
+        (e) => e.kind == 'external' && e.objectiveRevision == objectiveRevision,
+      ) &&
+      !isGroundedSuccess;
 }
 
 class Evidence {
@@ -183,7 +207,15 @@ class Evidence {
 
   factory Evidence.fromJson(Map<String, Object?> json) {
     checkSchemaVersion(json, 'Evidence');
-    const kinds = {'file', 'command', 'read', 'search', 'test', 'extension'};
+    const kinds = {
+      'file',
+      'command',
+      'read',
+      'search',
+      'test',
+      'extension',
+      'external',
+    };
     final kind = json['kind'] as String? ?? '';
     if (!kinds.contains(kind)) {
       throw FormatException('Unknown evidence kind: $kind');

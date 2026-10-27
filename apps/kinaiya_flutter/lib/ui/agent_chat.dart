@@ -408,9 +408,12 @@ class _AgentChatState extends State<AgentChat> {
                 style: TextStyle(color: Colors.green),
               ),
             if (task.state == 'succeeded' && !grounded)
-              const Text(
-                'Finished without evidence; not shown as proven success.',
-                style: TextStyle(color: Colors.orange),
+              Text(
+                task.hasUnverifiedExternalOnly
+                    ? 'Finished with an unverified external receipt only; '
+                          'response received, side effects not proven.'
+                    : 'Finished without independent completion evidence.',
+                style: const TextStyle(color: Colors.orange),
               ),
             if (task.summary.isNotEmpty) Text(task.summary),
             for (final e in task.evidence)
@@ -418,6 +421,7 @@ class _AgentChatState extends State<AgentChat> {
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(
                   '${e.kind}: ${e.summary}'
+                  '${e.kind == 'external' ? ' (unverified receipt)' : ''}'
                   '${e.path != null ? ' @ ${e.path}' : ''}'
                   '${e.sha256 != null ? ' sha256:${e.sha256!.substring(0, e.sha256!.length.clamp(0, 12))}' : ''}'
                   '${e.exitCode != null ? ' exit:${e.exitCode}' : ''}',

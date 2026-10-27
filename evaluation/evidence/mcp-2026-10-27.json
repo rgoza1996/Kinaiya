@@ -1,0 +1,120 @@
+{
+  "schema_version": "1.0",
+  "test_kind": "Real Contributor inference plus real bubblewrap stdio MCP and native verification",
+  "failed_attempts": [
+    {
+      "task_id": "a0895ebe-ad3d-472f-bb6e-a35899974064",
+      "state": "failed",
+      "error": "stale finish revision None; current is 1",
+      "objective": "Use the configured synth MCP server. Inspect its write_text schema with mcp_list. Call write_text exactly once to write mcp-live.txt containing exactly public synthetic MCP proof. Then use native read_file on mcp-live.txt to verify the result and finish. Do not use write_file or shell, and do not read the server source.",
+      "evidence": [
+        {
+          "schema_version": "1.0",
+          "evidence_id": "e6382c7a-b27b-46e4-b34b-0d0fc37f4d19",
+          "kind": "read",
+          "summary": "MCP metadata page (does not verify external effects)",
+          "path": null,
+          "sha256": "1b7a47396996eebc2776af90882cf06c6f2650919f5a6de7545fb034ca9628c2",
+          "exit_code": null,
+          "output": "{\"next_after\":null,\"servers\":[{\"allowed_tools\":[\"write_text\"],\"enabled\":true,\"id\":\"synth\",\"more_allowed_tools\":false}]}",
+          "objective_revision": 1
+        },
+        {
+          "schema_version": "1.0",
+          "evidence_id": "d058652f-c98c-40d2-9f57-485128124fa1",
+          "kind": "read",
+          "summary": "MCP metadata page (does not verify external effects)",
+          "path": null,
+          "sha256": "1b7a47396996eebc2776af90882cf06c6f2650919f5a6de7545fb034ca9628c2",
+          "exit_code": null,
+          "output": "{\"next_after\":null,\"servers\":[{\"allowed_tools\":[\"write_text\"],\"enabled\":true,\"id\":\"synth\",\"more_allowed_tools\":false}]}",
+          "objective_revision": 1
+        }
+      ],
+      "synthetic_only": true,
+      "mcp_calls": [],
+      "artifact_created": false,
+      "finding": "Meta strict action schema lacked MCP argument fields; no tool transport call occurred.",
+      "source_sha256": {
+        "packages/providers/text.py": "393e52006a978cd59e1301e9bf620c781a163539cae3ae563621bf11d777f5e2",
+        "services/agent/runtime.py": "517aaf32278ed5b0cf885048276b38d9988896c3fb80409f67124158109a1445",
+        "services/agent/mcp_tools.py": "d36fc33cc3edf4c73541aca903dade1784b44fedd301afb464dd612db07c15be"
+      }
+    },
+    {
+      "provider": "muse-spark-1.3-contributor",
+      "synthetic_only": true,
+      "task_id": "0c6e0abd-a749-482f-8ebe-658818ad5ebf",
+      "state": "failed",
+      "summary": "",
+      "error": "stale finish revision None; current is 1",
+      "mcp_calls": [],
+      "owner_approvals": 0,
+      "artifact_sha256": null,
+      "evidence": [
+        {
+          "kind": "read",
+          "sha256": "3499031d73d96034294e8cf2114cecc6a7828818bd38e81d3d2d6c78402eb403",
+          "objective_revision": 1
+        }
+      ],
+      "source_sha256": {
+        "services/agent/runtime.py": "517aaf32278ed5b0cf885048276b38d9988896c3fb80409f67124158109a1445",
+        "services/agent/mcp_tools.py": "d36fc33cc3edf4c73541aca903dade1784b44fedd301afb464dd612db07c15be",
+        "packages/ecosystem/mcp_host.py": "f9f5a078554810fc94c24340ab80b33535e5c3cccd4d668835950083b1c9c6b8",
+        "packages/contracts/models.py": "4bfe7c2e95a909cd075bfcb329e14610baed458fd1af284d3310920a707769c9",
+        "harnesses/seed/__init__.py": "56ba4df181997933382536e108cd91ca24fae189f230cf0ecf52004d1c012f0c",
+        "packages/providers/text.py": "cacaad935f7c3b1d2e02360488d045159d893966e03101e8a416aeabe145f62a"
+      },
+      "limits": [
+        "One public/synthetic case, not general MCP conformance or remote-effect proof."
+      ]
+    }
+  ],
+  "passed_attempt": {
+    "provider": "muse-spark-1.3-contributor",
+    "synthetic_only": true,
+    "task_id": "39a6c531-b9df-4251-ac01-7eda65e1d51b",
+    "state": "succeeded",
+    "summary": "Inspected write_text schema, called write_text once to create mcp-live.txt with exact content, verified via read_file.",
+    "error": null,
+    "mcp_calls": [
+      {
+        "event": "call",
+        "tool": "write_text"
+      }
+    ],
+    "owner_approvals": 1,
+    "artifact_sha256": "3f45235c6453d75d78f54f00ebeb53fbdac119603bccc84ea91cc43b2d475c59",
+    "evidence": [
+      {
+        "kind": "read",
+        "sha256": "3499031d73d96034294e8cf2114cecc6a7828818bd38e81d3d2d6c78402eb403",
+        "objective_revision": 1
+      },
+      {
+        "kind": "external",
+        "sha256": "7051762f1f3183976e245205cbc49b03547bd6eb25158f81fc2f224007983c79",
+        "objective_revision": 1
+      },
+      {
+        "kind": "read",
+        "sha256": "3f45235c6453d75d78f54f00ebeb53fbdac119603bccc84ea91cc43b2d475c59",
+        "objective_revision": 1
+      }
+    ],
+    "source_sha256": {
+      "services/agent/runtime.py": "517aaf32278ed5b0cf885048276b38d9988896c3fb80409f67124158109a1445",
+      "services/agent/mcp_tools.py": "d36fc33cc3edf4c73541aca903dade1784b44fedd301afb464dd612db07c15be",
+      "packages/ecosystem/mcp_host.py": "f9f5a078554810fc94c24340ab80b33535e5c3cccd4d668835950083b1c9c6b8",
+      "packages/contracts/models.py": "4bfe7c2e95a909cd075bfcb329e14610baed458fd1af284d3310920a707769c9",
+      "harnesses/seed/__init__.py": "56ba4df181997933382536e108cd91ca24fae189f230cf0ecf52004d1c012f0c",
+      "packages/providers/text.py": "4c0d85c90ddb9488e6e25adbac3f31f0ea1c07b3ea3771808be32a0a4d0df730"
+    },
+    "limits": [
+      "One public/synthetic case, not general MCP conformance or remote-effect proof."
+    ]
+  },
+  "interpretation": "The MCP receipt proves the tool returned. The independent native read/hash proves the requested local file contents. No general remote-side-effect verification or MCP conformance claim.",
+  "inference_wire_repair": "Meta strict response serialization now supports MCP argument JSON and converts assistant history to the same wire representation. Prior runs failed honestly before any tool call."
+}

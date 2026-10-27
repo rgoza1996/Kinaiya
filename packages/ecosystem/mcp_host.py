@@ -183,6 +183,9 @@ class MCPConfig(BaseModel):
     env_secret_refs: dict[str, str] = Field(default_factory=dict)
     header_secret_refs: dict[str, str] = Field(default_factory=dict)
     allow_remote: bool = False
+    content_scope: Literal["local_only", "public_synthetic", "private_cloud_authorized"] = (
+        "local_only"
+    )
     timeout_seconds: float = Field(default=10.0, ge=1.0, le=120.0)
     max_result_chars: int = Field(default=16000, ge=1024, le=262144)
 
@@ -751,6 +754,7 @@ class _ServerActor:
         secrets: list[str] = []
         stderr_holder: list[bytes] = [b""]
         fatal: list[MCPError] = []
+        connection_grants: tuple[bool, bool] | None = None
         config = self.config
 
         def current_secrets() -> list[str]:
@@ -761,8 +765,9 @@ class _ServerActor:
             return list(fatal)
 
         async def reset() -> None:
-            nonlocal session, schemas, secrets, stderr_holder, fatal, stack
+            nonlocal session, schemas, secrets, stderr_holder, fatal, stack, connection_grants
             session = None
+            connection_grants = None
             schemas = {}
             # Retain the previous connection secrets until error formatting has
             # finished. ensure() replaces them before the next connection.
@@ -773,7 +778,14 @@ class _ServerActor:
             await old.aclose()
 
         async def ensure() -> ClientSession:
-            nonlocal session, secrets, stderr_holder, fatal
+            nonlocal session, secrets, stderr_holder, fatal, connection_grants
+            current_grants = (self._policy.effective_shell, self._policy.network)
+            if session is not None and connection_grants != current_grants:
+                await reset()
+            if config.transport == "stdio" and not self._policy.effective_shell:
+                raise PolicyDenied("MCP stdio requires the shell grant")
+            if config.transport == "http" and not self._policy.network:
+                raise PolicyDenied("MCP HTTP requires the network grant")
             if session is not None:
                 return session
             resolved: dict[str, str] = {}
@@ -860,6 +872,7 @@ class _ServerActor:
                     ) from None
                 raise
             session = sess
+            connection_grants = current_grants
             return sess
 
         async def do_discover(fut: asyncio.Future) -> None:
@@ -1086,6 +1099,9 @@ class _ServerActor:
                     )
                 return
             try:
+                if connection_grants != (self._policy.effective_shell, self._policy.network):
+                    await reset()
+                    raise PolicyDenied("MCP transport grants changed before dispatch")
                 result = await asyncio.wait_for(
                     sess.call_tool(
                         tool,
@@ -1299,6 +1315,15 @@ class MCPHost:
             self._configs = fresh
             self._closed = False
 
+    async def reset_connections(self, *, actor: str) -> None:
+        """Apply an owner permission change by retiring live transports first."""
+        if actor != "owner":
+            raise PolicyDenied("MCP connection reset requires owner authority")
+        async with self._host_lock:
+            for server_actor in self._actors.values():
+                await server_actor.stop()
+            self._actors = {}
+
     def list_servers(self) -> list[dict[str, Any]]:
         """Metadata only: never secret values, never credentials."""
         out = []
@@ -1312,6 +1337,8 @@ class MCPHost:
                     "endpoint": config.sanitized_endpoint(),
                     "timeout_seconds": config.timeout_seconds,
                     "allow_remote": config.allow_remote,
+                    "content_scope": config.content_scope,
+                    "credentialed": bool(config.env_secret_refs or config.header_secret_refs),
                     "secret_refs": sorted([*config.env_secret_refs, *config.header_secret_refs]),
                 }
             )

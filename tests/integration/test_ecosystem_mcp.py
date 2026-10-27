@@ -762,3 +762,21 @@ async def test_nul_secret_cannot_inject_bwrap_args(tmp_path, spawned):
         assert not spawned
     finally:
         await host.close()
+
+
+async def test_revocation_drops_live_stdio_before_another_call(tmp_path, spawned):
+    if not _sandbox_ok(tmp_path):
+        pytest.skip("Real bubblewrap unavailable")
+    _write_server(tmp_path)
+    policy = ToolPolicy(tmp_path, allow_shell=True)
+    host = MCPHost([_cfg(tmp_path)], policy)
+    try:
+        await host.discover("synth")
+        assert any(process.returncode is None for process, _ in spawned)
+        policy.set_permissions(actor="owner", allow_shell=False)
+        with pytest.raises(PolicyDenied, match="shell grant"):
+            await host.call("synth", "echo", {"text": "revoked"})
+        assert all(process.returncode is not None for process, _ in spawned)
+        assert not _calls(tmp_path)
+    finally:
+        await host.close()
