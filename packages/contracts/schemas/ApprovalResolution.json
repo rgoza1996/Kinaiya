@@ -1,0 +1,31 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "approved": {
+      "title": "Approved",
+      "type": "boolean"
+    },
+    "action_digest": {
+      "title": "Action Digest",
+      "type": "string"
+    },
+    "objective_revision": {
+      "minimum": 1,
+      "title": "Objective Revision",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "approved",
+    "action_digest",
+    "objective_revision"
+  ],
+  "title": "ApprovalResolution",
+  "type": "object"
+}

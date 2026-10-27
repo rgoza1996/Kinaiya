@@ -1,0 +1,63 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "event_id": {
+      "title": "Event Id",
+      "type": "string"
+    },
+    "generation_epoch": {
+      "minimum": 1,
+      "title": "Generation Epoch",
+      "type": "integer"
+    },
+    "chunk_id": {
+      "title": "Chunk Id",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "generated",
+        "playing",
+        "played",
+        "interrupted",
+        "delivery_unknown"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "played_seconds": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Played Seconds",
+      "type": "number"
+    },
+    "estimated_text_fraction": {
+      "anyOf": [
+        {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Estimated Text Fraction"
+    }
+  },
+  "required": [
+    "event_id",
+    "generation_epoch",
+    "chunk_id",
+    "status"
+  ],
+  "title": "DeliveryRequest",
+  "type": "object"
+}

@@ -1,0 +1,32 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "tool": {
+      "enum": [
+        "read_file",
+        "write_file",
+        "search",
+        "shell",
+        "finish"
+      ],
+      "title": "Tool",
+      "type": "string"
+    },
+    "arguments": {
+      "additionalProperties": true,
+      "title": "Arguments",
+      "type": "object"
+    }
+  },
+  "required": [
+    "tool"
+  ],
+  "title": "ToolAction",
+  "type": "object"
+}

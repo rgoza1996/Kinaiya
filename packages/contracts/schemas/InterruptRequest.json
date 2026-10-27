@@ -1,0 +1,34 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "expected_objective_revision": {
+      "minimum": 1,
+      "title": "Expected Objective Revision",
+      "type": "integer"
+    },
+    "idempotency_key": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Idempotency Key",
+      "type": "string"
+    },
+    "reason": {
+      "default": "User requested cancellation",
+      "maxLength": 2000,
+      "title": "Reason",
+      "type": "string"
+    }
+  },
+  "required": [
+    "expected_objective_revision",
+    "idempotency_key"
+  ],
+  "title": "InterruptRequest",
+  "type": "object"
+}

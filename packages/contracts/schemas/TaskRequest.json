@@ -1,0 +1,59 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "session_id": {
+      "title": "Session Id",
+      "type": "string"
+    },
+    "thread_id": {
+      "title": "Thread Id",
+      "type": "string"
+    },
+    "epoch": {
+      "minimum": 1,
+      "title": "Epoch",
+      "type": "integer"
+    },
+    "objective": {
+      "maxLength": 16000,
+      "minLength": 1,
+      "title": "Objective",
+      "type": "string"
+    },
+    "idempotency_key": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Idempotency Key",
+      "type": "string"
+    },
+    "source_event_ids": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 32,
+      "title": "Source Event Ids",
+      "type": "array"
+    },
+    "source_revision": {
+      "default": 1,
+      "minimum": 1,
+      "title": "Source Revision",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "session_id",
+    "thread_id",
+    "epoch",
+    "objective",
+    "idempotency_key"
+  ],
+  "title": "TaskRequest",
+  "type": "object"
+}
