@@ -81,6 +81,31 @@ native Agent file execution and cancellation, disclosure and UI capture/playback
 Synthetic providers in these tests do not establish model classification quality.
 Real-provider evidence is recorded separately with its exact source revision.
 
+[Two actual-provider runs](../../evaluation/evidence/streaming-windows-2026-10-27.json)
+exercise the five examples, retained partial/full/opening STT snapshots, native
+revision-2 steering and cancellation, genuine queue boundaries, real file writes
+and an authoritative completion notice. Each retained seven windows and activated
+no Agent for backchannel/unfinished speech. The final runtime source is
+`059064e149e803194293f02da605fbcbc7f3d0f9`; subsequent changes add verification
+and evidence only. Classification prompts used 1,541–2,260 characters, with
+61–263 history characters in the repeated run; tasks received source references.
+
+The repeated Contributor development run classified windows in 2.56–3.96 seconds.
+Native text-to-reply publication was 7.81 seconds for the interrupting reply and
+12.44 seconds for the queued-work reply, including its opening hold. Kokoro HTTP
+first PCM was 393/509 ms across the two runs. These are distinct measurements;
+first PCM is not end-to-end or audible TTFA. The synthetic HTTP adapter declared
+one-second capture intervals, so these runs do not benchmark acoustic endpoint
+timing or PCM capture duration. Browser encoding/duration is checked separately.
+The roadmap's real-time target and broader M3 acceptance remain open.
+
+The initial failed provider attempt and a startup preflight failure remain in the
+evidence. Conservative admission permitted two concurrent full-context
+reservations near the end of the run; the cap was preserved. The probe waits for
+the previous native steering/approval boundary before its next example. Reported
+token estimates are not billing receipts, and retained uncertain reservations
+are not removed to create spending headroom.
+
 This is an experimental Linux/web implementation. Browser AudioWorklet has a
 ScriptProcessor fallback where available; unsupported audio capture fails
 explicitly. Classification timeout and bounded concurrency are operational

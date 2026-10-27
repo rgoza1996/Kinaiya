@@ -387,3 +387,49 @@ async def test_budget_refusal_is_visible_and_never_retried(env):
 async def test_classification_timeout_config_is_explicitly_bounded(env, timeout):
     with pytest.raises(ValueError, match="timeout"):
         WindowDecisionsWorker(LocalJournal(env.store, "decisions"), None, None, timeout=timeout)
+
+
+async def test_native_agent_can_retrieve_ignored_and_unfinished_windows_on_demand(env, tmp_path):
+    import json
+
+    ignored = await window(env, "Mm-hmm.", utterance="ignored")
+    unfinished = await window(env, "Could you actually", utterance="unfinished")
+    decide(env, ignored, "IGNORE")
+    decide(env, unfinished, "WAIT_FOR_NEXT_WINDOW")
+    provider = ScriptedProvider(
+        [
+            json.dumps(
+                {
+                    "tool": "read_transcript",
+                    "arguments": {"event_ids": [ignored.event_id, unfinished.event_id]},
+                }
+            ),
+            json.dumps(
+                {
+                    "tool": "finish",
+                    "arguments": {
+                        "summary": "Read retained transcript windows.",
+                        "objective_revision": 1,
+                    },
+                }
+            ),
+        ]
+    )
+    agent = AgentRuntime(LocalJournal(env.store, "agent"), provider, tmp_path, ToolPolicy(tmp_path))
+    try:
+        task = await agent.submit(
+            TaskRequest(
+                session_id=env.session.session_id,
+                thread_id=env.session.thread_id,
+                epoch=1,
+                objective="Read the ignored and unfinished transcript windows.",
+                idempotency_key="retrieve-windows",
+            )
+        )
+        final = await agent.wait(task.task_id)
+        assert final.state == "succeeded", final.error
+        assert final.evidence[0].kind == "read"
+        received = json.dumps(provider.calls[1])
+        assert "Mm-hmm." in received and "Could you actually" in received
+    finally:
+        await agent.close()

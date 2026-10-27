@@ -1,0 +1,459 @@
+{
+  "status": "two_successful_actual_provider_runs",
+  "primary": {
+    "source_commit": "059064e149e803194293f02da605fbcbc7f3d0f9",
+    "providers": {
+      "agent": {
+        "schema_version": "1.0",
+        "provider": "meta",
+        "model": "muse-spark-1.3-contributor",
+        "local": false,
+        "streaming": true
+      },
+      "converse": {
+        "schema_version": "1.0",
+        "provider": "meta",
+        "model": "muse-spark-1.3-contributor",
+        "local": false,
+        "streaming": true
+      },
+      "decisions": {
+        "schema_version": "1.0",
+        "provider": "meta",
+        "model": "muse-spark-1.3-contributor",
+        "local": false,
+        "streaming": true
+      }
+    },
+    "windows": [
+      {
+        "case": "backchannel",
+        "source_event_id": "f5fdd6d9-a60d-4f57-b775-d4d0df3ff58b",
+        "utterance_id": "b48a37a7-21fc-404b-a412-1028c700e547",
+        "window_index": 0,
+        "recognized_text": "Mm-hmm.",
+        "conversation": "IGNORE",
+        "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
+        "classifier_ms": 3498.456974994042,
+        "decision_wall_ms": 3689.35965601122,
+        "stt_ms": null,
+        "prompt_chars": 1541,
+        "history_chars": 61,
+        "context_entries": 1,
+        "classification_reused": false
+      },
+      {
+        "case": "unfinished",
+        "source_event_id": "72429bb2-25f3-45ea-bb8c-188e933a6d6c",
+        "utterance_id": "5e9035bb-1ec5-47dc-be76-fb61c796baf5",
+        "window_index": 0,
+        "recognized_text": "Kinaiya, could you... actually...",
+        "conversation": "WAIT_FOR_NEXT_WINDOW",
+        "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
+        "classifier_ms": 3110.976660012966,
+        "decision_wall_ms": 3268.1611590087414,
+        "stt_ms": null,
+        "prompt_chars": 1619,
+        "history_chars": 68,
+        "context_entries": 2,
+        "classification_reused": false
+      },
+      {
+        "case": "steer",
+        "source_event_id": "345e168c-31a3-45fc-af00-ce849efa290c",
+        "utterance_id": "fc86e2af-a7a3-411c-9a47-ecb255b3d922",
+        "window_index": 0,
+        "recognized_text": "Also include the documentation.",
+        "conversation": "RESPOND_WITHOUT_INTERRUPTING_USER",
+        "agent_route": "STEER_CURRENT_TASK",
+        "classifier_ms": 2813.9355649909703,
+        "decision_wall_ms": 2974.455802992452,
+        "stt_ms": null,
+        "prompt_chars": 1801,
+        "history_chars": 101,
+        "context_entries": 3,
+        "classification_reused": false
+      },
+      {
+        "case": "interrupt",
+        "source_event_id": "8a55f8b1-f894-4a0d-ad6c-abc2063a545a",
+        "utterance_id": "1a960b49-f9ca-4d8f-bde1-5cc4c6db2230",
+        "window_index": 0,
+        "recognized_text": "Stop, don't delete that!",
+        "conversation": "RESPOND_INTERRUPT_USER",
+        "agent_route": "INTERRUPT_CURRENT_TASK",
+        "classifier_ms": 2556.337600995903,
+        "decision_wall_ms": 2663.3381900028326,
+        "stt_ms": null,
+        "prompt_chars": 1870,
+        "history_chars": 132,
+        "context_entries": 4,
+        "classification_reused": false
+      },
+      {
+        "case": "audio_partial",
+        "source_event_id": "ea3bf13c-588c-4b9f-adfe-ea2d0af521dd",
+        "utterance_id": "55f9b536-86e1-462a-a675-99ce74b361d2",
+        "window_index": 0,
+        "recognized_text": "Once that finishes.",
+        "conversation": "WAIT_FOR_NEXT_WINDOW",
+        "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
+        "classifier_ms": 3234.0556120034307,
+        "decision_wall_ms": 3809.4243770028697,
+        "stt_ms": 437.2907320066588,
+        "prompt_chars": 2063,
+        "history_chars": 191,
+        "context_entries": 7,
+        "classification_reused": false
+      },
+      {
+        "case": "queue_audio_full",
+        "source_event_id": "71e84e9e-296c-4276-91dd-6da6b7ebf619",
+        "utterance_id": "55f9b536-86e1-462a-a675-99ce74b361d2",
+        "window_index": 1,
+        "recognized_text": "Once that finishes, please write hello to window.txt.",
+        "conversation": "RESPOND_WITHOUT_INTERRUPTING_USER",
+        "agent_route": "QUEUE_UNTIL_TASK_DONE",
+        "classifier_ms": 3724.4901590020163,
+        "decision_wall_ms": 4213.777939003194,
+        "stt_ms": 434.49870600306895,
+        "prompt_chars": 2161,
+        "history_chars": 210,
+        "context_entries": 8,
+        "classification_reused": false
+      },
+      {
+        "case": "queue_audio_opening",
+        "source_event_id": "5497874e-225e-4da5-981d-5a57225baf3d",
+        "utterance_id": "55f9b536-86e1-462a-a675-99ce74b361d2",
+        "window_index": 2,
+        "recognized_text": "Once that finishes, please write hello to window.txt.",
+        "conversation": "RESPOND_WITHOUT_INTERRUPTING_USER",
+        "agent_route": "QUEUE_UNTIL_TASK_DONE",
+        "classifier_ms": 3954.5189259952167,
+        "decision_wall_ms": 4573.73766299861,
+        "stt_ms": 485.85119799827226,
+        "prompt_chars": 2260,
+        "history_chars": 263,
+        "context_entries": 9,
+        "classification_reused": false
+      }
+    ],
+    "checks": {
+      "unnecessary_agent_activations_before_work": 0,
+      "native_steering_revision": 2,
+      "native_cancelled": "cancelled",
+      "native_tts_first_pcm_ms": 508.9744019933278,
+      "all_windows_retained": 7,
+      "verified_file": "window.txt",
+      "verified_sha256": "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+      "followup_state": "succeeded",
+      "audible_ttfa_ms": null
+    },
+    "budget_before": {
+      "contributor_estimated_usd": 0.8690169000000002,
+      "admission_estimated_usd": 19.774198800000015,
+      "reserved_usd": 1.5558100499999998,
+      "billing_reported_usd": null,
+      "admission_limit_usd": 22
+    },
+    "budget_after": {
+      "contributor_estimated_usd": 0.8725728760000002,
+      "admission_estimated_usd": 19.782817600000016,
+      "reserved_usd": 1.5558100499999998,
+      "billing_reported_usd": null,
+      "admission_limit_usd": 22
+    },
+    "limits": [
+      "Public synthetic inputs only; exact-text examples plus actual rolling audio snapshots.",
+      "HTTP PCM receipt is not browser audible latency; no human microphone or listening claim.",
+      "One bounded provider run does not establish production model quality."
+    ]
+  },
+  "earlier_successful_run": {
+    "source_commit": "12b79fb03212713d725252f08796e6af055d9b31",
+    "providers": {
+      "agent": {
+        "schema_version": "1.0",
+        "provider": "meta",
+        "model": "muse-spark-1.3-contributor",
+        "local": false,
+        "streaming": true
+      },
+      "converse": {
+        "schema_version": "1.0",
+        "provider": "meta",
+        "model": "muse-spark-1.3-contributor",
+        "local": false,
+        "streaming": true
+      },
+      "decisions": {
+        "schema_version": "1.0",
+        "provider": "meta",
+        "model": "muse-spark-1.3-contributor",
+        "local": false,
+        "streaming": true
+      }
+    },
+    "windows": [
+      {
+        "case": "backchannel",
+        "source_event_id": "d4e36245-841e-4539-a978-bc2e6281b299",
+        "utterance_id": "fb3987f8-d389-4dfd-8feb-c59e70336546",
+        "window_index": 0,
+        "recognized_text": "Mm-hmm.",
+        "conversation": "IGNORE",
+        "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
+        "classifier_ms": 2632.5215099932393,
+        "decision_wall_ms": 2791.949261998525,
+        "stt_ms": null,
+        "prompt_chars": 1541,
+        "history_chars": 61,
+        "context_entries": 1,
+        "classification_reused": false
+      },
+      {
+        "case": "unfinished",
+        "source_event_id": "0b3d1b45-ef71-43da-8661-19673b96c9de",
+        "utterance_id": "1da02f4b-e3f2-4cc1-a883-b8ffb9b0d543",
+        "window_index": 0,
+        "recognized_text": "Kinaiya, could you... actually...",
+        "conversation": "WAIT_FOR_NEXT_WINDOW",
+        "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
+        "classifier_ms": 2515.615059004631,
+        "decision_wall_ms": 2691.7462529963814,
+        "stt_ms": null,
+        "prompt_chars": 1619,
+        "history_chars": 68,
+        "context_entries": 2,
+        "classification_reused": false
+      },
+      {
+        "case": "steer",
+        "source_event_id": "14f42920-e1f2-4395-982d-2684c58d80fc",
+        "utterance_id": "b9d3b2b9-c1a6-4bcb-8d74-75b3096ba87a",
+        "window_index": 0,
+        "recognized_text": "Also include the documentation.",
+        "conversation": "RESPOND_WITHOUT_INTERRUPTING_USER",
+        "agent_route": "STEER_CURRENT_TASK",
+        "classifier_ms": 3739.889618998859,
+        "decision_wall_ms": 3896.8176140042488,
+        "stt_ms": null,
+        "prompt_chars": 1801,
+        "history_chars": 101,
+        "context_entries": 3,
+        "classification_reused": false
+      },
+      {
+        "case": "interrupt",
+        "source_event_id": "0fc88316-6c10-432b-b4e1-d1fd90c6eb78",
+        "utterance_id": "9fc96b2e-ed89-4e54-b0ce-5dce9ae17575",
+        "window_index": 0,
+        "recognized_text": "Stop, don't delete that!",
+        "conversation": "RESPOND_INTERRUPT_USER",
+        "agent_route": "INTERRUPT_CURRENT_TASK",
+        "classifier_ms": 3193.6034160025883,
+        "decision_wall_ms": 3291.678376001073,
+        "stt_ms": null,
+        "prompt_chars": 1870,
+        "history_chars": 132,
+        "context_entries": 4,
+        "classification_reused": false
+      },
+      {
+        "case": "audio_partial",
+        "source_event_id": "c7a2ac6b-a80d-4b52-b71b-478ea4e6cac6",
+        "utterance_id": "802b19a7-2ca0-437c-9d0d-5b6bfa7355bf",
+        "window_index": 0,
+        "recognized_text": "Once that finishes.",
+        "conversation": "WAIT_FOR_NEXT_WINDOW",
+        "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
+        "classifier_ms": 2546.495157002937,
+        "decision_wall_ms": 3142.558331004693,
+        "stt_ms": 462.6389740005834,
+        "prompt_chars": 2057,
+        "history_chars": 185,
+        "context_entries": 7,
+        "classification_reused": false
+      },
+      {
+        "case": "queue_audio_full",
+        "source_event_id": "0e1a1ac3-3514-4f10-a85f-46e5105f140a",
+        "utterance_id": "802b19a7-2ca0-437c-9d0d-5b6bfa7355bf",
+        "window_index": 1,
+        "recognized_text": "Once that finishes, please write hello to window.txt.",
+        "conversation": "RESPOND_WITHOUT_INTERRUPTING_USER",
+        "agent_route": "QUEUE_UNTIL_TASK_DONE",
+        "classifier_ms": 4722.062337008538,
+        "decision_wall_ms": 5327.96928800235,
+        "stt_ms": 483.2612400059588,
+        "prompt_chars": 2155,
+        "history_chars": 204,
+        "context_entries": 8,
+        "classification_reused": false
+      },
+      {
+        "case": "queue_audio_opening",
+        "source_event_id": "a0cc5104-cb2e-4f1c-bbdb-4d654d91f407",
+        "utterance_id": "802b19a7-2ca0-437c-9d0d-5b6bfa7355bf",
+        "window_index": 2,
+        "recognized_text": "Once that finishes, please write hello to window.txt.",
+        "conversation": "RESPOND_WITHOUT_INTERRUPTING_USER",
+        "agent_route": "QUEUE_UNTIL_TASK_DONE",
+        "classifier_ms": 2968.037940998329,
+        "decision_wall_ms": 3547.614697003155,
+        "stt_ms": 448.7731109984452,
+        "prompt_chars": 2254,
+        "history_chars": 257,
+        "context_entries": 9,
+        "classification_reused": false
+      }
+    ],
+    "checks": {
+      "unnecessary_agent_activations_before_work": 0,
+      "native_steering_revision": 2,
+      "native_cancelled": "cancelled",
+      "native_tts_first_pcm_ms": 392.58077600970864,
+      "all_windows_retained": 7,
+      "verified_file": "window.txt",
+      "verified_sha256": "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+      "followup_state": "succeeded",
+      "audible_ttfa_ms": null
+    },
+    "budget_before": {
+      "contributor_estimated_usd": 0.8651952760000001,
+      "admission_estimated_usd": 19.765965200000014,
+      "reserved_usd": 1.5558100499999998,
+      "billing_reported_usd": null,
+      "admission_limit_usd": 22
+    },
+    "budget_after": {
+      "contributor_estimated_usd": 0.8690169000000002,
+      "admission_estimated_usd": 19.774198800000015,
+      "reserved_usd": 1.5558100499999998,
+      "billing_reported_usd": null,
+      "admission_limit_usd": 22
+    },
+    "limits": [
+      "Public synthetic inputs only; exact-text examples plus actual rolling audio snapshots.",
+      "HTTP PCM receipt is not browser audible latency; no human microphone or listening claim.",
+      "One bounded provider run does not establish production model quality."
+    ]
+  },
+  "primary_native_timelines": [
+    {
+      "case": "backchannel",
+      "source_created_at": "2026-10-27T19:16:34.999942Z",
+      "first_reply_created_at": null,
+      "native_text_to_reply_publication_ms": null,
+      "native_text_to_outcome_ms": null
+    },
+    {
+      "case": "unfinished",
+      "source_created_at": "2026-10-27T19:16:38.688019Z",
+      "first_reply_created_at": null,
+      "native_text_to_reply_publication_ms": null,
+      "native_text_to_outcome_ms": null
+    },
+    {
+      "case": "steer",
+      "source_created_at": "2026-10-27T19:16:47.687743Z",
+      "first_reply_created_at": null,
+      "native_text_to_reply_publication_ms": null,
+      "native_text_to_outcome_ms": 24486.636
+    },
+    {
+      "case": "interrupt",
+      "source_created_at": "2026-10-27T19:17:09.520230Z",
+      "first_reply_created_at": "2026-10-27T19:17:17.326676Z",
+      "native_text_to_reply_publication_ms": 7806.446,
+      "native_text_to_outcome_ms": null
+    },
+    {
+      "case": "audio_partial",
+      "source_created_at": "2026-10-27T19:17:26.591442Z",
+      "first_reply_created_at": null,
+      "native_text_to_reply_publication_ms": null,
+      "native_text_to_outcome_ms": null
+    },
+    {
+      "case": "queue_audio_full",
+      "source_created_at": "2026-10-27T19:17:30.401794Z",
+      "first_reply_created_at": "2026-10-27T19:17:42.846043Z",
+      "native_text_to_reply_publication_ms": 12444.249,
+      "native_text_to_outcome_ms": 52704.244
+    },
+    {
+      "case": "queue_audio_opening",
+      "source_created_at": "2026-10-27T19:17:34.668297Z",
+      "first_reply_created_at": null,
+      "native_text_to_reply_publication_ms": null,
+      "native_text_to_outcome_ms": null
+    }
+  ],
+  "configuration": {
+    "classification_timeout_s": 15,
+    "default_timeout_s": 5,
+    "writes": "native digest-bound approval required",
+    "voice": "warm CPU tiny.en STT / Kokoro 82M",
+    "providers": "explicit Contributor development profile; not intended low-latency default"
+  },
+  "earlier_failed_attempts": [
+    {
+      "source_commit": "cacef7ce161a041703444076b8dc5efd881a112f",
+      "stage": "interrupt classification",
+      "native_error": "ProviderError",
+      "result": "Probe timed out without an interrupt decision; public fixture task was then cancelled by owner API.",
+      "cause_status": "Inferred budget admission refusal while two full-context reservations were active; the original record retained only ProviderError, not HTTP status. The spending cap was not changed.",
+      "correction": "Classifying errors now expose a sanitized budget category; the bounded probe waits for the prior steering boundary. Slower provider timeout is explicit. No deterministic or provider assertion was weakened."
+    },
+    {
+      "source_commit": "62c42b2a14065c9392e928a8c61e5efcac0ffff1",
+      "stage": "HTTP health preflight",
+      "native_error": "ConnectError",
+      "result": "No inference requested; services were still starting. Probe now waits for health."
+    }
+  ],
+  "source_sha256": {
+    "packages/contracts/models.py": "38bb6576ebe6e451982b7237e79af3eedbd953f21057a15fb347fbe4dbf648aa",
+    "packages/contracts/schemas/WindowDecision.json": "eb95c4c956fe2d079694ee3c3fa31bddb75d3a587c0e83f17ccbc3c53fecbd7a",
+    "packages/contracts/schemas/SpeechWindow.json": "3126b6a076a8c152c74164dc4d832d6c98c14e6324ceb19639b3bf7b37362b4c",
+    "packages/contracts/client.py": "478a171c658163c23000a60088135f64d8055e958a7608f6854bb22e37c5ac83",
+    "packages/providers/disclosure.py": "39b73bfc8656449195225b4d1f1a14c1b01ccbcf91047c0bf67dddb131ad0dd2",
+    "services/agent/runtime.py": "9f3f7fe4c99917ab01d7c5d54f59adcabf4be7aa27a4c6b8e50fe5a7ca849b13",
+    "services/converse/runtime.py": "593b01f6c5cf2b8b64d76771d1a975481f066dc348ffa7a7b8365473292aa3c2",
+    "services/converse/api.py": "aafe9a5d63337032c1e1b1e638eea71d6bfccf311933bd75f9c60349c9061452",
+    "services/converse/windows.py": "855c4f38d304416f25e722d9993a4aef582438e074af51e6ae659af2885a3e53",
+    "services/decisions/window_routing.py": "8752d3193d68307d00fddbaca92eee719c805fe0381854e22f02743f07c58dab",
+    "services/decisions/window_worker.py": "09c935291354f74b7da477095515bae9c2e0c30e0a5861a3b1386eb9bf13096c",
+    "services/decisions/api.py": "df78734600bf6c557418fd05986baa878267e3881361b814d097a152f6fb16e7",
+    "services/decisions/runtime.py": "ed8dca5fc1bd8c4bf941ee3ff3aa15ed2a25d906e250837b8da5c630096ca739",
+    "services/session/store.py": "1eb391466f2c06633727868a304cb1703fb83be3fc2405e2214503c87695530c",
+    "services/session/api.py": "1c45e3c3c8989363029caefddabced421b6c4718117d79185353bf7e3fbd7326",
+    "services/launcher.py": "629d84e62b2b3da73af71cea001d25f3e266891a250957fcf1dcd659607d96fd",
+    "apps/kinaiya_flutter/lib/ui/character_view.dart": "c60aff8b153928b0b1463592495bd9075a11c12789c7b8a091d78554c7d67b68",
+    "apps/kinaiya_flutter/lib/state/app_state.dart": "d3c764f4c172983067e88b39b242bc338bb6f71277098f5326b1abd3e6a6dbfa",
+    "apps/kinaiya_flutter/web/audio_bridge.js": "95c817f196f12838977602b1ede26fb9f78d82db6bf6fd5d0d14493b6cbbc49b",
+    "apps/kinaiya_flutter/web/window_capture_worklet.js": "a69e88851764bf40314d79df945616af667bf433aed6f90b2a1bd34e811c30e1",
+    "scripts/verify_streaming_windows.py": "60ba71ce53f6ba990ec641c72f564504e60a0ff947cef0164d9d9cf671bce49d"
+  },
+  "limits": [
+    "Timings are individual public synthetic development runs, not a production latency benchmark.",
+    "Classifier latency is seconds; roadmap real-time latency target remains open.",
+    "Native text-to-reply publication excludes preceding STT and browser playback. HTTP first PCM is not audible TTFA.",
+    "No human microphone, audibility or echo-robustness claim.",
+    "Independent Muse review was partial: 8-step inspection plus 2-step verdict continuation. Four findings fixed with regressions; UI/queue portions beyond inspected range remained lead-reviewed.",
+    "Contributor catalog estimate, conservative admission charges and retained uncertain reservations are separate. Billing receipts are unavailable.",
+    "Synthetic HTTP adapters declared one-second capture intervals; PCM capture duration accuracy is tested separately in the browser bridge. Native event timestamps and processing latencies are measured; these runs are not acoustic endpoint benchmarks."
+  ],
+  "native_completion_notice": {
+    "outcome_event_id": "3fc15339-5b82-49dd-8b64-752e58d1ece2",
+    "notice_event_id": "23b7512e-ca06-4296-9601-1828b12e641f",
+    "task_refs": [
+      "23110b18-ab97-437d-bbc7-77f1f6837c22"
+    ],
+    "text": "The Agent reports a verified result: Wrote hello to window.txt",
+    "content_scope": "public_synthetic",
+    "delivery": "generated; no played acknowledgment claimed"
+  }
+}
