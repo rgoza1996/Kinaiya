@@ -207,6 +207,8 @@ class Registry:
                 if args not in (["on"], ["off"]):
                     raise ValueError("Usage: /yolo on|off")
                 runtime.policy.set_permissions(actor="owner", yolo=args == ["on"])
+                if (host := getattr(runtime, "mcp_host", None)) is not None:
+                    await host.reset_connections(actor="owner")
             elif args:
                 raise ValueError("Usage: /permissions")
             return {

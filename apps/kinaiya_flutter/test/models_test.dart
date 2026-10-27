@@ -67,6 +67,61 @@ void main() {
     expect(AgentTask.fromJson(taskJson('failed', true)).isTerminal, isTrue);
   });
 
+  test(
+    'external receipts and stale native evidence never prove completion',
+    () {
+      AgentTask task(List<Map<String, Object?>> evidence) =>
+          AgentTask.fromJson({
+            'schema_version': '1.0',
+            'task_id': 'mcp-task',
+            'session_id': 's',
+            'thread_id': 't',
+            'epoch': 1,
+            'objective': 'work',
+            'objective_revision': 2,
+            'state': 'succeeded',
+            'idempotency_key': 'k',
+            'evidence': evidence,
+          });
+      final external = <String, Object?>{
+        'schema_version': '1.0',
+        'kind': 'external',
+        'summary': 'response arrived; effects unverified',
+        'objective_revision': 2,
+      };
+      final stale = <String, Object?>{
+        'schema_version': '1.0',
+        'kind': 'file',
+        'summary': 'old artifact',
+        'objective_revision': 1,
+        'path': 'proof',
+        'sha256': 'abc',
+      };
+      expect(task([external]).isGroundedSuccess, isFalse);
+      expect(task([external, stale]).isGroundedSuccess, isFalse);
+      expect(task([external, stale]).hasUnverifiedExternalOnly, isTrue);
+      expect(
+        task([
+          external,
+          {...stale, 'objective_revision': 2},
+        ]).isGroundedSuccess,
+        isTrue,
+      );
+      expect(
+        task([
+          external,
+          {
+            'schema_version': '1.0',
+            'kind': 'read',
+            'summary': 'MCP metadata',
+            'objective_revision': 2,
+          },
+        ]).isGroundedSuccess,
+        isFalse,
+      );
+    },
+  );
+
   test('approval expiry is honored', () {
     ApprovalRequest req(String? expires) => ApprovalRequest(
       approvalId: 'a1',

@@ -79,7 +79,11 @@ class TaskRequest(WireModel):
 
 class Evidence(WireModel):
     evidence_id: str = Field(default_factory=new_id)
-    kind: Literal["file", "command", "read", "search", "test", "extension"]
+    # "external" is a broker-generated MCP call receipt. It proves a
+    # response was received from the named server/tool and binds the hash
+    # of the bounded returned payload. It NEVER verifies remote side
+    # effects and alone can never support completion.
+    kind: Literal["file", "command", "read", "search", "test", "extension", "external"]
     summary: str
     path: str | None = None
     sha256: str | None = None
@@ -177,7 +181,15 @@ class CommandRequest(WireModel):
 
 class ToolAction(WireModel):
     tool: Literal[
-        "read_file", "write_file", "search", "shell", "read_transcript", "select_context", "finish"
+        "read_file",
+        "write_file",
+        "search",
+        "shell",
+        "read_transcript",
+        "select_context",
+        "mcp_list",
+        "mcp_call",
+        "finish",
     ]
     arguments: dict[str, Any] = Field(default_factory=dict)
 
