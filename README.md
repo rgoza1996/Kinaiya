@@ -77,16 +77,16 @@ The supervisor accepts it only when its digest and revision match, it has not ex
 
 **Status:** Implemented in a development-only Meta API budget proxy; not live provider billing.
 
-For reported input tokens $I$, output tokens $O$, and cached input tokens $K$, the proxy calculates two estimates using its configured dollar-per-million-token constants:
+For reported input tokens $I$, output tokens $O$, and cached input tokens $K$, the proxy preserves an ordinary-Spark comparison and a Contributor estimate using its configured dollar-per-million-token constants:
 
 $$
-\widehat C_{\mathrm{conservative}}=\frac{1.25I+4.25O}{10^6},
+\widehat C_{\mathrm{ordinary\ comparison}}=\frac{1.25I+4.25O}{10^6},
 \qquad
 \widehat C_{\mathrm{contributor}}=
 \frac{0.10(I-K)+0.002K+0.20O}{10^6}.
 $$
 
-Requests are admitted only while estimated spend, outstanding reservations, and the next conservative reservation fit the script's **$22 admission ceiling** within its **$25 development budget**:
+Admission uses twice the verified Contributor input/output rates, ignores cache discounts, and reserves the full catalog context plus bounded output for every outstanding request. Thus $\widehat C_{\mathrm{spent}}=(0.20I+0.40O)/10^6$. This admission estimate, unsettled reservations, and the next reservation must fit the script's **$22 ceiling** within its **$25 development budget**:
 
 $$
 \widehat C_{\mathrm{spent}}+C_{\mathrm{reserved}}+C_{\mathrm{next}}\le 22.
@@ -140,7 +140,7 @@ This is a first-order memory-accounting model, not a complete measure of feasibi
 
 ### 7. Self-building harnesses: controlled optimization and evaluation
 
-**Status:** The bounded seed Agent and protected execution foundations exist; generated executable harness evaluation, promotion, and rollback remain research milestones.
+**Status:** The bounded seed Agent, isolated executable context selectors, protected evaluation, owner-reviewed promotion controls and rollback are implemented experimentally. The initial 12-case screening study rejected the generated candidate; no improvement was demonstrated. Paired Agent-task optimization and the formulations below remain research milestones.
 
 With fixed target model, tasks, tools, and budgets, compare baseline harness $H_0$ and generated candidate $H_1$ on the same $n$ tasks. For independently evaluated task quality $Q_i$, a paired improvement estimate is
 
