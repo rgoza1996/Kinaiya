@@ -23,9 +23,9 @@
   "retirement_receipt_epoch": 2,
   "retirement_payload": {
     "schema_version": "1.0",
-    "task_id": "3c9fe2c6-bc0c-44ed-8191-590b10bd976b",
-    "task_session_id": "2b2e5099-92a4-4d57-b3f1-65a36abd18ac",
-    "task_thread_id": "a8ff6b72-b91d-4665-a717-59e28634c77b",
+    "task_id": "87c9fb97-fe6b-4b6c-8cde-7df584ac2644",
+    "task_session_id": "cadd45a8-c9b1-4a4b-bc57-5e054e9f8879",
+    "task_thread_id": "aae01acd-8f00-4071-aa01-e925f2ff52c9",
     "task_epoch": 1,
     "objective_revision": 1,
     "request_key_sha256": "15c8c58394e4218b5a1a90b7e74e8d3b44f469b5209a659b8b6a6910b42898c6",
@@ -37,19 +37,21 @@
   "recovered_task_epoch": 1,
   "conflicting_key_after_reopen_http_status": 409,
   "new_epoch_execution_outcome_count": 0,
-  "repository_head": "7204663347ebb17024bd3c58cab6e9e0e826da3b",
+  "repository_head": "97145f9522747643c2a98972bc52f76dad6d2698",
   "working_tree_clean": true,
   "source_sha256": {
     "services/agent/runtime.py": "949a668d5b0807c91a99f1e1217e0a469739d108df9f3e6a7dcc41f994dbe16d",
+    "packages/commands/__init__.py": "fe3333b45e8c27c0c82e93fc39e3b03f3c0b533c64d3d0573b416003d6f19a5f",
     "packages/contracts/models.py": "8b4992923a2cd4e315151ef7c18f64701ddfcd6fc69c892a5b8197bb919c70a6",
     "services/session/store.py": "9e63dbcfc4f74ed0ed25a2bc0834cccdc1d3ca8462f8b6d86c6faa3d9526b918",
-    "scripts/verify_task_retirement.py": "99c2295fb746f3ffab47d4597a998ac8992a005aa89dfb9d338c8481c00032c6"
+    "scripts/verify_task_retirement.py": "1c27a2b6e595afa752fde523bf51841166425d63c234c08d808d908d21a9fbe6"
   },
-  "recorded_at": "2026-10-27T17:18:50.481581+00:00",
+  "recorded_at": "2026-10-27T17:29:57.334980+00:00",
   "verification": {
-    "python_full": "521 passed, one existing Starlette deprecation warning",
-    "focused_integration": "62 passed",
-    "independent_tail_review_tests": "33 passed",
+    "python_full": "523 passed, one existing Starlette deprecation warning",
+    "initial_focused_integration": "62 passed",
+    "final_commands_retirement_integration": "61 passed",
+    "independent_tail_review_tests": "33 passed before the additional two command-receipt privacy cases",
     "checks": [
       "Ruff check",
       "Ruff format check",
@@ -57,7 +59,8 @@
       "git diff --check"
     ]
   },
-  "review_limits": "Independent Contributor/xhigh review comprised a partial general pass followed by the remaining recovery tail and tests; it found no confirmed defect in the inspected final scope. Not independent human approval or exhaustive security audit.",
+  "command_receipt_check": "Actual Registry/Store regressions pass for /stop across a session reset and another Agent session: the owner response retains requested task details; the current command receipt stores only original identity/scope/revision/state.",
+  "review_limits": "Independent Contributor/xhigh review covered native contract/helper fragments and completed the recovery tail/test review with 33 tests. Lead subsequently found, fixed and tested the command-receipt privacy gap; that small correction was not re-reviewed by a separate worker. Not independent human approval or exhaustive security audit.",
   "limitations": [
     "Explicit synthetic fault injection hid one committed acknowledgment; no spontaneous network outage is claimed.",
     "One pending provider fixture call before shutdown, zero recovered provider calls; no external inference configured.",
