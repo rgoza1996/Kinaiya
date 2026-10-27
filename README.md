@@ -226,6 +226,14 @@ voice recording/playback and independent Agent Chat. Its [design and browser evi
 describe the tested synthetic voice-to-file flow and Agent operation while Converse
 was unloaded. Native voice and the remaining M5 gates are unfinished.
 
+Optional local skill controls are enabled with `"skills": {"enabled": true}` in
+the owner configuration. `/skills list`, `/skills install <local-path>`, and
+`/skills enable <qualified-id>` manage packages without inference; `/skill
+<qualified-id> [request]` starts normal Agent work with selected, pinned
+instructions. Packages default to local-only disclosure. The [Agent skill
+boundary](docs/adr/0010-agent-skills.md) records the tested workflow and the
+remaining registry, upstream compatibility and execution-adapter work.
+
 Optional voice runs in a separate Python with the `voice` extra and preinstalled
 Kokoro/Whisper weights: `python -m packages.providers.voice_worker`. Model downloads
 are disabled by default; a clean-machine model installer is still a roadmap task.

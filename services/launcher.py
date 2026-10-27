@@ -239,6 +239,16 @@ def serve(args):
                 return None
 
             mcp_host = MCPHost(mcp_configs, policy, secret_resolver=_mcp_secret)
+        skill_service = None
+        if skill_config := config.get("skills"):
+            from services.agent.skill_service import SkillService
+
+            if not isinstance(skill_config, dict) or set(skill_config) - {"enabled"}:
+                raise SystemExit("skills accepts only an explicit enabled flag")
+            if type(skill_config.get("enabled")) is not bool:
+                raise SystemExit("skills.enabled must be a boolean")
+            if skill_config["enabled"]:
+                skill_service = SkillService(args.data_dir.resolve() / "skills", workspace)
         runtime = AgentRuntime(
             journal,
             provider(config, "agent"),
@@ -246,6 +256,7 @@ def serve(args):
             policy,
             selector_registry=selector,
             mcp_host=mcp_host,
+            skill_service=skill_service,
         )
         owner_journal = JournalClient(config["session_url"], tokens["owner"])
         profiles = {
