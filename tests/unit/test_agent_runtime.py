@@ -277,7 +277,19 @@ async def test_finish_without_evidence_fails(tmp_path):
         await runtime.close()
 
 
-async def test_failed_shell_must_not_report_success(tmp_path):
+async def test_failed_shell_must_not_report_success(tmp_path, monkeypatch):
+    from core.supervision import command_evidence
+    from services.agent import runtime as runtime_module
+    from services.agent.tools import _FailedWithEvidence
+
+    async def failed_tool(*args, **kwargs):
+        raise _FailedWithEvidence(
+            "shell exited 1", command_evidence("false", 1, "", 1, "shell exit=1")
+        )
+
+    # Supervisor regression is deterministic on machines without bubblewrap.
+    # Real namespace execution and denied writes have separate integration tests.
+    monkeypatch.setattr(runtime_module, "run_shell", failed_tool)
     provider = ScriptedProvider(
         [
             {"tool": "shell", "arguments": {"command": "false", "objective_revision": 1}},
