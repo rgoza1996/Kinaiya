@@ -96,6 +96,7 @@ class _Record:
     journal_seq: int = 0
     steer_idem: dict[str, tuple[str, str]] = field(default_factory=dict)
     interrupt_idem: dict[str, tuple[str, str]] = field(default_factory=dict)
+    source_revisions: dict[str, int] = field(default_factory=dict)
 
 
 class AgentRuntime:
@@ -197,7 +198,19 @@ class AgentRuntime:
             session = await self.journal.session(rec.task.session_id)
         except Exception as exc:
             return f"session unavailable before execution: {exc}"
-        return self._check_task_epoch(rec, session)
+        error = self._check_task_epoch(rec, session)
+        if error:
+            return error
+        for event_id, revision in rec.source_revisions.items():
+            try:
+                source = await self.journal.resolve(event_id)
+            except Exception:
+                return "Source became unavailable before execution"
+            if source.payload.get("revision", 1) != revision:
+                return (
+                    "Source was revised before execution; fresh authenticated steering is required"
+                )
+        return None
 
     async def _validated_source_texts(
         self,
@@ -219,9 +232,7 @@ class AgentRuntime:
         """
         resolve = getattr(self.journal, "resolve", None)
         if resolve is None:
-            raise PolicyDenied(
-                f"decisions-routed {op} cannot be validated: journal has no resolve"
-            )
+            raise PolicyDenied(f"decisions-routed {op} cannot be validated: journal has no resolve")
         texts: list[str] = []
         for source_id in source_event_ids:
             try:
@@ -248,9 +259,7 @@ class AgentRuntime:
                     f"decisions-routed {op} source {source_id!r} is not authenticated"
                 )
             if resolved.payload.get("final") is not True:
-                raise PolicyDenied(
-                    f"decisions-routed {op} source {source_id!r} is not finalized"
-                )
+                raise PolicyDenied(f"decisions-routed {op} source {source_id!r} is not finalized")
             current_revision = resolved.payload.get("revision", 1)
             if source_revision is not None and source_revision != current_revision:
                 raise PolicyDenied(
@@ -259,9 +268,7 @@ class AgentRuntime:
                 )
             text = resolved.payload.get("text", "")
             if not isinstance(text, str) or not text.strip():
-                raise PolicyDenied(
-                    f"decisions-routed {op} source {source_id!r} has no usable text"
-                )
+                raise PolicyDenied(f"decisions-routed {op} source {source_id!r} has no usable text")
             texts.append(text)
         return texts
 
@@ -317,6 +324,8 @@ class AgentRuntime:
             idempotency_key=request.idempotency_key,
         )
         rec = _Record(task=task)
+        if actor == "decisions":
+            rec.source_revisions = dict.fromkeys(request.source_event_ids, request.source_revision)
         self._tasks[task.task_id] = rec
         self._submit_idem[idem_key] = (digest, task.task_id)
         await self._append(
@@ -378,7 +387,7 @@ class AgentRuntime:
                 f"stale revision {request.expected_objective_revision}; "
                 f"current is {rec.task.objective_revision}"
             )
-        stale = await self._epoch_error(rec)
+        stale = self._check_task_epoch(rec, await self._require_session(rec.task.session_id))
         if stale is not None:
             raise StaleRevision(stale)
         rec.steer_idem[request.idempotency_key] = (digest, task_id)
@@ -386,6 +395,10 @@ class AgentRuntime:
             "instruction": instruction,
             "actor": actor,
             "source_event_ids": list(request.source_event_ids),
+            "source_revisions": {
+                source_id: (await self.journal.resolve(source_id)).payload.get("revision", 1)
+                for source_id in request.source_event_ids
+            },
         }
         # Wake an approval wait so steering applies promptly at the boundary.
         rec.resume.set()
@@ -406,6 +419,7 @@ class AgentRuntime:
         if not pending:
             return
         rec.pending_steer = None
+        rec.source_revisions.update(pending.get("source_revisions", {}))
         invalidated = [
             e.evidence_id
             for e in rec.task.evidence
@@ -497,9 +511,6 @@ class AgentRuntime:
                 f"stale revision {request.expected_objective_revision}; "
                 f"current is {rec.task.objective_revision}"
             )
-        stale = await self._epoch_error(rec)
-        if stale is not None:
-            raise StaleRevision(stale)
         rec.interrupt_idem[request.idempotency_key] = (digest, task_id)
         rec.cancel_requested = True
         rec.task.state = TaskState.CANCEL_REQUESTED
@@ -627,21 +638,16 @@ class AgentRuntime:
                 elif entry.kind == "agent.outcome":
                     for ref in refs:
                         outcomes[ref] = entry.payload
-            if len(batch) < 200:
-                break
         recovered: list[Task] = []
         for task_id, payload in seen.items():
             if task_id in self._tasks:
                 continue
             digest = payload.get("payload_digest")
-            if (
-                digest is not None
-                and payload.get("session_id")
-                and payload.get("idempotency_key")
-            ):
-                self._submit_idem[
-                    (payload["session_id"], payload["idempotency_key"])
-                ] = (digest, task_id)
+            if digest is not None and payload.get("session_id") and payload.get("idempotency_key"):
+                self._submit_idem[(payload["session_id"], payload["idempotency_key"])] = (
+                    digest,
+                    task_id,
+                )
             if task_id in outcomes:
                 snapshot = outcomes[task_id].get("task")
                 if snapshot is None:
@@ -663,8 +669,7 @@ class AgentRuntime:
                     objective_revision=payload.get("objective_revision", 1),
                     state=TaskState.PAUSED,
                     summary=(
-                        "recovered paused; uncertain writes not retried; "
-                        "resubmit to continue"
+                        "recovered paused; uncertain writes not retried; resubmit to continue"
                     ),
                     source_event_ids=list(payload.get("source_event_ids", [])),
                     idempotency_key=payload.get("idempotency_key", task_id),
@@ -697,10 +702,14 @@ class AgentRuntime:
             return
         rec.task.state = TaskState.FAILED
         rec.task.error = error
-        await self._append(
-            rec, "agent.outcome", self._outcome_payload(rec, "failed", {"error": error})
-        )
-        rec.done.set()
+        try:
+            # A reset/deletion intentionally rejects old-epoch publication. Local
+            # waiters must still learn that execution stopped without a stale write.
+            await self._append(
+                rec, "agent.outcome", self._outcome_payload(rec, "failed", {"error": error})
+            )
+        finally:
+            rec.done.set()
 
     async def _succeed(self, rec: _Record, summary: str) -> None:
         rec.task.state = TaskState.VERIFYING
@@ -756,10 +765,7 @@ class AgentRuntime:
                 # A steer that landed while inference was in flight applies
                 # at this boundary, and the response inferred under the old
                 # revision is discarded, never executed under the new one.
-                if (
-                    rec.pending_steer is not None
-                    or rec.task.objective_revision != revision_before
-                ):
+                if rec.pending_steer is not None or rec.task.objective_revision != revision_before:
                     await self._apply_steer(rec)
                     rec.history.append({"role": "assistant", "content": text[:2000]})
                     rec.history.append(
@@ -820,8 +826,8 @@ class AgentRuntime:
             try:
                 if not candidate.is_file():
                     return f"finish verification failed: {path} is missing after the write"
-                digest = hashlib.sha256(candidate.read_bytes()).hexdigest()
-            except OSError as exc:
+                digest = hashlib.sha256(self.policy.read_bytes(candidate)).hexdigest()
+            except (OSError, PolicyDenied) as exc:
                 return f"finish verification failed: cannot re-read {path}: {exc}"
             if digest != evidence.sha256:
                 return (
@@ -1022,7 +1028,9 @@ class AgentRuntime:
             return
         rec.task.evidence.append(evidence)
         await self._append(
-            rec, "agent.tool", {"tool": tool, "ok": True, "evidence": evidence.model_dump(mode="json")}
+            rec,
+            "agent.tool",
+            {"tool": tool, "ok": True, "evidence": evidence.model_dump(mode="json")},
         )
         rec.last_tool_ok = True
         if tool in ("write_file", "shell"):

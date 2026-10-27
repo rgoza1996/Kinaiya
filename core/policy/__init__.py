@@ -15,8 +15,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import secrets
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -161,6 +163,35 @@ class ToolPolicy:
 
     def check_read(self, path: str | Path) -> Path:
         return self.resolve_path(path)
+
+    @contextmanager
+    def scoped_parent(self, path: str | Path, *, create=False):
+        """Walk with directory descriptors; a racing symlink cannot redirect host I/O."""
+        resolved = self.resolve_path(path)
+        parts = resolved.relative_to(self.workspace).parts
+        if not parts:
+            raise PolicyDenied("A file path is required")
+        flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+        descriptor = os.open(self.workspace, flags)
+        try:
+            for part in parts[:-1]:
+                if create:
+                    try:
+                        os.mkdir(part, dir_fd=descriptor)
+                    except FileExistsError:
+                        pass
+                child = os.open(part, flags, dir_fd=descriptor)
+                os.close(descriptor)
+                descriptor = child
+            yield descriptor, parts[-1], resolved
+        finally:
+            os.close(descriptor)
+
+    def read_bytes(self, path: str | Path, maximum=262144) -> bytes:
+        with self.scoped_parent(path) as (parent, name, _):
+            descriptor = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=parent)
+            with os.fdopen(descriptor, "rb") as stream:
+                return stream.read(maximum)
 
     def check_search(self, path: str | Path | None = None) -> Path:
         if path is None:

@@ -52,9 +52,7 @@ class InMemoryJournal:
             task_refs=list(request.task_refs),
             idempotency_key=request.idempotency_key,
             sequence=self._seq,
-            origin="authenticated-user"
-            if request.kind == "conversation.user"
-            else "test",
+            origin="authenticated-user" if request.kind == "conversation.user" else "test",
             created_at=datetime.now(UTC),
         )
         self.entries.append(entry)
@@ -177,8 +175,10 @@ def task_req(objective="write the file", key="k1", revision=1, sources=None):
 
 
 def write_action(path="note.txt", content="hello agent", revision=1):
-    return {"tool": "write_file", "arguments": {"path": path, "content": content,
-                                                "objective_revision": revision}}
+    return {
+        "tool": "write_file",
+        "arguments": {"path": path, "content": content, "objective_revision": revision},
+    }
 
 
 def finish_action(revision=1, summary="done"):
@@ -278,10 +278,12 @@ async def test_finish_without_evidence_fails(tmp_path):
 
 
 async def test_failed_shell_must_not_report_success(tmp_path):
-    provider = ScriptedProvider([
-        {"tool": "shell", "arguments": {"command": "false", "objective_revision": 1}},
-        finish_action(summary="all good"),
-    ])
+    provider = ScriptedProvider(
+        [
+            {"tool": "shell", "arguments": {"command": "false", "objective_revision": 1}},
+            finish_action(summary="all good"),
+        ]
+    )
     runtime, _, _ = make_runtime(tmp_path, provider, allow_shell=True)
     try:
         task = await runtime.submit(task_req())
@@ -296,11 +298,13 @@ async def test_failed_shell_must_not_report_success(tmp_path):
 
 
 async def test_recovery_after_failed_tool_can_succeed(tmp_path):
-    provider = ScriptedProvider([
-        {"tool": "shell", "arguments": {"command": "false", "objective_revision": 1}},
-        write_action(),
-        finish_action(),
-    ])
+    provider = ScriptedProvider(
+        [
+            {"tool": "shell", "arguments": {"command": "false", "objective_revision": 1}},
+            write_action(),
+            finish_action(),
+        ]
+    )
     runtime, _, _ = make_runtime(tmp_path, provider, allow_shell=True)
     try:
         task = await runtime.submit(task_req())
@@ -319,7 +323,8 @@ async def test_duplicate_submit_identical_returns_same_task(tmp_path):
         second = await runtime.submit(task_req(key="dup"))
         assert first.task_id == second.task_id
         submits = [
-            e for e in journal.entries
+            e
+            for e in journal.entries
             if e.kind == "agent.command" and e.payload.get("op") == "submit"
         ]
         assert len(submits) == 1
@@ -365,8 +370,7 @@ async def test_actor_rules(tmp_path):
         with pytest.raises(PolicyDenied):
             await runtime.steer(
                 task.task_id,
-                SteerRequest(instruction="x", expected_objective_revision=1,
-                             idempotency_key="s1"),
+                SteerRequest(instruction="x", expected_objective_revision=1, idempotency_key="s1"),
                 actor="decisions",
             )
     finally:
@@ -392,11 +396,13 @@ async def test_traversal_and_symlink_cannot_succeed(tmp_path):
     outside.write_text("do not touch")
     link = tmp_path / "evil"
     link.symlink_to(outside)
-    provider = ScriptedProvider([
-        {"tool": "read_file", "arguments": {"path": "../agent-test-outside.txt"}},
-        {"tool": "read_file", "arguments": {"path": "evil"}},
-        finish_action(summary="read it"),
-    ])
+    provider = ScriptedProvider(
+        [
+            {"tool": "read_file", "arguments": {"path": "../agent-test-outside.txt"}},
+            {"tool": "read_file", "arguments": {"path": "evil"}},
+            finish_action(summary="read it"),
+        ]
+    )
     runtime, _, _ = make_runtime(tmp_path, provider)
     try:
         task = await runtime.submit(task_req())
@@ -435,9 +441,9 @@ async def test_cancellation_during_inference(tmp_path):
 async def test_interrupt_kills_running_shell(tmp_path):
     if not _sandbox_ok(tmp_path):
         pytest.skip("bubblewrap isolation unavailable in this environment")
+
     async def slow_shell():
-        return {"tool": "shell",
-                "arguments": {"command": "sleep 60", "objective_revision": 1}}
+        return {"tool": "shell", "arguments": {"command": "sleep 60", "objective_revision": 1}}
 
     provider = ScriptedProvider([slow_shell])
     runtime, _, _ = make_runtime(tmp_path, provider, allow_shell=True)
@@ -449,11 +455,11 @@ async def test_interrupt_kills_running_shell(tmp_path):
                 rec = runtime._tasks[task.task_id]
                 if rec.proc_slot.get("proc") is not None:
                     break
-                if rec.task.state in (TaskState.SUCCEEDED, TaskState.FAILED,
-                                      TaskState.CANCELLED):
+                if rec.task.state in (TaskState.SUCCEEDED, TaskState.FAILED, TaskState.CANCELLED):
                     break
                 await asyncio.sleep(0.02)
         before = datetime.now(UTC)
+        child = rec.proc_slot["proc"]._proc
         interrupted = await asyncio.wait_for(
             runtime.interrupt(
                 task.task_id,
@@ -462,9 +468,11 @@ async def test_interrupt_kills_running_shell(tmp_path):
             timeout=5,
         )
         assert (datetime.now(UTC) - before).total_seconds() < 5
-        assert interrupted.state == TaskState.CANCEL_REQUESTED
+        # Killing the process group may finish before acknowledgment returns.
+        assert interrupted.state in {TaskState.CANCEL_REQUESTED, TaskState.CANCELLED}
         final = await runtime.wait(task.task_id, timeout=15)
         assert final.state == TaskState.CANCELLED
+        assert child.returncode is not None
     finally:
         await runtime.close()
 
@@ -483,8 +491,11 @@ async def test_steer_applies_and_stale_finish_fails(tmp_path):
         await poll_for(lambda: _evdone(runtime, task.task_id))
         steered = await runtime.steer(
             task.task_id,
-            SteerRequest(instruction="do something else",
-                         expected_objective_revision=1, idempotency_key="st1"),
+            SteerRequest(
+                instruction="do something else",
+                expected_objective_revision=1,
+                idempotency_key="st1",
+            ),
         )
         assert steered.objective_revision == 1  # applied at the safe boundary
         gate.set()
@@ -504,20 +515,23 @@ async def test_steer_requires_reverification_then_succeeds(tmp_path):
         await gate.wait()
         return write_action(path="stale.txt", content="stale plan", revision=1)
 
-    provider = ScriptedProvider([
-        write_action(path="v1.txt", content="old"),
-        gated_stale_write,
-        write_action(path="v2.txt", content="reverified", revision=2),
-        finish_action(revision=2, summary="new plan done"),
-    ])
+    provider = ScriptedProvider(
+        [
+            write_action(path="v1.txt", content="old"),
+            gated_stale_write,
+            write_action(path="v2.txt", content="reverified", revision=2),
+            finish_action(revision=2, summary="new plan done"),
+        ]
+    )
     runtime, _, _ = make_runtime(tmp_path, provider)
     try:
         task = await runtime.submit(task_req())
         await poll_for(lambda: _evdone(runtime, task.task_id))
         await runtime.steer(
             task.task_id,
-            SteerRequest(instruction="write v2 instead",
-                         expected_objective_revision=1, idempotency_key="st2"),
+            SteerRequest(
+                instruction="write v2 instead", expected_objective_revision=1, idempotency_key="st2"
+            ),
         )
         gate.set()
         final = await runtime.wait(task.task_id, timeout=10)
@@ -540,8 +554,9 @@ async def test_steer_rejects_stale_revision(tmp_path):
         with pytest.raises(StaleRevision):
             await runtime.steer(
                 task.task_id,
-                SteerRequest(instruction="x", expected_objective_revision=99,
-                             idempotency_key="stale"),
+                SteerRequest(
+                    instruction="x", expected_objective_revision=99, idempotency_key="stale"
+                ),
             )
     finally:
         await runtime.close()
@@ -566,15 +581,15 @@ async def test_approval_flow_write_without_grant(tmp_path):
         with pytest.raises(ApprovalError):
             await runtime2.resolve_approval(
                 approval_id,
-                ApprovalResolution(approved=True, action_digest="sha256:wrong",
-                                   objective_revision=1),
+                ApprovalResolution(
+                    approved=True, action_digest="sha256:wrong", objective_revision=1
+                ),
             )
         # Non-owner cannot resolve.
         with pytest.raises(PolicyDenied):
             await runtime2.resolve_approval(
                 approval_id,
-                ApprovalResolution(approved=True, action_digest=good_digest,
-                                   objective_revision=1),
+                ApprovalResolution(approved=True, action_digest=good_digest, objective_revision=1),
                 actor="intruder",
             )
         result = await runtime2.resolve_approval(
@@ -615,8 +630,9 @@ async def test_denied_approval_fails_task(tmp_path):
 async def test_recover_marks_uncertain_work_paused_without_rerun(tmp_path):
     journal = InMemoryJournal(SESSION)
     provider = ScriptedProvider([write_action(), finish_action()])
-    runtime = AgentRuntime(journal, provider, tmp_path,
-                           ToolPolicy(workspace=tmp_path, allow_write=True))
+    runtime = AgentRuntime(
+        journal, provider, tmp_path, ToolPolicy(workspace=tmp_path, allow_write=True)
+    )
     try:
         task = await runtime.submit(task_req(key="rec"))
         final = await runtime.wait(task.task_id, timeout=10)
@@ -630,8 +646,12 @@ async def test_recover_marks_uncertain_work_paused_without_rerun(tmp_path):
             journal2.entries.append(entry)
             journal2._seq = max(journal2._seq, entry.sequence)
         (tmp_path / "note.txt").unlink()
-        runtime2 = AgentRuntime(journal2, ScriptedProvider([]), tmp_path,
-                                ToolPolicy(workspace=tmp_path, allow_write=True))
+        runtime2 = AgentRuntime(
+            journal2,
+            ScriptedProvider([]),
+            tmp_path,
+            ToolPolicy(workspace=tmp_path, allow_write=True),
+        )
         try:
             recovered = await runtime2.recover()
             assert len(recovered) == 1
@@ -670,8 +690,9 @@ async def test_steer_terminal_task_rejected(tmp_path):
         with pytest.raises(TaskTerminal):
             await runtime.steer(
                 task.task_id,
-                SteerRequest(instruction="more", expected_objective_revision=1,
-                             idempotency_key="late"),
+                SteerRequest(
+                    instruction="more", expected_objective_revision=1, idempotency_key="late"
+                ),
             )
     finally:
         await runtime.close()
@@ -680,17 +701,23 @@ async def test_steer_terminal_task_rejected(tmp_path):
 async def test_model_cannot_supply_evidence(tmp_path):
     # Even if the model claims evidence paths/hashes in prose, the task can
     # only succeed on supervisor-recorded evidence.
-    provider = ScriptedProvider([
-        {"tool": "search", "arguments": {"pattern": "nothing-matches-this-xyz"}},
-        finish_action(summary="evidence: /etc/passwd sha256=deadbeef"),
-    ])
+    provider = ScriptedProvider(
+        [
+            {"tool": "search", "arguments": {"pattern": "nothing-matches-this-xyz"}},
+            finish_action(summary="evidence: /etc/passwd sha256=deadbeef"),
+        ]
+    )
     runtime, _, _ = make_runtime(tmp_path, provider)
     try:
         task = await runtime.submit(task_req())
         final = await runtime.wait(task.task_id, timeout=10)
         assert final.state == TaskState.SUCCEEDED  # search evidence is real
         assert all(e.sha256 != "deadbeef" for e in final.evidence if e.sha256)
-        assert all((e.path or "").startswith(str(tmp_path.resolve())) or e.path is None
-                    or e.kind == "command" for e in final.evidence)
+        assert all(
+            (e.path or "").startswith(str(tmp_path.resolve()))
+            or e.path is None
+            or e.kind == "command"
+            for e in final.evidence
+        )
     finally:
         await runtime.close()

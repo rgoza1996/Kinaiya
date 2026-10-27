@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import os
 import re
+import secrets
 import shutil
 import subprocess
 from pathlib import Path
@@ -77,10 +78,15 @@ def netns_works() -> bool:
                     [
                         exe,
                         "--unshare-net",
-                        "--ro-bind", "/usr", "/usr",
-                        "--tmpfs", "/tmp",
-                        "--proc", "/proc",
-                        "--dev", "/dev",
+                        "--ro-bind",
+                        "/usr",
+                        "/usr",
+                        "--tmpfs",
+                        "/tmp",
+                        "--proc",
+                        "/proc",
+                        "--dev",
+                        "/dev",
                         "--die-with-parent",
                         "--clearenv",
                         "true",
@@ -120,11 +126,21 @@ def build_bwrap_args(
         )
     args = [
         exe,
-        "--ro-bind", "/usr", "/usr",
-        "--ro-bind", "/bin", "/bin",
-        "--ro-bind", "/lib", "/lib",
-        "--ro-bind", "/lib64", "/lib64",
-        "--bind", str(policy.workspace), "/workspace",
+        "--ro-bind",
+        "/usr",
+        "/usr",
+        "--ro-bind",
+        "/bin",
+        "/bin",
+        "--ro-bind",
+        "/lib",
+        "/lib",
+        "--ro-bind",
+        "/lib64",
+        "/lib64",
+        "--bind",
+        str(policy.workspace),
+        "/workspace",
     ]
     # A protected root nested inside the workspace would otherwise be
     # writable through the workspace bind. Cover each one read-only; the
@@ -142,19 +158,27 @@ def build_bwrap_args(
             )
         args += ["--ro-bind", str(root), str(_sandbox_path(policy, root))]
     args += [
-        "--tmpfs", "/tmp",
-        "--proc", "/proc",
-        "--dev", "/dev",
+        "--tmpfs",
+        "/tmp",
+        "--proc",
+        "/proc",
+        "--dev",
+        "/dev",
         "--die-with-parent",
         "--clearenv",
-        "--setenv", "PATH", "/usr/bin:/bin",
-        "--setenv", "HOME", "/tmp",
+        "--setenv",
+        "PATH",
+        "/usr/bin:/bin",
+        "--setenv",
+        "HOME",
+        "/tmp",
         "--unshare-user",
         "--unshare-pid",
         "--unshare-uts",
         "--unshare-ipc",
         "--unshare-cgroup",
-        "--chdir", "/workspace",
+        "--chdir",
+        "/workspace",
     ]
     isolated = True
     if network_allowed:
@@ -191,9 +215,7 @@ class RunningProc:
             pass
 
 
-async def _collect_bounded(
-    proc: asyncio.subprocess.Process, timeout: float
-) -> tuple[bytes, bool]:
+async def _collect_bounded(proc: asyncio.subprocess.Process, timeout: float) -> tuple[bytes, bool]:
     """Drain merged stdout/stderr up to the retention cap within the timeout.
 
     Returns (retained bytes, truncated). Kills the child on timeout or when
@@ -217,9 +239,7 @@ async def _collect_bounded(
                     truncated = True
                 if total > SHELL_OUTPUT_HARD_MAX:
                     await asyncio.shield(RunningProc(proc).kill())
-                    raise ToolFailure(
-                        "shell output exceeded the 2 MiB bound; killed"
-                    )
+                    raise ToolFailure("shell output exceeded the 2 MiB bound; killed")
             await proc.wait()
     except TimeoutError:
         await asyncio.shield(RunningProc(proc).kill())
@@ -271,7 +291,10 @@ async def run_shell(
             output += f"\n…[truncated subprocess output to {SHELL_OUTPUT_CAP} bytes]"
         code = proc.returncode if proc.returncode is not None else 124
         evidence = command_evidence(
-            command, code, output, objective_revision,
+            command,
+            code,
+            output,
+            objective_revision,
             f"shell exit={code}: {command[:120]}",
             network_isolated=isolated,
         )
@@ -279,9 +302,7 @@ async def run_shell(
         if truncated:
             observation = "[output truncated] " + observation
         if code != 0:
-            raise _FailedWithEvidence(
-                f"shell exited {code}: {observation[-1000:]}", evidence
-            )
+            raise _FailedWithEvidence(f"shell exited {code}: {observation[-1000:]}", evidence)
         return observation, evidence
     finally:
         if proc_slot is not None:
@@ -302,7 +323,7 @@ def run_read(
     resolved = policy.check_read(path)
     if not resolved.is_file():
         raise ToolFailure(f"read_file: not a file: {path!s}")
-    data = resolved.read_bytes()
+    data = policy.read_bytes(resolved, READ_LIMIT * 4 + 1)
     clipped = data[: max(1, min(int(max_bytes or READ_LIMIT), READ_LIMIT * 4))]
     text = clipped.decode("utf-8", errors="replace")
     note = "" if len(data) <= len(clipped) else f"…[truncated {len(data) - len(clipped)} bytes]"
@@ -322,6 +343,8 @@ def run_write(
     if not isinstance(content, str):
         raise ToolFailure("write_file requires a string content argument")
     data = content.encode("utf-8")
+    if len(data) > READ_LIMIT * 4:
+        raise ToolFailure("write_file exceeds the 256 KiB per-action limit")
     resolved = policy.check_write(
         path, approval_id=approval_id, digest=digest, objective_revision=objective_revision
     )
@@ -332,8 +355,25 @@ def run_write(
         parent.relative_to(policy.workspace)
     except ValueError:
         raise PolicyDenied(f"write parent escapes workspace: {path!s}") from None
-    parent.mkdir(parents=True, exist_ok=True)
-    resolved.write_bytes(data)
+    # Atomic replacement never writes through an existing hardlink. Descriptor
+    # walks refuse symlink substitutions even after canonical policy checks.
+    with policy.scoped_parent(resolved, create=True) as (parent_fd, name, _):
+        temporary = ".kinaiya-" + secrets.token_hex(12)
+        descriptor = os.open(
+            temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=parent_fd
+        )
+        try:
+            with os.fdopen(descriptor, "wb") as stream:
+                stream.write(data)
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temporary, name, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
+            os.fsync(parent_fd)
+        finally:
+            try:
+                os.unlink(temporary, dir_fd=parent_fd)
+            except FileNotFoundError:
+                pass
     evidence = file_evidence(resolved, data, objective_revision, f"wrote {resolved}")
     return f"wrote {len(data)} bytes to {resolved} sha256={evidence.sha256}", evidence
 

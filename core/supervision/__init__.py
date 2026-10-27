@@ -25,9 +25,7 @@ def truncate(text: str, limit: int = OUTPUT_LIMIT) -> str:
     return text[:limit] + f"\n…[truncated {len(text) - limit} chars]"
 
 
-def file_evidence(
-    path: Path, content: bytes, objective_revision: int, summary: str
-) -> Evidence:
+def file_evidence(path: Path, content: bytes, objective_revision: int, summary: str) -> Evidence:
     return Evidence(
         kind="file",
         summary=summary,
@@ -37,9 +35,7 @@ def file_evidence(
     )
 
 
-def read_evidence(
-    path: Path, content: bytes, objective_revision: int, summary: str
-) -> Evidence:
+def read_evidence(path: Path, content: bytes, objective_revision: int, summary: str) -> Evidence:
     return Evidence(
         kind="read",
         summary=summary,
@@ -49,9 +45,7 @@ def read_evidence(
     )
 
 
-def search_evidence(
-    scope: Path, output: str, objective_revision: int, summary: str
-) -> Evidence:
+def search_evidence(scope: Path, output: str, objective_revision: int, summary: str) -> Evidence:
     return Evidence(
         kind="search",
         summary=summary,

@@ -10,7 +10,6 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from core.policy import ToolPolicy
-from services.common.auth import Auth
 from packages.contracts.models import (
     AppendRequest,
     JournalEntry,
@@ -22,6 +21,7 @@ from packages.contracts.models import (
 from services.agent import AgentRuntime, create_app
 from services.agent import tools as agent_tools
 from services.agent.tools import ShellUnavailable, ToolFailure, run_shell
+from services.common.auth import Auth
 
 SESSION = Session(session_id="s9", thread_id="t9", channel="agent", epoch=1)
 
@@ -43,9 +43,7 @@ class InMemoryJournal:
             task_refs=list(request.task_refs),
             idempotency_key=request.idempotency_key,
             sequence=self._seq,
-            origin="authenticated-user"
-            if request.kind == "conversation.user"
-            else "test",
+            origin="authenticated-user" if request.kind == "conversation.user" else "test",
             created_at=datetime.now(UTC),
         )
         self.entries.append(entry)
@@ -101,8 +99,12 @@ class ScriptedProvider:
 
 def req(objective, key, revision=1):
     return TaskRequest(
-        session_id="s9", thread_id="t9", epoch=1, objective=objective,
-        idempotency_key=key, source_revision=revision,
+        session_id="s9",
+        thread_id="t9",
+        epoch=1,
+        objective=objective,
+        idempotency_key=key,
+        source_revision=revision,
     )
 
 
@@ -143,14 +145,19 @@ async def test_seed_end_to_end_shell_and_file(tmp_path):
     """Real workspace, real bubblewrap shell, real file writes, no paid APIs."""
     if not _sandbox_ok(tmp_path):
         pytest.skip("bubblewrap isolation unavailable in this environment")
-    provider = ScriptedProvider([
-        {"tool": "shell",
-         "arguments": {"command": "echo hello-sandbox > msg.txt && cat msg.txt"}},
-        {"tool": "write_file",
-         "arguments": {"path": "built.txt", "content": "built by agent"}},
-        {"tool": "finish",
-         "arguments": {"summary": "sandbox work done", "objective_revision": 1}},
-    ])
+    provider = ScriptedProvider(
+        [
+            {
+                "tool": "shell",
+                "arguments": {"command": "echo hello-sandbox > msg.txt && cat msg.txt"},
+            },
+            {"tool": "write_file", "arguments": {"path": "built.txt", "content": "built by agent"}},
+            {
+                "tool": "finish",
+                "arguments": {"summary": "sandbox work done", "objective_revision": 1},
+            },
+        ]
+    )
     policy = ToolPolicy(workspace=tmp_path, allow_write=True, allow_shell=True)
     runtime = AgentRuntime(InMemoryJournal(), provider, tmp_path, policy)
     try:
@@ -185,7 +192,8 @@ async def test_shell_cannot_see_home_or_repo(tmp_path):
     out, evidence = await run_shell(
         policy,
         f"echo HOME=$HOME; ls ~ 2>&1 | head -3; echo MARK={marker}; pwd",
-        30, 1,
+        30,
+        1,
     )
     assert marker in out
     assert evidence.exit_code == 0
@@ -194,23 +202,29 @@ async def test_shell_cannot_see_home_or_repo(tmp_path):
 
 
 async def test_http_task_lifecycle_and_capabilities(tmp_path):
-    provider = ScriptedProvider([
-        {"tool": "write_file",
-         "arguments": {"path": "http.txt", "content": "via http"}},
-        {"tool": "finish",
-         "arguments": {"summary": "http done", "objective_revision": 1}},
-    ])
+    provider = ScriptedProvider(
+        [
+            {"tool": "write_file", "arguments": {"path": "http.txt", "content": "via http"}},
+            {"tool": "finish", "arguments": {"summary": "http done", "objective_revision": 1}},
+        ]
+    )
     policy = ToolPolicy(workspace=tmp_path, allow_write=True)
     runtime = AgentRuntime(InMemoryJournal(), provider, tmp_path, policy)
     auth, tokens = make_auth()
     app = create_app(runtime, auth)
     try:
-        async with AsyncClient(transport=ASGITransport(app=app),
-                               base_url="http://test") as client:
-            created = await client.post("/v1/agent/tasks", json={
-                "session_id": "s9", "thread_id": "t9", "epoch": 1,
-                "objective": "write via http", "idempotency_key": "http1",
-            }, headers=bearer(tokens))
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            created = await client.post(
+                "/v1/agent/tasks",
+                json={
+                    "session_id": "s9",
+                    "thread_id": "t9",
+                    "epoch": 1,
+                    "objective": "write via http",
+                    "idempotency_key": "http1",
+                },
+                headers=bearer(tokens),
+            )
             assert created.status_code == 201, created.text
             task_id = created.json()["task_id"]
             listed = await client.get("/v1/agent/tasks", headers=bearer(tokens))
@@ -243,37 +257,61 @@ async def test_http_auth_and_steer_interrupt(tmp_path):
         async def complete(self, messages):
             _ = messages
             await gate.wait()
-            return json.dumps({"tool": "finish",
-                               "arguments": {"summary": "x", "objective_revision": 2}})
+            return json.dumps(
+                {"tool": "finish", "arguments": {"summary": "x", "objective_revision": 2}}
+            )
 
-    runtime = AgentRuntime(InMemoryJournal(), GatedProvider([]), tmp_path,
-                           ToolPolicy(workspace=tmp_path))
+    runtime = AgentRuntime(
+        InMemoryJournal(), GatedProvider([]), tmp_path, ToolPolicy(workspace=tmp_path)
+    )
     auth, tokens = make_auth()
     app = create_app(runtime, auth)
     try:
-        async with AsyncClient(transport=ASGITransport(app=app),
-                               base_url="http://test") as client:
-            denied = await client.post("/v1/agent/tasks", json={
-                "session_id": "s9", "thread_id": "t9", "epoch": 1,
-                "objective": "x", "idempotency_key": "auth1",
-            })
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            denied = await client.post(
+                "/v1/agent/tasks",
+                json={
+                    "session_id": "s9",
+                    "thread_id": "t9",
+                    "epoch": 1,
+                    "objective": "x",
+                    "idempotency_key": "auth1",
+                },
+            )
             assert denied.status_code in (401, 403)
-            created = await client.post("/v1/agent/tasks", json={
-                "session_id": "s9", "thread_id": "t9", "epoch": 1,
-                "objective": "original", "idempotency_key": "auth2",
-            }, headers=bearer(tokens))
+            created = await client.post(
+                "/v1/agent/tasks",
+                json={
+                    "session_id": "s9",
+                    "thread_id": "t9",
+                    "epoch": 1,
+                    "objective": "original",
+                    "idempotency_key": "auth2",
+                },
+                headers=bearer(tokens),
+            )
             assert created.status_code == 201
             task_id = created.json()["task_id"]
             # Stale steer is a 409, not silent acceptance.
-            stale = await client.post(f"/v1/agent/tasks/{task_id}/steer", json={
-                "instruction": "other", "expected_objective_revision": 99,
-                "idempotency_key": "stx",
-            }, headers=bearer(tokens))
+            stale = await client.post(
+                f"/v1/agent/tasks/{task_id}/steer",
+                json={
+                    "instruction": "other",
+                    "expected_objective_revision": 99,
+                    "idempotency_key": "stx",
+                },
+                headers=bearer(tokens),
+            )
             assert stale.status_code == 409
-            ok_steer = await client.post(f"/v1/agent/tasks/{task_id}/steer", json={
-                "instruction": "revised", "expected_objective_revision": 1,
-                "idempotency_key": "stx2",
-            }, headers=bearer(tokens))
+            ok_steer = await client.post(
+                f"/v1/agent/tasks/{task_id}/steer",
+                json={
+                    "instruction": "revised",
+                    "expected_objective_revision": 1,
+                    "idempotency_key": "stx2",
+                },
+                headers=bearer(tokens),
+            )
             assert ok_steer.status_code == 200, ok_steer.text
             gate.set()
             for _ in range(200):
@@ -284,9 +322,14 @@ async def test_http_auth_and_steer_interrupt(tmp_path):
             # No current-revision evidence: the steered finish must fail, not lie.
             assert got.json()["state"] == "failed", got.json()
             # Interrupt on a terminal task is idempotent, not an error.
-            stop = await client.post(f"/v1/agent/tasks/{task_id}/interrupt", json={
-                "expected_objective_revision": 2, "idempotency_key": "stopx",
-            }, headers=bearer(tokens))
+            stop = await client.post(
+                f"/v1/agent/tasks/{task_id}/interrupt",
+                json={
+                    "expected_objective_revision": 2,
+                    "idempotency_key": "stopx",
+                },
+                headers=bearer(tokens),
+            )
             assert stop.status_code == 200
     finally:
         gate.set()
@@ -294,29 +337,39 @@ async def test_http_auth_and_steer_interrupt(tmp_path):
 
 
 async def test_http_approval_resolve(tmp_path):
-    provider = ScriptedProvider([
-        {"tool": "write_file",
-         "arguments": {"path": "appr.txt", "content": "approved content"}},
-        {"tool": "finish",
-         "arguments": {"summary": "approved done", "objective_revision": 1}},
-    ])
+    provider = ScriptedProvider(
+        [
+            {
+                "tool": "write_file",
+                "arguments": {"path": "appr.txt", "content": "approved content"},
+            },
+            {"tool": "finish", "arguments": {"summary": "approved done", "objective_revision": 1}},
+        ]
+    )
     policy = ToolPolicy(workspace=tmp_path)  # no grants: approval required
     journal = InMemoryJournal()
     runtime = AgentRuntime(journal, provider, tmp_path, policy)
     auth, tokens = make_auth()
     app = create_app(runtime, auth)
     try:
-        async with AsyncClient(transport=ASGITransport(app=app),
-                               base_url="http://test") as client:
-            created = await client.post("/v1/agent/tasks", json={
-                "session_id": "s9", "thread_id": "t9", "epoch": 1,
-                "objective": "needs approval", "idempotency_key": "appr1",
-            }, headers=bearer(tokens))
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            created = await client.post(
+                "/v1/agent/tasks",
+                json={
+                    "session_id": "s9",
+                    "thread_id": "t9",
+                    "epoch": 1,
+                    "objective": "needs approval",
+                    "idempotency_key": "appr1",
+                },
+                headers=bearer(tokens),
+            )
             assert created.status_code == 201
             task_id = created.json()["task_id"]
             for _ in range(200):
-                state = (await client.get(f"/v1/agent/tasks/{task_id}",
-                                          headers=bearer(tokens))).json()["state"]
+                state = (
+                    await client.get(f"/v1/agent/tasks/{task_id}", headers=bearer(tokens))
+                ).json()["state"]
                 if state == "awaiting_approval":
                     break
                 await asyncio.sleep(0.05)
@@ -325,9 +378,15 @@ async def test_http_approval_resolve(tmp_path):
             requested = [e for e in journal.entries if e.kind == "approval.requested"]
             assert len(requested) == 1
             digest = requested[0].payload["action_digest"]
-            resolved = await client.post(f"/v1/approvals/{approval_id}/resolve", json={
-                "approved": True, "action_digest": digest, "objective_revision": 1,
-            }, headers=bearer(tokens))
+            resolved = await client.post(
+                f"/v1/approvals/{approval_id}/resolve",
+                json={
+                    "approved": True,
+                    "action_digest": digest,
+                    "objective_revision": 1,
+                },
+                headers=bearer(tokens),
+            )
             assert resolved.status_code == 200, resolved.text
             for _ in range(200):
                 got = await client.get(f"/v1/agent/tasks/{task_id}", headers=bearer(tokens))
@@ -337,9 +396,15 @@ async def test_http_approval_resolve(tmp_path):
             assert got.json()["state"] == "succeeded", got.json()
             assert (tmp_path / "appr.txt").read_text() == "approved content"
             # One-use: replaying the spend fails.
-            again = await client.post(f"/v1/approvals/{approval_id}/resolve", json={
-                "approved": True, "action_digest": digest, "objective_revision": 1,
-            }, headers=bearer(tokens))
+            again = await client.post(
+                f"/v1/approvals/{approval_id}/resolve",
+                json={
+                    "approved": True,
+                    "action_digest": digest,
+                    "objective_revision": 1,
+                },
+                headers=bearer(tokens),
+            )
             assert again.status_code in (403, 404, 409)
     finally:
         await runtime.close()
