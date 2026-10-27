@@ -703,7 +703,6 @@ class WindowAgentDispatcher:
                 receipts = await self.journal.window_dispatches(
                     after=0, limit=MAX_QUEUED_DRAIN, pending_only=True
                 )
-            self.queue_after = receipts[-1].sequence if receipts else 0
         except Exception:
             return
         sessions: list[str] = []
@@ -713,10 +712,19 @@ class WindowAgentDispatcher:
                 continue
             if entry.session_id not in sessions:
                 sessions.append(entry.session_id)
-        for session_id in sessions[:8]:
+        selected = sessions[:8]
+        # Advance only through the processed prefix. A ninth waiting session
+        # must not be skipped forever behind eight busy sessions.
+        prefix = []
+        for receipt in receipts:
+            if receipt.session_id not in selected:
+                break
+            prefix.append(receipt)
+        self.queue_after = prefix[-1].sequence if prefix else 0
+        for session_id in selected:
             try:
                 await self._drain_queues(
-                    session_id, [e for e in receipts if e.session_id == session_id]
+                    session_id, [e for e in prefix if e.session_id == session_id]
                 )
             except Exception as exc:
                 self.last_error = type(exc).__name__

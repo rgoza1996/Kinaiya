@@ -346,6 +346,11 @@ class AgentRuntime:
                     raise PolicyDenied("Transcript-window source cannot be verified") from exc
                 if latest is None or latest.payload.get("text") != window.text:
                     raise PolicyDenied("Transcript-window instruction was superseded")
+                control = await self.journal.window_control(session_id, epoch, agent_interrupt=True)
+                if control is not None and control.payload["source_sequence"] > resolved.sequence:
+                    raise PolicyDenied(
+                        "Later authenticated interruption supersedes this instruction"
+                    )
                 if not scope_allowed(self.provider.info, window.content_scope):
                     raise PolicyDenied("Transcript-window disclosure does not permit this Agent")
             elif resolved.payload.get("final") is not True:

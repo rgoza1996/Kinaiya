@@ -809,3 +809,51 @@ async def test_native_agent_rechecks_window_steering_at_execution_boundary(
         )
     finally:
         await agent.close()
+
+
+async def test_queue_drain_does_not_starve_ninth_session(store, session):
+    agent = CapturingAgent()
+    worker = WindowAgentDispatcher(decisions_journal(store), agent)
+    tasks = []
+    for n in range(9):
+        current = store.create_session(SessionRequest(channel="converse"))
+        task = agent.add_task(current)
+        tasks.append(task)
+        source = make_window(store, current, text=f"After that, write public note {n}.")
+        decision = make_decision(
+            store, current, source, "IGNORE", "QUEUE_UNTIL_TASK_DONE", task.task_id, 1
+        )
+        await worker.process(decision)
+    agent.set_state(tasks[-1].task_id, TaskState.SUCCEEDED)
+    await worker._drain_all()
+    await worker._drain_all()
+    assert len(agent.submits) == 1
+    assert agent.submits[0].session_id == tasks[-1].session_id
+
+
+async def test_native_source_admission_rejects_late_work_after_stop(store, session, tmp_path):
+    from core.policy import PolicyDenied
+
+    source = make_window(store, session, text="Write a public note.")
+    stop = make_window(store, session, utterance_id="stop", text="Stop now.")
+    make_decision(
+        store, session, stop, "WAIT_FOR_NEXT_WINDOW", "INTERRUPT_CURRENT_TASK", "task-id", 1
+    )
+    provider = NativeScriptedProvider([])
+    agent = AgentRuntime(LocalJournal(store, "agent"), provider, tmp_path, ToolPolicy(tmp_path))
+    try:
+        with pytest.raises(PolicyDenied, match="interruption"):
+            await agent.submit(
+                TaskRequest(
+                    session_id=session.session_id,
+                    thread_id=session.thread_id,
+                    epoch=1,
+                    objective=source.payload["text"],
+                    source_event_ids=[source.event_id],
+                    idempotency_key="late-source",
+                ),
+                actor="decisions",
+            )
+        assert not provider.calls and not await agent.status()
+    finally:
+        await agent.close()
