@@ -12,7 +12,7 @@ Connection setup imports a user-selected owner-only login file or accepts manual
 
 Per-role positive verification and owner controls are specified in [ADR 0014](0014-provider-consent.md). Missing provider metadata cannot inherit the other role's inference permission, and uncertain model switches invalidate the previous grant.
 
-The original mascot artwork is included unchanged with a versioned manifest and procedural state motion. It is a single frame; additional animation poses are unfinished. A skippable book sheet links to the work surface.
+The original mascot artwork remains unchanged as the fallback. A versioned default spritesheet supplies idle, listening, thinking and speaking poses with local frame playback; [ADR 0015](0015-mascot-sprites.md) records validation and asset lineage. The full expression/work-animation library remains unfinished. A skippable book sheet links to the work surface.
 
 ## Verification
 

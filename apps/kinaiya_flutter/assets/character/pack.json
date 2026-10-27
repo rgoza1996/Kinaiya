@@ -1,12 +1,93 @@
 {
-  "pack_schema": 1,
+  "pack_schema": 2,
+  "pack_id": "kinaiya-default",
+  "version": "0.2.0",
   "name": "Kinaiya",
-  "description": "Single-frame honest baseline: shipped mascot artwork with deterministic state-based motion.",
-  "poses": [
+  "author": "Kinaiya project; owner reference with generated animation frames",
+  "license": "Apache-2.0; project terms, original owner-supplied reference retained",
+  "provenance": {
+    "source_asset": "assets/mascot/kinaiya-mascot.png",
+    "source_sha256": "426188e15d0f8dad7216b51da6a2dddbb7ff74c1aec714a7de01b5b3b3bc6977",
+    "generator": "OpenAI built-in image generation; 2026-10-27; two passes",
+    "prompt_file": "assets/character/kinaiya-core-v1.prompts.md"
+  },
+  "theme": {
+    "primary": "#141091",
+    "background": "#FFFFFF"
+  },
+  "voice_profile": null,
+  "fallback_animation": "idle",
+  "anchor": [
+    0.5,
+    0.9
+  ],
+  "scale_limits": [
+    0.5,
+    2.0
+  ],
+  "sheets": [
     {
-      "name": "idle",
-      "asset": "assets/mascot/kinaiya-mascot.png",
-      "sha256": "426188e15d0f8dad7216b51da6a2dddbb7ff74c1aec714a7de01b5b3b3bc6977"
+      "id": "core",
+      "asset": "assets/character/kinaiya-core-v1.png",
+      "sha256": "4eabec3223bc1a921645ce086a1f9fbf8b0098e66c1017e73af826197ff39412",
+      "width": 1254,
+      "height": 1254,
+      "frame_width": 313,
+      "frame_height": 313
     }
-  ]
+  ],
+  "animations": {
+    "idle": {
+      "sheet": "core",
+      "frames": [
+        0,
+        1,
+        2,
+        3,
+        2,
+        1
+      ],
+      "frame_ms": 280,
+      "loop": true
+    },
+    "listening": {
+      "sheet": "core",
+      "frames": [
+        4,
+        5,
+        6,
+        7,
+        6,
+        5
+      ],
+      "frame_ms": 250,
+      "loop": true
+    },
+    "thinking": {
+      "sheet": "core",
+      "frames": [
+        8,
+        9,
+        10,
+        11,
+        10,
+        9
+      ],
+      "frame_ms": 300,
+      "loop": true
+    },
+    "speaking": {
+      "sheet": "core",
+      "frames": [
+        12,
+        13,
+        14,
+        15,
+        14,
+        13
+      ],
+      "frame_ms": 140,
+      "loop": true
+    }
+  }
 }

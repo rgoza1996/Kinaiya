@@ -1,0 +1,23 @@
+{
+  "date": "2026-10-27",
+  "scope": "Local release-web visual inspection; no model inference or physical microphone used",
+  "frontend_code_commit": "4e01637017c93f38c99eb2945c90f222d7ba24d4",
+  "asset_sha256": "4eabec3223bc1a921645ce086a1f9fbf8b0098e66c1017e73af826197ff39412",
+  "url": "http://127.0.0.1:8782/",
+  "browser": "Codex in-app browser through cua_repl",
+  "observations": [
+    "Default pack loaded without fallback warning",
+    "Original mascot identity retained, with idle hair and dress frame changes visible at 220 logical pixels",
+    "Two screenshots of otherwise unchanged UI differed while the idle loop ran"
+  ],
+  "screenshot_png_bytes": [
+    26207,
+    26473
+  ],
+  "different_encoded_bytes_in_common_prefix": 22928,
+  "limits": [
+    "Encoded-byte differences are not a frame-rate measurement",
+    "Other semantic states verified by engine-decoded Flutter regression tests; not a physical voice or lip-sync measurement",
+    "No native-device, full expression-library or perfect artistic-registration claim"
+  ]
+}
