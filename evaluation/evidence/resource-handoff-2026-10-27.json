@@ -350,9 +350,17 @@
       "apps/kinaiya_flutter/lib/state/app_state.dart": "617486a20344a188977e8ae4067a2152952af85b4613550a7279357c926faf36",
       "apps/kinaiya_flutter/lib/ui/agent_chat.dart": "a6157d205bf99d4df8c1e21f538e1c1c02fba99a4f4f1d93f6151072bff74a51",
       "apps/kinaiya_flutter/lib/ui/character_view.dart": "5a0ea7a31721704837d921b033575427b929b6c4951e3429076a37a5bca334e8",
-      "apps/kinaiya_flutter/test/resource_state_test.dart": "260842d1542b84b57d062edc8755984b92cf7a0f294cb7dae424f27f8be827c5"
+      "apps/kinaiya_flutter/test/resource_state_test.dart": "260842d1542b84b57d062edc8755984b92cf7a0f294cb7dae424f27f8be827c5",
+      "apps/kinaiya_flutter/lib/ui/book_sheet.dart": "71d593186224646cce14459fe5bb98b0e58b0ee84f8229b131b8245244e8e78a",
+      "apps/kinaiya_flutter/test/widget_test.dart": "5a064d97a517b0b869231d1e979137a79fde1f802922435924af46380de167d4"
     },
     "scope": "Backend live probe uses direct HTTP. Client resource pause, disabled voice controls, late mic callback ownership and restoration are verified separately by Flutter widget/bridge checks and local browser inspection.",
-    "physical_microphone_or_hearing_proof": false
-  }
+    "physical_microphone_or_hearing_proof": false,
+    "browser_discovered_defect": {
+      "issue": 33,
+      "trigger": "Skip in the mascot Agent introduction dismissed the home route twice.",
+      "repair": "The parent callback alone owns dismissal; a widget regression verifies the shell and Agent Chat remain visible."
+    }
+  },
+  "backend_source_commit": "f44dd428c09783ae9cd12f6b839aa22cd9a59336"
 }
