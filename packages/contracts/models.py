@@ -123,6 +123,20 @@ class InterruptRequest(WireModel):
     source_revision: int = Field(default=1, ge=1)
 
 
+class TaskRetirement(WireModel):
+    """Native administrative receipt; never a new-epoch execution outcome."""
+
+    task_id: str = Field(min_length=1, max_length=128)
+    task_session_id: str = Field(min_length=1, max_length=128)
+    task_thread_id: str = Field(min_length=1, max_length=128)
+    task_epoch: int = Field(ge=1, strict=True)
+    objective_revision: int = Field(ge=1, strict=True)
+    request_key_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    request_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    disposition: Literal["cancelled"] = "cancelled"
+    effect_status: Literal["unreconciled"] = "unreconciled"
+
+
 class Decision(WireModel):
     decision_id: str = Field(default_factory=new_id)
     source_event_ids: list[str] = Field(min_length=1, max_length=32)

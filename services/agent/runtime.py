@@ -37,9 +37,11 @@ from packages.contracts.models import (
     ApprovalResolution,
     Evidence,
     InterruptRequest,
+    JournalEntry,
     SteerRequest,
     Task,
     TaskRequest,
+    TaskRetirement,
     TaskState,
 )
 from services.agent.mcp_tools import ModelScopedMCP, run_mcp_call, run_mcp_list
@@ -78,6 +80,49 @@ def _payload_hash(payload: dict[str, Any]) -> str:
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
+# In-memory terminal summary for administratively retired recovered work.
+# Durable receipts carry only hashes; this sentence is the whole effect
+# accounting visible in the current session.
+RETIRED_SUMMARY = (
+    "Cancelled recovered work without replay; prior uncertain effects remain unreconciled."
+)
+
+
+def _authenticated_retirement(
+    entry: JournalEntry, task: Task, submit_sequence: int
+) -> TaskRetirement | None:
+    """Return the receipt only for well-formed native retirements matching this task.
+
+    Anything else — wrong origin/kind, cross-epoch causal refs, mismatched
+    scope or revision, future-task references, malformed payloads — is
+    ignored so it can never silently retire work.
+    """
+    if entry.kind != "agent.retirement" or entry.origin != "agent-supervisor":
+        return None
+    if submit_sequence < 1 or entry.sequence <= submit_sequence:
+        return None
+    if list(entry.causes) != []:
+        return None
+    try:
+        receipt = TaskRetirement.model_validate(entry.payload)
+    except ValueError:
+        return None
+    if receipt.task_id != task.task_id or entry.task_refs != [task.task_id]:
+        return None
+    if (
+        receipt.task_session_id != task.session_id
+        or receipt.task_thread_id != task.thread_id
+        or receipt.task_epoch != task.epoch
+        or receipt.objective_revision != task.objective_revision
+    ):
+        return None
+    if entry.session_id != task.session_id or entry.thread_id != task.thread_id:
+        return None
+    if entry.epoch < task.epoch:
+        return None
+    return receipt
+
+
 @dataclass
 class _Record:
     task: Task
@@ -100,6 +145,12 @@ class _Record:
     journal_seq: int = 0
     steer_idem: dict[str, tuple[str, str]] = field(default_factory=dict)
     interrupt_idem: dict[str, tuple[str, str]] = field(default_factory=dict)
+    # Restored from durable retirement receipts: owner key hash -> request digest.
+    retirement_keys: dict[str, str] = field(default_factory=dict)
+    retire_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    # Set only by recover() for tasks reconstructed from the journal.
+    recovered: bool = False
+    submit_sequence: int = 0
     source_revisions: dict[str, int] = field(default_factory=dict)
     explicit_skill: str | None = None
     used_skills: set[str] = field(default_factory=set)
@@ -429,6 +480,8 @@ class AgentRuntime:
             return rec.task.model_copy(deep=True)
         if rec.task.state in TERMINAL:
             raise TaskTerminal(f"task {task_id} is already {rec.task.state}")
+        if rec.recovered and rec.worker is None:
+            raise ValueError("Recovered work requires a new task; retire the paused task first")
         if rec.pending_steer is not None:
             raise StaleRevision(
                 "Another steering revision is pending; wait for its applied acknowledgment"
@@ -532,6 +585,12 @@ class AgentRuntime:
         if self._closed:
             raise ValueError("Agent is closing")
         rec = self._get(task_id)
+        if rec.recovered and rec.task.state == TaskState.PAUSED and rec.worker is None:
+            if actor != "owner":
+                raise PolicyDenied(f"retiring recovered work requires owner, got {actor!r}")
+            if rec.proc_slot.get("proc") is not None:
+                raise ValueError("cannot retire recovered work with a residual process handle")
+            return await self._retire_recovered(rec, request)
         if actor not in ("owner", "decisions"):
             raise PolicyDenied(f"interrupt requires owner or decisions actor, got {actor!r}")
         if actor == "decisions":
@@ -559,6 +618,10 @@ class AgentRuntime:
                 raise IdemConflict("idempotency key reuses a conflicting interrupt payload")
             return rec.task.model_copy(deep=True)
         if rec.task.state in TERMINAL:
+            key_sha = hashlib.sha256(request.idempotency_key.encode()).hexdigest()
+            stored = rec.retirement_keys.get(key_sha)
+            if stored is not None and stored != digest:
+                raise IdemConflict("idempotency key reuses a conflicting interrupt payload")
             return rec.task.model_copy(deep=True)
         if request.expected_objective_revision != rec.task.objective_revision:
             raise StaleRevision(
@@ -587,6 +650,144 @@ class AgentRuntime:
             if self.plugin_service is not None:
                 await self.plugin_service.release_task(task_id)
         return rec.task.model_copy(deep=True)
+
+    # -- administrative retirement (verified recovered paused work only) --
+    @staticmethod
+    def _stable_retirement_idem(task_id: str, key_sha: str) -> str:
+        # Stable hashed identity: concurrent or retried stops for the same
+        # owner key append the identical request, so the store dedupes
+        # instead of duplicating receipts. Never the incrementing counter.
+        return f"agent:{task_id}:retirement:{key_sha}"
+
+    async def _committed_retirement(
+        self, rec: _Record, key_sha: str, digest: str
+    ) -> TaskRetirement | None:
+        """Return a durably committed receipt matching this task, if any.
+
+        Same owner key with a different payload stays a conflict; any other
+        valid receipt for this scope settles the already-retired work.
+        """
+        matched: TaskRetirement | None = None
+        after = 0
+        while True:
+            batch = await self.journal.read(
+                after=after,
+                limit=200,
+                session_id=rec.task.session_id,
+                task_id=rec.task.task_id,
+                kinds=["agent.retirement"],
+            )
+            if not batch:
+                break
+            after = batch[-1].sequence
+            for entry in batch:
+                receipt = _authenticated_retirement(entry, rec.task, rec.submit_sequence)
+                if receipt is not None:
+                    if receipt.request_key_sha256 == key_sha and receipt.request_digest != digest:
+                        raise IdemConflict("idempotency key reuses a conflicting interrupt payload")
+                    if matched is None or receipt.request_key_sha256 == key_sha:
+                        matched = receipt
+        return matched
+
+    async def _cleanup_retirement(self, rec: _Record) -> None:
+        if rec.proc_slot.get("proc") is not None or rec.worker is not None:
+            raise ValueError("cannot retire work with an unconfirmed worker or process handle")
+        if self.plugin_service is not None:
+            await self.plugin_service.release_task(rec.task.task_id)
+        if self.skill_service is not None:
+            await self.skill_service.release_task(rec.task.task_id)
+
+    def _settle_retirement(
+        self,
+        rec: _Record,
+        receipt: TaskRetirement,
+        raw_key: str | None = None,
+        raw_digest: str | None = None,
+    ) -> None:
+        """Publish terminal in-memory state only after verified cleanup."""
+        rec.task.state = TaskState.CANCELLED
+        rec.task.error = "cancelled by owner"
+        rec.task.summary = RETIRED_SUMMARY
+        rec.cancel_requested = True
+        rec.retirement_keys[receipt.request_key_sha256] = receipt.request_digest
+        if (
+            raw_key is not None
+            and raw_digest == receipt.request_digest
+            and hashlib.sha256(raw_key.encode()).hexdigest() == receipt.request_key_sha256
+        ):
+            rec.interrupt_idem[raw_key] = (raw_digest, rec.task.task_id)
+        rec.done.set()
+
+    async def _retire_recovered(self, rec: _Record, request: InterruptRequest) -> Task:
+        """Owner-only stop for verified recovered paused work.
+
+        Publishes a minimal agent.retirement receipt in the current session
+        epoch and only then settles terminal state. Never replays
+        inference/tools and never emits an execution outcome for the old
+        task. A failed append leaves retryable paused state with no
+        poisoned owner idempotency mapping.
+        """
+        if request.expected_objective_revision != rec.task.objective_revision:
+            raise StaleRevision(
+                f"stale revision {request.expected_objective_revision}; "
+                f"current is {rec.task.objective_revision}"
+            )
+        payload = {
+            "expected_objective_revision": request.expected_objective_revision,
+            "reason": request.reason,
+            "source_event_ids": list(request.source_event_ids),
+        }
+        digest = _payload_hash(payload)
+        key_sha = hashlib.sha256(request.idempotency_key.encode()).hexdigest()
+        async with rec.retire_lock:
+            if rec.task.state in TERMINAL:
+                stored = rec.retirement_keys.get(key_sha)
+                if stored is not None and stored != digest:
+                    raise IdemConflict("idempotency key reuses a conflicting interrupt payload")
+                return rec.task.model_copy(deep=True)
+            if self._closed or rec.closing:
+                raise ValueError("Agent is closing")
+            if not rec.recovered or rec.task.state != TaskState.PAUSED or rec.submit_sequence < 1:
+                raise ValueError("Retirement requires verified recovered paused work")
+            if request.idempotency_key in rec.interrupt_idem:
+                old_digest, _ = rec.interrupt_idem[request.idempotency_key]
+                if old_digest != digest:
+                    raise IdemConflict("idempotency key reuses a conflicting interrupt payload")
+            committed = await self._committed_retirement(rec, key_sha, digest)
+            if committed is not None:
+                await self._cleanup_retirement(rec)
+                self._settle_retirement(rec, committed, request.idempotency_key, digest)
+                return rec.task.model_copy(deep=True)
+            session = await self._require_session(rec.task.session_id)
+            if session.thread_id != rec.task.thread_id:
+                raise ValueError(
+                    f"retiring recovered work requires the original thread {rec.task.thread_id!r}"
+                )
+            if session.epoch < rec.task.epoch:
+                raise ValueError("retiring recovered work requires the current session epoch")
+            receipt = TaskRetirement(
+                task_id=rec.task.task_id,
+                task_session_id=rec.task.session_id,
+                task_thread_id=rec.task.thread_id,
+                task_epoch=rec.task.epoch,
+                objective_revision=rec.task.objective_revision,
+                request_key_sha256=key_sha,
+                request_digest=digest,
+            )
+            await self._cleanup_retirement(rec)
+            await self.journal.append(
+                AppendRequest(
+                    session_id=rec.task.session_id,
+                    thread_id=rec.task.thread_id,
+                    epoch=session.epoch,
+                    kind="agent.retirement",
+                    payload=receipt.model_dump(mode="json"),
+                    task_refs=[rec.task.task_id],
+                    idempotency_key=self._stable_retirement_idem(rec.task.task_id, key_sha),
+                )
+            )
+            self._settle_retirement(rec, receipt, request.idempotency_key, digest)
+            return rec.task.model_copy(deep=True)
 
     # -- interface: status / wait / close ------------------------------
     # Async like every other AgentAdapter method, so the same adapter
@@ -707,7 +908,9 @@ class AgentRuntime:
         never replayed after a restart.
         """
         seen: dict[str, dict[str, Any]] = {}
+        submit_sequences: dict[str, int] = {}
         outcomes: dict[str, dict[str, Any]] = {}
+        retirements: dict[str, list[JournalEntry]] = {}
         plugin_pins: dict[str, dict[str, str]] = {}
         journal_numbers: dict[str, int] = {}
         after = 0
@@ -733,10 +936,22 @@ class AgentRuntime:
                         plugin_pins[ref] = dict(entry.payload["plugin_versions"])
                 if entry.kind == "agent.command" and entry.payload.get("op") == "submit":
                     for ref in refs:
+                        if ref not in seen and (
+                            entry.origin == "agent-supervisor"
+                            and refs == [ref]
+                            and entry.payload.get("task_id") == ref
+                            and entry.payload.get("session_id") == entry.session_id
+                            and entry.payload.get("thread_id") == entry.thread_id
+                            and entry.payload.get("epoch") == entry.epoch
+                        ):
+                            submit_sequences[ref] = entry.sequence
                         seen.setdefault(ref, entry.payload)
                 elif entry.kind == "agent.outcome":
                     for ref in refs:
                         outcomes[ref] = entry.payload
+                elif entry.kind == "agent.retirement":
+                    for ref in refs:
+                        retirements.setdefault(ref, []).append(entry)
         recovered: list[Task] = []
         for task_id, payload in seen.items():
             if task_id in self._tasks:
@@ -774,7 +989,22 @@ class AgentRuntime:
                     idempotency_key=payload.get("idempotency_key", task_id),
                     harness_version=payload.get("harness_version", "seed-v1"),
                 )
-            rec = _Record(task=task)
+            rec = _Record(
+                task=task, recovered=True, submit_sequence=submit_sequences.get(task_id, 0)
+            )
+            if task.state not in TERMINAL:
+                # A valid native receipt retires the work without replay;
+                # malformed or mismatched receipts never settle anything, and
+                # a native terminal execution outcome always wins.
+                for entry in retirements.get(task_id, []):
+                    receipt = _authenticated_retirement(entry, task, rec.submit_sequence)
+                    if receipt is None:
+                        continue
+                    rec.retirement_keys[receipt.request_key_sha256] = receipt.request_digest
+                if rec.retirement_keys:
+                    task.state = TaskState.CANCELLED
+                    task.error = "cancelled by owner"
+                    task.summary = RETIRED_SUMMARY
             rec.journal_seq = journal_numbers.get(task_id, 0)
             pins = plugin_pins.get(task_id, {})
             if len(pins) > 16 or any(

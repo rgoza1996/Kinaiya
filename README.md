@@ -243,6 +243,12 @@ stop/status and permission revocation remain available. Only reviewed environmen
 secret references are accepted. OAuth and complete MCP/skill ecosystem conformance
 remain open.
 
+Recovered paused work supports owner [native retirement](docs/adr/0018-recovered-task-retirement.md)
+after a session reset. Its durable receipt keeps the original task identity and
+records unreconciled effects without copying old execution context into the new
+epoch. Unacknowledged retirement stays paused until explicitly reconciled; MCP
+management remains blocked while any work is nonterminal.
+
 An optional [isolated compute-plugin host](docs/adr/0016-compute-plugins.md) can
 retain ordinary Python/JSON algorithms independently of the LLM that authored
 them. Owner-held acceptance suites and reviewed promotion gate activation;

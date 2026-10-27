@@ -1,0 +1,71 @@
+{
+  "synthetic_only": true,
+  "converse_constructed": false,
+  "external_model_calls": 0,
+  "initial_pending_provider_fixture_calls": 1,
+  "initial_worker_cancelled": true,
+  "recovered_provider_fixture_calls": [
+    0,
+    0
+  ],
+  "journal_transport": "real authenticated loopback HTTP JournalClient",
+  "task_original_epoch": 1,
+  "current_session_epoch": 3,
+  "lost_ack_fixture_first_http_status": 500,
+  "management_before_retirement_http_status": 409,
+  "management_during_unknown_ack_http_status": 409,
+  "management_after_retirement": {
+    "status": "configured",
+    "server_id": "disabled-synthetic",
+    "revision": 1
+  },
+  "retirement_receipt_count": 1,
+  "retirement_receipt_epoch": 2,
+  "retirement_payload": {
+    "schema_version": "1.0",
+    "task_id": "87c9fb97-fe6b-4b6c-8cde-7df584ac2644",
+    "task_session_id": "cadd45a8-c9b1-4a4b-bc57-5e054e9f8879",
+    "task_thread_id": "aae01acd-8f00-4071-aa01-e925f2ff52c9",
+    "task_epoch": 1,
+    "objective_revision": 1,
+    "request_key_sha256": "15c8c58394e4218b5a1a90b7e74e8d3b44f469b5209a659b8b6a6910b42898c6",
+    "request_digest": "a58f1525ccb7c4ff7714dbed33c7578b2077ea5587f8056e9cb1d029623e253a",
+    "disposition": "cancelled",
+    "effect_status": "unreconciled"
+  },
+  "recovered_state": "cancelled",
+  "recovered_task_epoch": 1,
+  "conflicting_key_after_reopen_http_status": 409,
+  "new_epoch_execution_outcome_count": 0,
+  "repository_head": "97145f9522747643c2a98972bc52f76dad6d2698",
+  "working_tree_clean": true,
+  "source_sha256": {
+    "services/agent/runtime.py": "949a668d5b0807c91a99f1e1217e0a469739d108df9f3e6a7dcc41f994dbe16d",
+    "packages/commands/__init__.py": "fe3333b45e8c27c0c82e93fc39e3b03f3c0b533c64d3d0573b416003d6f19a5f",
+    "packages/contracts/models.py": "8b4992923a2cd4e315151ef7c18f64701ddfcd6fc69c892a5b8197bb919c70a6",
+    "services/session/store.py": "9e63dbcfc4f74ed0ed25a2bc0834cccdc1d3ca8462f8b6d86c6faa3d9526b918",
+    "scripts/verify_task_retirement.py": "1c27a2b6e595afa752fde523bf51841166425d63c234c08d808d908d21a9fbe6"
+  },
+  "recorded_at": "2026-10-27T17:29:57.334980+00:00",
+  "verification": {
+    "python_full": "523 passed, one existing Starlette deprecation warning",
+    "initial_focused_integration": "62 passed",
+    "final_commands_retirement_integration": "61 passed",
+    "independent_tail_review_tests": "33 passed before the additional two command-receipt privacy cases",
+    "checks": [
+      "Ruff check",
+      "Ruff format check",
+      "schema regeneration; existing Task/AppendRequest/InterruptRequest schemas unchanged",
+      "git diff --check"
+    ]
+  },
+  "command_receipt_check": "Actual Registry/Store regressions pass for /stop across a session reset and another Agent session: the owner response retains requested task details; the current command receipt stores only original identity/scope/revision/state.",
+  "review_limits": "Independent Contributor/xhigh review covered native contract/helper fragments and completed the recovery tail/test review with 33 tests. Lead subsequently found, fixed and tested the command-receipt privacy gap; that small correction was not re-reviewed by a separate worker. Not independent human approval or exhaustive security audit.",
+  "limitations": [
+    "Explicit synthetic fault injection hid one committed acknowledgment; no spontaneous network outage is claimed.",
+    "One pending provider fixture call before shutdown, zero recovered provider calls; no external inference configured.",
+    "Retirement cancels recovered workerless work but does not undo or reconcile uncertain prior effects.",
+    "No Converse constructed and no new-epoch execution outcome emitted.",
+    "This repair does not close full M6 recovery/migration or the production Roadmap."
+  ]
+}

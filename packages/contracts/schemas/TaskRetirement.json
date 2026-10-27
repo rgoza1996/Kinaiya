@@ -1,0 +1,73 @@
+{
+  "additionalProperties": false,
+  "description": "Native administrative receipt; never a new-epoch execution outcome.",
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "task_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Task Id",
+      "type": "string"
+    },
+    "task_session_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Task Session Id",
+      "type": "string"
+    },
+    "task_thread_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Task Thread Id",
+      "type": "string"
+    },
+    "task_epoch": {
+      "minimum": 1,
+      "title": "Task Epoch",
+      "type": "integer"
+    },
+    "objective_revision": {
+      "minimum": 1,
+      "title": "Objective Revision",
+      "type": "integer"
+    },
+    "request_key_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Request Key Sha256",
+      "type": "string"
+    },
+    "request_digest": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Request Digest",
+      "type": "string"
+    },
+    "disposition": {
+      "const": "cancelled",
+      "default": "cancelled",
+      "title": "Disposition",
+      "type": "string"
+    },
+    "effect_status": {
+      "const": "unreconciled",
+      "default": "unreconciled",
+      "title": "Effect Status",
+      "type": "string"
+    }
+  },
+  "required": [
+    "task_id",
+    "task_session_id",
+    "task_thread_id",
+    "task_epoch",
+    "objective_revision",
+    "request_key_sha256",
+    "request_digest"
+  ],
+  "title": "TaskRetirement",
+  "type": "object"
+}
