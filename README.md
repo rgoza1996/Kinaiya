@@ -14,6 +14,168 @@ Kinaiya pairs a personable, real-time voice experience with an agent that can do
 
 The long-term product scope also includes resource-aware operation, provider choice, durable work, skills and MCP tools, mobile calling, and optional intelligent UI. Those are planned capabilities, not promises that every feature will ship in one release.
 
+
+## Mathematical foundations
+
+Kinaiya combines discrete-state coordination, cryptographic integrity, budget-constrained execution, streaming inference, and adaptive-harness research. The equations below distinguish **what the experimental code enforces** from **what the roadmap proposes to evaluate**. Proposed formulations illustrate possible research methods; they are **not implemented algorithms or measured performance claims**.
+
+### 1. Decisions: risk-aware conversational routing
+
+**Status:** A four-way asynchronous classifier and routing worker exist; calibrated probabilistic decision theory is proposed.
+
+Decisions chooses among ignore, queue, steer, and interrupt. A possible risk-sensitive decision rule is:
+
+$$
+\mathcal{A}=\{\mathrm{ignore},\mathrm{queue},\mathrm{steer},\mathrm{interrupt}\},
+\qquad
+a_t^*=\arg\min_{a\in\mathcal A}\sum_{y\in\mathcal A}
+P_\theta(y\mid x_t,H_t,z_t)L(a,y).
+$$
+
+Here $x_t$ is the current message, $H_t$ is relevant conversation history, $z_t$ is task state, and $L(a,y)$ penalizes choosing route $a$ when the appropriate route is $y$. Missing a cancellation may deserve a larger penalty than an unnecessary interruption. **This loss-based decision rule is a proposed formulation**, not a claim about the current classifier or calibration; model confidence is not automatically a probability. Routing never grants tool permissions.
+
+[Decisions runtime](services/decisions/runtime.py) · [Routing design](Roadmap.md#6-asynchronous-decisions)
+
+### 2. Shared transcript: context selection under a token budget
+
+**Status:** The persistent journal and bounded retrieval exist; optimized snippet selection is proposed for the first self-building harness experiment.
+
+Selecting relevant snippets can be modeled as a 0–1 knapsack problem:
+
+$$
+\begin{aligned}
+\max_{\mathbf{s}}\quad &\sum_{i=1}^{n}v_i s_i\\
+\text{subject to}\quad &\sum_{i=1}^{n}c_i s_i\le B,\qquad s_i\in\{0,1\}.
+\end{aligned}
+$$
+
+$v_i$ is a snippet's estimated utility, $c_i$ its token cost, $B$ the token budget, and $s_i$ whether to include it. This **illustrates the planned context-selection experiment**; the existing journal enforces limits and retrieval filters but does not solve this optimization problem.
+
+[Journal implementation](services/session/store.py) · [Harness experiment](Roadmap.md#123-first-executable-experiment)
+
+### 3. Event consistency: ordering, revisions, and authorization
+
+**Status:** Implemented invariants and cryptographic action binding.
+
+The journal assigns monotonically increasing sequence numbers, consumer cursors cannot retreat, and applied task steering increments the objective revision:
+
+$$
+s_{i+1}>s_i,\qquad c_{t+1}\ge c_t,\qquad r_{\mathrm{new}}=r_{\mathrm{old}}+1.
+$$
+
+An action-specific approval is tied to the canonicalized tool name, arguments, and objective revision:
+
+$$
+h=\operatorname{SHA256}(\operatorname{CanonicalJSON}(a,\theta_a,r)).
+$$
+
+The supervisor accepts it only when its digest and revision match, it has not expired, and it has not been consumed. Hashing helps bind authorization to a particular action; **it does not by itself authorize the action or make the system infallible**.
+
+[Journal implementation](services/session/store.py) · [Policy and approvals](core/policy/__init__.py)
+
+### 4. API economics: conservative admission control
+
+**Status:** Implemented in a development-only Meta API budget proxy; not live provider billing.
+
+For reported input tokens $I$, output tokens $O$, and cached input tokens $K$, the proxy calculates two estimates using its configured dollar-per-million-token constants:
+
+$$
+\widehat C_{\mathrm{conservative}}=\frac{1.25I+4.25O}{10^6},
+\qquad
+\widehat C_{\mathrm{contributor}}=
+\frac{0.10(I-K)+0.002K+0.20O}{10^6}.
+$$
+
+Requests are admitted only while estimated spend, outstanding reservations, and the next conservative reservation fit the script's **$22 admission ceiling** within its **$25 development budget**:
+
+$$
+\widehat C_{\mathrm{spent}}+C_{\mathrm{reserved}}+C_{\mathrm{next}}\le 22.
+$$
+
+These constants reflect this repository's development proxy, **not a guarantee of current Meta prices or actual charges**.
+
+[Budget proxy](scripts/muse_budget_proxy.py)
+
+### 5. Streaming conversation: latency and real-time factor
+
+**Status:** Experimental Converse streaming/chunking exists; the performance goals and broad TTS comparison are research targets.
+
+A purely sequential speech pipeline has approximate latency
+
+$$
+T_{\mathrm{sequential}}=T_{\mathrm{STT}}+T_{\mathrm{LLM}}+T_{\mathrm{TTS}}.
+$$
+
+Overlapping pipeline stages can reduce perceived response time. The critical-path bound for an idealized dependency graph $G$ is
+
+$$
+T_{\mathrm{pipeline}}\ge
+\max_{p\in\mathcal P(G)}\sum_{v\in p}t_v.
+$$
+
+For synthesis, real-time factor is
+
+$$
+\mathrm{RTF}=\frac{T_{\mathrm{synthesis}}}{T_{\mathrm{generated\ audio}}}.
+$$
+
+RTF below 1 means synthesis is faster than audio duration. The roadmap proposes warm audible TTS onset below **250 ms median / 500 ms p95**, end-of-speech to audible reply below **1 s median / 2 s p95**, and sustained **RTF < 1** (stretch **RTF < 0.3**). These are **unverified reference-profile targets**, not achieved measurements. Overlapping stages still incur buffering, contention, and scheduling overhead.
+
+[Converse runtime](services/converse/runtime.py) · [Measurement plan](Roadmap.md#252-voice-measurements)
+
+### 6. Local inference: GPU resource admission
+
+**Status:** Planned resource-management policy, not a measured GPU scheduler.
+
+Before loading several local workers, a resource manager could enforce a capacity constraint:
+
+$$
+M_{\mathrm{weights}}+M_{\mathrm{KV}}+M_{\mathrm{buffers}}+
+M_{\mathrm{renderer}}+M_{\mathrm{headroom}}\le M_{\mathrm{VRAM}}.
+$$
+
+This is a first-order memory-accounting model, not a complete measure of feasibility: latency contention, fragmented/reserved allocations, and unloading behavior also matter. The intended policies allow queueing, deliberate worker handoff, or **user-authorized** cloud inference—not silent cloud fallback.
+
+[Resource policy and handoff](Roadmap.md#14-inference-providers-and-resource-management)
+
+### 7. Self-building harnesses: controlled optimization and evaluation
+
+**Status:** The bounded seed Agent and protected execution foundations exist; generated executable harness evaluation, promotion, and rollback remain research milestones.
+
+With fixed target model, tasks, tools, and budgets, compare baseline harness $H_0$ and generated candidate $H_1$ on the same $n$ tasks. For independently evaluated task quality $Q_i$, a paired improvement estimate is
+
+$$
+\widehat{\Delta}=\frac{1}{n}\sum_{i=1}^{n}
+\bigl[Q_i(H_1)-Q_i(H_0)\bigr],
+\qquad
+\operatorname{SE}(\widehat{\Delta})=\frac{s_d}{\sqrt n}.
+$$
+
+Here $s_d$ is the sample standard deviation of paired task-score differences. Repeated runs, held-out tasks, uncertainty reporting, and controlled baselines are needed before claiming an improvement. If a candidate saves $C_0-C_1>0$ per task after adaptation costing $C_{\mathrm{adapt}}$, a simple break-even estimate is
+
+$$
+N_{\mathrm{break\text{-}even}}=
+\frac{C_{\mathrm{adapt}}}{C_0-C_1}.
+$$
+
+Most importantly, better scores must **never** compensate for weakened permissions, modified objectives, forged evidence, or exceeded budgets. The planned research objective is *constrained*, not an unconstrained reward maximization:
+
+$$
+\begin{aligned}
+\max_{H\in\mathcal H}\quad&
+\mathbb E_{x\sim\mathcal D}[Q(H,x)]\\
+\text{subject to}\quad&
+\operatorname{Safe}(H)=1,\quad\operatorname{Integrity}(H)=1,\\
+&C_{\mathrm{adapt}}(H)\le B_{\mathrm{adapt}},\quad
+C_{\mathrm{run}}(H)\le B_{\mathrm{run}}.
+\end{aligned}
+$$
+
+These are **proposed evaluation formulations**, not a shipped optimization algorithm or proof of safety.
+
+[Seed harness](harnesses/seed/__init__.py) · [Evaluation and promotion policy](Roadmap.md#12-harness-evaluation-and-promotion) · [Research measurements](Roadmap.md#254-harness-measurements)
+
+
 ## Hackathon target
 
 The planned demonstration is a focused slice through the larger roadmap:
