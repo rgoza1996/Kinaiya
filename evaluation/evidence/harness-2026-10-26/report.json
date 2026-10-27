@@ -1,0 +1,57 @@
+{
+  "report": {
+    "report_id": "rep-65cf662336b34cc0",
+    "candidate_version_id": "v-690bf131d521fc2ab9d2c7f3",
+    "candidate_source_sha256": "c31cbb6771fa7b9a508f9a1df1e262dcf5f8ef3955a20b97dad8158537e39fd5",
+    "baseline_version_id": "v-78eff06ea43ca5775b4c842e",
+    "baseline_source_sha256": "5b2a407bad55b2f53c5d2164d44e20b92ae46bc748531678e8fd1c911c07629c",
+    "suite_hash": "41d77088d4976d00f8f02781ae78e24492808bdd8885f5066cad4bc701b0140c",
+    "suite_cases": 12,
+    "policy": {
+      "min_recall": 0.5,
+      "non_inferiority_margin": 0.1,
+      "max_failure_rate": 0.0,
+      "require_no_invalid": true,
+      "max_mean_wall_s": 4.0
+    },
+    "policy_version": "harness-policy.v1",
+    "model_profile": null,
+    "candidate": {
+      "n_cases": 12,
+      "n_ok": 12,
+      "n_fail": 0,
+      "failure_rate": 0.0,
+      "validity_rate": 1.0,
+      "mean_recall": 0.16666666666666666,
+      "mean_wall_s": 0.03628746075082745,
+      "max_wall_s": 0.03881793799519073,
+      "budget_unit": "chars: sum(len(text)) of selected files must be <= max_chars"
+    },
+    "baseline": {
+      "n_cases": 12,
+      "n_ok": 12,
+      "n_fail": 0,
+      "failure_rate": 0.0,
+      "validity_rate": 1.0,
+      "mean_recall": 0.16666666666666666,
+      "mean_wall_s": 0.036122810167095544,
+      "max_wall_s": 0.03751139900123235,
+      "budget_unit": "chars: sum(len(text)) of selected files must be <= max_chars"
+    },
+    "passed": false,
+    "reasons": [
+      "PASS failure_rate 0.000 <= 0.000",
+      "PASS validity_rate 1.000 == 1.0",
+      "PASS mean_wall_s 0.036 <= 4.000",
+      "FAIL mean_recall 0.167 >= 0.500 (min 0.500, baseline 0.167 - margin 0.100)"
+    ],
+    "created_at": 1793082750.9119542
+  },
+  "active_before": "v-78eff06ea43ca5775b4c842e",
+  "active_after": "v-78eff06ea43ca5775b4c842e",
+  "promotion_attempted": false,
+  "evaluation_model_calls": 0,
+  "source_commit": "2481ec0190382fce3634ff6b18fc3cb7af088a97",
+  "initial_heldout_report_id": "rep-b718671c987d4fbb",
+  "reproduction_only_suite_retired": true
+}
