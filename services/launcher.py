@@ -232,12 +232,24 @@ def serve(args):
                 },
             )
         mcp_host = None
+        mcp_controller = None
         mcp_entries = config.get("mcp_servers", [])
-        if mcp_entries:
+        mcp_settings = config.get("mcp")
+        mcp_enabled = bool(mcp_entries)
+        if mcp_settings is not None:
+            if (
+                not isinstance(mcp_settings, dict)
+                or set(mcp_settings) != {"enabled"}
+                or type(mcp_settings["enabled"]) is not bool
+            ):
+                raise SystemExit("mcp accepts an explicit boolean enabled flag")
+            mcp_enabled = mcp_settings["enabled"]
+        if mcp_enabled:
             # Optional MCP host activates only with explicit owner-authored
             # server configs. The module import stays lazy so the Agent runs
             # without the MCP dependency when nothing is configured.
-            from packages.ecosystem.mcp_host import MCPConfig, MCPHost
+            from packages.ecosystem.mcp_control import MCPController
+            from packages.ecosystem.mcp_host import MCPConfig
 
             if not isinstance(mcp_entries, list):
                 raise SystemExit("mcp_servers must be a list of owner-authored server configs")
@@ -256,7 +268,14 @@ def serve(args):
                         return os.environ.get(name)
                 return None
 
-            mcp_host = MCPHost(mcp_configs, policy, secret_resolver=_mcp_secret)
+            mcp_controller = MCPController(
+                args.data_dir.resolve() / "mcp",
+                workspace,
+                policy,
+                initial_configs=mcp_configs,
+                secret_resolver=_mcp_secret,
+            )
+            mcp_host = mcp_controller.host
         skill_service = None
         if skill_config := config.get("skills"):
             from services.agent.skill_service import SkillService
@@ -291,6 +310,7 @@ def serve(args):
             policy,
             selector_registry=selector,
             mcp_host=mcp_host,
+            mcp_controller=mcp_controller,
             skill_service=skill_service,
             plugin_service=plugin_service,
         )

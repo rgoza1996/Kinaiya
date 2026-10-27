@@ -234,6 +234,15 @@ instructions. Packages default to local-only disclosure. The [Agent skill
 boundary](docs/adr/0010-agent-skills.md) records the tested workflow and the
 remaining registry, upstream compatibility and execution-adapter work.
 
+Optional [MCP connection management](docs/adr/0017-mcp-management.md) is enabled by
+`"mcp":{"enabled":true}` after installing the ecosystem extra. Agent `/mcp`
+commands and its **MCP connections** settings configure disabled profiles, test
+connections, enable, reconnect, disable and remove servers without inference.
+Configuration changes use explicit task boundaries and durable request identities;
+stop/status and permission revocation remain available. Only reviewed environment
+secret references are accepted. OAuth and complete MCP/skill ecosystem conformance
+remain open.
+
 An optional [isolated compute-plugin host](docs/adr/0016-compute-plugins.md) can
 retain ordinary Python/JSON algorithms independently of the LLM that authored
 them. Owner-held acceptance suites and reviewed promotion gate activation;

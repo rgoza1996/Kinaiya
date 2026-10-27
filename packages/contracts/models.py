@@ -227,3 +227,14 @@ class PluginControl(WireModel):
         None
     )
     arguments: dict | None = None
+
+
+class MCPControl(WireModel):
+    operation: Literal["configure", "enable", "disable", "remove", "test", "reconnect", "reconcile"]
+    idempotency_key: str = Field(min_length=1, max_length=128)
+    expected_revision: int | None = Field(default=None, ge=0, le=2147483647, strict=True)
+    server_id: str | None = Field(
+        default=None, min_length=1, max_length=64, pattern=r"^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+    )
+    config: dict | None = None
+    reviewed: bool = Field(default=False, strict=True)

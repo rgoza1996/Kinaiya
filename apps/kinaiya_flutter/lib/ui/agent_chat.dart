@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../api/client.dart';
 import '../api/models.dart';
 import '../state/app_state.dart';
+import 'mcp_settings.dart';
 import 'widgets.dart';
 
 /// Direct Agent Chat: real worker surface with tools, evidence, approvals
@@ -560,6 +561,16 @@ class _AgentChatState extends State<AgentChat> {
                   tooltip: 'Agent commands',
                   onPressed: _s.commandsAvailable ? _showCommands : null,
                   icon: const Icon(Icons.terminal),
+                ),
+                IconButton(
+                  tooltip: 'MCP connections',
+                  onPressed: _s.client == null
+                      ? null
+                      : () => showDialog<void>(
+                          context: context,
+                          builder: (_) => McpSettings(state: _s),
+                        ),
+                  icon: const Icon(Icons.hub_outlined),
                 ),
                 Expanded(
                   child: TextField(
