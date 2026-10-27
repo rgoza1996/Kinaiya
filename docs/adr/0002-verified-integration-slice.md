@@ -51,6 +51,8 @@ Reproduce with `scripts/live_slice.py` against configured running services and a
 empty dedicated synthetic workspace. It requires `--allow-paid-inference` and forces
 Meta traffic through the run-local admission proxy. Default CI never spends inference.
 
+The repeatable reference run at source commit `411c2f0` passed all five cases in one invocation. Its two ordinary replies arrived after 5.50 and 5.29 seconds; result-notice decoded audio began after 1.13 and 1.36 seconds. The first text arrived before Decisions had submitted work in these samples, which is consistent with independent routing. The full sanitized record is `evaluation/evidence/stage-b-2026-10-26.json`. The earlier slower samples above remain disclosed; neither set establishes the roadmap latency targets.
+
 ## Prototype conversation behavior retained by the rewrite
 
 The lead compared Kinaiya-Converse's live controller, adaptive VAD, partial-window queue, recorder, interruption handling, playback scheduler, history and response service. These are behavior references, rather than a wholesale port of its shared frontend state. Useful behavior includes user-armed continuous listening, adaptive speech/silence thresholds, minimum speech duration, endpoint silence, independently decodable partial recordings, draining or superseding partial work, sustained barge-in detection, stopping every scheduled audio source, and allowing a reply to an interruption to be interrupted again. Old asynchronous cleanup must never reset a newer turn's capture or speech state.
