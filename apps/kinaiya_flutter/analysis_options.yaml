@@ -1,0 +1,13 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    - build/**
+    - web/**
+  language:
+    strict-casts: true
+
+linter:
+  rules:
+    - always_declare_return_types
+    - avoid_dynamic_calls
