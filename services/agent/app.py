@@ -46,8 +46,10 @@ def create_app(runtime: AgentRuntime, auth: Any, commands=None) -> FastAPI:
 
     app = FastAPI(title="Kinaiya Seed Agent", version="0.1.0")
     from services.agent.harness_api import router as harness_router
+    from services.agent.skill_controls import router as skill_router
 
     app.include_router(harness_router(runtime, auth))
+    app.include_router(skill_router(runtime, auth))
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(auth.allowed_origins),
@@ -122,6 +124,8 @@ def create_app(runtime: AgentRuntime, auth: Any, commands=None) -> FastAPI:
         if runtime.mcp_host is not None:
             # MCP tools exist only when owner-configured servers are present.
             tools += ["mcp_list", "mcp_call"]
+        if runtime.skill_service is not None:
+            tools += ["skills_list", "skill_load"]
         return {
             "harness": runtime.selector_registry.active if runtime.selector_registry else "seed-v1",
             "event_protocol": "1.0",
@@ -157,6 +161,7 @@ def create_app(runtime: AgentRuntime, auth: Any, commands=None) -> FastAPI:
 
     @app.get("/v1/commands", dependencies=[Depends(require_owner)])
     async def command_definitions():
+        await commands.refresh_skill_commands()
         return commands.definitions()
 
     @app.post("/v1/commands/execute")
