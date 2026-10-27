@@ -46,6 +46,7 @@ import httpx
 import jsonschema
 from mcp.client.session import ClientSession
 from mcp.client.streamable_http import streamable_http_client
+from mcp.shared.exceptions import McpError as SDKMCPError
 from mcp.shared.message import SessionMessage
 from mcp.types import JSONRPCMessage
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -1135,6 +1136,7 @@ class _ServerActor:
                 return
             except Exception as exc:  # noqa: BLE001
                 pending = take_fatal()
+                timed_out = isinstance(exc, SDKMCPError) and exc.error.code == 408
                 try:
                     await reset()
                 finally:
@@ -1144,9 +1146,9 @@ class _ServerActor:
                         else:
                             fut.set_exception(
                                 MCPTransportError(
-                                    f"mcp {config.id!r} tool {tool!r} failed via "
+                                    f"mcp {config.id!r} tool {tool!r} {'timed out' if timed_out else 'failed'} via "
                                     f"{config.sanitized_endpoint()}: {type(exc).__name__} "
-                                    f"{_scrub(str(exc), current_secrets())}"
+                                    f"{_scrub(str(exc), current_secrets())}; outcome uncertain, not retried"
                                 )
                             )
                 return

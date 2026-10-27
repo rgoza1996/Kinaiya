@@ -84,6 +84,9 @@ def main():
         elif method == "tools/call" and mid is not None:
             name, args = params.get("name"), params.get("arguments") or {}
             log({"event": "call", "tool": name})
+            if mode == "sdk_timeout":
+                send({"jsonrpc": "2.0", "id": mid, "error": {"code": 408, "message": "Synthetic SDK deadline"}})
+                continue
             if mode == "die":
                 os._exit(1)
             if mode in ("secret", "secret_error"):
@@ -778,5 +781,24 @@ async def test_revocation_drops_live_stdio_before_another_call(tmp_path, spawned
             await host.call("synth", "echo", {"text": "revoked"})
         assert all(process.returncode is not None for process, _ in spawned)
         assert not _calls(tmp_path)
+    finally:
+        await host.close()
+
+
+async def test_sdk_deadline_error_is_uncertain_and_never_replayed(tmp_path, spawned):
+    if not _sandbox_ok(tmp_path):
+        pytest.skip("Real bubblewrap unavailable")
+    _write_server(tmp_path)
+    cfg = _cfg(
+        tmp_path, args=["/workspace/synth_mcp_server.py", "sdk_timeout", "/workspace/calls.log"]
+    )
+    host = MCPHost([cfg], ToolPolicy(tmp_path, allow_shell=True))
+    try:
+        with pytest.raises(MCPTransportError, match="timed out.*outcome uncertain, not retried"):
+            await host.call("synth", "echo", {"text": "x"})
+        assert len(_calls(tmp_path)) == 1
+        assert all(process.returncode is not None for process, _ in spawned)
+        assert (await host.discover("synth"))[0]["name"] == "echo"
+        assert len(_calls(tmp_path)) == 1
     finally:
         await host.close()
