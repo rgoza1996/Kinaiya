@@ -20,7 +20,8 @@
             "read",
             "search",
             "test",
-            "extension"
+            "extension",
+            "external"
           ],
           "title": "Kind",
           "type": "string"
