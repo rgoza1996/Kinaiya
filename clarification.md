@@ -1,7 +1,7 @@
 # Kinaiya — Architectural Clarification: Autonomous Capability Expansion
 
 **Status:** Architectural design intent  
-**Scope:** Kinaiya Agent, adaptive harnesses, executable extensions, skills, plugins, and external tools  
+**Scope:** Kinaiya Agent, Converse, Decisions, adaptive harnesses, executable extensions, skills, plugins, and external tools  
 **Related specifications:** `Roadmap.md`, Sections 8, 10–12, 14, and 31
 
 ## 1. Fundamental Principle
@@ -173,6 +173,67 @@ This is a distinct research objective from determining whether automatically gen
 Neither objective should be represented as solved merely because its architecture has been specified.
 
 The present document establishes the intended design and interpretation. Individual mechanisms must be implemented, tested, and reported according to their actual development status.
+
+## 10. Decisions: Real-Time Converse Control and Agent Routing
+
+**Design intent:** Decisions is a low-latency, model-selectable, asynchronously operating control and routing component between Converse and Agent. Its purpose is broader than voice activity detection, endpointing, or a simple turn-taking classifier. It determines how Converse should react to emerging speech **and separately** whether the speech should immediately affect Agent's ongoing work.
+
+Decisions does not replace the conversational LLM, Agent's reasoning and planning, or the complete transcript. Its classifications are routing and timing instructions, not authoritative statements that work has started, stopped, or succeeded.
+
+### 10.1 Converse-facing conversational outcomes
+
+On each suitable streaming transcript window, Decisions may select one of four conversational behaviors:
+
+1. **IGNORE:** Do not produce a conversational response to this speech/window.
+2. **WAIT_FOR_NEXT_WINDOW:** The user may not be finished; retain relevant partial context and evaluate the next transcript window.
+3. **RESPOND_INTERRUPT_USER:** Initiate a response even if doing so requires interrupting the user's current speech when appropriate.
+4. **RESPOND_WITHOUT_INTERRUPTING_USER:** Prepare or deliver a response at a suitable conversational opening, without speaking over the user.
+
+These are behavioral choices, not synonyms for fixed silence timers. The objective is to infer whether the user's utterance is actionable, incomplete, a backchannel, or an interruption **from the contents and context of successive streaming windows**, rather than mandating an artificial period of silence before every response. Timing, prosody, STT stability, and acoustic evidence may assist; no claim of perfectly eliminating ambiguity or latency is implied.
+
+### 10.2 Agent-facing asynchronous routing outcomes
+
+Independently of the conversational response decision, Decisions selects how the same speech should affect Agent:
+
+1. **IGNORE_FOR_IMMEDIATE_ROUTING:** Do not immediately push this speech to Agent's task-processing path.
+2. **STEER_CURRENT_TASK:** Forward a relevant instruction that changes or constrains work already in progress without automatically cancelling the task.
+3. **INTERRUPT_CURRENT_TASK:** Deliver a high-priority request to pause, stop, or cancel active Agent work, using the actual executor's interruption mechanisms and acknowledgments.
+4. **QUEUE_UNTIL_TASK_DONE:** Preserve the instruction and deliver it after the current task completes or reaches the appropriate queue boundary.
+
+These outcomes are **not mutually exclusive with Converse's outcomes**. One user utterance can lead to a conversational acknowledgment while steering Agent; another can demand both immediate conversational interruption and task cancellation. Decisions may evaluate both channels concurrently or in one fast inference, but the resulting decisions must be represented separately.
+
+### 10.3 Full transcript is preserved and accessible to Agent
+
+**IGNORED for immediate routing does not mean deleted, lost, or inaccessible to Agent.** All timestamped transcript windows are independently appended to the complete conversation record and are synchronized to an Agent-accessible transcript/history channel or store. Agent may inspect the complete transcript whenever it deems it necessary, including windows Decisions did not select for immediate task routing.
+
+This creates two deliberately distinct information paths:
+
+- **Immediate attention path:** Selected speech reaches Agent now as an actionable steer, interrupt, or queued instruction.
+- **Complete history path:** The full transcript remains available for later reasoning, context recovery, auditing, and follow-up, subject to the user's configured privacy and retention settings.
+
+Decisions must not become the sole owner or gatekeeper of transcript persistence. Conversational and Agent routing errors must never silently discard the historical record.
+
+### 10.4 Asynchronous operation and execution safeguards
+
+- Decisions should run independently of long-running Agent inference and tool execution. Its value depends on low end-to-end latency across streaming STT, classification, dispatch, and any required executor acknowledgment, not merely fast model inference.
+- Transcript windows and routing results should carry sequence identifiers and task/turn context so delayed decisions do not overwrite newer intent or attach to a retired task.
+- Agent steering changes task intent through an explicit supported channel. An interruption request is not proof of cancellation; actual executor state must confirm the effect, especially for irreversible or already-dispatched actions.
+- Queued instructions must retain ordering and be reconsidered against current task state when dequeued. Duplicate, superseded, or stale instructions must not be applied blindly.
+- Model choice is replaceable. The intended architecture does not depend on a particular Decisions model or require the routing model to be the same model used for Agent or Converse.
+
+### 10.5 Interpretation examples
+
+| User speech while Korina is active | Converse decision | Agent routing decision |
+| --- | --- | --- |
+| 'Korina, could you... actually...' | WAIT_FOR_NEXT_WINDOW | IGNORE_FOR_IMMEDIATE_ROUTING |
+| 'Mm-hmm' while Korina is explaining something | IGNORE | IGNORE_FOR_IMMEDIATE_ROUTING |
+| 'Also include the documentation.' during a coding task | RESPOND_WITHOUT_INTERRUPTING_USER | STEER_CURRENT_TASK |
+| 'Stop, don't delete that!' during active execution | RESPOND_INTERRUPT_USER | INTERRUPT_CURRENT_TASK |
+| 'Once that finishes, check the changelog.' | RESPOND_WITHOUT_INTERRUPTING_USER | QUEUE_UNTIL_TASK_DONE |
+
+These are illustrative outcomes; real decisions depend on context and must be tested for false interruptions, premature turn completion, missed steering, delayed cancellation, unnecessary Agent activations, and full-transcript recovery.
+
+**Core clarification:** Converse handles the live user-facing conversation; Decisions independently governs conversation timing and selective, asynchronous task routing; Agent performs deeper reasoning and task execution while retaining access to the unfiltered conversation history. Fast Decisions inference is an enabling mechanism, not a reason to conflate these responsibilities.
 
 ---
 
