@@ -25,7 +25,7 @@ ALLOWED_KINDS = {
         "approval.resolved",
         "artifact.updated",
     },
-    "decisions": {"routing.decided"},
+    "decisions": {"routing.decided", "routing.dispatch"},
     "resources": {"resource.changed"},
 }
 
@@ -181,16 +181,32 @@ class Store:
 
     def resolve(self, event_id: str) -> JournalEntry:
         event = self.entry(event_id)
-        revisions = self.read(
-            session_id=event.session_id,
-            kinds=["conversation.revision"],
-            after=event.sequence,
-            limit=200,
-        )
-        for revision in revisions:
-            if revision.payload.get("target_event_id") == event_id:
-                event = event.model_copy(update={"payload": {**event.payload, **revision.payload}})
+        with self.lock:
+            row = self.db.execute(
+                "SELECT value FROM entries WHERE session_id=? AND kind='conversation.revision' "
+                "AND json_extract(value,'$.payload.target_event_id')=? ORDER BY sequence DESC LIMIT 1",
+                (event.session_id, event_id),
+            ).fetchone()
+        if row:
+            revision = JournalEntry.model_validate_json(row[0])
+            event = event.model_copy(update={"payload": {**event.payload, **revision.payload}})
         return event
+
+    def recent(self, *, session_id: str, limit=100):
+        if not 1 <= limit <= 200:
+            raise JournalError("limit must be 1..200")
+        with self.lock:
+            rows = self.db.execute(
+                "SELECT value FROM entries WHERE session_id=? ORDER BY sequence DESC LIMIT ?",
+                (session_id, limit),
+            ).fetchall()
+        output, size = [], 0
+        for row in rows:
+            size += len(row[0].encode())
+            if size > 262144:
+                break
+            output.append(JournalEntry.model_validate_json(row[0]))
+        return list(reversed(output))
 
     def read(
         self,
@@ -275,8 +291,21 @@ class LocalJournal:
     async def read(self, **kwargs):
         return self.store.read(**kwargs)
 
+    async def recent(self, **kwargs):
+        return self.store.recent(**kwargs)
+
     async def session(self, session_id):
         return self.store.session(session_id)
+
+    async def sessions(self):
+        if self.role != "owner":
+            raise PermissionError("Listing sessions requires owner")
+        return self.store.sessions()
+
+    async def create_session(self, request):
+        if self.role != "owner":
+            raise PermissionError("Creating sessions requires owner")
+        return self.store.create_session(request)
 
     async def resolve(self, event_id):
         return self.store.resolve(event_id)

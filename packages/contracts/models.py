@@ -167,8 +167,16 @@ class ApprovalResolution(WireModel):
     objective_revision: int = Field(ge=1)
 
 
+class CommandRequest(WireModel):
+    session_id: str
+    thread_id: str
+    epoch: int = Field(ge=1)
+    input: str = Field(min_length=1, max_length=16000)
+    idempotency_key: str = Field(min_length=1, max_length=256)
+
+
 class ToolAction(WireModel):
-    tool: Literal["read_file", "write_file", "search", "shell", "finish"]
+    tool: Literal["read_file", "write_file", "search", "shell", "read_transcript", "finish"]
     arguments: dict[str, Any] = Field(default_factory=dict)
 
 

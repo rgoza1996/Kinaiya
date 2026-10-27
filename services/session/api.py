@@ -90,6 +90,10 @@ def create_app(store: Store, auth: Auth) -> FastAPI:
     async def entry(event_id: str, resolve: bool = False):
         return store.resolve(event_id) if resolve else store.entry(event_id)
 
+    @app.get("/v1/transcript/recent", dependencies=[Depends(auth.require())])
+    async def recent(session_id: str, limit: int = Query(100, ge=1, le=200)):
+        return store.recent(session_id=session_id, limit=limit)
+
     @app.get("/v1/cursors/{consumer}")
     async def cursor(consumer: str, role=authenticated):
         return {"sequence": store.cursor(role, consumer)}

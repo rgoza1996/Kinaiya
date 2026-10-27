@@ -29,7 +29,7 @@ Meta is a target integration, not a product dependency. Model and API availabili
 
 ## Status
 
-This repository currently publishes the product specification and roadmap. The checked-in design baseline describes planned interfaces and acceptance criteria; it does not claim that those capabilities are already implemented. The roadmap separates the minimum research prototype, hackathon slice, private alpha, public beta, and production evidence.
+An initial Linux research implementation now includes versioned contracts, authenticated persistent transcript storage, independent Agent and Converse services, asynchronous routing, scoped tools/approvals, and real-provider integration tests. The implementation is experimental. The full roadmap, all retained voice backends, native mobile calling and production hardening remain open development gates.
 
 See [Roadmap.md](./Roadmap.md) for architecture, milestones, acceptance criteria, risks, and implementation references.
 
@@ -40,3 +40,39 @@ See [Roadmap.md](./Roadmap.md) for architecture, milestones, acceptance criteria
 - Preserve provider portability and clearly distinguish verified integrations from targets.
 - Measure the adaptive-harness claim against pinned baselines and safe rollback behavior.
 - Keep prototype evidence, recorded demos, fixtures, and implemented functionality clearly labeled.
+
+## Run the host
+
+Use Python 3.11+ in a virtual environment:
+
+```bash
+python -m pip install -r requirements-dev.lock
+python -m pip install --no-deps -e .
+kinaiya init
+# Configure data/config.json with your chosen providers and disclosure policy.
+kinaiya --workspace workspace serve all
+```
+
+Services bind loopback: session 8760, Agent 8761, Converse 8762 and Decisions 8763.
+`kinaiya serve agent` and `kinaiya serve converse` also start independently alongside
+storage. `kinaiya agent "Write a small file"` connects directly to Agent. Unapproved
+writes and shell calls wait for an action-specific owner approval. The worker
+workspace must be separate from core, evaluation, settings and credential directories.
+
+Optional voice runs in a separate Python with the `voice` extra and preinstalled
+Kokoro/Whisper weights: `python -m packages.providers.voice_worker`. Model downloads
+are disabled by default; a clean-machine model installer is still a roadmap task.
+Ming 3 Tiny, VibeVoice Realtime 0.5B and Supertonic 3 remain selected candidates with
+unconfigured backends; they are not represented as verified integrations.
+
+Provider keys belong in secret references/environment variables. Development Meta
+Contributor profiles are for public code and synthetic inputs only. The live test
+requires an explicit paid-inference flag and a budget proxy; ordinary CI is offline
+with respect to inference. See [integration evidence and limits](docs/adr/0002-verified-integration-slice.md)
+and the [threat model](docs/security/threat-model.md).
+
+```bash
+ruff check .
+ruff format --check .
+pytest -m 'not live' -q
+```

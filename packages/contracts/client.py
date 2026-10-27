@@ -27,8 +27,23 @@ class JournalClient:
         response.raise_for_status()
         return [JournalEntry.model_validate(value) for value in response.json()]
 
+    async def recent(self, **kwargs):
+        response = await self.http.get("/v1/transcript/recent", params=kwargs)
+        response.raise_for_status()
+        return [JournalEntry.model_validate(value) for value in response.json()]
+
     async def session(self, session_id):
         response = await self.http.get(f"/v1/sessions/{session_id}")
+        response.raise_for_status()
+        return Session.model_validate(response.json())
+
+    async def sessions(self):
+        response = await self.http.get("/v1/sessions")
+        response.raise_for_status()
+        return [Session.model_validate(s) for s in response.json()]
+
+    async def create_session(self, request):
+        response = await self.http.post("/v1/sessions", json=request.model_dump())
         response.raise_for_status()
         return Session.model_validate(response.json())
 

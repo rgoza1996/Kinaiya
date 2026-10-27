@@ -13,6 +13,7 @@
         "write_file",
         "search",
         "shell",
+        "read_transcript",
         "finish"
       ],
       "title": "Tool",

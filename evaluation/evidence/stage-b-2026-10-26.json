@@ -1,0 +1,126 @@
+{
+  "cases": [
+    {
+      "case": "real_voice_to_task",
+      "iteration": 1,
+      "synthetic_audio": true,
+      "stt": {
+        "text": "Please create a new file named proof containing only the number seven.",
+        "language": "en",
+        "final": true,
+        "provider": "faster-whisper",
+        "model": "tiny.en",
+        "stt_seconds": 0.45205533700209344,
+        "retained_audio": false
+      },
+      "first_text_seconds": 5.500953328999458,
+      "agent_states_at_first_text": [],
+      "verified_files": [
+        {
+          "path": "proof",
+          "sha256": "7902699be42c8a8e46fbbb4501726517e86b22c56a189f7625a6da49081b2451"
+        }
+      ],
+      "outcome_sequence": 9,
+      "notice_sequence": 10,
+      "notice": "The Agent reports a verified result: Created file proof containing only 7",
+      "tts_chunks": 1,
+      "first_decoded_audio_seconds": 1.125696456998412,
+      "audible_latency": null,
+      "stale_audio_http": 409,
+      "speech_stop_does_not_cancel_agent": true,
+      "transport_replay_deduplicated": true
+    },
+    {
+      "case": "real_voice_to_task",
+      "iteration": 2,
+      "synthetic_audio": true,
+      "stt": {
+        "text": "Please create a new file named proof containing only the number seven.",
+        "language": "en",
+        "final": true,
+        "provider": "faster-whisper",
+        "model": "tiny.en",
+        "stt_seconds": 0.4272699169960106,
+        "retained_audio": false
+      },
+      "first_text_seconds": 5.289788232003048,
+      "agent_states_at_first_text": [],
+      "verified_files": [
+        {
+          "path": "proof",
+          "sha256": "7902699be42c8a8e46fbbb4501726517e86b22c56a189f7625a6da49081b2451"
+        }
+      ],
+      "outcome_sequence": 21,
+      "notice_sequence": 22,
+      "notice": "The Agent reports a verified result: created file proof containing only number seven",
+      "tts_chunks": 1,
+      "first_decoded_audio_seconds": 1.358703821002564,
+      "audible_latency": null,
+      "stale_audio_http": 409,
+      "speech_stop_does_not_cancel_agent": true,
+      "transport_replay_deduplicated": true
+    },
+    {
+      "case": "real_inference_with_steering",
+      "revision": 2,
+      "verified_files": [
+        {
+          "path": "steered.txt",
+          "sha256": "36e5bd239133e3d0d53404316cb8236ee9ebfb382a4a6f6d2c22ddf4e9bdf0e4"
+        }
+      ]
+    },
+    {
+      "case": "real_failed_shell_cannot_claim_success",
+      "state": "failed",
+      "error": "finish while a required effect failed in this revision; a later unrelated read cannot hide it"
+    },
+    {
+      "case": "actual_cli_without_converse",
+      "verified_files": [
+        {
+          "path": "direct.txt",
+          "sha256": "0275fca08c216c77b2a122787b6491a6796ab293e4097e5d62162c0ed4910f08"
+        }
+      ]
+    }
+  ],
+  "audible_latency_measured": false,
+  "source_commit": "411c2f0a6f5def077dee71584142ebf93e10706c",
+  "recorded_at_utc": "2026-10-27T06:04:42.557495+00:00",
+  "environment": {
+    "os": "Linux x86_64",
+    "python": "3.12.3",
+    "gpu": false,
+    "microphone": "synthetic Kokoro audio, not human microphone",
+    "tts": "Kokoro 82M, 24000Hz PCM",
+    "stt": "faster-whisper tiny.en CPU int8, cached local weights"
+  },
+  "profiles": {
+    "agent": {
+      "model": "muse-spark-1.3-contributor",
+      "reasoning_effort": "high",
+      "max_output_tokens": 8192,
+      "native_structured_actions": true
+    },
+    "converse": {
+      "model": "muse-spark-1.3-contributor",
+      "reasoning_effort": "low",
+      "max_output_tokens": 2048
+    },
+    "decisions": {
+      "model": "muse-spark-1.3-contributor",
+      "reasoning_effort": "minimal",
+      "max_output_tokens": 1024
+    }
+  },
+  "constraints": {
+    "api_budget_guard": "all Meta inference via run-local admission proxy",
+    "fixture_audio_retained_in_public_report": false,
+    "physical_audibility_verified": false,
+    "percentile_claim": false,
+    "roadmap_complete": false
+  }
+}
