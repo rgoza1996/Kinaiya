@@ -296,8 +296,11 @@ class PluginService:
 
     async def release_task(self, task_id):
         async with self._lock:
-            for version_id in self._pins.pop(task_id, {}).values():
+            # Keep retry ownership until every durable unpin acknowledges.
+            # Native task unpin is idempotent after a partial/lost commit.
+            for version_id in self._pins.get(task_id, {}).values():
                 self.registry.unpin(version_id, task_id=task_id)
+            self._pins.pop(task_id, None)
 
     async def recover_pins(self, tasks):
         async with self._lock:

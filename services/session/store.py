@@ -18,6 +18,7 @@ ALLOWED_KINDS = {
     },
     "agent": {
         "agent.command",
+        "agent.retirement",
         "agent.outcome",
         "agent.tool",
         "plugin.pinned",

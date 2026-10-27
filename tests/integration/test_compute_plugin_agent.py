@@ -315,6 +315,27 @@ async def test_task_pins_are_separate_and_removal_requires_all_tasks_release(env
     env.service.registry.remove(version)
 
 
+async def test_failed_durable_unpin_keeps_release_retryable(env, monkeypatch):
+    version = await activate(env)
+    task = SimpleNamespace(task_id="synthetic_cleanup_failure", plugin_versions={})
+    assert (await env.service.pin_task(task, "adder", env.provider.info))[0] == version
+    original = env.service.registry._write_pins
+    calls = 0
+
+    def fail_once(pins):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise OSError("Synthetic pin persistence failure")
+        return original(pins)
+
+    monkeypatch.setattr(env.service.registry, "_write_pins", fail_once)
+    with pytest.raises(OSError, match="pin persistence"):
+        await env.service.release_task(task.task_id)
+    await env.service.release_task(task.task_id)
+    assert not env.service.registry._read_pins()
+
+
 async def test_approved_pin_stays_on_old_version_and_disable_revokes_it(env):
     first = await activate(env)
     task = SimpleNamespace(task_id="pinned_task", plugin_versions={})
