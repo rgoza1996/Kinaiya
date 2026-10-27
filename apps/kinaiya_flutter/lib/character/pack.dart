@@ -222,7 +222,7 @@ class CharacterPack {
   static int frameIndexFor(PackAnimation anim, Duration elapsed) {
     if (anim.frames.isEmpty) return 0;
     if (anim.frameMs <= 0) return 0;
-    final step = elapsed.inMilliseconds ~/ anim.frameMs;
+    final step = math.max(0, elapsed.inMilliseconds) ~/ anim.frameMs;
     if (anim.loop) return step % anim.frames.length;
     return math.min(step, anim.frames.length - 1);
   }
@@ -397,7 +397,11 @@ Future<CharacterPack> _loadV1(
       final data = await bundle.load(pose.asset);
       if (data.lengthInBytes > bounds.maxImageBytes) continue;
       if (pose.sha256.isNotEmpty) {
-        final digest = sha256.convert(data.buffer.asUint8List()).toString();
+        final digest = sha256
+            .convert(
+              data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
+            )
+            .toString();
         if (digest != pose.sha256.toLowerCase()) continue;
       }
       verified.add(pose);
@@ -594,9 +598,18 @@ Future<CharacterPack> _loadV2(
         w > bounds.maxTextureEdge ||
         h > bounds.maxTextureEdge ||
         fw > w ||
-        fh > h ||
-        w % fw != 0 ||
-        h % fh != 0) {
+        fh > h) {
+      return fallback(
+        'Pack frame geometry out of bounds; single-frame fallback active.',
+      );
+    }
+    // Non-divisible texture edges are permitted as trailing atlas padding:
+    // grid capacity is floored and every selected frame rectangle must stay
+    // within the actual texture. Dimension and bounds verification stay
+    // strict; only the divisibility requirement is relaxed.
+    final cols = w ~/ fw;
+    final rows = h ~/ fh;
+    if (cols < 1 || rows < 1) {
       return fallback(
         'Pack frame geometry out of bounds; single-frame fallback active.',
       );
@@ -714,7 +727,10 @@ Future<CharacterPack> _loadV2(
     } catch (_) {
       return fallback('Pack sheet missing; single-frame fallback active.');
     }
-    final bytes = data.buffer.asUint8List();
+    final bytes = data.buffer.asUint8List(
+      data.offsetInBytes,
+      data.lengthInBytes,
+    );
     if (bytes.lengthInBytes > bounds.maxImageBytes) {
       return fallback('Pack sheet too large; single-frame fallback active.');
     }

@@ -8,26 +8,19 @@ import 'package:flutter/services.dart' show AssetBundle, rootBundle;
 
 import '../character/pack.dart';
 
-/// Mascot with real spritesheet body/mouth frames when a valid v2 pack is
-/// present, otherwise the original single-frame artwork with deterministic
-/// state-based motion. Decorative only: it never delays speech, network or
-/// runtime, it freezes under reduced motion, and its ticker respects
-/// [TickerMode] and disposal.
+/// Local decorative frame playback. It never gates speech or runtime work.
 class MascotWidget extends StatefulWidget {
   const MascotWidget({
     super.key,
     required this.pack,
     required this.mood,
-    this.size = 160,
+    this.size = 220,
     this.bundle,
   });
-
   final CharacterPack pack;
-  final String
-  mood; // idle | listening | speaking | thinking (+presentation map)
+  final String mood;
   final double size;
   final AssetBundle? bundle;
-
   @override
   State<MascotWidget> createState() => _MascotWidgetState();
 }
@@ -35,15 +28,12 @@ class MascotWidget extends StatefulWidget {
 class _MascotWidgetState extends State<MascotWidget>
     with SingleTickerProviderStateMixin {
   late final Ticker _ticker;
-  Duration _latest = Duration.zero;
-  Duration _animStart = Duration.zero;
+  Duration _latest = Duration.zero, _animStart = Duration.zero;
   late String _animId;
-  int _framePos = 0;
+  int _framePos = 0, _loadGen = 0;
   ui.Image? _image;
   String? _imageSheetId;
-  int _loadGen = 0;
-
-  bool get _isSprite => widget.pack.isSpritesheet;
+  bool _decodeFailed = false;
 
   @override
   void initState() {
@@ -62,139 +52,110 @@ class _MascotWidgetState extends State<MascotWidget>
   @override
   void didUpdateWidget(covariant MascotWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!identical(oldWidget.pack, widget.pack) ||
-        oldWidget.mood != widget.mood ||
-        oldWidget.bundle != widget.bundle) {
-      final nextId = widget.pack.resolveAnimationId(widget.mood);
-      final sheetChanged =
-          _imageSheetId != _sheetIdFor(nextId) ||
-          !identical(oldWidget.pack, widget.pack);
-      if (!identical(oldWidget.pack, widget.pack)) {
-        // New pack owns its decode: drop the old image and invalidate
-        // any in-flight load so stale completions cannot win.
-        _loadGen++;
-        _image?.dispose();
-        _image = null;
-        _imageSheetId = null;
-        _framePos = 0;
-        _animStart = _latest;
-      } else if (_animId != nextId) {
-        _framePos = 0;
-        _animStart = _latest;
-      }
-      _animId = nextId;
-      if (sheetChanged || _image == null) {
-        if (_isSprite) _loadCurrentSheet();
-      }
-      _syncTicker();
+    final replaced =
+        !identical(oldWidget.pack, widget.pack) ||
+        oldWidget.bundle != widget.bundle;
+    final next = widget.pack.resolveAnimationId(widget.mood);
+    final previousSheet = widget.pack.animations[_animId]?.sheet;
+    final nextSheet = widget.pack.animations[next]?.sheet;
+    if (replaced || next != _animId) {
+      _framePos = 0;
+      _animStart = _latest;
+      _animId = next;
     }
-  }
-
-  String? _sheetIdFor(String animId) {
-    final anim = widget.pack.animations[animId];
-    return anim?.sheet;
+    if (replaced) {
+      _loadGen++;
+      _image?.dispose();
+      _image = null;
+      _imageSheetId = null;
+      _decodeFailed = false;
+      _loadCurrentSheet();
+    } else if (previousSheet != nextSheet) {
+      _loadGen++;
+      _decodeFailed = false;
+      if (_imageSheetId != nextSheet) _loadCurrentSheet();
+    }
+    _syncTicker();
   }
 
   void _syncTicker() {
     final reduced = MediaQuery.of(context).disableAnimations;
-    if (reduced || !_isSprite) {
-      if (_ticker.isActive) _ticker.stop();
-      if (reduced && _framePos != 0) _framePos = 0;
-    } else {
-      if (!_ticker.isActive) _ticker.start();
+    if (reduced || _decodeFailed) {
+      _ticker.stop();
+      _latest = _animStart = Duration.zero;
+      _framePos = 0;
+    } else if (!_ticker.isActive) {
+      // Ticker.start resets elapsed time. Its animation origin must match.
+      _latest = _animStart = Duration.zero;
+      _ticker.start();
     }
-    // Fallback single-frame motion also needs continuous ticks unless
-    // reduced motion freezes it.
-    if (!_isSprite && !reduced && !_ticker.isActive) _ticker.start();
   }
 
   void _onTick(Duration elapsed) {
     _latest = elapsed;
-    if (!_isSprite) {
-      // Drive the subtle v1 transform motion.
+    if (!widget.pack.isSpritesheet) {
       setState(() {});
       return;
     }
     final anim = widget.pack.animations[_animId];
     if (anim == null) return;
     final pos = CharacterPack.frameIndexFor(anim, elapsed - _animStart);
-    if (pos != _framePos) {
-      setState(() => _framePos = pos);
-    }
+    if (pos != _framePos) setState(() => _framePos = pos);
   }
 
   Future<void> _loadCurrentSheet() async {
-    if (!_isSprite) return;
-    final animId = _animId;
-    final anim = widget.pack.animations[animId];
-    final sheet = anim == null ? null : widget.pack.sheets[anim.sheet];
-    if (anim == null || sheet == null) return;
+    if (!widget.pack.isSpritesheet) return;
+    final sheet = widget.pack.sheetForAnimation(_animId);
+    if (sheet == null) return;
     final gen = ++_loadGen;
-    final targetSheetId = sheet.id;
     try {
-      final effective = widget.bundle ?? rootBundle;
-      final data = await effective.load(sheet.asset);
-      if (gen != _loadGen || !mounted) return;
-      final bytes = data.buffer.asUint8List();
-      // Bounded, untrusted input: size cap before any decode.
-      if (bytes.lengthInBytes > (8 << 20)) return;
-      final digest = sha256.convert(bytes).toString();
-      if (digest != sheet.sha256.toLowerCase()) return;
-      // Rectangle bounds from explicit manifest geometry BEFORE decoding.
+      final data = await (widget.bundle ?? rootBundle).load(sheet.asset);
+      if (!mounted || gen != _loadGen) return;
+      final bytes = data.buffer.asUint8List(
+        data.offsetInBytes,
+        data.lengthInBytes,
+      );
       final dims = pngDimensions(bytes);
-      if (dims == null || dims[0] != sheet.width || dims[1] != sheet.height) {
-        return;
+      if (bytes.lengthInBytes > (8 << 20) ||
+          dims == null ||
+          dims[0] != sheet.width ||
+          dims[1] != sheet.height ||
+          sheet.width > 4096 ||
+          sheet.height > 4096 ||
+          sheet.width * sheet.height > 16 * 1024 * 1024 ||
+          sha256.convert(bytes).toString() != sheet.sha256.toLowerCase()) {
+        throw const FormatException('Invalid sprite texture');
       }
       final codec = await ui.instantiateImageCodec(
         bytes,
         allowUpscaling: false,
       );
-      if (gen != _loadGen || !mounted) {
+      late final ui.FrameInfo frame;
+      try {
+        if (!mounted || gen != _loadGen) return;
+        if (codec.frameCount != 1) {
+          throw const FormatException('Static PNG required');
+        }
+        frame = await codec.getNextFrame();
+      } finally {
         codec.dispose();
-        return;
       }
-      final frame = await codec.getNextFrame();
-      codec.dispose();
-      if (gen != _loadGen || !mounted) {
-        frame.image.dispose();
-        return;
-      }
-      // Actual decoded dimensions must match the manifest.
-      if (frame.image.width != sheet.width ||
+      if (!mounted ||
+          gen != _loadGen ||
+          widget.pack.sheetForAnimation(_animId)?.id != sheet.id ||
+          frame.image.width != sheet.width ||
           frame.image.height != sheet.height) {
         frame.image.dispose();
         return;
       }
-      // Stale ownership: a newer pack/sheet load wins.
-      if (gen != _loadGen || !mounted) {
-        frame.image.dispose();
-        return;
-      }
-      final stillCurrent =
-          _animId == animId &&
-          widget.pack.isSpritesheet &&
-          _sheetIdFor(_animId) == targetSheetId;
-      if (!stillCurrent) {
-        frame.image.dispose();
-        // The animation moved on but the pack is the same: keep the
-        // decoded sheet if it is still the needed one.
-        if (widget.pack.sheets[targetSheetId]?.asset == sheet.asset) {
-          _image?.dispose();
-          _image = frame.image;
-          _imageSheetId = targetSheetId;
-          if (mounted) setState(() {});
-        } else {
-          frame.image.dispose();
-        }
-        return;
-      }
       _image?.dispose();
       _image = frame.image;
-      _imageSheetId = targetSheetId;
-      if (mounted) setState(() {});
+      _imageSheetId = sheet.id;
+      setState(() {});
     } catch (_) {
-      // Untrusted image failure stays on the shipped frame; never throws
-      // into the build and never gates speech/runtime.
+      if (!mounted || gen != _loadGen) return;
+      setState(() => _decodeFailed = true);
+      _syncTicker();
     }
   }
 
@@ -203,85 +164,96 @@ class _MascotWidgetState extends State<MascotWidget>
     _loadGen++;
     _ticker.dispose();
     _image?.dispose();
-    _image = null;
     super.dispose();
   }
+
+  Widget _fallback(String label) => Image.asset(
+    widget.pack.fallbackAsset,
+    width: widget.size,
+    height: widget.size,
+    semanticLabel: label,
+    errorBuilder: (_, _, _) => Icon(Icons.face, size: widget.size),
+  );
 
   @override
   Widget build(BuildContext context) {
     final reduced = MediaQuery.of(context).disableAnimations;
-    if (!_isSprite) {
-      final phase = CharacterPack.motionPhase(widget.mood);
-      final image = Image.asset(
-        widget.pack.fallbackAsset,
-        width: widget.size,
-        height: widget.size,
-        semanticLabel: 'Kinaiya mascot, ${widget.mood}',
-        errorBuilder: (_, _, _) => Icon(Icons.face, size: widget.size),
-      );
+    final label = 'Kinaiya mascot, ${widget.mood}';
+    if (!widget.pack.isSpritesheet) {
+      final image = _fallback(label);
       if (reduced) return image;
-      // Subtle transform motion driven by the Ticker (respects TickerMode:
-      // a muted ticker stops calling _onTick so _latest freezes).
+      final phase = CharacterPack.motionPhase(widget.mood);
       final t =
           _latest.inMilliseconds / 3000 * 2 * math.pi + phase * math.pi / 180;
-      final amp = widget.mood == 'speaking' ? 0.05 : 0.02;
       return Transform.scale(
-        scale: 1 + amp * math.sin(t),
-        child: Transform.rotate(angle: 0.02 * math.sin(t * 0.7), child: image),
+        scale: 1 + (widget.mood == 'speaking' ? .05 : .02) * math.sin(t),
+        child: Transform.rotate(angle: .02 * math.sin(t * .7), child: image),
       );
     }
     final anim = widget.pack.animations[_animId];
-    final sheet = anim == null ? null : widget.pack.sheets[anim.sheet];
-    if (anim == null || sheet == null) {
-      return Image.asset(
-        widget.pack.fallbackAsset,
-        width: widget.size,
-        height: widget.size,
-        semanticLabel: 'Kinaiya mascot, ${widget.mood}',
-        errorBuilder: (_, _, _) => Icon(Icons.face, size: widget.size),
+    final sheet = widget.pack.sheetForAnimation(_animId);
+    if (_decodeFailed) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _fallback(label),
+          const Text('Animation unavailable; showing original mascot.'),
+        ],
       );
+    }
+    if (anim == null ||
+        sheet == null ||
+        _image == null ||
+        _imageSheetId != sheet.id) {
+      return _fallback(label);
     }
     final pos = reduced ? 0 : _framePos.clamp(0, anim.frames.length - 1);
-    final frameId = anim.frames[pos];
-    final label =
-        'Kinaiya mascot, ${widget.mood} ($_animId) frame $pos of ${anim.frames.length}';
-    if (_image == null) {
-      // Never gate on the decode: show the shipped frame until the sheet
-      // image is ready, then swap to real bitmap frames.
-      return Image.asset(
-        widget.pack.fallbackAsset,
-        width: widget.size,
-        height: widget.size,
-        semanticLabel: label,
-        errorBuilder: (_, _, _) => Icon(Icons.face, size: widget.size),
-      );
-    }
-    final src = sheet.frameRect(frameId);
     return Semantics(
       label: label,
       image: true,
       child: CustomPaint(
         size: Size(widget.size, widget.size),
-        painter: _SpritePainter(image: _image!, src: src),
+        painter: MascotFramePainter(
+          image: _image!,
+          src: sheet.frameRect(anim.frames[pos]),
+          anchor: Offset(widget.pack.anchorX, widget.pack.anchorY),
+        ),
       ),
     );
   }
 }
 
-class _SpritePainter extends CustomPainter {
-  _SpritePainter({required this.image, required this.src});
+/// Exposes the actual drawn source rectangle for deterministic renderer checks.
+class MascotFramePainter extends CustomPainter {
+  MascotFramePainter({
+    required this.image,
+    required this.src,
+    this.anchor = const Offset(.5, .9),
+  });
   final ui.Image image;
   final ui.Rect src;
-
+  final Offset anchor;
   @override
   void paint(ui.Canvas canvas, ui.Size size) {
-    final dst = ui.Rect.fromLTWH(0, 0, size.width, size.height);
-    canvas.drawImageRect(image, src, dst, ui.Paint());
+    final scale = math.min(size.width / src.width, size.height / src.height);
+    final width = src.width * scale, height = src.height * scale;
+    final dst = ui.Rect.fromLTWH(
+      (size.width - width) * anchor.dx,
+      (size.height - height) * anchor.dy,
+      width,
+      height,
+    );
+    canvas.drawImageRect(
+      image,
+      src,
+      dst,
+      ui.Paint()..filterQuality = FilterQuality.medium,
+    );
   }
 
   @override
-  bool shouldRepaint(covariant _SpritePainter old) =>
-      !identical(old.image, image) || old.src != src;
+  bool shouldRepaint(covariant MascotFramePainter old) =>
+      !identical(old.image, image) || old.src != src || old.anchor != anchor;
 }
 
 /// Compact mascot send button with a clear accessible label.
