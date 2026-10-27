@@ -1,6 +1,6 @@
 # Kinaiya — Product Specification, Technical Plan, and Roadmap
 
-**Specification version:** 0.1  
+**Specification version:** 0.2  
 **Decision baseline:** October 26, 2026  
 **Status:** Pre-implementation design baseline. Requirements and acceptance criteria below are not claims of implemented functionality.  
 **Repository:** `rgoza1996/Kinaiya`  
@@ -44,6 +44,8 @@ This document consolidates the product decisions, specifies the boundaries betwe
 28. [Risks and unresolved implementation choices](#28-risks-and-unresolved-implementation-choices)
 29. [Prototype migration and documentation rules](#29-prototype-migration-and-documentation-rules)
 30. [Implementation references](#30-implementation-references)
+31. [Skills ecosystem, MCP, and plugins](#31-skills-ecosystem-mcp-and-plugins)
+32. [Slash commands and direct Agent controls](#32-slash-commands-and-direct-agent-controls)
 
 ## 1. Vision and research objectives
 
@@ -63,7 +65,7 @@ Kinaiya Agent starts with a minimal protected core and a usable seed harness. It
 
 This is not restricted to changing a system prompt, selecting a predefined workflow, or generating JSON configuration. The agent must eventually be able to implement new context strategies, tool wrappers, planning behavior, memory retrieval, delegation policies, and execution helpers in code.
 
-**Research question:** Under equal and explicitly recorded budgets, can model- and task-specific generated harnesses outperform a fixed baseline without changing the objective, corrupting evaluation, or bypassing permissions?
+**Research question:** Under equal and explicitly recorded budgets, can model- and task-specific generated harnesses outperform a fixed baseline without changing the objective, corrupting evaluation, or bypassassing permissions?
 
 Improvement is a hypothesis to test, not a promised outcome of every experiment. Rejected candidates and negative results are valid research output.
 
@@ -103,6 +105,11 @@ The platform is Kinaiya. Korina is the initial/default character identity. Users
 | D22 | Intelligent UI remains usable during a call. | Audio and interactive artifacts share a session without sharing a rendering lifecycle. |
 | D23 | Retain Ming 3 Tiny, VibeVoice Realtime 0.5B, Kokoro 82M, and Supertonic 3. | Build a provider interface; do not replace the shortlist with new recommendations by default. |
 | D24 | Default brand colors are `#141091` and `#FFFFFF`. | Chat inherits character colors unless the user overrides the theme. |
+| D25 | Kinaiya Agent must consume OpenClaw and Hermes-compatible skills. | Target portable Agent Skills packages, preserve supporting files, and explicitly handle runtime-specific requirements. |
+| D26 | Users can point Agent at ClawHub or a GitHub repository to install skills. | Support discovery, inspection, pinned installation, activation, updates, removal, and rollback. |
+| D27 | MCP is a first-class Agent integration surface. | Connect local and remote MCP servers through the permission/tool broker, independently of Converse. |
+| D28 | Agent supports plugins and conventional extension management. | Provide a versioned executable plugin interface and explicit compatibility reporting for foreign runtimes. |
+| D29 | Kinaiya provides Hermes-style slash commands. | Share a command registry across Agent Chat and the interactive CLI, with discovery, skill commands, aliases, and direct controls. |
 
 **Proposed engineering defaults, not additional owner requirements:** Python for the initial host services, SQLite behind a single local storage service, JSON Schema for contracts, authenticated HTTP/WebSocket control transport, and a WebRTC-based mobile media layer. Specific libraries, versions, and endpoint names remain replaceable implementation choices.
 
@@ -115,6 +122,8 @@ The first credible release must include a standalone Agent, a separate modular C
 Production scope additionally includes configurable permissions, resource-constrained operation, provider setup, durable work, truthful status, character customization, notifications, mobile calling, and optional intelligent UI.
 
 A Meta-backed Agent profile and Meta image-generation integration are desired for the hackathon. Neither the core protocol nor the product must depend on a model name that can only be accessed through a vendor's unrelated subscription application.
+
+Skill loading, MCP client support, plugin interfaces, and slash commands are baseline Agent capabilities, not features dependent on character/mobile work. Sections 31–32 and milestones M1A/M4A define their phased delivery; complete foreign-plugin compatibility is not implied by basic skill support.
 
 ### 3.2 Explicit non-goals
 
@@ -379,6 +388,10 @@ Subagents have task IDs, budgets, inherited/restricted capabilities, isolated wo
 
 Agent coordinates subagents without requiring a character per worker. Parent acceptance criteria and dependency checks decide when a composite task is finished.
 
+### 8.4 Skills, MCP, plugins, and commands
+
+Connecting Converse to an external agent is different from Kinaiya Agent using skills originally written for that agent. Both are required directions of interoperability. The skill manager, MCP host, plugin host, and command registry belong to Agent infrastructure and remain usable with Converse absent. Their contracts are specified in Sections 31–32.
+
 ## 9. Action truth and completion reporting
 
 The shared transcript records speech, but a spoken claim cannot create an execution fact. Converse saying “done” must not mark a task complete; an Agent model declaring success must not bypass required evidence.
@@ -625,6 +638,10 @@ An abstract or painterly character must receive the same tools and layouts as an
 Support reduced motion, animation skipping, captions, keyboard navigation, readable focus states, screen-reader labels, scalable text, and a non-character fallback. Flutter provides accessibility-testing and platform-integration facilities, but they still require deliberate implementation and testing. [S2] [S3]
 
 An optional minimized floating companion is a later desktop surface, not a replacement runtime. Hiding the main window does not stop authorized work. Platform support must be tested rather than assumed from Flutter compilation alone.
+
+### 15.5 Command palette and extension management
+
+Agent Chat provides `/` autocomplete, searchable command help, argument hints, and a non-text command palette backed by the same registry as the interactive CLI. A skills/MCP/plugins management surface supports discovery, install/configure, enable/disable, health, update, and removal. These ordinary application controls do not depend on intelligent UI generation or on Converse being loaded. Sections 31–32 define behavior and permission boundaries.
 
 ## 16. Character packs and animation
 
@@ -936,6 +953,11 @@ Limits are example values, not universal defaults. The registered package must a
 | `POST /v1/harness/promotions` | Supervisor-controlled activation. |
 | `POST /v1/artifacts/{id}/actions` | Validate a UI interaction against an artifact revision. |
 | `POST /v1/calls` | Create an authorized internet-call invitation. |
+| `GET /v1/commands` | Discover authorized commands, argument schemas, origins, and supported surfaces. |
+| `POST /v1/commands/execute` | Dispatch an authenticated, scoped command without conversational routing. |
+| `GET /v1/integrations` | List skills, MCP connections, plugins, versions, and health. |
+| `POST /v1/integrations/plan` | Resolve and inspect an install/update/configuration request without activating code. |
+| `POST /v1/integrations/apply` | Apply a revision-bound plan under the selected permission policy. |
 
 Bind locally by default, authenticate even local control endpoints, and restrict browser origins. Do not expose an unrestricted tool-execution server to the network for mobile convenience. Names may change through an explicit schema/version decision.
 
@@ -962,6 +984,10 @@ Kinaiya/
     contracts/               # versioned schemas and generated bindings
     providers/               # model, STT, TTS, image adapters
     agent_adapters/          # Kinaiya, then external runtimes
+    skills/                  # SKILL.md loader, source adapters, compatibility
+    mcp/                     # MCP clients, transport/auth, capability discovery
+    plugins/                 # versioned plugin host and extension integration
+    commands/                # shared slash-command registry and dispatcher
     character_runtime/       # manifest validation and semantic playback
     ui_protocol/             # declarative artifact/component contracts
   harnesses/
@@ -973,6 +999,7 @@ Kinaiya/
     voice/                   # timing/quality harness
     routing/                 # labeled routing scenarios
     harness/                 # baseline/candidate comparison tooling
+    compatibility/           # skills, MCP, plugins, command conformance
     security/                # boundary and prompt-injection regressions
   tests/
     unit/
@@ -1000,6 +1027,7 @@ The existing repository license is Apache 2.0. Model weights, generated assets, 
 | Converse/Decisions | Provider interfaces, streaming voice, personality profiles, routing, interruption tests. | Journal and capability contracts. | Latency, audible truth, bounded context, no Agent wait. |
 | Agent/core | Seed loop, tools, permissions, subagents, direct chat, task evidence. | Journal, providers, protected policy. | Standalone work and truthful completion. |
 | Harness research | Extension SDK, sandbox, builder, evaluator, registry, promotion/rollback. | Protected core and seed baseline. | Real executable adaptation under independent evaluation. |
+| Ecosystem/commands | Skill/source managers, MCP host, plugin SDK, command registry, CLI/Flutter management. | Tool broker, policy, extension boundary, Agent API. | Portable imports, on-demand loading, useful direct controls, honest compatibility. |
 | Experience | Flutter views, spritesheets, transitions, themes, settings, accessibility. | Events and artifact contracts. | No animation-induced latency or routing ambiguity. |
 | Remote/proactive | Watches, notifications, pairing, calling, mobile UI. | Agent outcomes, Converse media, policy. | Reliable/authorized attention delivery and graceful degradation. |
 
@@ -1025,6 +1053,14 @@ Implement direct Agent Chat/API/CLI, seed harness, filesystem/search/shell/test 
 
 **Exit gate:** complete a synthetic repository task and present evidence with Converse not installed or running. Denied operations are actually denied. A crashed tool cannot turn into a success report. Approvals remain usable without a GPU.
 
+### M1A — Skills, MCP, and command foundations
+
+**Depends on:** M1; may proceed alongside M2.
+
+Implement portable skill parsing and progressive loading, GitHub and ClawHub source resolution, pinned install/enable/disable/remove, missing-dependency diagnostics, local and remote MCP client paths, and the shared slash-command registry. Deliver `/help`, `/status`, `/stop`, session/model selection, `/skills`, `/skill`, `/mcp`, and eligible dynamic skill commands. Plugin metadata/namespace contracts are defined here; executable plugin activation follows M4/M4A isolation.
+
+**Exit gate:** install and use representative OpenClaw and Hermes skill fixtures without rewriting their portable instructions; preserve supporting files; complete a real local and a real remote MCP interaction; demonstrate commands in Agent Chat and CLI without Converse. Inspection never executes downloaded hooks, and installing many skills does not inject their full contents into every prompt.
+
 ### M2 — Converse and retained voice providers
 
 **Depends on:** M0; can proceed alongside M1.
@@ -1048,6 +1084,14 @@ Integrate Laya or a verified initial provider with rolling context, all four rou
 Implement extension SDK/manifests, isolated execution, protected evaluation assets, candidate generation, budget enforcement, a versioned registry, promotion, and rollback. Run the first narrow model/task-specific experiment against the seed harness.
 
 **Exit gate:** Agent generates actual executable code; a candidate is evaluated on held-out work; a rejected candidate cannot activate itself; core/objective/evaluator mutation attempts fail; results include adaptation cost and a demonstrated rollback. A negative improvement result is reported honestly, not relabeled success.
+
+### M4A — Executable plugins and ecosystem composition
+
+**Depends on:** M1A and M4.
+
+Implement plugin lifecycle/configuration schemas, scoped hooks, namespaced tool/command registration, source/version locks, update/rollback, and user-defined aliases/approved execution shortcuts. Let the harness compose imported skills and MCP tools, and generate tested compatibility wrappers where needed. Add tested foreign-plugin adapters incrementally rather than claiming universal plugin compatibility.
+
+**Exit gate:** a plugin adds a usable tool and command without modifying the core; a failing plugin can be disabled and rolled back; permissions and protected command names remain enforced; source updates cannot silently widen authority. A harness test records identical external tool/skill versions in baseline and candidate runs.
 
 ### M5 — Personality-first Flutter experience
 
@@ -1179,6 +1223,20 @@ Use blinded or randomized listening where feasible. Do not optimize personality 
 | AT30 | External adapter lacks steering/cancellation. | UI reports the actual capability; no false applied/stopped acknowledgment. |
 | AT31 | User deletes conversation data or revokes a device. | Relevant retrieval/derived access is removed; revoked credentials no longer work. |
 | AT32 | Session is reset while old workers are running. | Old-epoch events cannot contaminate or speak into the new session. |
+| AT33 | Install OpenClaw and Hermes skill fixtures from ClawHub and GitHub. | Portable instructions and support files work without a vendor runtime; source/ref/path/hash are recorded. |
+| AT34 | Skill requires an unavailable tool, binary, credential, or platform. | Status identifies the missing prerequisite; installation is not misreported as working capability. |
+| AT35 | Hundreds of skills are installed. | Discovery remains bounded; only selected instructions/references enter task context. |
+| AT36 | A source changes, two publishers share a name, or a skill update conflicts with local edits. | Pinned provenance and namespaces prevent substitution; update/rollback preserve reviewed versions and local forks. |
+| AT37 | Inspect an archive/repository containing hooks, malicious paths, or prompt injection. | Inspection does not execute code; unsafe paths are rejected; content cannot authorize itself or alter the core. |
+| AT38 | Local and remote MCP servers expose tools/resources/prompts. | Negotiated capabilities, scoped auth, bounded results, namespacing, and availability are handled truthfully. |
+| AT39 | MCP server requests extra context/sampling, changes tools, or disconnects during a write. | Policy still applies; definitions are refreshed safely; uncertain side effects are not blindly retried. |
+| AT40 | A plugin adds a tool, hook, and slash command, then crashes. | Only granted capabilities operate; the host survives; disable/update/rollback work without core edits. |
+| AT41 | Agent Chat and CLI request help/autocomplete or invoke the same command. | Shared metadata and dispatch semantics match, with declared surface-specific differences only. |
+| AT42 | A skill/plugin attempts to register `/stop`, `/help`, or another reserved command. | Built-in control wins; the extension remains reachable through its qualified name where permitted. |
+| AT43 | `/stop` or `/status` is used while LLM inference hangs and Converse is absent. | Direct controls work without an LLM/Decisions call and report actual runtime state. |
+| AT44 | Slash-like text appears in code, a quote, a tool result, or an unknown command. | No accidental command execution; escaped text is literal and unknown commands show suggestions. |
+| AT45 | A quick-command alias loops, includes shell metacharacters, or attempts a policy change. | Cycles/invalid arguments are rejected; execution uses explicit policy and authenticated user authority. |
+| AT46 | A task is resumed after plugin/skill/harness updates. | Recorded versions remain available or incompatibility is reported; no silent dependency substitution. |
 
 Contract and deterministic safety tests should run in ordinary CI without paid APIs or GPUs. Hardware/provider tests run in a separate opt-in tier. Synthetic fixtures must remain clearly labeled.
 
@@ -1215,8 +1273,8 @@ Separate live functions, recorded demonstrations, deterministic fixtures, and pr
 |---|---|
 | Research prototype inside Kinaiya | M0–M4 interfaces exercised; clear experimental status. |
 | Hackathon build | Minimum credible slice above, original/default character, honest Meta integration and measured results. |
-| Private alpha | Reliable resource handoff, permissions, persistence, diagnostics, notification basics, and clean-machine setup. |
-| Public beta | Validated mobile calling on claimed platforms, at least one external adapter, optional intelligent UI, hardened extension isolation. |
+| Private alpha | Reliable resource handoff, permissions, persistence, diagnostics, notification basics, clean-machine setup, and M1A skills/MCP/command foundations. |
+| Public beta | Validated mobile calling on claimed platforms, at least one external adapter, optional intelligent UI, hardened extension isolation, and M4A plugin lifecycle. |
 | Production candidate | Supported hardware/provider matrix, recovery/migration/update paths, privacy/security review, and complete acceptance evidence. |
 
 ## 28. Risks and unresolved implementation choices
@@ -1236,6 +1294,8 @@ Separate live functions, recorded demonstrations, deterministic fixtures, and pr
 | UI generation becomes expensive or unsafe. | Allowlisted declarative components, capability limits, off/text modes. |
 | Public repository leaks private development material. | Synthetic fixtures, secret scans, ignored data roots, review before publication. |
 | Feature scope obscures both research claims. | Gate the hackathon slice around voice coordination and executable harness evaluation. |
+| Marketplace/package content introduces malicious instructions or code. | Pinned provenance, non-executing inspection, scoped execution, explicit activation policy, and rollback. |
+| Skill-format compatibility is mistaken for full runtime/plugin compatibility. | Publish tested compatibility levels and missing-capability diagnostics rather than blanket guarantees. |
 
 ### 28.2 Choices to resolve through implementation spikes
 
@@ -1250,6 +1310,7 @@ These are engineering tasks, not reasons to reopen settled product decisions:
 - Initial character resolution/frame rate/asset budget and default mascot artwork.
 - Promotion thresholds and benchmark fixture sets, locked before evaluating candidate improvements.
 - Hardware cutoffs for intelligent-UI levels, defined by measured behavior rather than arbitrary branding tiers.
+- Pinned Agent Skills/MCP revisions, OpenClaw/Hermes compatibility fixtures, source-adapter APIs, and plugin SDK contracts.
 
 Document the result of each spike in an ADR with a small reproducible test. Avoid expanding these into an unbounded pre-build research phase.
 
@@ -1272,6 +1333,8 @@ A user-authorized change may revise the roadmap, objectives, or policies. That i
 5. Add the minimal character/direct-chat experience and measured resource handoff.
 6. Expand into proactive notifications, native mobile calls, asset generation, external adapters, and intelligent UI according to the milestone gates.
 
+Build M1A skill/MCP/command foundations alongside this sequence; do not postpone ordinary Agent extensibility until mobile/character work is finished. M4A adds executable-plugin composition after the protected execution boundary exists.
+
 **Architectural invariant:** one shared conversational record, selective asynchronous attention, personality only in Converse, a standalone self-building Agent, and a protected core that generated harness code cannot redefine.
 
 ## 30. Implementation references
@@ -1286,7 +1349,196 @@ External references below ground platform/integration details, not claims that K
 - **[S6] Apple PushKit/CallKit guidance:** https://developer.apple.com/documentation/pushkit/responding-to-voip-notifications-from-pushkit — native incoming VoIP handling and system-call integration.
 - **[S7] Android Core-Telecom guidance:** https://developer.android.com/develop/connectivity/telecom/voip-app/telecom — native calling lifecycle, audio routing, and foreground integration.
 - **[S8] Existing Kinaiya license:** [LICENSE](./LICENSE) — inspected as Apache License 2.0; this roadmap does not modify it.
+- **[S9] Agent Skills specification:** https://agentskills.io/specification — portable skill directories, frontmatter, and supporting resources.
+- **[S10] OpenClaw skills:** https://docs.openclaw.ai/tools/skills — Agent Skills use and runtime-specific metadata/dispatch behavior.
+- **[S11] ClawHub:** https://docs.openclaw.ai/clawhub — registry discovery, versioned skill/plugin distribution, and source tracking.
+- **[S12] Hermes skills:** https://hermes-agent.nousresearch.com/docs/user-guide/features/skills — progressive loading, source installation, and conditional activation.
+- **[S13] MCP transports:** https://modelcontextprotocol.io/specification/2025-11-25/basic/transports — documented stdio and Streamable HTTP baseline; negotiate and test supported revisions rather than treating this reference as a perpetual latest-version claim.
+- **[S14] MCP architecture:** https://modelcontextprotocol.io/specification/2025-11-25/architecture — host/client/server responsibilities and capability boundaries.
+- **[S15] MCP authorization:** https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization — remote authorization requirements for the referenced revision.
+- **[S16] Hermes slash commands:** https://hermes-agent.nousresearch.com/docs/reference/slash-commands — shared registry, autocomplete, skill commands, and quick-command behavior.
+- **[S17] Hermes plugins:** https://hermes-agent.nousresearch.com/docs/user-guide/features/plugins — example of a runtime-specific plugin interface, not a universal plugin ABI.
+- **[S18] OpenClaw plugins:** https://docs.openclaw.ai/plugins — runtime plugin integration and compatibility requirements.
 - **[P1] Prototype architecture:** https://github.com/rgoza1996/Korina-Agent/blob/master/README.md — inspected README blob `14c4f1fb9b9a1901dbb3be0ed6980644dc54e47f`; access may require repository permission.
 - **[P2] Prototype Agent integration:** https://github.com/rgoza1996/Korina-Agent/blob/master/korina/services/agent_service.py — inspected blob `fc5a09108de06fc5097df8c491f9f0fb8c4725f1`; used as migration context, not a production implementation claim.
 
 No private transcripts, credentials, benchmark archives, or user documents are included in this specification.
+
+## 31. Skills ecosystem, MCP, and plugins
+
+### 31.1 Product requirement and distinctions
+
+Kinaiya Agent must reuse existing agent ecosystems rather than requiring every capability to be rewritten. A user should be able to provide a ClawHub entry or a GitHub repository/path and ask Agent to install the relevant skills. The same lifecycle must be available through explicit controls without an LLM interpreting the request.
+
+These are related but different extension types:
+
+| Type | Purpose | Integration approach |
+|---|---|---|
+| Skill | Reusable instructions, references, assets, and optional scripts for performing work. | Load compatible `SKILL.md` packages and resolve their actual tool/runtime prerequisites. |
+| MCP server | Externally provided tools, resources, and prompts. | Kinaiya acts as host/client and brokers authorized operations. |
+| Plugin | Executable integration registering tools, hooks, commands, providers, or bundled skills. | Versioned Kinaiya plugin contract, isolated execution, and explicit foreign-runtime adapters. |
+| Adaptive harness extension | Changes how a model plans, selects context, uses tools, or delegates. | Generate and evaluate under Sections 10–12; may compose the other extension types. |
+| External-agent adapter | Lets Converse and the application use a different worker runtime. | Section 8 protocol; does not by itself import that runtime's skills/plugins. |
+
+Agent Skills defines a portable `SKILL.md` directory format. OpenClaw and Hermes document support for this family of skills; their additional runtime conventions still require compatibility handling. ClawHub is the registry name used here, including for the user's reference to “clawdhub.” [S9] [S10] [S11] [S12]
+
+These features do not move personality into Agent or require Converse. Installing a skill must not overwrite Converse's personality, import another agent's identity configuration, or enable autonomous operation without the selected policy.
+
+### 31.2 Skill format and compatibility levels
+
+Support YAML-frontmatter/Markdown skill files, preserving the skill directory, relative references, scripts, assets, and bundled licenses. Do not install only the top-level Markdown when the procedure depends on other files. A valid format is not proof that its scripts or external tools will run on the current machine.
+
+Use explicit compatibility states: `ready`, `needs_setup`, `needs_adapter`, `unsupported`, and `disabled`. Parsing/install completion and successful execution are separate statuses. Preserve unrecognized metadata and explain consequential unsupported fields rather than silently treating them as implemented.
+
+Initial compatibility profiles should cover portable Agent Skills; OpenClaw dependency/platform metadata, base-directory substitution, and invocation/dispatch controls; and Hermes tool/toolset requirements and platform/setup metadata. Pin representative upstream revisions and fixtures. Unknown requirements that affect authorization or execution must not be ignored. [S10] [S12]
+
+Map tool aliases only through validated adapters. A skill requesting a tool named `terminal` or a browser capability is not automatically satisfied by an unrelated similarly named tool. Keep any adaptation patch separate from the original package, with lineage, tests, and an explicit compatibility report.
+
+Portable instructions should work without requiring OpenClaw or Hermes to be installed. Skills deeply tied to their internals may require a wrapper or the external runtime; report that limitation honestly. Do not promise that all existing third-party skills/plugins work unchanged.
+
+### 31.3 Installation from registries and repositories
+
+Accepted source classes: ClawHub skill identifiers/URLs; public GitHub repositories and explicit subdirectory/ref selections; authorized private GitHub sources; and local directories/archives. Additional registries can implement the same source-adapter interface later. A repository containing several skills should present candidates rather than arbitrarily enabling all of them.
+
+The installation flow is:
+
+```text
+resolve source -> discover packages -> inspect without execution
+ -> assess prerequisites/permissions -> fetch pinned bytes -> validate
+ -> install inactive -> configure authorized dependencies -> activate -> smoke test
+```
+
+Under an appropriately scoped YOLO/automatic-install policy, allowed steps may proceed without repeated prompts. The steps, provenance, and core protections still exist. Ordinary installation should be convenient, not a requirement to manually audit every line each time.
+
+Record canonical publisher/source, repository path, immutable commit or registry version, content digest, license metadata, dependency/configuration requirements, granted scope, install time, and local modifications. Resolve moving tags/branches to the exact installed content. A hash detects change; it does not prove a publisher or package is trustworthy.
+
+Do not execute repository hooks, dependency installers, plugin imports, or downloaded scripts during discovery/inspection. Package setup that executes code is a separate authorized operation in the intended environment. Validate extraction paths, symlinks, download boundaries, file/size limits, and source changes between review and activation.
+
+Registry scan results are advisory evidence, not a guarantee of safety. A package's `allowed-tools` or similar frontmatter is a request/constraint to interpret under host policy, not authority to enlarge the user's grants.
+
+### 31.4 Lifecycle, scope, and efficient loading
+
+Support search/browse, inspect, install, configure, enable/disable, update, rollback, remove, and source management through Agent tools, slash commands, CLI, and Flutter settings. Distinguish profile/user-level installs from workspace-level activation. Use namespaced IDs so identical display names cannot silently substitute for one another.
+
+Updates show changed instructions/code/dependencies/permissions and preserve the prior version. Do not overwrite local forks or files used by active tasks. Running tasks pin relevant skill/plugin versions; apply changes at a declared boundary. Removing an integration reports dependent tasks and handles them explicitly.
+
+Use progressive disclosure: bounded discovery metadata first, full instructions when selected, supporting resources when needed. Large catalogs need retrieval/pagination rather than an unlimited metadata dump. Apply the same principle to large MCP tool catalogs. Never inject every installed skill, tool schema, and reference into every model turn. This is independent of Decisions, whose role remains conversational routing. [S9] [S12]
+
+Skills may be selected naturally by Agent or invoked explicitly via slash commands. Respect invocation-only controls. Keep credentials in scoped secret references; do not ask users to paste API keys into the shared transcript or skill source.
+
+### 31.5 MCP host requirements
+
+Provide a version-negotiated MCP client implementation with local stdio and remote Streamable HTTP support. Additional/legacy transports are explicit compatibility options, not implicit fallback. Use a maintained SDK behind Kinaiya's interface and publish tested protocol revisions. The referenced MCP revision documents these transports and host responsibilities. [S13] [S14]
+
+Required behavior includes server configuration/discovery, capability negotiation, tool listing/calls, resource discovery/read, prompt listing/retrieval, supported list-change notifications, bounded timeouts, cancellation requests, result-size limits, health/reconnect handling, and structured errors. Capabilities not implemented must not be advertised.
+
+Namespace server tools and retain their provenance. Route calls through the same permission/audit layer as native tools. Treat server descriptions, prompts, resources, and returned text as external content; a server's claim that an action is read-only is not sufficient authorization.
+
+Remote authentication must support the applicable OAuth flow or configured credentials according to the server and negotiated protocol. Keep tokens server-scoped, redact them from logs, support revocation, and never forward credentials indiscriminately between servers. Local stdio processes receive only explicitly granted environment/filesystem/network access. [S15]
+
+MCP sampling, elicitation, roots, and other client-side capabilities require explicit implementations and consent/budget policies. A server cannot request the entire transcript, spend unbounded model tokens, or access unrestricted filesystem roots merely because it is connected. A root declaration is not an operating-system sandbox.
+
+Cancellation acknowledgment does not prove remote side effects were undone. Reconcile uncertain write outcomes before retrying. Dynamic tool/schema changes must refresh cached definitions and recheck relevant permissions, not inherit broader access silently.
+
+Expose connection setup, test, reconnect, enable/disable, and remove through `/mcp` and settings. Useful MCP operation must not require the voice or character pipeline. Exposing Kinaiya itself as an MCP server is a possible later feature, not required by this client-support milestone.
+
+### 31.6 Plugins and hooks
+
+Provide a versioned Kinaiya plugin manifest/SDK with entry points, compatibility ranges, dependency locks, configuration schemas, requested capabilities, tools, commands, lifecycle hooks, and optional bundled skills. A plugin may add a connector, event source, tool provider, or workflow integration without editing the immutable core.
+
+Use the protected extension host and tool broker rather than arbitrary in-process imports into the supervisor. Hook subscriptions are bounded by time/resources and declared event scope. A hook cannot rewrite authenticated origin, user permission, objective ownership, or the evidence needed to commit completion.
+
+Skills and MCP are interoperability targets; native plugin APIs are runtime-specific. OpenClaw and Hermes each document their own plugin systems. Compatible assets/skills within a package can be imported where supported; executable foreign plugins require a tested adapter or port. Display `needs_adapter`/`unsupported` instead of claiming generic binary/API compatibility. [S17] [S18]
+
+Plugin registration, activation, upgrade, disable, and removal are audited and recoverable. Plugins may register namespaced tools/commands but cannot replace protected controls or install arbitrary Flutter code. Frontend widget extensions remain subject to Section 18's separate reviewed mechanism.
+
+### 31.7 Relationship to self-building
+
+Kinaiya should first discover an adequate existing skill, MCP tool, or plugin before rebuilding equivalent functionality. Agent may install permitted integrations, compose them into a model/task-specific harness, and generate missing wrappers or new plugins under the existing isolation/evaluation process.
+
+Keep upstream packages pinned/read-only and record generated adaptations as separate versions. An external package cannot redefine harness acceptance criteria. Generated plugins/commands do not self-promote into privileged authority.
+
+For research comparisons, log the complete skill/MCP/plugin dependency set and permissions. Giving a candidate a new external service or stronger tool is not the same experiment as improving a harness under identical capabilities; report such changes separately.
+
+### 31.8 Compatibility evidence and delivery
+
+M1A establishes skill installation, MCP, and command foundations; M4A adds executable-plugin lifecycle and harness composition. Maintain a compatibility matrix by skill metadata profile, runtime/OS, plugin API version, MCP protocol/transport, and command surface.
+
+The first conformance set includes portable skills from both ecosystems, a script-bearing skill, a missing-prerequisite skill, a conflicting-name case, local/remote MCP fixtures, and a plugin with a command/hook. Tests must prove use, not only parsing or listing. AT33–AT46 cover the additional cross-system failure cases.
+
+## 32. Slash commands and direct Agent controls
+
+### 32.1 Interaction model
+
+Kinaiya should feel familiar to someone using Hermes: type `/` for discovery, select a command, see argument hints, and invoke a skill by name. Hermes documents a shared registry for multiple command surfaces and dynamic commands for installed skills; this is the interaction reference, not a promise to clone every Hermes command verbatim. [S16]
+
+Use one versioned command registry for Agent Chat, interactive CLI, help, autocomplete, and the Flutter command palette. Later messaging/mobile surfaces consume the same definitions and explicitly declare any unavailable commands. No LLM inference is needed merely to discover, parse, authorize, or dispatch a deterministic control.
+
+Each definition includes canonical ID/name, aliases, description, argument schema, execution type, owner/origin, supported surfaces, permission requirements, target scope, confirmation behavior, and availability. Help shows why an installed command is unavailable, such as a missing credential, disabled plugin, unloaded provider, or unsupported adapter capability.
+
+### 32.2 Dispatch classes and routing
+
+Separate four command classes:
+
+| Class | Example | Execution |
+|---|---|---|
+| Runtime control | `/status`, `/stop`, `/model` | Deterministic handler; no Converse/Decisions/model round trip. |
+| Skill invocation | `/<skill-name> ...`, `/skill <qualified-id> ...` | Resolve the installed version, load its instructions on demand, and create normal Agent work. |
+| Registered tool/plugin command | `/plugin <id> <command> ...` | Validated handler under tool/plugin permissions; model use only when declared. |
+| User shortcut | Alias to another command or an approved execution shortcut. | Resolve safely with visible target, bounded expansion, and ordinary authorization. |
+
+Direct Agent Chat commands bypass Decisions because the user has already selected the worker interface. They still enter the journal with command/source/task provenance, without being replayed into another task by the conversational router.
+
+Read-only/help/stop controls must function even when Agent inference hangs or Converse is unloaded. A skill that needs Agent inference reports that it is queued/loading rather than pretending deterministic dispatch completed the work.
+
+Control commands cannot be issued by instructions embedded in a webpage, tool result, model reply, or skill. Equivalent programmatic actions use authenticated APIs and their own granted authority, not a text string pretending to be the user.
+
+### 32.3 Proposed initial command families
+
+The following names are Kinaiya design targets. Their exact options are finalized through the registry contract and tests; they are not commands available today.
+
+| Command family | Intended behavior |
+|---|---|
+| `/help [command]`, `/commands` | Search/list commands, syntax, aliases, origins, and availability. |
+| `/new [name]`, `/sessions`, `/resume <id>` | Create, inspect, and resume Agent sessions with explicit task linkage. |
+| `/history`, `/save`, `/clear` | Inspect/export history or clear the visible chat without silently deleting the shared record. |
+| `/status [task-id]`, `/tasks` | Show factual worker/task state without LLM summarization. |
+| `/stop [task-id]`, `/pause [task-id]` | Request cancellation/pause through the actual runtime capability; distinguish requested from completed. |
+| `/model [alias]` | Inspect/select the Agent model/provider profile; preserve Converse's personality and configuration. |
+| `/plan <request>` | Start an explicitly labeled planning task under its selected tool/write policy. |
+| `/compress` | Refresh bounded Agent model context/derived summaries; do not erase or rewrite shared transcript truth. |
+| `/skills search|inspect|install|list|enable|disable|update|remove|rollback ...` | Manage skill sources and lifecycle, including ClawHub and GitHub. |
+| `/skill <qualified-id> [request]`, `/<skill-name> [request]` | Explicit on-demand use of an installed, eligible skill. |
+| `/mcp list|add|inspect|test|enable|disable|remove ...` | Configure and manage MCP connections and capability access. |
+| `/plugins list|inspect|install|enable|disable|update|remove|rollback ...` | Manage executable plugins and their configuration/permissions. |
+| `/permissions`, `/yolo on|off` | Inspect/change the selected permission preset through authenticated owner controls. |
+| `/harness status|list|evaluate|rollback ...` | Inspect versions, request budgeted experiments, and perform authorized recovery. |
+| `/alias ...` | Manage user-defined aliases and explicitly approved execution shortcuts. |
+
+New sessions do not silently cancel old background work. Clearing a view is not privacy deletion. Pause/stop with an ambiguous target presents the active task choices rather than cancelling unrelated work. `/model` cannot bypass local-only policy or silently change all users' defaults. Command-driven permission changes remain owner actions, not tools a model can use to elevate itself.
+
+### 32.4 Dynamic commands, collisions, and customization
+
+Eligible user-invocable skills appear as dynamic slash commands after activation. Preserve manual-only and model-invocation restrictions where the imported profile supports them. Disabled/unconfigured skills are labeled appropriately; they do not masquerade as ready capabilities.
+
+Reserve built-in names and aliases. A skill named `stop` must not intercept `/stop`; it remains accessible through `/skill <qualified-id>` if permitted. Resolve collisions between skills/plugins through explicit namespaces and visible provenance, not install order. The Hermes reference similarly protects built-in command names. [S16]
+
+Plugins can register additional commands through the SDK with argument/permission schemas. A generated harness can propose commands as part of a candidate extension, but registering them follows normal validation and activation; self-building cannot override help, stop, policy, or recovery controls.
+
+Support user aliases to existing commands and optional execution shortcuts. Prefer argument arrays and typed substitution over shell-string concatenation; shell execution must be explicit and permission-controlled. Detect alias cycles, cap nesting, validate arguments after expansion, and show the resolved target for consequential actions. Long reusable workflows should normally be skills rather than opaque command strings.
+
+### 32.5 Parsing, safety, and feedback
+
+Recognize commands only from an explicit command input/palette submission, with a documented leading-slash grammar. Code blocks, pasted paths, quoted messages, and tool output are not commands. Provide a literal-text escape and do not send an unknown `/command` to the LLM as though it were a valid action; show help/suggestions instead.
+
+Do not treat command arguments as a shell program unless the user deliberately configured that command type. Handle quoting, Unicode, multiline arguments, and redaction consistently across CLI and Flutter. Sensitive setup fields belong in secure input controls, not saved chat text.
+
+Every command returns an immediate structured acknowledgment or validation error. Long-running work returns a task/install-operation ID and progress, not a premature completion message. Duplicate transport submissions use idempotency keys, and clients show the real result after reconnect.
+
+Command availability is capability-driven for external Agent adapters. Never forward a Kinaiya slash command blindly into another runtime with potentially different semantics. Translate through the adapter or label it unsupported. GUI buttons and slash commands should exercise the same underlying handlers so their permissions and behavior cannot drift.
+
+### 32.6 Delivery criteria
+
+Ship the registry, help/autocomplete, direct status/stop controls, session/model selection, and skill invocations in M1A. Add plugin-provided commands and user execution shortcuts with M4A. Add richer UI/messaging presentation only after those shared semantics are tested.
+
+The required result is an Agent that remains practical to operate like a conventional agent while retaining Kinaiya's adaptive harness: users can discover capabilities, install a skill, connect an MCP server, run a workflow, inspect work, or stop it without involving Converse or paying for a model call just to manipulate application controls.
