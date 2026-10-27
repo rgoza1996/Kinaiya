@@ -44,6 +44,7 @@ class _AgentChatState extends State<AgentChat> {
       oldWidget.state.removeListener(_handleStateChange);
       _lastClient = _s.client;
       _lastGeneration = _s.connectionGeneration;
+      _syncConnectionDraft();
       _s.addListener(_handleStateChange);
       _loadRegistry();
     }
@@ -72,8 +73,16 @@ class _AgentChatState extends State<AgentChat> {
         _lastGeneration != _s.connectionGeneration) {
       _lastClient = _s.client;
       _lastGeneration = _s.connectionGeneration;
+      _syncConnectionDraft();
       _loadRegistry();
       unawaited(_refreshTasks());
+    }
+  }
+
+  void _syncConnectionDraft() {
+    if (_input.text != _s.agentDraft) _input.text = _s.agentDraft;
+    for (final controller in _steer.values) {
+      controller.clear();
     }
   }
 
@@ -99,11 +108,19 @@ class _AgentChatState extends State<AgentChat> {
     if (!mounted || !_s.ownsConnection(generation, api)) return;
     // The approval scan belongs to the session captured before the await;
     // a reconnect installing a new session drops this stale read.
-    if (_s.agentSession?.sessionId != session.sessionId) return;
+    if (_s.agentSession?.sessionId != session.sessionId ||
+        _s.agentSession?.threadId != session.threadId ||
+        _s.agentSession?.epoch != session.epoch) {
+      return;
+    }
     try {
       final entries = await api.recent(sessionId: session.sessionId);
       if (!mounted || !_s.ownsConnection(generation, api)) return;
-      if (_s.agentSession?.sessionId != session.sessionId) return;
+      if (_s.agentSession?.sessionId != session.sessionId ||
+          _s.agentSession?.threadId != session.threadId ||
+          _s.agentSession?.epoch != session.epoch) {
+        return;
+      }
       final found = <ApprovalRequest>[];
       final resolved = entries
           .where((e) => e.kind == 'approval.resolved')

@@ -152,6 +152,10 @@ class AppState extends ChangeNotifier {
     // Task polling re-discovers backend work; the busy flags do not travel.
     busyAgent = false;
     busyConverse = false;
+    turnNonce++;
+    voiceNonce++;
+    speechEpoch = 0;
+    voiceEpoch = 0;
     if (backendChanged) {
       // A different backend must not reuse another backend's sessions,
       // tasks, approvals, drafts or history. Same-backend reconnect keeps
@@ -199,7 +203,9 @@ class AppState extends ChangeNotifier {
     for (var attempt = 0; attempt < attempts; attempt++) {
       if (!ownsConnection(generation, api)) return;
       try {
-        final next = await api.fetchCommands();
+        final next = await api.fetchCommands().timeout(
+          const Duration(seconds: 3),
+        );
         if (!ownsConnection(generation, api)) return;
         commands = next;
         commandsAvailable = next != null;
@@ -417,6 +423,10 @@ class AppState extends ChangeNotifier {
     client?.close();
     client = null;
     connected = false;
+    turnNonce++;
+    voiceNonce++;
+    speechEpoch = 0;
+    voiceEpoch = 0;
     converseSession = null;
     agentSession = null;
     // Registry is connection-scoped: a disconnected view must report it

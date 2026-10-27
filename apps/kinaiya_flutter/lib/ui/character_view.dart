@@ -109,9 +109,10 @@ class _CharacterViewState extends State<CharacterView> {
     super.didUpdateWidget(oldWidget);
     if (_lastClient != _s.client) {
       _lastClient = _s.client;
+      if (_input.text != _s.converseDraft) _input.text = _s.converseDraft;
       _s.turnNonce++;
       _s.voiceNonce++;
-      _s.speechEpoch++;
+      _s.speechEpoch = 0;
       _s.busyConverse = false;
       _armOwner++;
       _voiceRequest++;
@@ -125,6 +126,7 @@ class _CharacterViewState extends State<CharacterView> {
       unawaited(_audio.stopArmed());
       unawaited(_audio.cancelRecording());
       unawaited(_audio.stopPlayback());
+      unawaited(_refreshVoice());
     }
   }
 
@@ -153,13 +155,16 @@ class _CharacterViewState extends State<CharacterView> {
     if (!mounted) return;
     setState(() => _voiceReady = mic || play);
     final api = widget.state.client;
+    final connectionGeneration = _s.connectionGeneration;
     if (api != null) {
       try {
         final health = await api.converseHealth();
+        if (!mounted || !_s.ownsConnection(connectionGeneration, api)) return;
         widget.state.converseEnabled =
             ((health['enabled'] as bool?) ?? true) &&
             !_s.resourceStatusStale &&
             (_s.resourcesConfigured != true || _s.resourcePhase == 'ready');
+        _s.touch();
       } catch (_) {
         // Factual status surfaces through the connection indicator.
       }

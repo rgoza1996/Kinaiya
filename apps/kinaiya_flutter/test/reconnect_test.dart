@@ -39,6 +39,7 @@ class FakeAgentClient extends KinaiyaClient {
     this.sessionsHook,
     this.createSessionHook,
     this.recentHook,
+    this.healthHook,
   }) : super(
          sessionBase: 'http://127.0.0.1:8760',
          agentBase: 'http://127.0.0.1:8761',
@@ -52,6 +53,11 @@ class FakeAgentClient extends KinaiyaClient {
   Future<List<SessionInfo>> Function()? sessionsHook;
   Future<SessionInfo> Function()? createSessionHook;
   Future<List<JournalEntry>> Function()? recentHook;
+  Future<Map<String, Object?>> Function()? healthHook;
+
+  @override
+  Future<Map<String, Object?>> converseHealth() =>
+      healthHook?.call() ?? Future.value({'enabled': true});
 
   @override
   Future<List<CommandDef>?> fetchCommands() =>
@@ -108,6 +114,147 @@ class FakeAgentClient extends KinaiyaClient {
 }
 
 void main() {
+  testWidgets('an old approval scan cannot cross a session epoch reset', (
+    tester,
+  ) async {
+    final gate = Completer<List<JournalEntry>>();
+    final api = FakeAgentClient(
+      recentHook: () => gate.future,
+      tasksHook: () async => [
+        AgentTask(
+          taskId: 't1',
+          sessionId: 's1',
+          threadId: 'th1',
+          epoch: 1,
+          objective: 'public synthetic approval',
+          objectiveRevision: 1,
+          state: 'awaiting_approval',
+          idempotencyKey: 'approval-case',
+        ),
+      ],
+    );
+    final state = AppState()..connect(profileA(), injected: api);
+    state.agentSession = SessionInfo(
+      sessionId: 's1',
+      threadId: 'th1',
+      channel: 'agent',
+      epoch: 1,
+    );
+    state.setView(AppView.agent);
+    await tester.pumpWidget(KinaiyaApp(state: state));
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pump(const Duration(seconds: 4));
+    state.agentSession = SessionInfo(
+      sessionId: 's1',
+      threadId: 'th1',
+      channel: 'agent',
+      epoch: 2,
+    );
+    gate.complete([
+      JournalEntry(
+        eventId: 'a1',
+        sequence: 1,
+        sessionId: 's1',
+        threadId: 'th1',
+        epoch: 1,
+        kind: 'approval.requested',
+        origin: 'agent-supervisor',
+        payload: {
+          'approval_id': 'a1',
+          'task_id': 't1',
+          'tool': 'write_file',
+          'action_digest': 'synthetic-digest',
+          'objective_revision': 1,
+          'expires_at': '2099-01-01T00:00:00Z',
+          'arguments': <String, Object?>{},
+        },
+      ),
+    ]);
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(state.approvals, isEmpty);
+    await tester.pumpWidget(const SizedBox.shrink());
+    state.dispose();
+  });
+
+  for (final view in AppView.values) {
+    testWidgets('changing backend clears the visible $view draft', (
+      tester,
+    ) async {
+      final state = AppState()
+        ..connect(profileA(), injected: FakeAgentClient());
+      state.setView(view);
+      await tester.pumpWidget(KinaiyaApp(state: state));
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.enterText(
+        find.byType(TextField),
+        'synthetic old-context draft',
+      );
+      await tester.pump();
+      state.connect(profileB(), injected: FakeAgentClient());
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        isEmpty,
+      );
+      expect(state.agentDraft, isEmpty);
+      expect(state.converseDraft, isEmpty);
+      await tester.pumpWidget(const SizedBox.shrink());
+      state.dispose();
+    });
+  }
+
+  testWidgets('old Converse health cannot override a new connection', (
+    tester,
+  ) async {
+    final gate = Completer<Map<String, Object?>>();
+    final state = AppState()
+      ..connect(
+        profileA(),
+        injected: FakeAgentClient(healthHook: () => gate.future),
+      );
+    await tester.pumpWidget(KinaiyaApp(state: state));
+    await tester.pump(const Duration(milliseconds: 200));
+    state.connect(
+      profileB(),
+      injected: FakeAgentClient(healthHook: () async => {'enabled': false}),
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(state.converseEnabled, isFalse);
+    gate.complete({'enabled': true});
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(state.converseEnabled, isFalse);
+    await tester.pumpWidget(const SizedBox.shrink());
+    state.dispose();
+  });
+
+  testWidgets('hung registry reads time out within the attempt bound', (
+    tester,
+  ) async {
+    final gate = Completer<List<CommandDef>?>();
+    var calls = 0;
+    final state = AppState()
+      ..connect(
+        profileA(),
+        injected: FakeAgentClient(
+          commandsHook: () {
+            calls++;
+            return gate.future;
+          },
+        ),
+      );
+    final pending = state.refreshCommands(maxAttempts: 2);
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump(const Duration(seconds: 3));
+    await pending;
+    expect(calls, 2);
+    expect(state.commandsAvailable, isFalse);
+    gate.complete([CommandDef(name: 'late', description: 'timed out')]);
+    await tester.pump();
+    expect(state.commandsAvailable, isFalse);
+    state.dispose();
+  });
+
   testWidgets('agent chat mounted disconnected loads registry after connect', (
     tester,
   ) async {
