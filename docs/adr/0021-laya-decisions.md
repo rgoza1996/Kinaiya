@@ -97,9 +97,15 @@ it is not evidence of an offline cold start. Local fine-tune loading was offline
 Decisions `/health` exposes optional `provider_readiness`. A bare healthy HTTP
 server is insufficient: the selected alias must be resident, with a reported
 revision and an actual device rather than a preference. Unversioned local paths
-report not ready under this conservative provenance check, even if inference
-works. Local fine-tune benchmarks therefore separately verify their exact file
-manifests; they do not invent a Hub revision. The coordinator can enforce local
+report not ready without an explicitly pinned artifact, even if inference works.
+The [verified separate worker](../laya-worker.md) copies five manifest-pinned
+inference files into a private snapshot, rejects path/size/digest violations,
+preloads only that snapshot and detects load-time metadata changes. Its authenticated
+responses identify the manifest. The host's optional `expected_artifact_sha256`
+must match on every health/inference response before body decoding. Readiness
+still requires actual residency/device; local artifacts report `revision: null`
+and separate `artifact_sha256`. This is an authenticated worker receipt, not
+hardware attestation. It does not invent a Hub revision. The coordinator can enforce local
 disclosure policy but does not own or unload this external Laya process.
 
 ## Verification and research limits
@@ -149,7 +155,18 @@ during speech. That same third candidate passed only the unfinished/backchannel
 cases and failed steer/interrupt/queue classification. No file effects occurred
 in those failed cases. An earlier second-candidate probe also failed native
 target validation. These failures block promotion despite the perfect small
-development set. The frozen 24-case held-out split was consequently not queried.
+development set. The frozen 24-case held-out split was not queried for v3.
+
+Candidate v4 added consistent UUID substitutions, varied earlier conversation
+and speaking hints independent of semantic labels. It passed the development
+set and three broader native runs before freezing. One evaluation of the reserved
+24-case split then scored 23/24 Agent routes, 16/16 conversation labels and 11/11
+relevant targets, with no false work or interruptions. One steering request was
+missed as ignore. These small lead-authored synthetic references are not human
+voice acceptance. The held-out split is consumed and must not inform further
+tuning/training. [V4 evidence](../../evaluation/evidence/laya-2026-10-27/report-v4.json)
+records the frozen artifact, settings, results and pinned-worker probes. Default
+promotion remains off; resource ownership and broader voice gates remain open.
 
 Run the committed probe with a configured local candidate and its separate key
 in `KINAIYA_LAYA_API_KEY`:

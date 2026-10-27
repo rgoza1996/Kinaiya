@@ -9,6 +9,7 @@ from urllib.parse import urlparse
 import httpx
 
 from packages.contracts.models import ProviderInfo
+from packages.providers.laya_artifact import ARTIFACT_HEADER, valid_artifact_sha256
 from packages.providers.text import ProviderError, ProviderRefusal, _authorize_endpoint
 
 REASON_CODE = "laya_typed_choices"
@@ -169,10 +170,15 @@ class LayaRoutingProvider:
         timeout: float = 5,
         max_len: int | None = None,
         head_max_len: int | None = None,
+        expected_artifact_sha256: str | None = None,
         transport=None,
     ):
         if not isinstance(model, str) or not _MODEL_RE.fullmatch(model):
             raise ProviderError("Use a registered alphanumeric Laya model alias")
+        if expected_artifact_sha256 is not None and not valid_artifact_sha256(
+            expected_artifact_sha256
+        ):
+            raise ProviderError("Invalid expected Laya artifact SHA-256")
         parsed = urlparse(base_url)
         if parsed.query or parsed.fragment:
             raise ProviderError("Use an endpoint URL without query or fragment")
@@ -195,6 +201,7 @@ class LayaRoutingProvider:
         self.max_len = max_len
         self.head_max_len = head_max_len
         self.timeout = timeout
+        self.expected_artifact_sha256 = expected_artifact_sha256
         self.info = ProviderInfo(provider="laya", model=model, local=local, streaming=False)
         headers = {"Accept-Encoding": "identity"}
         if api_key:
@@ -221,6 +228,11 @@ class LayaRoutingProvider:
                 async with self.http.stream(method, path, **kwargs) as response:
                     if not 200 <= response.status_code < 300:
                         raise ProviderError(f"Laya endpoint returned HTTP {response.status_code}")
+                    if (
+                        self.expected_artifact_sha256 is not None
+                        and response.headers.get(ARTIFACT_HEADER) != self.expected_artifact_sha256
+                    ):
+                        raise ProviderRefusal("Laya worker artifact identity mismatch")
                     encoding = response.headers.get("content-encoding", "").strip().lower()
                     if encoding not in {"", "identity"}:
                         raise ProviderRefusal("Laya response used a non-identity encoding")
@@ -262,18 +274,23 @@ class LayaRoutingProvider:
             or self.model not in loaded
         ):
             return {"ready": False, "model": self.model}
-        if not isinstance(revision, str) or not revision.strip():
+        if self.expected_artifact_sha256 is None and (
+            not isinstance(revision, str) or not revision.strip()
+        ):
             return {"ready": False, "model": self.model}
         if not isinstance(device, str) or not device.strip():
             return {"ready": False, "model": self.model}
         if device_is_preference is not False:
             return {"ready": False, "model": self.model}
-        return {
+        result = {
             "ready": True,
             "model": self.model,
-            "revision": revision.strip()[:256],
+            "revision": revision.strip()[:256] if isinstance(revision, str) else None,
             "device": device.strip()[:128],
         }
+        if self.expected_artifact_sha256 is not None:
+            result["artifact_sha256"] = self.expected_artifact_sha256
+        return result
 
     async def complete(self, messages) -> str:
         state, mode = self._parse_messages(messages)

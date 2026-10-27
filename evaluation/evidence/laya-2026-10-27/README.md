@@ -1,10 +1,12 @@
 # Laya Decisions research, 27 October 2026
 
-**Experimental; promotion rejected.** [Issue #53](https://github.com/rgoza1996/Kinaiya/issues/53)
+**Experimental; default promotion remains off.** [Issue #53](https://github.com/rgoza1996/Kinaiya/issues/53)
 and [ADR 0021](../../../docs/adr/0021-laya-decisions.md) track the adapter and
 remaining gates. The reference alpha.8 configuration is unchanged.
 
-[report.json](report.json) contains exact source/model/runtime hashes, package
+[report-v4.json](report-v4.json) records the latest candidate and verified-worker
+results. [report.json](report.json) preserves the earlier v1–v3 study, including
+its failures and then-unqueried reserved split. Both contain source/model hashes, package
 versions, per-profile aggregates, training settings, native probe results,
 resource samples and budget provenance. All reference labels and training
 templates were authored by the lead using public synthetic text. They are not
@@ -17,8 +19,9 @@ contains sixteen retained-window cases and eight finalized-message cases,
 including the five clarification examples, irrelevant speech, speech-only stops,
 quoted instructions, assistant suggestions and ambiguous/multiple task targets.
 Relevant target scoring covers eleven cases; unused targets on ignored speech
-do not contribute to target accuracy. A separate 24-case held-out split remains
-ignored and **unqueried** because the candidate failed native integration.
+do not contribute to target accuracy. A separate 24-case held-out split remained
+unqueried through v3. It was evaluated once after v4 passed its development and
+native gates and was frozen; it is now consumed and must not inform further tuning.
 
 | Candidate | Agent routes | Conversation labels | Relevant targets | False work on ignored speech |
 | --- | ---: | ---: | ---: | ---: |
@@ -27,6 +30,35 @@ ignored and **unqueried** because the candidate failed native integration.
 | Supervised v1 | 22/24 | 16/16 | 9/11 | 0 |
 | Supervised v2 | 23/24 | 16/16 | 11/11 | 1 |
 | Supervised v3 | 24/24 | 16/16 | 11/11 | 0 |
+| Supervised v4 (development) | 24/24 | 16/16 | 11/11 | 0 |
+| Frozen v4 (reserved split, one evaluation) | 23/24 | 16/16 | 11/11 | 0 |
+
+V4 augmented the 970-row v3 data with consistent UUID substitutions, varied
+earlier conversation and speaking hints independent of labels: 1,940 rows,
+4,680 optimizer-training items and 128 internal calibration items. It continued
+v3 for two epochs in 512.6 seconds, with peak allocated memory 8.56 GB. The
+minimal native control and three broader-context runs with fresh UUIDs each
+passed all five cases before the candidate was frozen. The subsequent reserved
+split missed one steering request as ignore; all conversation/target references
+were correct, with no false work/interruptions or reported truncation. Target
+accuracy is scored separately and does not make the missed route correct.
+Classifier HTTP median/p95 was 55/64 ms on AMD ROCm. These are small synthetic
+measurements, not human or acoustic acceptance.
+
+The [pinned worker](../../../docs/laya-worker.md) then verified a private snapshot
+of that same artifact, reported truthful local identity with a null Hub revision,
+and passed both native profiles with the pin checked on every response. All 24
+development question hashes, request sizes and mapped outputs matched the
+original worker. A real boundary probe first caught upstream fallback for an
+unknown short model alias; a strict pre-inference alias guard fixed it. The
+retained failure and successful single/batch/auth checks are in the v4 report.
+Resource-coordinator ownership and the broader voice gates remain open.
+The same pinned worker also passed the broader native profile in the separately
+provisioned CPU environment (five classifier calls around 2.10–2.19 seconds).
+The CPU startup watcher had a stamp-filename error, so no CPU startup latency is
+claimed. The current change passed 706 local Python tests, Ruff and unchanged
+contract export. A bounded read-only actual Muse Contributor/xhigh review found
+no actionable issues; it did not run tests and is not human approval.
 
 These are consulted development results. V1 missed a mandatory cancellation;
 v2 confused stopping speech with stopping work. V3's perfect development result
@@ -125,7 +157,8 @@ finetune(
 )
 ```
 
-Run v1 from the pinned Hub artifact, v2 from v1, then v3 from v2. The report
+Run v1 from the pinned Hub artifact, v2 from v1, v3 from v2, then v4 from v3
+using `train-v4.jsonl.gz` and the v4 report's config. The reports
 records every base/candidate digest. Seeds and settings support repeatability;
 they do not guarantee identical bytes across hardware, runtime builds or AMP.
 
@@ -139,9 +172,9 @@ Laya's loader normalizes tokenizer metadata after verifying file hashes.
 Original and normalized digests were retained; subsequent candidates were
 normalized before freezing their runtime manifests. Vector weights and tokenizer
 vocabulary bytes were unchanged by this compatibility normalization. Unversioned
-local paths do not become Hub revisions, and current readiness remains
-conservatively false for those paths until explicit provenance is supported.
+local paths do not become Hub revisions. The opt-in first-party worker now
+supports explicit manifest identity; unpinned local paths still report not ready.
 
-The implementation's deterministic suite passed 653 Python and 15 Node tests,
+The original adapter's deterministic suite passed 653 Python and 15 Node tests,
 Ruff, unchanged contract export and dependency audit. Real Laya probe failures
 remain failures; CI fixtures do not convert them into a successful promotion.

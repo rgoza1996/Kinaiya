@@ -1,0 +1,35 @@
+{
+  "model_alias": "kinaiya-v4",
+  "base_revision": "7b928d828b7b0e022f929d9bd2e44165aa270148",
+  "training_run_sha256": "6a35363f5e517f2180500169111ace69629b2a1fcc9dec6de0ad9f1e536d4225",
+  "normalizer_source": "NandhaKishorM/laya@b9fe351ce81e2d974bca2bf219c1e4030c0a05ea:laya/agent.py:_fix_tokenizer_config",
+  "tokenizer_config_before_sha256": "6d21ed1a5129794e845a988d0e1f2d3e1b13f2a60c13d6b58cf9469ea04878bf",
+  "tokenizer_config_after_sha256": "e3888868082b1876b1d883863faca38df799a582e5e84ade6d5c86884ab12390",
+  "files": [
+    {
+      "path": "model.safetensors",
+      "size_bytes": 842609220,
+      "sha256": "583eb32970e5cfa0d30a79a71436175c38c4875563f8304f3aef88d6aa5920ce"
+    },
+    {
+      "path": "rl_agent_config.json",
+      "size_bytes": 5203,
+      "sha256": "6420d6ff366dfaa38c5ceb84e7b5dd1e5516887db24d979b3780864a2ab28dfd"
+    },
+    {
+      "path": "encoder/config.json",
+      "size_bytes": 2084,
+      "sha256": "5268d24ad3b77c8151de5dcb0762ba4391619aad9ab0bda33e36fb083cfeae6d"
+    },
+    {
+      "path": "tokenizer/tokenizer.json",
+      "size_bytes": 3583325,
+      "sha256": "0b3214f8efe1327290428b84e5d344ff3f2442686c1b89fb7b42c13a79ce6779"
+    },
+    {
+      "path": "tokenizer/tokenizer_config.json",
+      "size_bytes": 443,
+      "sha256": "e3888868082b1876b1d883863faca38df799a582e5e84ade6d5c86884ab12390"
+    }
+  ]
+}

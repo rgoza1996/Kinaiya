@@ -7,6 +7,7 @@ import httpx
 import pytest
 
 from packages.providers.laya import LayaRoutingProvider
+from packages.providers.laya_artifact import ARTIFACT_HEADER
 from packages.providers.text import ProviderError, ProviderRefusal
 
 
@@ -146,6 +147,101 @@ def _client(handler):
         )
 
     return httpx.MockTransport(stream_response)
+
+
+@pytest.mark.parametrize("pin", ["", "x" * 64, "A" * 64, True, 42, "a" * 64 + "\n"])
+def test_artifact_identity_pin_validated_before_request(pin):
+    with pytest.raises(ProviderError, match="artifact SHA-256"):
+        LayaRoutingProvider("http://127.0.0.1:8871", expected_artifact_sha256=pin)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("header", [None, "b" * 64, "a" * 64])
+async def test_local_artifact_readiness_requires_matching_response_header(header):
+    payload = {
+        "status": "ok",
+        "loaded": ["english"],
+        "revisions": {"english": None},
+        "device": "cpu",
+        "device_is_preference": False,
+    }
+    provider = LayaRoutingProvider(
+        "http://127.0.0.1:8871",
+        expected_artifact_sha256="a" * 64,
+        transport=_client(
+            lambda r: httpx.Response(
+                200, json=payload, headers={ARTIFACT_HEADER: header} if header else {}
+            )
+        ),
+    )
+    try:
+        health = await provider.health()
+        assert health["ready"] is (header == "a" * 64)
+        if health["ready"]:
+            assert health["revision"] is None
+            assert health["artifact_sha256"] == "a" * 64
+    finally:
+        await provider.close()
+
+
+@pytest.mark.asyncio
+async def test_artifact_identity_rechecked_for_every_classification():
+    identity = "a" * 64
+
+    def handler(request):
+        if request.url.path == "/health":
+            payload = {
+                "status": "ok",
+                "loaded": ["english"],
+                "revisions": {"english": None},
+                "device": "cpu",
+                "device_is_preference": False,
+            }
+        else:
+            payload = _ok_payload()
+        return httpx.Response(200, json=payload, headers={ARTIFACT_HEADER: identity})
+
+    provider = LayaRoutingProvider(
+        "http://127.0.0.1:8871",
+        expected_artifact_sha256=identity,
+        transport=_client(handler),
+    )
+    try:
+        assert (await provider.health())["ready"]
+        assert (
+            json.loads(await provider.complete(_window_input()))["target_task_id"] == "task-alpha"
+        )
+        identity = "b" * 64  # A restarted worker must not inherit the previous health receipt.
+        with pytest.raises(ProviderRefusal, match="artifact identity mismatch"):
+            await provider.complete(_window_input())
+    finally:
+        await provider.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "field,value", [("loaded", []), ("device", None), ("device_is_preference", True)]
+)
+async def test_artifact_pin_does_not_bypass_residency_or_actual_device(field, value):
+    payload = {
+        "status": "ok",
+        "loaded": ["english"],
+        "revisions": {"english": None},
+        "device": "cpu",
+        "device_is_preference": False,
+        field: value,
+    }
+    provider = LayaRoutingProvider(
+        "http://127.0.0.1:8871",
+        expected_artifact_sha256="a" * 64,
+        transport=_client(
+            lambda _: httpx.Response(200, json=payload, headers={ARTIFACT_HEADER: "a" * 64})
+        ),
+    )
+    try:
+        assert (await provider.health())["ready"] is False
+    finally:
+        await provider.close()
 
 
 @pytest.mark.asyncio

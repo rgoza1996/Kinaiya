@@ -1,0 +1,2034 @@
+{
+  "schema_version": "1.0",
+  "status": "experimental_synthetic_quality_gate_passed_unpromoted",
+  "recorded_unix": 1793143949.395293,
+  "issue": "https://github.com/rgoza1996/Kinaiya/issues/53",
+  "previous_report": "report.json",
+  "source_base_commit": "96e50bd09ca13b420c174d6a5bcfddf4781a68e0",
+  "source_file_sha256": {
+    "packages/providers/laya.py": "bde147f3a440a937bc1a31b517fa879d718eb3019f485df0d76142cf2c7264fb",
+    "packages/providers/laya_artifact.py": "95ec0f99e917a5f2ac786e2ebc9fe898c4248f43f1e29c438ead66238a6f86c2",
+    "services/decisions/laya_worker.py": "a09d54074129973ddd349486f026a7a03be2869ff4b3bd99369c85f980355fd4",
+    "scripts/probe_laya_native.py": "cb5fd1bdcf06db54be349cfb9a5fc937e607ac0d3d6e3cffb5f45edcde7ee1b8"
+  },
+  "labels": "Lead-authored public synthetic references, not independent human judgments or real conversations. No new model labels, user transcripts or heldout labels entered training.",
+  "dataset": {
+    "provenance": "Lead-authored augmentation after native probe failures. Same synthetic intents; consistent UUID substitution, varied prior context and independent speaking hints. No held-out file opened; no new model labels or user transcripts.",
+    "seed": 5304,
+    "training_rows": 1940,
+    "validation_rows": 24,
+    "original_rows": 970,
+    "augmented_rows": 970,
+    "base_local_manifest_sha256": "c8d9966f2c4f7ba73dc801893699ab50e9124e01007ac99414f96c2742b16e2e",
+    "files": {
+      "train-v4.jsonl": "190e37d2ce57f342f8b63f569f5bff9a22586319704c5f367da41849577cf2d7",
+      "calibration-as-validation-v1.jsonl": "d2393577dcb844fce6307185922126a7085ddfa320a67987c9b89b6cfb25571f"
+    },
+    "question_source_sha256": "f59bc6393e2b53d796fe95d2ab3064048f52e24ed08d01df7290aa73641caf7d"
+  },
+  "training": {
+    "status": "completed",
+    "started_unix": 1793142195.9926546,
+    "base_repo": "convaiinnovations/laya",
+    "base_revision": "7b928d828b7b0e022f929d9bd2e44165aa270148",
+    "subfolder": "typed-decisions",
+    "continuation_local_manifest_sha256": "c8d9966f2c4f7ba73dc801893699ab50e9124e01007ac99414f96c2742b16e2e",
+    "base_model_sha256": "88110331955c4c720e7361acb5dd052efa71342f664557d23c6facc83f0eed77",
+    "training_dataset_sha256": "190e37d2ce57f342f8b63f569f5bff9a22586319704c5f367da41849577cf2d7",
+    "validation_dataset_sha256": "d2393577dcb844fce6307185922126a7085ddfa320a67987c9b89b6cfb25571f",
+    "heldout_accessed": false,
+    "config": {
+      "epochs": 2,
+      "micro_batch": 4,
+      "grad_accum": 4,
+      "encoder_lr": 5e-06,
+      "head_lr": 5e-05,
+      "min_lr": 1e-06,
+      "weight_decay": 0.01,
+      "grad_clip": 1.0,
+      "loss": "soft-ce",
+      "rl_samples": 4,
+      "sigma_start": 0.4,
+      "sigma_end": 0.1,
+      "w_sph": 0.75,
+      "w_rps": 1.0,
+      "shuffle_options": [
+        "choice"
+      ],
+      "option_layout": null,
+      "freeze_encoder": false,
+      "calib_max": 128,
+      "calib_frac": 0.1,
+      "calib_seed": 20260922,
+      "seed": 5304,
+      "max_len": 1024,
+      "head_max_len": 256,
+      "amp": null,
+      "gradient_checkpointing": true,
+      "log_every": 10,
+      "label_smoothing": 0.05,
+      "text_column": "text",
+      "label_column": "label",
+      "question_id": "label",
+      "instructions": null,
+      "eval_data": "<local>/.dev-run/laya-training-v4/calibration-as-validation-v1.jsonl",
+      "target_error": 0.1,
+      "min_abstain_n": 10
+    },
+    "torch": "2.9.1+rocm6.3",
+    "hip": "6.3.42134-a9a80e791",
+    "device_name": "AMD Radeon Graphics",
+    "architecture": "gfx1201",
+    "free_bytes_before": 31046238208,
+    "total_gpu_bytes": 34208743424,
+    "per_process_fraction_limit": 0.65,
+    "elapsed_s": 512.6131522655487,
+    "summary": {
+      "train_items": 4680,
+      "calibration_items": 128,
+      "eval_items": 59,
+      "skipped": {},
+      "epoch_loss": [
+        0.18642664099605674,
+        0.1818663353084499
+      ],
+      "temperature": [
+        1.0369876623153687,
+        1.0,
+        1.0
+      ],
+      "temperature_by_options": {},
+      "n_by_bucket": {
+        "choice:3-5": 108,
+        "choice:2": 20
+      },
+      "calibration": {
+        "choice": {
+          "items": 128,
+          "temperature": 1.0369876623153687,
+          "issues": [],
+          "accuracy": 1.0,
+          "mean_confidence": 0.9653588331154059
+        },
+        "score": {
+          "items": 0,
+          "temperature": 1.0,
+          "issues": []
+        },
+        "noul": {
+          "items": 0,
+          "temperature": 1.0,
+          "issues": []
+        }
+      },
+      "abstention_thresholds": {
+        "choice:3-5": 0.9578,
+        "choice:2": 0.973
+      },
+      "train_report": {
+        "eval_source": "<local>/.dev-run/laya-training-v4/calibration-as-validation-v1.jsonl",
+        "eval_mode": "held_out",
+        "is_held_out": true,
+        "eval_items": 59,
+        "note": "Metrics reflect independent held-out evaluation.",
+        "before": {
+          "items": 59,
+          "loss": 0.0572,
+          "accuracy": 1.0,
+          "mean_confidence": 0.9493,
+          "ece": 0.0507,
+          "brier": 0.0123,
+          "brier_top1": 0.0085,
+          "by_type": {
+            "choice": {
+              "items": 59,
+              "loss": 0.0572,
+              "accuracy": 1.0,
+              "mean_confidence": 0.9493,
+              "ece": 0.0507,
+              "brier": 0.0123,
+              "brier_top1": 0.0085
+            }
+          }
+        },
+        "after": {
+          "items": 59,
+          "loss": 0.0367,
+          "accuracy": 1.0,
+          "mean_confidence": 0.9641,
+          "ece": 0.0359,
+          "brier": 0.002,
+          "brier_top1": 0.0014,
+          "by_type": {
+            "choice": {
+              "items": 59,
+              "loss": 0.0367,
+              "accuracy": 1.0,
+              "mean_confidence": 0.9641,
+              "ece": 0.0359,
+              "brier": 0.002,
+              "brier_top1": 0.0014
+            }
+          }
+        },
+        "comparison": {
+          "delta_accuracy": 0.0,
+          "delta_loss": -0.0205,
+          "delta_ece": -0.0148,
+          "delta_brier": -0.0103,
+          "delta_brier_top1": -0.0071,
+          "delta_mean_confidence": 0.0148
+        },
+        "calibration": {
+          "choice": {
+            "items": 128,
+            "temperature": 1.0369876623153687,
+            "issues": [],
+            "accuracy": 1.0,
+            "mean_confidence": 0.9653588331154059
+          },
+          "score": {
+            "items": 0,
+            "temperature": 1.0,
+            "issues": []
+          },
+          "noul": {
+            "items": 0,
+            "temperature": 1.0,
+            "issues": []
+          }
+        },
+        "abstention_thresholds": {
+          "choice:3-5": 0.9578,
+          "choice:2": 0.973
+        },
+        "training": {
+          "epochs": 2,
+          "micro_batch": 4,
+          "grad_accum": 4,
+          "encoder_lr": 5e-06,
+          "head_lr": 5e-05,
+          "min_lr": 1e-06,
+          "weight_decay": 0.01,
+          "grad_clip": 1.0,
+          "loss": "soft-ce",
+          "rl_samples": 4,
+          "sigma_start": 0.4,
+          "sigma_end": 0.1,
+          "w_sph": 0.75,
+          "w_rps": 1.0,
+          "shuffle_options": [
+            "choice"
+          ],
+          "option_layout": null,
+          "freeze_encoder": false,
+          "calib_max": 128,
+          "calib_frac": 0.1,
+          "calib_seed": 20260922,
+          "seed": 5304,
+          "max_len": 1024,
+          "head_max_len": 256,
+          "amp": null,
+          "gradient_checkpointing": true,
+          "log_every": 10,
+          "label_smoothing": 0.05,
+          "text_column": "text",
+          "label_column": "label",
+          "question_id": "label",
+          "instructions": null,
+          "eval_data": "<local>/.dev-run/laya-training-v4/calibration-as-validation-v1.jsonl",
+          "target_error": 0.1,
+          "min_abstain_n": 10
+        }
+      },
+      "output_dir": "<local>/.dev-run/laya-training-v4/candidate-v4"
+    },
+    "peak_allocated_bytes": 8563773440,
+    "peak_reserved_bytes": 9214885888
+  },
+  "training_run_raw_sha256": "6a35363f5e517f2180500169111ace69629b2a1fcc9dec6de0ad9f1e536d4225",
+  "artifact": {
+    "manifest": "candidate-v4-manifest.json",
+    "manifest_sha256": "5363e1728bf8026ca0a9a248d9e2c3b125f3de08888ba4b9c133531260798339",
+    "weights_in_git": false,
+    "reproduction": "Continue v3 using train-v4.jsonl.gz and this config. Runtime/hardware variation need not reproduce identical bytes; these digests identify only the measured checkpoint."
+  },
+  "freeze": {
+    "raw_record_sha256": "4819830edcd8325d25b64c3f8864919e68972571ba6ce70519237830b9d1ec07",
+    "frozen_unix": 1793143249.9716105,
+    "heldout_started_unix": 1793143250.2324965,
+    "candidate_manifest_sha256": "5363e1728bf8026ca0a9a248d9e2c3b125f3de08888ba4b9c133531260798339",
+    "max_len": 1024,
+    "head_max_len": 256,
+    "selection": "argmax at existing default threshold; no response heuristics or heldout-informed tuning",
+    "heldout_queried_before_freeze": false,
+    "preflight_note": "Initial freeze-file collection referenced nonexistent val-v4.jsonl; corrected to actual calibration-as-validation-v1.jsonl before freeze and before any heldout query.",
+    "frozen_adapter_sha256": "f59bc6393e2b53d796fe95d2ab3064048f52e24ed08d01df7290aa73641caf7d",
+    "frozen_probe_sha256": "02dfabdfb3bcb1dfa3f670fb99bca912ce905ecd33b32f35bc6af47d83ed4258",
+    "protocol_sha256": "2ac24ac880ce44c61de0506912852bb70b484a02f1376352bb96abbbbad17225"
+  },
+  "development": {
+    "raw_record_sha256": "f5681aa289e63381fc96482ac4625eb5cfa164b70191e31fe5914ada3e549b85",
+    "summary": {
+      "n": 24,
+      "agent_route_correct": 24,
+      "agent_route_accuracy": 1.0,
+      "conversation_correct": 16,
+      "conversation_total": 16,
+      "conversation_accuracy": 1.0,
+      "target_correct": 11,
+      "target_total": 11,
+      "target_accuracy": 1.0,
+      "false_work_routes_on_ignored": 0,
+      "http_seconds": {
+        "p50": 0.05683574299473548,
+        "p95": 0.06792889199277852,
+        "min": 0.030669084007968195,
+        "max": 0.5691170259960927
+      },
+      "errors": {},
+      "route_confusion": [
+        {
+          "expected": "IGNORE_FOR_IMMEDIATE_ROUTING",
+          "predicted": "IGNORE_FOR_IMMEDIATE_ROUTING",
+          "count": 7
+        },
+        {
+          "expected": "STEER_CURRENT_TASK",
+          "predicted": "STEER_CURRENT_TASK",
+          "count": 4
+        },
+        {
+          "expected": "INTERRUPT_CURRENT_TASK",
+          "predicted": "INTERRUPT_CURRENT_TASK",
+          "count": 2
+        },
+        {
+          "expected": "QUEUE_UNTIL_TASK_DONE",
+          "predicted": "QUEUE_UNTIL_TASK_DONE",
+          "count": 3
+        },
+        {
+          "expected": "ignore",
+          "predicted": "ignore",
+          "count": 4
+        },
+        {
+          "expected": "queue",
+          "predicted": "queue",
+          "count": 1
+        },
+        {
+          "expected": "steer",
+          "predicted": "steer",
+          "count": 2
+        },
+        {
+          "expected": "interrupt",
+          "predicted": "interrupt",
+          "count": 1
+        }
+      ]
+    }
+  },
+  "heldout": {
+    "cases": 24,
+    "split_sha256": "7ccb89e9b13620bcff02cacff83f388cda6d527a774619bab14a97f344d65d47",
+    "raw_result_sha256": "31ada7b513e283da23ce34c63345e65dc5698a547f76a5cba98264ccfd31ee86",
+    "queried_once": true,
+    "consumed_do_not_tune": true,
+    "answers_committed": false,
+    "summary": {
+      "n": 24,
+      "agent_route_correct": 23,
+      "agent_route_accuracy": 0.9583333333333334,
+      "conversation_correct": 16,
+      "conversation_total": 16,
+      "conversation_accuracy": 1.0,
+      "target_correct": 11,
+      "target_total": 11,
+      "target_accuracy": 1.0,
+      "false_work_routes_on_ignored": 0,
+      "http_seconds": {
+        "p50": 0.05500891050178325,
+        "p95": 0.06362004201218951,
+        "min": 0.029925344002549537,
+        "max": 0.06424708300619386
+      },
+      "errors": {},
+      "route_confusion": [
+        {
+          "expected": "IGNORE_FOR_IMMEDIATE_ROUTING",
+          "predicted": "IGNORE_FOR_IMMEDIATE_ROUTING",
+          "count": 7
+        },
+        {
+          "expected": "STEER_CURRENT_TASK",
+          "predicted": "STEER_CURRENT_TASK",
+          "count": 3
+        },
+        {
+          "expected": "INTERRUPT_CURRENT_TASK",
+          "predicted": "INTERRUPT_CURRENT_TASK",
+          "count": 2
+        },
+        {
+          "expected": "QUEUE_UNTIL_TASK_DONE",
+          "predicted": "QUEUE_UNTIL_TASK_DONE",
+          "count": 3
+        },
+        {
+          "expected": "STEER_CURRENT_TASK",
+          "predicted": "IGNORE_FOR_IMMEDIATE_ROUTING",
+          "count": 1
+        },
+        {
+          "expected": "ignore",
+          "predicted": "ignore",
+          "count": 4
+        },
+        {
+          "expected": "queue",
+          "predicted": "queue",
+          "count": 1
+        },
+        {
+          "expected": "steer",
+          "predicted": "steer",
+          "count": 2
+        },
+        {
+          "expected": "interrupt",
+          "predicted": "interrupt",
+          "count": 1
+        }
+      ]
+    },
+    "checks": {
+      "heldout_conversation": true,
+      "heldout_agent_route": true,
+      "heldout_target": true,
+      "no_false_work": true,
+      "no_false_interrupt_on_ignore": true,
+      "no_refusal_or_reported_truncation": true,
+      "native_broader": true
+    },
+    "misses": [
+      {
+        "case_id": "heldout-14",
+        "expected": "STEER_CURRENT_TASK",
+        "actual": "IGNORE_FOR_IMMEDIATE_ROUTING"
+      }
+    ],
+    "score_note": "Targets scored separately for relevant routes/explicit targets, including NONE abstention; correct target alone does not make a wrong work route correct.",
+    "synthetic_quality_gate_passed": true
+  },
+  "native_before_heldout": [
+    {
+      "record_sha256": "b99dbf790d8179597ab31abd276308f4f0480778b642938559fbafd87b9bf703",
+      "context_profile": "minimal",
+      "all_passed": true,
+      "cases": [
+        {
+          "case": "unfinished",
+          "status": "passed",
+          "classifier_seconds": 0.09293544600950554,
+          "decision": {
+            "schema_version": "1.0",
+            "decision_id": "window-72e6c8294ef97cb086d26b67e4d32cb4",
+            "prompt_chars": 1537,
+            "history_chars": 0,
+            "context_entries": 0,
+            "classification_reused": false,
+            "source_event_id": "158c56ea-ce79-4ebe-8099-e27c4889a305",
+            "source_sequence": 2,
+            "source_revision": 1,
+            "conversation": "WAIT_FOR_NEXT_WINDOW",
+            "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
+            "target_task_id": null,
+            "expected_objective_revision": null,
+            "reason_code": "laya_typed_choices",
+            "classifier_ms": 70.10665800771676
+          },
+          "native_task_id": "422986b7-f595-4173-bfdd-0ebd434eb0ce",
+          "no_new_work_or_reply": true,
+          "journal_kinds": [
+            "agent.command",
+            "conversation.window",
+            "routing.window_status",
+            "routing.window_decided",
+            "routing.window_status",
+            "converse.window_state"
+          ],
+          "files": {}
+        },
+        {
+          "case": "backchannel",
+          "status": "passed",
+          "classifier_seconds": 0.09613169899967033,
+          "decision": {
+            "schema_version": "1.0",
+            "decision_id": "window-4a90b730274e7beb10fd5832108aa577",
+            "prompt_chars": 1619,
+            "history_chars": 60,
+            "context_entries": 1,
+            "classification_reused": false,
+            "source_event_id": "0660caef-df53-4461-9fa8-a17462059284",
+            "source_sequence": 3,
+            "source_revision": 1,
+            "conversation": "IGNORE",
+            "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
+            "target_task_id": null,
+            "expected_objective_revision": null,
+            "reason_code": "laya_typed_choices",
+            "classifier_ms": 67.66620300186332
+          },
+          "native_task_id": "f78186bb-f1f5-493e-8c9d-24f8d2862937",
+          "no_new_work_or_reply": true,
+          "journal_kinds": [
+            "agent.command",
+            "conversation.converse",
+            "conversation.window",
+            "routing.window_status",
+            "routing.window_decided",
+            "routing.window_status"
+          ],
+          "files": {}
+        },
+        {
+          "case": "steer",
+          "status": "passed",
+          "classifier_seconds": 0.08104418200673535,
+          "decision": {
+            "schema_version": "1.0",
+            "decision_id": "window-71d0011397531eb3ece23f65436aff79",
+            "prompt_chars": 1532,
+            "history_chars": 0,
+            "context_entries": 0,
+            "classification_reused": false,
+            "source_event_id": "ed01ec72-616c-4dc3-b58c-2ab6ff77fbb1",
+            "source_sequence": 2,
+            "source_revision": 1,
+            "conversation": "RESPOND_WITHOUT_INTERRUPTING_USER",
+            "agent_route": "STEER_CURRENT_TASK",
+            "target_task_id": "8f3e7123-0d7f-4bed-83d4-3a23109ecbb3",
+            "expected_objective_revision": 1,
+            "reason_code": "laya_typed_choices",
+            "classifier_ms": 59.13102100021206
+          },
+          "native_task_id": "8f3e7123-0d7f-4bed-83d4-3a23109ecbb3",
+          "approval_required_before_write": true,
+          "approval_digest": "sha256:a1b1af0f5b0457f30c4268fed92fd26a2393ca29587f98781a250ac26e545f83",
+          "journal_kinds": [
+            "agent.command",
+            "conversation.window",
+            "routing.window_status",
+            "routing.window_decided",
+            "routing.window_status",
+            "agent.command",
+            "routing.window_dispatch",
+            "converse.window_state",
+            "converse.window_state",
+            "conversation.converse",
+            "agent.command",
+            "approval.requested",
+            "approval.resolved",
+            "agent.tool",
+            "agent.outcome"
+          ],
+          "files": {
+            "steered.txt": "75393b6fb37c6ce401cfa44dbe6fef46d13010dd61a2b51468cc477fc2997766"
+          }
+        },
+        {
+          "case": "interrupt",
+          "status": "passed",
+          "classifier_seconds": 0.08900755899958313,
+          "decision": {
+            "schema_version": "1.0",
+            "decision_id": "window-ffd069050fb4e7fb25961b329c42746d",
+            "prompt_chars": 1529,
+            "history_chars": 0,
+            "context_entries": 0,
+            "classification_reused": false,
+            "source_event_id": "83eb9e60-2213-46bc-9b7c-b410eacfd339",
+            "source_sequence": 2,
+            "source_revision": 1,
+            "conversation": "RESPOND_INTERRUPT_USER",
+            "agent_route": "INTERRUPT_CURRENT_TASK",
+            "target_task_id": "cdac3e34-08a6-4d4a-8f43-98d5b975edd5",
+            "expected_objective_revision": 1,
+            "reason_code": "laya_typed_choices",
+            "classifier_ms": 65.74780600203667
+          },
+          "native_task_id": "cdac3e34-08a6-4d4a-8f43-98d5b975edd5",
+          "no_file_written": true,
+          "journal_kinds": [
+            "agent.command",
+            "conversation.window",
+            "routing.window_status",
+            "routing.window_decided",
+            "routing.window_status",
+            "agent.command",
+            "routing.window_dispatch",
+            "converse.window_state",
+            "agent.outcome",
+            "converse.window_state",
+            "conversation.converse"
+          ],
+          "files": {}
+        },
+        {
+          "case": "queue",
+          "status": "passed",
+          "classifier_seconds": 0.08507483098946977,
+          "decision": {
+            "schema_version": "1.0",
+            "decision_id": "window-8ca7e825fcce919eb189aec0d97fe9e8",
+            "prompt_chars": 1541,
+            "history_chars": 0,
+            "context_entries": 0,
+            "classification_reused": false,
+            "source_event_id": "0e579dbb-d18c-431f-b693-2df58593230c",
+            "source_sequence": 2,
+            "source_revision": 1,
+            "conversation": "RESPOND_WITHOUT_INTERRUPTING_USER",
+            "agent_route": "QUEUE_UNTIL_TASK_DONE",
+            "target_task_id": "acc0cab2-159b-463b-ab12-1fa97b5e779d",
+            "expected_objective_revision": 1,
+            "reason_code": "laya_typed_choices",
+            "classifier_ms": 62.84583199885674
+          },
+          "native_task_id": "acc0cab2-159b-463b-ab12-1fa97b5e779d",
+          "queued_until_native_completion": true,
+          "approval_required_for_partial_followup": true,
+          "replay_created_no_duplicate": true,
+          "journal_kinds": [
+            "agent.command",
+            "conversation.window",
+            "routing.window_status",
+            "routing.window_decided",
+            "routing.window_status",
+            "routing.window_dispatch",
+            "converse.window_state",
+            "converse.window_state",
+            "conversation.converse",
+            "agent.tool",
+            "agent.outcome",
+            "agent.command",
+            "routing.window_dispatch",
+            "approval.requested",
+            "approval.resolved",
+            "agent.tool",
+            "agent.outcome"
+          ],
+          "files": {
+            "first.txt": "5efea180ad7b89255140e8399a84988847510226615303949552bd235c8f5084",
+            "followup.txt": "b8c26b3ebb5d93d5ecc211156eb3c7a4daa726d51e15d3a6b2b304d0721060f4"
+          }
+        }
+      ],
+      "limits": "Actual Laya classification and native tool effects; text input and Agent/Converse inference are synthetic. Not ASR, paid inference, audio playback or human microphone proof. Minimal is a positive control, not the broader-context acceptance gate."
+    },
+    {
+      "record_sha256": "80b53d07c64688c4bae5b274a479e441e24aef53ab562414ad135e502298134e",
+      "context_profile": "preceding_converse",
+      "all_passed": true,
+      "cases": [
+        {
+          "case": "unfinished",
+          "status": "passed",
+          "classifier_seconds": 0.09068591499817558,
+          "decision": {
+            "schema_version": "1.0",
+            "decision_id": "window-12bc42142ab884588885a35f9b4b346f",
+            "prompt_chars": 1642,
+            "history_chars": 60,
+            "context_entries": 1,
+            "classification_reused": false,
+            "source_event_id": "46396d14-4597-4b7e-8a2b-bfd1b6d64afd",
+            "source_sequence": 3,
+            "source_revision": 1,
+            "conversation": "WAIT_FOR_NEXT_WINDOW",
+            "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
+            "target_task_id": null,
+            "expected_objective_revision": null,
+            "reason_code": "laya_typed_choices",
+            "classifier_ms": 67.79598499997519
+          },
+          "native_task_id": "4a169a47-7fea-4049-a2e1-239181936f41",
+          "no_new_work_or_reply": true,
+          "journal_kinds": [
+            "agent.command",
+            "conversation.converse",
+            "conversation.window",
+            "routing.window_status",
+            "routing.window_decided",
+            "routing.window_status",
+            "converse.window_state"
+          ],
+          "files": {}
+        },
+        {
+          "case": "backchannel",
+          "status": "passed",
+          "classifier_seconds": 0.08827438499429263,
+          "decision": {
+            "schema_version": "1.0",
+            "decision_id": "window-ec7895f4eab86741161df7f046781bbe",
+            "prompt_chars": 1619,
+            "history_chars": 60,
+            "context_entries": 1,
+            "classification_reused": false,
+            "source_event_id": "cc6b7671-138e-442f-ad7f-539658867732",
+            "source_sequence": 3,
+            "source_revision": 1,
+            "conversation": "IGNORE",
+            "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
+            "target_task_id": null,
+            "expected_objective_revision": null,
+            "reason_code": "laya_typed_choices",
+            "classifier_ms": 65.08106700493954
+          },
+          "native_task_id": "0fe4b9e3-1898-46b9-acff-34a23a27efa8",
+          "no_new_work_or_reply": true,
+          "journal_kinds": [
+            "agent.command",
+            "conversation.converse",
+            "conversation.window",
+            "routing.window_status",
+            "routing.window_decided",
+            "routing.window_status"
+          ],
+          "files": {}
+        },
+        {
+          "case": "steer",
+          "status": "passed",
+          "classifier_seconds": 0.08972853800514713,
+          "decision": {
+            "schema_version": "1.0",
+            "decision_id": "window-5174661fd59084794d6fd47fd5542935",
+            "prompt_chars": 1637,
+            "history_chars": 60,
+            "context_entries": 1,
+            "classification_reused": false,
+            "source_event_id": "02eb3ea4-b125-486e-8ac5-9f9d780bd681",
+            "source_sequence": 3,
+            "source_revision": 1,
+            "conversation": "RESPOND_WITHOUT_INTERRUPTING_USER",
+            "agent_route": "STEER_CURRENT_TASK",
+            "target_task_id": "aae4864e-87ca-48bd-b7c4-01418fe91a45",
+            "expected_objective_revision": 1,
+            "reason_code": "laya_typed_choices",
+            "classifier_ms": 67.29539801017381
+          },
+          "native_task_id": "aae4864e-87ca-48bd-b7c4-01418fe91a45",
+          "approval_required_before_write": true,
+          "approval_digest": "sha256:a1b1af0f5b0457f30c4268fed92fd26a2393ca29587f98781a250ac26e545f83",
+          "journal_kinds": [
+            "agent.command",
+            "conversation.converse",
+            "conversation.window",
+            "routing.window_status",
+            "routing.window_decided",
+            "routing.window_status",
+            "agent.command",
+            "routing.window_dispatch",
+            "converse.window_state",
+            "converse.window_state",
+            "conversation.converse",
+            "agent.command",
+            "approval.requested",
+            "approval.resolved",
+            "agent.tool",
+            "agent.outcome"
+          ],
+          "files": {
+            "steered.txt": "75393b6fb37c6ce401cfa44dbe6fef46d13010dd61a2b51468cc477fc2997766"
+          }
+        },
+        {
+          "case": "interrupt",
+          "status": "passed",
+          "classifier_seconds": 0.09098287600500043,
+          "decision": {
+            "schema_version": "1.0",
+            "decision_id": "window-573611cd62beeb5d16fa368edcf7aa4b",
+            "prompt_chars": 1633,
+            "history_chars": 60,
+            "context_entries": 1,
+            "classification_reused": false,
+            "source_event_id": "870449ed-408f-413d-aa1a-0b1c155d796b",
+            "source_sequence": 3,
+            "source_revision": 1,
+            "conversation": "RESPOND_INTERRUPT_USER",
+            "agent_route": "INTERRUPT_CURRENT_TASK",
+            "target_task_id": "b11bd5c5-b9ed-4cc8-bf46-d9ba79ada707",
+            "expected_objective_revision": 1,
+            "reason_code": "laya_typed_choices",
+            "classifier_ms": 66.36224899557419
+          },
+          "native_task_id": "b11bd5c5-b9ed-4cc8-bf46-d9ba79ada707",
+          "no_file_written": true,
+          "journal_kinds": [
+            "agent.command",
+            "conversation.converse",
+            "conversation.window",
+            "routing.window_status",
+            "routing.window_decided",
+            "routing.window_status",
+            "agent.command",
+            "routing.window_dispatch",
+            "converse.window_state",
+            "agent.outcome",
+            "converse.window_state",
+            "conversation.converse"
+          ],
+          "files": {}
+        },
+        {
+          "case": "queue",
+          "status": "passed",
+          "classifier_seconds": 0.08507726198877208,
+          "decision": {
+            "schema_version": "1.0",
+            "decision_id": "window-3e9c89f4b81d62456be003861e8c1240",
+            "prompt_chars": 1646,
+            "history_chars": 60,
+            "context_entries": 1,
+            "classification_reused": false,
+            "source_event_id": "6bebfdbd-1a60-4331-be93-35c262f7f130",
+            "source_sequence": 3,
+            "source_revision": 1,
+            "conversation": "RESPOND_WITHOUT_INTERRUPTING_USER",
+            "agent_route": "QUEUE_UNTIL_TASK_DONE",
+            "target_task_id": "dd284851-2b5f-437f-84df-5bcb4c5b70d3",
+            "expected_objective_revision": 1,
+            "reason_code": "laya_typed_choices",
+            "classifier_ms": 63.664968009106815
+          },
+          "native_task_id": "dd284851-2b5f-437f-84df-5bcb4c5b70d3",
+          "queued_until_native_completion": true,
+          "approval_required_for_partial_followup": true,
+          "replay_created_no_duplicate": true,
+          "journal_kinds": [
+            "agent.command",
+            "conversation.converse",
+            "conversation.window",
+            "routing.window_status",
+            "routing.window_decided",
+            "routing.window_status",
+            "routing.window_dispatch",
+            "converse.window_state",
+            "converse.window_state",
+            "conversation.converse",
+            "agent.tool",
+            "agent.outcome",
+            "agent.command",
+            "routing.window_dispatch",
+            "approval.requested",
+            "approval.resolved",
+            "agent.tool",
+            "agent.outcome"
+          ],
+          "files": {
+            "first.txt": "5efea180ad7b89255140e8399a84988847510226615303949552bd235c8f5084",
+            "followup.txt": "b8c26b3ebb5d93d5ecc211156eb3c7a4daa726d51e15d3a6b2b304d0721060f4"
+          }
+        }
+      ],
+      "limits": "Actual Laya classification and native tool effects; text input and Agent/Converse inference are synthetic. Not ASR, paid inference, audio playback or human microphone proof. Minimal is a positive control, not the broader-context acceptance gate."
+    },
+    {
+      "record_sha256": "86469b544ad47d785b80e1d88ec8fa79bf61995c205dd6ac6471a0f4c6ced884",
+      "context_profile": "preceding_converse",
+      "all_passed": true,
+      "cases": [
+        {
+          "case": "unfinished",
+          "status": "passed",
+          "classifier_seconds": 0.1046979250095319,
+          "decision": {
+            "schema_version": "1.0",
+            "decision_id": "window-d2c1429bbfc9529d44845d37e3c90524",
+            "prompt_chars": 1642,
+            "history_chars": 60,
+            "context_entries": 1,
+            "classification_reused": false,
+            "source_event_id": "009dd574-ffb3-4000-a912-e946bf8b8b12",
+            "source_sequence": 3,
+            "source_revision": 1,
+            "conversation": "WAIT_FOR_NEXT_WINDOW",
+            "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
+            "target_task_id": null,
+            "expected_objective_revision": null,
+            "reason_code": "laya_typed_choices",
+            "classifier_ms": 81.62372799415607
+          },
+          "native_task_id": "433f4e79-e6ae-410b-a169-e82c05ab62a2",
+          "no_new_work_or_reply": true,
+          "journal_kinds": [
+            "agent.command",
+            "conversation.converse",
+            "conversation.window",
+            "routing.window_status",
+            "routing.window_decided",
+            "routing.window_status",
+            "converse.window_state"
+          ],
+          "files": {}
+        },
+        {
+          "case": "backchannel",
+          "status": "passed",
+          "classifier_seconds": 0.09086041600676253,
+          "decision": {
+            "schema_version": "1.0",
+            "decision_id": "window-e967f4da612c94dde52fa2a6433ce0c2",
+            "prompt_chars": 1619,
+            "history_chars": 60,
+            "context_entries": 1,
+            "classification_reused": false,
+            "source_event_id": "dc2aeb69-60d8-4cab-b098-3aacf4379352",
+            "source_sequence": 3,
+            "source_revision": 1,
+            "conversation": "IGNORE",
+            "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
+            "target_task_id": null,
+            "expected_objective_revision": null,
+            "reason_code": "laya_typed_choices",
+            "classifier_ms": 67.41925700043794
+          },
+          "native_task_id": "e7f8f16e-922b-4da7-a16d-b8b7c4849a13",
+          "no_new_work_or_reply": true,
+          "journal_kinds": [
+            "agent.command",
+            "conversation.converse",
+            "conversation.window",
+            "routing.window_status",
+            "routing.window_decided",
+            "routing.window_status"
+          ],
+          "files": {}
+        },
+        {
+          "case": "steer",
+          "status": "passed",
+          "classifier_seconds": 0.08899569298955612,
+          "decision": {
+            "schema_version": "1.0",
+            "decision_id": "window-ecd9a4942b8af2144c72ea65f91fa230",
+            "prompt_chars": 1637,
+            "history_chars": 60,
+            "context_entries": 1,
+            "classification_reused": false,
+            "source_event_id": "87790d7f-c89f-448c-a036-2bfc8d5ae33b",
+            "source_sequence": 3,
+            "source_revision": 1,
+            "conversation": "RESPOND_WITHOUT_INTERRUPTING_USER",
+            "agent_route": "STEER_CURRENT_TASK",
+            "target_task_id": "26a9a9c3-ecc4-4673-bc6d-d44d66783484",
+            "expected_objective_revision": 1,
+            "reason_code": "laya_typed_choices",
+            "classifier_ms": 66.2164379900787
+          },
+          "native_task_id": "26a9a9c3-ecc4-4673-bc6d-d44d66783484",
+          "approval_required_before_write": true,
+          "approval_digest": "sha256:a1b1af0f5b0457f30c4268fed92fd26a2393ca29587f98781a250ac26e545f83",
+          "journal_kinds": [
+            "agent.command",
+            "conversation.converse",
+            "conversation.window",
+            "routing.window_status",
+            "routing.window_decided",
+            "routing.window_status",
+            "agent.command",
+            "routing.window_dispatch",
+            "converse.window_state",
+            "converse.window_state",
+            "conversation.converse",
+            "agent.command",
+            "approval.requested",
+            "approval.resolved",
+            "agent.tool",
+            "agent.outcome"
+          ],
+          "files": {
+            "steered.txt": "75393b6fb37c6ce401cfa44dbe6fef46d13010dd61a2b51468cc477fc2997766"
+          }
+        },
+        {
+          "case": "interrupt",
+          "status": "passed",
+          "classifier_seconds": 0.09333637899544556,
+          "decision": {
+            "schema_version": "1.0",
+            "decision_id": "window-bff2ae4120bc8a6ed2508c49ae6fc587",
+            "prompt_chars": 1633,
+            "history_chars": 60,
+            "context_entries": 1,
+            "classification_reused": false,
+            "source_event_id": "0fd7d0d4-ec55-48f9-a49e-01ec9cc65887",
+            "source_sequence": 3,
+            "source_revision": 1,
+            "conversation": "RESPOND_INTERRUPT_USER",
+            "agent_route": "INTERRUPT_CURRENT_TASK",
+            "target_task_id": "e4b2fc33-f41b-4abb-b1aa-31ffbd0392eb",
+            "expected_objective_revision": 1,
+            "reason_code": "laya_typed_choices",
+            "classifier_ms": 69.8498300043866
+          },
+          "native_task_id": "e4b2fc33-f41b-4abb-b1aa-31ffbd0392eb",
+          "no_file_written": true,
+          "journal_kinds": [
+            "agent.command",
+            "conversation.converse",
+            "conversation.window",
+            "routing.window_status",
+            "routing.window_decided",
+            "routing.window_status",
+            "agent.command",
+            "routing.window_dispatch",
+            "converse.window_state",
+            "agent.outcome",
+            "converse.window_state",
+            "conversation.converse"
+          ],
+          "files": {}
+        },
+        {
+          "case": "queue",
+          "status": "passed",
+          "classifier_seconds": 0.08624002400028985,
+          "decision": {
+            "schema_version": "1.0",
+            "decision_id": "window-eed23a8668fc0ada275d0cda13d88b1e",
+            "prompt_chars": 1646,
+            "history_chars": 60,
+            "context_entries": 1,
+            "classification_reused": false,
+            "source_event_id": "ea8892ec-8955-475b-b7a8-0ff171dd976f",
+            "source_sequence": 3,
+            "source_revision": 1,
+            "conversation": "RESPOND_WITHOUT_INTERRUPTING_USER",
+            "agent_route": "QUEUE_UNTIL_TASK_DONE",
+            "target_task_id": "7feebf18-ec59-4cf1-8d66-a3f46c35248c",
+            "expected_objective_revision": 1,
+            "reason_code": "laya_typed_choices",
+            "classifier_ms": 63.3037189982133
+          },
+          "native_task_id": "7feebf18-ec59-4cf1-8d66-a3f46c35248c",
+          "queued_until_native_completion": true,
+          "approval_required_for_partial_followup": true,
+          "replay_created_no_duplicate": true,
+          "journal_kinds": [
+            "agent.command",
+            "conversation.converse",
+            "conversation.window",
+            "routing.window_status",
+            "routing.window_decided",
+            "routing.window_status",
+            "routing.window_dispatch",
+            "converse.window_state",
+            "converse.window_state",
+            "conversation.converse",
+            "agent.tool",
+            "agent.outcome",
+            "agent.command",
+            "routing.window_dispatch",
+            "approval.requested",
+            "approval.resolved",
+            "agent.tool",
+            "agent.outcome"
+          ],
+          "files": {
+            "first.txt": "5efea180ad7b89255140e8399a84988847510226615303949552bd235c8f5084",
+            "followup.txt": "b8c26b3ebb5d93d5ecc211156eb3c7a4daa726d51e15d3a6b2b304d0721060f4"
+          }
+        }
+      ],
+      "limits": "Actual Laya classification and native tool effects; text input and Agent/Converse inference are synthetic. Not ASR, paid inference, audio playback or human microphone proof. Minimal is a positive control, not the broader-context acceptance gate."
+    },
+    {
+      "record_sha256": "807ce78b877cd1f641fabe0b2358c40c6aab9e01705b3c4a1363eee8f7c22b50",
+      "context_profile": "preceding_converse",
+      "all_passed": true,
+      "cases": [
+        {
+          "case": "unfinished",
+          "status": "passed",
+          "classifier_seconds": 0.09105372200428974,
+          "decision": {
+            "schema_version": "1.0",
+            "decision_id": "window-8570bc183a81213b5099fbcb2123c98d",
+            "prompt_chars": 1642,
+            "history_chars": 60,
+            "context_entries": 1,
+            "classification_reused": false,
+            "source_event_id": "8f21be1c-6f61-4788-8b0f-79d77d6a33be",
+            "source_sequence": 3,
+            "source_revision": 1,
+            "conversation": "WAIT_FOR_NEXT_WINDOW",
+            "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
+            "target_task_id": null,
+            "expected_objective_revision": null,
+            "reason_code": "laya_typed_choices",
+            "classifier_ms": 68.06379499903414
+          },
+          "native_task_id": "78db75fa-5172-4b0e-90d4-12461f188d15",
+          "no_new_work_or_reply": true,
+          "journal_kinds": [
+            "agent.command",
+            "conversation.converse",
+            "conversation.window",
+            "routing.window_status",
+            "routing.window_decided",
+            "routing.window_status",
+            "converse.window_state"
+          ],
+          "files": {}
+        },
+        {
+          "case": "backchannel",
+          "status": "passed",
+          "classifier_seconds": 0.09162008701241575,
+          "decision": {
+            "schema_version": "1.0",
+            "decision_id": "window-428a1f6e7b4e36387134e98a1a76278f",
+            "prompt_chars": 1619,
+            "history_chars": 60,
+            "context_entries": 1,
+            "classification_reused": false,
+            "source_event_id": "d1edca4e-afe4-4f39-8cc4-6df4dc3b3c85",
+            "source_sequence": 3,
+            "source_revision": 1,
+            "conversation": "IGNORE",
+            "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
+            "target_task_id": null,
+            "expected_objective_revision": null,
+            "reason_code": "laya_typed_choices",
+            "classifier_ms": 68.7342260061996
+          },
+          "native_task_id": "8143c1aa-c957-4da8-a4d1-dfd844204b28",
+          "no_new_work_or_reply": true,
+          "journal_kinds": [
+            "agent.command",
+            "conversation.converse",
+            "conversation.window",
+            "routing.window_status",
+            "routing.window_decided",
+            "routing.window_status"
+          ],
+          "files": {}
+        },
+        {
+          "case": "steer",
+          "status": "passed",
+          "classifier_seconds": 0.08951150700158905,
+          "decision": {
+            "schema_version": "1.0",
+            "decision_id": "window-43045532bd1f4ec7a1e655d1b6c9da80",
+            "prompt_chars": 1637,
+            "history_chars": 60,
+            "context_entries": 1,
+            "classification_reused": false,
+            "source_event_id": "9f9ccefc-5fe6-4106-9548-4bca8c0d0996",
+            "source_sequence": 3,
+            "source_revision": 1,
+            "conversation": "RESPOND_WITHOUT_INTERRUPTING_USER",
+            "agent_route": "STEER_CURRENT_TASK",
+            "target_task_id": "9bbab464-f1ec-44d9-8de9-af179236aea2",
+            "expected_objective_revision": 1,
+            "reason_code": "laya_typed_choices",
+            "classifier_ms": 66.41040300019085
+          },
+          "native_task_id": "9bbab464-f1ec-44d9-8de9-af179236aea2",
+          "approval_required_before_write": true,
+          "approval_digest": "sha256:a1b1af0f5b0457f30c4268fed92fd26a2393ca29587f98781a250ac26e545f83",
+          "journal_kinds": [
+            "agent.command",
+            "conversation.converse",
+            "conversation.window",
+            "routing.window_status",
+            "routing.window_decided",
+            "routing.window_status",
+            "agent.command",
+            "routing.window_dispatch",
+            "converse.window_state",
+            "converse.window_state",
+            "conversation.converse",
+            "agent.command",
+            "approval.requested",
+            "approval.resolved",
+            "agent.tool",
+            "agent.outcome"
+          ],
+          "files": {
+            "steered.txt": "75393b6fb37c6ce401cfa44dbe6fef46d13010dd61a2b51468cc477fc2997766"
+          }
+        },
+        {
+          "case": "interrupt",
+          "status": "passed",
+          "classifier_seconds": 0.09725390300445724,
+          "decision": {
+            "schema_version": "1.0",
+            "decision_id": "window-3f2a28f9cab9d198fe414327916248a1",
+            "prompt_chars": 1633,
+            "history_chars": 60,
+            "context_entries": 1,
+            "classification_reused": false,
+            "source_event_id": "712471a2-b471-4a19-8172-d5b7fe71bd6c",
+            "source_sequence": 3,
+            "source_revision": 1,
+            "conversation": "RESPOND_INTERRUPT_USER",
+            "agent_route": "INTERRUPT_CURRENT_TASK",
+            "target_task_id": "ce8cb8eb-d084-49d5-9814-361a15192f18",
+            "expected_objective_revision": 1,
+            "reason_code": "laya_typed_choices",
+            "classifier_ms": 69.35723799688276
+          },
+          "native_task_id": "ce8cb8eb-d084-49d5-9814-361a15192f18",
+          "no_file_written": true,
+          "journal_kinds": [
+            "agent.command",
+            "conversation.converse",
+            "conversation.window",
+            "routing.window_status",
+            "routing.window_decided",
+            "routing.window_status",
+            "agent.command",
+            "routing.window_dispatch",
+            "converse.window_state",
+            "agent.outcome",
+            "converse.window_state",
+            "conversation.converse"
+          ],
+          "files": {}
+        },
+        {
+          "case": "queue",
+          "status": "passed",
+          "classifier_seconds": 0.09043177700368688,
+          "decision": {
+            "schema_version": "1.0",
+            "decision_id": "window-e265007ea2d4ffcabb4c93622ef8cc6f",
+            "prompt_chars": 1646,
+            "history_chars": 60,
+            "context_entries": 1,
+            "classification_reused": false,
+            "source_event_id": "424c397f-8d0e-4874-bcba-6c4168d6fb37",
+            "source_sequence": 3,
+            "source_revision": 1,
+            "conversation": "RESPOND_WITHOUT_INTERRUPTING_USER",
+            "agent_route": "QUEUE_UNTIL_TASK_DONE",
+            "target_task_id": "b8db11d0-03ed-46d7-b6ce-eb0f73d50c92",
+            "expected_objective_revision": 1,
+            "reason_code": "laya_typed_choices",
+            "classifier_ms": 66.20488599583041
+          },
+          "native_task_id": "b8db11d0-03ed-46d7-b6ce-eb0f73d50c92",
+          "queued_until_native_completion": true,
+          "approval_required_for_partial_followup": true,
+          "replay_created_no_duplicate": true,
+          "journal_kinds": [
+            "agent.command",
+            "conversation.converse",
+            "conversation.window",
+            "routing.window_status",
+            "routing.window_decided",
+            "routing.window_status",
+            "routing.window_dispatch",
+            "converse.window_state",
+            "converse.window_state",
+            "conversation.converse",
+            "agent.tool",
+            "agent.outcome",
+            "agent.command",
+            "routing.window_dispatch",
+            "approval.requested",
+            "approval.resolved",
+            "agent.tool",
+            "agent.outcome"
+          ],
+          "files": {
+            "first.txt": "5efea180ad7b89255140e8399a84988847510226615303949552bd235c8f5084",
+            "followup.txt": "b8c26b3ebb5d93d5ecc211156eb3c7a4daa726d51e15d3a6b2b304d0721060f4"
+          }
+        }
+      ],
+      "limits": "Actual Laya classification and native tool effects; text input and Agent/Converse inference are synthetic. Not ASR, paid inference, audio playback or human microphone proof. Minimal is a positive control, not the broader-context acceptance gate."
+    }
+  ],
+  "pinned_worker": {
+    "startup": {
+      "process_ready_seconds": 13.415254503997858,
+      "pid": 623729,
+      "health": {
+        "status": "ok",
+        "loaded": [
+          "kinaiya-v4"
+        ],
+        "revisions": {
+          "kinaiya-v4": null
+        },
+        "device": "cuda",
+        "device_is_preference": false,
+        "checkpoint_devices": {
+          "kinaiya-v4": "cuda"
+        },
+        "cpu_fallbacks": {
+          "kinaiya-v4": {
+            "count": 0,
+            "last_reason": null
+          }
+        }
+      },
+      "artifact_sha256": "5363e1728bf8026ca0a9a248d9e2c3b125f3de08888ba4b9c133531260798339",
+      "worker_sha256": "a09d54074129973ddd349486f026a7a03be2869ff4b3bd99369c85f980355fd4",
+      "condition": "Fresh pinned-worker process after strict-alias fix, warm OS cache, verified private snapshot, no downloads"
+    },
+    "boundary": {
+      "recorded_unix": 1793143859.7322156,
+      "health": {
+        "ready": true,
+        "model": "kinaiya-v4",
+        "revision": null,
+        "device": "cuda",
+        "artifact_sha256": "5363e1728bf8026ca0a9a248d9e2c3b125f3de08888ba4b9c133531260798339"
+      },
+      "unauthenticated_health": {
+        "status": "ok"
+      },
+      "unauthenticated_inference_status": 401,
+      "rejected_other_models": {
+        "None": 422,
+        "english": 422,
+        "multilingual": 422,
+        "typed-decisions": 422,
+        "unreviewed/remote": 422,
+        "batch_english": 422
+      },
+      "resident_after_rejected_models": [
+        "kinaiya-v4"
+      ]
+    },
+    "calibration_raw_record_sha256": "20a785cf0ff0763089d4094e14dc66d175ca7a60af92d16b2dd7dbb8907fcbdb",
+    "all_24_calibration_questions_wire_sizes_and_outputs_equal": true,
+    "native": [
+      {
+        "record_sha256": "a62a95854029e01446d6fe5dcb0876c786c7a1567bfe22d903808ef01a9b87df",
+        "context_profile": "minimal",
+        "all_passed": true,
+        "cases": [
+          {
+            "case": "unfinished",
+            "status": "passed",
+            "classifier_seconds": 0.5303214739979012,
+            "decision": {
+              "schema_version": "1.0",
+              "decision_id": "window-5b81c284febce2f245009550cdacb04a",
+              "prompt_chars": 1537,
+              "history_chars": 0,
+              "context_entries": 0,
+              "classification_reused": false,
+              "source_event_id": "531d576b-8c2b-4836-a6b1-e5e3029505ee",
+              "source_sequence": 2,
+              "source_revision": 1,
+              "conversation": "WAIT_FOR_NEXT_WINDOW",
+              "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
+              "target_task_id": null,
+              "expected_objective_revision": null,
+              "reason_code": "laya_typed_choices",
+              "classifier_ms": 501.3006789959036
+            },
+            "native_task_id": "29110917-1327-4329-b8cd-ee9da45374f9",
+            "no_new_work_or_reply": true,
+            "journal_kinds": [
+              "agent.command",
+              "conversation.window",
+              "routing.window_status",
+              "routing.window_decided",
+              "routing.window_status",
+              "converse.window_state"
+            ],
+            "files": {}
+          },
+          {
+            "case": "backchannel",
+            "status": "passed",
+            "classifier_seconds": 0.10378535299969371,
+            "decision": {
+              "schema_version": "1.0",
+              "decision_id": "window-6446ac93d41d64400e662f2811781904",
+              "prompt_chars": 1619,
+              "history_chars": 60,
+              "context_entries": 1,
+              "classification_reused": false,
+              "source_event_id": "957ed640-2b05-4072-961e-3e791dec95c4",
+              "source_sequence": 3,
+              "source_revision": 1,
+              "conversation": "IGNORE",
+              "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
+              "target_task_id": null,
+              "expected_objective_revision": null,
+              "reason_code": "laya_typed_choices",
+              "classifier_ms": 63.9783459919272
+            },
+            "native_task_id": "43d87edc-2c9d-42f7-9e7e-937bbb830ee2",
+            "no_new_work_or_reply": true,
+            "journal_kinds": [
+              "agent.command",
+              "conversation.converse",
+              "conversation.window",
+              "routing.window_status",
+              "routing.window_decided",
+              "routing.window_status"
+            ],
+            "files": {}
+          },
+          {
+            "case": "steer",
+            "status": "passed",
+            "classifier_seconds": 0.08508277399232611,
+            "decision": {
+              "schema_version": "1.0",
+              "decision_id": "window-2a17ec8a248e99adef3b15de37596b7d",
+              "prompt_chars": 1532,
+              "history_chars": 0,
+              "context_entries": 0,
+              "classification_reused": false,
+              "source_event_id": "574dcf4c-3287-4d49-8d5b-4389477a5c32",
+              "source_sequence": 2,
+              "source_revision": 1,
+              "conversation": "RESPOND_WITHOUT_INTERRUPTING_USER",
+              "agent_route": "STEER_CURRENT_TASK",
+              "target_task_id": "ab8e7fa5-344d-4091-9df9-b208eaf86beb",
+              "expected_objective_revision": 1,
+              "reason_code": "laya_typed_choices",
+              "classifier_ms": 61.774779998813756
+            },
+            "native_task_id": "ab8e7fa5-344d-4091-9df9-b208eaf86beb",
+            "approval_required_before_write": true,
+            "approval_digest": "sha256:a1b1af0f5b0457f30c4268fed92fd26a2393ca29587f98781a250ac26e545f83",
+            "journal_kinds": [
+              "agent.command",
+              "conversation.window",
+              "routing.window_status",
+              "routing.window_decided",
+              "routing.window_status",
+              "agent.command",
+              "routing.window_dispatch",
+              "converse.window_state",
+              "converse.window_state",
+              "conversation.converse",
+              "agent.command",
+              "approval.requested",
+              "approval.resolved",
+              "agent.tool",
+              "agent.outcome"
+            ],
+            "files": {
+              "steered.txt": "75393b6fb37c6ce401cfa44dbe6fef46d13010dd61a2b51468cc477fc2997766"
+            }
+          },
+          {
+            "case": "interrupt",
+            "status": "passed",
+            "classifier_seconds": 0.08485862700035796,
+            "decision": {
+              "schema_version": "1.0",
+              "decision_id": "window-4bd8b8b3ff9f38da0dbd0b1f04fc9e8a",
+              "prompt_chars": 1529,
+              "history_chars": 0,
+              "context_entries": 0,
+              "classification_reused": false,
+              "source_event_id": "73129d28-6482-4f25-9a59-ecfe8d012d47",
+              "source_sequence": 2,
+              "source_revision": 1,
+              "conversation": "RESPOND_INTERRUPT_USER",
+              "agent_route": "INTERRUPT_CURRENT_TASK",
+              "target_task_id": "05498a0a-09fb-473d-a75f-3eeb8a5c2c5d",
+              "expected_objective_revision": 1,
+              "reason_code": "laya_typed_choices",
+              "classifier_ms": 62.45186900196131
+            },
+            "native_task_id": "05498a0a-09fb-473d-a75f-3eeb8a5c2c5d",
+            "no_file_written": true,
+            "journal_kinds": [
+              "agent.command",
+              "conversation.window",
+              "routing.window_status",
+              "routing.window_decided",
+              "routing.window_status",
+              "agent.command",
+              "routing.window_dispatch",
+              "converse.window_state",
+              "agent.outcome",
+              "converse.window_state",
+              "conversation.converse"
+            ],
+            "files": {}
+          },
+          {
+            "case": "queue",
+            "status": "passed",
+            "classifier_seconds": 0.0821534260030603,
+            "decision": {
+              "schema_version": "1.0",
+              "decision_id": "window-05cbd9d6b0989470e2c61222a4a600ba",
+              "prompt_chars": 1541,
+              "history_chars": 0,
+              "context_entries": 0,
+              "classification_reused": false,
+              "source_event_id": "0c74591b-8ca2-43ce-adf5-2bc42113a25c",
+              "source_sequence": 2,
+              "source_revision": 1,
+              "conversation": "RESPOND_WITHOUT_INTERRUPTING_USER",
+              "agent_route": "QUEUE_UNTIL_TASK_DONE",
+              "target_task_id": "65be1294-52cc-4510-b1b8-f4f98b0b7ca8",
+              "expected_objective_revision": 1,
+              "reason_code": "laya_typed_choices",
+              "classifier_ms": 60.39370900543872
+            },
+            "native_task_id": "65be1294-52cc-4510-b1b8-f4f98b0b7ca8",
+            "queued_until_native_completion": true,
+            "approval_required_for_partial_followup": true,
+            "replay_created_no_duplicate": true,
+            "journal_kinds": [
+              "agent.command",
+              "conversation.window",
+              "routing.window_status",
+              "routing.window_decided",
+              "routing.window_status",
+              "routing.window_dispatch",
+              "converse.window_state",
+              "converse.window_state",
+              "conversation.converse",
+              "agent.tool",
+              "agent.outcome",
+              "agent.command",
+              "routing.window_dispatch",
+              "approval.requested",
+              "approval.resolved",
+              "agent.tool",
+              "agent.outcome"
+            ],
+            "files": {
+              "first.txt": "5efea180ad7b89255140e8399a84988847510226615303949552bd235c8f5084",
+              "followup.txt": "b8c26b3ebb5d93d5ecc211156eb3c7a4daa726d51e15d3a6b2b304d0721060f4"
+            }
+          }
+        ],
+        "limits": "Actual Laya classification and native tool effects; text input and Agent/Converse inference are synthetic. Not ASR, paid inference, audio playback or human microphone proof. Minimal is a positive control, not the broader-context acceptance gate."
+      },
+      {
+        "record_sha256": "43eca5ac7ba78080ff1330110220963b35f5ccedb14b29801e555ceb54d9fc59",
+        "context_profile": "preceding_converse",
+        "all_passed": true,
+        "cases": [
+          {
+            "case": "unfinished",
+            "status": "passed",
+            "classifier_seconds": 0.09113614099624101,
+            "decision": {
+              "schema_version": "1.0",
+              "decision_id": "window-0afd05ff1ff6dcb2eceef99c82efbf10",
+              "prompt_chars": 1642,
+              "history_chars": 60,
+              "context_entries": 1,
+              "classification_reused": false,
+              "source_event_id": "c8e280c8-70f3-49c4-8604-16a5e2c49222",
+              "source_sequence": 3,
+              "source_revision": 1,
+              "conversation": "WAIT_FOR_NEXT_WINDOW",
+              "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
+              "target_task_id": null,
+              "expected_objective_revision": null,
+              "reason_code": "laya_typed_choices",
+              "classifier_ms": 67.51144801091868
+            },
+            "native_task_id": "66daead9-b6e5-42ea-9d42-685611bf50bd",
+            "no_new_work_or_reply": true,
+            "journal_kinds": [
+              "agent.command",
+              "conversation.converse",
+              "conversation.window",
+              "routing.window_status",
+              "routing.window_decided",
+              "routing.window_status",
+              "converse.window_state"
+            ],
+            "files": {}
+          },
+          {
+            "case": "backchannel",
+            "status": "passed",
+            "classifier_seconds": 0.08508493099361658,
+            "decision": {
+              "schema_version": "1.0",
+              "decision_id": "window-f8db361eddda17bf99fe32b9071d3730",
+              "prompt_chars": 1619,
+              "history_chars": 60,
+              "context_entries": 1,
+              "classification_reused": false,
+              "source_event_id": "14f750e2-aa13-4fe4-af47-bb2f6456da44",
+              "source_sequence": 3,
+              "source_revision": 1,
+              "conversation": "IGNORE",
+              "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
+              "target_task_id": null,
+              "expected_objective_revision": null,
+              "reason_code": "laya_typed_choices",
+              "classifier_ms": 62.20592099998612
+            },
+            "native_task_id": "6219e798-57bd-4462-ba65-7a963221b018",
+            "no_new_work_or_reply": true,
+            "journal_kinds": [
+              "agent.command",
+              "conversation.converse",
+              "conversation.window",
+              "routing.window_status",
+              "routing.window_decided",
+              "routing.window_status"
+            ],
+            "files": {}
+          },
+          {
+            "case": "steer",
+            "status": "passed",
+            "classifier_seconds": 0.08718017299543135,
+            "decision": {
+              "schema_version": "1.0",
+              "decision_id": "window-2c26c2d9feda3664f585269fe622d461",
+              "prompt_chars": 1637,
+              "history_chars": 60,
+              "context_entries": 1,
+              "classification_reused": false,
+              "source_event_id": "eb242d9e-45f4-415f-b2f6-c040a7796d39",
+              "source_sequence": 3,
+              "source_revision": 1,
+              "conversation": "RESPOND_WITHOUT_INTERRUPTING_USER",
+              "agent_route": "STEER_CURRENT_TASK",
+              "target_task_id": "869d52c4-d4f0-401a-9810-88505b5b90b4",
+              "expected_objective_revision": 1,
+              "reason_code": "laya_typed_choices",
+              "classifier_ms": 64.4727180042537
+            },
+            "native_task_id": "869d52c4-d4f0-401a-9810-88505b5b90b4",
+            "approval_required_before_write": true,
+            "approval_digest": "sha256:a1b1af0f5b0457f30c4268fed92fd26a2393ca29587f98781a250ac26e545f83",
+            "journal_kinds": [
+              "agent.command",
+              "conversation.converse",
+              "conversation.window",
+              "routing.window_status",
+              "routing.window_decided",
+              "routing.window_status",
+              "agent.command",
+              "routing.window_dispatch",
+              "converse.window_state",
+              "converse.window_state",
+              "conversation.converse",
+              "agent.command",
+              "approval.requested",
+              "approval.resolved",
+              "agent.tool",
+              "agent.outcome"
+            ],
+            "files": {
+              "steered.txt": "75393b6fb37c6ce401cfa44dbe6fef46d13010dd61a2b51468cc477fc2997766"
+            }
+          },
+          {
+            "case": "interrupt",
+            "status": "passed",
+            "classifier_seconds": 0.09103311800572556,
+            "decision": {
+              "schema_version": "1.0",
+              "decision_id": "window-d09f76c1fa217bfd650a3c11ac90e566",
+              "prompt_chars": 1633,
+              "history_chars": 60,
+              "context_entries": 1,
+              "classification_reused": false,
+              "source_event_id": "8408185e-dfdc-4932-8b41-20a3fade9a45",
+              "source_sequence": 3,
+              "source_revision": 1,
+              "conversation": "RESPOND_INTERRUPT_USER",
+              "agent_route": "INTERRUPT_CURRENT_TASK",
+              "target_task_id": "958a05d1-62a1-444f-9f5d-0917395924a6",
+              "expected_objective_revision": 1,
+              "reason_code": "laya_typed_choices",
+              "classifier_ms": 66.36221399821807
+            },
+            "native_task_id": "958a05d1-62a1-444f-9f5d-0917395924a6",
+            "no_file_written": true,
+            "journal_kinds": [
+              "agent.command",
+              "conversation.converse",
+              "conversation.window",
+              "routing.window_status",
+              "routing.window_decided",
+              "routing.window_status",
+              "agent.command",
+              "routing.window_dispatch",
+              "converse.window_state",
+              "agent.outcome",
+              "converse.window_state",
+              "conversation.converse"
+            ],
+            "files": {}
+          },
+          {
+            "case": "queue",
+            "status": "passed",
+            "classifier_seconds": 0.0886905360093806,
+            "decision": {
+              "schema_version": "1.0",
+              "decision_id": "window-34cf02fc104f655b0b6228a06dba3312",
+              "prompt_chars": 1646,
+              "history_chars": 60,
+              "context_entries": 1,
+              "classification_reused": false,
+              "source_event_id": "9be1ee2c-cb7c-49a2-ac3e-7109306e3593",
+              "source_sequence": 3,
+              "source_revision": 1,
+              "conversation": "RESPOND_WITHOUT_INTERRUPTING_USER",
+              "agent_route": "QUEUE_UNTIL_TASK_DONE",
+              "target_task_id": "295ef087-e6b0-4178-915c-7cab4b5f20dd",
+              "expected_objective_revision": 1,
+              "reason_code": "laya_typed_choices",
+              "classifier_ms": 66.84198700531852
+            },
+            "native_task_id": "295ef087-e6b0-4178-915c-7cab4b5f20dd",
+            "queued_until_native_completion": true,
+            "approval_required_for_partial_followup": true,
+            "replay_created_no_duplicate": true,
+            "journal_kinds": [
+              "agent.command",
+              "conversation.converse",
+              "conversation.window",
+              "routing.window_status",
+              "routing.window_decided",
+              "routing.window_status",
+              "routing.window_dispatch",
+              "converse.window_state",
+              "converse.window_state",
+              "conversation.converse",
+              "agent.tool",
+              "agent.outcome",
+              "agent.command",
+              "routing.window_dispatch",
+              "approval.requested",
+              "approval.resolved",
+              "agent.tool",
+              "agent.outcome"
+            ],
+            "files": {
+              "first.txt": "5efea180ad7b89255140e8399a84988847510226615303949552bd235c8f5084",
+              "followup.txt": "b8c26b3ebb5d93d5ecc211156eb3c7a4daa726d51e15d3a6b2b304d0721060f4"
+            }
+          }
+        ],
+        "limits": "Actual Laya classification and native tool effects; text input and Agent/Converse inference are synthetic. Not ASR, paid inference, audio playback or human microphone proof. Minimal is a positive control, not the broader-context acceptance gate."
+      }
+    ],
+    "retained_failed_preflight": {
+      "recorded_unix": 1793143820.0496998,
+      "result": "failed",
+      "request_model": "english",
+      "actual_http_status": 200,
+      "cause": "Upstream resolves unknown short alias to auto-routing; single-model registry prevented other model loads, but explicit alias must also be required. Added PinnedRouter predict/predict_batch guards before retry.",
+      "heldout_requeried": false
+    },
+    "cpu": {
+      "startup": {
+        "recorded_unix": 1793144240.1632128,
+        "pid": 626286,
+        "health": {
+          "status": "ok",
+          "loaded": [
+            "kinaiya-v4"
+          ],
+          "revisions": {
+            "kinaiya-v4": null
+          },
+          "device": "cpu",
+          "device_is_preference": false,
+          "checkpoint_devices": {
+            "kinaiya-v4": "cpu"
+          },
+          "cpu_fallbacks": {
+            "kinaiya-v4": {
+              "count": 0,
+              "last_reason": null
+            }
+          }
+        },
+        "artifact_sha256": "5363e1728bf8026ca0a9a248d9e2c3b125f3de08888ba4b9c133531260798339",
+        "worker_sha256": "a09d54074129973ddd349486f026a7a03be2869ff4b3bd99369c85f980355fd4",
+        "startup_seconds": null,
+        "condition": "Existing clean CPU environment, verified private snapshot, no downloads. Startup watcher observed readiness but failed reading the CPU stamp because launcher used shared GPU stamp filename. Corrected filename; no startup latency claimed and no server restart needed."
+      },
+      "native": {
+        "record_sha256": "fdaabbefd46c6eda241bc2778e5059a7ca2cb63123742385a70a078afc140be4",
+        "context_profile": "preceding_converse",
+        "all_passed": true,
+        "cases": [
+          {
+            "case": "unfinished",
+            "status": "passed",
+            "classifier_seconds": 2.1862638119928306,
+            "decision": {
+              "schema_version": "1.0",
+              "decision_id": "window-26ff2efb12413bc781f6e7837e8c4259",
+              "prompt_chars": 1642,
+              "history_chars": 60,
+              "context_entries": 1,
+              "classification_reused": false,
+              "source_event_id": "6e54cb9d-76f7-479f-8a9a-0a22274f0797",
+              "source_sequence": 3,
+              "source_revision": 1,
+              "conversation": "WAIT_FOR_NEXT_WINDOW",
+              "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
+              "target_task_id": null,
+              "expected_objective_revision": null,
+              "reason_code": "laya_typed_choices",
+              "classifier_ms": 2098.809393995907
+            },
+            "native_task_id": "f850a3ae-4450-4f16-a0ac-a6ebf62950e3",
+            "no_new_work_or_reply": true,
+            "journal_kinds": [
+              "agent.command",
+              "conversation.converse",
+              "conversation.window",
+              "routing.window_status",
+              "routing.window_decided",
+              "routing.window_status",
+              "converse.window_state"
+            ],
+            "files": {}
+          },
+          {
+            "case": "backchannel",
+            "status": "passed",
+            "classifier_seconds": 2.146638759993948,
+            "decision": {
+              "schema_version": "1.0",
+              "decision_id": "window-65f94fc5eca9e90dd98b19c9561eb3be",
+              "prompt_chars": 1619,
+              "history_chars": 60,
+              "context_entries": 1,
+              "classification_reused": false,
+              "source_event_id": "b0aec63b-8c8d-4969-8cc5-1d10074479f3",
+              "source_sequence": 3,
+              "source_revision": 1,
+              "conversation": "IGNORE",
+              "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
+              "target_task_id": null,
+              "expected_objective_revision": null,
+              "reason_code": "laya_typed_choices",
+              "classifier_ms": 2065.210203989409
+            },
+            "native_task_id": "b5110a97-ade1-4c09-9da3-2bdc00e8a4af",
+            "no_new_work_or_reply": true,
+            "journal_kinds": [
+              "agent.command",
+              "conversation.converse",
+              "conversation.window",
+              "routing.window_status",
+              "routing.window_decided",
+              "routing.window_status"
+            ],
+            "files": {}
+          },
+          {
+            "case": "steer",
+            "status": "passed",
+            "classifier_seconds": 2.1072898560087197,
+            "decision": {
+              "schema_version": "1.0",
+              "decision_id": "window-79acc9b43d2574ce49bb3abe7fc46e55",
+              "prompt_chars": 1637,
+              "history_chars": 60,
+              "context_entries": 1,
+              "classification_reused": false,
+              "source_event_id": "38b94cde-763e-4411-9475-0b20586e864a",
+              "source_sequence": 3,
+              "source_revision": 1,
+              "conversation": "RESPOND_WITHOUT_INTERRUPTING_USER",
+              "agent_route": "STEER_CURRENT_TASK",
+              "target_task_id": "8166a7f9-597b-4a53-87a9-ca1d4068bb88",
+              "expected_objective_revision": 1,
+              "reason_code": "laya_typed_choices",
+              "classifier_ms": 2028.9781559986295
+            },
+            "native_task_id": "8166a7f9-597b-4a53-87a9-ca1d4068bb88",
+            "approval_required_before_write": true,
+            "approval_digest": "sha256:a1b1af0f5b0457f30c4268fed92fd26a2393ca29587f98781a250ac26e545f83",
+            "journal_kinds": [
+              "agent.command",
+              "conversation.converse",
+              "conversation.window",
+              "routing.window_status",
+              "routing.window_decided",
+              "routing.window_status",
+              "agent.command",
+              "routing.window_dispatch",
+              "converse.window_state",
+              "converse.window_state",
+              "conversation.converse",
+              "agent.command",
+              "approval.requested",
+              "approval.resolved",
+              "agent.tool",
+              "agent.outcome"
+            ],
+            "files": {
+              "steered.txt": "75393b6fb37c6ce401cfa44dbe6fef46d13010dd61a2b51468cc477fc2997766"
+            }
+          },
+          {
+            "case": "interrupt",
+            "status": "passed",
+            "classifier_seconds": 2.0966022850043373,
+            "decision": {
+              "schema_version": "1.0",
+              "decision_id": "window-d48f7da623e1d48686eab0f19704aa5c",
+              "prompt_chars": 1633,
+              "history_chars": 60,
+              "context_entries": 1,
+              "classification_reused": false,
+              "source_event_id": "bd2c3a89-5044-4e56-a858-28956d66e94e",
+              "source_sequence": 3,
+              "source_revision": 1,
+              "conversation": "RESPOND_INTERRUPT_USER",
+              "agent_route": "INTERRUPT_CURRENT_TASK",
+              "target_task_id": "fb3fc10d-b4ab-473f-b917-feccc4fa58fc",
+              "expected_objective_revision": 1,
+              "reason_code": "laya_typed_choices",
+              "classifier_ms": 2012.6406630006386
+            },
+            "native_task_id": "fb3fc10d-b4ab-473f-b917-feccc4fa58fc",
+            "no_file_written": true,
+            "journal_kinds": [
+              "agent.command",
+              "conversation.converse",
+              "conversation.window",
+              "routing.window_status",
+              "routing.window_decided",
+              "routing.window_status",
+              "agent.command",
+              "routing.window_dispatch",
+              "converse.window_state",
+              "agent.outcome",
+              "converse.window_state",
+              "conversation.converse"
+            ],
+            "files": {}
+          },
+          {
+            "case": "queue",
+            "status": "passed",
+            "classifier_seconds": 2.148150038003223,
+            "decision": {
+              "schema_version": "1.0",
+              "decision_id": "window-602fc1d75e8a898212788e59cdee25ed",
+              "prompt_chars": 1646,
+              "history_chars": 60,
+              "context_entries": 1,
+              "classification_reused": false,
+              "source_event_id": "b89569f2-fa82-4255-873d-0bb2b8c8f71c",
+              "source_sequence": 3,
+              "source_revision": 1,
+              "conversation": "RESPOND_WITHOUT_INTERRUPTING_USER",
+              "agent_route": "QUEUE_UNTIL_TASK_DONE",
+              "target_task_id": "16ae7ba0-36f6-4ad7-80af-892542014c5c",
+              "expected_objective_revision": 1,
+              "reason_code": "laya_typed_choices",
+              "classifier_ms": 2062.8655869950308
+            },
+            "native_task_id": "16ae7ba0-36f6-4ad7-80af-892542014c5c",
+            "queued_until_native_completion": true,
+            "approval_required_for_partial_followup": true,
+            "replay_created_no_duplicate": true,
+            "journal_kinds": [
+              "agent.command",
+              "conversation.converse",
+              "conversation.window",
+              "routing.window_status",
+              "routing.window_decided",
+              "routing.window_status",
+              "routing.window_dispatch",
+              "converse.window_state",
+              "converse.window_state",
+              "conversation.converse",
+              "agent.tool",
+              "agent.outcome",
+              "agent.command",
+              "routing.window_dispatch",
+              "approval.requested",
+              "approval.resolved",
+              "agent.tool",
+              "agent.outcome"
+            ],
+            "files": {
+              "first.txt": "5efea180ad7b89255140e8399a84988847510226615303949552bd235c8f5084",
+              "followup.txt": "b8c26b3ebb5d93d5ecc211156eb3c7a4daa726d51e15d3a6b2b304d0721060f4"
+            }
+          }
+        ],
+        "limits": "Actual Laya classification and native tool effects; text input and Agent/Converse inference are synthetic. Not ASR, paid inference, audio playback or human microphone proof. Minimal is a positive control, not the broader-context acceptance gate."
+      }
+    }
+  },
+  "data_files": {
+    "train-v4.jsonl.gz": {
+      "gzip_sha256": "17bd164f5809d5d150a3d7407c7340792f4f8e363b204f4bb3fa406da2e45cc6",
+      "uncompressed_sha256": "190e37d2ce57f342f8b63f569f5bff9a22586319704c5f367da41849577cf2d7"
+    },
+    "candidate-v4-manifest.json": {
+      "sha256": "5363e1728bf8026ca0a9a248d9e2c3b125f3de08888ba4b9c133531260798339"
+    }
+  },
+  "meta_calls_for_training_inference_and_native_probes": 0,
+  "default_promoted": false,
+  "remaining": [
+    "Reference configuration has not switched provider; the external worker is not owned/unloaded by the resource coordinator.",
+    "Physical microphone, echo, audible latency and full voice acceptance remain unverified.",
+    "Model weights are local measured artifacts, not distributed in this repository.",
+    "The heldout split is consumed and must not inform further training/tuning."
+  ],
+  "verification": {
+    "local_python_tests_passed": 706,
+    "command": "PYTHONPATH=. python -m pytest -m 'not live' -q",
+    "warning": "Existing Starlette/httpx test-client deprecation",
+    "ruff_check_and_format": "passed",
+    "contract_export": "passed; generated schemas unchanged",
+    "model_tests": "Actual pinned local GPU worker both native profiles and CPU worker broader profile passed; no Meta inference.",
+    "automated_review": {
+      "cli": "actual Muse Code CLI",
+      "model": "muse-spark-1.3-contributor",
+      "contributor_mode": "on",
+      "reasoning_effort": "xhigh",
+      "reviewed_code_head": "69db2e51e7c9d0682d310950c11a4755f86260c8",
+      "model_calls": 1,
+      "input_tokens": 25348,
+      "output_tokens": 15584,
+      "cached_input_tokens": 0,
+      "result": "No actionable findings within bounded inline artifact/worker/identity scope; no tests executed by reviewer; not human approval."
+    }
+  },
+  "meta_budget_checkpoint": {
+    "limit_usd": 25,
+    "admission_limit_usd": 22,
+    "billing_reported_usd": null,
+    "contributor_estimated_usd": 0.9153251140000002,
+    "admission_estimated_usd": 19.996421600000016,
+    "reserved_usd": 1.5558100499999998,
+    "conservative_including_reserves_usd": 21.552231650000017,
+    "new_calls_for_training_inference_probes": 0,
+    "new_calls_for_automated_review": 1
+  }
+}
