@@ -91,8 +91,9 @@ lead creates the fresh protected heldout before real candidate work.
 from pathlib import Path
 from core.extensions import Registry
 
-reg = Registry(Path("var/harness"), Path("var/heldout.json"),
-               model_profile={"model": "m1", "provider": "p"})
+reg = Registry(
+    Path("var/harness"), Path("var/heldout.json"), model_profile={"model": "m1", "provider": "p"}
+)
 vid = reg.register(Path("cand.py"), {"name": "cand-1"})
 report = reg.evaluate(vid)
 print(report.passed, report.reasons)
