@@ -1,0 +1,35 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "provider": {
+      "title": "Provider",
+      "type": "string"
+    },
+    "model": {
+      "title": "Model",
+      "type": "string"
+    },
+    "local": {
+      "title": "Local",
+      "type": "boolean"
+    },
+    "streaming": {
+      "default": false,
+      "title": "Streaming",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "provider",
+    "model",
+    "local"
+  ],
+  "title": "ProviderInfo",
+  "type": "object"
+}

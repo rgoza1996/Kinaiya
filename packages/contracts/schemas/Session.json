@@ -1,0 +1,43 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "session_id": {
+      "title": "Session Id",
+      "type": "string"
+    },
+    "thread_id": {
+      "title": "Thread Id",
+      "type": "string"
+    },
+    "channel": {
+      "enum": [
+        "converse",
+        "agent"
+      ],
+      "title": "Channel",
+      "type": "string"
+    },
+    "epoch": {
+      "default": 1,
+      "minimum": 1,
+      "title": "Epoch",
+      "type": "integer"
+    },
+    "name": {
+      "default": "",
+      "title": "Name",
+      "type": "string"
+    }
+  },
+  "required": [
+    "channel"
+  ],
+  "title": "Session",
+  "type": "object"
+}

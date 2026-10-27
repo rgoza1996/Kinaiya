@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kinaiya"
+version = "0.1.0.dev0"
+description = "Independent voice and work runtimes with a shared evidence journal"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.115,<1",
+  "uvicorn>=0.34,<1",
+  "httpx>=0.28,<1",
+  "pydantic>=2.10,<3",
+  "python-multipart>=0.0.20,<1",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.3,<10", "pytest-asyncio>=0.25,<2", "ruff>=0.13,<1", "jsonschema>=4.23,<5"]
+voice = ["faster-whisper>=1.1,<2", "kokoro>=0.9,<1", "soundfile>=0.13,<1"]
+ecosystem = ["mcp>=1.20,<2", "PyYAML>=6,<7"]
+
+[project.scripts]
+kinaiya = "services.launcher:main"
+
+[tool.setuptools.packages.find]
+include = ["services*", "packages*", "core*", "harnesses*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+markers = ["live: opt-in real provider integration", "sandbox: requires Linux bubblewrap"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["E501"]
