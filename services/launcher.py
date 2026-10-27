@@ -197,7 +197,25 @@ def serve(args):
             **config.get("policy", {}),
             protected_roots=protected,
         )
-        runtime = AgentRuntime(journal, provider(config, "agent"), args.workspace, policy)
+        selector = None
+        if harness := config.get("harness"):
+            from core.extensions import Registry as HarnessRegistry
+
+            suite = Path(harness["suite"]).resolve()
+            if suite.is_relative_to(workspace):
+                raise SystemExit("Heldout evaluation suite must be outside the worker workspace")
+            selector = HarnessRegistry(
+                args.data_dir / "harness",
+                suite,
+                model_profile={
+                    "provider": config["providers"]["agent"]["kind"],
+                    "model": config["providers"]["agent"]["model"],
+                    "evaluation_model_calls": 0,
+                },
+            )
+        runtime = AgentRuntime(
+            journal, provider(config, "agent"), args.workspace, policy, selector_registry=selector
+        )
         owner_journal = JournalClient(config["session_url"], tokens["owner"])
         profiles = {
             name: (lambda profile=profile: provider({"providers": {"agent": profile}}, "agent"))

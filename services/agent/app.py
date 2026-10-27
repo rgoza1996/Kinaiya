@@ -45,6 +45,9 @@ def create_app(runtime: AgentRuntime, auth: Any, commands=None) -> FastAPI:
     commands = commands or Registry(runtime)
 
     app = FastAPI(title="Kinaiya Seed Agent", version="0.1.0")
+    from services.agent.harness_api import router as harness_router
+
+    app.include_router(harness_router(runtime, auth))
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(auth.allowed_origins),
@@ -114,10 +117,11 @@ def create_app(runtime: AgentRuntime, auth: Any, commands=None) -> FastAPI:
     async def capabilities(actor: str = Depends(require_actor)) -> Any:
         _ = actor
         return {
-            "harness": "seed-v1",
+            "harness": runtime.selector_registry.active if runtime.selector_registry else "seed-v1",
             "event_protocol": "1.0",
             "contract_schema": "1.0",
-            "tools": ["read_file", "write_file", "search", "shell", "read_transcript", "finish"],
+            "tools": ["read_file", "write_file", "search", "shell", "read_transcript", "finish"]
+            + (["select_context"] if runtime.selector_registry else []),
             "steering": "safe-boundary",
             "cancellation": True,
             "approvals": {"digest_bound": True, "one_use": True, "expiring": True},

@@ -179,10 +179,11 @@ class MetaResponsesProvider:
             fields.update(
                 {
                     key: {"type": ["integer", "null"]}
-                    for key in ("objective_revision", "max_bytes", "after", "limit")
+                    for key in ("objective_revision", "max_bytes", "after", "limit", "max_chars")
                 }
             )
             fields["timeout_s"] = {"type": ["number", "null"]}
+            fields["event_ids"] = {"type": ["array", "null"], "items": {"type": "string"}}
             fields["event_ids"] = {"type": ["array", "null"], "items": {"type": "string"}}
             schema = {
                 "type": "object",
