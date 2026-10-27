@@ -4,11 +4,11 @@
 **Decision baseline:** October 26, 2026  
 **Status:** Pre-implementation design baseline. Requirements and acceptance criteria below are not claims of implemented functionality.  
 **Repository:** `rgoza1996/Kinaiya`  
-**Prototype:** `rgoza1996/Korina-Agent`
+**Voice prototype:** `rgoza1996/Kinaiya-Converse`
 
 > A personality-first conversational system, paired with an optional, independently usable agent that builds and improves its own executable harness.
 
-Kinaiya is the production-oriented attempt informed by the Korina prototype. It is not a wholesale port, a cosmetic rebrand, or merely a character interface placed over a fixed agent loop.
+Kinaiya builds on an existing local-first voice prototype and expands it into a modular platform for real-time conversation, independent agent work, and adaptive-harness research. The architecture below keeps those product surfaces separately operable and ties them together through explicit contracts.
 
 This document consolidates the product decisions, specifies the boundaries between components, and defines an implementation sequence with measurable release gates. Explicit owner decisions take precedence over earlier exploratory suggestions. Where a choice was not settled, this document labels its proposed implementation default rather than presenting it as an agreed requirement.
 
@@ -75,13 +75,13 @@ Personality lives exclusively in Converse. Character embodiment, expressive voic
 
 Kinaiya must remain capable of serious work: coding, repository analysis, email management, research, document drafting, and other authorized activities. A charming character must not replace working tools, inspectable evidence, or reliable execution.
 
-The platform is Kinaiya. Korina is the initial/default character identity. Users can replace that identity without changing the underlying agent implementation.
+The platform and initial default character identity are both Kinaiya. Users can replace the character identity without changing the underlying agent implementation.
 
 ## 2. Settled product and architecture decisions
 
 | ID | Decision | Consequence |
 |---|---|---|
-| D01 | Korina is the prototype; Kinaiya is the production attempt. | Reuse proven ideas and tested components, not prototype coupling. |
+| D01 | Kinaiya grows from an existing voice prototype into a broader, modular product. | Preserve useful conversation lessons while adding independently operable Agent, Decisions, shared state, and adaptive-harness research. |
 | D02 | Converse and Agent are separate runtimes. | Either can operate without the other; communicate through versioned contracts. |
 | D03 | Personality belongs exclusively to Converse. | Agent and Decisions do not become competing character/personality systems. |
 | D04 | The shared transcript is the common conversational state. | Persist it once and make it available on demand; do not continually forward full histories. |
@@ -297,7 +297,7 @@ Optional future use of a lightweight classifier for semantic turn-ending is sepa
 
 Converse owns the character profile, conversational habits, humor, tone, social continuity, emotional expression, vocal performance directions, and expression/motion requests. The renderer executes those requests locally.
 
-Agent produces facts, task results, plain work responses, and UI intent. It does not impersonate Korina or maintain a second personality prompt. Decisions classifies; it does not converse.
+Agent produces facts, task results, plain work responses, and UI intent. It does not adopt Converse's character or maintain a second personality prompt. Decisions classifies; it does not converse.
 
 A character may be playful, reserved, painterly, mechanical, or entirely user-defined. Appearance, voice, and personality can change without resetting unrelated task history. Private memories and credentials are not bundled into shareable character packs.
 
@@ -323,7 +323,7 @@ Retain a text-only mode. Keep the STT, response LLM, and TTS provider interfaces
 
 ### 7.3 Interruptions and playback truth
 
-Korina already explored interruption-aware playback; Kinaiya should preserve and test that behavior rather than treating it as a missing invention.
+The Kinaiya Converse prototype explored interruption-aware playback; Kinaiya must preserve and test that behavior as the architecture evolves.
 
 Each conversational turn has a generation epoch. Each utterance/chunk has an ID. Barge-in cancels obsolete generation and queued audio, stops playback promptly, and prevents late chunks from resuming old speech.
 
@@ -883,9 +883,9 @@ The supervisor authenticates the writer and evaluates the required evidence. JSO
 ```json
 {
   "schema_version": "1.0",
-  "pack_id": "korina-default",
+  "pack_id": "kinaiya-default",
   "version": "0.1.0",
-  "display_name": "Korina",
+  "display_name": "Kinaiya",
   "renderer": "spritesheet",
   "theme": {
     "primary": "#141091",
@@ -1327,7 +1327,7 @@ Document the result of each spike in an ADR with a small reproducible test. Avoi
 
 ## 29. Prototype migration and documentation rules
 
-The inspected Korina prototype already has modular backend services, a voice pipeline, and transcript/report-based Agent integration. Its `agent_service.py` currently generates reports and exposes worker activity, which should not be mistaken for a complete task-execution lifecycle. That observation informs the redesign; it is not a claim that Kinaiya already contains those components. [P1] [P2]
+The Kinaiya Converse prototype already has modular backend services, a voice pipeline, and transcript/report-based Agent integration. Its `agent_service.py` generates reports and exposes worker activity; that should not be mistaken for a complete task-execution lifecycle. Those capabilities inform the redesign; they are not claims that the full Kinaiya Agent or adaptive harness already exists. [P1] [P2]
 
 Preserve useful interruption, playback, provider, and benchmark lessons. Review code licensing and dependencies before copying components. Do not carry forward process-global/session-ambiguous state, constant transcript forwarding, or worker-idle-as-completion semantics.
 
@@ -1370,8 +1370,8 @@ External references below ground platform/integration details, not claims that K
 - **[S16] Hermes slash commands:** https://hermes-agent.nousresearch.com/docs/reference/slash-commands — shared registry, autocomplete, skill commands, and quick-command behavior.
 - **[S17] Hermes plugins:** https://hermes-agent.nousresearch.com/docs/user-guide/features/plugins — example of a runtime-specific plugin interface, not a universal plugin ABI.
 - **[S18] OpenClaw plugins:** https://docs.openclaw.ai/plugins — runtime plugin integration and compatibility requirements.
-- **[P1] Prototype architecture:** https://github.com/rgoza1996/Korina-Agent/blob/master/README.md — inspected README blob `14c4f1fb9b9a1901dbb3be0ed6980644dc54e47f`; access may require repository permission.
-- **[P2] Prototype Agent integration:** https://github.com/rgoza1996/Korina-Agent/blob/master/korina/services/agent_service.py — inspected blob `fc5a09108de06fc5097df8c491f9f0fb8c4725f1`; used as migration context, not a production implementation claim.
+- **[P1] Prototype architecture:** https://github.com/rgoza1996/Kinaiya-Converse/blob/master/README.md — inspected README blob `14c4f1fb9b9a1901dbb3be0ed6980644dc54e47f`.
+- **[P2] Prototype Agent integration:** [Kinaiya Converse source](https://github.com/rgoza1996/Kinaiya-Converse) — the inspected `agent_service.py` implementation generates reports and exposes worker activity; this is migration context, not a production implementation claim.
 
 No private transcripts, credentials, benchmark archives, or user documents are included in this specification.
 
