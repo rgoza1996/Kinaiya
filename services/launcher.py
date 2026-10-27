@@ -294,6 +294,25 @@ def serve(args):
     uvicorn.run(app, host="127.0.0.1", port=args.port or PORTS[service], log_level="warning")
 
 
+def owner_login(args):
+    """Export only the owner credential to a new private file, never stdout."""
+    tokens = load_or_create_tokens(args.data_dir)
+    destination = args.output or args.data_dir / "owner-login.txt"
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    descriptor = os.open(destination, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(descriptor, "w") as stream:
+        stream.write(tokens["owner"])
+    print(
+        json.dumps(
+            {
+                "path": str(destination.resolve()),
+                "mode": "0600",
+                "scope": "owner-only browser sign-in",
+            }
+        )
+    )
+
+
 async def direct_agent(args):
     config = load_config(args.config or args.data_dir / "config.json")
     tokens = load_or_create_tokens(args.data_dir)
@@ -357,6 +376,8 @@ def main():
     parser.add_argument("--workspace", type=Path, default=Path("workspace"))
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("init")
+    login = commands.add_parser("owner-login", help="Export an owner-only browser credential file")
+    login.add_argument("--output", type=Path)
     server = commands.add_parser("serve")
     server.add_argument("service", choices=[*PORTS, "all"])
     server.add_argument("--port", type=int)
@@ -365,6 +386,8 @@ def main():
     args = parser.parse_args()
     if args.command == "init":
         initialize(args)
+    elif args.command == "owner-login":
+        owner_login(args)
     elif args.command == "serve":
         serve(args)
     else:
