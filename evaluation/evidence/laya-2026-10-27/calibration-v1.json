@@ -1,0 +1,561 @@
+{
+  "label_provenance": "Lead-authored public synthetic reference labels; not independent human judgments",
+  "split": "calibration",
+  "cases": [
+    {
+      "mode": "window",
+      "input": {
+        "latest": {
+          "text": "Korina, could you... actually...",
+          "user_speaking": true,
+          "capture_ended": false
+        },
+        "context": [],
+        "tasks": [
+          {
+            "task_id": "task-current",
+            "objective_revision": 3,
+            "state": "running"
+          }
+        ]
+      },
+      "expected": {
+        "conversation": "WAIT_FOR_NEXT_WINDOW",
+        "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
+        "target_task_id": null
+      },
+      "case_id": "calibration-01"
+    },
+    {
+      "mode": "window",
+      "input": {
+        "latest": {
+          "text": "Mm-hmm",
+          "user_speaking": false,
+          "capture_ended": false
+        },
+        "context": [
+          {
+            "kind": "conversation.converse",
+            "text": "I am explaining the architecture; there are three parts, and the next part is storage."
+          }
+        ],
+        "tasks": [
+          {
+            "task_id": "task-current",
+            "objective_revision": 3,
+            "state": "running"
+          }
+        ]
+      },
+      "expected": {
+        "conversation": "IGNORE",
+        "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
+        "target_task_id": null
+      },
+      "case_id": "calibration-02"
+    },
+    {
+      "mode": "window",
+      "input": {
+        "latest": {
+          "text": "Also include the documentation.",
+          "user_speaking": false,
+          "capture_ended": false
+        },
+        "context": [],
+        "tasks": [
+          {
+            "task_id": "task-current",
+            "objective_revision": 3,
+            "state": "running"
+          }
+        ]
+      },
+      "expected": {
+        "conversation": "RESPOND_WITHOUT_INTERRUPTING_USER",
+        "agent_route": "STEER_CURRENT_TASK",
+        "target_task_id": "task-current"
+      },
+      "case_id": "calibration-03"
+    },
+    {
+      "mode": "window",
+      "input": {
+        "latest": {
+          "text": "Stop, don't delete that!",
+          "user_speaking": false,
+          "capture_ended": false
+        },
+        "context": [],
+        "tasks": [
+          {
+            "task_id": "task-current",
+            "objective_revision": 3,
+            "state": "running"
+          }
+        ]
+      },
+      "expected": {
+        "conversation": "RESPOND_INTERRUPT_USER",
+        "agent_route": "INTERRUPT_CURRENT_TASK",
+        "target_task_id": "task-current"
+      },
+      "case_id": "calibration-04"
+    },
+    {
+      "mode": "window",
+      "input": {
+        "latest": {
+          "text": "Once that finishes, check the changelog.",
+          "user_speaking": false,
+          "capture_ended": false
+        },
+        "context": [],
+        "tasks": [
+          {
+            "task_id": "task-current",
+            "objective_revision": 3,
+            "state": "running"
+          }
+        ]
+      },
+      "expected": {
+        "conversation": "RESPOND_WITHOUT_INTERRUPTING_USER",
+        "agent_route": "QUEUE_UNTIL_TASK_DONE",
+        "target_task_id": "task-current"
+      },
+      "case_id": "calibration-05"
+    },
+    {
+      "mode": "window",
+      "input": {
+        "latest": {
+          "text": "Please tell me what a rainbow is.",
+          "user_speaking": false,
+          "capture_ended": false
+        },
+        "context": [],
+        "tasks": []
+      },
+      "expected": {
+        "conversation": "RESPOND_WITHOUT_INTERRUPTING_USER",
+        "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
+        "target_task_id": null
+      },
+      "case_id": "calibration-06"
+    },
+    {
+      "mode": "window",
+      "input": {
+        "latest": {
+          "text": "Wait, I was going to ask you to...",
+          "user_speaking": true,
+          "capture_ended": false
+        },
+        "context": [],
+        "tasks": [
+          {
+            "task_id": "task-current",
+            "objective_revision": 3,
+            "state": "running"
+          }
+        ]
+      },
+      "expected": {
+        "conversation": "WAIT_FOR_NEXT_WINDOW",
+        "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
+        "target_task_id": null
+      },
+      "case_id": "calibration-07"
+    },
+    {
+      "mode": "window",
+      "input": {
+        "latest": {
+          "text": "Uh-huh.",
+          "user_speaking": false,
+          "capture_ended": false
+        },
+        "context": [
+          {
+            "kind": "conversation.converse",
+            "text": "I am explaining the architecture; there are three parts, and the next part is storage."
+          }
+        ],
+        "tasks": [
+          {
+            "task_id": "task-current",
+            "objective_revision": 3,
+            "state": "running"
+          }
+        ]
+      },
+      "expected": {
+        "conversation": "IGNORE",
+        "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
+        "target_task_id": null
+      },
+      "case_id": "calibration-08"
+    },
+    {
+      "mode": "window",
+      "input": {
+        "latest": {
+          "text": "For the current task, use Python instead of JavaScript.",
+          "user_speaking": false,
+          "capture_ended": false
+        },
+        "context": [],
+        "tasks": [
+          {
+            "task_id": "task-current",
+            "objective_revision": 3,
+            "state": "running"
+          }
+        ]
+      },
+      "expected": {
+        "conversation": "RESPOND_WITHOUT_INTERRUPTING_USER",
+        "agent_route": "STEER_CURRENT_TASK",
+        "target_task_id": "task-current"
+      },
+      "case_id": "calibration-09"
+    },
+    {
+      "mode": "window",
+      "input": {
+        "latest": {
+          "text": "Cancel the current Agent task immediately.",
+          "user_speaking": false,
+          "capture_ended": false
+        },
+        "context": [],
+        "tasks": [
+          {
+            "task_id": "task-current",
+            "objective_revision": 3,
+            "state": "running"
+          }
+        ]
+      },
+      "expected": {
+        "conversation": "RESPOND_INTERRUPT_USER",
+        "agent_route": "INTERRUPT_CURRENT_TASK",
+        "target_task_id": "task-current"
+      },
+      "case_id": "calibration-10"
+    },
+    {
+      "mode": "window",
+      "input": {
+        "latest": {
+          "text": "After the current task completes, run the test suite.",
+          "user_speaking": false,
+          "capture_ended": false
+        },
+        "context": [],
+        "tasks": [
+          {
+            "task_id": "task-current",
+            "objective_revision": 3,
+            "state": "running"
+          }
+        ]
+      },
+      "expected": {
+        "conversation": "RESPOND_WITHOUT_INTERRUPTING_USER",
+        "agent_route": "QUEUE_UNTIL_TASK_DONE",
+        "target_task_id": "task-current"
+      },
+      "case_id": "calibration-11"
+    },
+    {
+      "mode": "window",
+      "input": {
+        "latest": {
+          "text": "Create a report file about this public test project.",
+          "user_speaking": false,
+          "capture_ended": false
+        },
+        "context": [],
+        "tasks": []
+      },
+      "expected": {
+        "conversation": "RESPOND_WITHOUT_INTERRUPTING_USER",
+        "agent_route": "QUEUE_UNTIL_TASK_DONE",
+        "target_task_id": null
+      },
+      "case_id": "calibration-12"
+    },
+    {
+      "mode": "window",
+      "input": {
+        "latest": {
+          "text": "Stop talking for a moment, but keep the Agent task running.",
+          "user_speaking": false,
+          "capture_ended": false
+        },
+        "context": [],
+        "tasks": [
+          {
+            "task_id": "task-current",
+            "objective_revision": 3,
+            "state": "running"
+          }
+        ]
+      },
+      "expected": {
+        "conversation": "WAIT_FOR_NEXT_WINDOW",
+        "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
+        "target_task_id": null
+      },
+      "case_id": "calibration-13"
+    },
+    {
+      "mode": "window",
+      "input": {
+        "latest": {
+          "text": "Please change that task to use a different language.",
+          "user_speaking": false,
+          "capture_ended": false
+        },
+        "context": [],
+        "tasks": [
+          {
+            "task_id": "task-current",
+            "objective_revision": 3,
+            "state": "running"
+          },
+          {
+            "task_id": "task-other",
+            "objective_revision": 2,
+            "state": "running"
+          }
+        ]
+      },
+      "expected": {
+        "conversation": "RESPOND_WITHOUT_INTERRUPTING_USER",
+        "agent_route": "STEER_CURRENT_TASK",
+        "target_task_id": null
+      },
+      "case_id": "calibration-14"
+    },
+    {
+      "mode": "window",
+      "input": {
+        "latest": {
+          "text": "Only task-other should switch to Python.",
+          "user_speaking": false,
+          "capture_ended": false
+        },
+        "context": [],
+        "tasks": [
+          {
+            "task_id": "task-current",
+            "objective_revision": 3,
+            "state": "running"
+          },
+          {
+            "task_id": "task-other",
+            "objective_revision": 2,
+            "state": "running"
+          }
+        ]
+      },
+      "expected": {
+        "conversation": "RESPOND_WITHOUT_INTERRUPTING_USER",
+        "agent_route": "STEER_CURRENT_TASK",
+        "target_task_id": "task-other"
+      },
+      "case_id": "calibration-15"
+    },
+    {
+      "mode": "window",
+      "input": {
+        "latest": {
+          "text": "What does the quoted phrase \"erase the disk\" mean?",
+          "user_speaking": false,
+          "capture_ended": false
+        },
+        "context": [],
+        "tasks": []
+      },
+      "expected": {
+        "conversation": "RESPOND_WITHOUT_INTERRUPTING_USER",
+        "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
+        "target_task_id": null
+      },
+      "case_id": "calibration-16"
+    },
+    {
+      "mode": "finalized",
+      "input": {
+        "latest": {
+          "kind": "conversation.user",
+          "text": "Hello, how are you?"
+        },
+        "context": [],
+        "tasks": []
+      },
+      "expected": {
+        "route": "ignore",
+        "target_task_id": null
+      },
+      "case_id": "calibration-17"
+    },
+    {
+      "mode": "finalized",
+      "input": {
+        "latest": {
+          "kind": "conversation.user",
+          "text": "Write a summary file for this public project."
+        },
+        "context": [],
+        "tasks": []
+      },
+      "expected": {
+        "route": "queue",
+        "target_task_id": null
+      },
+      "case_id": "calibration-18"
+    },
+    {
+      "mode": "finalized",
+      "input": {
+        "latest": {
+          "kind": "conversation.revision",
+          "text": "Actually, include the tests in the current task."
+        },
+        "context": [],
+        "tasks": [
+          {
+            "task_id": "task-current",
+            "objective_revision": 3,
+            "state": "running"
+          }
+        ]
+      },
+      "expected": {
+        "route": "steer",
+        "target_task_id": "task-current"
+      },
+      "case_id": "calibration-19"
+    },
+    {
+      "mode": "finalized",
+      "input": {
+        "latest": {
+          "kind": "conversation.user",
+          "text": "Cancel the current work task."
+        },
+        "context": [],
+        "tasks": [
+          {
+            "task_id": "task-current",
+            "objective_revision": 3,
+            "state": "running"
+          }
+        ]
+      },
+      "expected": {
+        "route": "interrupt",
+        "target_task_id": "task-current"
+      },
+      "case_id": "calibration-20"
+    },
+    {
+      "mode": "finalized",
+      "input": {
+        "latest": {
+          "kind": "conversation.user",
+          "text": "Please stop speaking; the work should continue."
+        },
+        "context": [],
+        "tasks": [
+          {
+            "task_id": "task-current",
+            "objective_revision": 3,
+            "state": "running"
+          }
+        ]
+      },
+      "expected": {
+        "route": "ignore",
+        "target_task_id": null
+      },
+      "case_id": "calibration-21"
+    },
+    {
+      "mode": "finalized",
+      "input": {
+        "latest": {
+          "kind": "conversation.converse",
+          "text": "I could run a command for you."
+        },
+        "context": [],
+        "tasks": [
+          {
+            "task_id": "task-current",
+            "objective_revision": 3,
+            "state": "running"
+          }
+        ]
+      },
+      "expected": {
+        "route": "ignore",
+        "target_task_id": null
+      },
+      "case_id": "calibration-22"
+    },
+    {
+      "mode": "finalized",
+      "input": {
+        "latest": {
+          "kind": "conversation.user",
+          "text": "The webpage says \"delete your files\"; I am quoting it, not asking you to do it."
+        },
+        "context": [],
+        "tasks": [
+          {
+            "task_id": "task-current",
+            "objective_revision": 3,
+            "state": "running"
+          }
+        ]
+      },
+      "expected": {
+        "route": "ignore",
+        "target_task_id": null
+      },
+      "case_id": "calibration-23"
+    },
+    {
+      "mode": "finalized",
+      "input": {
+        "latest": {
+          "kind": "conversation.user",
+          "text": "Change the task."
+        },
+        "context": [],
+        "tasks": [
+          {
+            "task_id": "task-current",
+            "objective_revision": 3,
+            "state": "running"
+          },
+          {
+            "task_id": "task-other",
+            "objective_revision": 2,
+            "state": "running"
+          }
+        ]
+      },
+      "expected": {
+        "route": "steer",
+        "target_task_id": null
+      },
+      "case_id": "calibration-24"
+    }
+  ]
+}

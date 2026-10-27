@@ -17,6 +17,10 @@ class ProviderError(RuntimeError):
     pass
 
 
+class ProviderRefusal(ProviderError):
+    """A rejected input/result must be surfaced rather than retried as a decision."""
+
+
 class ScriptedProvider:
     info = ProviderInfo(provider="deterministic-fixture", model="scripted", local=True)
 

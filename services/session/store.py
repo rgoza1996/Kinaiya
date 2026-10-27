@@ -43,6 +43,7 @@ ALLOWED_KINDS = {
     },
     "decisions": {
         "routing.decided",
+        "routing.classification_refused",
         "routing.dispatch",
         "routing.window_decided",
         "routing.window_dispatch",

@@ -30,6 +30,11 @@ class ResourceBoundProvider:
         self._check()
         return await self.provider.complete(messages)
 
+    async def health(self):
+        self._check()
+        probe = getattr(self.provider, "health", None)
+        return await probe() if probe is not None else None
+
     async def stream(self, messages):
         self._check()
         async for chunk in self.provider.stream(messages):

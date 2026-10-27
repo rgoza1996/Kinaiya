@@ -204,6 +204,11 @@ or MCP calls, including with broad tool grants or YOLO. Agent Chat shows current
 approvals across conversation sessions. Silence alone does not commit speech;
 see the [source-authority boundary](docs/adr/0020-streaming-source-authority.md).
 
+An opt-in [typed Laya Decisions adapter](docs/adr/0021-laya-decisions.md) supports
+local Jev inference in a separate process, with native source/task bindings and
+explicit classification refusals. Base-model and supervised synthetic results
+remain research evidence; Laya is not yet promoted as the reference default.
+
 See [Roadmap.md](./Roadmap.md) for architecture, milestones, acceptance criteria, risks, and implementation references.
 
 ## Project principles
