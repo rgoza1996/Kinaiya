@@ -27,6 +27,11 @@ class JournalClient:
         response.raise_for_status()
         return [JournalEntry.model_validate(value) for value in response.json()]
 
+    async def recent(self, **kwargs):
+        response = await self.http.get("/v1/transcript/recent", params=kwargs)
+        response.raise_for_status()
+        return [JournalEntry.model_validate(value) for value in response.json()]
+
     async def session(self, session_id):
         response = await self.http.get(f"/v1/sessions/{session_id}")
         response.raise_for_status()
