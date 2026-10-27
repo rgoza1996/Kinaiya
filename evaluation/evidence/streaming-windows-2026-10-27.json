@@ -412,9 +412,58 @@
       "stage": "HTTP health preflight",
       "native_error": "ConnectError",
       "result": "No inference requested; services were still starting. Probe now waits for health."
+    },
+    {
+      "source_commit": "33cc6ca253224a46fe636bababe63b0aa5b13bec",
+      "stage": "burst startup preflight",
+      "native_error": "ConnectError",
+      "result": "No inference requested. The caller invoked the burst probe before services were ready; explicit health checks preceded the successful repeat."
     }
   ],
   "source_sha256": {
+    "packages/contracts/models.py": "38bb6576ebe6e451982b7237e79af3eedbd953f21057a15fb347fbe4dbf648aa",
+    "packages/contracts/schemas/WindowDecision.json": "eb95c4c956fe2d079694ee3c3fa31bddb75d3a587c0e83f17ccbc3c53fecbd7a",
+    "packages/contracts/schemas/SpeechWindow.json": "3126b6a076a8c152c74164dc4d832d6c98c14e6324ceb19639b3bf7b37362b4c",
+    "packages/contracts/client.py": "478a171c658163c23000a60088135f64d8055e958a7608f6854bb22e37c5ac83",
+    "packages/providers/disclosure.py": "39b73bfc8656449195225b4d1f1a14c1b01ccbcf91047c0bf67dddb131ad0dd2",
+    "services/agent/runtime.py": "9f3f7fe4c99917ab01d7c5d54f59adcabf4be7aa27a4c6b8e50fe5a7ca849b13",
+    "services/converse/runtime.py": "593b01f6c5cf2b8b64d76771d1a975481f066dc348ffa7a7b8365473292aa3c2",
+    "services/converse/api.py": "aafe9a5d63337032c1e1b1e638eea71d6bfccf311933bd75f9c60349c9061452",
+    "services/converse/windows.py": "855c4f38d304416f25e722d9993a4aef582438e074af51e6ae659af2885a3e53",
+    "services/decisions/window_routing.py": "8752d3193d68307d00fddbaca92eee719c805fe0381854e22f02743f07c58dab",
+    "services/decisions/window_worker.py": "bd6c424abc1d28ebe66a082e220018ff617e02aeb2106d24fa7e56e85719be74",
+    "services/decisions/api.py": "df78734600bf6c557418fd05986baa878267e3881361b814d097a152f6fb16e7",
+    "services/decisions/runtime.py": "ed8dca5fc1bd8c4bf941ee3ff3aa15ed2a25d906e250837b8da5c630096ca739",
+    "services/session/store.py": "1eb391466f2c06633727868a304cb1703fb83be3fc2405e2214503c87695530c",
+    "services/session/api.py": "1c45e3c3c8989363029caefddabced421b6c4718117d79185353bf7e3fbd7326",
+    "services/launcher.py": "629d84e62b2b3da73af71cea001d25f3e266891a250957fcf1dcd659607d96fd",
+    "apps/kinaiya_flutter/lib/ui/character_view.dart": "c60aff8b153928b0b1463592495bd9075a11c12789c7b8a091d78554c7d67b68",
+    "apps/kinaiya_flutter/lib/state/app_state.dart": "d3c764f4c172983067e88b39b242bc338bb6f71277098f5326b1abd3e6a6dbfa",
+    "apps/kinaiya_flutter/web/audio_bridge.js": "95c817f196f12838977602b1ede26fb9f78d82db6bf6fd5d0d14493b6cbbc49b",
+    "apps/kinaiya_flutter/web/window_capture_worklet.js": "a69e88851764bf40314d79df945616af667bf433aed6f90b2a1bd34e811c30e1",
+    "scripts/verify_streaming_windows.py": "5846540868e955cb9ec138fc00c7505cf728d4d8c5a4582907c6db80a58873a0"
+  },
+  "limits": [
+    "Timings are individual public synthetic development runs, not a production latency benchmark.",
+    "Classifier latency is seconds; roadmap real-time latency target remains open.",
+    "Native text-to-reply publication excludes preceding STT and browser playback. HTTP first PCM is not audible TTFA.",
+    "No human microphone, audibility or echo-robustness claim.",
+    "Independent Muse review was partial: 8-step inspection plus 2-step verdict continuation. Four findings fixed with regressions; UI/queue portions beyond inspected range remained lead-reviewed.",
+    "Contributor catalog estimate, conservative admission charges and retained uncertain reservations are separate. Billing receipts are unavailable.",
+    "Synthetic HTTP adapters declared one-second capture intervals; PCM capture duration accuracy is tested separately in the browser bridge. Native event timestamps and processing latencies are measured; these runs are not acoustic endpoint benchmarks.",
+    "Full audio workflows ran before the scheduler-only refinement. Its post-change actual-provider burst retained eight overlapping hypotheses with two classifier starts and a correct latest WAIT decision; deterministic regressions cover stale-result rejection and task dispatch."
+  ],
+  "native_completion_notice": {
+    "outcome_event_id": "3fc15339-5b82-49dd-8b64-752e58d1ece2",
+    "notice_event_id": "23b7512e-ca06-4296-9601-1828b12e641f",
+    "task_refs": [
+      "23110b18-ab97-437d-bbc7-77f1f6837c22"
+    ],
+    "text": "The Agent reports a verified result: Wrote hello to window.txt",
+    "content_scope": "public_synthetic",
+    "delivery": "generated; no played acknowledgment claimed"
+  },
+  "full_workflow_source_sha256": {
     "packages/contracts/models.py": "38bb6576ebe6e451982b7237e79af3eedbd953f21057a15fb347fbe4dbf648aa",
     "packages/contracts/schemas/WindowDecision.json": "eb95c4c956fe2d079694ee3c3fa31bddb75d3a587c0e83f17ccbc3c53fecbd7a",
     "packages/contracts/schemas/SpeechWindow.json": "3126b6a076a8c152c74164dc4d832d6c98c14e6324ceb19639b3bf7b37362b4c",
@@ -437,23 +486,56 @@
     "apps/kinaiya_flutter/web/window_capture_worklet.js": "a69e88851764bf40314d79df945616af667bf433aed6f90b2a1bd34e811c30e1",
     "scripts/verify_streaming_windows.py": "60ba71ce53f6ba990ec641c72f564504e60a0ff947cef0164d9d9cf671bce49d"
   },
-  "limits": [
-    "Timings are individual public synthetic development runs, not a production latency benchmark.",
-    "Classifier latency is seconds; roadmap real-time latency target remains open.",
-    "Native text-to-reply publication excludes preceding STT and browser playback. HTTP first PCM is not audible TTFA.",
-    "No human microphone, audibility or echo-robustness claim.",
-    "Independent Muse review was partial: 8-step inspection plus 2-step verdict continuation. Four findings fixed with regressions; UI/queue portions beyond inspected range remained lead-reviewed.",
-    "Contributor catalog estimate, conservative admission charges and retained uncertain reservations are separate. Billing receipts are unavailable.",
-    "Synthetic HTTP adapters declared one-second capture intervals; PCM capture duration accuracy is tested separately in the browser bridge. Native event timestamps and processing latencies are measured; these runs are not acoustic endpoint benchmarks."
-  ],
-  "native_completion_notice": {
-    "outcome_event_id": "3fc15339-5b82-49dd-8b64-752e58d1ece2",
-    "notice_event_id": "23b7512e-ca06-4296-9601-1828b12e641f",
-    "task_refs": [
-      "23110b18-ab97-437d-bbc7-77f1f6837c22"
-    ],
-    "text": "The Agent reports a verified result: Wrote hello to window.txt",
-    "content_scope": "public_synthetic",
-    "delivery": "generated; no played acknowledgment claimed"
+  "runtime_source_commit": "33cc6ca253224a46fe636bababe63b0aa5b13bec",
+  "overlapping_hypothesis_verification": {
+    "source_commit": "33cc6ca253224a46fe636bababe63b0aa5b13bec",
+    "mode": "actual-provider-overlapping-hypotheses",
+    "checks": {
+      "all_burst_windows_retained": 8,
+      "latest_decision": {
+        "schema_version": "1.0",
+        "decision_id": "window-e7fa9cc1ed37135fa7a99be73b3b0747",
+        "prompt_chars": 2189,
+        "history_chars": 357,
+        "context_entries": 7,
+        "classification_reused": false,
+        "source_event_id": "d9006fd2-3485-4e3e-b451-de0616731449",
+        "source_sequence": 177,
+        "source_revision": 1,
+        "conversation": "WAIT_FOR_NEXT_WINDOW",
+        "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
+        "target_task_id": null,
+        "expected_objective_revision": null,
+        "reason_code": "trailing_fragment",
+        "classifier_ms": 3433.4512319910573
+      },
+      "classifier_starts": 2,
+      "unnecessary_agent_activations": 0
+    },
+    "budget_before": {
+      "contributor_estimated_usd": 0.8725728760000002,
+      "admission_estimated_usd": 19.782817600000016,
+      "reserved_usd": 1.5558100499999998,
+      "billing_reported_usd": null,
+      "admission_limit_usd": 22
+    },
+    "budget_after": {
+      "contributor_estimated_usd": 0.8727394580000003,
+      "admission_estimated_usd": 19.783198000000013,
+      "reserved_usd": 1.5558100499999998,
+      "billing_reported_usd": null,
+      "admission_limit_usd": 22
+    },
+    "limits": [
+      "Synthetic text hypotheses submitted over HTTP; full audio workflow is verified separately.",
+      "Does not establish low-latency model quality or browser audibility."
+    ]
+  },
+  "budget_checkpoint": {
+    "contributor_estimated_usd": 0.8727394580000003,
+    "admission_estimated_usd": 19.783198000000013,
+    "reserved_usd": 1.5558100499999998,
+    "billing_reported_usd": null,
+    "admission_limit_usd": 22
   }
 }

@@ -85,9 +85,8 @@ Real-provider evidence is recorded separately with its exact source revision.
 exercise the five examples, retained partial/full/opening STT snapshots, native
 revision-2 steering and cancellation, genuine queue boundaries, real file writes
 and an authoritative completion notice. Each retained seven windows and activated
-no Agent for backchannel/unfinished speech. The final runtime source is
-`059064e149e803194293f02da605fbcbc7f3d0f9`; subsequent changes add verification
-and evidence only. Classification prompts used 1,541–2,260 characters, with
+no Agent for backchannel/unfinished speech. The full-workflow runtime source is
+`059064e149e803194293f02da605fbcbc7f3d0f9`. Classification prompts used 1,541–2,260 characters, with
 61–263 history characters in the repeated run; tasks received source references.
 
 The repeated Contributor development run classified windows in 2.56–3.96 seconds.
@@ -98,6 +97,14 @@ first PCM is not end-to-end or audible TTFA. The synthetic HTTP adapter declared
 one-second capture intervals, so these runs do not benchmark acoustic endpoint
 timing or PCM capture duration. Browser encoding/duration is checked separately.
 The roadmap's real-time target and broader M3 acceptance remain open.
+
+The later scheduler refinement finishes one admitted classification and retains
+only the latest pending hypothesis for that utterance. It discards stale results
+without repeated HTTP cancellation, which cannot recall remote inference. An
+actual-provider burst on the recorded final scheduler source retained eight
+overlapping windows, made two classifier starts, produced the correct latest
+WAIT decision and activated no Agent. Per-run source hashes distinguish this
+check from the preceding full audio workflows.
 
 The initial failed provider attempt and a startup preflight failure remain in the
 evidence. Conservative admission permitted two concurrent full-context
