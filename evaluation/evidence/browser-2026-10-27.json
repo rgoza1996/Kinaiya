@@ -73,5 +73,17 @@
     "Source references identify reviewed code; health endpoints do not attest process build hashes.",
     "Browser cases ran at Flutter 5f3c680. Subsequent 36d6052 fixes have deterministic regression checks and a separate final-build smoke check.",
     "A passing functional case does not establish roadmap latency percentiles, native voice, mobile calling or complete M5 acceptance."
-  ]
+  ],
+  "final_build_smoke": {
+    "flutter_commit": "36d6052",
+    "checked_at": "2026-10-27T07:43:48.238625+00:00",
+    "observed": [
+      "Owner-only file import and explicit Contributor disclosure authenticated.",
+      "Timestamped last-check connection status displayed.",
+      "Newest-first task list displayed the standalone file task with evidence.",
+      "Real /status command acknowledged ok.",
+      "No browser error logs in the last two captured entries."
+    ],
+    "inference_calls": 0
+  }
 }
