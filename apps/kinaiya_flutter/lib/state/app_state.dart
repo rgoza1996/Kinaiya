@@ -161,8 +161,8 @@ class AppState extends ChangeNotifier {
     final provider = info['provider'];
     final model = info['model'];
     if (local is! bool) return false;
-    if (provider is! String || provider.isEmpty) return false;
-    if (model is! String || model.isEmpty) return false;
+    if (provider is! String || provider.trim().isEmpty) return false;
+    if (model is! String || model.trim().isEmpty) return false;
     if (local) return true;
     switch (consent) {
       case BackendProfile.clean:
@@ -405,17 +405,21 @@ class AppState extends ChangeNotifier {
   /// switch. Clears the previous grant first so no further Agent input is
   /// accepted until the new provider metadata is positively verified.
   /// Generation-bound: a reconnect during the check drops the stale result.
-  Future<void> revalidateAgentInference() async {
-    final api = client;
-    final profile = connection;
-    final generation = _connectionGeneration;
-    if (api == null || profile == null) return;
+  void invalidateAgentInference() {
     agentInferenceAllowed = false;
     agentProvider = null;
     connected =
         sessionAuthenticated &&
         (agentInferenceAllowed || converseInferenceAllowed);
     notifyListeners();
+  }
+
+  Future<void> revalidateAgentInference() async {
+    final api = client;
+    final profile = connection;
+    final generation = _connectionGeneration;
+    if (api == null || profile == null) return;
+    invalidateAgentInference();
     try {
       await api.agentCapabilities().timeout(const Duration(seconds: 5));
       final health = await api.agentHealth().timeout(
@@ -427,7 +431,7 @@ class AppState extends ChangeNotifier {
       agentProvider = info is Map<String, Object?>
           ? info
           : info is Map
-          ? (info as Map).cast<String, Object?>()
+          ? info.cast<String, Object?>()
           : null;
       agentInferenceAllowed = providerAllows(info, profile.backendProfile);
       connected =

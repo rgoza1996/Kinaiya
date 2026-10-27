@@ -26,6 +26,15 @@ def test_quoting_and_unicode_arguments():
     assert parse('/new "A quiet café"') == ("new", ["A quiet café"])
 
 
+async def test_registry_distinguishes_inference_from_owner_controls(env):
+    _, _, runtime, registry = env
+    definitions = {row["name"]: row for row in registry.definitions()["commands"]}
+    assert definitions["skill"]["execution_type"] == "skill_invocation"
+    for name in ("status", "stop", "permissions", "model", "skills", "resources"):
+        assert definitions[name]["execution_type"] == "runtime_control"
+    assert runtime.provider.calls == []
+
+
 @pytest.fixture
 async def env(tmp_path):
     store = Store(tmp_path / "journal.sqlite")

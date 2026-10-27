@@ -185,6 +185,7 @@ class _CharacterViewState extends State<CharacterView> {
   Future<void> _send({String? overrideText, String inputMode = 'text'}) async {
     final text = (overrideText ?? _input.text).trim();
     final api = _s.client;
+    final generation = _s.connectionGeneration;
     if (text.isEmpty || api == null || !_converseAvailable) {
       if (text.isNotEmpty && api != null && mounted) {
         _s.appendHistory(
@@ -200,11 +201,21 @@ class _CharacterViewState extends State<CharacterView> {
     }
     if (!_s.converseCanInfer) return;
     final nonce = ++_s.turnNonce;
+    bool stillAuthorized() {
+      if (!mounted || !turnOwnsCleanup(nonce, _s.turnNonce)) return false;
+      if (!_s.ownsConnection(generation, api) || !_converseAvailable) {
+        _s.busyConverse = false;
+        _s.touch();
+        return false;
+      }
+      return true;
+    }
+
     _s.busyConverse = true;
     _speechQueue = SpeechQueue();
     await _audio.stopPlayback();
     await _interruptBarrier;
-    if (!mounted || !turnOwnsCleanup(nonce, _s.turnNonce)) return;
+    if (!stillAuthorized()) return;
     try {
       final seedSession =
           _s.converseSession ??
@@ -235,7 +246,7 @@ class _CharacterViewState extends State<CharacterView> {
         } catch (_) {}
       }
     } catch (_) {}
-    if (!turnOwnsCleanup(nonce, _s.turnNonce)) return;
+    if (!stillAuthorized()) return;
     _s.appendHistory(AppView.character, ChatMsg(role: 'user', text: text));
     if (overrideText == null) {
       _input.clear();
@@ -251,7 +262,7 @@ class _CharacterViewState extends State<CharacterView> {
       final session =
           _s.converseSession ??
           await _s.ensureSession('converse', name: 'Kinaiya');
-      if (!turnOwnsCleanup(nonce, _s.turnNonce)) return;
+      if (!stillAuthorized()) return;
       final key = newIdempotencyKey();
       var assistantIndex = -1;
       final playedAcked = <String>{};
@@ -385,8 +396,10 @@ class _CharacterViewState extends State<CharacterView> {
     int nonce,
     Set<String> playedAcked,
   ) async {
+    if (!_s.converseCanInfer || !_converseAvailable) return;
     if (!turnOwnsCleanup(nonce, _s.turnNonce)) return;
     if (!await _audio.availablePlayback) return;
+    if (!_s.converseCanInfer || !_converseAvailable) return;
     if (!turnOwnsCleanup(nonce, _s.turnNonce)) return;
     final epoch =
         (entry.payload['generation_epoch'] as num?)?.toInt() ?? _s.speechEpoch;
@@ -584,8 +597,9 @@ class _CharacterViewState extends State<CharacterView> {
       }
       return;
     }
-    if (!_converseAvailable || !_s.converseCanInfer || _s.client == null)
+    if (!_converseAvailable || !_s.converseCanInfer || _s.client == null) {
       return;
+    }
     await _audio.configureVad(endSilenceMs: _endSilenceMs);
     if (!mounted || owner != _armOwner || !_converseAvailable) return;
     final result = await _audio.startArmed();
@@ -709,20 +723,32 @@ class _CharacterViewState extends State<CharacterView> {
 
   Future<void> _importRecording() async {
     if (!_converseAvailable || !_s.converseCanInfer) return;
+    final api = _s.client;
+    final generation = _s.connectionGeneration;
+    if (api == null) return;
     final request = ++_voiceRequest;
     final recording = await _audio.chooseRecording();
-    final api = _s.client;
     if (!mounted ||
         !_converseAvailable ||
+        !_s.ownsConnection(generation, api) ||
         request != _voiceRequest ||
-        recording == null ||
-        api == null) {
+        recording == null) {
       return;
     }
     await _onBarge();
+    if (!mounted ||
+        !_s.ownsConnection(generation, api) ||
+        !_converseAvailable) {
+      return;
+    }
     setState(() => _mood = 'listening');
     try {
       final output = await api.transcribe(recording.bytes, recording.filename);
+      if (!mounted ||
+          !_s.ownsConnection(generation, api) ||
+          !_converseAvailable) {
+        return;
+      }
       final text = (output['text'] as String? ?? '').trim();
       if (text.isNotEmpty && mounted) {
         await _send(overrideText: text, inputMode: 'voice');
@@ -739,6 +765,9 @@ class _CharacterViewState extends State<CharacterView> {
 
   Future<void> _toggleMic() async {
     if (!_converseAvailable || !_s.converseCanInfer) return;
+    final api = _s.client;
+    final generation = _s.connectionGeneration;
+    if (api == null) return;
     if (_armed) {
       _s.appendHistory(
         AppView.character,
@@ -750,8 +779,14 @@ class _CharacterViewState extends State<CharacterView> {
       return;
     }
     if (_recording) {
+      final request = ++_voiceRequest;
       final rec = await _audio.stopRecording();
-      if (!mounted) return;
+      if (!mounted ||
+          request != _voiceRequest ||
+          !_s.ownsConnection(generation, api) ||
+          !_converseAvailable) {
+        return;
+      }
       setState(() => _recording = false);
       if (rec == null || rec.bytes.isEmpty) {
         _s.appendHistory(
@@ -764,13 +799,17 @@ class _CharacterViewState extends State<CharacterView> {
         );
         return;
       }
-      final api = _s.client;
-      if (api == null) return;
       try {
         final out = await api.transcribe(
           rec.bytes,
           rec.mime.contains('ogg') ? 'recording.ogg' : 'recording.webm',
         );
+        if (!mounted ||
+            request != _voiceRequest ||
+            !_s.ownsConnection(generation, api) ||
+            !_converseAvailable) {
+          return;
+        }
         final text = (out['text'] as String? ?? '').trim();
         if (text.isNotEmpty) {
           await _send(overrideText: text, inputMode: 'voice');

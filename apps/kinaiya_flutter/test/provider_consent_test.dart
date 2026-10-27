@@ -19,8 +19,12 @@ import 'package:http/testing.dart';
 import 'package:kinaiya_flutter/api/client.dart';
 import 'package:kinaiya_flutter/api/models.dart';
 import 'package:kinaiya_flutter/app.dart';
+import 'package:kinaiya_flutter/audio/speech_audio.dart';
 import 'package:kinaiya_flutter/config/connection.dart';
 import 'package:kinaiya_flutter/state/app_state.dart';
+import 'package:kinaiya_flutter/ui/character_view.dart';
+
+import 'live_capture_test.dart' show CaptureAudio;
 
 Map<String, Object?> localProvider() => <String, Object?>{
   'provider': 'local',
@@ -122,6 +126,9 @@ class ConsentClient extends KinaiyaClient {
   int turns = 0;
   int interrupts = 0;
   int resolutions = 0;
+  int transcriptions = 0;
+  Completer<List<JournalEntry>>? recentGate;
+  Completer<Map<String, Object?>?>? executionGate;
   List<CommandDef> registry = <CommandDef>[
     CommandDef(
       name: 'status',
@@ -192,6 +199,7 @@ class ConsentClient extends KinaiyaClient {
     required String idempotencyKey,
   }) async {
     executed++;
+    if (executionGate != null) return executionGate!.future;
     final name = input.trim().split(RegExp(r'\s+')).first.substring(1);
     return <String, Object?>{
       'schema_version': '1.0',
@@ -260,7 +268,22 @@ class ConsentClient extends KinaiyaClient {
   Future<List<JournalEntry>> recent({
     required String sessionId,
     int limit = 100,
-  }) async => journal;
+  }) async => recentGate == null ? journal : recentGate!.future;
+
+  @override
+  Future<Map<String, Object?>> transcribe(
+    List<int> bytes,
+    String filename,
+  ) async {
+    transcriptions++;
+    return {'text': 'public synthetic audio'};
+  }
+}
+
+class PendingRecording extends CaptureAudio {
+  final finished = Completer<RecordedAudio?>();
+  @override
+  Future<RecordedAudio?> stopRecording() => finished.future;
 }
 
 AgentTask cardTask({String state = 'accepted', int revision = 1}) => AgentTask(
@@ -294,6 +317,106 @@ JournalEntry approvalEntry() => JournalEntry(
 );
 
 void main() {
+  testWidgets('revoked Converse consent while history loads prevents a turn', (
+    tester,
+  ) async {
+    final api = ConsentClient()..recentGate = Completer<List<JournalEntry>>();
+    final state = AppState()
+      ..connect(ConnectionProfile.defaults(), injected: api);
+    await tester.pumpWidget(KinaiyaApp(state: state));
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.enterText(find.byType(TextField), 'public synthetic request');
+    await tester.testTextInput.receiveAction(TextInputAction.send);
+    await tester.pump();
+    expect(state.busyConverse, isTrue);
+    state.converseInferenceAllowed = false;
+    state.touch();
+    api.recentGate!.complete([]);
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(api.turns, 0);
+    expect(state.busyConverse, isFalse);
+    expect(state.converseDraft, 'public synthetic request');
+    await tester.pumpWidget(const SizedBox.shrink());
+    state.dispose();
+  });
+
+  testWidgets(
+    'a recording completed after reconnect never uploads to either backend',
+    (tester) async {
+      final oldApi = ConsentClient(), newApi = ConsentClient();
+      final state = AppState()
+        ..connect(ConnectionProfile.defaults(), injected: oldApi);
+      final audio = PendingRecording();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: AnimatedBuilder(
+              animation: state,
+              builder: (_, _) => CharacterView(state: state, audio: audio),
+            ),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.tap(find.byTooltip('Record voice'));
+      await tester.pump();
+      await tester.tap(find.byTooltip('Stop recording'));
+      await tester.pump();
+      state.connect(ConnectionProfile.defaults(), injected: newApi);
+      await tester.pump();
+      audio.finished.complete(RecordedAudio('audio/webm', [1, 2, 3]));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(oldApi.transcriptions, 0);
+      expect(newApi.transcriptions, 0);
+      expect(newApi.turns, 0);
+      await tester.pumpWidget(const SizedBox.shrink());
+      state.dispose();
+    },
+  );
+
+  testWidgets('an uncertain model switch keeps Agent input blocked', (
+    tester,
+  ) async {
+    final api = ConsentClient();
+    api.registry.add(
+      CommandDef(
+        name: 'model',
+        description: 'Switch profile',
+        executionType: 'runtime_control',
+      ),
+    );
+    api.executionGate = Completer<Map<String, Object?>?>();
+    final state = AppState()
+      ..connect(profileWith(BackendProfile.metaContributor), injected: api);
+    state.agentSession = SessionInfo(
+      sessionId: 's-agent',
+      threadId: 't-agent',
+      channel: 'agent',
+      epoch: 1,
+    );
+    state.setView(AppView.agent);
+    await tester.pumpWidget(KinaiyaApp(state: state));
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.enterText(find.byType(TextField), '/model remote');
+    await tester.pump();
+    await tester.tap(find.text('Send task'));
+    await tester.pump();
+    expect(api.executed, 1);
+    expect(state.agentCanInfer, isFalse);
+    api.executionGate!.completeError(
+      ApiException(503, 'Synthetic lost acknowledgment'),
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(state.agentCanInfer, isFalse);
+    await tester.enterText(find.byType(TextField), 'public synthetic followup');
+    await tester.pump();
+    await tester.testTextInput.receiveAction(TextInputAction.send);
+    await tester.pump();
+    expect(api.createTasks, 0);
+    await tester.pumpWidget(const SizedBox.shrink());
+    state.dispose();
+  });
+
   test('providerAllows is positive, exact and fails closed', () {
     // Local metadata allows local inference under every profile.
     for (final consent in BackendProfile.values) {

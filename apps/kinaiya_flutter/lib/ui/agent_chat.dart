@@ -320,6 +320,11 @@ class _AgentChatState extends State<AgentChat> {
       }
       final liveApi = _s.client;
       if (liveApi == null || !identical(liveApi, api)) return;
+      final hasModelArgs =
+          liveMatch.first.name == 'model' &&
+          text.trim().split(RegExp(r'\s+')).length > 1;
+      // A lost acknowledgment is not proof the old provider remains selected.
+      if (hasModelArgs) _s.invalidateAgentInference();
       final out = await liveApi.executeCommand(
         sessionId: session.sessionId,
         threadId: session.threadId,
@@ -360,9 +365,6 @@ class _AgentChatState extends State<AgentChat> {
       // `/model` stays deterministic, but a successful profile switch
       // changes the Agent provider: clear and reverify Agent inference
       // before accepting more input.
-      final trimmed = text.trim();
-      final hasModelArgs =
-          name == 'model' && trimmed.split(RegExp(r'\s+')).length > 1;
       if (hasModelArgs &&
           out?['status'] == 'ok' &&
           _s.ownsConnection(generation, api)) {
