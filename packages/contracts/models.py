@@ -201,6 +201,10 @@ class WindowDecision(WireModel):
     """Separate conversation timing and work routing, bound to one native window."""
 
     decision_id: str = Field(default_factory=new_id)
+    prompt_chars: int = Field(default=0, ge=0, le=200000, strict=True)
+    history_chars: int = Field(default=0, ge=0, le=48000, strict=True)
+    context_entries: int = Field(default=0, ge=0, le=12, strict=True)
+    classification_reused: bool = Field(default=False, strict=True)
     source_event_id: str = Field(min_length=1, max_length=128)
     source_sequence: int = Field(ge=1, strict=True)
     source_revision: int = Field(ge=1, strict=True)

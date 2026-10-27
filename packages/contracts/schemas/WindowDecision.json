@@ -12,6 +12,32 @@
       "title": "Decision Id",
       "type": "string"
     },
+    "prompt_chars": {
+      "default": 0,
+      "maximum": 200000,
+      "minimum": 0,
+      "title": "Prompt Chars",
+      "type": "integer"
+    },
+    "history_chars": {
+      "default": 0,
+      "maximum": 48000,
+      "minimum": 0,
+      "title": "History Chars",
+      "type": "integer"
+    },
+    "context_entries": {
+      "default": 0,
+      "maximum": 12,
+      "minimum": 0,
+      "title": "Context Entries",
+      "type": "integer"
+    },
+    "classification_reused": {
+      "default": false,
+      "title": "Classification Reused",
+      "type": "boolean"
+    },
     "source_event_id": {
       "maxLength": 128,
       "minLength": 1,

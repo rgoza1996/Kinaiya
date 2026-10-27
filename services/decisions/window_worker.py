@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 import httpx
 
 from packages.contracts.models import AppendRequest, SpeechWindow, WindowDecision
+from packages.providers.text import ProviderError
 
 
 def hypothesis(entry):
@@ -27,6 +28,8 @@ class WindowDecisionsWorker:
         self, journal, agent, classifier, *, agent_enabled=True, timeout=5, parallel=2, max_age=60
     ):
         self.journal, self.agent, self.classifier = journal, agent, classifier
+        if type(timeout) not in (int, float) or not 0.1 <= timeout <= 30:
+            raise ValueError("Window classification timeout must be .1..30 seconds")
         self.agent_enabled, self.timeout = agent_enabled, timeout
         self.parallel, self.max_age = max(1, min(parallel, 4)), max_age
         self.after = 0
@@ -96,7 +99,8 @@ class WindowDecisionsWorker:
             tuple(sorted((t.task_id, t.objective_revision, str(t.state)) for t in tasks)),
         )
         cached = self.outputs.get(key)
-        if cached is not None and cached[:2] == (hypothesis(source), task_binding):
+        reused = cached is not None and cached[:2] == (hypothesis(source), task_binding)
+        if reused:
             labels = dict(cached[2])
         elif window.text.strip():
             labels = await asyncio.wait_for(
@@ -124,6 +128,7 @@ class WindowDecisionsWorker:
             return
         decision = WindowDecision(
             **labels,
+            classification_reused=reused,
             source_event_id=source.event_id,
             source_sequence=source.sequence,
             source_revision=window.revision,
@@ -158,9 +163,17 @@ class WindowDecisionsWorker:
         except asyncio.CancelledError:
             raise
         except Exception as exc:
-            self.last_error = type(exc).__name__
+            reason = type(exc).__name__
+            if isinstance(exc, ProviderError):
+                if "HTTP 402;" in str(exc):
+                    reason = "provider_budget_refused"
+                elif "token budget" in str(exc):
+                    reason = "provider_output_limit"
+                else:
+                    reason = "provider_unavailable"
+            self.last_error = reason
             try:
-                await self.status(source, "error", type(exc).__name__)
+                await self.status(source, "error", reason)
             except Exception:
                 pass
 

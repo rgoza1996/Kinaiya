@@ -356,3 +356,34 @@ async def test_newer_recognition_revokes_old_hypothesis_speech(env):
     await window(env, "Hello, actually let me finish", index=1)
     with pytest.raises(ValueError, match="superseded"):
         await env.runtime.validate_speech(reply.event_id, reply.payload["generation_epoch"])
+
+
+async def test_budget_refusal_is_visible_and_never_retried(env):
+    from packages.providers.text import ProviderError
+
+    class Agent:
+        async def status(self):
+            return []
+
+    class Classifier:
+        calls = 0
+
+        async def classify(self, *args):
+            self.calls += 1
+            raise ProviderError("Meta HTTP 402; no automatic provider fallback")
+
+    classifier = Classifier()
+    worker = WindowDecisionsWorker(LocalJournal(env.store, "decisions"), Agent(), classifier)
+    source = await window(env)
+    await worker._job(source)
+    assert classifier.calls == 1
+    assert (
+        env.store.read(kinds=["routing.window_status"])[-1].payload["reason"]
+        == "provider_budget_refused"
+    )
+
+
+@pytest.mark.parametrize("timeout", [True, 0, 31, "15"])
+async def test_classification_timeout_config_is_explicitly_bounded(env, timeout):
+    with pytest.raises(ValueError, match="timeout"):
+        WindowDecisionsWorker(LocalJournal(env.store, "decisions"), None, None, timeout=timeout)

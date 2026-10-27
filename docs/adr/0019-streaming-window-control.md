@@ -34,6 +34,13 @@ bounded context and task IDs/states/revisions, never task objectives. It sees
 the full current hypothesis or refuses an over-budget request. Repeated,
 unchanged hypotheses reuse classification within a bounded utterance cache.
 
+Classification retries a transient transport/timeout failure once, while the
+source remains fresh. Budget refusal is recorded explicitly and never retried.
+`streaming_windows.classification_timeout_s` defaults to five seconds and accepts
+0.1–30 seconds; slower development providers can choose an explicit bound without
+claiming that they meet the real-time latency target. Cache reuse also binds the
+current task identities, revisions, states and Agent availability.
+
 ## Independent consumers
 
 Converse observes the durable decisions separately from the Agent dispatcher.

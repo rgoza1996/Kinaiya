@@ -145,6 +145,10 @@ class Probe:
                 "classifier_ms": d["classifier_ms"],
                 "decision_wall_ms": (time.monotonic() - started) * 1000,
                 "stt_ms": result.get("stt_ms"),
+                "prompt_chars": d["prompt_chars"],
+                "history_chars": d["history_chars"],
+                "context_entries": d["context_entries"],
+                "classification_reused": d["classification_reused"],
             }
         )
         return source, d
@@ -226,6 +230,9 @@ class Probe:
         ), d
         _, d = await self.window("Kinaiya, could you... actually...", "unfinished")
         assert d["conversation"] == "WAIT_FOR_NEXT_WINDOW", d
+        tasks = await self.request(self.args.agent_port, "/v1/agent/tasks")
+        assert not [t for t in tasks if t["session_id"] == s["session_id"]]
+        self.checks["unnecessary_agent_activations_before_work"] = 0
         original = await self.submit(
             "Public synthetic test: write gate.txt containing first. Use write_file, then finish after verification."
         )
@@ -238,7 +245,8 @@ class Probe:
             "STEER_CURRENT_TASK",
         ), d
         revised = await self.wait(
-            lambda: self.task(original["task_id"]), lambda t: t["objective_revision"] == 2
+            lambda: self.task(original["task_id"]),
+            lambda t: t["objective_revision"] == 2 and t["state"] == "awaiting_approval",
         )
         self.checks["native_steering_revision"] = revised["objective_revision"]
         urgent, d = await self.window("Stop, don't delete that!", "interrupt")
@@ -372,6 +380,23 @@ async def main(args):
         result = await probe.run()
         args.output.write_text(json.dumps(result, indent=2) + "\n")
         print(json.dumps(result["checks"]))
+    except Exception as exc:
+        failed = args.output.with_suffix(".failed.json")
+        failed.write_text(
+            json.dumps(
+                {
+                    "source_commit": args.source_commit,
+                    "status": "failed",
+                    "error_type": type(exc).__name__,
+                    "windows": probe.windows,
+                    "checks_so_far": probe.checks,
+                    "budget_after": await probe.budget(),
+                },
+                indent=2,
+            )
+            + "\n"
+        )
+        raise
     finally:
         await probe.http.aclose()
 

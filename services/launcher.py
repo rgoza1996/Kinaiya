@@ -420,6 +420,7 @@ def serve(args):
                 worker.agent,
                 WindowClassifier(worker.classifier.provider),
                 agent_enabled=worker.enabled,
+                timeout=config.get("streaming_windows", {}).get("classification_timeout_s", 5),
             )
             if windows_enabled
             else None

@@ -180,10 +180,12 @@ class WindowClassifier:
             " A request to stop only the companion's speech uses WAIT_FOR_NEXT_WINDOW and ignores Agent routing."
         )
         started = time.monotonic()
+        body = self._request_body(source, context, tasks)
+        context_used = json.loads(body)["context"]
         raw = await self.provider.complete(
             [
                 {"role": "system", "content": instructions},
-                {"role": "user", "content": self._request_body(source, context, tasks)},
+                {"role": "user", "content": body},
             ]
         )
         classifier_ms = (time.monotonic() - started) * 1000.0
@@ -232,6 +234,9 @@ class WindowClassifier:
             classifier_ms=classifier_ms,
         )
         return {
+            "prompt_chars": len(instructions) + len(body),
+            "history_chars": sum(len(e["text"]) for e in context_used),
+            "context_entries": len(context_used),
             "conversation": decision.conversation,
             "agent_route": decision.agent_route,
             "target_task_id": decision.target_task_id,
