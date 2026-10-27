@@ -185,8 +185,9 @@ class Evidence {
     checkSchemaVersion(json, 'Evidence');
     const kinds = {'file', 'command', 'read', 'search', 'test', 'extension'};
     final kind = json['kind'] as String? ?? '';
-    if (!kinds.contains(kind))
+    if (!kinds.contains(kind)) {
       throw FormatException('Unknown evidence kind: $kind');
+    }
     return Evidence(
       kind: kind,
       summary: json['summary'] as String? ?? '',
@@ -228,7 +229,12 @@ class ApprovalRequest {
       actionDigest: p['action_digest'] as String? ?? '',
       objectiveRevision: (p['objective_revision'] as num?)?.toInt() ?? 1,
       arguments: _map(p['arguments']),
-      expiresAt: p['expires_at'] as String?,
+      expiresAt: p['expires_at'] is num
+          ? DateTime.fromMillisecondsSinceEpoch(
+              ((p['expires_at'] as num) * 1000).round(),
+              isUtc: true,
+            ).toIso8601String()
+          : p['expires_at'] as String?,
     );
   }
 
@@ -254,14 +260,18 @@ class CommandDef {
     required this.description,
     this.available = true,
     this.origin = '',
+    this.aliases = const [],
+    this.syntax = '',
   });
 
   factory CommandDef.fromJson(Map<String, Object?> json) {
     return CommandDef(
-      name: json['name'] as String? ?? '',
+      name: (json['name'] as String? ?? '').replaceFirst(RegExp(r'^/'), ''),
       description: json['description'] as String? ?? '',
       available: json['available'] as bool? ?? true,
       origin: json['origin'] as String? ?? '',
+      aliases: (json['aliases'] as List? ?? []).cast<String>(),
+      syntax: json['syntax'] as String? ?? '',
     );
   }
 
@@ -269,4 +279,8 @@ class CommandDef {
   final String description;
   final bool available;
   final String origin;
+  final List<String> aliases;
+  final String syntax;
+
+  bool matches(String input) => name == input || aliases.contains(input);
 }

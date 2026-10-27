@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
@@ -65,9 +66,23 @@ class _AgentChatState extends State<AgentChat> {
     try {
       final entries = await api.recent(sessionId: session.sessionId);
       final found = <ApprovalRequest>[];
+      final resolved = entries
+          .where((e) => e.kind == 'approval.resolved')
+          .map((e) => e.payload['approval_id'])
+          .toSet();
       for (final e in entries) {
-        if (e.kind == 'approval.requested') {
-          found.add(ApprovalRequest.fromEntry(e));
+        if (e.kind == 'approval.requested' && e.origin == 'agent-supervisor') {
+          final approval = ApprovalRequest.fromEntry(e);
+          final matching = _s.tasks.where((t) => t.taskId == approval.taskId);
+          if (!resolved.contains(approval.approvalId) &&
+              !approval.isExpired &&
+              matching.any(
+                (t) =>
+                    t.state == 'awaiting_approval' &&
+                    t.objectiveRevision == approval.objectiveRevision,
+              )) {
+            found.add(approval);
+          }
         }
       }
       _s.recordApprovals(found);
@@ -77,8 +92,10 @@ class _AgentChatState extends State<AgentChat> {
   Future<void> _send() async {
     final text = _input.text.trim();
     final api = _s.client;
-    if (text.isEmpty || api == null || _s.busyAgent) return;
-    if (text.startsWith('/')) {
+    if (text.isEmpty || api == null || !_s.connected || _s.busyAgent) return;
+    if (!text.contains('\n') &&
+        !text.contains('\r') &&
+        RegExp(r'^/[a-z][a-z0-9_-]*(?:\s|$)').hasMatch(text)) {
       await _dispatchSlash(api, text);
       return;
     }
@@ -91,7 +108,7 @@ class _AgentChatState extends State<AgentChat> {
         sessionId: session.sessionId,
         threadId: session.threadId,
         epoch: session.epoch,
-        objective: text,
+        objective: text.startsWith(r'\/') ? text.substring(1) : text,
         idempotencyKey: newIdempotencyKey(),
       );
       _input.clear();
@@ -118,7 +135,7 @@ class _AgentChatState extends State<AgentChat> {
   /// Agent-only slash dispatch. Unknown commands are never sent anywhere;
   /// an unavailable registry is reported honestly with no local execution.
   Future<void> _dispatchSlash(KinaiyaClient api, String text) async {
-    final name = text.split(RegExp(r'\s+')).first;
+    final name = text.split(RegExp(r'\s+')).first.substring(1);
     final registry = _s.commands;
     if (registry == null) {
       _s.agentNotice =
@@ -126,7 +143,7 @@ class _AgentChatState extends State<AgentChat> {
       _s.touch();
       return;
     }
-    final match = registry.where((c) => c.name == name).toList();
+    final match = registry.where((c) => c.matches(name)).toList();
     if (match.isEmpty || !match.first.available) {
       _s.agentNotice = 'Unknown command "$name": not sent anywhere.';
       _s.touch();
@@ -144,11 +161,22 @@ class _AgentChatState extends State<AgentChat> {
       );
       _input.clear();
       _s.setDraft(AppView.agent, '');
+      if (out?['status'] == 'ok' && out?['result'] is Map) {
+        final result = (out!['result'] as Map).cast<String, Object?>();
+        if (result['clear_view'] == true) _s.agentHistory.clear();
+        if (out['command'] == 'new' || out['command'] == 'resume') {
+          _s.agentSession = SessionInfo.fromJson(result);
+          _s.agentHistory.clear();
+          _s.agentCursor = 0;
+        }
+      }
       _s.agentHistory.add(
         ChatMsg(
           role: 'kinaiya',
           text: 'Command $name: ${out?['status'] ?? 'no result'}',
-          note: out?['result']?.toString() ?? out?['error']?.toString(),
+          note: out?['result'] != null
+              ? const JsonEncoder.withIndent('  ').convert(out!['result'])
+              : out?['error']?.toString(),
         ),
       );
       await _refreshTasks();
@@ -156,6 +184,33 @@ class _AgentChatState extends State<AgentChat> {
       _s.agentNotice = "Couldn't run that command. Check the connection.";
       _s.touch();
     }
+  }
+
+  void _showCommands() {
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            for (final command in _s.commands ?? <CommandDef>[])
+              ListTile(
+                title: Text(
+                  command.syntax.isEmpty ? '/${command.name}' : command.syntax,
+                ),
+                subtitle: Text('${command.description}\n${command.origin}'),
+                enabled: command.available,
+                onTap: () {
+                  final text = '/${command.name} ';
+                  _input.text = text;
+                  _s.setDraft(AppView.agent, text);
+                  Navigator.of(context).pop();
+                },
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _steerTask(AgentTask task) async {
@@ -277,6 +332,11 @@ class _AgentChatState extends State<AgentChat> {
             padding: const EdgeInsets.all(8),
             child: Row(
               children: [
+                IconButton(
+                  tooltip: 'Agent commands',
+                  onPressed: _s.commandsAvailable ? _showCommands : null,
+                  icon: const Icon(Icons.terminal),
+                ),
                 Expanded(
                   child: TextField(
                     controller: _input,

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-
 /// Skippable short book: a brief panel transition that opens Agent Chat.
 /// Animation never delays speech; Skip jumps straight through.
 class BookSheet extends StatefulWidget {

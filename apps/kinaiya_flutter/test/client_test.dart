@@ -59,7 +59,7 @@ MockClient mockTransport({bool commandsMissing = true}) {
             'schema_version': '1.0',
             'commands': [
               {
-                'name': '/status',
+                'name': 'status',
                 'description': 'Show status',
                 'available': true,
               },
@@ -72,7 +72,7 @@ MockClient mockTransport({bool commandsMissing = true}) {
         jsonEncode({
           'schema_version': '1.0',
           'status': 'ok',
-          'command': '/status',
+          'command': 'status',
         }),
         200,
       );
@@ -143,7 +143,7 @@ void main() {
   test('missing command registry returns null honestly', () async {
     expect(await mockClient(commandsMissing: true).fetchCommands(), isNull);
     final present = await mockClient(commandsMissing: false).fetchCommands();
-    expect(present!.single.name, '/status');
+    expect(present!.single.name, 'status');
   });
 
   test('tasks round-trip with idempotency key', () async {

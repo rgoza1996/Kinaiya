@@ -51,9 +51,28 @@ class HomeShell extends StatelessWidget {
           ),
         ],
       ),
-      body: state.view == AppView.character
-          ? CharacterView(state: state)
-          : AgentChat(state: state),
+      body: Column(
+        children: [
+          if (!state.connected && state.connectionError != null)
+            MaterialBanner(
+              content: Text(state.connectionError!),
+              actions: [
+                TextButton(
+                  onPressed: () => showDialog<void>(
+                    context: context,
+                    builder: (_) => SetupDialog(state: state),
+                  ),
+                  child: const Text('SETUP'),
+                ),
+              ],
+            ),
+          Expanded(
+            child: state.view == AppView.character
+                ? CharacterView(state: state)
+                : AgentChat(state: state),
+          ),
+        ],
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: state.view == AppView.character ? 0 : 1,
         onDestinationSelected: (i) =>
@@ -80,7 +99,7 @@ class ConnectionDot extends StatelessWidget {
     final detail =
         state.connectionError ??
         (state.connected
-            ? 'Session, Agent and Converse services reachable as configured.'
+            ? 'Services checked.'
             : 'Open Connection setup to enter service URLs and the owner token.');
     return Tooltip(
       message: detail,

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 
 import '../config/connection.dart';
+import '../config/credential_picker.dart';
 import '../state/app_state.dart';
 
-/// Connection setup: service URLs plus an owner Bearer [REDACTED] password field.
+/// Connection setup: service URLs plus an owner access token password field.
 /// Everything stays in memory; nothing is persisted, logged or URL-encoded.
 class SetupDialog extends StatefulWidget {
   const SetupDialog({super.key, required this.state});
@@ -89,17 +91,33 @@ class _SetupDialogState extends State<SetupDialog> {
             TextField(
               controller: _token,
               decoration: const InputDecoration(
-                labelText: 'Owner Bearer [REDACTED]',
+                labelText: 'Owner access token',
                 helperText: 'Memory only: never stored, logged or put in URLs.',
               ),
               obscureText: true,
               enableSuggestions: false,
               autocorrect: false,
             ),
+            if (kIsWeb)
+              TextButton.icon(
+                onPressed: () async {
+                  final token = await chooseCredential();
+                  if (mounted && token != null) {
+                    setState(() {
+                      _token.text = token;
+                      _error = null;
+                    });
+                  }
+                },
+                icon: const Icon(Icons.folder_open),
+                label: const Text('Load local access token'),
+              ),
             const SizedBox(height: 12),
             DropdownButtonFormField<BackendProfile>(
               initialValue: _profile,
-              decoration: const InputDecoration(labelText: 'Backend profile'),
+              decoration: const InputDecoration(
+                labelText: 'Inference disclosure',
+              ),
               items: BackendProfile.values
                   .map((p) => DropdownMenuItem(value: p, child: Text(p.label)))
                   .toList(),

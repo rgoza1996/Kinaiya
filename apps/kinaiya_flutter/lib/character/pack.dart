@@ -57,13 +57,17 @@ class CharacterPack {
 }
 
 /// Loads and validates the pack; falls back to the single shipped frame.
-Future<CharacterPack> loadCharacterPack({PackBounds bounds = const PackBounds()}) async {
+Future<CharacterPack> loadCharacterPack({
+  PackBounds bounds = const PackBounds(),
+}) async {
   const fallbackAsset = 'assets/mascot/kinaiya-mascot.png';
   try {
     final raw = await rootBundle.loadString(packAssetPath);
     final json = jsonDecode(raw) as Map<String, dynamic>;
     if (json['pack_schema'] != packSchemaVersion) {
-      return _fallback('Pack schema ${json['pack_schema']} unsupported; using single frame.');
+      return _fallback(
+        'Pack schema ${json['pack_schema']} unsupported; using single frame.',
+      );
     }
     final poses = <PackPose>[];
     final list = json['poses'];
@@ -73,11 +77,13 @@ Future<CharacterPack> loadCharacterPack({PackBounds bounds = const PackBounds()}
       }
       for (final p in list) {
         final m = (p as Map).cast<String, dynamic>();
-        poses.add(PackPose(
-          name: '${m['name']}',
-          asset: '${m['asset']}',
-          sha256: '${m['sha256'] ?? ''}',
-        ));
+        poses.add(
+          PackPose(
+            name: '${m['name']}',
+            asset: '${m['asset']}',
+            sha256: '${m['sha256'] ?? ''}',
+          ),
+        );
       }
     }
     // Verify each pose asset exists, fits bounds, and matches its checksum.
@@ -111,10 +117,10 @@ Future<CharacterPack> loadCharacterPack({PackBounds bounds = const PackBounds()}
 }
 
 CharacterPack _fallback(String note) => CharacterPack(
-      version: packSchemaVersion,
-      name: 'Kinaiya',
-      fallbackAsset: 'assets/mascot/kinaiya-mascot.png',
-      poses: <PackPose>[],
-      fallback: true,
-      note: note,
-    );
+  version: packSchemaVersion,
+  name: 'Kinaiya',
+  fallbackAsset: 'assets/mascot/kinaiya-mascot.png',
+  poses: <PackPose>[],
+  fallback: true,
+  note: note,
+);

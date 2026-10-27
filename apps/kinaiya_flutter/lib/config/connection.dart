@@ -17,19 +17,19 @@ const List<String> permittedWebOrigins = <String>[
 enum BackendProfile {
   /// Clean local backend; the operator must configure providers before use.
   clean(
-    'Clean local backend',
+    'Local inference only',
     'Requires provider setup before Converse or Agent work.',
   ),
 
   /// Meta Responses development profile for public/synthetic input only.
   metaContributor(
-    'Meta Contributor (development)',
+    'Allow Meta Contributor (development)',
     'Synthetic and public input only. Cloud disclosure applies.',
   ),
 
   /// Cloud development profile for public/synthetic input only.
   cloudDevelopment(
-    'Cloud development',
+    'Allow cloud inference (development)',
     'Synthetic and public input only. Cloud disclosure applies.',
   );
 

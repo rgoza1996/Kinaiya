@@ -134,8 +134,9 @@ class KinaiyaClient {
   Future<List<SessionInfo>> listSessions() async {
     final uri = Uri.parse('$sessionBase/v1/sessions');
     final res = await _http.get(uri, headers: _auth);
-    if (res.statusCode >= 400)
+    if (res.statusCode >= 400) {
       throw ApiException(res.statusCode, _detail(res.body));
+    }
     final v = jsonDecode(res.body);
     if (v is List) {
       return v
@@ -162,8 +163,9 @@ class KinaiyaClient {
       },
     );
     final res = await _http.get(uri, headers: _auth);
-    if (res.statusCode >= 400)
+    if (res.statusCode >= 400) {
       throw ApiException(res.statusCode, _detail(res.body));
+    }
     final v = jsonDecode(res.body);
     final list = v is List ? v : (v is Map ? v['entries'] : null);
     if (list is List) {
@@ -185,8 +187,9 @@ class KinaiyaClient {
       },
     );
     final res = await _http.get(uri, headers: _auth);
-    if (res.statusCode >= 400)
+    if (res.statusCode >= 400) {
       throw ApiException(res.statusCode, _detail(res.body));
+    }
     final v = jsonDecode(res.body);
     final list = v is List ? v : (v is Map ? v['entries'] : null);
     if (list is List) {
@@ -250,9 +253,13 @@ class KinaiyaClient {
     }
   }
 
-  Future<void> interruptSpeech(String sessionId) async {
+  Future<void> interruptSpeech(
+    String sessionId, {
+    int? expectedGeneration,
+  }) async {
     await _post(converseBase, '/v1/converse/interrupt', {
       'session_id': sessionId,
+      if (expectedGeneration != null) 'expected_generation': expectedGeneration,
     });
   }
 
@@ -297,8 +304,9 @@ class KinaiyaClient {
     );
     final streamed = await _http.send(req);
     final body = await streamed.stream.bytesToString();
-    if (streamed.statusCode >= 400)
+    if (streamed.statusCode >= 400) {
       throw ApiException(streamed.statusCode, _detail(body));
+    }
     return (jsonDecode(body) as Map).cast<String, Object?>();
   }
 
@@ -353,8 +361,9 @@ class KinaiyaClient {
   Future<List<AgentTask>> listTasks() async {
     final uri = Uri.parse('$agentBase/v1/agent/tasks');
     final res = await _http.get(uri, headers: _auth);
-    if (res.statusCode >= 400)
+    if (res.statusCode >= 400) {
       throw ApiException(res.statusCode, _detail(res.body));
+    }
     final v = jsonDecode(res.body);
     if (v is List) {
       return v
