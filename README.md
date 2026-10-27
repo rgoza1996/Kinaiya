@@ -193,6 +193,12 @@ Meta is a target integration, not a product dependency. Model and API availabili
 
 An initial Linux research implementation now includes versioned contracts, authenticated persistent transcript storage, independent Agent and Converse services, asynchronous routing, scoped tools/approvals, a functional Flutter web client, and real-provider integration tests. The implementation is experimental. The full roadmap, all retained voice backends, native mobile calling and production hardening remain open development gates.
 
+Live listening now uses retained transcript windows with separate Decisions outputs
+for conversation timing and Agent routing. It can hold a prepared reply for a
+speaking opening, preserve speech during backchannels, steer/cancel work, and
+queue follow-ups until a native task boundary. See the
+[streaming-window design and verification limits](docs/adr/0019-streaming-window-control.md).
+
 See [Roadmap.md](./Roadmap.md) for architecture, milestones, acceptance criteria, risks, and implementation references.
 
 ## Project principles

@@ -1,12 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:uuid/uuid.dart';
 
 import '../api/client.dart';
 import '../api/models.dart';
 import '../audio/speech_audio.dart';
 import '../audio/turn_audio.dart';
 import '../character/pack.dart';
+import '../config/connection.dart';
 import '../state/app_state.dart';
 import 'book_sheet.dart';
 import 'widgets.dart';
@@ -50,6 +52,18 @@ class _CharacterViewState extends State<CharacterView> {
   /// turn play strictly in order and never interleave.
   SpeechQueue _speechQueue = SpeechQueue();
   StreamSubscription<JournalEntry>? _noticeSubscription;
+  StreamSubscription<JournalEntry>? _windowSubscription;
+  Future<void> _windowEvents = Future.value();
+  Map<String, Object?>? _pendingWindow;
+  bool _windowTranscribing = false;
+  int _windowPolls = 0;
+  String _windowUtterance = '';
+  int _windowIndex = 0;
+  final Set<String> _ownedUtterances = {};
+  final Set<String> _startedUtterances = {};
+  final Set<String> _windowPlayed = {};
+  String _liveStatus = 'Listening (live)';
+  bool _windowFailureShown = false;
   StreamSubscription<int>? _resourceSubscription;
   Future<void> _interruptBarrier = Future.value();
   bool _pollingBridge = false;
@@ -87,11 +101,23 @@ class _CharacterViewState extends State<CharacterView> {
         _enqueueSpeak(api, entry, _s.turnNonce, <String>{});
       }
     });
+    _windowSubscription = _s.windowEvents.listen((entry) {
+      final owner = _armOwner;
+      final generation = _s.connectionGeneration;
+      _windowEvents = _windowEvents
+          .then((_) async {
+            if (owner == _armOwner && generation == _s.connectionGeneration) {
+              await _onWindowEvent(entry);
+            }
+          })
+          .catchError((Object _) {});
+    });
     _resourceSubscription = _s.resourceStops.listen((_) {
       if (!mounted) return;
       _armOwner++;
       _voiceRequest++;
       _pendingClip = null;
+      _clearWindows();
       _pollTimer?.cancel();
       _speechQueue = SpeechQueue();
       setState(() {
@@ -117,6 +143,7 @@ class _CharacterViewState extends State<CharacterView> {
       _armOwner++;
       _voiceRequest++;
       _pendingClip = null;
+      _clearWindows();
       _armed = false;
       _recording = false;
       _speaking = false;
@@ -134,6 +161,7 @@ class _CharacterViewState extends State<CharacterView> {
   void dispose() {
     _pollTimer?.cancel();
     _noticeSubscription?.cancel();
+    _windowSubscription?.cancel();
     _resourceSubscription?.cancel();
     _armOwner++;
     _voiceRequest++;
@@ -172,6 +200,77 @@ class _CharacterViewState extends State<CharacterView> {
   }
 
   AppState get _s => widget.state;
+  WindowSpeechAudio? get _windowAudio =>
+      _audio is WindowSpeechAudio ? _audio as WindowSpeechAudio : null;
+  bool get _windowMode => _s.streamingWindows && _windowAudio != null;
+
+  void _clearWindows() {
+    _pendingWindow = null;
+    _ownedUtterances.clear();
+    _startedUtterances.clear();
+    _windowPlayed.clear();
+    _windowUtterance = '';
+    _liveStatus = 'Listening (live)';
+    _windowFailureShown = false;
+  }
+
+  Future<void> _nextWindowUtterance() async {
+    _windowUtterance = const Uuid().v4();
+    _windowIndex = 0;
+    _ownedUtterances.add(_windowUtterance);
+    while (_ownedUtterances.length > 16) {
+      final old = _ownedUtterances.first;
+      _ownedUtterances.remove(old);
+      _startedUtterances.remove(old);
+    }
+    _captureEpoch = await _windowAudio!.nextUtterance();
+  }
+
+  Future<void> _onWindowEvent(JournalEntry entry) async {
+    if (!mounted ||
+        !_armed ||
+        !_windowMode ||
+        entry.sessionId != _s.converseSession?.sessionId ||
+        entry.epoch != _s.converseSession?.epoch) {
+      return;
+    }
+    if (entry.kind == 'routing.window_status' ||
+        entry.kind == 'converse.window_state') {
+      final phase = entry.payload['phase'];
+      final label = phase == 'error' || phase == 'busy'
+          ? 'Response unavailable. Listening continues.'
+          : phase == 'preparing'
+          ? 'Preparing a reply'
+          : 'Listening (live)';
+      if (_liveStatus != label) setState(() => _liveStatus = label);
+    }
+    final epoch =
+        ((entry.kind == 'delivery.updated'
+                    ? entry.payload['next_generation_epoch']
+                    : entry.payload['generation_epoch'])
+                as num?)
+            ?.toInt();
+    if (epoch != null && epoch > _s.speechEpoch) {
+      _s.turnNonce++;
+      _s.speechEpoch = epoch;
+      _speechQueue = SpeechQueue();
+      await _audio.stopPlayback();
+      if (!mounted || !_armed) return;
+      setState(() => _speaking = false);
+    }
+    final utterance = entry.payload['window_utterance_id'];
+    if (entry.kind == 'conversation.converse' &&
+        _ownedUtterances.contains(utterance) &&
+        epoch == _s.speechEpoch &&
+        _windowPlayed.add(entry.eventId)) {
+      while (_windowPlayed.length > 128) {
+        _windowPlayed.remove(_windowPlayed.first);
+      }
+      final api = _s.client;
+      if (api != null) _enqueueSpeak(api, entry, _s.turnNonce, <String>{});
+    }
+  }
+
   bool get _converseAvailable =>
       _s.sessionAuthenticated &&
       _s.converseInferenceAllowed &&
@@ -404,6 +503,11 @@ class _CharacterViewState extends State<CharacterView> {
     final epoch =
         (entry.payload['generation_epoch'] as num?)?.toInt() ?? _s.speechEpoch;
     if (!_s.audioIsLive(nonce, epoch)) return;
+    final windowUtterance = entry.payload['window_utterance_id'] as String?;
+    if (windowUtterance != null &&
+        (!_armed || !_ownedUtterances.contains(windowUtterance))) {
+      return;
+    }
     final chunkId = entry.payload['chunk_id'] as String? ?? entry.eventId;
     DateTime? startedAt;
     var scheduled = 0.0;
@@ -418,6 +522,19 @@ class _CharacterViewState extends State<CharacterView> {
         final audio = frame['audio'] as String?;
         if (audio == null || audio.isEmpty) continue;
         final rate = (frame['sample_rate'] as num?)?.toInt() ?? 24000;
+        if (!started &&
+            windowUtterance != null &&
+            entry.payload['window_behavior'] ==
+                'RESPOND_WITHOUT_INTERRUPTING_USER' &&
+            !_startedUtterances.contains(windowUtterance)) {
+          while (mounted &&
+              _armed &&
+              _s.audioIsLive(nonce, epoch) &&
+              await _windowAudio!.userSpeaking) {
+            await Future<void>.delayed(const Duration(milliseconds: 40));
+          }
+          if (!mounted || !_armed || !_s.audioIsLive(nonce, epoch)) return;
+        }
         scheduled += pcmFrameSeconds(
           base64Length: audio.length,
           sampleRate: rate,
@@ -427,6 +544,12 @@ class _CharacterViewState extends State<CharacterView> {
         if (!_s.audioIsLive(nonce, epoch)) break;
         if (!started) {
           started = true;
+          if (windowUtterance != null) {
+            _startedUtterances.add(windowUtterance);
+            if (_windowUtterance == windowUtterance) {
+              await _nextWindowUtterance();
+            }
+          }
           startedAt = DateTime.now();
           if (_s.audioIsLive(nonce, epoch) && await _audio.isPlaying) {
             if (mounted && _s.audioIsLive(nonce, epoch)) {
@@ -583,6 +706,12 @@ class _CharacterViewState extends State<CharacterView> {
     final owner = ++_armOwner;
     if (!on) {
       _armed = false;
+      if (_windowMode) {
+        _s.turnNonce++;
+        _speechQueue = SpeechQueue();
+        await _audio.stopPlayback();
+      }
+      _clearWindows();
       _voiceRequest++;
       _pendingClip = null;
       _s.voiceNonce++;
@@ -600,6 +729,7 @@ class _CharacterViewState extends State<CharacterView> {
     if (!_converseAvailable || !_s.converseCanInfer || _s.client == null) {
       return;
     }
+    await _windowAudio?.configureWindows(_windowMode);
     await _audio.configureVad(endSilenceMs: _endSilenceMs);
     if (!mounted || owner != _armOwner || !_converseAvailable) return;
     final result = await _audio.startArmed();
@@ -620,7 +750,18 @@ class _CharacterViewState extends State<CharacterView> {
       _armed = true;
       _mood = 'listening';
     });
-    await _beginCapture();
+    if (_windowMode) {
+      try {
+        await _s.ensureSession('converse', name: 'Converse');
+        if (!mounted || !_armed || owner != _armOwner) return;
+        await _nextWindowUtterance();
+      } catch (_) {
+        if (mounted && owner == _armOwner) await _setArmed(false);
+        return;
+      }
+    } else {
+      await _beginCapture();
+    }
     _pollTimer?.cancel();
     _pollTimer = Timer.periodic(
       const Duration(milliseconds: 100),
@@ -629,9 +770,17 @@ class _CharacterViewState extends State<CharacterView> {
   }
 
   Future<void> _pollBridge() async {
-    if (!_armed || _pollingBridge || _voiceBusy) return;
+    if (!_armed || _pollingBridge || (!_windowMode && _voiceBusy)) return;
     _pollingBridge = true;
     try {
+      if (_windowMode) {
+        if (++_windowPolls >= 10) {
+          _windowPolls = 0;
+          await _captureWindow();
+        }
+        await _audio.pollBridgeEvents();
+        return;
+      }
       final events = await _audio.pollBridgeEvents();
       for (final event in events) {
         if (!_armed || !mounted) return;
@@ -648,6 +797,86 @@ class _CharacterViewState extends State<CharacterView> {
       /* The next bounded poll can recover. */
     } finally {
       _pollingBridge = false;
+    }
+  }
+
+  Future<void> _captureWindow() async {
+    final owner = _armOwner;
+    final utterance = _windowUtterance;
+    final snapshot = await _windowAudio!.snapshotWindow();
+    final session = _s.converseSession;
+    if (!mounted ||
+        !_armed ||
+        owner != _armOwner ||
+        snapshot == null ||
+        session == null ||
+        utterance != _windowUtterance ||
+        snapshot['capture_epoch'] != _captureEpoch) {
+      return;
+    }
+    _pendingWindow = <String, Object?>{
+      'schema_version': '1.0',
+      'session_id': session.sessionId,
+      'thread_id': session.threadId,
+      'epoch': session.epoch,
+      'utterance_id': utterance,
+      'window_index': _windowIndex++,
+      'revision': 1,
+      'start_ms': snapshot['start_ms'],
+      'end_ms': snapshot['end_ms'],
+      'user_speaking': snapshot['user_speaking'],
+      'capture_ended': false,
+      'content_scope': _s.connection?.backendProfile == BackendProfile.clean
+          ? 'local_only'
+          : 'public_synthetic',
+      'audio_base64': snapshot['base64'],
+    };
+    unawaited(_drainWindows(owner));
+  }
+
+  Future<void> _drainWindows(int owner) async {
+    if (_windowTranscribing) return;
+    _windowTranscribing = true;
+    final api = _s.client;
+    final generation = _s.connectionGeneration;
+    try {
+      while (mounted &&
+          _armed &&
+          owner == _armOwner &&
+          _pendingWindow != null &&
+          api != null &&
+          _s.converseCanInfer &&
+          _s.ownsConnection(generation, api)) {
+        final window = _pendingWindow!;
+        _pendingWindow = null;
+        try {
+          await api.transcribeWindow(window);
+          _windowFailureShown = false;
+          if (!mounted ||
+              owner != _armOwner ||
+              !_s.ownsConnection(generation, api)) {
+            return;
+          }
+          unawaited(_s.refreshNotices());
+        } catch (_) {
+          if (mounted && _armed && owner == _armOwner && !_windowFailureShown) {
+            _windowFailureShown = true;
+            _s.appendHistory(
+              AppView.character,
+              ChatMsg(
+                role: 'system',
+                text:
+                    'A live transcript window could not be received. Listening continues.',
+              ),
+            );
+          }
+        }
+      }
+    } finally {
+      _windowTranscribing = false;
+      if (mounted && _armed && _pendingWindow != null) {
+        unawaited(_drainWindows(_armOwner));
+      }
     }
   }
 
@@ -959,32 +1188,38 @@ class _CharacterViewState extends State<CharacterView> {
                         ),
                         const Text('Live'),
                         const SizedBox(width: 8),
-                        const Tooltip(
-                          message: 'Silence that ends a voice clip',
-                          child: Text('Silence'),
-                        ),
-                        const SizedBox(width: 4),
-                        DropdownButton<int>(
-                          value: _endSilenceMs,
-                          items: [
-                            for (final v in endSilenceOptionsMs)
-                              DropdownMenuItem(
-                                value: v,
-                                child: Text(
-                                  '${(v / 1000).toStringAsFixed(1)}s',
+                        if (_windowMode)
+                          const Text('Conversation timing')
+                        else ...[
+                          const Tooltip(
+                            message: 'Silence that ends a voice clip',
+                            child: Text('Silence'),
+                          ),
+                          const SizedBox(width: 4),
+                          DropdownButton<int>(
+                            value: _endSilenceMs,
+                            items: [
+                              for (final v in endSilenceOptionsMs)
+                                DropdownMenuItem(
+                                  value: v,
+                                  child: Text(
+                                    '${(v / 1000).toStringAsFixed(1)}s',
+                                  ),
                                 ),
-                              ),
-                          ],
-                          onChanged: (v) async {
-                            if (v == null) return;
-                            setState(() => _endSilenceMs = v);
-                            await _audio.configureVad(endSilenceMs: v);
-                          },
-                        ),
+                            ],
+                            onChanged: (v) async {
+                              if (v == null) return;
+                              setState(() => _endSilenceMs = v);
+                              await _audio.configureVad(endSilenceMs: v);
+                            },
+                          ),
+                        ],
                         if (_armed)
-                          const Padding(
+                          Padding(
                             padding: EdgeInsets.only(left: 8),
-                            child: Text('Listening (live)'),
+                            child: Text(
+                              _windowMode ? _liveStatus : 'Listening (live)',
+                            ),
                           ),
                       ],
                     ),

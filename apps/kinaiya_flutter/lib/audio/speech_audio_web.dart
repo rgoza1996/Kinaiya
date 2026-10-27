@@ -18,7 +18,7 @@ import 'speech_audio.dart';
 @JS('kinaiyaAudio')
 external JSObject? get _bridge;
 
-class _WebSpeechAudio implements SpeechAudio {
+class _WebSpeechAudio implements SpeechAudio, WindowSpeechAudio {
   bool get _ready => _bridge != null;
 
   JSAny _call0(String name) => _bridge!.callMethod<JSAny>(name.toJS);
@@ -193,6 +193,27 @@ class _WebSpeechAudio implements SpeechAudio {
   @override
   Future<int> get captureEpoch async =>
       _ready ? int.tryParse(await _str0('captureEpoch')) ?? 0 : 0;
+
+  @override
+  Future<void> configureWindows(bool enabled) async {
+    if (_ready) await _str1('windowConfigure', enabled.toJS);
+  }
+
+  @override
+  Future<Map<String, Object?>?> snapshotWindow() async {
+    if (!_ready) return null;
+    final raw = await _str0('windowSnapshot');
+    if (raw.isEmpty) return null;
+    return (jsonDecode(raw) as Map).cast<String, Object?>();
+  }
+
+  @override
+  Future<bool> get userSpeaking async =>
+      _ready && await _str0('windowSpeaking') == 'yes';
+
+  @override
+  Future<int> nextUtterance() async =>
+      _ready ? int.tryParse(await _str0('nextWindowUtterance')) ?? 0 : 0;
 
   @override
   Future<String> beginClip() =>

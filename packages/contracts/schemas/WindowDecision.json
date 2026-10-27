@@ -1,0 +1,125 @@
+{
+  "additionalProperties": false,
+  "description": "Separate conversation timing and work routing, bound to one native window.",
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "decision_id": {
+      "title": "Decision Id",
+      "type": "string"
+    },
+    "prompt_chars": {
+      "default": 0,
+      "maximum": 200000,
+      "minimum": 0,
+      "title": "Prompt Chars",
+      "type": "integer"
+    },
+    "history_chars": {
+      "default": 0,
+      "maximum": 48000,
+      "minimum": 0,
+      "title": "History Chars",
+      "type": "integer"
+    },
+    "context_entries": {
+      "default": 0,
+      "maximum": 12,
+      "minimum": 0,
+      "title": "Context Entries",
+      "type": "integer"
+    },
+    "classification_reused": {
+      "default": false,
+      "title": "Classification Reused",
+      "type": "boolean"
+    },
+    "source_event_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Source Event Id",
+      "type": "string"
+    },
+    "source_sequence": {
+      "minimum": 1,
+      "title": "Source Sequence",
+      "type": "integer"
+    },
+    "source_revision": {
+      "minimum": 1,
+      "title": "Source Revision",
+      "type": "integer"
+    },
+    "conversation": {
+      "enum": [
+        "IGNORE",
+        "WAIT_FOR_NEXT_WINDOW",
+        "RESPOND_INTERRUPT_USER",
+        "RESPOND_WITHOUT_INTERRUPTING_USER"
+      ],
+      "title": "Conversation",
+      "type": "string"
+    },
+    "agent_route": {
+      "enum": [
+        "IGNORE_FOR_IMMEDIATE_ROUTING",
+        "STEER_CURRENT_TASK",
+        "INTERRUPT_CURRENT_TASK",
+        "QUEUE_UNTIL_TASK_DONE"
+      ],
+      "title": "Agent Route",
+      "type": "string"
+    },
+    "target_task_id": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Target Task Id"
+    },
+    "expected_objective_revision": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Expected Objective Revision"
+    },
+    "reason_code": {
+      "default": "classified",
+      "maxLength": 120,
+      "title": "Reason Code",
+      "type": "string"
+    },
+    "classifier_ms": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Classifier Ms",
+      "type": "number"
+    }
+  },
+  "required": [
+    "source_event_id",
+    "source_sequence",
+    "source_revision",
+    "conversation",
+    "agent_route"
+  ],
+  "title": "WindowDecision",
+  "type": "object"
+}

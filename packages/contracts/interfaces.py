@@ -23,6 +23,22 @@ class Journal(Protocol):
 
     async def session(self, session_id: str) -> Session: ...
 
+    async def latest_window(
+        self, session_id: str, epoch: int, utterance_id: str, window_index: int | None = None
+    ) -> JournalEntry | None: ...
+
+    async def window_decision(self, source_event_id: str) -> JournalEntry | None: ...
+
+    async def window_response(
+        self, session_id: str, epoch: int, utterance_id: str
+    ) -> JournalEntry | None: ...
+
+    async def window_dispatches(self, **query) -> list[JournalEntry]: ...
+
+    async def window_control(
+        self, session_id: str, epoch: int, agent_interrupt: bool = False
+    ) -> JournalEntry | None: ...
+
 
 class TextProvider(Protocol):
     info: ProviderInfo

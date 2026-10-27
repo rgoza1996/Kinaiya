@@ -59,6 +59,43 @@ class JournalClient:
         response.raise_for_status()
         return JournalEntry.model_validate(response.json())
 
+    async def latest_window(self, session_id, epoch, utterance_id, window_index=None):
+        params = {"session_id": session_id, "epoch": epoch, "utterance_id": utterance_id}
+        if window_index is not None:
+            params["window_index"] = window_index
+        response = await self.http.get("/v1/transcript/windows/latest", params=params)
+        response.raise_for_status()
+        return JournalEntry.model_validate(response.json()) if response.json() is not None else None
+
+    async def window_decision(self, source_event_id):
+        response = await self.http.get(f"/v1/transcript/windows/{source_event_id}/decision")
+        response.raise_for_status()
+        return JournalEntry.model_validate(response.json()) if response.json() is not None else None
+
+    async def window_response(self, session_id, epoch, utterance_id):
+        response = await self.http.get(
+            "/v1/transcript/windows/response",
+            params={"session_id": session_id, "epoch": epoch, "utterance_id": utterance_id},
+        )
+        response.raise_for_status()
+        return JournalEntry.model_validate(response.json()) if response.json() is not None else None
+
+    async def window_dispatches(self, **query):
+        response = await self.http.get(
+            "/v1/transcript/windows/dispatches",
+            params={k: v for k, v in query.items() if v is not None},
+        )
+        response.raise_for_status()
+        return [JournalEntry.model_validate(e) for e in response.json()]
+
+    async def window_control(self, session_id, epoch, agent_interrupt=False):
+        response = await self.http.get(
+            "/v1/transcript/windows/control",
+            params={"session_id": session_id, "epoch": epoch, "agent_interrupt": agent_interrupt},
+        )
+        response.raise_for_status()
+        return JournalEntry.model_validate(response.json()) if response.json() is not None else None
+
     async def cursor(self, consumer):
         response = await self.http.get(f"/v1/cursors/{consumer}")
         response.raise_for_status()

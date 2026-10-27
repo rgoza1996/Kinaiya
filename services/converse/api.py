@@ -1,11 +1,14 @@
+import base64
+import hashlib
 import json
+import time
 
 from fastapi import Depends, FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from packages.contracts.models import ConverseRequest, DeliveryRequest
+from packages.contracts.models import ConverseRequest, DeliveryRequest, SpeechWindow
 
 
 class SessionControl(BaseModel):
@@ -22,7 +25,11 @@ class EnabledRequest(BaseModel):
     enabled: bool
 
 
-def create_app(runtime, auth, speech=None):
+class AudioWindow(SpeechWindow):
+    audio_base64: str = Field(min_length=1, max_length=14_000_000)
+
+
+def create_app(runtime, auth, speech=None, window_controller=None):
     app = FastAPI(title="Kinaiya Converse", version="1.0")
     owner = [Depends(auth.require("owner"))]
     app.add_middleware(
@@ -39,6 +46,7 @@ def create_app(runtime, auth, speech=None):
             "enabled": runtime.enabled,
             "provider": runtime.provider.info.model_dump(),
             "voice_configured": speech is not None,
+            "streaming_windows": window_controller is not None,
         }
 
     @app.post("/v1/converse/turns", dependencies=owner)
@@ -93,6 +101,63 @@ def create_app(runtime, auth, speech=None):
         if not runtime.enabled:
             raise HTTPException(409, "Converse is off; direct Agent Chat remains available")
         return await speech.transcribe(data, file.filename or "recording.wav")
+
+    @app.post("/v1/converse/windows", dependencies=owner)
+    async def window(request: SpeechWindow):
+        if window_controller is None:
+            raise HTTPException(503, "Streaming conversation control is unavailable")
+        if not runtime.enabled:
+            raise HTTPException(409, "Converse is off; direct Agent Chat remains available")
+        try:
+            entry = await window_controller.ingest(request)
+            return {"entry": entry.model_dump(mode="json")}
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from exc
+
+    @app.post("/v1/converse/audio/windows", dependencies=owner)
+    async def audio_window(request: AudioWindow):
+        if window_controller is None or speech is None:
+            raise HTTPException(503, "Configure streaming conversation control and STT")
+        if not runtime.enabled:
+            raise HTTPException(409, "Converse is off; direct Agent Chat remains available")
+        try:
+            data = base64.b64decode(request.audio_base64, validate=True)
+        except ValueError as exc:
+            raise HTTPException(400, "Invalid window audio") from exc
+        if len(data) > 10_000_000:
+            raise HTTPException(413, "Audio window exceeds temporary buffer limit")
+        digest = hashlib.sha256(data).hexdigest()
+        try:
+            session = await runtime.journal.session(request.session_id)
+            if session.thread_id != request.thread_id:
+                raise ValueError("Wrong window thread")
+            previous = await runtime.journal.latest_window(
+                request.session_id, request.epoch, request.utterance_id, request.window_index
+            )
+        except (KeyError, ValueError) as exc:
+            raise HTTPException(409, "Unknown or obsolete audio-window scope") from exc
+        if previous is not None and previous.payload.get("revision") == request.revision:
+            expected = request.model_dump(exclude={"audio_base64", "text", "audio_sha256"})
+            if previous.payload.get("audio_sha256") != digest or any(
+                previous.payload.get(k) != v for k, v in expected.items()
+            ):
+                raise HTTPException(409, "Audio window identity reused with different content")
+            return {"entry": previous.model_dump(mode="json"), "replay": True}
+        if request.revision != (previous.payload["revision"] + 1 if previous else 1):
+            raise HTTPException(409, "Audio-window revision must increase by one")
+        started = time.monotonic()
+        transcript = await speech.transcribe(data, "window.wav")
+        fields = request.model_dump(exclude={"audio_base64"})
+        fields.update(text=transcript.get("text", "").strip(), audio_sha256=digest)
+        try:
+            entry = await window_controller.ingest(SpeechWindow.model_validate(fields))
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from exc
+        return {
+            "entry": entry.model_dump(mode="json"),
+            "stt_ms": (time.monotonic() - started) * 1000,
+            "retained_audio": False,
+        }
 
     @app.post("/v1/converse/speech", dependencies=owner)
     async def audio(request: SpeechRequest):

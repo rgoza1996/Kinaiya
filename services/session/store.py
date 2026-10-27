@@ -5,16 +5,30 @@ import sqlite3
 import threading
 from pathlib import Path
 
-from packages.contracts.models import AppendRequest, JournalEntry, Session, SessionRequest
+from packages.contracts.models import (
+    AppendRequest,
+    JournalEntry,
+    Session,
+    SessionRequest,
+    SpeechWindow,
+    WindowDecision,
+)
 
 ALLOWED_KINDS = {
-    "owner": {"conversation.user", "conversation.revision", "delivery.updated"},
+    "owner": {
+        "conversation.user",
+        "conversation.window",
+        "conversation.revision",
+        "delivery.updated",
+    },
     "converse": {
         "conversation.user",
+        "conversation.window",
         "conversation.converse",
         "conversation.revision",
         "delivery.updated",
         "converse.safety",
+        "converse.window_state",
     },
     "agent": {
         "agent.command",
@@ -27,7 +41,13 @@ ALLOWED_KINDS = {
         "approval.resolved",
         "artifact.updated",
     },
-    "decisions": {"routing.decided", "routing.dispatch"},
+    "decisions": {
+        "routing.decided",
+        "routing.dispatch",
+        "routing.window_decided",
+        "routing.window_dispatch",
+        "routing.window_status",
+    },
     "resources": {"resource.changed"},
 }
 
@@ -58,6 +78,12 @@ class Store:
                 value TEXT NOT NULL, UNIQUE(session_id,writer,idem));
             CREATE INDEX IF NOT EXISTS entries_thread ON entries(thread_id,sequence);
             CREATE INDEX IF NOT EXISTS entries_session ON entries(session_id,sequence);
+            CREATE INDEX IF NOT EXISTS entries_window_dispatch ON entries(
+                json_extract(value,'$.payload.decision_id'), sequence)
+                WHERE kind='routing.window_dispatch';
+            CREATE INDEX IF NOT EXISTS entries_window_semantic ON entries(
+                session_id, json_extract(value,'$.payload.semantic_key'), sequence)
+                WHERE kind='routing.window_dispatch';
             CREATE TABLE IF NOT EXISTS cursors(
                 writer TEXT NOT NULL, consumer TEXT NOT NULL, sequence INTEGER NOT NULL,
                 PRIMARY KEY(writer,consumer));
@@ -127,6 +153,55 @@ class Store:
             session = self.session(request.session_id)
             if (request.epoch, request.thread_id) != (session.epoch, session.thread_id):
                 raise JournalError("Stale epoch or wrong session thread")
+            if request.kind == "conversation.window":
+                try:
+                    window = SpeechWindow.model_validate(request.payload)
+                except ValueError as exc:
+                    raise JournalError("Invalid transcript-window payload") from exc
+                if session.channel != "converse" or (
+                    window.session_id,
+                    window.thread_id,
+                    window.epoch,
+                ) != (request.session_id, request.thread_id, request.epoch):
+                    raise JournalError("Wrong transcript-window scope")
+                previous = self._window_row(
+                    window.session_id, window.epoch, window.utterance_id, window.window_index
+                )
+                if previous is not None:
+                    prior = SpeechWindow.model_validate(previous.payload)
+                    if window.revision == prior.revision and window == prior:
+                        return previous
+                    if window.revision != prior.revision + 1:
+                        raise JournalError("Window revision must increase by one")
+                elif window.revision != 1:
+                    raise JournalError("The first window revision must be one")
+            elif request.kind == "routing.window_decided":
+                try:
+                    decision = WindowDecision.model_validate(request.payload)
+                except ValueError as exc:
+                    raise JournalError("Invalid window decision payload") from exc
+                source = self.resolve(decision.source_event_id)
+                if (
+                    source.kind != "conversation.window"
+                    or source.origin != "authenticated-user"
+                    or (
+                        source.session_id,
+                        source.thread_id,
+                        source.epoch,
+                        source.sequence,
+                        source.payload.get("revision"),
+                        request.causes,
+                    )
+                    != (
+                        request.session_id,
+                        request.thread_id,
+                        request.epoch,
+                        decision.source_sequence,
+                        decision.source_revision,
+                        [decision.source_event_id],
+                    )
+                ):
+                    raise JournalError("Window decision does not bind an authenticated source")
             row = self.db.execute(
                 "SELECT request,value FROM entries WHERE session_id=? AND writer=? AND idem=?",
                 (request.session_id, role, request.idempotency_key),
@@ -156,7 +231,7 @@ class Store:
                 if request.payload.get("revision") != current.payload.get("revision", 1) + 1:
                     raise JournalError("Revision must increase by one")
             origin = {"owner": "authenticated-user", "agent": "agent-supervisor"}.get(role, role)
-            if request.kind == "conversation.user":
+            if request.kind in {"conversation.user", "conversation.window"}:
                 origin = "authenticated-user"
             event = JournalEntry(**request.model_dump(), sequence=1, origin=origin)
             cursor = self.db.execute(
@@ -183,6 +258,13 @@ class Store:
 
     def resolve(self, event_id: str) -> JournalEntry:
         event = self.entry(event_id)
+        if event.kind == "conversation.window":
+            window = SpeechWindow.model_validate(event.payload)
+            with self.lock:
+                latest = self._window_row(
+                    window.session_id, window.epoch, window.utterance_id, window.window_index
+                )
+            return latest or event
         with self.lock:
             row = self.db.execute(
                 "SELECT value FROM entries WHERE session_id=? AND kind='conversation.revision' "
@@ -193,6 +275,106 @@ class Store:
             revision = JournalEntry.model_validate_json(row[0])
             event = event.model_copy(update={"payload": {**event.payload, **revision.payload}})
         return event
+
+    def _window_row(self, session_id, epoch, utterance_id, window_index=None):
+        query = "SELECT value FROM entries WHERE session_id=? AND epoch=? AND kind='conversation.window' AND json_extract(value,'$.payload.utterance_id')=?"
+        args = [session_id, epoch, utterance_id]
+        if window_index is not None:
+            query += " AND json_extract(value,'$.payload.window_index')=?"
+            args.append(window_index)
+        query += " ORDER BY json_extract(value,'$.payload.window_index') DESC, json_extract(value,'$.payload.revision') DESC, sequence DESC LIMIT 1"
+        row = self.db.execute(query, args).fetchone()
+        return JournalEntry.model_validate_json(row[0]) if row else None
+
+    def latest_window(self, session_id, epoch, utterance_id, window_index=None):
+        with self.lock:
+            session = self.session(session_id)
+            if session.channel != "converse" or session.epoch != epoch:
+                raise JournalError("Stale transcript-window scope")
+            return self._window_row(session_id, epoch, utterance_id, window_index)
+
+    def window_decision(self, source_event_id):
+        with self.lock:
+            row = self.db.execute(
+                "SELECT value FROM entries WHERE kind='routing.window_decided' AND json_extract(value,'$.payload.source_event_id')=? ORDER BY sequence LIMIT 1",
+                (source_event_id,),
+            ).fetchone()
+        return JournalEntry.model_validate_json(row[0]) if row else None
+
+    def window_response(self, session_id, epoch, utterance_id):
+        with self.lock:
+            row = self.db.execute(
+                "SELECT value FROM entries WHERE session_id=? AND epoch=? AND kind='converse.window_state' AND json_extract(value,'$.payload.utterance_id')=? AND json_extract(value,'$.payload.phase')='started' ORDER BY sequence LIMIT 1",
+                (session_id, epoch, utterance_id),
+            ).fetchone()
+        return JournalEntry.model_validate_json(row[0]) if row else None
+
+    def window_control(self, session_id, epoch, agent_interrupt=False):
+        condition = (
+            "json_extract(value,'$.payload.agent_route')='INTERRUPT_CURRENT_TASK'"
+            if agent_interrupt
+            else "json_extract(value,'$.payload.conversation')!='IGNORE'"
+        )
+        with self.lock:
+            row = self.db.execute(
+                "SELECT value FROM entries WHERE session_id=? AND epoch=? AND kind='routing.window_decided' AND "
+                + condition
+                + " ORDER BY json_extract(value,'$.payload.source_sequence') DESC,sequence DESC LIMIT 1",
+                (session_id, epoch),
+            ).fetchone()
+        return JournalEntry.model_validate_json(row[0]) if row else None
+
+    def window_dispatches(
+        self,
+        *,
+        session_id=None,
+        decision_id=None,
+        semantic_key=None,
+        pending_only=False,
+        interrupt_only=False,
+        after=0,
+        limit=100,
+    ):
+        """Indexed durable receipt lookup; historical prefixes never hide terminal receipts."""
+        if not 1 <= limit <= 200 or after < 0:
+            raise JournalError("Invalid window-dispatch query bound")
+        where = ["e.kind='routing.window_dispatch'", "e.sequence>?"]
+        args = [after]
+        for field, value in (
+            ("session_id", session_id),
+            ("decision_id", decision_id),
+            ("semantic_key", semantic_key),
+        ):
+            if value is not None:
+                where.append(
+                    "e.session_id=?"
+                    if field == "session_id"
+                    else f"json_extract(e.value,'$.payload.{field}')=?"
+                )
+                args.append(value)
+        if interrupt_only:
+            where.extend(
+                [
+                    "json_extract(e.value,'$.payload.agent_route')='INTERRUPT_CURRENT_TASK'",
+                    "json_extract(e.value,'$.payload.state') IN ('applied','unknown')",
+                ]
+            )
+        if pending_only:
+            where.append("json_extract(e.value,'$.payload.state')='queued'")
+            where.append("""NOT EXISTS (SELECT 1 FROM entries t
+                WHERE t.kind='routing.window_dispatch' AND t.session_id=e.session_id
+                AND json_extract(t.value,'$.payload.decision_id')=json_extract(e.value,'$.payload.decision_id')
+                AND json_extract(t.value,'$.payload.state') IN ('applied','rejected','unknown','not_applied'))""")
+        with self.lock:
+            rows = self.db.execute(
+                "SELECT e.value FROM entries e WHERE "
+                + " AND ".join(where)
+                + " ORDER BY e.sequence "
+                + ("ASC" if pending_only else "DESC")
+                + " LIMIT ?",
+                [*args, limit],
+            ).fetchall()
+        return [JournalEntry.model_validate_json(r[0]) for r in rows]
 
     def recent(self, *, session_id: str, limit=100):
         if not 1 <= limit <= 200:
@@ -311,6 +493,21 @@ class LocalJournal:
 
     async def resolve(self, event_id):
         return self.store.resolve(event_id)
+
+    async def latest_window(self, session_id, epoch, utterance_id, window_index=None):
+        return self.store.latest_window(session_id, epoch, utterance_id, window_index)
+
+    async def window_decision(self, source_event_id):
+        return self.store.window_decision(source_event_id)
+
+    async def window_response(self, session_id, epoch, utterance_id):
+        return self.store.window_response(session_id, epoch, utterance_id)
+
+    async def window_dispatches(self, **query):
+        return self.store.window_dispatches(**query)
+
+    async def window_control(self, session_id, epoch, agent_interrupt=False):
+        return self.store.window_control(session_id, epoch, agent_interrupt)
 
     async def entry(self, event_id):
         return self.store.entry(event_id)

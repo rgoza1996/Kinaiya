@@ -36,6 +36,7 @@
     armed: false,
     clip: { recording: false, startMs: 0 },
     vad: freshVad(),
+    windows: { enabled:false, chunks:[], samples:0, total:0, rate:24000, speaking:false, heard:false, node:null, source:null, sink:null, workletLoaded:false },
   };
 
   function freshVad() {
@@ -267,6 +268,78 @@
       }
       state.analyser = null;
     }
+  }
+
+  function resetWindow() {
+    state.windows.chunks=[];state.windows.samples=0;state.windows.total=0;
+    state.windows.heard=false;
+    state.windows.voices=0;state.windows.emittedVoices=-1;state.windows.emittedFinal=false;
+  }
+
+  function stopWindowCapture() {
+    var w=state.windows;
+    [w.node,w.source,w.sink].forEach(function(node){if(node){try{node.disconnect();}catch(e){}}});
+    if(w.node && w.node.port) w.node.port.onmessage=null;
+    if(w.node) w.node.onaudioprocess=null;
+    w.node=w.source=w.sink=null;
+    resetWindow();
+  }
+
+  function captureSamples(samples,rate) {
+    var w=state.windows;
+    if(!state.armed || !w.enabled || !samples || !samples.length)return;
+    w.rate=rate;var copy=new Float32Array(samples.length);copy.set(samples);
+    w.chunks.push(copy);w.samples+=copy.length;w.total+=copy.length;
+    var cap=rate*30;
+    while(w.samples>cap && w.chunks.length>1){w.samples-=w.chunks.shift().length;}
+  }
+
+  async function startWindowCapture() {
+    stopWindowCapture();
+    var w=state.windows,ctx=state.ctx;
+    if(!w.enabled)return true;
+    if(!ctx || !state.stream)return false;
+    w.source=ctx.createMediaStreamSource(state.stream);
+    w.sink=ctx.createGain();w.sink.gain.value=0;
+    var Worklet=typeof AudioWorkletNode!=='undefined' ? AudioWorkletNode : window.AudioWorkletNode;
+    if(ctx.audioWorklet && Worklet){
+      try{
+        if(!w.workletLoaded){await ctx.audioWorklet.addModule('window_capture_worklet.js');w.workletLoaded=true;}
+        if(!state.armed || !state.stream)return false;
+        w.node=new Worklet(ctx,'kinaiya-window-pcm');
+        w.node.port.onmessage=function(e){captureSamples(e.data,ctx.sampleRate);};
+      }catch(e){w.node=null;}
+    }
+    if(!w.node && typeof ctx.createScriptProcessor==='function'){
+      w.node=ctx.createScriptProcessor(2048,1,1);
+      w.node.onaudioprocess=function(e){captureSamples(e.inputBuffer.getChannelData(0),ctx.sampleRate);};
+    }
+    if(!w.node){stopWindowCapture();return false;}
+    w.source.connect(w.node);w.node.connect(w.sink);w.sink.connect(ctx.destination);
+    return true;
+  }
+
+  function windowWav() {
+    var w=state.windows;
+    if(!w.samples || !w.heard)return '';
+    if(!w.speaking && w.emittedFinal && w.emittedVoices===w.voices)return '';
+    w.emittedVoices=w.voices;w.emittedFinal=!w.speaking;
+    var buffer=new ArrayBuffer(44+w.samples*2),view=new DataView(buffer);
+    function str(pos,s){for(var i=0;i<s.length;i++)view.setUint8(pos+i,s.charCodeAt(i));}
+    str(0,'RIFF');view.setUint32(4,36+w.samples*2,true);str(8,'WAVE');str(12,'fmt ');
+    view.setUint32(16,16,true);view.setUint16(20,1,true);view.setUint16(22,1,true);
+    view.setUint32(24,w.rate,true);view.setUint32(28,w.rate*2,true);view.setUint16(32,2,true);
+    view.setUint16(34,16,true);str(36,'data');view.setUint32(40,w.samples*2,true);
+    var offset=44;
+    w.chunks.forEach(function(chunk){for(var i=0;i<chunk.length;i++){
+      var value=Number.isFinite(chunk[i])?Math.max(-1,Math.min(1,chunk[i])):0;
+      view.setInt16(offset,value<0?value*32768:value*32767,true);offset+=2;
+    }});
+    var bytes=new Uint8Array(buffer),binary='';
+    for(var p=0;p<bytes.length;p+=8192)binary+=String.fromCharCode.apply(null,bytes.subarray(p,p+8192));
+    return JSON.stringify({base64:btoa(binary),mime:'audio/wav',capture_epoch:state.vad.epoch,
+      start_ms:Math.round((w.total-w.samples)*1000/w.rate),end_ms:Math.round(w.total*1000/w.rate),
+      user_speaking:w.speaking,sample_rate:w.rate});
   }
 
   var api = {
@@ -506,6 +579,7 @@
         /* ignore */
       }
       pumpStop();
+      stopWindowCapture();
       state.armed = false;
       state.clip = { recording: false, startMs: 0 };
       state.vad = freshVad();
@@ -570,6 +644,11 @@
       var speech = Math.max(vad.noise * 3.4 + 0.012, 0.026);
       var silence = Math.max(vad.noise * 2.2 + 0.006, 0.012);
       var voice = r > speech || (vad.speaking && r >= silence);
+      if(state.windows.enabled){
+        state.windows.speaking=voice;
+        if(voice){state.windows.heard=true;state.windows.voices++;}
+        return '';
+      }
       // Barge timing is independent of ordinary turn-start confirmation.
       if (state.playing && !vad.barged) {
         if (r > speech) {
@@ -639,6 +718,10 @@
           state.vad.clipStart = nowMs();
           state.vad.capFired = false;
           pumpStart();
+          if(state.windows.enabled && !(await startWindowCapture())){
+            state.armed=false;pumpStop();stopTracks();return 'unavailable';
+          }
+          if(micOwner!==state.micGeneration){stopWindowCapture();stopTracks();return 'unavailable';}
           pushEvent({ type: 'armed', active: true, epoch: state.vad.epoch });
           return 'armed';
         },
@@ -649,6 +732,7 @@
     },
 
     stopArmed: function () {
+      stopWindowCapture();
       try {
         if (state.recorder && state.recorder.state !== 'inactive') {
           try {
@@ -671,6 +755,7 @@
     },
 
     beginClip: function () {
+      if(state.windows.enabled)return Promise.resolve('window-capture');
       if (!state.armed || !state.stream) {
         return Promise.resolve('not-armed');
       }
@@ -694,6 +779,15 @@
     },
 
     captureEpoch: function () { return String(state.vad.epoch); },
+
+    windowConfigure: function(enabled){
+      state.windows.enabled=enabled===true;
+      if(!state.windows.enabled)stopWindowCapture();
+      return state.windows.enabled?'windows':'legacy';
+    },
+    windowSnapshot: function(){return windowWav();},
+    windowSpeaking: function(){return state.windows.speaking?'yes':'no';},
+    nextWindowUtterance: function(){resetWindow();state.vad.epoch++;return String(state.vad.epoch);},
 
     finishClip: function () {
       var rec = state.recorder;

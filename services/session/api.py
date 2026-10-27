@@ -90,9 +90,58 @@ def create_app(store: Store, auth: Auth) -> FastAPI:
     async def entry(event_id: str, resolve: bool = False):
         return store.resolve(event_id) if resolve else store.entry(event_id)
 
+    @app.get("/v1/transcript/windows/latest", dependencies=[Depends(auth.require())])
+    async def latest_window(
+        session_id: str,
+        epoch: int = Query(ge=1),
+        utterance_id: str = Query(min_length=1, max_length=128),
+        window_index: int | None = Query(default=None, ge=0),
+    ):
+        return store.latest_window(session_id, epoch, utterance_id, window_index)
+
+    @app.get(
+        "/v1/transcript/windows/{source_event_id}/decision", dependencies=[Depends(auth.require())]
+    )
+    async def window_decision(source_event_id: str):
+        return store.window_decision(source_event_id)
+
+    @app.get("/v1/transcript/windows/response", dependencies=[Depends(auth.require())])
+    async def window_response(
+        session_id: str,
+        epoch: int = Query(ge=1),
+        utterance_id: str = Query(min_length=1, max_length=128),
+    ):
+        return store.window_response(session_id, epoch, utterance_id)
+
     @app.get("/v1/transcript/recent", dependencies=[Depends(auth.require())])
     async def recent(session_id: str, limit: int = Query(100, ge=1, le=200)):
         return store.recent(session_id=session_id, limit=limit)
+
+    @app.get("/v1/transcript/windows/dispatches", dependencies=[Depends(auth.require())])
+    async def window_dispatches(
+        session_id: str | None = None,
+        decision_id: str | None = None,
+        semantic_key: str | None = None,
+        pending_only: bool = False,
+        interrupt_only: bool = False,
+        after: int = Query(0, ge=0),
+        limit: int = Query(100, ge=1, le=200),
+    ):
+        return store.window_dispatches(
+            session_id=session_id,
+            decision_id=decision_id,
+            semantic_key=semantic_key,
+            pending_only=pending_only,
+            interrupt_only=interrupt_only,
+            after=after,
+            limit=limit,
+        )
+
+    @app.get("/v1/transcript/windows/control", dependencies=[Depends(auth.require())])
+    async def window_control(
+        session_id: str, epoch: int = Query(ge=1), agent_interrupt: bool = False
+    ):
+        return store.window_control(session_id, epoch, agent_interrupt)
 
     @app.get("/v1/cursors/{consumer}")
     async def cursor(consumer: str, role=authenticated):

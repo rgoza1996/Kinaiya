@@ -356,6 +356,7 @@ def serve(args):
         from packages.providers.speech import SpeechClient
         from services.converse.api import create_app
         from services.converse.runtime import ConverseRuntime
+        from services.converse.windows import WindowConverseController
         from services.decisions.runtime import OutcomeWorker
 
         journal = JournalClient(config["session_url"], tokens["converse"])
@@ -368,7 +369,12 @@ def serve(args):
             if voice
             else None
         )
-        app = create_app(runtime, auth, speech)
+        windows = (
+            WindowConverseController(runtime)
+            if config.get("streaming_windows", {}).get("enabled", True)
+            else None
+        )
+        app = create_app(runtime, auth, speech, windows)
 
         @asynccontextmanager
         async def converse_lifespan(app):
@@ -381,9 +387,14 @@ def serve(args):
                         await asyncio.sleep(1)
 
             observer = asyncio.create_task(observe())
+            window_observer = asyncio.create_task(windows.run()) if windows else None
             yield
             observer.cancel()
-            await asyncio.gather(observer, return_exceptions=True)
+            if window_observer:
+                window_observer.cancel()
+            await asyncio.gather(
+                observer, *([window_observer] if window_observer else []), return_exceptions=True
+            )
             await journal.close()
             if speech:
                 await speech.close()
@@ -393,6 +404,8 @@ def serve(args):
         from packages.agent_adapters.http import AgentClient
         from services.decisions.api import create_app
         from services.decisions.runtime import DecisionsWorker, ModelClassifier
+        from services.decisions.window_routing import WindowAgentDispatcher, WindowClassifier
+        from services.decisions.window_worker import WindowDecisionsWorker
 
         worker = DecisionsWorker(
             JournalClient(config["session_url"], tokens["decisions"]),
@@ -400,7 +413,24 @@ def serve(args):
             ModelClassifier(provider(config, "decisions", resource_state=resource_state)),
             enabled=config.get("agent_enabled", True),
         )
-        app = create_app(worker, auth)
+        windows_enabled = config.get("streaming_windows", {}).get("enabled", True)
+        windows = (
+            WindowDecisionsWorker(
+                worker.journal,
+                worker.agent,
+                WindowClassifier(worker.classifier.provider),
+                agent_enabled=worker.enabled,
+                timeout=config.get("streaming_windows", {}).get("classification_timeout_s", 5),
+            )
+            if windows_enabled
+            else None
+        )
+        dispatcher = (
+            WindowAgentDispatcher(worker.journal, worker.agent, enabled=worker.enabled)
+            if windows_enabled
+            else None
+        )
+        app = create_app(worker, auth, windows, dispatcher)
     uvicorn.run(app, host="127.0.0.1", port=args.port or PORTS[service], log_level="warning")
 
 

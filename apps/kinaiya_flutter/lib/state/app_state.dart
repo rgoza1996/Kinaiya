@@ -26,12 +26,18 @@ class ChatMsg {
     this.eventId,
     this.grounded,
     this.note,
+    this.utteranceId,
+    this.windowIndex = -1,
+    this.windowRevision = 0,
   });
   final String role; // 'user' | 'kinaiya' | 'system'
   final String text;
   final String? eventId;
   final bool? grounded;
   final String? note;
+  final String? utteranceId;
+  final int windowIndex;
+  final int windowRevision;
 }
 
 class AppState extends ChangeNotifier {
@@ -60,6 +66,7 @@ class AppState extends ChangeNotifier {
   /// the role has no verified metadata for the live connection.
   Map<String, Object?>? agentProvider;
   Map<String, Object?>? converseProvider;
+  bool streamingWindows = false;
   int _connectionGeneration = 0;
 
   /// Live connection epoch. Views capture this before an await and drop
@@ -80,6 +87,8 @@ class AppState extends ChangeNotifier {
   final Set<String> _seenNotices = {};
   final _noticeEvents = StreamController<JournalEntry>.broadcast();
   Stream<JournalEntry> get outcomeNotices => _noticeEvents.stream;
+  final _windowEvents = StreamController<JournalEntry>.broadcast();
+  Stream<JournalEntry> get windowEvents => _windowEvents.stream;
   final _resourceStops = StreamController<int>.broadcast();
   Stream<int> get resourceStops => _resourceStops.stream;
   Timer? _resourcesPoll;
@@ -234,6 +243,7 @@ class AppState extends ChangeNotifier {
     converseInferenceAllowed = false;
     agentProvider = null;
     converseProvider = null;
+    streamingWindows = false;
     agentOnline = false;
     converseOnline = false;
     connected = false;
@@ -321,6 +331,7 @@ class AppState extends ChangeNotifier {
               if (generation == _connectionGeneration &&
                   identical(api, client)) {
                 converseEnabled = v['enabled'] == true;
+                streamingWindows = v['streaming_windows'] == true;
               }
               converseInfo = v['provider'];
               return true;
@@ -394,6 +405,7 @@ class AppState extends ChangeNotifier {
       converseOnline = false;
       agentProvider = null;
       converseProvider = null;
+      streamingWindows = false;
       connected = false;
       connectionError =
           'Session authentication or connection failed. Check setup.';
@@ -482,6 +494,55 @@ class AppState extends ChangeNotifier {
       }
       for (final entry in entries) {
         if (entry.sequence > _noticeCursor) _noticeCursor = entry.sequence;
+        if (entry.epoch == session.epoch &&
+            (entry.kind == 'conversation.window' ||
+                entry.kind == 'routing.window_decided' ||
+                entry.kind == 'routing.window_status' ||
+                entry.kind == 'converse.window_state' ||
+                entry.kind == 'delivery.updated' ||
+                entry.payload['window_source_id'] != null)) {
+          if (!_seenNotices.add(entry.eventId)) continue;
+          if (_seenNotices.length > 512) {
+            _seenNotices.remove(_seenNotices.first);
+          }
+          if (entry.kind == 'conversation.window') {
+            final id = entry.payload['utterance_id'] as String?;
+            final index = converseHistory.indexWhere(
+              (m) => m.utteranceId == id,
+            );
+            final message = ChatMsg(
+              role: 'user',
+              text: entry.text,
+              eventId: entry.eventId,
+              utteranceId: id,
+              windowIndex:
+                  (entry.payload['window_index'] as num?)?.toInt() ?? 0,
+              windowRevision: (entry.payload['revision'] as num?)?.toInt() ?? 1,
+              note: 'Live transcript',
+            );
+            if (index < 0) {
+              converseHistory.add(message);
+            } else if (message.windowIndex >
+                    converseHistory[index].windowIndex ||
+                (message.windowIndex == converseHistory[index].windowIndex &&
+                    message.windowRevision >
+                        converseHistory[index].windowRevision)) {
+              converseHistory[index] = message;
+            }
+          } else if (entry.kind == 'conversation.converse' &&
+              !converseHistory.any((m) => m.eventId == entry.eventId)) {
+            converseHistory.add(
+              ChatMsg(
+                role: 'kinaiya',
+                text: entry.text,
+                eventId: entry.eventId,
+                grounded: false,
+              ),
+            );
+          }
+          _windowEvents.add(entry);
+          continue;
+        }
         if (entry.epoch != session.epoch ||
             entry.origin != 'converse' ||
             entry.kind != 'conversation.converse' ||
@@ -595,6 +656,7 @@ class AppState extends ChangeNotifier {
     converseOnline = false;
     agentProvider = null;
     converseProvider = null;
+    streamingWindows = false;
     turnNonce++;
     voiceNonce++;
     speechEpoch = 0;
@@ -619,6 +681,7 @@ class AppState extends ChangeNotifier {
     _resourcesPoll?.cancel();
     client?.close();
     _noticeEvents.close();
+    _windowEvents.close();
     _resourceStops.close();
     super.dispose();
   }
