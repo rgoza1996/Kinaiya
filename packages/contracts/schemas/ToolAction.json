@@ -19,6 +19,8 @@
         "mcp_call",
         "skills_list",
         "skill_load",
+        "plugins_list",
+        "plugin_call",
         "finish"
       ],
       "title": "Tool",

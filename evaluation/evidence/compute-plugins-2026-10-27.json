@@ -1,0 +1,90 @@
+{
+  "synthetic_only": true,
+  "model": "muse-spark-1.3-contributor",
+  "contributor_mode": true,
+  "reasoning_effort": "xhigh",
+  "converse_constructed": false,
+  "harness_improvement_claimed": false,
+  "suite_file_sha256_before_authoring": "2fe6c46f9ba902d5f89fbe8c865c21fd5aa2f1aa3ea0717cef4dfd130522e687",
+  "author_task_id": "10800497-2bee-4498-940f-aa6d28085e79",
+  "author_model_calls": 2,
+  "source_sha256": "7a6cb62cd06cef5e7775f9793e40751a25159fb44ad8f6c6ecde6f8a55c8a53e",
+  "version_id": "v-b398541377dfb76afd57e4c2",
+  "acceptance": {
+    "report_id": "rep-b27f2e86efef4ab0",
+    "version_id": "v-b398541377dfb76afd57e4c2",
+    "source_sha256": "7a6cb62cd06cef5e7775f9793e40751a25159fb44ad8f6c6ecde6f8a55c8a53e",
+    "suite_sha256": "988baf8b466aebba45762fd9d271ce1eb1cdca992a670bb97ff91b64bf2402b8",
+    "passed": true,
+    "cases": 4,
+    "reasons": [
+      "PASS case 0",
+      "PASS case 1",
+      "PASS case 2",
+      "PASS case 3"
+    ]
+  },
+  "direct_without_llm": {
+    "output": {
+      "count": 3,
+      "sum": 15.0,
+      "mean": 5.0,
+      "min": 2.0,
+      "max": 8.0
+    },
+    "receipt": {
+      "version_id": "v-b398541377dfb76afd57e4c2",
+      "source_sha256": "7a6cb62cd06cef5e7775f9793e40751a25159fb44ad8f6c6ecde6f8a55c8a53e",
+      "arguments_sha256": "9ef9af7775631501b9f5fe1f860c08ca910468194ee599be3b756b7c90701a63",
+      "output_sha256": "228c610e3cc8907514b9b40965f47c323a1ad170a031cef1b9097f85aebc0825",
+      "elapsed_ms": 42
+    }
+  },
+  "direct_owner_model_calls": 0,
+  "rejected_update": {
+    "report_id": "rep-33f4b1d01ae549ff",
+    "version_id": "v-9a0d10a5d4505e3036b45f93",
+    "source_sha256": "255dc76210fde6045f86c6e0020453f99f229245a604dbc9e9287cf69067419c",
+    "suite_sha256": "988baf8b466aebba45762fd9d271ce1eb1cdca992a670bb97ff91b64bf2402b8",
+    "passed": false,
+    "cases": 4,
+    "reasons": [
+      "FAIL case 0: output mismatch",
+      "FAIL case 1: output mismatch",
+      "PASS case 2",
+      "FAIL case 3: output mismatch"
+    ]
+  },
+  "rollback": {
+    "active": "v-b398541377dfb76afd57e4c2"
+  },
+  "reopened_without_rebuild": true,
+  "reopened_direct_model_calls": 0,
+  "use_task_id": "9d97b292-7bf5-4c26-b20e-77ecf0e9a559",
+  "use_model_calls": 5,
+  "task_pins": {
+    "public_csv_stats": "v-b398541377dfb76afd57e4c2"
+  },
+  "result_sha256": "228c610e3cc8907514b9b40965f47c323a1ad170a031cef1b9097f85aebc0825",
+  "task_state": "succeeded",
+  "date": "2026-10-27",
+  "source_artifact": "evaluation/plugins/csv_stats/candidate.py.txt",
+  "criteria_artifact": "evaluation/plugins/csv_stats/owner-acceptance.json",
+  "manifest_artifact": "evaluation/plugins/csv_stats/manifest.json",
+  "host_revision_note": "Worker base 9c6b71d plus lead integration working changes; final retained-artifact replay is covered by deterministic CI. This live run was not a clean committed host build.",
+  "prior_attempts": [
+    {
+      "task_id": "2e766bf3-07ae-4701-b5df-223ffba6241f",
+      "result": "provider_http_401_before_authoring",
+      "cause": "Probe used a placeholder credential; corrected to existing Muse secret reference. Its unresolved budget reservation is retained."
+    }
+  ],
+  "review_note": "Separate Muse Contributor CLI read-only review used 3 reported model calls and examined a limited subset; no full clearance or human approval is claimed. Lead reviewed remaining integration.",
+  "limitations": [
+    "Four synthetic functional screening cases, not a domain-wide correctness benchmark.",
+    "Deliberately wrong and equivalent rollback revisions were owner-authored probes, not additional Agent-generated candidates.",
+    "No general package installation, hooks, plugin-provided command registration, foreign adapters or GPU support.",
+    "Owner-reviewed promotion remains mandatory; full autonomous acquisition and M4A remain open.",
+    "No equal-capability harness benchmark improvement is claimed."
+  ]
+}

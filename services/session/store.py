@@ -20,6 +20,7 @@ ALLOWED_KINDS = {
         "agent.command",
         "agent.outcome",
         "agent.tool",
+        "plugin.pinned",
         "agent.state",
         "approval.requested",
         "approval.resolved",

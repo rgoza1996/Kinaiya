@@ -626,8 +626,8 @@ class _AgentChatState extends State<AgentChat> {
             if (task.state == 'succeeded' && !grounded)
               Text(
                 task.hasUnverifiedExternalOnly
-                    ? 'Finished with an unverified external receipt only; '
-                          'response received, side effects not proven.'
+                    ? 'Finished with a tool or computation receipt only; '
+                          'task effects need independent evidence.'
                     : 'Finished without independent completion evidence.',
                 style: const TextStyle(color: Colors.orange),
               ),
@@ -637,7 +637,7 @@ class _AgentChatState extends State<AgentChat> {
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(
                   '${e.kind}: ${e.summary}'
-                  '${e.kind == 'external' ? ' (unverified receipt)' : ''}'
+                  '${{'external', 'extension'}.contains(e.kind) ? ' (receipt; effects unverified)' : ''}'
                   '${e.path != null ? ' @ ${e.path}' : ''}'
                   '${e.sha256 != null ? ' sha256:${e.sha256!.substring(0, e.sha256!.length.clamp(0, 12))}' : ''}'
                   '${e.exitCode != null ? ' exit:${e.exitCode}' : ''}',

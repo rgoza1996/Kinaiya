@@ -167,14 +167,15 @@ class AgentTask {
   bool get isTerminal => terminalStates.contains(state);
 
   /// Grounded success: authoritative succeeded state with independent
-  /// native evidence at the current objective revision. An `external` MCP
-  /// call receipt proves a response arrived, never a verified side effect,
-  /// so external-only evidence is never grounded success.
+  /// native evidence at the current objective revision. MCP and compute
+  /// receipts alone never prove a task effect.
   bool get isGroundedSuccess {
     final current = evidence.where(
       (e) => e.objectiveRevision == objectiveRevision,
     );
-    final native = current.where((e) => e.kind != 'external');
+    final native = current.where(
+      (e) => !{'external', 'extension'}.contains(e.kind),
+    );
     final independent = native.any(
       (e) =>
           {'file', 'command', 'test'}.contains(e.kind) ||
@@ -183,13 +184,16 @@ class AgentTask {
     return state == 'succeeded' &&
         remainingRequiredWork.isEmpty &&
         native.isNotEmpty &&
-        (!current.any((e) => e.kind == 'external') || independent);
+        (!current.any((e) => {'external', 'extension'}.contains(e.kind)) ||
+            independent);
   }
 
   bool get hasUnverifiedExternalOnly =>
       state == 'succeeded' &&
       evidence.any(
-        (e) => e.kind == 'external' && e.objectiveRevision == objectiveRevision,
+        (e) =>
+            {'external', 'extension'}.contains(e.kind) &&
+            e.objectiveRevision == objectiveRevision,
       ) &&
       !isGroundedSuccess;
 }

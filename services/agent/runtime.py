@@ -26,6 +26,7 @@ import hashlib
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 from core.policy import ApprovalError, PolicyDenied, ToolPolicy
@@ -92,6 +93,7 @@ class _Record:
     # Reads/searches never clear it, so an unrelated read cannot hide a
     # failed effect from finish.
     failed_effect: bool = False
+    failed_plugin: bool = False
     cancel_requested: bool = False
     closing: bool = False
     proc_slot: dict[str, RunningProc | None] = field(default_factory=dict)
@@ -101,6 +103,7 @@ class _Record:
     source_revisions: dict[str, int] = field(default_factory=dict)
     explicit_skill: str | None = None
     used_skills: set[str] = field(default_factory=set)
+    plugin_versions: dict[str, str] = field(default_factory=dict)
 
 
 class AgentRuntime:
@@ -117,6 +120,7 @@ class AgentRuntime:
         mcp_host: Any | None = None,
         skill_service: Any | None = None,
         resource_client: Any | None = None,
+        plugin_service: Any | None = None,
     ) -> None:
         self.journal = journal
         self.provider = provider
@@ -129,6 +133,7 @@ class AgentRuntime:
         self.mcp_host = mcp_host
         self.skill_service = skill_service
         self.resource_client = resource_client
+        self.plugin_service = plugin_service
         self._tasks: dict[str, _Record] = {}
         # Scoped (session_id, idempotency_key) so keys never collide across
         # sessions; restored by recover for terminal and paused tasks alike.
@@ -146,6 +151,7 @@ class AgentRuntime:
             "task_id": rec.task.task_id,
             "state": rec.task.state.value,
             **payload,
+            "plugin_versions": dict(rec.plugin_versions),
         }
         await self.journal.append(
             AppendRequest(
@@ -469,6 +475,7 @@ class AgentRuntime:
         rec.task.objective_revision = new_revision
         rec.last_tool_ok = None
         rec.failed_effect = False
+        rec.failed_plugin = False
         rec.history.append(
             {
                 "role": "user",
@@ -608,6 +615,9 @@ class AgentRuntime:
         service, self.skill_service = self.skill_service, None
         if service is not None:
             service.close()
+        plugins, self.plugin_service = self.plugin_service, None
+        if plugins is not None:
+            await plugins.close()
         client, self.resource_client = self.resource_client, None
         if client is not None:
             await client.close()
@@ -667,6 +677,7 @@ class AgentRuntime:
         """
         seen: dict[str, dict[str, Any]] = {}
         outcomes: dict[str, dict[str, Any]] = {}
+        plugin_pins: dict[str, dict[str, str]] = {}
         after = 0
         while True:
             batch = await self.journal.read(after=after, limit=200)
@@ -675,6 +686,11 @@ class AgentRuntime:
             after = batch[-1].sequence
             for entry in batch:
                 refs = entry.task_refs or []
+                if entry.origin == "agent-supervisor" and isinstance(
+                    entry.payload.get("plugin_versions"), dict
+                ):
+                    for ref in refs:
+                        plugin_pins[ref] = dict(entry.payload["plugin_versions"])
                 if entry.kind == "agent.command" and entry.payload.get("op") == "submit":
                     for ref in refs:
                         seen.setdefault(ref, entry.payload)
@@ -719,9 +735,23 @@ class AgentRuntime:
                     harness_version=payload.get("harness_version", "seed-v1"),
                 )
             rec = _Record(task=task)
+            pins = plugin_pins.get(task_id, {})
+            if len(pins) > 16 or any(
+                not isinstance(k, str) or not isinstance(v, str) for k, v in pins.items()
+            ):
+                raise ValueError("Recovered plugin pins are invalid")
+            rec.plugin_versions = pins
             rec.done.set()
             self._tasks[task_id] = rec
             recovered.append(task.model_copy(deep=True))
+        if self.plugin_service is not None:
+            await self.plugin_service.recover_pins(
+                {
+                    task_id: rec.plugin_versions
+                    for task_id, rec in self._tasks.items()
+                    if rec.task.state not in TERMINAL
+                }
+            )
         return recovered
 
     # -- internals --------------------------------------------------------
@@ -733,6 +763,20 @@ class AgentRuntime:
 
     def _copy(self, task_id: str) -> Task:
         return self._get(task_id).task.model_copy(deep=True)
+
+    def plugin_dependents(self, version_id):
+        return [
+            rec.task.task_id
+            for rec in self._tasks.values()
+            if rec.task.state not in TERMINAL and version_id in rec.plugin_versions.values()
+        ]
+
+    def plugin_pins(self, task_id):
+        return dict(self._get(task_id).plugin_versions)
+
+    @staticmethod
+    def _plugin_task(rec):
+        return SimpleNamespace(task_id=rec.task.task_id, plugin_versions=rec.plugin_versions)
 
     def _grants(self) -> str:
         return (
@@ -825,6 +869,10 @@ class AgentRuntime:
                     await self.skill_service.validate_task(
                         rec.task.task_id, self.provider.info, user_skill_id=rec.explicit_skill
                     )
+                if self.plugin_service is not None:
+                    await self.plugin_service.validate_task(
+                        self._plugin_task(rec), self.provider.info
+                    )
                 revision_before = rec.task.objective_revision
                 messages = build_messages(
                     rec.task.objective,
@@ -834,6 +882,7 @@ class AgentRuntime:
                     self._grants(),
                     self._mcp_server_ids(),
                     self.skill_service is not None,
+                    self.plugin_service is not None,
                 )
                 try:
                     text = await self.provider.complete(messages)
@@ -895,6 +944,8 @@ class AgentRuntime:
         finally:
             if self.skill_service is not None:
                 await self.skill_service.release_task(rec.task.task_id)
+            if self.plugin_service is not None:
+                await self.plugin_service.release_task(rec.task.task_id)
             if self.resource_client is not None and rec.task.state in TERMINAL and not rec.closing:
                 try:
                     await self.resource_client.task_finished(rec.task.task_id)
@@ -960,7 +1011,7 @@ class AgentRuntime:
         if not current:
             await self._fail(rec, "finish with no current-revision evidence")
             return
-        if any(e.kind == "external" for e in current) and not any(
+        if any(e.kind in {"external", "extension"} for e in current) and not any(
             e.kind in {"file", "command", "test"} or (e.kind == "read" and e.path and e.sha256)
             for e in current
         ):
@@ -969,6 +1020,9 @@ class AgentRuntime:
                 "finish with only unverified external content receipts; "
                 "independent native evidence is required to report success",
             )
+            return
+        if rec.failed_plugin:
+            await self._fail(rec, "finish while a required plugin computation failed")
             return
         if rec.failed_effect:
             await self._fail(
@@ -1156,6 +1210,8 @@ class AgentRuntime:
                 )
             elif tool in {"skills_list", "skill_load"}:
                 out, evidence = await self._skill_result(rec, tool, args)
+            elif tool in {"plugins_list", "plugin_call"}:
+                out, evidence = await self._plugin_result(rec, tool, args)
             else:
                 raise ToolFailure(f"unknown tool {tool!r}")
         except _FailedWithEvidence as exc:
@@ -1170,12 +1226,16 @@ class AgentRuntime:
             rec.last_tool_ok = False
             if tool in ("write_file", "shell", "mcp_call"):
                 rec.failed_effect = True
+            if tool == "plugin_call":
+                rec.failed_plugin = True
             rec.history.append({"role": "user", "content": observation_text(False, str(exc))})
             return
         except (ToolFailure, PolicyDenied, ApprovalError, OSError) as exc:
             rec.last_tool_ok = False
             if tool in ("write_file", "shell", "mcp_call"):
                 rec.failed_effect = True
+            if tool == "plugin_call":
+                rec.failed_plugin = True
             rec.history.append({"role": "user", "content": observation_text(False, str(exc))})
             return
         rec.task.evidence.append(evidence)
@@ -1187,16 +1247,62 @@ class AgentRuntime:
         rec.last_tool_ok = True
         if tool in ("write_file", "shell", "mcp_call"):
             rec.failed_effect = False
-        if tool in {"skills_list", "skill_load"}:
+        if tool == "plugin_call":
+            rec.failed_plugin = False
+        if tool in {"skills_list", "skill_load", "plugins_list", "plugin_call"}:
+            context_kind = "plugin" if tool in {"plugins_list", "plugin_call"} else "skill"
             rec.history.append(
                 {
                     "role": "user",
-                    "content": "[ok; untrusted skill content] " + out,
-                    "context_kind": "skill",
+                    "content": f"[ok; untrusted {context_kind} content] " + out,
+                    "context_kind": context_kind,
                 }
             )
         else:
             rec.history.append({"role": "user", "content": observation_text(True, out)})
+
+    async def _plugin_result(self, rec, tool, args):
+        service = self.plugin_service
+        if service is None:
+            raise ToolFailure("No compute-plugin host configured")
+        try:
+            if tool == "plugins_list":
+                if set(args) - {"plugin_id", "after"}:
+                    raise ValueError("plugins_list accepts only plugin_id and after")
+                result = await service.catalog(self.provider.info, **args)
+                evidence_kind = "external"
+            else:
+                if set(args) != {"plugin_id", "arguments"}:
+                    raise ValueError("plugin_call requires only plugin_id and arguments")
+                pinned_task = self._plugin_task(rec)
+                version_id, changed = await service.pin_task(
+                    pinned_task, args["plugin_id"], self.provider.info
+                )
+                if changed:
+                    await self._append(
+                        rec,
+                        "plugin.pinned",
+                        {"plugin_id": args["plugin_id"], "version_id": version_id},
+                    )
+                result = await service.call_task(
+                    pinned_task, args["plugin_id"], args["arguments"], self.provider.info
+                )
+                stale = await self._epoch_error(rec)
+                if stale is not None or rec.cancel_requested:
+                    raise ToolFailure(stale or "Plugin result discarded after cancellation")
+                evidence_kind = "extension"
+            output = json.dumps(result, ensure_ascii=False, sort_keys=True, allow_nan=False)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            raise ToolFailure(str(exc)) from exc
+        return output, Evidence(
+            kind=evidence_kind,
+            summary=f"{tool}: compute-plugin receipt; not external-effect evidence",
+            sha256=_payload_hash(result),
+            output=output[:4000],
+            objective_revision=rec.task.objective_revision,
+        )
 
     async def _skill_result(self, rec, tool, args):
         if self.skill_service is None:

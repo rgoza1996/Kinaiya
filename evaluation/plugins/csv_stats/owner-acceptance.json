@@ -1,0 +1,58 @@
+{
+  "schema_version": "1.0",
+  "plugin_id": "public_csv_stats",
+  "cases": [
+    {
+      "input": {
+        "csv": "value\n1\n3\n5\n",
+        "column": "value"
+      },
+      "expected": {
+        "count": 3,
+        "sum": 9.0,
+        "mean": 3.0,
+        "min": 1.0,
+        "max": 5.0
+      }
+    },
+    {
+      "input": {
+        "csv": "value\n-8\n2\n",
+        "column": "value"
+      },
+      "expected": {
+        "count": 2,
+        "sum": -6.0,
+        "mean": -3.0,
+        "min": -8.0,
+        "max": 2.0
+      }
+    },
+    {
+      "input": {
+        "csv": "value\n",
+        "column": "value"
+      },
+      "expected": {
+        "count": 0,
+        "sum": 0.0,
+        "mean": null,
+        "min": null,
+        "max": null
+      }
+    },
+    {
+      "input": {
+        "csv": "value\n0.5\n1.5\n",
+        "column": "value"
+      },
+      "expected": {
+        "count": 2,
+        "sum": 2.0,
+        "mean": 1.0,
+        "min": 0.5,
+        "max": 1.5
+      }
+    }
+  ]
+}

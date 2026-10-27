@@ -1,0 +1,64 @@
+{
+  "plugin_id": "public_csv_stats",
+  "name": "Public synthetic CSV statistics",
+  "description": "Compute conventional statistics for a numeric CSV column without inference.",
+  "author": "Kinaiya Agent, synthetic acquisition probe",
+  "license": "Apache-2.0",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "csv": {
+        "type": "string",
+        "maxLength": 4096
+      },
+      "column": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 40
+      }
+    },
+    "required": [
+      "csv",
+      "column"
+    ],
+    "additionalProperties": false
+  },
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "count": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "sum": {
+        "type": "number"
+      },
+      "mean": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "min": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "max": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "count",
+      "sum",
+      "mean",
+      "min",
+      "max"
+    ],
+    "additionalProperties": false
+  }
+}
