@@ -1,6 +1,6 @@
 # Kinaiya — Product Specification, Technical Plan, and Roadmap
 
-**Specification version:** 0.2.1  
+**Specification version:** 0.2.2<br>
 **Decision baseline:** October 26, 2026  
 **Status:** Pre-implementation design baseline. Requirements and acceptance criteria below are not claims of implemented functionality.  
 **Repository:** `rgoza1996/Kinaiya`  
@@ -11,6 +11,8 @@
 Kinaiya builds on an existing local-first voice prototype and expands it into a modular platform for real-time conversation, independent agent work, and adaptive-harness research. The architecture below keeps those product surfaces separately operable and ties them together through explicit contracts.
 
 This document consolidates the product decisions, specifies the boundaries between components, and defines an implementation sequence with measurable release gates. Explicit owner decisions take precedence over earlier exploratory suggestions. Where a choice was not settled, this document labels its proposed implementation default rather than presenting it as an agreed requirement.
+
+Read this specification together with [clarification.md](./clarification.md), which defines the architectural intent for autonomous capability expansion. Kinaiya can acquire durable executable capabilities implemented by conventional programs, specialized models, external tools/services, or Agent-authored software; those capabilities need not use LLM inference. This is design intent, not a claim that acquisition is already implemented.
 
 ## Contents
 
@@ -49,7 +51,7 @@ This document consolidates the product decisions, specifies the boundaries betwe
 
 ## 1. Vision and research objectives
 
-Kinaiya combines two independently testable research efforts.
+Kinaiya combines independently testable research in modular conversation, harness optimization, and autonomous executable capability acquisition.
 
 ### 1.1 Modular real-time conversation
 
@@ -446,6 +448,8 @@ Examples: an extension that selects relevant repository context, parses a flaky 
 
 Changing only a temperature field or selecting a prewritten template can be useful configuration, but does not demonstrate the executable self-building research objective.
 
+Capability expansion is a separate objective from harness optimization: an extension may add a previously unavailable callable operation without improving the fixed-capability harness benchmark. Acquired software remains available across compatible LLM replacements through explicit versioned interfaces and dependency contracts. See [clarification.md, Sections 1–5](./clarification.md#1-fundamental-principle).
+
 ### 10.3 Model/task specificity
 
 A harness selection key includes model identity/revision, provider, relevant capability profile, inference/runtime settings, task family, extension dependencies, and protocol version. Quantization and local runtime differences may matter and should be recorded when known.
@@ -463,6 +467,14 @@ observe -> propose -> build isolated candidate -> test
 A candidate never edits the active harness in place. Every version is content-addressed or otherwise immutable after registration. Promotion changes an active pointer through the supervisor; running tasks remain pinned unless a tested checkpoint migration explicitly permits switching.
 
 The Agent can autonomously create experiments within user budgets. Automatic promotion is configurable; initially, use review-required promotion until the evaluation boundary and rollback are proven.
+
+### 10.5 Autonomous capability acquisition
+
+For an authorized task with a missing capability, Agent should identify the gap, investigate suitable existing software/models/tools, design an integration, construct or compose the implementation, validate it independently, obtain any required authorization, register and activate it through a versioned interface, and maintain its provenance/dependencies with disablement, removal and rollback. A direct request or a dependency discovered during authorized work may initiate this lifecycle; proactivity grants no additional permission.
+
+Use the appropriate boundary for the acquired software: executable skill dependencies, plugins, MCP services, adapters, or harness extensions. Not every new capability is a harness. An executable program, signal-processing/vision pipeline, specialized non-LLM model, external service or hardware interface may supply the operation. Generated code, an installation command or a description alone does not prove acquisition: the capability must execute, integrate through an authorized callable interface, and pass independent functional, security, compatibility, performance and resource checks against its stated requirements.
+
+Acquired capabilities must survive compatible model changes without unnecessary rebuilding. They cannot modify the protected core, objectives, policy or evaluator, grant themselves access, bypass isolation/budgets/auditing, or promote themselves into privileged execution. Agent owns acquisition; Converse retains personality and Decisions retains asynchronous routing. The reverse-engineering and sign-language examples in [clarification.md](./clarification.md#4-reference-examples) illustrate possible integrations and their validation obligations, not shipped features or guarantees of autonomous success.
 
 ## 11. Immutable core and security boundary
 
@@ -581,7 +593,7 @@ Offer user-selectable profiles:
 - **Local-only:** never silently send work to a cloud provider to resolve pressure.
 - **Configured hybrid:** use only providers and data-disclosure scopes the user has authorized.
 
-These profiles govern behavior; they do not imply hardware-enforced GPU priority exists on every backend. Admission control and actual measurement are required.
+These profiles govern behavior; they do not imply hardware-enforced GPU priority exists on every backend. Admission control and actual measurement are required. The 6–12 GB VRAM target concerns the accessible conversational experience; it does not require every extension or simultaneous workload to fit that budget. Heavy capabilities declare their own resource needs and participate in scheduling, loading/unloading, or explicitly authorized offloading. Private data never silently migrates to cloud providers.
 
 ### 14.3 Safe handoff
 
@@ -1189,6 +1201,8 @@ Compare against fixed test conversations with long irrelevant stretches and shor
 Report task success, independent verification, tool/schema errors, recoveries, wall time, token/API cost, total adaptation cost, resource use, regressions, objective mutation attempts, and rollback success.
 
 Use repeated runs, disclose sample counts and uncertainty, and preserve exact baseline/candidate artifacts. Predeclare pass/improvement thresholds. Never select only the best stochastic run or hide candidates that failed.
+
+Evaluate capability expansion separately: record the newly available operation, executable artifact and dependency versions, authorized interface, independent acceptance results, resource/cost profile and failure/rollback behavior. Adding a tool must not be reported as a harness improvement under an otherwise identical tool set. The capability-acquisition research question and the fixed-capability harness-optimization question both remain open until their respective evidence passes. See [clarification.md, Section 9](./clarification.md#9-research-objective-and-implementation-status).
 
 ### 25.5 Quality and personality
 
