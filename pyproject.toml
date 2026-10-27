@@ -19,6 +19,7 @@ dependencies = [
 dev = ["pytest>=8.3,<10", "pytest-asyncio>=0.25,<2", "ruff>=0.13,<1", "jsonschema>=4.23,<5"]
 voice = ["faster-whisper>=1.1,<2", "kokoro>=0.9,<1", "soundfile>=0.13,<1"]
 ecosystem = ["mcp>=1.20,<2", "PyYAML>=6,<7"]
+audit = ["pip-audit>=2.10,<3"]
 
 [project.scripts]
 kinaiya = "services.launcher:main"
