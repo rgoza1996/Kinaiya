@@ -8,6 +8,7 @@ and verify lifecycle, measurement, cleanup, and secrecy behavior end to end.
 import asyncio
 import json
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -464,15 +465,20 @@ async def test_partial_close_attempts_all_workers(tracked, tmp_path, monkeypatch
     ]
     manager = track(tracked, WorkerManager(specs, readiness=ready_now))
     assert all(r["ok"] for r in await asyncio.wait_for(asyncio.gather(*[manager.start(s.id) for s in specs]), timeout=8.0))
-    pgid_a = manager.status()["workers"]["a"]["owned_pgid"]
-    real_killpg = os.killpg
+    # Cleanup signals travel only through pidfds now (numeric killpg is gone),
+    # so the synthetic failure is injected at the pidfd layer. The first
+    # signal belongs to worker "a" (close iterates in spec order); the rest
+    # delegate to the real sender so "b" still stops.
+    real_send = signal.pidfd_send_signal
+    calls: list[tuple[int, int]] = []
 
-    def flaky(pgid, sig):
-        if pgid == pgid_a:
+    def flaky(fd, sig):
+        if not calls:
+            calls.append((fd, sig))
             raise RuntimeError("synthetic cleanup failure")
-        return real_killpg(pgid, sig)
+        return real_send(fd, sig)
 
-    monkeypatch.setattr(os, "killpg", flaky)
+    monkeypatch.setattr(signal, "pidfd_send_signal", flaky)
     with pytest.raises(RuntimeError, match="close incomplete"):
         await asyncio.wait_for(manager.close(), timeout=10.0)
     assert manager.status()["workers"]["b"]["state"] == "stopped"
