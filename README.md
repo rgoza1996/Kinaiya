@@ -191,7 +191,7 @@ Meta is a target integration, not a product dependency. Model and API availabili
 
 ## Status
 
-An initial Linux research implementation now includes versioned contracts, authenticated persistent transcript storage, independent Agent and Converse services, asynchronous routing, scoped tools/approvals, and real-provider integration tests. The implementation is experimental. The full roadmap, all retained voice backends, native mobile calling and production hardening remain open development gates.
+An initial Linux research implementation now includes versioned contracts, authenticated persistent transcript storage, independent Agent and Converse services, asynchronous routing, scoped tools/approvals, a functional Flutter web client, and real-provider integration tests. The implementation is experimental. The full roadmap, all retained voice backends, native mobile calling and production hardening remain open development gates.
 
 See [Roadmap.md](./Roadmap.md) for architecture, milestones, acceptance criteria, risks, and implementation references.
 
@@ -220,6 +220,11 @@ Services bind loopback: session 8760, Agent 8761, Converse 8762 and Decisions 87
 storage. `kinaiya agent "Write a small file"` connects directly to Agent. Unapproved
 writes and shell calls wait for an action-specific owner approval. The worker
 workspace must be separate from core, evaluation, settings and credential directories.
+
+The [Flutter web client](apps/kinaiya_flutter/README.md) provides Character View,
+voice recording/playback and independent Agent Chat. Its [design and browser evidence](docs/adr/0005-flutter-voice-client.md)
+describe the tested synthetic voice-to-file flow and Agent operation while Converse
+was unloaded. Native voice and the remaining M5 gates are unfinished.
 
 Optional voice runs in a separate Python with the `voice` extra and preinstalled
 Kokoro/Whisper weights: `python -m packages.providers.voice_worker`. Model downloads

@@ -1,0 +1,12 @@
+{
+  "pack_schema": 1,
+  "name": "Kinaiya",
+  "description": "Single-frame honest baseline: shipped mascot artwork with deterministic state-based motion.",
+  "poses": [
+    {
+      "name": "idle",
+      "asset": "assets/mascot/kinaiya-mascot.png",
+      "sha256": "426188e15d0f8dad7216b51da6a2dddbb7ff74c1aec714a7de01b5b3b3bc6977"
+    }
+  ]
+}

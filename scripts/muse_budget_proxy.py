@@ -17,6 +17,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 MODEL = "muse-spark-1.3-contributor"
+OUTPUT_CAP = 65536
 LOCK = threading.Lock()
 STATE = {}
 LEDGER = Path(".dev-run/meta-budget.json")
@@ -72,11 +73,13 @@ class Handler(BaseHTTPRequestHandler):
             if data.get("model") != MODEL:
                 self.local_json(403, {"error": "This run authorizes Contributor only"})
                 return
-            data["max_output_tokens"] = min(int(data.get("max_output_tokens", 16000)), 16000)
+            data["max_output_tokens"] = min(
+                int(data.get("max_output_tokens", OUTPUT_CAP)), OUTPUT_CAP
+            )
             body = json.dumps(data).encode()
             # Full catalog context, uncached, twice verified Contributor rates.
             # Includes retained response context and reasoning output.
-            reservation = (1_007_997 * 0.20 + 16000 * 0.40) / 1_000_000
+            reservation = (1_007_997 * 0.20 + OUTPUT_CAP * 0.40) / 1_000_000
             with LOCK:
                 if STATE["admission_estimated_usd"] + STATE["reserved_usd"] + reservation > 22:
                     self.local_json(402, {"error": "Run budget admission limit reached"})

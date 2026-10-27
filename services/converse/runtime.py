@@ -74,8 +74,10 @@ class ConverseRuntime:
             )
         return self.playback[session_id]
 
-    async def interrupt(self, session_id):
+    async def interrupt(self, session_id, expected_generation=None):
         epoch = await self._epoch(session_id)
+        if expected_generation is not None and epoch.generation != expected_generation:
+            raise ValueError("Obsolete interruption cannot stop a newer speech generation")
         previous = epoch.generation
         epoch.begin()
         task = self._active.get(session_id)
