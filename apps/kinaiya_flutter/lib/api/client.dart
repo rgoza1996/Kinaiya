@@ -324,6 +324,9 @@ class KinaiyaClient {
     return (jsonDecode(body) as Map).cast<String, Object?>();
   }
 
+  Future<Map<String, Object?>> transcribeWindow(Map<String, Object?> window) =>
+      _post(converseBase, '/v1/converse/audio/windows', window);
+
   Stream<Map<String, Object?>> speech({
     required String eventId,
     required int generationEpoch,

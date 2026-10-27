@@ -169,6 +169,73 @@ class ConverseRequest(WireModel):
     input_mode: Literal["text", "voice"] = "text"
 
 
+class SpeechWindow(WireModel):
+    """Authenticated STT hypothesis; persistence does not depend on classification."""
+
+    session_id: str
+    thread_id: str
+    epoch: int = Field(ge=1, strict=True)
+    utterance_id: str = Field(pattern=r"^[A-Za-z0-9_-]{1,128}$")
+    window_index: int = Field(ge=0, le=1_000_000, strict=True)
+    revision: int = Field(default=1, ge=1, strict=True)
+    text: str = Field(default="", max_length=16000)
+    start_ms: int = Field(ge=0, strict=True)
+    end_ms: int = Field(ge=0, strict=True)
+    user_speaking: bool = Field(strict=True)
+    capture_ended: bool = Field(default=False, strict=True)
+    audio_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    content_scope: Literal["local_only", "public_synthetic", "private_cloud_authorized"] = (
+        "local_only"
+    )
+
+    @model_validator(mode="after")
+    def window_bounds(self):
+        if not 0 <= self.end_ms - self.start_ms <= 60000:
+            raise ValueError("A transcript window must cover at most 60 seconds")
+        if self.capture_ended and self.user_speaking:
+            raise ValueError("Ended capture cannot still report speaking")
+        return self
+
+
+class WindowDecision(WireModel):
+    """Separate conversation timing and work routing, bound to one native window."""
+
+    decision_id: str = Field(default_factory=new_id)
+    source_event_id: str = Field(min_length=1, max_length=128)
+    source_sequence: int = Field(ge=1, strict=True)
+    source_revision: int = Field(ge=1, strict=True)
+    conversation: Literal[
+        "IGNORE",
+        "WAIT_FOR_NEXT_WINDOW",
+        "RESPOND_INTERRUPT_USER",
+        "RESPOND_WITHOUT_INTERRUPTING_USER",
+    ]
+    agent_route: Literal[
+        "IGNORE_FOR_IMMEDIATE_ROUTING",
+        "STEER_CURRENT_TASK",
+        "INTERRUPT_CURRENT_TASK",
+        "QUEUE_UNTIL_TASK_DONE",
+    ]
+    target_task_id: str | None = Field(default=None, max_length=128)
+    expected_objective_revision: int | None = Field(default=None, ge=1, strict=True)
+    reason_code: str = Field(default="classified", max_length=120)
+    classifier_ms: float = Field(default=0, ge=0)
+
+    @model_validator(mode="after")
+    def targets(self):
+        if self.agent_route in {"STEER_CURRENT_TASK", "INTERRUPT_CURRENT_TASK"} and (
+            not self.target_task_id or self.expected_objective_revision is None
+        ):
+            raise ValueError("Targeted routing needs a task and revision")
+        if self.target_task_id and self.expected_objective_revision is None:
+            raise ValueError("A queue boundary must bind the observed task revision")
+        if self.expected_objective_revision is not None and not self.target_task_id:
+            raise ValueError("Revision needs a task")
+        if self.agent_route == "IGNORE_FOR_IMMEDIATE_ROUTING" and self.target_task_id:
+            raise ValueError("Ignore cannot carry a task target")
+        return self
+
+
 class DeliveryRequest(WireModel):
     event_id: str
     generation_epoch: int = Field(ge=1)

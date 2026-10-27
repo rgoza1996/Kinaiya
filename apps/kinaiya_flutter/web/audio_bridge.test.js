@@ -55,6 +55,16 @@ function makeFakes(opts = {}) {
       this.currentTime = 100;
       this.state = opts.suspended ? 'suspended' : 'running';
       this.destination = {};
+      if (opts.windowCapture) {
+        this.sampleRate = 1000;
+        this.createMediaStreamSource = () => new FakeSource();
+        this.createGain = () => ({gain: {value: 1}, connect() {}, disconnect() {}});
+        this.createScriptProcessor = () => {
+          const node = {onaudioprocess:null,connect(){},disconnect(){seen.captureDisconnected=true;}};
+          seen.processor=node;
+          return node;
+        };
+      }
     }
     resume() {
       if (opts.holdResume) {
@@ -94,6 +104,47 @@ function makeFakes(opts = {}) {
   vm.runInContext(src, sandbox, { filename: 'audio_bridge.js' });
   return { api: sandbox.window.kinaiyaAudio, seen, recorders, resumeGate, FakeStream, sources };
 }
+
+test('semantic capture keeps rolling PCM and leaves timing to native decisions', async () => {
+  const {api,seen,recorders}=makeFakes({windowCapture:true});
+  api.windowConfigure(true);
+  assert.equal(seen.constraints,undefined,'configuration never opens the mic');
+  assert.equal(await api.startArmed(),'armed');
+  assert.equal(recorders.length,0,'streaming path does not wait for MediaRecorder clips');
+  const epoch=Number(api.nextWindowUtterance());
+  seen.processor.onaudioprocess({inputBuffer:{getChannelData:()=>new Float32Array([0,0.5,-0.5,1])}});
+  api.vadSample(0.2,1000);
+  const snapshot=JSON.parse(api.windowSnapshot());
+  assert.equal(snapshot.capture_epoch,epoch);
+  assert.equal(snapshot.user_speaking,true);
+  assert.equal(snapshot.end_ms,4);
+  const wav=Buffer.from(snapshot.base64,'base64');
+  assert.equal(wav.toString('ascii',0,4),'RIFF');
+  assert.equal(wav.readUInt32LE(24),1000);
+  assert.equal(wav.readInt16LE(46),16383);
+  await api.queuePcm(Buffer.alloc(200).toString('base64'),1000);
+  api.vadSample(0.2,2000); api.vadSample(0.2,2400);
+  assert.equal(api.playbackActive(),'yes','acoustic overlap cannot barge in semantic mode');
+  assert.equal(JSON.parse(api.pollEvents()).some(e=>e.type==='barge'||e.type==='speech-end'),false);
+  api.vadSample(0,2500);
+  assert.equal(JSON.parse(api.windowSnapshot()).user_speaking,false,'opening is retained without end-silence delay');
+  assert.equal(api.windowSnapshot(),'','unchanged quiet audio does not repeatedly invoke STT');
+  await api.dispose();
+});
+
+test('window capture bounds PCM, isolates utterances, and releases its graph',async()=>{
+  const {api,seen}=makeFakes({windowCapture:true});
+  api.windowConfigure(true);await api.startArmed();
+  for(let n=0;n<35;n++)seen.processor.onaudioprocess({inputBuffer:{getChannelData:()=>new Float32Array(1000)}});
+  api.vadSample(0.2,1000);
+  const snapshot=JSON.parse(api.windowSnapshot());
+  assert.equal(snapshot.start_ms,5000);assert.equal(snapshot.end_ms,35000);
+  assert.equal(Buffer.from(snapshot.base64,'base64').length,44+30000*2);
+  api.nextWindowUtterance();assert.equal(api.windowSnapshot(),'');
+  await api.stopArmed();
+  assert.equal(seen.captureDisconnected,true);assert.equal(seen.stoppedTracks,2);
+  assert.equal(seen.processor.onaudioprocess,null);
+});
 
 /// Mirrors Dart `_str`: sync strings pass through, promises are awaited.
 async function str(v) {

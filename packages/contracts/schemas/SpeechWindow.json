@@ -1,0 +1,102 @@
+{
+  "additionalProperties": false,
+  "description": "Authenticated STT hypothesis; persistence does not depend on classification.",
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "session_id": {
+      "title": "Session Id",
+      "type": "string"
+    },
+    "thread_id": {
+      "title": "Thread Id",
+      "type": "string"
+    },
+    "epoch": {
+      "minimum": 1,
+      "title": "Epoch",
+      "type": "integer"
+    },
+    "utterance_id": {
+      "pattern": "^[A-Za-z0-9_-]{1,128}$",
+      "title": "Utterance Id",
+      "type": "string"
+    },
+    "window_index": {
+      "maximum": 1000000,
+      "minimum": 0,
+      "title": "Window Index",
+      "type": "integer"
+    },
+    "revision": {
+      "default": 1,
+      "minimum": 1,
+      "title": "Revision",
+      "type": "integer"
+    },
+    "text": {
+      "default": "",
+      "maxLength": 16000,
+      "title": "Text",
+      "type": "string"
+    },
+    "start_ms": {
+      "minimum": 0,
+      "title": "Start Ms",
+      "type": "integer"
+    },
+    "end_ms": {
+      "minimum": 0,
+      "title": "End Ms",
+      "type": "integer"
+    },
+    "user_speaking": {
+      "title": "User Speaking",
+      "type": "boolean"
+    },
+    "capture_ended": {
+      "default": false,
+      "title": "Capture Ended",
+      "type": "boolean"
+    },
+    "audio_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Audio Sha256"
+    },
+    "content_scope": {
+      "default": "local_only",
+      "enum": [
+        "local_only",
+        "public_synthetic",
+        "private_cloud_authorized"
+      ],
+      "title": "Content Scope",
+      "type": "string"
+    }
+  },
+  "required": [
+    "session_id",
+    "thread_id",
+    "epoch",
+    "utterance_id",
+    "window_index",
+    "start_ms",
+    "end_ms",
+    "user_speaking"
+  ],
+  "title": "SpeechWindow",
+  "type": "object"
+}

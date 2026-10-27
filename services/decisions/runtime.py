@@ -12,6 +12,7 @@ from packages.contracts.models import (
     SteerRequest,
     TaskRequest,
 )
+from packages.providers.disclosure import entry_allowed
 
 
 class ModelClassifier:
@@ -20,6 +21,8 @@ class ModelClassifier:
         self.window_chars = window_chars
 
     async def classify(self, source, context, tasks):
+        if not entry_allowed(self.provider.info, source):
+            raise ValueError("Source disclosure does not permit this classifier")
         instructions = (
             "Classify the latest conversation entry for an independent worker. Return ONLY JSON: "
             '{"route":"ignore|queue|steer|interrupt","target_task_id":null, '
@@ -33,13 +36,16 @@ class ModelClassifier:
         )
         body = json.dumps(
             {
-                "context": [{"kind": e.kind, "text": e.payload.get("text", "")} for e in context],
+                "context": [
+                    {"kind": e.kind, "text": e.payload.get("text", "")}
+                    for e in context
+                    if entry_allowed(self.provider.info, e)
+                ],
                 "latest": {"kind": source.kind, "text": source.payload.get("text", "")},
                 "tasks": [
                     {
                         "task_id": t.task_id,
                         "objective_revision": t.objective_revision,
-                        "objective": t.objective[:500],
                         "state": t.state,
                     }
                     for t in tasks
@@ -94,6 +100,10 @@ class DecisionsWorker:
             "conversation.converse",
             "conversation.revision",
         }:
+            return None
+        if source.payload.get("window_source_id"):
+            # Window replies carry no new owner authority; their paired native
+            # window decision already owns routing, independently of this path.
             return None
         previous = await self.journal.read(
             after=source.sequence,

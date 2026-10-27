@@ -53,4 +53,12 @@ class RecordedAudio {
   final List<int> bytes;
 }
 
+/// Optional semantic-window capture; legacy and unsupported hosts stay explicit.
+abstract interface class WindowSpeechAudio {
+  Future<void> configureWindows(bool enabled);
+  Future<Map<String, Object?>?> snapshotWindow();
+  Future<bool> get userSpeaking;
+  Future<int> nextUtterance();
+}
+
 SpeechAudio speechAudio() => impl.createSpeechAudio();

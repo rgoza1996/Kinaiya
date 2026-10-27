@@ -5,6 +5,7 @@ import re
 from dataclasses import dataclass, field
 
 from packages.contracts.models import AppendRequest, ConverseRequest, DeliveryRequest, new_id
+from packages.providers.disclosure import entry_allowed
 
 
 class SpeechChunker:
@@ -190,7 +191,9 @@ class ConverseRuntime:
         history = [
             e
             for e in existing
-            if e.epoch == request.epoch and e.kind in {"conversation.user", "conversation.converse"}
+            if e.epoch == request.epoch
+            and e.kind in {"conversation.user", "conversation.converse"}
+            and entry_allowed(self.provider.info, e)
         ][-self.context_turns :]
         messages = [{"role": "system", "content": self.personality}]
         delivery = [
@@ -332,6 +335,23 @@ class ConverseRuntime:
             or event.payload.get("generation_epoch") != generation_epoch
         ):
             raise ValueError("Obsolete or unauthorized speech")
+        if event.payload.get("window_source_id"):
+            source = await self.journal.resolve(event.payload["window_source_id"])
+            if source.event_id != event.payload["window_source_id"] or source.epoch != event.epoch:
+                raise ValueError("Speech window was corrected or became obsolete")
+            latest = await self.journal.latest_window(
+                event.session_id, event.epoch, source.payload["utterance_id"]
+            )
+            if latest is None or latest.payload["text"] != source.payload["text"]:
+                raise ValueError("Speech hypothesis was superseded before playback")
+            control = await self.journal.window_control(event.session_id, event.epoch)
+            if control is not None and control.payload["source_sequence"] > source.sequence:
+                newer = await self.journal.resolve(control.payload["source_event_id"])
+                if control.payload["conversation"] == "WAIT_FOR_NEXT_WINDOW" or (
+                    newer.payload.get("utterance_id"),
+                    newer.payload.get("text"),
+                ) != (source.payload.get("utterance_id"), source.payload.get("text")):
+                    raise ValueError("Later conversation control revoked this speech")
         if event.payload.get("outcome_event_id"):
             outcome = await self.journal.entry(event.payload["outcome_event_id"])
             task = outcome.payload.get("task", outcome.payload)
@@ -396,6 +416,21 @@ class ConverseRuntime:
         if session.epoch != outcome.epoch or session.channel != "converse" or not self.enabled:
             return None
         playback = await self._epoch(session.session_id)
+        scopes = []
+        for source_id in task.get("source_event_ids", []):
+            try:
+                source = await self.journal.resolve(source_id)
+                if source.kind == "conversation.window" or "content_scope" in source.payload:
+                    scopes.append(source.payload.get("content_scope", "local_only"))
+            except (KeyError, ValueError):
+                scopes.append("local_only")
+        scope_fields = {}
+        if scopes:
+            scope_fields["content_scope"] = next(
+                s
+                for s in ("local_only", "private_cloud_authorized", "public_synthetic")
+                if s in scopes
+            )
         # Completion does not cancel current social speech. It joins the current epoch.
         if playback.generation == 0:
             playback.begin()
@@ -416,6 +451,7 @@ class ConverseRuntime:
                     "delivery": "generated",
                     "outcome_event_id": outcome.event_id,
                     "objective_revision": task["objective_revision"],
+                    **scope_fields,
                 },
                 causes=[outcome.event_id],
                 task_refs=[task["task_id"]],

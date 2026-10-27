@@ -38,12 +38,14 @@ from packages.contracts.models import (
     Evidence,
     InterruptRequest,
     JournalEntry,
+    SpeechWindow,
     SteerRequest,
     Task,
     TaskRequest,
     TaskRetirement,
     TaskState,
 )
+from packages.providers.disclosure import entry_allowed, scope_allowed
 from services.agent.mcp_tools import ModelScopedMCP, run_mcp_call, run_mcp_list
 from services.agent.tools import (
     RunningProc,
@@ -302,11 +304,9 @@ class AgentRuntime:
     ) -> list[str]:
         """Resolve decisions-carried sources to exact authenticated user text.
 
-        Every source must resolve through the journal to a finalized,
-        authenticated-user ``conversation.user`` entry (or its authenticated
-        revision) in this session/thread/epoch and at the current source
-        revision. Classifier-invented, cross-session, stale, assistant, or
-        unfinalized sources are rejected.
+        Sources are finalized user messages or retained semantic speech windows,
+        bound to this session/thread/epoch and their current revision. Window
+        disclosure is checked again at the native execution boundary.
         """
         resolve = getattr(self.journal, "resolve", None)
         if resolve is None:
@@ -328,7 +328,7 @@ class AgentRuntime:
                     f"decisions-routed {op} source {source_id!r} is outside "
                     "the current session/thread/epoch"
                 )
-            if resolved.kind != "conversation.user":
+            if resolved.kind not in {"conversation.user", "conversation.window"}:
                 raise PolicyDenied(
                     f"decisions-routed {op} source {source_id!r} is not a user message"
                 )
@@ -336,7 +336,19 @@ class AgentRuntime:
                 raise PolicyDenied(
                     f"decisions-routed {op} source {source_id!r} is not authenticated"
                 )
-            if resolved.payload.get("final") is not True:
+            if resolved.kind == "conversation.window":
+                try:
+                    window = SpeechWindow.model_validate(resolved.payload)
+                    latest = await self.journal.latest_window(
+                        session_id, epoch, window.utterance_id
+                    )
+                except Exception as exc:
+                    raise PolicyDenied("Transcript-window source cannot be verified") from exc
+                if latest is None or latest.payload.get("text") != window.text:
+                    raise PolicyDenied("Transcript-window instruction was superseded")
+                if not scope_allowed(self.provider.info, window.content_scope):
+                    raise PolicyDenied("Transcript-window disclosure does not permit this Agent")
+            elif resolved.payload.get("final") is not True:
                 raise PolicyDenied(f"decisions-routed {op} source {source_id!r} is not finalized")
             current_revision = resolved.payload.get("revision", 1)
             if source_revision is not None and source_revision != current_revision:
@@ -523,6 +535,33 @@ class AgentRuntime:
         if not pending:
             return
         rec.pending_steer = None
+        if pending["actor"] == "decisions":
+            try:
+                texts = await self._validated_source_texts(
+                    pending["source_event_ids"],
+                    session_id=rec.task.session_id,
+                    thread_id=rec.task.thread_id,
+                    epoch=rec.task.epoch,
+                    source_revision=None,
+                    op="steer",
+                )
+                revision_changed = False
+                for source_id, revision in pending.get("source_revisions", {}).items():
+                    resolved = await self.journal.resolve(source_id)
+                    revision_changed |= resolved.payload.get("revision", 1) != revision
+                if "\n".join(texts) != pending["instruction"] or revision_changed:
+                    raise PolicyDenied("Steering source changed before its execution boundary")
+            except (PolicyDenied, ValueError, KeyError):
+                await self._append(
+                    rec,
+                    "agent.command",
+                    {
+                        "op": "steer-rejected",
+                        "actor": "decisions",
+                        "reason": "source_changed_before_boundary",
+                    },
+                )
+                return
         rec.source_revisions.update(pending.get("source_revisions", {}))
         invalidated = [
             e.evidence_id
@@ -1636,6 +1675,12 @@ class AgentRuntime:
             raise PolicyDenied("Transcript reference outside the task's current session epoch")
         selected, size = [], 0
         for entry in entries:
+            if not entry_allowed(self.provider.info, entry):
+                if event_ids:
+                    raise PolicyDenied(
+                        "Transcript window disclosure is not authorized for this model"
+                    )
+                continue
             text = entry.payload.get("text", "")[:2000]
             size += len(text)
             if size > 12000:
