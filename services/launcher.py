@@ -197,7 +197,56 @@ def serve(args):
             **config.get("policy", {}),
             protected_roots=protected,
         )
-        runtime = AgentRuntime(journal, provider(config, "agent"), args.workspace, policy)
+        selector = None
+        if harness := config.get("harness"):
+            from core.extensions import Registry as HarnessRegistry
+
+            suite = Path(harness["suite"]).resolve()
+            if suite.is_relative_to(workspace):
+                raise SystemExit("Heldout evaluation suite must be outside the worker workspace")
+            selector = HarnessRegistry(
+                args.data_dir / "harness",
+                suite,
+                model_profile={
+                    "provider": config["providers"]["agent"]["kind"],
+                    "model": config["providers"]["agent"]["model"],
+                    "evaluation_model_calls": 0,
+                },
+            )
+        mcp_host = None
+        mcp_entries = config.get("mcp_servers", [])
+        if mcp_entries:
+            # Optional MCP host activates only with explicit owner-authored
+            # server configs. The module import stays lazy so the Agent runs
+            # without the MCP dependency when nothing is configured.
+            from packages.ecosystem.mcp_host import MCPConfig, MCPHost
+
+            if not isinstance(mcp_entries, list):
+                raise SystemExit("mcp_servers must be a list of owner-authored server configs")
+            try:
+                mcp_configs = [MCPConfig(**entry) for entry in mcp_entries]
+            except Exception as exc:
+                raise SystemExit(f"Invalid mcp_servers configuration: {exc}") from exc
+
+            def _mcp_secret(ref: str) -> str | None:
+                # Secrets resolve only from env:NAME references against the
+                # process environment. Never arbitrary files, Muse helpers,
+                # or model-provided values.
+                if isinstance(ref, str) and ref.startswith("env:"):
+                    name = ref[len("env:") :]
+                    if name:
+                        return os.environ.get(name)
+                return None
+
+            mcp_host = MCPHost(mcp_configs, policy, secret_resolver=_mcp_secret)
+        runtime = AgentRuntime(
+            journal,
+            provider(config, "agent"),
+            args.workspace,
+            policy,
+            selector_registry=selector,
+            mcp_host=mcp_host,
+        )
         owner_journal = JournalClient(config["session_url"], tokens["owner"])
         profiles = {
             name: (lambda profile=profile: provider({"providers": {"agent": profile}}, "agent"))
@@ -276,6 +325,25 @@ def serve(args):
     uvicorn.run(app, host="127.0.0.1", port=args.port or PORTS[service], log_level="warning")
 
 
+def owner_login(args):
+    """Export only the owner credential to a new private file, never stdout."""
+    tokens = load_or_create_tokens(args.data_dir)
+    destination = args.output or args.data_dir / "owner-login.txt"
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    descriptor = os.open(destination, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(descriptor, "w") as stream:
+        stream.write(tokens["owner"])
+    print(
+        json.dumps(
+            {
+                "path": str(destination.resolve()),
+                "mode": "0600",
+                "scope": "owner-only browser sign-in",
+            }
+        )
+    )
+
+
 async def direct_agent(args):
     config = load_config(args.config or args.data_dir / "config.json")
     tokens = load_or_create_tokens(args.data_dir)
@@ -339,6 +407,8 @@ def main():
     parser.add_argument("--workspace", type=Path, default=Path("workspace"))
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("init")
+    login = commands.add_parser("owner-login", help="Export an owner-only browser credential file")
+    login.add_argument("--output", type=Path)
     server = commands.add_parser("serve")
     server.add_argument("service", choices=[*PORTS, "all"])
     server.add_argument("--port", type=int)
@@ -347,6 +417,8 @@ def main():
     args = parser.parse_args()
     if args.command == "init":
         initialize(args)
+    elif args.command == "owner-login":
+        owner_login(args)
     elif args.command == "serve":
         serve(args)
     else:

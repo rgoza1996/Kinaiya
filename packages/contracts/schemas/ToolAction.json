@@ -14,6 +14,9 @@
         "search",
         "shell",
         "read_transcript",
+        "select_context",
+        "mcp_list",
+        "mcp_call",
         "finish"
       ],
       "title": "Tool",

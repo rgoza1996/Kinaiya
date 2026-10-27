@@ -74,8 +74,10 @@ class ConverseRuntime:
             )
         return self.playback[session_id]
 
-    async def interrupt(self, session_id):
+    async def interrupt(self, session_id, expected_generation=None):
         epoch = await self._epoch(session_id)
+        if expected_generation is not None and epoch.generation != expected_generation:
+            raise ValueError("Obsolete interruption cannot stop a newer speech generation")
         previous = epoch.generation
         epoch.begin()
         task = self._active.get(session_id)
@@ -334,6 +336,25 @@ class ConverseRuntime:
             or task.get("remaining_required_work")
         ):
             raise ValueError("Only evidenced successful runtime outcomes may announce completion")
+        # An external MCP receipt proves a response arrived, never a verified
+        # side effect. Current-revision evidence that is entirely external
+        # cannot ground a completion announcement.
+        current = [
+            e
+            for e in (task.get("evidence") or [])
+            if isinstance(e, dict) and e.get("objective_revision") == task.get("objective_revision")
+        ]
+        native = [e for e in current if e.get("kind") != "external"]
+        independent = any(
+            e.get("kind") in {"file", "command", "test"}
+            or (e.get("kind") == "read" and e.get("path") and e.get("sha256"))
+            for e in native
+        )
+        if not native or (any(e.get("kind") == "external" for e in current) and not independent):
+            raise ValueError(
+                "Only unverified external MCP receipts support this outcome; "
+                "independent native evidence is required"
+            )
         session = await self.journal.session(outcome.session_id)
         if session.epoch != outcome.epoch or session.channel != "converse" or not self.enabled:
             return None

@@ -1,0 +1,9 @@
+{
+  "version_id": "v-690bf131d521fc2ab9d2c7f3",
+  "source_sha256": "c31cbb6771fa7b9a508f9a1df1e262dcf5f8ef3955a20b97dad8158537e39fd5",
+  "generator_task_id": "a4e2a217-8fe6-4490-8d8d-fa4063fc0e5d",
+  "generator_state": "failed-step-budget",
+  "artifact_status": "partial artifact independently evaluated; not a successful generation task",
+  "heldout_frozen_before_generation": true,
+  "evaluation_policy_unchanged": true
+}

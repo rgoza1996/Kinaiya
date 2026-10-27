@@ -45,6 +45,9 @@ def create_app(runtime: AgentRuntime, auth: Any, commands=None) -> FastAPI:
     commands = commands or Registry(runtime)
 
     app = FastAPI(title="Kinaiya Seed Agent", version="0.1.0")
+    from services.agent.harness_api import router as harness_router
+
+    app.include_router(harness_router(runtime, auth))
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(auth.allowed_origins),
@@ -113,16 +116,35 @@ def create_app(runtime: AgentRuntime, auth: Any, commands=None) -> FastAPI:
     @app.get("/v1/agents/capabilities")
     async def capabilities(actor: str = Depends(require_actor)) -> Any:
         _ = actor
+        tools = ["read_file", "write_file", "search", "shell", "read_transcript", "finish"]
+        if runtime.selector_registry:
+            tools.append("select_context")
+        if runtime.mcp_host is not None:
+            # MCP tools exist only when owner-configured servers are present.
+            tools += ["mcp_list", "mcp_call"]
         return {
-            "harness": "seed-v1",
+            "harness": runtime.selector_registry.active if runtime.selector_registry else "seed-v1",
             "event_protocol": "1.0",
             "contract_schema": "1.0",
-            "tools": ["read_file", "write_file", "search", "shell", "read_transcript", "finish"],
+            "tools": tools,
             "steering": "safe-boundary",
             "cancellation": True,
             "approvals": {"digest_bound": True, "one_use": True, "expiring": True},
             "max_steps": runtime.max_steps,
         }
+
+    @app.get("/v1/mcp/servers")
+    async def mcp_servers(actor: str = Depends(require_owner)) -> Any:
+        """Owner-only MCP server metadata. No grant-changing API.
+
+        Returns bounded owner configuration metadata. Resolved secret values
+        are never exposed. Model-facing discovery uses a separate projection.
+        """
+        _ = actor
+        host = runtime.mcp_host
+        if host is None:
+            return {"servers": []}
+        return {"servers": host.list_servers()}
 
     @app.post("/v1/approvals/{approval_id}/resolve")
     async def resolve_approval(

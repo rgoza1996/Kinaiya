@@ -41,6 +41,7 @@ from packages.contracts.models import (
     TaskRequest,
     TaskState,
 )
+from services.agent.mcp_tools import ModelScopedMCP, run_mcp_call, run_mcp_list
 from services.agent.tools import (
     RunningProc,
     ToolFailure,
@@ -110,12 +111,18 @@ class AgentRuntime:
         workspace: Path,
         policy: ToolPolicy,
         max_steps: int = 12,
+        selector_registry=None,
+        mcp_host: Any | None = None,
     ) -> None:
         self.journal = journal
         self.provider = provider
         self.workspace = Path(workspace)
         self.policy = policy
         self.max_steps = max(1, int(max_steps))
+        self.selector_registry = selector_registry
+        # Optional broker for owner-configured MCP servers. None means the
+        # mcp_list/mcp_call tools are unknown and honestly unavailable.
+        self.mcp_host = mcp_host
         self._tasks: dict[str, _Record] = {}
         # Scoped (session_id, idempotency_key) so keys never collide across
         # sessions; restored by recover for terminal and paused tasks alike.
@@ -323,6 +330,7 @@ class AgentRuntime:
             state=TaskState.ACCEPTED,
             source_event_ids=list(request.source_event_ids),
             idempotency_key=request.idempotency_key,
+            harness_version=self.selector_registry.active if self.selector_registry else "seed-v1",
         )
         rec = _Record(task=task)
         if actor == "decisions":
@@ -344,6 +352,7 @@ class AgentRuntime:
                 "source_revision": request.source_revision,
                 "idempotency_key": request.idempotency_key,
                 "payload_digest": digest,
+                "harness_version": task.harness_version,
             },
         )
         rec.worker = asyncio.create_task(self._run(rec))
@@ -573,6 +582,9 @@ class AgentRuntime:
             if rec.task.state not in TERMINAL:
                 rec.task.state = TaskState.PAUSED
                 rec.done.set()
+        host, self.mcp_host = self.mcp_host, None
+        if host is not None:
+            await host.close()
 
     # -- approvals ------------------------------------------------------
     async def resolve_approval(
@@ -678,6 +690,7 @@ class AgentRuntime:
                     ),
                     source_event_ids=list(payload.get("source_event_ids", [])),
                     idempotency_key=payload.get("idempotency_key", task_id),
+                    harness_version=payload.get("harness_version", "seed-v1"),
                 )
             rec = _Record(task=task)
             rec.done.set()
@@ -700,6 +713,30 @@ class AgentRuntime:
             f"write={self.policy.effective_write} "
             f"shell={self.policy.effective_shell} "
             f"network={self.policy.network}"
+        )
+
+    def _mcp_server_ids(self) -> list[str] | None:
+        """Enabled owner-configured server ids for the prompt, or None.
+
+        Only ids, never secrets, endpoints, or schemas. An unavailable
+        host reports no servers rather than failing the whole turn.
+        """
+        host = self._model_mcp()
+        if host is None:
+            return None
+        try:
+            servers = host.list_servers()
+        except Exception:
+            return []
+        return [
+            str(entry.get("id", ""))
+            for entry in servers
+            if isinstance(entry, dict) and entry.get("enabled")
+        ]
+
+    def _model_mcp(self):
+        return (
+            ModelScopedMCP(self.mcp_host, self.provider.info) if self.mcp_host is not None else None
         )
 
     async def _fail(self, rec: _Record, error: str) -> None:
@@ -756,6 +793,7 @@ class AgentRuntime:
                     list(rec.task.source_event_ids),
                     rec.history,
                     self._grants(),
+                    self._mcp_server_ids(),
                 )
                 try:
                     text = await self.provider.complete(messages)
@@ -863,6 +901,16 @@ class AgentRuntime:
         if not current:
             await self._fail(rec, "finish with no current-revision evidence")
             return
+        if any(e.kind == "external" for e in current) and not any(
+            e.kind in {"file", "command", "test"} or (e.kind == "read" and e.path and e.sha256)
+            for e in current
+        ):
+            await self._fail(
+                rec,
+                "finish with only unverified external MCP receipts; "
+                "independent native evidence is required to report success",
+            )
+            return
         if rec.failed_effect:
             await self._fail(
                 rec,
@@ -890,7 +938,16 @@ class AgentRuntime:
             return
         revision = rec.task.objective_revision
         digest = self.policy.digest_for(tool, args, revision)
+        if tool == "mcp_call" and self.mcp_host is not None:
+            self._model_mcp()._check(args.get("server_id", ""))
         if tool in ("write_file", "shell") and self.policy.needs_approval(tool):
+            await self._await_approval(rec, tool, args, digest, raw)
+            return
+        if tool == "mcp_call" and self.mcp_host is not None and not self.policy.yolo:
+            # Every mcp_call needs the existing digest/revision/expiry/one-use
+            # owner approval. YOLO skips this per-action approval only; the
+            # host still enforces enabled state, the exact allowlist, and
+            # the shell/network transport grants on every dispatch.
             await self._await_approval(rec, tool, args, digest, raw)
             return
         await self._dispatch(rec, tool, args, digest, raw, approval_id=None)
@@ -984,6 +1041,10 @@ class AgentRuntime:
         try:
             if tool == "read_transcript":
                 out, evidence = await self._read_transcript(rec, args)
+            elif tool == "select_context":
+                from services.agent.context import select_context
+
+                out, evidence = await select_context(self, rec.task, args)
             elif tool == "read_file":
                 out, evidence = run_read(
                     self.policy,
@@ -1014,6 +1075,25 @@ class AgentRuntime:
                     digest=digest,
                     proc_slot=rec.proc_slot,
                 )
+            elif tool == "mcp_list":
+                out, evidence = await run_mcp_list(
+                    self._model_mcp(),
+                    args.get("server_id"),
+                    revision,
+                    after=args.get("after", 0),
+                    tool=args.get("tool"),
+                )
+            elif tool == "mcp_call":
+                out, evidence = await run_mcp_call(
+                    self._model_mcp(),
+                    self.policy,
+                    args.get("server_id", ""),
+                    args.get("tool", ""),
+                    args.get("arguments", {}),
+                    revision,
+                    approval_id=approval_id,
+                    digest=digest,
+                )
             else:
                 raise ToolFailure(f"unknown tool {tool!r}")
         except _FailedWithEvidence as exc:
@@ -1026,13 +1106,13 @@ class AgentRuntime:
                 {"tool": tool, "ok": False, "evidence": exc.evidence.model_dump(mode="json")},
             )
             rec.last_tool_ok = False
-            if tool in ("write_file", "shell"):
+            if tool in ("write_file", "shell", "mcp_call"):
                 rec.failed_effect = True
             rec.history.append({"role": "user", "content": observation_text(False, str(exc))})
             return
         except (ToolFailure, PolicyDenied, ApprovalError, OSError) as exc:
             rec.last_tool_ok = False
-            if tool in ("write_file", "shell"):
+            if tool in ("write_file", "shell", "mcp_call"):
                 rec.failed_effect = True
             rec.history.append({"role": "user", "content": observation_text(False, str(exc))})
             return
@@ -1043,7 +1123,7 @@ class AgentRuntime:
             {"tool": tool, "ok": True, "evidence": evidence.model_dump(mode="json")},
         )
         rec.last_tool_ok = True
-        if tool in ("write_file", "shell"):
+        if tool in ("write_file", "shell", "mcp_call"):
             rec.failed_effect = False
         rec.history.append({"role": "user", "content": observation_text(True, out)})
 

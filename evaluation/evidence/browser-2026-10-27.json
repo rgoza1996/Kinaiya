@@ -1,0 +1,89 @@
+{
+  "schema_version": "1.0",
+  "test_kind": "Lead-controlled actual Flutter web browser with real local services and budgeted Meta Contributor inference",
+  "voice_case": {
+    "flutter_commit": "5f3c680",
+    "task_id": "26bc09af-4a10-4a41-8aec-edd4e836cf78",
+    "synthetic_wav_upload": true,
+    "task_state": "succeeded",
+    "objective": "Please create a new file named proof containing only the number seven.",
+    "evidence": [
+      {
+        "kind": "file",
+        "sha256": "7902699be42c8a8e46fbbb4501726517e86b22c56a189f7625a6da49081b2451",
+        "path": "proof"
+      }
+    ],
+    "notice_event_ids": [
+      "14341891-e0d7-4d33-9080-0ef06fc8bec9"
+    ],
+    "browser_delivery": [
+      {
+        "status": "playing",
+        "played_seconds": 0.0
+      },
+      {
+        "status": "played",
+        "played_seconds": 1.475
+      },
+      {
+        "status": "playing",
+        "played_seconds": 0.0
+      },
+      {
+        "status": "played",
+        "played_seconds": 3.05
+      },
+      {
+        "status": "playing",
+        "played_seconds": 0.0
+      },
+      {
+        "status": "played",
+        "played_seconds": 6.35
+      }
+    ],
+    "physical_microphone_tested": false,
+    "physical_audibility_measured": false,
+    "backend_source_references": {
+      "converse": "2db120d",
+      "agent": "411c2f0"
+    },
+    "process_build_attestation": "Services were loaded incrementally; source references are recorded, not a health-reported build attestation."
+  },
+  "standalone_agent_case": {
+    "checked_at": "2026-10-27T07:32:37.103741+00:00",
+    "flutter_commit": "5f3c680",
+    "agent_source_reference": "912b5fa",
+    "converse_port_8762_open": false,
+    "browser_submitted_task_id": "14075c71-affd-4809-818f-1a45023db799",
+    "task_state": "succeeded",
+    "file_evidence": [
+      {
+        "path": "browser.txt",
+        "kind": "file",
+        "sha256": "5b565a33b80b75dc462328a68cb5b57d31e3fe1a246438e70629059fcb8aca19"
+      }
+    ],
+    "credential_import": "Generated owner-only local file, memory-only browser session",
+    "physical_microphone_tested": false
+  },
+  "limits": [
+    "Synthetic WAV upload, no ambient microphone or human audibility test.",
+    "Source references identify reviewed code; health endpoints do not attest process build hashes.",
+    "Browser cases ran at Flutter 5f3c680. Subsequent 36d6052 fixes have deterministic regression checks and a separate final-build smoke check.",
+    "A passing functional case does not establish roadmap latency percentiles, native voice, mobile calling or complete M5 acceptance."
+  ],
+  "final_build_smoke": {
+    "flutter_commit": "36d6052",
+    "checked_at": "2026-10-27T07:43:48.238625+00:00",
+    "observed": [
+      "Owner-only file import and explicit Contributor disclosure authenticated.",
+      "Timestamped last-check connection status displayed.",
+      "Newest-first task list displayed the standalone file task with evidence.",
+      "Real /status command acknowledged ok.",
+      "No browser error logs in the last two captured entries."
+    ],
+    "inference_calls": 0
+  }
+}

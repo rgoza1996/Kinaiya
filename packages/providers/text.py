@@ -164,6 +164,39 @@ class MetaResponsesProvider:
         )
 
     def body(self, messages, stream):
+        if self.structured_actions:
+            messages = [dict(message) for message in messages]
+            wire = (
+                "\nStrict response wire serialization: for mcp_call, put the configured server id "
+                "in arguments.server_id, the exact tool name in arguments.mcp_tool, and JSON-encode "
+                "the target argument object into arguments.mcp_arguments_json. For mcp_list, use "
+                "server_id, optional after and optional mcp_tool for schema selection. "
+                "The adapter converts these fields into the logical tool arguments. Set unused "
+                "nullable fields to null. For finish, summary and objective_revision are required "
+                "and the revision must equal the current objective revision. Continue tool work "
+                "until the objective has actual verification evidence."
+            )
+            if messages and messages[0].get("role") == "system":
+                messages[0]["content"] += wire
+            else:
+                messages.insert(0, {"role": "system", "content": wire.strip()})
+            for message in messages:
+                if message.get("role") != "assistant":
+                    continue
+                try:
+                    action = json.loads(message["content"])
+                    args = action["arguments"]
+                    if action["tool"] == "mcp_call":
+                        action["arguments"] = {
+                            "server_id": args["server_id"],
+                            "mcp_tool": args["tool"],
+                            "mcp_arguments_json": json.dumps(args["arguments"]),
+                        }
+                    elif action["tool"] == "mcp_list" and "tool" in args:
+                        args["mcp_tool"] = args.pop("tool")
+                    message["content"] = json.dumps(action)
+                except (ValueError, KeyError, TypeError):
+                    pass
         body = {
             "model": self.model,
             "input": messages,
@@ -179,11 +212,20 @@ class MetaResponsesProvider:
             fields.update(
                 {
                     key: {"type": ["integer", "null"]}
-                    for key in ("objective_revision", "max_bytes", "after", "limit")
+                    for key in ("objective_revision", "max_bytes", "after", "limit", "max_chars")
                 }
             )
             fields["timeout_s"] = {"type": ["number", "null"]}
             fields["event_ids"] = {"type": ["array", "null"], "items": {"type": "string"}}
+            fields["server_id"] = {"type": ["string", "null"]}
+            fields["mcp_tool"] = {
+                "type": ["string", "null"],
+                "description": "Exact MCP tool name for mcp_call or selected-schema mcp_list.",
+            }
+            fields["mcp_arguments_json"] = {
+                "type": ["string", "null"],
+                "description": "For mcp_call: JSON-encode the target tool's full argument object in this string. The adapter decodes it into arguments.",
+            }
             schema = {
                 "type": "object",
                 "additionalProperties": False,
@@ -237,6 +279,28 @@ class MetaResponsesProvider:
             action["arguments"] = {
                 key: value for key, value in action["arguments"].items() if value is not None
             }
+            args = action["arguments"]
+            if action.get("tool") == "mcp_call":
+                encoded = args.get("mcp_arguments_json")
+                if not isinstance(encoded, str) or len(encoded) > 65536:
+                    raise ProviderError("MCP arguments require bounded JSON object text")
+                try:
+                    decoded = json.loads(encoded)
+                except (ValueError, RecursionError) as exc:
+                    raise ProviderError("MCP arguments are invalid JSON") from exc
+                if not isinstance(decoded, dict):
+                    raise ProviderError("MCP arguments must decode to an object")
+                action["arguments"] = {
+                    "server_id": args.get("server_id"),
+                    "tool": args.get("mcp_tool"),
+                    "arguments": decoded,
+                }
+            elif action.get("tool") == "mcp_list":
+                action["arguments"] = {
+                    key: value for key, value in args.items() if key in {"server_id", "after"}
+                }
+                if "mcp_tool" in args:
+                    action["arguments"]["tool"] = args["mcp_tool"]
             return json.dumps(action)
         return text
 
