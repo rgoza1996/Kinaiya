@@ -199,6 +199,11 @@ speaking opening, preserve speech during backchannels, steer/cancel work, and
 queue follow-ups until a native task boundary. See the
 [streaming-window design and verification limits](docs/adr/0019-streaming-window-control.md).
 
+Unfinished live speech requires owner review before file writes, shell commands,
+or MCP calls, including with broad tool grants or YOLO. Agent Chat shows current
+approvals across conversation sessions. Silence alone does not commit speech;
+see the [source-authority boundary](docs/adr/0020-streaming-source-authority.md).
+
 See [Roadmap.md](./Roadmap.md) for architecture, milestones, acceptance criteria, risks, and implementation references.
 
 ## Project principles

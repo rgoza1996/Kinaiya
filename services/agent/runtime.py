@@ -24,6 +24,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import SimpleNamespace
@@ -38,6 +39,8 @@ from packages.contracts.models import (
     Evidence,
     InterruptRequest,
     JournalEntry,
+    PendingApproval,
+    PendingApprovalPage,
     SpeechWindow,
     SteerRequest,
     Task,
@@ -895,6 +898,61 @@ class AgentRuntime:
             await client.close()
 
     # -- approvals ------------------------------------------------------
+    async def pending_approvals(
+        self, *, after: str | None = None, limit: int = 100
+    ) -> PendingApprovalPage:
+        """Current native requests across task sessions, not a bounded history scan."""
+        if not 1 <= limit <= 100:
+            raise ValueError("Approval page limit must be 1..100")
+        found = []
+        records = sorted(list(self._tasks.values()), key=lambda r: r.task.task_id)
+        for rec in records:
+            if after is not None and rec.task.task_id <= after:
+                continue
+            pending = rec.pending
+            if (
+                rec.task.state != TaskState.AWAITING_APPROVAL
+                or pending is None
+                or pending.get("approved")
+                or rec.pending_steer is not None
+            ):
+                continue
+            session_id = rec.task.session_id
+            if await self._epoch_error(rec) is not None:
+                continue
+            permit = self.policy.peek_approval(pending["approval_id"])
+            if (
+                rec.pending is not pending
+                or rec.task.state != TaskState.AWAITING_APPROVAL
+                or pending.get("approved")
+                or rec.pending_steer is not None
+                or permit is None
+                or permit.used
+                or permit.expires_at <= time.time()
+                or permit.objective_revision != rec.task.objective_revision
+            ):
+                continue
+            found.append(
+                PendingApproval(
+                    approval_id=permit.approval_id,
+                    task_id=rec.task.task_id,
+                    session_id=session_id,
+                    thread_id=rec.task.thread_id,
+                    epoch=rec.task.epoch,
+                    tool=pending["tool"],
+                    arguments=pending["arguments"],
+                    action_digest=permit.action_digest,
+                    objective_revision=permit.objective_revision,
+                    expires_at=permit.expires_at,
+                    reason=pending.get("reason", "tool_permission"),
+                )
+            )
+            if len(found) > limit:
+                return PendingApprovalPage(
+                    approvals=found[:limit], next_after=found[limit - 1].task_id
+                )
+        return PendingApprovalPage(approvals=found)
+
     async def resolve_approval(
         self, approval_id: str, resolution: ApprovalResolution, actor: str = "owner"
     ) -> dict[str, Any]:
@@ -912,6 +970,9 @@ class AgentRuntime:
             raise ApprovalError("approval resolution digest does not match the pending action")
         if rec.task.state in TERMINAL:
             raise TaskTerminal("task already terminal; approval is moot")
+        stale = await self._epoch_error(rec)
+        if stale is not None:
+            raise StaleRevision(stale)
         await self._append(
             rec,
             "approval.resolved",
@@ -1356,7 +1417,32 @@ class AgentRuntime:
         summary = str(args.get("summary", "") or "").strip()
         await self._succeed(rec, summary or "done")
 
+    async def _uncommitted_speech_sources(self, rec: _Record) -> list[str]:
+        """A tool grant is not authority to act on unfinished recognition (AT11)."""
+        uncommitted = []
+        for source_id in rec.task.source_event_ids:
+            try:
+                source = await self.journal.resolve(source_id)
+                if source.kind != "conversation.window":
+                    continue
+                window = SpeechWindow.model_validate(source.payload)
+                if source.origin != "authenticated-user" or (
+                    source.session_id,
+                    source.thread_id,
+                    source.epoch,
+                ) != (rec.task.session_id, rec.task.thread_id, rec.task.epoch):
+                    raise ValueError("Wrong speech source scope")
+                expected_revision = rec.source_revisions.get(source_id)
+                if expected_revision is not None and window.revision != expected_revision:
+                    raise ValueError("Speech source was revised during authority validation")
+            except Exception as exc:
+                raise PolicyDenied("Speech source authority cannot be verified") from exc
+            if not window.capture_ended:
+                uncommitted.append(source_id)
+        return uncommitted
+
     async def _execute(self, rec: _Record, tool: str, args: dict[str, Any], raw: str) -> None:
+        revision = rec.task.objective_revision
         if rec.cancel_requested:
             await self._cancel(rec)
             return
@@ -1364,10 +1450,19 @@ class AgentRuntime:
         if stale is not None:
             await self._fail(rec, stale)
             return
-        revision = rec.task.objective_revision
         digest = self.policy.digest_for(tool, args, revision)
         if tool == "mcp_call" and self.mcp_host is not None:
             self._model_mcp()._check(args.get("server_id", ""))
+        sources = (
+            await self._uncommitted_speech_sources(rec)
+            if tool in {"write_file", "shell", "mcp_call"}
+            else []
+        )
+        if await self._discard_revised_action(rec, revision, raw):
+            return
+        if sources:
+            await self._await_approval(rec, tool, args, digest, raw, reason="uncommitted_speech")
+            return
         if tool in ("write_file", "shell") and self.policy.needs_approval(tool):
             await self._await_approval(rec, tool, args, digest, raw)
             return
@@ -1380,8 +1475,35 @@ class AgentRuntime:
             return
         await self._dispatch(rec, tool, args, digest, raw, approval_id=None)
 
+    async def _discard_revised_action(self, rec: _Record, revision: int, raw: str) -> bool:
+        """Journal validation can yield while an authenticated steer is accepted."""
+        if rec.cancel_requested or rec.closing:
+            await self._cancel(rec)
+            return True
+        if rec.pending_steer is None and rec.task.objective_revision == revision:
+            return False
+        await self._apply_steer(rec)
+        rec.history.append({"role": "assistant", "content": raw[:2000]})
+        rec.history.append(
+            {
+                "role": "user",
+                "content": observation_text(
+                    False,
+                    "action discarded: the objective changed during source validation; re-plan",
+                ),
+            }
+        )
+        return True
+
     async def _await_approval(
-        self, rec: _Record, tool: str, args: dict[str, Any], digest: str, raw: str
+        self,
+        rec: _Record,
+        tool: str,
+        args: dict[str, Any],
+        digest: str,
+        raw: str,
+        *,
+        reason: str = "tool_permission",
     ) -> None:
         approval = self.policy.create_approval(digest, rec.task.objective_revision)
         rec.pending = {
@@ -1390,6 +1512,7 @@ class AgentRuntime:
             "tool": tool,
             "arguments": args,
             "approved": False,
+            "reason": reason,
         }
         # Clear before publishing: an owner can resolve the durable request while
         # the append HTTP response is still in flight. Never erase that signal.
@@ -1405,6 +1528,7 @@ class AgentRuntime:
                 "action_digest": digest,
                 "objective_revision": rec.task.objective_revision,
                 "expires_at": approval.expires_at,
+                "reason": reason,
             },
         )
         while True:
@@ -1462,6 +1586,31 @@ class AgentRuntime:
         if stale is not None:
             await self._fail(rec, stale)
             return
+        sources = (
+            await self._uncommitted_speech_sources(rec)
+            if tool in {"write_file", "shell", "mcp_call"}
+            else []
+        )
+        if await self._discard_revised_action(rec, revision, raw):
+            return
+        if sources:
+            pending = rec.pending
+            if (
+                approval_id is None
+                or pending is None
+                or not pending.get("approved")
+                or (pending["approval_id"], pending["digest"], pending["tool"])
+                != (approval_id, digest, tool)
+            ):
+                raise ApprovalError("Uncommitted speech requires owner approval for this action")
+            # Broad file/shell grants skip the broker's approval spend;
+            # spend here in that case. Otherwise the broker consumes this
+            # same approval before effects. MCP always consumes a supplied
+            # approval, including under YOLO. No derived permit is needed.
+            # There is no await between this grant check and the broker's
+            # matching synchronous permission check.
+            if tool in {"write_file", "shell"} and not self.policy.needs_approval(tool):
+                self.policy.consume_approval(approval_id, digest, revision)
         if raw:
             rec.history.append({"role": "assistant", "content": raw[:2000]})
         if approval_id is not None:

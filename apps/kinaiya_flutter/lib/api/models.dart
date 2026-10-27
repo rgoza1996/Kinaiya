@@ -254,17 +254,35 @@ class ApprovalRequest {
     required this.objectiveRevision,
     this.arguments = const {},
     this.expiresAt,
+    this.reason = '',
+    this.sessionId = '',
+    this.threadId = '',
+    this.epoch = 0,
   });
 
   factory ApprovalRequest.fromEntry(JournalEntry entry) {
-    final p = entry.payload;
+    return ApprovalRequest.fromJson({
+      ...entry.payload,
+      'approval_id': entry.payload['approval_id'] ?? entry.eventId,
+      'session_id': entry.sessionId,
+      'thread_id': entry.threadId,
+      'epoch': entry.epoch,
+    });
+  }
+
+  factory ApprovalRequest.fromJson(Map<String, Object?> p) {
+    checkSchemaVersion(p, 'PendingApproval');
     return ApprovalRequest(
-      approvalId: p['approval_id'] as String? ?? entry.eventId,
+      approvalId: p['approval_id'] as String? ?? '',
       taskId: p['task_id'] as String? ?? '',
       tool: p['tool'] as String? ?? '',
       actionDigest: p['action_digest'] as String? ?? '',
       objectiveRevision: (p['objective_revision'] as num?)?.toInt() ?? 1,
       arguments: _map(p['arguments']),
+      reason: p['reason'] as String? ?? '',
+      sessionId: p['session_id'] as String? ?? '',
+      threadId: p['thread_id'] as String? ?? '',
+      epoch: (p['epoch'] as num?)?.toInt() ?? 0,
       expiresAt: p['expires_at'] is num
           ? DateTime.fromMillisecondsSinceEpoch(
               ((p['expires_at'] as num) * 1000).round(),
@@ -281,12 +299,33 @@ class ApprovalRequest {
   final int objectiveRevision;
   final Map<String, Object?> arguments;
   final String? expiresAt;
+  final String reason;
+  final String sessionId;
+  final String threadId;
+  final int epoch;
 
   bool get isExpired {
     if (expiresAt == null || expiresAt!.isEmpty) return false;
     final t = DateTime.tryParse(expiresAt!);
     return t != null && DateTime.now().toUtc().isAfter(t);
   }
+}
+
+class PendingApprovalPage {
+  PendingApprovalPage(this.approvals, this.nextAfter);
+  factory PendingApprovalPage.fromJson(Map<String, Object?> json) {
+    checkSchemaVersion(json, 'PendingApprovalPage');
+    final entries = _mapList(json['approvals']);
+    if (entries.any((e) => e['origin'] != 'agent-supervisor')) {
+      throw const FormatException('Unverified approval origin');
+    }
+    return PendingApprovalPage(
+      entries.map(ApprovalRequest.fromJson).toList(),
+      json['next_after'] as String?,
+    );
+  }
+  final List<ApprovalRequest> approvals;
+  final String? nextAfter;
 }
 
 /// Agent-only command registry entry (GET /v1/commands).

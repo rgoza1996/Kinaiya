@@ -1,0 +1,126 @@
+{
+  "$defs": {
+    "PendingApproval": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "approval_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Approval Id",
+          "type": "string"
+        },
+        "task_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Task Id",
+          "type": "string"
+        },
+        "session_id": {
+          "title": "Session Id",
+          "type": "string"
+        },
+        "thread_id": {
+          "title": "Thread Id",
+          "type": "string"
+        },
+        "epoch": {
+          "minimum": 1,
+          "title": "Epoch",
+          "type": "integer"
+        },
+        "tool": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Tool",
+          "type": "string"
+        },
+        "arguments": {
+          "additionalProperties": true,
+          "title": "Arguments",
+          "type": "object"
+        },
+        "action_digest": {
+          "title": "Action Digest",
+          "type": "string"
+        },
+        "objective_revision": {
+          "minimum": 1,
+          "title": "Objective Revision",
+          "type": "integer"
+        },
+        "expires_at": {
+          "exclusiveMinimum": 0,
+          "title": "Expires At",
+          "type": "number"
+        },
+        "reason": {
+          "default": "tool_permission",
+          "enum": [
+            "tool_permission",
+            "uncommitted_speech"
+          ],
+          "title": "Reason",
+          "type": "string"
+        },
+        "origin": {
+          "const": "agent-supervisor",
+          "default": "agent-supervisor",
+          "title": "Origin",
+          "type": "string"
+        }
+      },
+      "required": [
+        "approval_id",
+        "task_id",
+        "session_id",
+        "thread_id",
+        "epoch",
+        "tool",
+        "arguments",
+        "action_digest",
+        "objective_revision",
+        "expires_at"
+      ],
+      "title": "PendingApproval",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "approvals": {
+      "items": {
+        "$ref": "#/$defs/PendingApproval"
+      },
+      "maxItems": 100,
+      "title": "Approvals",
+      "type": "array"
+    },
+    "next_after": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Next After"
+    }
+  },
+  "title": "PendingApprovalPage",
+  "type": "object"
+}
