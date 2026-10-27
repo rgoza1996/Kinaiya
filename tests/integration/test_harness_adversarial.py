@@ -73,10 +73,7 @@ def test_over_budget_rejected(reg, tmp_path):
 
 
 def test_suite_change_breaks_promotion_binding(reg, tmp_path):
-    good = (
-        "import re\ndef select_context(payload):\n"
-        "    return [payload['files'][0]['id']]\n"
-    )
+    good = "import re\ndef select_context(payload):\n    return [payload['files'][0]['id']]\n"
     vid = reg.register(_src(tmp_path, good), {"name": "first"})
     rep = reg.evaluate(vid)
     assert rep.passed is True
@@ -94,9 +91,7 @@ def test_exfiltration_attempt_cannot_read_registry(reg, tmp_path):
         "max_chars": 10,
     }
     evil = (
-        "def select_context(payload):\n"
-        "    import os\n"
-        "    return [open(payload['query']).read()]\n"
+        "def select_context(payload):\n    import os\n    return [open(payload['query']).read()]\n"
     )
     with pytest.raises(E.RegistrationError):
         reg.register(_src(tmp_path, evil), {"name": "evil"})
@@ -112,3 +107,19 @@ def test_capability_escalation_rejected(reg, tmp_path):
     src = _src(tmp_path, "def select_context(p):\n    return []\n")
     with pytest.raises(E.RegistrationError):
         reg.register(src, {"name": "esc", "capabilities": ["context_selection", "fs_write"]})
+
+
+def test_evaluate_rejects_unvalidated_suite_payload(reg, tmp_path):
+    bad = {
+        "suite_version": "1",
+        "cases": [
+            {
+                "case_id": "bad",
+                "payload": {"query": "", "files": [], "max_chars": 0},
+                "expected_ids": [],
+            }
+        ],
+    }
+    reg.suite_path.write_text(json.dumps(bad), encoding="utf-8")
+    with pytest.raises(E.IntegrityError):
+        reg.evaluate(reg.active)

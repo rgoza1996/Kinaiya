@@ -34,6 +34,9 @@ def canonical_bytes(doc: Any) -> bytes:
     return json.dumps(doc, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
 
+MAX_SUITE_CASES = 1024
+
+
 def suite_hash_of(suite_path: Path | str) -> str:
     """sha256 of the canonical suite bytes (missing file -> IntegrityError)."""
     from core.extensions.errors import IntegrityError
@@ -57,6 +60,8 @@ def load_suite(suite_path: Path | str) -> tuple[list[dict[str, Any]], str]:
         raise IntegrityError("suite must be an object with a cases list")
     if not doc["cases"]:
         raise IntegrityError("suite must contain at least one case")
+    if len(doc["cases"]) > MAX_SUITE_CASES:
+        raise IntegrityError(f"suite exceeds max cases ({MAX_SUITE_CASES}): {len(doc['cases'])}")
     seen: set[str] = set()
     cases: list[dict[str, Any]] = []
     for entry in doc["cases"]:
@@ -71,18 +76,14 @@ def load_suite(suite_path: Path | str) -> tuple[list[dict[str, Any]], str]:
         except Exception as exc:
             raise IntegrityError(f"case {cid!r}: {exc}") from exc
         expected = entry.get("expected_ids")
-        if not isinstance(expected, list) or not all(
-            isinstance(i, str) for i in expected
-        ):
+        if not isinstance(expected, list) or not all(isinstance(i, str) for i in expected):
             raise IntegrityError(f"case {cid!r}: expected_ids must be strings")
         known = {f["id"] for f in payload["files"]}
         if any(i not in known for i in expected):
             raise IntegrityError(f"case {cid!r}: expected_ids outside payload")
         if len(set(expected)) != len(expected):
             raise IntegrityError(f"case {cid!r}: duplicate expected_ids")
-        cases.append(
-            {"case_id": cid, "payload": payload, "expected_ids": list(expected)}
-        )
+        cases.append({"case_id": cid, "payload": payload, "expected_ids": list(expected)})
     return cases, hashlib.sha256(canonical_bytes(doc)).hexdigest()
 
 

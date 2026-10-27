@@ -42,15 +42,23 @@ overall Agent improvement follows from context recall alone.
 
 Generated source runs in a separate Linux bubblewrap process:
 `--unshare-user/pid/net/uts`, cleared environment, `--cap-drop ALL`,
-`--die-with-parent`, read-only `/usr` + candidate + runner + input binds,
-isolated `/proc`, tmpfs `/dev`/`/tmp`, private read-write scratch,
+`--die-with-parent`, read-only `/usr`, a single copied candidate source,
+a private runner dir holding ONLY the trusted `_runner.py` copy
+(evaluator/registry/criteria sources are never bound, so untrusted reads
+fail even past AST checks), and the input payload,
+isolated `/proc`, tmpfs `/dev`/`/tmp`/`/work` (no host directory is
+writable — storage abuse is bounded by memory plus the 1 MiB per-file cap),
 system `/usr/bin/python3.12` (never a venv importing the host repo).
 Missing/unusable isolation fails CLOSED with `SandboxUnavailable`; there
-is no ordinary-subprocess fallback. Wall timeout kills the process group;
-CPU (backstop), 256 MiB RAM, file size, process count, and zero core
-dumps are set by the trusted in-sandbox runner BEFORE untrusted code
-loads (no host-user NPROC limit is set before `bwrap` forks). Candidate
-stdout/stderr are discarded during the call; exactly one JSON document
+is no ordinary-subprocess fallback. The wall timeout and a per-stream output cap are enforced incrementally by
+the host pipe reader: either stream exceeding the byte bound kills the
+whole process group and fails closed, and the group is always reaped. The
+configured CPU hard limit (not wall+5) plus 256 MiB RAM, file size, and
+zero core dumps are set by the trusted in-sandbox runner BEFORE untrusted
+code loads (no host-user NPROC limit is set before `bwrap` forks); a
+required limit that cannot apply exits the runner so the host refuses
+execution. Candidate stdout/stderr are discarded during the call; exactly
+one JSON document
 (`{"ids": [...]}` or `{"error": ...}`) is emitted on a saved fd, and the
 host uses ONLY `ids` — forged score/lifecycle fields cannot count as
 evidence. Initial packages are stdlib-only and the import allowlist plus
@@ -102,3 +110,18 @@ evidence of task improvement; repeated adaptive access can overfit even
 a fixed holdout — rotate heldout sets. Host-administrator bypass is out
 of scope (Roadmap 11.3). No network or FS capabilities exist yet; any
 future capability needs a new manifest contract, sandbox binds, and ADR.
+NPROC is deliberately not set inside the sandbox: with the uid-0
+user-namespace mapping the call can leak onto the host user (observed as
+fork EAGAIN) while not reliably containing the candidate, so no
+process-count limit is claimed; fork/exec abuse is contained by the PID
+namespace plus host group-kill and rejected statically. No seccomp filter
+is installed (documented, not claimed). A suite holds at most 1024 cases.
+Registry mutation paths share one trusted lock for owner-thread
+(`to_thread`) use. A green candidate additionally requires a valid,
+comparable baseline: any baseline case failure blocks promotion.
+
+## Lead verification: kernel containment
+
+The lead's first clean run passed all 37 Muse harness tests. Review still found that PID namespaces and timeout cleanup alone do not prevent a candidate from exhausting host process slots or tmpfs storage before the deadline. The initial selector contract now requires libseccomp and a kernel syscall allowlist, installed before any candidate module code runs. The runner first loads bounded source/payload and the fixed permitted stdlib modules. Candidate execution can then compute and use existing bounded pipes; opening files, spawning processes/threads, executing programs and creating sockets fail in the kernel. Missing library, unsupported filter loading or required resource-limit failures refuse execution. The static Python checks are defense in depth, not the isolation boundary. This narrow pure-selector contract intentionally does not support arbitrary third-party runtime dependencies or filesystem capabilities.
+
+The filter uses the documented [libseccomp initialization](https://github.com/seccomp/libseccomp/blob/main/doc/man/man3/seccomp_init.3) and [rule APIs](https://github.com/seccomp/libseccomp/blob/main/doc/man/man3/seccomp_rule_add.3). Adversarial tests bypass registration to verify actual syscall denial and failure when the filter cannot load. This remains an experimental Linux boundary, rather than a claim of general Python or container hardening.

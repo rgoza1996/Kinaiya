@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from core.extensions.payloads import check_output_ids
+from core.extensions.payloads import check_output_ids, validate_payload
 from core.extensions.sandbox import SandboxLimits, run_selector
 
 BUDGET_UNIT = "chars: sum(len(text)) of selected files must be <= max_chars"
@@ -34,8 +34,18 @@ def run_case(
     """Run one suite case; never raises — failures become measurements."""
     started = time.monotonic()
     try:
-        ids = run_selector(source_file, case_payload, limits=limits)
-        ids = check_output_ids(ids, case_payload)
+        clean = validate_payload(case_payload)
+    except Exception as exc:  # noqa: BLE001 - failures are data
+        return {
+            "ok": False,
+            "ids": [],
+            "recall": 0.0,
+            "wall_s": time.monotonic() - started,
+            "failure": f"InvalidPayload: {exc}"[:300],
+        }
+    try:
+        ids = run_selector(source_file, clean, limits=limits)
+        ids = check_output_ids(ids, clean)
         wall = time.monotonic() - started
         return {
             "ok": True,
@@ -88,8 +98,7 @@ def verdict(
 
     gate(
         candidate["failure_rate"] <= policy["max_failure_rate"],
-        f"failure_rate {candidate['failure_rate']:.3f} "
-        f"<= {policy['max_failure_rate']:.3f}",
+        f"failure_rate {candidate['failure_rate']:.3f} <= {policy['max_failure_rate']:.3f}",
     )
     if policy.get("require_no_invalid", True):
         gate(
@@ -98,8 +107,7 @@ def verdict(
         )
     gate(
         candidate["mean_wall_s"] <= policy["max_mean_wall_s"],
-        f"mean_wall_s {candidate['mean_wall_s']:.3f} "
-        f"<= {policy['max_mean_wall_s']:.3f}",
+        f"mean_wall_s {candidate['mean_wall_s']:.3f} <= {policy['max_mean_wall_s']:.3f}",
     )
     floor = max(
         policy["min_recall"],
@@ -113,4 +121,3 @@ def verdict(
         f"{policy['non_inferiority_margin']:.3f})",
     )
     return passed, reasons
-

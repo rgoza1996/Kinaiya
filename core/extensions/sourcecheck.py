@@ -63,20 +63,14 @@ def check_source(text: str) -> None:
         raise RegistrationError(f"source is not valid Python: {exc}") from exc
     found = False
     for node in tree.body:
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and (
-            node.name == ENTRYPOINT
-        ):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and (node.name == ENTRYPOINT):
             if isinstance(node, ast.AsyncFunctionDef):
                 raise RegistrationError("select_context must be a sync function")
             if len(node.args.args) != 1 or node.args.vararg or node.args.kwarg:
-                raise RegistrationError(
-                    "select_context(payload) must take exactly one argument"
-                )
+                raise RegistrationError("select_context(payload) must take exactly one argument")
             found = True
     if not found:
-        raise RegistrationError(
-            "source must define a top-level sync select_context(payload)"
-        )
+        raise RegistrationError("source must define a top-level sync select_context(payload)")
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
@@ -96,9 +90,7 @@ def decode_source(data: bytes) -> str:
     from core.extensions.errors import RegistrationError
 
     if len(data) > MAX_SOURCE_BYTES:
-        raise RegistrationError(
-            f"source exceeds {MAX_SOURCE_BYTES} bytes ({len(data)})"
-        )
+        raise RegistrationError(f"source exceeds {MAX_SOURCE_BYTES} bytes ({len(data)})")
     try:
         text = data.decode("utf-8")
     except UnicodeDecodeError as exc:

@@ -39,8 +39,7 @@ class Manifest(BaseModel):
             raise RegistrationError(f"unsupported capabilities: {sorted(unknown)}")
         if self.dependencies:
             raise RegistrationError(
-                "dependencies must be empty (stdlib-only selectors); "
-                f"got {self.dependencies}"
+                f"dependencies must be empty (stdlib-only selectors); got {self.dependencies}"
             )
 
     def canonical(self) -> str:

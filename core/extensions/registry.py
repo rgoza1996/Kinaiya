@@ -16,6 +16,7 @@ import hashlib
 import json
 import os
 import tempfile
+import threading
 import time
 import uuid
 from pathlib import Path
@@ -82,6 +83,22 @@ def _atomic_write_json(path: Path, obj: Any) -> None:
         raise
 
 
+def _gate_baseline_health(
+    base: dict[str, Any], passed: bool, reasons: list[str]
+) -> tuple[bool, list[str]]:
+    """A green candidate requires a valid, comparable baseline.
+
+    The non-inferiority comparison in :mod:`core.extensions.evaluator` is
+    unchanged, but a baseline that failed any case cannot anchor
+    promotion: force fail with an explicit reason.
+    """
+    reasons = list(reasons)
+    if base.get("n_fail", 0) > 0:
+        reasons.append(f"FAIL baseline failed {base['n_fail']} case(s); no comparable promotion")
+        return False, reasons
+    return passed, reasons
+
+
 class Registry:
     """Trusted owner of versions, reports, and the activation pointer."""
 
@@ -91,6 +108,7 @@ class Registry:
         suite_path: Path | str,
         model_profile: dict | None = None,
     ) -> None:
+        self._lock = threading.RLock()
         self.root = Path(root)
         self.suite_path = Path(suite_path)
         self.model_profile = dict(model_profile) if model_profile else None
@@ -112,11 +130,33 @@ class Registry:
 
         raw = Path(baseline_selector.__file__).read_bytes()
         manifest = Manifest(name=BASELINE_NAME, description="Pinned keyword baseline")
-        return self._store(manifest, raw, event="seed-baseline")
+        version_id = self._store(manifest, raw, event="seed-baseline")
+        self._reject_stale_baseline(version_id)
+        return version_id
 
-    def register(
-        self, source_path: Path | str, manifest: Manifest | dict | None = None
-    ) -> str:
+    def _reject_stale_baseline(self, current_id: str) -> None:
+        """Fail closed if a different baseline-named version already exists.
+
+        The pinned baseline is content-addressed; a second baseline-named
+        version ID means the baseline source changed under an existing
+        registry, so seeding must refuse rather than silently re-pin.
+        """
+        for meta_path in self._versions.glob("*/meta.json"):
+            try:
+                meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            manifest = meta.get("manifest", {})
+            if (
+                isinstance(manifest, dict)
+                and manifest.get("name") == BASELINE_NAME
+                and meta.get("version_id") != current_id
+            ):
+                raise IntegrityError(
+                    "pinned baseline changed under existing registry; refusing to re-seed"
+                )
+
+    def register(self, source_path: Path | str, manifest: Manifest | dict | None = None) -> str:
         """Store immutable content-addressed bytes; return the version ID."""
         src = Path(source_path)
         if not src.is_file() or src.is_symlink():
@@ -129,10 +169,13 @@ class Registry:
             else Manifest.model_validate(manifest or {"name": "candidate"})
         )
         man.check_supported()
-        return self._store(man, raw, event="register")
+        with self._lock:
+            return self._store(man, raw, event="register")
 
     def _store(self, manifest: Manifest, raw: bytes, *, event: str) -> str:
-        digest = _sha256(CONTRACT.encode() + b"\x00" + raw + b"\x00" + manifest.canonical().encode())
+        digest = _sha256(
+            CONTRACT.encode() + b"\x00" + raw + b"\x00" + manifest.canonical().encode()
+        )
         version_id = "v-" + digest[:24]
         vdir = self._versions / version_id
         meta = {
@@ -147,14 +190,10 @@ class Registry:
             if stored["source_sha256"] != meta["source_sha256"]:
                 raise IntegrityError("version directory collision with other bytes")
             return version_id
-        tmpdir = Path(
-            tempfile.mkdtemp(dir=str(self._versions), prefix=".tmp-")
-        )
+        tmpdir = Path(tempfile.mkdtemp(dir=str(self._versions), prefix=".tmp-"))
         try:
             (tmpdir / "source.py").write_bytes(raw)
-            (tmpdir / "manifest.json").write_text(
-                manifest.canonical(), encoding="utf-8"
-            )
+            (tmpdir / "manifest.json").write_text(manifest.canonical(), encoding="utf-8")
             _atomic_write_json(tmpdir / "meta.json", meta)
             os.replace(tmpdir, vdir)
         except BaseException:
@@ -176,12 +215,20 @@ class Registry:
         ):
             raise IntegrityError(f"malformed version ID: {version_id!r}")
         vdir = self._versions / version_id
+        if vdir.is_symlink():
+            raise IntegrityError(f"version directory is a symlink: {version_id}")
         if not vdir.is_dir():
             raise IntegrityError(f"unknown version: {version_id}")
         return vdir
 
     def _verified_source(self, version_id: str) -> tuple[Path, dict]:
         vdir = self._version_dir(version_id)
+        for name in ("source.py", "manifest.json", "meta.json"):
+            entry = vdir / name
+            if entry.is_symlink():
+                raise IntegrityError(f"version file is a symlink: {name}")
+            if not entry.is_file():
+                raise IntegrityError(f"version file missing: {name}")
         try:
             meta = json.loads((vdir / "meta.json").read_text(encoding="utf-8"))
             raw = (vdir / "source.py").read_bytes()
@@ -191,6 +238,11 @@ class Registry:
             raise IntegrityError(f"source tampering detected: {version_id}")
         manifest = Manifest.model_validate(meta["manifest"])
         manifest.check_supported()
+        digest = _sha256(
+            CONTRACT.encode() + b"\x00" + raw + b"\x00" + manifest.canonical().encode()
+        )
+        if meta.get("version_id") != version_id or "v-" + digest[:24] != version_id:
+            raise IntegrityError(f"content address mismatch: {version_id}")
         return vdir / "source.py", meta
 
     # -- evaluation -----------------------------------------------------
@@ -209,19 +261,24 @@ class Registry:
         for case in cases:
             cand_cases.append(
                 evaluator.run_case(
-                    source_file, case["payload"], case["expected_ids"],
+                    source_file,
+                    case["payload"],
+                    case["expected_ids"],
                     limits=EVAL_LIMITS,
                 )
             )
             base_cases.append(
                 evaluator.run_case(
-                    baseline_file, case["payload"], case["expected_ids"],
+                    baseline_file,
+                    case["payload"],
+                    case["expected_ids"],
                     limits=EVAL_LIMITS,
                 )
             )
         cand = evaluator.summarize(cand_cases, len(cases))
         base = evaluator.summarize(base_cases, len(cases))
         passed, reasons = evaluator.verdict(cand, base, policy)
+        passed, reasons = _gate_baseline_health(base, passed, reasons)
         report = EvaluationReport(
             report_id="rep-" + uuid.uuid4().hex[:16],
             candidate_version_id=version_id,
@@ -239,10 +296,11 @@ class Registry:
             reasons=reasons,
             created_at=time.time(),
         )
-        _atomic_write_json(
-            self._reports / f"{report.report_id}.json",
-            json.loads(report.model_dump_json()),
-        )
+        with self._lock:
+            _atomic_write_json(
+                self._reports / f"{report.report_id}.json",
+                json.loads(report.model_dump_json()),
+            )
         self._audit(
             {
                 "event": "evaluate",
@@ -261,18 +319,17 @@ class Registry:
         except (OSError, ValueError) as exc:
             raise IntegrityError(f"activation pointer unreadable: {exc}") from exc
 
-    def _write_active(
-        self, active: str, *, previous: str | None, event: str, **extra: Any
-    ) -> None:
-        try:
-            cur = self._read_active() if self._active_file.exists() else None
-        except IntegrityError:
-            cur = None
-        history = list((cur or {}).get("history", []))
-        if previous is not None:
-            history.append(previous)
-        _atomic_write_json(self._active_file, {"active": active, "history": history})
-        self._audit({"event": event, "active": active, **extra})
+    def _write_active(self, active: str, *, previous: str | None, event: str, **extra: Any) -> None:
+        with self._lock:
+            try:
+                cur = self._read_active() if self._active_file.exists() else None
+            except IntegrityError:
+                cur = None
+            history = list((cur or {}).get("history", []))
+            if previous is not None:
+                history.append(previous)
+            _atomic_write_json(self._active_file, {"active": active, "history": history})
+            self._audit({"event": event, "active": active, **extra})
 
     @property
     def active(self) -> str:
@@ -307,6 +364,8 @@ class Registry:
             raise PromotionError("report is not bound to this candidate version")
         if report.passed is not True:
             raise PromotionError("stored report did not pass; cannot promote")
+        if report.baseline.get("n_fail", 0) > 0:
+            raise PromotionError("baseline failed at evaluation; no comparable promotion")
         _, meta = self._verified_source(version_id)
         if meta["source_sha256"] != report.candidate_source_sha256:
             raise PromotionError("candidate source changed since evaluation")
@@ -321,7 +380,9 @@ class Registry:
             raise PromotionError("report model profile does not match this registry")
         previous = self.active
         self._write_active(
-            version_id, previous=previous, event="promote",
+            version_id,
+            previous=previous,
+            event="promote",
             report_id=report.report_id,
         )
         return version_id
@@ -330,25 +391,20 @@ class Registry:
         """Restore the previous known-good version; rejected versions stay out."""
         if actor != "owner":
             raise PromotionError("rollback requires actor='owner'")
-        doc = self._read_active()
-        history = doc.get("history", [])
-        if not history:
-            raise PromotionError("no previous version to roll back to")
-        target = history[-1]
-        self._verified_source(target)
-        remaining = history[:-1]
-        _atomic_write_json(
-            self._active_file, {"active": target, "history": remaining}
-        )
-        self._audit({"event": "rollback", "active": target})
-        return target
+        with self._lock:
+            doc = self._read_active()
+            history = doc.get("history", [])
+            if not history:
+                raise PromotionError("no previous version to roll back to")
+            target = history[-1]
+            self._verified_source(target)
+            remaining = history[:-1]
+            _atomic_write_json(self._active_file, {"active": target, "history": remaining})
+            self._audit({"event": "rollback", "active": target})
+            return target
 
     def _load_report(self, report_id: str) -> EvaluationReport:
-        if (
-            not report_id.startswith("rep-")
-            or "/" in report_id
-            or len(report_id) > 64
-        ):
+        if not report_id.startswith("rep-") or "/" in report_id or len(report_id) > 64:
             raise PromotionError(f"malformed report ID: {report_id!r}")
         path = self._reports / f"{report_id}.json"
         try:
@@ -387,6 +443,7 @@ class Registry:
         return baseline_selector.__file__
 
     def _audit(self, event: dict[str, Any]) -> None:
-        entry = {"ts": time.time(), **event}
-        with open(self._audit_file, "a", encoding="utf-8") as fh:
-            fh.write(json.dumps(entry, sort_keys=True) + "\n")
+        with self._lock:
+            entry = {"ts": time.time(), **event}
+            with open(self._audit_file, "a", encoding="utf-8") as fh:
+                fh.write(json.dumps(entry, sort_keys=True) + "\n")

@@ -2,7 +2,7 @@
 
 Budget unit (stated honestly): **characters** — ``len(text)`` of each
 selected file's text, summed; the sum must be ``<= max_chars``. Character
-count is a conservative proxy for tokens, not a token count.
+count is an explicit proxy budget, not a token count or token upper bound.
 """
 
 from __future__ import annotations
@@ -77,7 +77,5 @@ def check_output_ids(ids: Any, payload: dict) -> list[str]:
         raise CandidateFailure(f"candidate returned unknown file IDs: {unknown}")
     used = selected_chars(ids, payload["files"])
     if used > payload["max_chars"]:
-        raise CandidateFailure(
-            f"candidate exceeded char budget: {used} > {payload['max_chars']}"
-        )
+        raise CandidateFailure(f"candidate exceeded char budget: {used} > {payload['max_chars']}")
     return ids
