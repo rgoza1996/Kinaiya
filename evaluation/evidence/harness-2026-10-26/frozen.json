@@ -1,0 +1,7 @@
+{
+  "suite_file_sha256": "b783283d98b47993bb20bec886ee8df696939d173187a51255e7f172b287a713",
+  "policy_source_sha256": "aaa0e309389833b6fbd44272a8cd640cab15a1c40cb1446eb98853da5f991aa8",
+  "created_before_candidate": true,
+  "cases": 12,
+  "retirement": "Publish after candidate frozen; never reuse as heldout thereafter"
+}

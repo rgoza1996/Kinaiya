@@ -254,3 +254,17 @@ def test_streamed_decimal_boundary_waits_for_disambiguation():
     assert chunker.feed("14. Next sentence! ") == ["Pi is 3.14.", "Next sentence!"]
     assert chunker.feed("Done.") == []
     assert chunker.feed("", final=True) == ["Done."]
+
+
+async def test_late_interruption_cannot_stop_a_newer_reply(conversation):
+    store, session = conversation
+    runtime = ConverseRuntime(
+        LocalJournal(store, "converse"), ScriptedProvider(["First sentence.", "Newer reply."])
+    )
+    await runtime.turn(request(session, key="first"))
+    old = runtime.playback[session.session_id].generation
+    await runtime.turn(request(session, key="second"))
+    current = runtime.playback[session.session_id].generation
+    with pytest.raises(ValueError, match="Obsolete interruption"):
+        await runtime.interrupt(session.session_id, expected_generation=old)
+    assert runtime.playback[session.session_id].generation == current

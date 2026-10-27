@@ -1,0 +1,27 @@
+name: kinaiya_flutter
+description: Kinaiya functional Flutter client (Converse character + Agent chat).
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ^3.8.0
+  flutter: ">=3.35.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.4.0
+  web_socket_channel: ^3.0.3
+  uuid: ^4.5.1
+  crypto: ^3.0.6
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/mascot/
+    - assets/character/

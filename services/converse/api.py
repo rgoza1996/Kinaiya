@@ -10,6 +10,7 @@ from packages.contracts.models import ConverseRequest, DeliveryRequest
 
 class SessionControl(BaseModel):
     session_id: str
+    expected_generation: int | None = Field(default=None, ge=1)
 
 
 class SpeechRequest(BaseModel):
@@ -60,7 +61,10 @@ def create_app(runtime, auth, speech=None):
 
     @app.post("/v1/converse/interrupt", dependencies=owner)
     async def interrupt(request: SessionControl):
-        return await runtime.interrupt(request.session_id)
+        try:
+            return await runtime.interrupt(request.session_id, request.expected_generation)
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from exc
 
     @app.post("/v1/converse/enabled", dependencies=owner)
     async def enabled(request: EnabledRequest):
