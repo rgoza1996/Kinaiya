@@ -186,6 +186,7 @@ def test_laya_loader_is_decisions_only_and_uses_separate_explicit_key(monkeypatc
                 "base_url": "http://127.0.0.1:8870",
                 "model": "english",
                 "api_key_env": "SYNTHETIC_LAYA_KEY",
+                "expected_artifact_sha256": "a" * 64,
             }
             for role in ["agent", "converse", "decisions"]
         }
@@ -196,6 +197,7 @@ def test_laya_loader_is_decisions_only_and_uses_separate_explicit_key(monkeypatc
     p = configure_provider(config, "decisions")
     assert p.info.provider == "laya" and p.info.local and not p.info.streaming
     assert p.http.headers["authorization"] == "Bearer public-test-laya-key"
+    assert p.expected_artifact_sha256 == "a" * 64
     asyncio.run(p.close())
 
 

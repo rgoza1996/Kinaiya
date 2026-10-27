@@ -275,10 +275,12 @@ async def one(provider, output, context_profile, name, text, expected_conversati
     return proof
 
 
-async def run(url, model, api_key, output, context_profile):
+async def run(url, model, api_key, output, context_profile, artifact_sha256=None):
     output = output.resolve()
     output.mkdir(parents=True, exist_ok=False)
-    provider = RecordingLaya(url, model=model, api_key=api_key)
+    provider = RecordingLaya(
+        url, model=model, api_key=api_key, expected_artifact_sha256=artifact_sha256
+    )
     cases = [
         (
             "unfinished",
@@ -337,6 +339,7 @@ def main():
     parser.add_argument("--url", default="http://127.0.0.1:8871")
     parser.add_argument("--model", default="typed-decisions")
     parser.add_argument("--key-env", default="KINAIYA_LAYA_API_KEY")
+    parser.add_argument("--expected-artifact-sha256")
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument(
         "--context-profile", choices=["minimal", "preceding_converse"], default="preceding_converse"
@@ -349,6 +352,7 @@ def main():
             os.environ.get(args.key_env, ""),
             args.output,
             args.context_profile,
+            args.expected_artifact_sha256,
         )
     )
     return 0 if summary["all_passed"] else 1
