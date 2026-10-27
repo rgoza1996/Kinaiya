@@ -35,6 +35,7 @@ class _AgentChatState extends State<AgentChat> {
     _lastGeneration = _s.connectionGeneration;
     _s.addListener(_handleStateChange);
     _loadRegistry();
+    unawaited(_refreshTasks());
     _poll = Timer.periodic(const Duration(seconds: 4), (_) => _refreshTasks());
   }
 
@@ -105,6 +106,50 @@ class _AgentChatState extends State<AgentChat> {
     } catch (_) {
       if (!mounted || !_s.ownsConnection(generation, api)) return;
     }
+    try {
+      var page = await api.pendingApprovals();
+      if (!mounted || !_s.ownsConnection(generation, api)) return;
+      if (page != null) {
+        final found = <ApprovalRequest>[];
+        final cursors = <String>{};
+        final maxPages = _s.tasks.length ~/ 100 + 2;
+        for (var index = 0; index < maxPages; index++) {
+          for (final approval in page!.approvals) {
+            if (!approval.isExpired &&
+                _s.tasks.any(
+                  (task) =>
+                      task.taskId == approval.taskId &&
+                      task.state == 'awaiting_approval' &&
+                      task.objectiveRevision == approval.objectiveRevision &&
+                      task.sessionId == approval.sessionId &&
+                      task.threadId == approval.threadId &&
+                      task.epoch == approval.epoch,
+                )) {
+              found.add(approval);
+            }
+          }
+          final after = page.nextAfter;
+          if (after == null) break;
+          if (!cursors.add(after)) {
+            throw const FormatException('Repeated approval cursor');
+          }
+          page = await api.pendingApprovals(after: after);
+          if (!mounted || !_s.ownsConnection(generation, api)) return;
+          if (page == null) {
+            throw const FormatException(
+              'Approval endpoint changed during read',
+            );
+          }
+        }
+        _s.recordApprovals(found);
+        return;
+      }
+    } catch (_) {
+      if (!mounted || !_s.ownsConnection(generation, api)) return;
+      _s.recordApprovals([]);
+      return;
+    }
+    // Older hosts expose requests only through their session journal.
     if (session == null) return;
     if (!mounted || !_s.ownsConnection(generation, api)) return;
     // The approval scan belongs to the session captured before the await;
@@ -528,11 +573,12 @@ class _AgentChatState extends State<AgentChat> {
               ),
             ],
           ),
-        for (final a in _s.approvals) _approvalCard(a, tasksById[a.taskId]),
         Expanded(
           child: ListView(
             padding: const EdgeInsets.symmetric(vertical: 8),
             children: [
+              for (final a in _s.approvals)
+                _approvalCard(a, tasksById[a.taskId]),
               for (final m in _s.agentHistory)
                 MessageBubble(role: m.role, text: m.text, note: m.note),
               if (_s.tasks.isNotEmpty)
@@ -716,6 +762,10 @@ class _AgentChatState extends State<AgentChat> {
                 style: Theme.of(context).textTheme.titleSmall,
               ),
             ),
+            if (approval.reason == 'uncommitted_speech')
+              const Text(
+                'Live speech is not yet confirmed. Review this exact action.',
+              ),
             SelectableText(
               'Action: $args\ndigest:${approval.actionDigest} '
               'revision:${approval.objectiveRevision}'

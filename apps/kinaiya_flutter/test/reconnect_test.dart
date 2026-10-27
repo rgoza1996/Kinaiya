@@ -39,6 +39,7 @@ class FakeAgentClient extends KinaiyaClient {
     this.sessionsHook,
     this.createSessionHook,
     this.recentHook,
+    this.approvalsHook,
     this.healthHook,
   }) : super(
          sessionBase: 'http://127.0.0.1:8760',
@@ -53,6 +54,7 @@ class FakeAgentClient extends KinaiyaClient {
   Future<List<SessionInfo>> Function()? sessionsHook;
   Future<SessionInfo> Function()? createSessionHook;
   Future<List<JournalEntry>> Function()? recentHook;
+  Future<PendingApprovalPage?> Function(String? after)? approvalsHook;
   Future<Map<String, Object?>> Function()? healthHook;
 
   @override
@@ -111,6 +113,10 @@ class FakeAgentClient extends KinaiyaClient {
     required String sessionId,
     int limit = 100,
   }) => recentHook?.call() ?? Future.value(const []);
+
+  @override
+  Future<PendingApprovalPage?> pendingApprovals({String? after}) =>
+      approvalsHook?.call(after) ?? Future.value(null);
 }
 
 void main() {

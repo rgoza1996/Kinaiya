@@ -255,6 +255,26 @@ class ApprovalResolution(WireModel):
     objective_revision: int = Field(ge=1)
 
 
+class PendingApproval(WireModel):
+    approval_id: str = Field(min_length=1, max_length=128)
+    task_id: str = Field(min_length=1, max_length=128)
+    session_id: str
+    thread_id: str
+    epoch: int = Field(ge=1)
+    tool: str = Field(min_length=1, max_length=128)
+    arguments: dict[str, Any]
+    action_digest: str
+    objective_revision: int = Field(ge=1)
+    expires_at: float = Field(gt=0)
+    reason: Literal["tool_permission", "uncommitted_speech"] = "tool_permission"
+    origin: Literal["agent-supervisor"] = "agent-supervisor"
+
+
+class PendingApprovalPage(WireModel):
+    approvals: list[PendingApproval] = Field(default_factory=list, max_length=100)
+    next_after: str | None = Field(default=None, max_length=128)
+
+
 class CommandRequest(WireModel):
     session_id: str
     thread_id: str

@@ -214,6 +214,21 @@ class KinaiyaClient {
     return const [];
   }
 
+  Future<PendingApprovalPage?> pendingApprovals({String? after}) async {
+    try {
+      return PendingApprovalPage.fromJson(
+        await _get(
+          agentBase,
+          '/v1/approvals',
+          query: {if (after != null) 'after': after},
+        ),
+      );
+    } on ApiException catch (error) {
+      if (error.status == 404) return null;
+      rethrow;
+    }
+  }
+
   // -- Converse ----------------------------------------------------------
 
   Stream<ConverseEvent> streamTurn({

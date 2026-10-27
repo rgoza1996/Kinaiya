@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from core.policy import ApprovalError, PolicyDenied
@@ -22,6 +22,7 @@ from packages.contracts.models import (
     ApprovalResolution,
     CommandRequest,
     InterruptRequest,
+    PendingApprovalPage,
     SteerRequest,
     TaskRequest,
 )
@@ -164,6 +165,18 @@ def create_app(runtime: AgentRuntime, auth: Any, commands=None) -> FastAPI:
             return await runtime.resource_client.status()
         except Exception as exc:
             raise HTTPException(503, "Resource coordination is unavailable") from exc
+
+    @app.get("/v1/approvals", response_model=PendingApprovalPage)
+    async def pending_approvals(
+        after: str | None = Query(default=None, min_length=1, max_length=128),
+        limit: int = Query(default=100, ge=1, le=100),
+        actor: str = Depends(require_owner),
+    ):
+        _ = actor
+        try:
+            return await runtime.pending_approvals(after=after, limit=limit)
+        except Exception as exc:
+            raise _http(exc) from exc
 
     @app.post("/v1/approvals/{approval_id}/resolve")
     async def resolve_approval(

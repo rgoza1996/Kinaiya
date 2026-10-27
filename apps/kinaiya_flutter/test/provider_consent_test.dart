@@ -169,6 +169,10 @@ class ConsentClient extends KinaiyaClient {
   @override
   Future<List<AgentTask>> listTasks() async => taskList;
 
+  // This compatibility fixture represents the older journal-only host.
+  @override
+  Future<PendingApprovalPage?> pendingApprovals({String? after}) async => null;
+
   @override
   Future<AgentTask> createTask({
     required String sessionId,
