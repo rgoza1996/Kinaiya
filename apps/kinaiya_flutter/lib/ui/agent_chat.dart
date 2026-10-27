@@ -176,7 +176,8 @@ class _AgentChatState extends State<AgentChat> {
     final slash = _isSlash(text);
     if (!slash && !_s.agentCanInfer) {
       if (!_s.ownsConnection(generation, api)) return;
-      _s.agentNotice = 'Agent inference is not available for the current provider and disclosure consent. Deterministic controls (/status, /stop, /help) still work.';
+      _s.agentNotice =
+          'Agent inference is not available for the current provider and disclosure consent. Deterministic controls (/status, /stop, /help) still work.';
       _s.touch();
       return;
     }
@@ -279,7 +280,8 @@ class _AgentChatState extends State<AgentChat> {
     // discover it was forbidden.
     if (match.first.requiresInference && !_s.agentCanInfer) {
       if (!_s.ownsConnection(generation, api)) return;
-      _s.agentNotice = 'Agent inference is not available for the current provider and disclosure consent. Deterministic controls (/status, /stop, /help) still work.';
+      _s.agentNotice =
+          'Agent inference is not available for the current provider and disclosure consent. Deterministic controls (/status, /stop, /help) still work.';
       _s.touch();
       return;
     }
@@ -311,7 +313,8 @@ class _AgentChatState extends State<AgentChat> {
         return;
       }
       if (liveMatch.first.requiresInference && !_s.agentCanInfer) {
-        _s.agentNotice = 'Agent inference is not available for the current provider and disclosure consent. Deterministic controls (/status, /stop, /help) still work.';
+        _s.agentNotice =
+            'Agent inference is not available for the current provider and disclosure consent. Deterministic controls (/status, /stop, /help) still work.';
         _s.touch();
         return;
       }
@@ -410,7 +413,8 @@ class _AgentChatState extends State<AgentChat> {
     // Steering text starts inference; deterministic stop/approval controls
     // below deliberately do not require it.
     if (!_s.agentCanInfer) {
-      _s.agentNotice = 'Agent inference is not available for the current provider and disclosure consent. Steering is blocked; /status and /stop still work.';
+      _s.agentNotice =
+          'Agent inference is not available for the current provider and disclosure consent. Steering is blocked; /status and /stop still work.';
       _s.touch();
       return;
     }
