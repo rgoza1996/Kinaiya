@@ -3,9 +3,21 @@
 Only trusted owner configuration fixed at construction (argv/cwd/env) may define
 a worker. No API accepts an arbitrary PID, argv, or cwd at runtime; no shell is used.
 
-Cleanup signalling uses Linux pidfds exclusively. The leader pidfd is opened at
-spawn (a held child cannot be recycled by the kernel), and group members are
-adopted only while the verified leader is alive, with kernel
+Configured code cannot execute until parent ownership is established: each
+spawn launches trusted first-party ``_bootstrap.py`` (absolute script path via
+``sys.executable``) which blocks on a private grant pipe. Argv/env travel in a
+bounded sealed memfd, never on the bootstrap command line (only fd numbers and
+a fresh random nonce). The parent verifies pidfd bind-back, ppid/session/group/
+starttime and the bootstrap nonce around ``pidfd_open`` before writing the
+one-byte grant; only then does the bootstrap validate, close control fds and
+``os.execve`` the configured executable. Verification failure closes the grant
+so the bootstrap exits by itself; the child is reaped without signals and start
+reports ``ownership-unverified``. Asyncio child watchers may reap exited
+children automatically, so numeric PIDs are never trusted after reap and a lost
+leader handle is never reopened numerically.
+
+Cleanup signalling uses Linux pidfds exclusively. Group members are adopted
+only while the verified granted leader is alive, with kernel
 start-time/session/group rechecks around ``pidfd_open`` so PID reuse cannot
 redirect a signal. Numeric ``/proc`` scans are measurement-only diagnostics and
 are never signalled. Anything unattributable fails closed as
@@ -17,10 +29,13 @@ from __future__ import annotations
 import asyncio
 import copy
 import inspect
+import json
 import logging
 import os
 import re
+import secrets
 import signal
+import sys
 import time
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
@@ -48,6 +63,9 @@ MAX_STOP_TIMEOUT_S = 60.0
 KILL_GRACE_S = 2.0
 PROBE_INTERVAL_S = 0.05
 SPAWN_SETTLE_S = 5.0
+REAP_GRACE_S = 5.0
+GRANT_BYTE = b"\x01"
+MAX_CONFIG_BYTES = 1048576
 DEFAULT_PATH = "/usr/local/bin:/usr/bin:/bin"
 DEFAULT_LANG = "C.UTF-8"
 
@@ -276,6 +294,100 @@ def _adopt_member(pgid: int, pid: int) -> int | None:
     return fd
 
 
+def _bootstrap_path() -> str:
+    return str(Path(__file__).with_name("_bootstrap.py").resolve())
+
+
+def _make_config_fd(raw: bytes) -> tuple[int, Any | None]:
+    """Sealed memfd (fallback: anonymous temp file) holding bounded config."""
+    try:
+        fd = os.memfd_create("worker-config", 0)
+    except (AttributeError, OSError):
+        import tempfile
+
+        tmp = tempfile.TemporaryFile(prefix="worker-config-")
+        tmp.write(raw)
+        tmp.seek(0)
+        return tmp.fileno(), tmp
+    off = 0
+    while off < len(raw):
+        off += os.write(fd, raw[off:])
+    try:
+        import fcntl
+
+        fcntl.fcntl(
+            fd,
+            fcntl.F_ADD_SEALS,
+            fcntl.F_SEAL_SHRINK | fcntl.F_SEAL_GROW | fcntl.F_SEAL_WRITE | fcntl.F_SEAL_SEAL,
+        )
+    except Exception:
+        pass
+    try:
+        os.lseek(fd, 0, os.SEEK_SET)
+    except OSError:
+        pass
+    return fd, None
+
+
+def _cmdline_has(pid: int, nonce: str, bootstrap: str) -> bool:
+    try:
+        with open(f"/proc/{pid}/cmdline", "rb") as fh:
+            parts = fh.read(65536).split(b"\x00")
+    except OSError:
+        return False
+    try:
+        texts = [p.decode("utf-8", "replace") for p in parts]
+    except Exception:
+        return False
+    return nonce in texts and bootstrap in texts
+
+
+def _verify_bootstrap(pid: int, nonce: str, bootstrap: str) -> tuple[int | None, int | None]:
+    """Verify pre-grant bootstrap identity; return (pidfd, starttime) or (None, None).
+
+    Checks ppid/session/group/starttime plus bootstrap nonce around pidfd_open
+    with an fdinfo bind-back. A foreign handle is closed without signalling.
+    """
+    before = _proc_stat_full(pid)
+    if before is None or before[0] in _ZOMBIE_STATES:
+        return None, None
+    _, ppid, pgrp, sess, start = before
+    if ppid != os.getpid() or pgrp != pid or sess != pid:
+        return None, None
+    if not _cmdline_has(pid, nonce, bootstrap):
+        return None, None
+    try:
+        fd = os.pidfd_open(pid, 0)
+    except OSError:
+        return None, None
+    try:
+        after = _proc_stat_full(pid)
+        bound = _pidfd_pid(fd)
+        cmd_ok = _cmdline_has(pid, nonce, bootstrap)
+    except Exception:
+        after, bound, cmd_ok = None, None, False
+    if after is None or bound != pid or not cmd_ok:
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+        return None, None
+    a_state, a_ppid, a_pgrp, a_sess, a_start = after
+    if (
+        a_state in _ZOMBIE_STATES
+        or a_ppid != os.getpid()
+        or a_pgrp != pid
+        or a_sess != pid
+        or a_start != start
+    ):
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+        return None, None
+    return fd, start
+
+
 def _mem_available_bytes() -> int | None:
     try:
         with open("/proc/meminfo", "rb") as fh:
@@ -304,6 +416,12 @@ class _Managed:
     drains: list[asyncio.Task[None]] = field(default_factory=list)
     last_transition: dict[str, Any] | None = None
     stop_evidence: dict[str, Any] | None = None
+    granted: bool = False
+    grant_w: int | None = None
+    pending_spawn: asyncio.Task[Any] | None = None
+    pending_cleanup: asyncio.Task[Any] | None = None
+    pending_fds: list[int] = field(default_factory=list)
+    pending_obj: Any | None = None
 
 
 ReadinessProbe = Callable[[WorkerSpec, asyncio.subprocess.Process], bool | Awaitable[bool]]
@@ -314,14 +432,15 @@ class WorkerManager:
 
     One lock serializes :meth:`start`/``stop``/``restart``/``close``;
     :meth:`status` is synchronous and never awaits a probe or hung worker.
-    Children spawn via ``asyncio.create_subprocess_exec(start_new_session=True)``
-    with a minimal explicit ``PATH``/``LANG`` plus owner ``env`` (parent
-    credentials never inherited). Stdout/stderr drain in the background with
-    64 KiB tails per stream so flood output neither blocks the child nor
-    exhausts memory; status reports bounded byte counts, never raw content.
+    Each spawn runs trusted ``_bootstrap.py`` via ``sys.executable`` with
+    ``start_new_session=True``; the bootstrap blocks for a one-byte parent
+    grant, then execs the configured executable with the minimal explicit env
+    and cwd. Stdout/stderr drain in the background with 64 KiB tails per stream
+    so flood output neither blocks the child nor exhausts memory; status reports
+    bounded byte counts, never raw content.
 
-    Signals travel only through pidfds adopted while the verified leader is
-    alive. A reused numeric PID/group can therefore never receive cleanup
+    Signals travel only through pidfds adopted while the verified granted leader
+    is alive. A reused numeric PID/group can therefore never receive cleanup
     signals. Anything unattributable fails closed and blocks restart.
     """
 
@@ -398,21 +517,51 @@ class WorkerManager:
 
     @staticmethod
     def _identity_ok(managed: _Managed) -> bool:
-        """True only when the held leader still matches its kernel identity.
+        """True only when the granted leader still matches its kernel identity.
 
-        The held child itself cannot be recycled before reap, but this also
-        gates member adoption: numeric discovery is trusted only while the
-        leader verifiably owns this session/group.
+        Asyncio child watchers may reap exited children automatically, so a
+        numeric PID alone proves nothing; this requires the verified pidfd plus
+        ppid/session/group/starttime. Gates member adoption and measurement.
         """
-        if managed.process is None or managed.pgid is None or managed.leader_starttime is None:
+        if (
+            managed.process is None
+            or managed.pgid is None
+            or managed.leader_starttime is None
+            or managed.leader_fd is None
+            or not managed.granted
+        ):
             return False
         stat = _proc_stat_full(managed.process.pid)
         return (
             stat is not None
+            and stat[0] not in _ZOMBIE_STATES
+            and stat[1] == os.getpid()
             and stat[2] == managed.pgid
             and stat[3] == managed.pgid
             and stat[4] == managed.leader_starttime
         )
+
+    @staticmethod
+    def _has_pending(managed: _Managed) -> bool:
+        """True while an unsettled spawn still owns this slot's future."""
+        spawn_active = managed.pending_spawn is not None and not managed.pending_spawn.done()
+        cleanup_active = managed.pending_cleanup is not None and not managed.pending_cleanup.done()
+        if spawn_active or cleanup_active:
+            return True
+        if (managed.pending_spawn is not None and managed.pending_spawn.done()) and (
+            managed.pending_cleanup is None or managed.pending_cleanup.done()
+        ):
+            # Settled in the background without observation; drop bookkeeping.
+            # Fds were closed by the reaper; keep process/pgid as-is.
+            managed.pending_spawn = None
+            managed.pending_cleanup = None
+            managed.pending_fds = []
+            managed.pending_obj = None
+            return False
+        if managed.pending_spawn is not None or managed.pending_cleanup is not None:
+            # One side done, the other still reaping: still pending.
+            return True
+        return False
 
     async def start(self, worker_id: str) -> dict[str, Any]:
         async with self._lock:
@@ -471,6 +620,8 @@ class WorkerManager:
             return {"ok": False, "worker_id": worker_id, "error": "unknown-worker"}
         if self._closed:
             return {"ok": False, "worker_id": worker_id, "error": "closed"}
+        if self._has_pending(managed):
+            return {"ok": False, "worker_id": worker_id, "error": "ownership-unverified"}
         proc = managed.process
         if proc is not None and proc.returncode is None and managed.state == "running":
             return {
@@ -486,14 +637,15 @@ class WorkerManager:
             or managed.pgid is not None
             or managed.leader_fd is not None
             or managed.member_fds
+            or managed.granted
+            or managed.grant_w is not None
         ):
-            # An old incarnation exists: verify cleanup first, never overwrite
-            # a record and orphan descendants.
             clean, reason = self._quiesced(managed)
             if not clean:
                 return {"ok": False, "worker_id": worker_id, "error": reason}
             self._release_handles(managed)
             managed.pgid = None
+            managed.granted = False
         if not _pidfd_supported():
             managed.state, managed.ready, managed.readiness = "failed", False, "failed"
             managed.error = "unsupported-platform"
@@ -510,44 +662,122 @@ class WorkerManager:
         )
         managed.stdout_tail.clear()
         managed.stderr_tail.clear()
+        managed.granted = False
+        managed.leader_fd = None
+        managed.leader_starttime = None
+        nonce = secrets.token_hex(16)
+        bootstrap = _bootstrap_path()
+        try:
+            raw = json.dumps(
+                {
+                    "nonce": nonce,
+                    "argv": list(spec.argv),
+                    "cwd": str(spec.cwd),
+                    "env": spec.child_env(),
+                },
+                separators=(",", ":"),
+            ).encode("utf-8")
+        except Exception:
+            return await self._fail_start(managed, t0, "spawn-failed")
+        if len(raw) > MAX_CONFIG_BYTES:
+            return await self._fail_start(managed, t0, "spawn-failed")
+        try:
+            grant_r, grant_w = os.pipe()
+        except OSError:
+            return await self._fail_start(managed, t0, "spawn-failed")
+        try:
+            config_fd, config_obj = _make_config_fd(raw)
+        except Exception:
+            for fd in (grant_r, grant_w):
+                try:
+                    os.close(fd)
+                except OSError:
+                    pass
+            return await self._fail_start(managed, t0, "spawn-failed")
         spawn_task = asyncio.ensure_future(
             asyncio.create_subprocess_exec(
-                *spec.argv,
+                sys.executable,
+                bootstrap,
+                str(grant_r),
+                str(config_fd),
+                nonce,
                 cwd=str(spec.cwd),
-                env=spec.child_env(),
+                env={"PATH": DEFAULT_PATH, "LANG": DEFAULT_LANG},
                 stdin=asyncio.subprocess.DEVNULL,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 start_new_session=True,
                 limit=TAIL_MAX_BYTES,
+                pass_fds=(grant_r, config_fd),
             )
         )
         try:
             proc = await asyncio.shield(spawn_task)
         except asyncio.CancelledError:
-            # Shielded: the spawn may still complete. Retain ownership if it
-            # did, clean up boundedly, then propagate the cancellation.
-            await self._settle_cancelled_spawn(managed, spawn_task, t0)
+            await self._settle_cancelled_spawn(
+                managed, spawn_task, t0, grant_w, grant_r, config_fd, config_obj
+            )
             raise
         except Exception:
+            for fd in (grant_r, grant_w, config_fd):
+                try:
+                    os.close(fd)
+                except OSError:
+                    pass
+            try:
+                if config_obj is not None:
+                    config_obj.close()
+            except Exception:
+                pass
             managed.process = None
-            managed.pgid = None  # never signal a previous incarnation's group
+            managed.pgid = None
             return await self._fail_start(managed, t0, "spawn-failed")
+        for fd in (grant_r, config_fd):
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+        try:
+            if config_obj is not None:
+                config_obj.close()
+        except Exception:
+            pass
         managed.process = proc
         managed.pgid = proc.pid
-        try:
-            managed.leader_fd = os.pidfd_open(proc.pid, 0)
-        except OSError:
+        managed.grant_w = grant_w
+        fd, start = _verify_bootstrap(proc.pid, nonce, bootstrap)
+        if fd is None:
+            try:
+                os.close(grant_w)
+            except OSError:
+                pass
+            managed.grant_w = None
             managed.leader_fd = None
-        stat = _proc_stat_full(proc.pid)
-        managed.leader_starttime = stat[4] if stat is not None else None
-        if stat is None or not self._identity_ok(managed):
+            managed.leader_starttime = None
+            managed.granted = False
+            return await self._fail_unverified(managed, t0)
+        managed.leader_fd = fd
+        managed.leader_starttime = start
+        try:
+            os.write(grant_w, GRANT_BYTE)
+        except OSError:
+            try:
+                os.close(grant_w)
+            except OSError:
+                pass
+            managed.grant_w = None
             return await self._fail_start(managed, t0, "ownership-unverified")
+        try:
+            os.close(grant_w)
+        except OSError:
+            pass
+        managed.grant_w = None
+        managed.granted = True
         managed.drains = [
             asyncio.ensure_future(self._drain(proc.stdout, managed.stdout_tail)),
             asyncio.ensure_future(self._drain(proc.stderr, managed.stderr_tail)),
         ]
-        self._capture_members(managed)  # adopt current members; refreshed pre-stop
+        self._capture_members(managed)
         try:
             return await self._await_ready(managed, t0)
         except asyncio.CancelledError:
@@ -559,10 +789,58 @@ class WorkerManager:
             self._note(managed, "failed", time.monotonic() - t0)
             raise
 
+    async def _fail_unverified(self, managed: _Managed, t0: float) -> dict[str, Any]:
+        """Reap an unverified bootstrap without signals; configured code never ran."""
+        proc = managed.process
+        if proc is not None:
+            try:
+                await asyncio.wait_for(proc.wait(), timeout=REAP_GRACE_S)
+            except BaseException:
+                pass
+            try:
+                await self._finalize_pipes(managed)
+            except BaseException:
+                pass
+        managed.state, managed.ready, managed.readiness = "failed", False, "failed"
+        managed.error = "ownership-unverified"
+        self._note(managed, "failed", time.monotonic() - t0)
+        LOG.warning("worker failed: id=%s category=%s", managed.spec.id, "ownership-unverified")
+        result: dict[str, Any] = {
+            "ok": False,
+            "worker_id": managed.spec.id,
+            "error": "ownership-unverified",
+        }
+        if proc is not None and proc.returncode is not None:
+            result["returncode"] = proc.returncode
+        return result
+
     async def _settle_cancelled_spawn(
-        self, managed: _Managed, spawn_task: asyncio.Task[asyncio.subprocess.Process], t0: float
+        self,
+        managed: _Managed,
+        spawn_task: asyncio.Task[Any],
+        t0: float,
+        grant_w: int,
+        grant_r: int,
+        config_fd: int,
+        config_obj: Any | None,
     ) -> None:
-        """Adopt and clean up a spawn that completed despite cancellation."""
+        """Settle a cancelled spawn without ever granting execution.
+
+        Closes the grant writer immediately so the bootstrap exits by itself;
+        retains read/config fds until the spawn settles to prevent fd-number
+        reuse. A still-pending spawn is preserved with a reaping callback and
+        never overwritten; it can never exec (grant closed).
+        """
+        try:
+            os.close(grant_w)
+        except OSError:
+            pass
+        managed.grant_w = None
+        managed.granted = False
+        retain = [fd for fd in (grant_r, config_fd) if fd is not None]
+        managed.pending_fds = list(retain)
+        managed.pending_obj = config_obj
+        managed.pending_spawn = spawn_task
         proc: asyncio.subprocess.Process | None = None
         try:
             proc = await asyncio.wait_for(asyncio.shield(spawn_task), timeout=SPAWN_SETTLE_S)
@@ -574,9 +852,68 @@ class WorkerManager:
                     maybe = None
                 if isinstance(maybe, asyncio.subprocess.Process):
                     proc = maybe
+            else:
+                if not spawn_task.done():
+
+                    async def _reap() -> None:
+                        try:
+                            pending_proc = await spawn_task
+                        except BaseException:
+                            pending_proc = None
+                        try:
+                            if isinstance(pending_proc, asyncio.subprocess.Process):
+                                try:
+                                    await asyncio.wait_for(
+                                        pending_proc.wait(), timeout=REAP_GRACE_S
+                                    )
+                                except BaseException:
+                                    pass
+                        finally:
+                            for fd in retain:
+                                try:
+                                    os.close(fd)
+                                except OSError:
+                                    pass
+                            try:
+                                if config_obj is not None:
+                                    config_obj.close()
+                            except Exception:
+                                pass
+                            managed.pending_spawn = None
+                            managed.pending_cleanup = None
+                            managed.pending_fds = []
+                            managed.pending_obj = None
+
+                    managed.pending_cleanup = asyncio.ensure_future(_reap())
+                    managed.process = None
+                    managed.pgid = None
+                    managed.leader_fd = None
+                    managed.leader_starttime = None
+                    managed.state, managed.ready, managed.readiness = "failed", False, "failed"
+                    managed.error = "cancelled"
+                    self._note(managed, "failed", time.monotonic() - t0)
+                    LOG.warning("worker cancelled during spawn: id=%s", managed.spec.id)
+                    return
+                proc = None
+        managed.pending_spawn = None
+        managed.pending_cleanup = None
+        managed.pending_fds = []
+        managed.pending_obj = None
+        for fd in retain:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+        try:
+            if config_obj is not None:
+                config_obj.close()
+        except Exception:
+            pass
         if proc is None:
             managed.process = None
             managed.pgid = None
+            managed.leader_fd = None
+            managed.leader_starttime = None
             managed.state, managed.ready, managed.readiness = "failed", False, "failed"
             managed.error = "cancelled"
             self._note(managed, "failed", time.monotonic() - t0)
@@ -584,16 +921,13 @@ class WorkerManager:
             return
         managed.process = proc
         managed.pgid = proc.pid
+        managed.leader_fd = None
+        managed.leader_starttime = None
         try:
-            managed.leader_fd = os.pidfd_open(proc.pid, 0)
-        except OSError:
-            managed.leader_fd = None
-        stat = _proc_stat_full(proc.pid)
-        managed.leader_starttime = stat[4] if stat is not None else None
-        self._capture_members(managed)
+            await asyncio.wait_for(proc.wait(), timeout=REAP_GRACE_S)
+        except BaseException:
+            pass
         try:
-            await self._emergency_cleanup(managed)
-            await self._wait_reap(proc)
             await self._finalize_pipes(managed)
         except BaseException:
             pass
@@ -613,6 +947,8 @@ class WorkerManager:
 
     def _quiesced(self, managed: _Managed) -> tuple[bool, str]:
         """True when no owned process/group remains. Inspects only; never signals."""
+        if self._has_pending(managed):
+            return False, "ownership-unverified"
         proc = managed.process
         if proc is not None and proc.returncode is None:
             return False, "cleanup-incomplete"  # old leader still alive: stop first
@@ -643,6 +979,13 @@ class WorkerManager:
             except OSError:
                 pass
         managed.member_fds.clear()
+        if managed.grant_w is not None:
+            try:
+                os.close(managed.grant_w)
+            except OSError:
+                pass
+            managed.grant_w = None
+        managed.granted = False
 
     async def _await_ready(self, managed: _Managed, t0: float) -> dict[str, Any]:
         spec = managed.spec
@@ -714,17 +1057,13 @@ class WorkerManager:
     def _capture_members(self, managed: _Managed) -> None:
         """Adopt pidfds for current group members. Identity-gated; never signals.
 
-        Runs at start and immediately before stop, while the leader is
-        verifiably alive, so every adopted handle is provably ours. After the
-        leader exits only already-adopted handles may be signalled.
+        Runs after the grant and immediately before stop, while the granted
+        leader is verifiably alive, so every adopted handle is provably ours.
+        A lost leader handle is never reopened numerically. After the leader
+        exits only already-adopted handles may be signalled.
         """
         if managed.pgid is None:
             return
-        if managed.leader_fd is None and self._identity_ok(managed) and managed.process is not None:
-            try:
-                managed.leader_fd = os.pidfd_open(managed.process.pid, 0)
-            except OSError:
-                pass
         if not self._identity_ok(managed):
             return
         self._tracked_alive(managed)  # prune dead handles (bookkeeping, not ownership release)
@@ -807,6 +1146,8 @@ class WorkerManager:
         managed = self._workers.get(worker_id)
         if managed is None:
             return {"ok": False, "worker_id": worker_id, "error": "unknown-worker"}
+        if self._has_pending(managed):
+            return {"ok": False, "worker_id": worker_id, "error": "ownership-unverified"}
         proc = managed.process
         t0 = time.monotonic()
         if proc is None:

@@ -400,3 +400,135 @@ async def test_pidfd_missing_refuses_spawn(tracked, tmp_path, monkeypatch):
     result = await asyncio.wait_for(manager.start("w"), timeout=8.0)
     assert not result["ok"] and result["error"] == "unsupported-platform"
     assert manager._workers["w"].process is None
+
+
+MARKER_CHILD = (
+    "import time\nfrom pathlib import Path\nPath({marker!r}).write_text('executed')\n"
+    "time.sleep(30)\n"
+)
+
+
+async def test_pidfd_failure_blocks_exec_and_reaps(tracked, tmp_path, monkeypatch):
+    marker = tmp_path / "executed"
+    script = write_script(tmp_path, "marker.py", MARKER_CHILD.format(marker=str(marker)))
+    manager = track(
+        tracked, WorkerManager([make_spec("w", [PY, str(script)], tmp_path)], readiness=ready_now)
+    )
+    real_open = os.pidfd_open
+
+    def failing_open(pid, flags=0):
+        # Narrow fault: let asyncio's own child-watcher pidfds through so the
+        # actual bootstrap spawn succeeds; fail the parent verification open.
+        import inspect as _inspect
+
+        try:
+            caller = _inspect.stack()[1].filename
+        except Exception:
+            caller = ""
+        if "/asyncio/" in caller or caller.endswith("asyncio/unix_events.py"):
+            return real_open(pid, flags)
+        raise OSError("injected pidfd failure")
+
+    monkeypatch.setattr(os, "pidfd_open", failing_open)
+    result = await asyncio.wait_for(manager.start("w"), timeout=8.0)
+    assert not result["ok"] and result["error"] == "ownership-unverified"
+    assert not marker.exists()  # configured code never execed
+    managed = manager._workers["w"]
+    assert managed.process is not None  # actual bootstrap child was adopted for reap
+    assert await wait_until(lambda: managed.process.returncode is not None, timeout_s=5.0)
+    pgid = managed.pgid
+    if pgid is not None:
+        assert await wait_until(lambda: group_live(pgid) == [], timeout_s=5.0)
+    assert not marker.exists()
+
+
+async def test_pregrant_identity_mismatch_spares_sentinel(tracked, tmp_path, monkeypatch):
+    marker = tmp_path / "executed"
+    script = write_script(tmp_path, "marker.py", MARKER_CHILD.format(marker=str(marker)))
+    manager = track(
+        tracked, WorkerManager([make_spec("w", [PY, str(script)], tmp_path)], readiness=ready_now)
+    )
+    sentinel = subprocess.Popen([PY, "-c", SLEEP_CHILD])
+    try:
+        kill_targets: list[int] = []
+        real_kill = os.kill
+
+        def spy_kill(target, sig):
+            kill_targets.append(target)
+            return real_kill(target, sig)
+
+        monkeypatch.setattr(os, "kill", spy_kill)
+        bound_pids: list[int] = []
+        real_send = signal.pidfd_send_signal
+
+        def spy_send(fd, sig):
+            try:
+                with open(f"/proc/self/fdinfo/{fd}", "rb") as fh:
+                    for line in fh.read().split(b"\n"):
+                        if line.startswith(b"Pid:"):
+                            bound_pids.append(int(line.split()[1]))
+            except (OSError, ValueError, IndexError):
+                pass
+            return real_send(fd, sig)
+
+        monkeypatch.setattr(signal, "pidfd_send_signal", spy_send)
+        real_stat = procmod._proc_stat_full
+
+        def lying_stat(pid):
+            st = real_stat(pid)
+            if st is None:
+                return None
+            state, ppid, pgrp, sess, start = st
+            if ppid == os.getpid():
+                return (state, ppid + 999999, pgrp, sess, start)
+            return st
+
+        monkeypatch.setattr(procmod, "_proc_stat_full", lying_stat)
+        result = await asyncio.wait_for(manager.start("w"), timeout=8.0)
+        assert not result["ok"] and result["error"] == "ownership-unverified"
+        assert not marker.exists()
+        assert sentinel.poll() is None
+        assert sentinel.pid not in kill_targets
+        assert sentinel.pid not in bound_pids
+    finally:
+        stop_sentinel(sentinel)
+
+
+async def test_cancelled_delayed_spawn_never_execs(tracked, tmp_path, monkeypatch):
+    marker = tmp_path / "executed"
+    script = write_script(tmp_path, "marker.py", MARKER_CHILD.format(marker=str(marker)))
+    manager = track(
+        tracked, WorkerManager([make_spec("w", [PY, str(script)], tmp_path)], readiness=ready_now)
+    )
+    monkeypatch.setattr(procmod, "SPAWN_SETTLE_S", 0.4)
+    real_create = asyncio.create_subprocess_exec
+    spawned: list[int] = []
+
+    async def delayed_spawn(*args, **kwargs):
+        await asyncio.sleep(1.2)
+        proc = await real_create(*args, **kwargs)
+        spawned.append(proc.pid)
+        return proc
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", delayed_spawn)
+    task = asyncio.ensure_future(manager.start("w"))
+    await asyncio.sleep(0.2)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await asyncio.wait_for(task, timeout=5.0)
+    # Still-pending spawn owns the slot: a new start must not replace it.
+    retry = await asyncio.wait_for(manager.start("w"), timeout=5.0)
+    assert not retry["ok"] and retry["error"] == "ownership-unverified"
+    assert await wait_until(
+        lambda: (
+            manager._workers["w"].pending_spawn is None
+            and manager._workers["w"].pending_cleanup is None
+        ),
+        timeout_s=5.0,
+    )
+    assert not marker.exists()  # grant was closed; eventual bootstrap exited alone
+    assert spawned, "delayed spawn eventually completed and was reaped"
+    for pid in spawned:
+        with pytest.raises(ProcessLookupError):
+            os.kill(pid, 0)
+        assert group_live(pid) == []

@@ -114,6 +114,21 @@ with no strays; inaccessible `/proc` fails closed instead of proving an empty
 group; env/evidence mutation cannot change trusted state; missing pidfd
 support refuses spawn.
 
+## Hold-before-exec bootstrap
+
+Configured code cannot run before parent ownership: each start spawns trusted
+`packages/resources/_bootstrap.py` via absolute path and `sys.executable`. Argv/env/cwd
+travel as bounded JSON in a sealed memfd; the command line carries only fd numbers and a
+fresh random nonce. The bootstrap blocks for a one-byte grant (EOF exits without exec),
+then validates bounded JSON/nonce, closes control fds, and `os.execve`s the configured
+absolute executable with the validated minimal env/cwd. The parent verifies pidfd
+bind-back, ppid/session/group/starttime, and the bootstrap nonce around `pidfd_open`
+before granting; failure closes the grant so the bootstrap exits alone, and the child is
+reaped with no numeric signals. Cancelled spawns close the grant at once, retain
+read/config fds until settle (no fd-number reuse), and preserve a still-pending spawn
+with a reaping callback that can never exec or be overwritten; start/stop report
+`ownership-unverified` while pending.
+
 ## Limits (honest)
 
 - Cleanup is verified only for observed managed groups: members adopted while
@@ -134,3 +149,6 @@ support refuses spawn.
   and any voice/UX behavior remain lead-owned and unverified here. This is not
   complete M6, not a real GPU/conversation handoff, and makes no API budget or
   model pricing changes. No live-resource admission until the lead verifies.
+- Remaining non-guarantee: no hostile daemon/cgroup containment is claimed;
+  untracked escaped descendants stay explicitly unverified, never signalled.
+  GPU remains unknown/unverified.

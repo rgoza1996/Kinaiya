@@ -191,7 +191,12 @@ def test_manager_limits(tmp_path):
 def test_lazy_interface():
     import packages.resources as package
 
-    assert set(package.__dir__()) == {"MAX_WORKERS", "TAIL_MAX_BYTES", "WorkerManager", "WorkerSpec"}
+    assert set(package.__dir__()) == {
+        "MAX_WORKERS",
+        "TAIL_MAX_BYTES",
+        "WorkerManager",
+        "WorkerSpec",
+    }
     with pytest.raises(AttributeError):
         package.__getattr__("Nope")
 
@@ -205,7 +210,8 @@ async def test_start_stop_restart_memory(tracked, tmp_path):
     manager = track(
         tracked,
         WorkerManager(
-            [make_spec("mem", [PY, str(script), str(ready), "40"], tmp_path)], readiness=file_probe(ready)
+            [make_spec("mem", [PY, str(script), str(ready), "40"], tmp_path)],
+            readiness=file_probe(ready),
         ),
     )
     started = await asyncio.wait_for(manager.start("mem"), timeout=8.0)
@@ -230,14 +236,21 @@ async def test_start_stop_restart_memory(tracked, tmp_path):
     assert evidence["rss_before_bytes"] is not None and evidence["rss_before_bytes"] >= 32 * MiB
     assert evidence["term_sent"] and evidence["duration_s"] >= 0
     entry = manager.status()["workers"]["mem"]
-    assert entry["state"] == "stopped" and entry["rss_bytes"] is None and entry["group_rss_bytes"] is None
+    assert (
+        entry["state"] == "stopped"
+        and entry["rss_bytes"] is None
+        and entry["group_rss_bytes"] is None
+    )
     repeat = await asyncio.wait_for(manager.stop("mem"), timeout=8.0)
     assert repeat["ok"]  # idempotent: still ok after the worker is gone
     assert manager.status()["workers"]["mem"]["group_rss_bytes"] is None
 
 
 async def test_unverified_readiness_without_probe(tracked, tmp_path):
-    manager = track(tracked, WorkerManager([make_spec("plain", [PY, "-c", "import time; time.sleep(30)"], tmp_path)]))
+    manager = track(
+        tracked,
+        WorkerManager([make_spec("plain", [PY, "-c", "import time; time.sleep(30)"], tmp_path)]),
+    )
     started = await asyncio.wait_for(manager.start("plain"), timeout=8.0)
     assert started["ok"] and started["readiness"] == "unverified" and not started["ready"]
     entry = manager.status()["workers"]["plain"]
@@ -246,12 +259,20 @@ async def test_unverified_readiness_without_probe(tracked, tmp_path):
 
 
 async def test_stop_never_started_is_idempotent(tracked, tmp_path):
-    manager = track(tracked, WorkerManager([make_spec("w", [PY, "-c", "pass"], tmp_path)], readiness=ready_now))
-    assert await asyncio.wait_for(manager.stop("w"), timeout=8.0) == {"ok": True, "worker_id": "w", "already": True}
+    manager = track(
+        tracked, WorkerManager([make_spec("w", [PY, "-c", "pass"], tmp_path)], readiness=ready_now)
+    )
+    assert await asyncio.wait_for(manager.stop("w"), timeout=8.0) == {
+        "ok": True,
+        "worker_id": "w",
+        "already": True,
+    }
 
 
 async def test_unknown_worker_ids(tracked, tmp_path):
-    manager = track(tracked, WorkerManager([make_spec("w", [PY, "-c", "pass"], tmp_path)], readiness=ready_now))
+    manager = track(
+        tracked, WorkerManager([make_spec("w", [PY, "-c", "pass"], tmp_path)], readiness=ready_now)
+    )
     for call in (manager.start, manager.stop, manager.restart):
         result = await call("nope")
         assert result == {"ok": False, "worker_id": "nope", "error": "unknown-worker"}
@@ -264,7 +285,11 @@ async def test_early_exit_reports_failed_and_cleans_group(tracked, tmp_path):
     manager = track(
         tracked,
         WorkerManager(
-            [make_spec("doomed", [PY, "-c", "import sys; sys.exit(3)"], tmp_path, startup_timeout_s=5.0)],
+            [
+                make_spec(
+                    "doomed", [PY, "-c", "import sys; sys.exit(3)"], tmp_path, startup_timeout_s=5.0
+                )
+            ],
             readiness=probe_false,
         ),
     )
@@ -283,7 +308,11 @@ async def test_probe_failure_reports_readiness_failed(tracked, tmp_path):
     manager = track(
         tracked,
         WorkerManager(
-            [make_spec("w", [PY, "-c", "import time; time.sleep(30)"], tmp_path, startup_timeout_s=5.0)],
+            [
+                make_spec(
+                    "w", [PY, "-c", "import time; time.sleep(30)"], tmp_path, startup_timeout_s=5.0
+                )
+            ],
             readiness=probe_boom,
         ),
     )
@@ -296,7 +325,14 @@ async def test_startup_timeout_cleans_group(tracked, tmp_path):
     manager = track(
         tracked,
         WorkerManager(
-            [make_spec("slow", [PY, "-c", "import time; time.sleep(30)"], tmp_path, startup_timeout_s=1.0)],
+            [
+                make_spec(
+                    "slow",
+                    [PY, "-c", "import time; time.sleep(30)"],
+                    tmp_path,
+                    startup_timeout_s=1.0,
+                )
+            ],
             readiness=file_probe(tmp_path / "never"),
         ),
     )
@@ -310,7 +346,14 @@ async def test_cancelled_start_cleans_group(tracked, tmp_path):
     manager = track(
         tracked,
         WorkerManager(
-            [make_spec("slow", [PY, "-c", "import time; time.sleep(30)"], tmp_path, startup_timeout_s=10.0)],
+            [
+                make_spec(
+                    "slow",
+                    [PY, "-c", "import time; time.sleep(30)"],
+                    tmp_path,
+                    startup_timeout_s=10.0,
+                )
+            ],
             readiness=file_probe(tmp_path / "never"),
         ),
     )
@@ -330,7 +373,14 @@ async def test_status_never_blocks_on_probe(tracked, tmp_path):
     manager = track(
         tracked,
         WorkerManager(
-            [make_spec("slow", [PY, "-c", "import time; time.sleep(30)"], tmp_path, startup_timeout_s=6.0)],
+            [
+                make_spec(
+                    "slow",
+                    [PY, "-c", "import time; time.sleep(30)"],
+                    tmp_path,
+                    startup_timeout_s=6.0,
+                )
+            ],
             readiness=file_probe(tmp_path / "never"),
         ),
     )
@@ -350,10 +400,15 @@ async def test_status_never_blocks_on_probe(tracked, tmp_path):
 async def test_concurrent_start_stop_serialized(tracked, tmp_path):
     manager = track(
         tracked,
-        WorkerManager([make_spec("w", [PY, "-c", "import time; time.sleep(30)"], tmp_path)], readiness=ready_now),
+        WorkerManager(
+            [make_spec("w", [PY, "-c", "import time; time.sleep(30)"], tmp_path)],
+            readiness=ready_now,
+        ),
     )
     results = await asyncio.wait_for(
-        asyncio.gather(*[manager.start("w") for _ in range(3)], *[manager.stop("w") for _ in range(3)]),
+        asyncio.gather(
+            *[manager.start("w") for _ in range(3)], *[manager.stop("w") for _ in range(3)]
+        ),
         timeout=10.0,
     )
     assert len(results) == 6 and all(r["worker_id"] == "w" for r in results)
@@ -368,9 +423,13 @@ async def test_concurrent_start_stop_serialized(tracked, tmp_path):
 
 
 async def test_concurrent_distinct_starts(tracked, tmp_path):
-    specs = [make_spec(f"w{i}", [PY, "-c", "import time; time.sleep(30)"], tmp_path) for i in range(4)]
+    specs = [
+        make_spec(f"w{i}", [PY, "-c", "import time; time.sleep(30)"], tmp_path) for i in range(4)
+    ]
     manager = track(tracked, WorkerManager(specs, readiness=ready_now))
-    results = await asyncio.wait_for(asyncio.gather(*[manager.start(s.id) for s in specs]), timeout=10.0)
+    results = await asyncio.wait_for(
+        asyncio.gather(*[manager.start(s.id) for s in specs]), timeout=10.0
+    )
     assert all(r["ok"] for r in results)
     assert len({r["pid"] for r in results}) == 4
 
@@ -378,7 +437,11 @@ async def test_concurrent_distinct_starts(tracked, tmp_path):
 async def test_flood_logs_bounded(tracked, tmp_path):
     script = write_script(tmp_path, "flood.py", FLOOD)
     manager = track(
-        tracked, WorkerManager([make_spec("loud", [PY, str(script)], tmp_path, stop_timeout_s=2.0)], readiness=ready_now)
+        tracked,
+        WorkerManager(
+            [make_spec("loud", [PY, str(script)], tmp_path, stop_timeout_s=2.0)],
+            readiness=ready_now,
+        ),
     )
     started = await asyncio.wait_for(manager.start("loud"), timeout=8.0)
     assert started["ok"]
@@ -396,7 +459,14 @@ async def test_status_hides_secrets_and_commands(tracked, tmp_path):
     manager = track(
         tracked,
         WorkerManager(
-            [make_spec("w", [PY, "-c", "import time; time.sleep(30)"], tmp_path, env={"WORKER_TOKEN": secret})],
+            [
+                make_spec(
+                    "w",
+                    [PY, "-c", "import time; time.sleep(30)"],
+                    tmp_path,
+                    env={"WORKER_TOKEN": secret},
+                )
+            ],
             readiness=ready_now,
         ),
     )
@@ -405,7 +475,9 @@ async def test_status_hides_secrets_and_commands(tracked, tmp_path):
     assert secret not in dump and "WORKER_TOKEN" not in dump
     assert PY not in dump
     entry = manager.status()["workers"]["w"]
-    assert "argv" not in entry and "env" not in entry and "cwd" not in entry and "command" not in entry
+    assert (
+        "argv" not in entry and "env" not in entry and "cwd" not in entry and "command" not in entry
+    )
 
 
 async def test_stop_stubborn_descendant_kills_group(tracked, tmp_path):
@@ -414,7 +486,14 @@ async def test_stop_stubborn_descendant_kills_group(tracked, tmp_path):
     manager = track(
         tracked,
         WorkerManager(
-            [make_spec("fork", [PY, str(script), str(parent_ready), str(child_ready)], tmp_path, stop_timeout_s=1.0)],
+            [
+                make_spec(
+                    "fork",
+                    [PY, str(script), str(parent_ready), str(child_ready)],
+                    tmp_path,
+                    stop_timeout_s=1.0,
+                )
+            ],
             readiness=file_probe(parent_ready),
         ),
     )
@@ -437,7 +516,14 @@ async def test_close_kills_descendant_and_spares_sentinel(tracked, tmp_path):
     manager = track(
         tracked,
         WorkerManager(
-            [make_spec("fork", [PY, str(script), str(parent_ready), str(child_ready)], tmp_path, stop_timeout_s=1.0)],
+            [
+                make_spec(
+                    "fork",
+                    [PY, str(script), str(parent_ready), str(child_ready)],
+                    tmp_path,
+                    stop_timeout_s=1.0,
+                )
+            ],
             readiness=file_probe(parent_ready),
         ),
     )
@@ -464,7 +550,12 @@ async def test_partial_close_attempts_all_workers(tracked, tmp_path, monkeypatch
         make_spec("b", [PY, "-c", "import time; time.sleep(30)"], tmp_path),
     ]
     manager = track(tracked, WorkerManager(specs, readiness=ready_now))
-    assert all(r["ok"] for r in await asyncio.wait_for(asyncio.gather(*[manager.start(s.id) for s in specs]), timeout=8.0))
+    assert all(
+        r["ok"]
+        for r in await asyncio.wait_for(
+            asyncio.gather(*[manager.start(s.id) for s in specs]), timeout=8.0
+        )
+    )
     # Cleanup signals travel only through pidfds now (numeric killpg is gone),
     # so the synthetic failure is injected at the pidfd layer. The first
     # signal belongs to worker "a" (close iterates in spec order); the rest
