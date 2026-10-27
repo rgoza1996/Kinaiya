@@ -60,6 +60,8 @@ class ConverseRuntime:
         self.enabled = True
         self._active = {}
         self._dedupe_locks = {}
+        self._epoch_locks = {}
+        self._runtime_id = new_id()
 
     async def _recent(self, session_id):
         if hasattr(self.journal, "recent"):
@@ -67,11 +69,42 @@ class ConverseRuntime:
         return await self.journal.read(session_id=session_id, limit=100)
 
     async def _epoch(self, session_id):
-        if session_id not in self.playback:
+        if session_id in self.playback:
+            return self.playback[session_id]
+        lock = self._epoch_locks.setdefault(session_id, asyncio.Lock())
+        async with lock:
+            if session_id in self.playback:
+                return self.playback[session_id]
             existing = await self._recent(session_id)
-            self.playback[session_id] = PlaybackEpoch(
-                max((e.payload.get("generation_epoch", 0) for e in existing), default=0)
-            )
+            session = await self.journal.session(session_id)
+            generations = [
+                value
+                for event in existing
+                if event.epoch == session.epoch
+                for key in ("generation_epoch", "next_generation_epoch")
+                if type(value := event.payload.get(key)) is int and value >= 0
+            ]
+            previous = max(generations, default=0)
+            generation = previous + 1 if previous else 0
+            if previous:
+                # Persist the recovered boundary before exposing it. Runtime
+                # identity additionally prevents reuse when bounded history
+                # omits an old counter or two runtimes observe the same value.
+                await self.journal.append(
+                    AppendRequest(
+                        session_id=session_id,
+                        thread_id=session.thread_id,
+                        epoch=session.epoch,
+                        kind="converse.safety",
+                        payload={
+                            "reason": "playback_restart_barrier",
+                            "generation_epoch": generation,
+                            "runtime_id": self._runtime_id,
+                        },
+                        idempotency_key=f"playback-start:{self._runtime_id}:{session.epoch}",
+                    )
+                )
+            self.playback[session_id] = PlaybackEpoch(generation)
         return self.playback[session_id]
 
     async def interrupt(self, session_id, expected_generation=None):
@@ -92,6 +125,7 @@ class ConverseRuntime:
                 kind="delivery.updated",
                 payload={
                     "generation_epoch": previous,
+                    "next_generation_epoch": epoch.generation,
                     "status": "interrupted",
                     "alignment": "delivery_unknown",
                 },
@@ -256,6 +290,7 @@ class ConverseRuntime:
                                 "final": True,
                                 "revision": 1,
                                 "generation_epoch": generation,
+                                "runtime_id": self._runtime_id,
                                 "chunk_id": new_id(),
                                 "delivery": "generated",
                             },
@@ -292,6 +327,7 @@ class ConverseRuntime:
             or session.epoch != event.epoch
             or event.origin != "converse"
             or event.kind != "conversation.converse"
+            or event.payload.get("runtime_id") != self._runtime_id
             or not playback.accepts(generation_epoch)
             or event.payload.get("generation_epoch") != generation_epoch
         ):
@@ -374,6 +410,7 @@ class ConverseRuntime:
                     "final": True,
                     "revision": 1,
                     "generation_epoch": playback.generation,
+                    "runtime_id": self._runtime_id,
                     "chunk_id": new_id(),
                     "delivery": "generated",
                     "outcome_event_id": outcome.event_id,
