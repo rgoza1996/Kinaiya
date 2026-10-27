@@ -23,6 +23,20 @@
       "maxLength": 2000,
       "title": "Reason",
       "type": "string"
+    },
+    "source_event_ids": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 32,
+      "title": "Source Event Ids",
+      "type": "array"
+    },
+    "source_revision": {
+      "default": 1,
+      "minimum": 1,
+      "title": "Source Revision",
+      "type": "integer"
     }
   },
   "required": [

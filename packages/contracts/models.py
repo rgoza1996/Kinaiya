@@ -116,6 +116,8 @@ class InterruptRequest(WireModel):
     expected_objective_revision: int = Field(ge=1)
     idempotency_key: str = Field(min_length=1, max_length=256)
     reason: str = Field(default="User requested cancellation", max_length=2000)
+    source_event_ids: list[str] = Field(default_factory=list, max_length=32)
+    source_revision: int = Field(default=1, ge=1)
 
 
 class Decision(WireModel):
