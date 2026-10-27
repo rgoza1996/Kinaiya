@@ -1,66 +1,17 @@
-# ADR 0006: Native MCP host (client) for the skills/MCP/plugin milestone
+# ADR 0006: Native MCP host with bounded transports
 
-Accepted as the M1A MCP foundation, against Roadmap.md 0.2.1 section 31.5.
-The roadmap is unchanged; this does not claim plugin support or full
-protocol coverage.
+Status: reviewed experimental host foundation for #3 and #23. No plugin or complete protocol compatibility claim. Agent activation is a separate integration gate.
 
-## Context
+The owner supplies at most 16 validated configurations. Each server is disabled by default, with an empty exact tool allowlist. Discovery grants nothing. Configs are revalidated/copied so caller mutation cannot expand grants. Stdio needs the existing shell grant; HTTP needs the network grant plus per-server remote opt-in and HTTPS outside loopback. Secrets resolve from references outside model context. Missing sandbox/process-limit support fails closed.
 
-Roadmap 31.5 requires a version-negotiated MCP client with local stdio and
-remote Streamable HTTP support, behind Kinaiya's permission layer. Server
-descriptions, tool schemas, and results are untrusted input. This ADR
-records the owned surface: `packages/ecosystem/mcp_host.py`, its tests,
-and this note. `__init__.py` lead exports, `skills.py`, shared core,
-services, and CI are untouched.
+A dedicated per-server actor owns SDK transport and ClientSession contexts from entry through exit on the same async task. Request tasks enqueue bounded work (32 pending), never take ownership of those contexts. Cancellation drops the active connection and reaps local processes; queued canceled work is skipped. Closing discards queued operations. Failed/uncertain calls are never replayed automatically. Only read-only tool discovery may reconnect once. An HTTP disconnect cannot undo a remote side effect; its outcome remains uncertain.
 
-## Decision
+The trusted stdio relay bounds JSONL frames before SDK decoding: 512 KiB inbound, 256 KiB outbound and 64 KiB stored stderr. Oversize unterminated frames kill the process group. Environment secrets pass through anonymous memfd arguments after bubblewrap clears ambient environment; raw values never appear in launch argv. NUL values are rejected. Results, error text and map keys scrub known literal secret values. Resource limits are inherited per process: 512 MiB address space, 120 CPU seconds, 128 open files and 16 MiB file size. These are conservative reference-profile limits, not aggregate cgroup scheduling or proof against every denial of service. Large Node/model servers may need an independently designed resource profile.
 
-`MCPConfig` (pydantic, `extra="forbid"`) carries `id`, `transport`
-(`stdio`|`http`), `command`/`args` or `url`, `enabled=False`,
-`allowed_tools=[]`, `env_secret_refs`/`header_secret_refs` (name to
-resolver ref, never values), `allow_remote=False`, `timeout_seconds=10`
-(1..120), and `max_result_chars=16000`. `MCPHost(configs, policy,
-secret_resolver=None)` exposes `list_servers()` (metadata, no secrets),
-`async discover(id)` (bounded metadata; grants nothing),
-`async call(id, tool, args)` (exact-allowlist gated), `async close()`,
-and owner-only `replace_configs(actor="owner", ...)`.
+HTTP uses an explicit httpx client with redirects and ambient proxy configuration disabled. Raw response bodies are capped before SDK JSON/SSE decoding; encoded bodies are rejected so decompression cannot evade the cap. Result, argument, schema, metadata and server-count limits apply on both discovery and call refresh. The initial JSON Schema profile rejects references and regular-expression keywords and limits structural depth/nodes; it cannot fetch remote schema URLs or run server-supplied regexes. This intentionally excludes some MCP schemas. Descriptions/results remain untrusted data and cannot authorize tools.
 
-Authority: disabled servers and non-allowlisted tools raise `PolicyDenied`
-before any connection or byte is sent. Tool names, descriptions, and
-`readOnly` annotations never grant anything. Argument schemas are
-validated host-side with `jsonschema` (already a dependency). Results are
-plain JSON dicts marked `origin="mcp"`, `untrusted=true`; server `isError`
-raises instead of reading as success.
+## Verification
 
-Isolation: stdio needs the policy shell grant and runs through the
-existing `services.agent.tools.build_bwrap_args(policy,
-shlex.join([command, *args]), policy.network)` tuple (no fallback;
-missing bwrap fails closed via `ShellUnavailable`). Typed argv is
-preserved through `shlex.join`; the workspace appears at `/workspace`,
-ambient env is cleared (`HOME=/tmp`), and explicit secret refs arrive only
-as `--setenv` pairs for that server. Network isolation stays on unless
-the policy network grant is set. HTTP needs the network grant plus
-per-server `allow_remote`, HTTPS outside loopback, no userinfo, no
-secret-bearing query keys or fragments, and `httpx` default
-no-redirect behavior; headers come only from secret refs.
+MCP SDK 1.30.0. `PYTHONPATH=. python -m pytest tests/integration/test_ecosystem_mcp.py -q`: **32 passed** on the reference Linux host. Real bubblewrap stdio and loopback Streamable HTTP initialize/list/call passed. Adversarial cases cover cross-request cleanup without suppressed errors, oversize pre-decode frames/bodies, stderr flood, timeout/caller cancellation and process reaping without replay, close with queued work, explicit secret delivery and argv hygiene, secret result/error/map-key scrubbing, NUL injection, redirect refusal with a second-origin trap, encoded-body refusal, immutable grants and unsafe schemas. Ruff lint/format pass. No paid model calls or external MCP servers were used by these tests.
 
-Robustness: per-server locks serialize sessions; timeouts and crashes
-raise `MCPTransportError` without crashing the host; a broken session is
-dropped and only read-only listing reconnects once; calls never
-auto-replay side effects. Metadata, schemas, arguments, and results are
-size-bounded; oversize results fail clearly rather than truncating into a
-false success. Errors and metadata are scrubbed of secret values, query
-strings, and userinfo.
-
-## Verification and limits
-
-MCP SDK 1.30.0, PyYAML 6.0.3 (root `.venv`). Transport verified: stdio,
-via a stdlib-only synthetic JSON-RPC server over real bubblewrap.
-Transport not run live: Streamable HTTP (no external servers; validation,
-grant, redaction, and refused-connection paths tested only). No paid
-inference, no external network. `ruff check`, `ruff format --check`,
-and `pytest tests/integration/test_ecosystem_mcp.py -q` are the gates.
-
-Not claimed: OAuth flows, sampling/elicitation/roots, resources/prompts,
-list-change handling, cancellation acknowledgement, full plugin
-compatibility, or production hardening. Those remain M4A/future work.
+Not established: OAuth, sampling/elicitation/roots, resources/prompts, list-change handling, arbitrary plugin execution, aggregate process resource scheduling, remote cancellation acknowledgment, complete MCP conformance or production hardening. These remain open roadmap gates.
