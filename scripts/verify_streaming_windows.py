@@ -195,7 +195,14 @@ class Probe:
             ("converse", self.args.converse_port),
             ("decisions", self.args.decisions_port),
         ):
-            health = await self.request(port, "/health")
+
+            async def healthy(port=port):
+                try:
+                    return await self.request(port, "/health")
+                except httpx.TransportError:
+                    return None
+
+            health = await self.wait(healthy, bool, timeout=15)
             info = health.get("provider")
             if info:
                 assert info["local"] or (
