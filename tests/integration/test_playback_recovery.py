@@ -134,16 +134,21 @@ async def test_restart_barrier_is_durable_and_first_initialization_is_serialized
         )
         prior = first.playback[session.session_id].generation
         restored = ConverseRuntime(journal, ScriptedProvider(["Synthetic fresh reply."]))
-        original = restored._recent
+        original = journal.playback_generation
         calls = 0
 
-        async def delayed(session_id):
+        async def delayed(session_id, thread_id, epoch):
             nonlocal calls
+            assert (session_id, thread_id, epoch) == (
+                session.session_id,
+                session.thread_id,
+                session.epoch,
+            )
             calls += 1
             await asyncio.sleep(0)
-            return await original(session_id)
+            return await original(session_id, thread_id, epoch)
 
-        restored._recent = delayed
+        journal.playback_generation = delayed
         epochs = await asyncio.gather(
             restored._epoch(session.session_id), restored._epoch(session.session_id)
         )

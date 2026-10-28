@@ -32,6 +32,7 @@ from packages.contracts.models import (
     AppendRequest,
     ApprovalResolution,
     JournalEntry,
+    PlaybackGeneration,
     ProviderInfo,
     Session,
     TaskRequest,
@@ -53,12 +54,16 @@ class InMemoryJournal:
         self.entries: list[JournalEntry] = []
         self._seq = 0
         self._channel = channel
+        self._writers: dict[str, str] = {}
 
     async def append(self, request: AppendRequest) -> JournalEntry:
         self._seq += 1
         if request.kind == "conversation.user":
             origin = "authenticated-user"
-        elif request.kind == "conversation.converse":
+        elif request.kind == "conversation.converse" or (
+            self._channel == "converse"
+            and request.kind in {"converse.safety", "converse.window_state", "delivery.updated"}
+        ):
             origin = "converse"
         elif request.kind == "agent.outcome":
             origin = "agent-supervisor"
@@ -78,6 +83,9 @@ class InMemoryJournal:
             created_at=datetime.now(UTC),
         )
         self.entries.append(entry)
+        # The fixture represents one authenticated adapter. Writer provenance
+        # stays outside entry payload/origin, as in the native Store columns.
+        self._writers[entry.event_id] = self._channel
         return entry
 
     async def read(self, *, after: int = 0, limit: int = 100, **_kw) -> list[JournalEntry]:
@@ -97,6 +105,60 @@ class InMemoryJournal:
 
     async def session(self, session_id: str) -> Session:
         return Session(session_id=session_id, thread_id="t9", channel=self._channel, epoch=1)
+
+    async def playback_generation(
+        self, session_id: str, thread_id: str, epoch: int
+    ) -> PlaybackGeneration:
+        recovered = PlaybackGeneration(
+            session_id=session_id, thread_id=thread_id, epoch=epoch, maximum_generation=0
+        )
+        session = await self.session(session_id)
+        scope = session_id, thread_id, epoch
+        if session.channel != "converse" or scope != (
+            session.session_id,
+            session.thread_id,
+            session.epoch,
+        ):
+            raise ValueError("Stale or wrong playback-generation scope")
+        for entry in self.entries:
+            if (
+                self._writers.get(entry.event_id) != "converse"
+                or (entry.session_id, entry.thread_id, entry.epoch) != scope
+                or entry.kind
+                not in {
+                    "conversation.user",
+                    "conversation.converse",
+                    "converse.safety",
+                    "converse.window_state",
+                    "delivery.updated",
+                }
+            ):
+                continue
+            expected_origin = (
+                "authenticated-user" if entry.kind == "conversation.user" else "converse"
+            )
+            if entry.origin != expected_origin:
+                raise ValueError("Native playback metadata identity is corrupt")
+            keys = (
+                ("generation_epoch", "next_generation_epoch")
+                if entry.kind == "delivery.updated"
+                else ("generation_epoch",)
+            )
+            for key in keys:
+                value = entry.payload.get(key)
+                if value is not None:
+                    # Validate every selected field rather than allowing a bad
+                    # counter to disappear behind an otherwise larger maximum.
+                    counter = PlaybackGeneration(
+                        session_id=session_id,
+                        thread_id=thread_id,
+                        epoch=epoch,
+                        maximum_generation=value,
+                    )
+                    recovered.maximum_generation = max(
+                        recovered.maximum_generation, counter.maximum_generation
+                    )
+        return recovered
 
 
 class ScriptedProvider:
