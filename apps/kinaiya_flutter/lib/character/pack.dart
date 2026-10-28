@@ -6,13 +6,14 @@
 /// frame with a visible note, never a silent substitution or a crash.
 ///
 /// v1 manifests (`pack_schema: 1` with `poses`) remain accepted.
-/// v2 manifests (`pack_schema: 2` with `sheets`/`animations`) are validated
+/// v2/v3 manifests (`sheets`/`animations`) are validated
 /// strictly: exact types (no string coercion), finite numeric ranges,
 /// strict bundled-asset paths, SHA-256, PNG header dimensions and rectangle
 /// bounds checked BEFORE decoding, plus texture/memory/count budgets.
 /// Images are untrusted: decoding is bounded and decoded dimensions are
 /// re-checked; codecs/images are disposed and stale async completions are
 /// dropped by the renderer.
+/// Schema 3 adds bounded declarative semantic variants and fallback edges.
 library;
 
 import 'dart:convert';
@@ -25,9 +26,49 @@ import 'package:flutter/services.dart' show AssetBundle, rootBundle;
 
 const String packAssetPath = 'assets/character/pack.json';
 
-/// v1 schema (poses) and v2 schema (sheets + animations).
+/// v1 poses, v2 spritesheets, and v3 semantic spritesheet selection.
 const int packSchemaVersion = 1;
 const int packSchemaV2 = 2;
+const int packSchemaV3 = 3;
+
+const Set<String> characterSemanticIds = {
+  'idle',
+  'listening',
+  'warming',
+  'speaking',
+  'thinking',
+  'working.generic',
+  'working.inspect_repo',
+  'working.write_code',
+  'working.reason',
+  'working.read_email',
+  'working.draft_document',
+  'blocked',
+  'alert.important',
+  'alert.critical',
+};
+const Set<String> characterConditionIds = {
+  'speaking',
+  'listening',
+  'working',
+  'blocked',
+  'warming',
+  'quiet',
+};
+
+/// The same fallback edges are used for cycle validation and local playback.
+const Map<String, String> characterStandardFallbacks = {
+  'working.generic': 'thinking',
+  'working.reason': 'thinking',
+  'working.inspect_repo': 'working.generic',
+  'working.write_code': 'working.generic',
+  'working.read_email': 'working.generic',
+  'working.draft_document': 'working.generic',
+  'warming': 'idle',
+  'blocked': 'idle',
+  'alert.important': 'idle',
+  'alert.critical': 'idle',
+};
 
 /// Shared budgets. v2 limits come from the fixed lead contract.
 class PackBounds {
@@ -138,6 +179,20 @@ class PackAnimation {
   final bool loop;
 }
 
+/// Declarative presentation choice, with no executable conditions or effects.
+final class PackVariant {
+  PackVariant({
+    required this.animation,
+    this.weight = 1,
+    this.cooldownMs = 0,
+    Set<String> when = const {},
+  }) : when = Set.unmodifiable(when);
+  final String animation;
+  final int weight;
+  final int cooldownMs;
+  final Set<String> when;
+}
+
 class CharacterPack {
   CharacterPack({
     required this.version,
@@ -159,9 +214,17 @@ class CharacterPack {
     this.scaleMax = 2.0,
     Map<String, PackSheet>? sheets,
     Map<String, PackAnimation>? animations,
+    Map<String, List<PackVariant>>? activities,
+    Map<String, String>? fallbacks,
     this.fallbackAnimation = 'idle',
   }) : sheets = sheets ?? <String, PackSheet>{},
-       animations = animations ?? <String, PackAnimation>{};
+       animations = animations ?? <String, PackAnimation>{},
+       activities = Map.unmodifiable({
+         for (final entry
+             in (activities ?? <String, List<PackVariant>>{}).entries)
+           entry.key: List<PackVariant>.unmodifiable(entry.value),
+       }),
+       fallbacks = Map.unmodifiable(fallbacks ?? <String, String>{});
 
   final int version;
   final String name;
@@ -185,9 +248,11 @@ class CharacterPack {
   final Map<String, PackSheet> sheets;
   final Map<String, PackAnimation> animations;
   final String fallbackAnimation;
+  final Map<String, List<PackVariant>> activities;
+  final Map<String, String> fallbacks;
 
   bool get isSpritesheet =>
-      version == packSchemaV2 &&
+      (version == packSchemaV2 || version == packSchemaV3) &&
       !fallback &&
       sheets.isNotEmpty &&
       animations.isNotEmpty;
@@ -334,10 +399,16 @@ Future<CharacterPack> loadCharacterPack({
   if (schema is! int) {
     return fallback('Pack schema $schema unsupported; using single frame.');
   }
+  if (schema != packSchemaV3 &&
+      (json.containsKey('activities') || json.containsKey('fallbacks'))) {
+    return fallback(
+      'Pack semantic metadata requires schema 3; using single frame.',
+    );
+  }
   if (schema == packSchemaVersion) {
     return _loadV1(json, effective, bounds, fallbackAsset);
   }
-  if (schema == packSchemaV2) {
+  if (schema == packSchemaV2 || schema == packSchemaV3) {
     return _loadV2(json, effective, bounds, fallbackAsset);
   }
   return fallback('Pack schema $schema unsupported; using single frame.');
@@ -427,14 +498,67 @@ Future<CharacterPack> _loadV2(
   PackBounds bounds,
   String fallbackAsset,
 ) async {
+  final schema = json['pack_schema'] as int;
   CharacterPack fallback(String note) => CharacterPack(
-    version: packSchemaV2,
+    version: schema,
     name: 'Kinaiya',
     fallbackAsset: fallbackAsset,
     poses: <PackPose>[],
     fallback: true,
     note: note,
   );
+
+  if (schema == packSchemaV3) {
+    const topKeys = {
+      'pack_schema',
+      'pack_id',
+      'version',
+      'name',
+      'author',
+      'license',
+      'provenance',
+      'theme',
+      'voice_profile',
+      'fallback_animation',
+      'anchor',
+      'scale_limits',
+      'sheets',
+      'animations',
+      'activities',
+      'fallbacks',
+    };
+    bool exactKeys(Object? value, Set<String> allowed) =>
+        value is Map && value.keys.every(allowed.contains);
+    final sheets = json['sheets'];
+    final animations = json['animations'];
+    if (!exactKeys(json, topKeys) ||
+        !exactKeys(json['provenance'], {
+          'source_asset',
+          'source_sha256',
+          'generator',
+          'prompt_file',
+        }) ||
+        !exactKeys(json['theme'], {'primary', 'background'}) ||
+        sheets is! List ||
+        sheets.any(
+          (sheet) => !exactKeys(sheet, {
+            'id',
+            'asset',
+            'sha256',
+            'width',
+            'height',
+            'frame_width',
+            'frame_height',
+          }),
+        ) ||
+        animations is! Map ||
+        animations.values.any(
+          (animation) =>
+              !exactKeys(animation, {'sheet', 'frames', 'frame_ms', 'loop'}),
+        )) {
+      return fallback('Pack manifest malformed; single-frame fallback active.');
+    }
+  }
 
   String req(String key) {
     final v = json[key];
@@ -706,6 +830,114 @@ Future<CharacterPack> _loadV2(
     }
   }
 
+  final activities = <String, List<PackVariant>>{};
+  final fallbacks = <String, String>{};
+  if (schema == packSchemaV3) {
+    final mappings = json['activities'];
+    final edges = json['fallbacks'];
+    if (mappings is! Map ||
+        mappings.length > 16 ||
+        edges is! Map ||
+        edges.length > 16) {
+      return fallback('Pack activities invalid; single-frame fallback active.');
+    }
+    var totalVariants = 0;
+    for (final entry in mappings.entries) {
+      final semantic = entry.key;
+      final variants = entry.value;
+      if (!characterSemanticIds.contains(semantic) ||
+          variants is! List ||
+          variants.isEmpty ||
+          variants.length > 8) {
+        return fallback(
+          'Pack activities invalid; single-frame fallback active.',
+        );
+      }
+      final parsed = <PackVariant>[];
+      for (final value in variants) {
+        if (++totalVariants > 64 ||
+            value is! Map ||
+            value.keys.any(
+              (key) => !const {
+                'animation',
+                'weight',
+                'cooldown_ms',
+                'when',
+              }.contains(key),
+            )) {
+          return fallback(
+            'Pack variants invalid; single-frame fallback active.',
+          );
+        }
+        final animation = value['animation'];
+        final weight = value['weight'];
+        final cooldown = value['cooldown_ms'];
+        final conditions = value.containsKey('when')
+            ? value['when']
+            : <String>[];
+        if (animation is! String ||
+            !animations.containsKey(animation) ||
+            weight is! int ||
+            weight < 1 ||
+            weight > 100 ||
+            cooldown is! int ||
+            cooldown < 0 ||
+            cooldown > 60000 ||
+            conditions is! List ||
+            conditions.length > characterConditionIds.length ||
+            conditions.any(
+              (condition) => !characterConditionIds.contains(condition),
+            ) ||
+            conditions.toSet().length != conditions.length) {
+          return fallback(
+            'Pack variants invalid; single-frame fallback active.',
+          );
+        }
+        parsed.add(
+          PackVariant(
+            animation: animation,
+            weight: weight,
+            cooldownMs: cooldown,
+            when: conditions.cast<String>().toSet(),
+          ),
+        );
+      }
+      activities[semantic as String] = parsed;
+    }
+    for (final entry in edges.entries) {
+      if (!characterSemanticIds.contains(entry.key) ||
+          !characterSemanticIds.contains(entry.value) ||
+          entry.key == entry.value) {
+        return fallback(
+          'Pack fallbacks invalid; single-frame fallback active.',
+        );
+      }
+      fallbacks[entry.key as String] = entry.value as String;
+    }
+    // An explicit edge can also loop through standard fallback edges when
+    // conditions/cooldowns make mappings unavailable. Reject the full graph.
+    final visiting = <String>{}, complete = <String>{};
+    bool cyclic(String current) {
+      if (complete.contains(current)) return false;
+      if (!visiting.add(current)) return true;
+      for (final target in [
+        fallbacks[current],
+        characterStandardFallbacks[current],
+      ]) {
+        if (target != null && cyclic(target)) return true;
+      }
+      visiting.remove(current);
+      complete.add(current);
+      return false;
+    }
+
+    if (characterSemanticIds.any(cyclic)) {
+      return fallback(
+        'Pack fallback cycle rejected; single-frame fallback active.',
+      );
+    }
+  }
+
   // Total pixel budget from manifest geometry (before any decode).
   var totalPixels = 0;
   for (final s in sheets.values) {
@@ -753,7 +985,7 @@ Future<CharacterPack> _loadV2(
   }
 
   return CharacterPack(
-    version: packSchemaV2,
+    version: schema,
     name: name,
     fallbackAsset: fallbackAsset,
     poses: <PackPose>[],
@@ -777,5 +1009,7 @@ Future<CharacterPack> _loadV2(
     sheets: sheets,
     animations: animations,
     fallbackAnimation: fallbackAnimation,
+    activities: activities,
+    fallbacks: fallbacks,
   );
 }
