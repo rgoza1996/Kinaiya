@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "recorded_date": "2026-10-28",
-  "status": "Implemented experimental CPU derivative with independent review, actual HTTP/resource/STT checks and local regressions. Updated GitHub CI remains pending; full M2 and default promotion remain open.",
+  "status": "Verified experimental CPU derivative merged in PR #71 as 30f62958c066955666a379238770607d9bca285d after independent review, actual HTTP/resource/STT checks and passing cross-version CI. Released in alpha.14; full M2 and default promotion remain open.",
   "upstream": {
     "repository": "microsoft/VibeVoice",
     "revision": "16fb2cb1217c9934a886e1948ffb06120caa2df5",
@@ -1356,7 +1356,7 @@
     "No physical audio, client underflow, listening acceptance, statistical p95 or quality comparison was measured.",
     "The direct callback cancellation measurement runs on the caller thread and observes return from native production, not HTTP close or kernel preemption.",
     "These few public synthetic requests establish compatibility, not sustained realtime or full production readiness.",
-    "Lead HTTP/resource/STT checks and independent final review completed; latest GitHub CI remains pending.",
+    "Lead HTTP/resource/STT checks, independent final review and cross-version CI completed; full M2 remains open.",
     "Nine warm observations and one cold/cancel observation do not establish p95 or physical audible latency. CPU synthesis remains slower than realtime.",
     "Original 4.51 profiles, audits and measurements remain separately preserved; this is not a controlled performance comparison.",
     "Ming 3 Tiny is separately tracked in #72 with no established CPU/AMD profile; full M2 remains open.",
@@ -3897,7 +3897,32 @@
     },
     "ruff": "Lint passed; 205 files already formatted",
     "contracts": "Contract export and schema consistency passed before commit",
-    "github_ci": "Pending updated source push. Prior 23d0169 CI run 40696389336 passed 1,193 tests on both Python versions plus Flutter, but predates this port.",
+    "github_ci": {
+      "source_commit": "43be3a5fefdbea93a05a2e668dfe02ac3e93bca1",
+      "merged_main": "30f62958c066955666a379238770607d9bca285d",
+      "identical_tree": "3c9af3ded95be8b1c11733783f1e4e95ba5975df",
+      "run_id": 40700561762,
+      "url": "https://github.com/rgoza1996/Kinaiya/actions/runs/40700561762",
+      "python3.11": {
+        "passed": 1217,
+        "warnings": 1,
+        "seconds": 138.81,
+        "job_id": 122858911727
+      },
+      "python3.12": {
+        "passed": 1217,
+        "warnings": 1,
+        "seconds": 130.05,
+        "job_id": 122858912183
+      },
+      "flutter": {
+        "job_id": 122858912127,
+        "analysis_tests_build": "passed",
+        "browser_bridge_passed": 25
+      },
+      "contracts_and_base_dependency_audit": "passed",
+      "scope": "Base CI does not install the optional runtime; separate installed-audit exclusions and actual model evidence remain applicable."
+    },
     "patch_whitespace": "Exact upstream context carries trailing whitespace inside the checked patch artifact. Whitespace checks pass outside that data file; trimming it would change exact context/digest.",
     "post_measurement_metadata_fix": "The probe package-name list now includes kinaiya-vibevoice-runtime for future reports. The recorded screen predates that metadata-only change; its implementation guard and separate installed probe verify .2."
   },
@@ -3946,5 +3971,14 @@
     "admission_estimated_usd": 20.234957600000012,
     "reserved_usd": 1.5558100499999998,
     "admission_policy": "2x Contributor catalog rates; uncached input; full-context reservations; $3 buffer"
+  },
+  "release_receipt": {
+    "tag": "v0.1.0-alpha.14",
+    "url": "https://github.com/rgoza1996/Kinaiya/releases/tag/v0.1.0-alpha.14",
+    "artifact_id": 12820823037,
+    "artifact_sha256": "3e3f7af49ede3119d93518e185451ee9383a987892422e62b7f19f232e8f9270",
+    "artifact_bytes": 18427543,
+    "main_js_sha256": "9fed1a57c7d1e280384c37d92fc104bdf46d8fafd24363e276ba0fad1247f4b3",
+    "reference_promoted": false
   }
 }
