@@ -2565,7 +2565,40 @@
       "lint": "passed",
       "format_check": "204 files already formatted"
     },
-    "github_ci": "Pending updated PR71 push; original f941fa7 run40643454711 passed Python3.12/Flutter but failed two Python3.11 tests corrected in020b262; see preserved original evidence.",
+    "github_ci": {
+      "source_commit": "23d0169845aeb6799958bba6e52d282fcb54b90f",
+      "run_id": 40696389336,
+      "url": "https://github.com/rgoza1996/Kinaiya/actions/runs/40696389336",
+      "conclusion": "success",
+      "python3.11": {
+        "passed": 1193,
+        "warnings": 1,
+        "seconds": 142.01,
+        "job_id": 122844174679,
+        "sandbox_prerequisites": "passed",
+        "base_dependency_audit": "passed"
+      },
+      "python3.12": {
+        "passed": 1193,
+        "warnings": 1,
+        "seconds": 141.45,
+        "job_id": 122844174653,
+        "sandbox_prerequisites": "passed",
+        "base_dependency_audit": "passed"
+      },
+      "flutter": {
+        "job_id": 122844174177,
+        "tests": "passed",
+        "analysis": "passed",
+        "format": "passed",
+        "web_release_build": "passed",
+        "browser_bridge": {
+          "passed": 25,
+          "failed": 0
+        }
+      },
+      "limits": "Base CI does not install optional voice weights/dependencies and does not clear the remaining optional Transformers audit findings."
+    },
     "failed_probe_attempts": [
       "First Torch2.14 synthesis returned sanitized503 because its restricted unpickler refused legacy ModelOutput SETITEMS; corrected through validated inert translation.",
       "A direct script invocation failed before worker startup because the optional environment did not have the source package installed; successful probes use python -m scripts.probe_retained_voice from repository root.",
