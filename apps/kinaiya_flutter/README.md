@@ -34,6 +34,14 @@ The wide workspace searches and inspects actual tasks. Selecting a task changes 
 
 Agent Chat consumes the backend command registry, including canonical names, aliases, descriptions and argument hints. Only explicit single-line Agent command input dispatches controls. Quoted/code/path/escaped slash text stays literal; unknown commands never become inference tasks. Commands, new/resume sessions, actual task state and digest/revision-bound approvals use the real backend. Converse has no command UI or parser.
 
+## Character and appearance
+
+Open **Appearance** from either view to import/preview/use a local character pack, export the current pack, restore the original, change colors, reduce motion or use a non-character view. An import changes artwork and palette; it does not import personality, voice, permissions or connection settings. Explicit color overrides take priority over pack colors and Kinaiya defaults. Device reduced motion always applies. Hiding character art retains the transcript and ordinary controls.
+
+The web client stores only presentation preferences and an optional imported pack in its own IndexedDB record. It validates saved data again on reload. Storage failures leave the current session usable and display a warning. Native import/export and durable presentation storage are not implemented; native preferences apply for the current session only.
+
+Use **Export current pack** to obtain the self-contained JSON format. [Pack format and local storage](../../docs/character-packs.md) explains its provenance, checksums and limits. ZIP archives, remote asset fetching, voice/personality import and automatic image generation are not supported by this importer.
+
 ## Current limits
 
 The default versioned mascot pack includes 16 sprite frames for idle, listening, thinking and speaking. Reduced motion freezes the first frame; invalid assets fall back to the unchanged original artwork. [Renderer and provenance](../../docs/adr/0015-mascot-sprites.md) describe the tested scope; a complete expression/work-animation library remains unfinished. Partial STT remains unfinished. Microphone quality, echo cancellation and physical audible latency need device testing. Native microphone/playback, mobile calling, complete settings/provider management and the remaining M5 gates are open. Browser verification with a synthetic recording does not establish human-microphone or latency-target performance.

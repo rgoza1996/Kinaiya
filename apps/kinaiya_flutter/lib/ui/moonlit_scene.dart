@@ -6,20 +6,36 @@ import 'visual_theme.dart';
 // network, audio, input, or animation. The lead-supplied child (mascot,
 // transcript, controls) paints above this scenery and stays interactive.
 class MoonlitScene extends StatelessWidget {
-  const MoonlitScene({super.key, required this.child});
+  const MoonlitScene({
+    super.key,
+    required this.child,
+    this.primary = kinaiyaIndigo,
+    this.background = kinaiyaWhite,
+    this.enabled = true,
+  });
 
   final Widget child;
+  final Color primary, background;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
+    if (!enabled) {
+      return ColoredBox(
+        color: Theme.of(context).colorScheme.surface,
+        child: child,
+      );
+    }
     return ClipRect(
       child: Stack(
         children: <Widget>[
-          const Positioned.fill(
+          Positioned.fill(
             child: ExcludeSemantics(
               child: IgnorePointer(
                 child: RepaintBoundary(
-                  child: CustomPaint(painter: _MoonlitPainter()),
+                  child: CustomPaint(
+                    painter: _MoonlitPainter(primary, background),
+                  ),
                 ),
               ),
             ),
@@ -32,9 +48,10 @@ class MoonlitScene extends StatelessWidget {
 }
 
 // Deterministic painter: fixed primitive counts, no per-frame randomness.
-// Size-driven repaint happens automatically, so shouldRepaint is false.
+// Size-driven repaint is automatic; palette changes invalidate the decoration.
 class _MoonlitPainter extends CustomPainter {
-  const _MoonlitPainter();
+  const _MoonlitPainter(this.primary, this.background);
+  final Color primary, background;
 
   static double _frac(double x) => x - x.floor();
 
@@ -50,10 +67,14 @@ class _MoonlitPainter extends CustomPainter {
 
     // Indigo sky fading into deep navy.
     final Paint sky = Paint()
-      ..shader = const LinearGradient(
+      ..shader = LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
-        colors: <Color>[kinaiyaIndigo, Color(0xFF1A2160), kinaiyaNavy],
+        colors: <Color>[
+          primary,
+          Color.lerp(primary, kinaiyaNavy, .55)!,
+          kinaiyaNavy,
+        ],
         stops: <double>[0.0, 0.52, 1.0],
       ).createShader(Rect.fromLTWH(0, 0, w, h));
     canvas.drawRect(Offset.zero & size, sky);
@@ -90,7 +111,7 @@ class _MoonlitPainter extends CustomPainter {
     canvas.drawCircle(
       moonCenter,
       math.max(0.0, moonR),
-      Paint()..color = kinaiyaWhite,
+      Paint()..color = background,
     );
 
     // Deterministic craters kept inside the lunar disc.
@@ -186,10 +207,10 @@ class _MoonlitPainter extends CustomPainter {
     canvas.drawPath(
       reflection,
       Paint()
-        ..shader = const LinearGradient(
+        ..shader = LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: <Color>[Color(0xFFCDD7FF), kinaiyaWhite],
+          colors: <Color>[Color.lerp(background, primary, .16)!, background],
         ).createShader(Rect.fromLTWH(0, waterTop, w, waterH)),
     );
 
@@ -211,5 +232,6 @@ class _MoonlitPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _MoonlitPainter oldDelegate) =>
+      oldDelegate.primary != primary || oldDelegate.background != background;
 }

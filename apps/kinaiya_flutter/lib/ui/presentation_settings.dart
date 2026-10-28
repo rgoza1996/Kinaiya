@@ -240,7 +240,7 @@ class _PresentationSettingsState extends State<PresentationSettings> {
       if (controller.notice != null) controller.notice!,
     };
     final storageNotice = controller.persistent
-        ? 'Presentation settings and imported artwork are saved in this browser on this device.'
+        ? 'Presentation settings and imported artwork stay on this device. Browser storage is used when available.'
         : 'Presentation settings last for this session. Persistent storage is unavailable on this platform.';
     return Dialog(
       insetPadding: const EdgeInsets.all(12),

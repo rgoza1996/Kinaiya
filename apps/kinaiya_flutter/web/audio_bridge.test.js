@@ -355,3 +355,6 @@ test('old source ended callback cannot complete a new generation playback', asyn
   assert.equal(ended,true);
   api.dispose();
 });
+
+// Keep the existing CI entrypoint responsible for both trusted browser bridges.
+require('./presentation_bridge.cases.js');
