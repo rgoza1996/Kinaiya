@@ -72,6 +72,11 @@ at most 4096 stream events including the terminal. The 64 KiB encoded-frame
 bound accommodates JSON escaping of every valid decoded delta. Every event
 requires an explicit valid expected nonce, including a probe response.
 No queue, frame or deadline is unlimited.
+The 512 KiB encoded request and 128 KiB decoded content bounds intersect;
+heavy JSON escaping can reach the wire limit first and is refused, never
+truncated. Aggregate generation transport is limited to 2 MiB IPC and 1 MiB
+public HTTP. The parent requires EOF after the single terminal native frame
+before exposing that terminal, so the worker closes each generate connection.
 
 The parent factory `qwen3_worker(settings, root, workspace)` returns fixed
 WorkerSpec and endpoint. `Qwen3Endpoint(directory, max_input_tokens=...,
@@ -93,7 +98,11 @@ existing TextProvider protocol via that fixed loopback origin. Its info is
 transport mechanism and retains uncertain cleanup rather than retrying.
 
 `Qwen3Broker(coordinator, endpoint, request_timeout_s=...)` exposes `status`,
-`stream(request)` and `close`. Before every admission and output boundary it
+`stream(request)` and `close`. Awaiting `stream(request)` returns a first-class
+owned iterator whose `aclose()` also works before its first iteration. The
+broker is the sole post-body disconnect receiver; the ASGI response bounds
+stalled sends and always closes that owner, including header-send failures.
+Before every admission and output boundary the broker
 rechecks `coordinator.qwen3_policy()` against the captured resource/owner
 revision. `await coordinator.admit_qwen3(expected_policy)` returns a real
 WorkerIdentity or raises `Qwen3AdmissionError(cleanup_confirmed=...)`.

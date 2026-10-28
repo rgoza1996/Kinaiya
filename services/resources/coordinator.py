@@ -40,6 +40,8 @@ class ResourceCoordinator:
         before_start=None,
         restore_reserve_bytes=0,
         whistle_restore_reserve_bytes=0,
+        qwen3_restore_reserve_bytes=0,
+        managed_text_binding=None,
         gpu_probe=None,
         gpu_restore_reserve_bytes=0,
     ):
@@ -55,6 +57,10 @@ class ResourceCoordinator:
         self.before_start = before_start
         self.restore_reserve = restore_reserve_bytes
         self.whistle_restore_reserve = whistle_restore_reserve_bytes
+        self.qwen3_restore_reserve = qwen3_restore_reserve_bytes
+        self.managed_text_binding = (
+            dict(managed_text_binding) if managed_text_binding is not None else None
+        )
         self.gpu_probe = gpu_probe
         self.gpu_restore_reserve = gpu_restore_reserve_bytes
         self.gpu_release = None
@@ -62,6 +68,8 @@ class ResourceCoordinator:
         self.publication_pending = False
         self._whistle_preemptions = 0
         self._has_whistle = "whistle" in self.manager.status()["workers"]
+        self._qwen3_preemptions = 0
+        self._has_qwen3 = "qwen3" in self.manager.status()["workers"]
         database = state.path.parent / "resource-actions.sqlite"
         fd = os.open(
             database, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC, 0o600
@@ -166,18 +174,42 @@ class ResourceCoordinator:
                     phase="failed", reason="Resource startup failed; inspect worker status"
                 )
 
-    def _provider_locality(self, health):
+    def _provider_is_unmanaged(self, health):
         local = health.get("provider", {}).get("local")
         if type(local) is not bool:
             raise RuntimeError("Converse provider locality is unavailable; handoff refused")
-        self.local_converse_unmanaged = local
+        expected = self.managed_text_binding
+        if expected is None:
+            return local
+        binding, provider = health.get("managed_text"), health.get("provider", {})
+        # Protected startup configuration identifies the selected profile, not
+        # a ready process. Only the manager can prove residency and release.
+        matches = (
+            self._has_qwen3
+            and type(binding) is dict
+            and binding.keys() == expected.keys()
+            and all(
+                type(binding[key]) is type(value) and binding[key] == value
+                for key, value in expected.items()
+            )
+            and local is True
+            and provider.get("provider") == expected["provider"]
+            and provider.get("model") == expected["model"]
+            and provider.get("streaming") is True
+        )
+        # A changed cloud/local profile must not inherit the configured Qwen
+        # worker's release authority either.
+        return not matches
+
+    def _provider_locality(self, health):
+        self.local_converse_unmanaged = self._provider_is_unmanaged(health)
 
     async def action(self, payload):
         # A new authenticated off/handoff request must beat a Whistle restart
         # already awaiting readiness under the lifecycle lock. A replay/conflict
-        # must not revoke legitimate current work. This is only a Whistle gate;
-        # the existing durable action implementation remains the authority.
-        preempt = self._has_whistle and (
+        # must not revoke legitimate current work. The existing durable action
+        # implementation remains the authority.
+        preempt = (self._has_whistle or self._has_qwen3) and (
             payload.get("operation") == "handoff"
             or (payload.get("operation") == "converse" and payload.get("enabled") is False)
         )
@@ -201,12 +233,14 @@ class ResourceCoordinator:
                     is None
                 )
         if preempt:
-            self._whistle_preemptions += 1
+            self._whistle_preemptions += int(self._has_whistle)
+            self._qwen3_preemptions += int(self._has_qwen3)
         try:
             return await self._action(payload)
         finally:
             if preempt:
-                self._whistle_preemptions -= 1
+                self._whistle_preemptions -= int(self._has_whistle)
+                self._qwen3_preemptions -= int(self._has_qwen3)
 
     async def _handoff_may_preempt(self, payload):
         """Read-only eligibility preview, never resource admission authority.
@@ -233,7 +267,7 @@ class ResourceCoordinator:
         try:
             # Do not mutate the cached locality observation outside the lock.
             health = await self.converse.health()
-            if health.get("provider", {}).get("local") is not False:
+            if self._provider_is_unmanaged(health):
                 return False
             if self.gpu_probe is not None:
                 gpu = self.gpu_probe()
@@ -268,7 +302,7 @@ class ResourceCoordinator:
         return record.revision, choice.revision
 
     @staticmethod
-    def _whistle_stopped(result):
+    def _native_stopped(result):
         evidence = result.get("stop_evidence", {})
         return bool(
             result.get("ok")
@@ -311,20 +345,74 @@ class ResourceCoordinator:
                 except Exception as exc:
                     stopped = await self.manager.stop("whistle")
                     raise WhistleAdmissionError(
-                        cleanup_confirmed=self._whistle_stopped(stopped)
+                        cleanup_confirmed=self._native_stopped(stopped)
                     ) from exc
                 identity = self.manager.owned_identity("whistle")
                 if not result.get("ok") or not result.get("ready") or identity is None:
                     stopped = await self.manager.stop("whistle")
-                    raise WhistleAdmissionError(cleanup_confirmed=self._whistle_stopped(stopped))
+                    raise WhistleAdmissionError(cleanup_confirmed=self._native_stopped(stopped))
             try:
                 if self.whistle_policy() != expected_policy:
                     raise WhistleAdmissionError()
             except (OSError, ValueError, WhistleAdmissionError) as exc:
                 stopped = await self.manager.stop_if_current(identity)
                 raise WhistleAdmissionError(
-                    cleanup_confirmed=self._whistle_stopped(stopped)
+                    cleanup_confirmed=self._native_stopped(stopped)
                 ) from exc
+            return identity
+
+    def qwen3_policy(self):
+        record, choice = self.state.record, self.intent.read()
+        if (
+            not self._has_qwen3
+            or self._qwen3_preemptions
+            or record.phase != "ready"
+            or record.lease_id
+            or not record.desired_converse
+            or not choice.enabled
+            or record.owner_intent_revision != choice.revision
+        ):
+            raise Qwen3AdmissionError(cleanup_confirmed=True)
+        return record.revision, choice.revision
+
+    async def admit_qwen3(self, expected_policy):
+        """Admit one fixed child; recheck revocation after awaited readiness.
+
+        The broker retains this operation through request cancellation. A new
+        request may restore a released allocation; it never retries generation.
+        """
+        async with self.lock:
+            if self.qwen3_policy() != expected_policy:
+                raise Qwen3AdmissionError(cleanup_confirmed=True)
+            identity = self.manager.owned_identity("qwen3")
+            if identity is None:
+                if self.before_start:
+                    try:
+                        await self.before_start("qwen3")
+                    except Exception as exc:
+                        raise Qwen3AdmissionError(cleanup_confirmed=True) from exc
+                if self.qwen3_policy() != expected_policy:
+                    raise Qwen3AdmissionError(cleanup_confirmed=True)
+                available = self.memory_probe()
+                if available is None or available < max(self.minimum, self.qwen3_restore_reserve):
+                    raise Qwen3AdmissionError(cleanup_confirmed=True)
+                try:
+                    result = await self.manager.start("qwen3")
+                except Exception as exc:
+                    stopped = await self.manager.stop("qwen3")
+                    raise Qwen3AdmissionError(
+                        cleanup_confirmed=self._native_stopped(stopped)
+                    ) from exc
+                identity = self.manager.owned_identity("qwen3")
+                if not result.get("ok") or not result.get("ready") or identity is None:
+                    stopped = await self.manager.stop("qwen3")
+                    raise Qwen3AdmissionError(cleanup_confirmed=self._native_stopped(stopped))
+            try:
+                if self.qwen3_policy() != expected_policy:
+                    raise Qwen3AdmissionError()
+            except (OSError, ValueError, Qwen3AdmissionError) as exc:
+                stopped = await self.manager.stop_if_current(identity)
+                raise Qwen3AdmissionError(cleanup_confirmed=self._native_stopped(stopped)) from exc
             return identity
 
     async def _action(self, payload):
@@ -468,7 +556,7 @@ class ResourceCoordinator:
                 not evidence.get("reaped") or not evidence.get("group_empty")
             ):
                 raise RuntimeError("Managed worker group release is unconfirmed")
-            if worker_id == "whistle" and result.get("already"):
+            if worker_id in {"whistle", "qwen3"} and result.get("already"):
                 row = self.manager.status()["workers"][worker_id]
                 retained = row.get("stop_evidence") or {}
                 if (
@@ -526,20 +614,24 @@ class ResourceCoordinator:
         await self.converse.enabled(False)
         await self._save(phase="unloading")
         workers = self.manager.status()["workers"]
-        whistle = workers.get("whistle", {})
-        whistle_stop = whistle.get("stop_evidence") or {}
-        whistle_released = (
-            whistle.get("state") == "stopped"
-            and not whistle.get("ready")
-            and whistle_stop.get("reaped")
-            and whistle_stop.get("group_empty")
-        )
-        # A canceled Whistle request can already have released its process.
+        released = set()
+        for worker_id in ("whistle", "qwen3"):
+            row = workers.get(worker_id, {})
+            proof = row.get("stop_evidence") or {}
+            if (
+                row.get("state") == "stopped"
+                and not row.get("ready")
+                and row.get("owned_pgid") is None
+                and proof.get("reaped")
+                and proof.get("group_empty")
+            ):
+                released.add(worker_id)
+        # A canceled fixed native request can already have released its process.
         # That is zero current residency, not an unknown running allocation.
         # Still require fresh manager/group reconciliation below. Missing RSS
         # for every other worker remains an admission refusal.
         measured = [
-            0 if worker_id == "whistle" and whistle_released else row.get("group_rss_bytes")
+            0 if worker_id in released else row.get("group_rss_bytes")
             for worker_id, row in workers.items()
         ]
         if any(value is None for value in measured):
@@ -550,11 +642,7 @@ class ResourceCoordinator:
         stopped = await self._stop_workers()
         if any(
             item.get("stop_evidence", {}).get("rss_before_bytes") is None
-            and not (
-                item.get("worker_id") == "whistle"
-                and whistle_released
-                and item.get("release_confirmed")
-            )
+            and not (item.get("worker_id") in released and item.get("release_confirmed"))
             for item in stopped
         ):
             raise RuntimeError("Resident-memory release was not measurable; admission refused")
