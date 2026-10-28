@@ -1,12 +1,27 @@
 """The opt-in screen refuses corrupt/reordered audio without running inference."""
 
 import base64
+import importlib.util
 import wave
+from pathlib import Path
 
 import pytest
 
-from scripts.live_slice import write_synthetic_wave
-from scripts.probe_retained_voice import decode_frame, summarize
+
+def load_repository_script(name):
+    # scripts/ is deliberately outside the installable service packages. Load
+    # these development entry points by file, as the budget tests do, so the
+    # pytest console entry point needs no repository-wide PYTHONPATH override.
+    path = Path(__file__).resolve().parents[2] / "scripts" / f"{name}.py"
+    spec = importlib.util.spec_from_file_location(f"tested_{name}", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+voice_probe = load_repository_script("probe_retained_voice")
+write_synthetic_wave = load_repository_script("live_slice").write_synthetic_wave
+decode_frame, summarize = voice_probe.decode_frame, voice_probe.summarize
 
 
 @pytest.mark.parametrize(
