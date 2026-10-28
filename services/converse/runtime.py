@@ -245,7 +245,7 @@ class ConverseRuntime:
         # Native control hooks cancel synchronously. This bounded monitor also
         # observes owner-file changes and session resets made by another service;
         # it never scans transcript history or blocks an interrupt on journal I/O.
-        while True:
+        while not operation.cancelled:
             if not self.admission_current(operation.admission):
                 operation.cancel()
                 return
@@ -255,6 +255,10 @@ class ConverseRuntime:
                 )
             except Exception:
                 operation.cancel()
+                return
+            # On Python 3.11 a simultaneous wait_for completion can consume
+            # task cancellation. The operation token remains authoritative.
+            if operation.cancelled:
                 return
             if (session.epoch, session.thread_id) != (
                 operation.session_epoch,

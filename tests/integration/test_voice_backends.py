@@ -610,6 +610,11 @@ async def test_cancelled_waiting_request_never_enters_backend_after_lock_release
 async def test_cancelled_stream_emits_no_late_audio_or_further_waveform_request():
     waiting, release = threading.Event(), threading.Event()
     messages, resumed_after_second, closed = [], [], []
+    first_frame_sent = asyncio.Event()
+
+    def sent(message):
+        if message["type"] == "http.response.body" and message.get("body"):
+            first_frame_sent.set()
 
     class BlockedBackend(SyntheticBackend):
         def synthesize(self, text):
@@ -626,10 +631,13 @@ async def test_cancelled_stream_emits_no_late_audio_or_further_waveform_request(
                 closed.append(text)
 
     backend = BlockedBackend()
-    async with client_for(SyntheticFactory(backend), messages=messages) as client:
+    async with client_for(SyntheticFactory(backend), messages=messages, on_send=sent) as client:
         task = asyncio.create_task(synthesize(client, "Cancelled streaming fixture."))
         try:
             await entered(waiting)
+            # The owned producer may start its next waveform before the async
+            # response sender forwards its first queued frame. Observe send.
+            await asyncio.wait_for(first_frame_sent.wait(), 1)
             bodies = [message for message in messages if message["type"] == "http.response.body"]
             assert len(bodies) == 1 and json.loads(bodies[0]["body"])["chunk_index"] == 0
             task.cancel()

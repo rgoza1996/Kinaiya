@@ -12,7 +12,7 @@ from packages.providers.text import ScriptedProvider
 from services.common.auth import Auth
 from services.converse.api import SpeechRequest, create_app
 from services.converse.intent import ConverseIntent
-from services.converse.runtime import ConverseRuntime
+from services.converse.runtime import ConverseRuntime, SpeechOperation
 from services.session.store import LocalJournal, Store
 
 AUTH = Auth({"owner": "o" * 32, "resources": "r" * 32, "agent": "a" * 32})
@@ -684,6 +684,44 @@ async def test_upstream_http_error_closes_stream_and_unregisters_operation(state
             assert audio.closed.is_set() and not runtime._speech
     finally:
         await speech.close()
+
+
+async def test_speech_monitor_observes_operation_cancel_without_task_cancellation(
+    state, monkeypatch
+):
+    store, runtime = state
+    session = store.create_session(SessionRequest(channel="converse"))
+    observed = asyncio.Event()
+    original_session = runtime.journal.session
+
+    async def session_read(session_id):
+        observed.set()
+        return await original_session(session_id)
+
+    monkeypatch.setattr(runtime.journal, "session", session_read)
+    producer = asyncio.create_task(asyncio.Event().wait())
+    operation = SpeechOperation(
+        session.session_id,
+        session.thread_id,
+        session.epoch,
+        "synthetic-event",
+        1,
+        runtime.admission(),
+        producer,
+        asyncio.Queue(maxsize=1),
+    )
+    monitor = asyncio.create_task(runtime._watch_speech(operation))
+    try:
+        await asyncio.wait_for(observed.wait(), 1)
+        operation.cancel()
+        # A consumed/lost Task.cancel must not leave the policy monitor alive
+        # and keep otherwise completed HTTP cleanup registered indefinitely.
+        await asyncio.wait_for(monitor, 1)
+        assert monitor.done() and operation.cancelled
+    finally:
+        producer.cancel()
+        monitor.cancel()
+        await asyncio.gather(producer, monitor, return_exceptions=True)
 
 
 async def test_old_runtime_and_non_owner_requests_do_not_start_a_speech_operation(state):

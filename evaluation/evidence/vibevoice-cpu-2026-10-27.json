@@ -3237,7 +3237,33 @@
     "passed": 1153,
     "warnings": 1,
     "seconds": 190.15,
-    "ci": null
+    "ci": null,
+    "initial_ci": {
+      "run": 40643454711,
+      "source": "f941fa72b34a80b527922acb73e6108cdb347317",
+      "python3.12": "passed",
+      "flutter": "passed",
+      "python3.11": {
+        "passed": 1151,
+        "failed": [
+          "test_upstream_http_error_closes_stream_and_unregisters_operation",
+          "test_cancelled_stream_emits_no_late_audio_or_further_waveform_request"
+        ]
+      },
+      "correction": "Observe the operation cancellation token even if a Python3.11 wait_for completion consumes Task.cancel; synchronize the legacy stream fixture on actual ASGI first-frame send rather than native lookahead."
+    },
+    "correction_focused": {
+      "python3.11": {
+        "passed": 130,
+        "seconds": 16.86
+      },
+      "python3.12": {
+        "passed": 130,
+        "seconds": 17.74
+      },
+      "assertions_weakened": false,
+      "new_deterministic_operation_token_regression": true
+    }
   },
   "review": {
     "codex": {
@@ -3276,7 +3302,11 @@
       "text": "No actionable production bugs found in this static snapshot.\n\nReviewed the provided sources only. No execution. Synthetic fixtures were read, not run. Known draft-doc gaps for audibility, p95, and README/ADR were excluded.\n\nChecked native streaming ownership, bounded queue and deadlines, cancel with no stale audio, quarantine, Converse upstream cancel with retained cleanup, loopback auth, pinned offline CPU checks, and no-adopt lifecycle in [voice worker](/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/packages/providers/voice_worker.py), [TTS backends](/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/packages/providers/tts_backends.py), [VibeVoice backend](/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/packages/providers/vibevoice_backend.py), [Converse runtime](/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/services/converse/runtime.py), and related probes and tests.\n\nfindings: []\n",
       "tools_or_tests_run": false,
       "human_approval": false
-    }
+    },
+    "post_review_changes": [
+      "Explicit cancellation-token check in Converse policy monitor; original Muse review remains scoped to69d5322.",
+      "First-frame-send test barrier and new deterministic cancelled-monitor regression."
+    ]
   },
   "limits": [
     "Synthetic research screen, no physical microphone/speaker, human listening, acoustic onset or actual underflow measurement.",
