@@ -195,6 +195,12 @@ void main() {
     'self fallback': (m) => m['fallbacks'] = {'blocked': 'blocked'},
     'two-node fallback cycle': (m) =>
         m['fallbacks'] = {'blocked': 'warming', 'warming': 'blocked'},
+    'cycle through standard generic work edge': (m) =>
+        m['fallbacks'] = {'thinking': 'working.generic'},
+    'cycle through standard multi-hop work edges': (m) =>
+        m['fallbacks'] = {'thinking': 'working.write_code'},
+    'cycle through standard blocked edge': (m) =>
+        m['fallbacks'] = {'idle': 'blocked'},
     'long fallback cycle': (m) => m['fallbacks'] = {
       'blocked': 'warming',
       'warming': 'alert.important',

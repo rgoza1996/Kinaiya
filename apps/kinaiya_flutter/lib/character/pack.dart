@@ -56,6 +56,20 @@ const Set<String> characterConditionIds = {
   'quiet',
 };
 
+/// The same fallback edges are used for cycle validation and local playback.
+const Map<String, String> characterStandardFallbacks = {
+  'working.generic': 'thinking',
+  'working.reason': 'thinking',
+  'working.inspect_repo': 'working.generic',
+  'working.write_code': 'working.generic',
+  'working.read_email': 'working.generic',
+  'working.draft_document': 'working.generic',
+  'warming': 'idle',
+  'blocked': 'idle',
+  'alert.important': 'idle',
+  'alert.critical': 'idle',
+};
+
 /// Shared budgets. v2 limits come from the fixed lead contract.
 class PackBounds {
   const PackBounds({
@@ -900,17 +914,27 @@ Future<CharacterPack> _loadV2(
       }
       fallbacks[entry.key as String] = entry.value as String;
     }
-    for (final start in fallbacks.keys) {
-      final seen = <String>{};
-      String? current = start;
-      while (current != null) {
-        if (!seen.add(current)) {
-          return fallback(
-            'Pack fallback cycle rejected; single-frame fallback active.',
-          );
-        }
-        current = fallbacks[current];
+    // An explicit edge can also loop through standard fallback edges when
+    // conditions/cooldowns make mappings unavailable. Reject the full graph.
+    final visiting = <String>{}, complete = <String>{};
+    bool cyclic(String current) {
+      if (complete.contains(current)) return false;
+      if (!visiting.add(current)) return true;
+      for (final target in [
+        fallbacks[current],
+        characterStandardFallbacks[current],
+      ]) {
+        if (target != null && cyclic(target)) return true;
       }
+      visiting.remove(current);
+      complete.add(current);
+      return false;
+    }
+
+    if (characterSemanticIds.any(cyclic)) {
+      return fallback(
+        'Pack fallback cycle rejected; single-frame fallback active.',
+      );
     }
   }
 

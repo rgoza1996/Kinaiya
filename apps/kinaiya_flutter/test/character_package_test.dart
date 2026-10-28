@@ -395,6 +395,8 @@ void main() {
         (manifestOf(p)['fallbacks'] as Map)['blocked'] = {'semantic': 'idle'},
     'self fallback': (p) =>
         (manifestOf(p)['fallbacks'] as Map)['blocked'] = 'blocked',
+    'cycle through standard fallback': (p) =>
+        manifestOf(p)['fallbacks'] = {'thinking': 'working.generic'},
     'fallback cycle': (p) => manifestOf(p)['fallbacks'] = {
       'blocked': 'warming',
       'warming': 'alert.important',

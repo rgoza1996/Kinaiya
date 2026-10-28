@@ -88,7 +88,11 @@ class CharacterPlayback {
     if (pack.animations[_choice?.animation]?.loop ?? false) _started = time;
   }
 
-  CharacterFrame update(CharacterSignals signals, Duration now) {
+  CharacterFrame update(
+    CharacterSignals signals,
+    Duration now, {
+    bool reducedMotion = false,
+  }) {
     final time = _clock(now);
     final requested = signals.semantic;
     final conditions = signals.conditions;
@@ -100,7 +104,8 @@ class CharacterPlayback {
     _requestedSemantic = requested;
 
     var desired = requested;
-    if (_activeSemantic != null &&
+    if (!reducedMotion &&
+        _activeSemantic != null &&
         desired != _activeSemantic &&
         _activeSemantic!.startsWith('working.') &&
         desired.startsWith('working.') &&
@@ -117,7 +122,8 @@ class CharacterPlayback {
     final current = pack.animations[_choice?.animation];
     final duration = _cycleDuration(current);
     final elapsed = time - _started;
-    final boundary = current?.loop == true && elapsed >= duration;
+    final boundary =
+        !reducedMotion && current?.loop == true && elapsed >= duration;
     if (_choice == null || changed || ineligible || boundary) {
       final oldChoice = _choice;
       final choice = _choose(desired, conditions, time);
@@ -212,19 +218,7 @@ class CharacterPlayback {
           pack.animations.containsKey(current)) {
         return _Choice(current);
       }
-      final standard =
-          current == 'working.reason' || current == 'working.generic'
-          ? 'thinking'
-          : current.startsWith('working.')
-          ? 'working.generic'
-          : const {
-              'warming',
-              'blocked',
-              'alert.important',
-              'alert.critical',
-            }.contains(current)
-          ? 'idle'
-          : null;
+      final standard = characterStandardFallbacks[current];
       return standard == null ? null : visit(standard);
     }
 

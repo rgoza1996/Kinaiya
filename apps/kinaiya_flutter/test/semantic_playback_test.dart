@@ -577,4 +577,107 @@ void main() {
       'idle',
     );
   });
+
+  test('reduced motion work input bypasses a hold even with frozen time', () {
+    final playback = CharacterPlayback(
+      playbackPack(
+        activities: {
+          'working.inspect_repo': [PackVariant(animation: 'inspect')],
+          'working.write_code': [PackVariant(animation: 'code')],
+        },
+      ),
+    );
+    expect(
+      playback
+          .update(work('working.inspect_repo'), ms(0), reducedMotion: true)
+          .animationId,
+      'inspect',
+    );
+    final frame = playback.update(
+      work('working.write_code'),
+      ms(0),
+      reducedMotion: true,
+    );
+    expect(frame.animationId, 'code');
+    expect(frame.semantic, 'working.write_code');
+    expect(frame.animationElapsed, Duration.zero);
+  });
+
+  test(
+    'reduced motion suppresses cycle churn but preserves cooldown history',
+    () {
+      final playback = CharacterPlayback(
+        playbackPack(
+          activities: {
+            'idle': [PackVariant(animation: 'inspect', cooldownMs: 1000)],
+          },
+        ),
+      );
+      expect(
+        playback
+            .update(const CharacterSignals(), ms(0), reducedMotion: true)
+            .animationId,
+        'inspect',
+      );
+      expect(
+        playback
+            .update(const CharacterSignals(), ms(500), reducedMotion: true)
+            .animationId,
+        'inspect',
+      );
+      playback.update(
+        const CharacterSignals(speaking: true),
+        ms(500),
+        reducedMotion: true,
+      );
+      expect(
+        playback
+            .update(const CharacterSignals(), ms(500), reducedMotion: true)
+            .animationId,
+        'idle',
+      );
+      playback.update(
+        const CharacterSignals(speaking: true),
+        ms(1000),
+        reducedMotion: true,
+      );
+      expect(
+        playback
+            .update(const CharacterSignals(), ms(1000), reducedMotion: true)
+            .animationId,
+        'inspect',
+      );
+    },
+  );
+
+  test(
+    'reduced motion still drops a condition-ineligible variant immediately',
+    () {
+      final playback = CharacterPlayback(
+        playbackPack(
+          activities: {
+            'idle': [
+              PackVariant(animation: 'inspect', when: {'working', 'quiet'}),
+            ],
+          },
+        ),
+      );
+      expect(
+        playback
+            .update(
+              const CharacterSignals(working: true, activity: 'unknown'),
+              ms(0),
+              reducedMotion: true,
+            )
+            .animationId,
+        'inspect',
+      );
+      expect(
+        playback
+            .update(const CharacterSignals(), ms(0), reducedMotion: true)
+            .animationId,
+        'idle',
+      );
+    },
+  );
 }
