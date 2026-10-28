@@ -9,7 +9,14 @@ from itertools import islice
 
 from anyio import CancelScope
 
-from packages.contracts.models import AppendRequest, ConverseRequest, DeliveryRequest, new_id
+from packages.contracts.models import (
+    MAX_PLAYBACK_GENERATION,
+    AppendRequest,
+    ConverseRequest,
+    DeliveryRequest,
+    PlaybackGeneration,
+    new_id,
+)
 from packages.providers.disclosure import entry_allowed
 from packages.providers.text import ProviderCleanupError, owned_http_stream_cleanup
 from services.converse.intent import ConverseIntent
@@ -58,11 +65,17 @@ class PlaybackEpoch:
     scope: tuple[int, str] | None = None
     stop: PlaybackStop | None = None
 
-    def begin(self):
+    def invalidate(self):
+        """Cancel local playback without allocating in an obsolete/exhausted scope."""
         if self.on_begin is not None:
             self.on_begin()
-        self.generation += 1
         self.chunks.clear()
+
+    def begin(self):
+        self.invalidate()
+        if type(self.generation) is not int or not 0 <= self.generation < MAX_PLAYBACK_GENERATION:
+            raise ValueError("Playback generation exhausted its JSON-safe integer range")
+        self.generation += 1
         return self.generation
 
     def accepts(self, generation):
@@ -277,23 +290,32 @@ class ConverseRuntime:
                     if cached.scope == scope:
                         return cached
                 self._retire_stop(cached)
-                cached.begin()
+                cached.invalidate()
                 self.playback.pop(session_id, None)
             start = self._playback_start.get(session_id)
             if start is not None and start.playback.scope != scope:
                 self._retire_stop(start.playback)
+                start.playback.invalidate()
                 self._playback_start.pop(session_id, None)
                 start = None
             if start is None:
-                existing = await self._recent(session_id)
-                generations = [
-                    value
-                    for event in existing
-                    if event.epoch == session.epoch
-                    for key in ("generation_epoch", "next_generation_epoch")
-                    if type(value := event.payload.get(key)) is int and value >= 0
-                ]
-                previous = max(generations, default=0)
+                recovered = PlaybackGeneration.model_validate(
+                    await self.journal.playback_generation(
+                        session_id, session.thread_id, session.epoch
+                    )
+                )
+                if (recovered.session_id, recovered.thread_id, recovered.epoch) != (
+                    session_id,
+                    session.thread_id,
+                    session.epoch,
+                ):
+                    raise ValueError("Native playback generation has a different scope")
+                current = await self.journal.session(session_id)
+                if (current.epoch, current.thread_id) != scope:
+                    raise ValueError("Session changed during playback-generation recovery")
+                previous = recovered.maximum_generation
+                if previous == MAX_PLAYBACK_GENERATION:
+                    raise ValueError("Playback generation exhausted its JSON-safe integer range")
                 generation = previous + 1 if previous else 0
                 playback = PlaybackEpoch(
                     generation,
@@ -327,6 +349,7 @@ class ConverseRuntime:
             current = await self.journal.session(session_id)
             if (current.epoch, current.thread_id) != scope:
                 self._retire_stop(start.playback)
+                start.playback.invalidate()
                 self._playback_start.pop(session_id, None)
                 raise ValueError("Session changed during playback initialization")
             self.playback[session_id] = start.playback
@@ -382,11 +405,11 @@ class ConverseRuntime:
         if source_id is None and playback.chunks:
             entry = next(reversed(playback.chunks.values()))
             source_id = entry.payload.get("window_source_id", entry.event_id)
-        target = playback.begin()
-        stop = self._queue_stop(session_id, playback, previous, target, source_id)
         task = self._active.get(session_id)
         if task is not None and task is not asyncio.current_task() and not task.done():
             task.cancel()
+        target = playback.begin()
+        stop = self._queue_stop(session_id, playback, previous, target, source_id)
         return stop, target
 
     async def reconcile_stop(self, session_id, playback=None):

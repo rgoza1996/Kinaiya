@@ -1,0 +1,177 @@
+{
+  "issue": "https://github.com/rgoza1996/Kinaiya/issues/79",
+  "base_commit": "c1eaed35b1b01521d0aa195ba78928a1c5262ce7",
+  "scope": "Durable native playback generation metadata; synthetic only, no provider/model/live-service/physical-audio acceptance",
+  "source_sha256": {
+    "packages/contracts/models.py": "f42ff1f3694a6634abfc362bfb84f84cd309e90d25f31c78bdbd5724e2928e0e",
+    "packages/contracts/interfaces.py": "99fb5766b32737b599e46f0effa8bf7fb0ade152022d23ad5e8d6fd0825e134d",
+    "packages/contracts/client.py": "f3574db25517d6db8337e2071bb7006a481ecd2c5edfda127f7ae33d75f4f909",
+    "packages/contracts/schemas/PlaybackGeneration.json": "ec725892ec5a75c2b06015729cee6e564de00c61e96f2c06009ec1c4156d0278",
+    "services/session/store.py": "92ee33bf6446d12a8d2cd5283d2a85c73a0e9db9069877bcb522918f8f847ca5",
+    "services/session/api.py": "7bce9305f540393f1fdac303763f05eb0521b9f02c78fc400b3830b11687d6b8",
+    "services/converse/runtime.py": "5813df420fd9c5053e6eee2bfab105ba6cf8450104707c2ff2dc50aa097abcb5",
+    "tests/integration/test_playback_generation.py": "f9380ea346418ab86487e539ea5ee87f67ed059ec64053c489aaa51bdd26c41e",
+    "tests/contract/test_contracts.py": "272d86c49879f7fea5a34921623deac6b9bdb716c8af9db9c2cb95d376ae251a"
+  },
+  "contract": {
+    "name": "PlaybackGeneration",
+    "schema_version": "1.0",
+    "maximum_generation_range": [
+      0,
+      9007199254740991
+    ],
+    "response_fields": [
+      "schema_version",
+      "session_id",
+      "thread_id",
+      "epoch",
+      "maximum_generation"
+    ],
+    "native_writer": "converse",
+    "database_migration": false,
+    "recent_limit_change": false
+  },
+  "regressions": {
+    "original_history_probe_sha256": "0b422d8813da74185ad349ad4ac5c953e26f3e63f7a1191802e9f561560c3d24",
+    "production_js_projection_probe_sha256": "eae126f71654d3ca81ccb9034c6ea0ce71e37a55c117e4b0e769519f2dab031f",
+    "non_generation_window_count": 105,
+    "before_wait": {
+      "generation_task_done": true,
+      "runtime_active": false,
+      "queued_native_chunks": 1,
+      "server_generation": 1
+    },
+    "after_wait": {
+      "server_generation": 2,
+      "queued_native_chunks": 0,
+      "pending": 0
+    },
+    "bridge_result": {
+      "before": "yes",
+      "wait_stop_signals": 1,
+      "after_wait": "no",
+      "control_stop_signals": 1,
+      "after_explicit_interrupt_control": "no",
+      "assertion": "pass"
+    },
+    "projection_limit": "Actual production JavaScript bridge; source-derived Flutter control projection. No Flutter widget execution or physical audio proof.",
+    "root_review_correction": {
+      "red_cases": 12,
+      "red_seconds": 2.0,
+      "red_log_sha256": "d78da1a1c00e6172fa8cb27a020d7d7f642a2990476efa80bc8b6f7a12468ded",
+      "green_cases": 12,
+      "green_seconds": 1.8,
+      "behavior": "Obsolete cached and pending-start MAX/negative/bool counters retire and cancel/clear without allocating in old scope."
+    }
+  },
+  "verification": [
+    {
+      "python": "3.12.3",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "tests/integration/test_playback_generation.py",
+        "tests/integration/test_session.py",
+        "tests/contract/test_contracts.py",
+        "tests/integration/test_converse_window_recovery.py",
+        "tests/integration/test_speech_windows.py",
+        "tests/integration/test_converse_speech_cancel.py",
+        "tests/integration/test_window_http.py",
+        "tests/unit/test_providers.py"
+      ],
+      "environment": {
+        "PYTHONPATH": ".",
+        "PYTHONDONTWRITEBYTECODE": "1"
+      },
+      "imports_verified_to_worker": true,
+      "passed": 339,
+      "seconds": 102.11,
+      "warnings": [
+        "Existing Starlette/httpx TestClient deprecation"
+      ],
+      "log_sha256": "c8dbb09aa57d84e1922efc2fe198638d94f7899d96c15d898667f45280dce8e9"
+    },
+    {
+      "python": "3.11.15",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "tests/integration/test_playback_generation.py",
+        "tests/integration/test_session.py",
+        "tests/contract/test_contracts.py",
+        "tests/integration/test_converse_window_recovery.py",
+        "tests/integration/test_speech_windows.py",
+        "tests/integration/test_converse_speech_cancel.py",
+        "tests/integration/test_window_http.py",
+        "tests/unit/test_providers.py"
+      ],
+      "environment": {
+        "PYTHONPATH": ".",
+        "PYTHONDONTWRITEBYTECODE": "1"
+      },
+      "imports_verified_to_worker": true,
+      "passed": 339,
+      "seconds": 91.07,
+      "warnings": [
+        "Existing Starlette/httpx TestClient deprecation"
+      ],
+      "log_sha256": "e7baf1476910075b309fb42ed23fa87e842e8b96f9d56683f589f170b14445a6"
+    }
+  ],
+  "query_cost": {
+    "python": "3.12.3",
+    "sqlite": "3.45.1",
+    "cases": [
+      {
+        "kind": "converse.window_state",
+        "rows": 50,
+        "sqlite_vm_steps_including_session_reads": 3847,
+        "maximum_generation": 0,
+        "response_bytes": 160,
+        "plan": [
+          "SEARCH entries USING INDEX sqlite_autoindex_entries_2 (session_id=? AND writer=?)"
+        ]
+      },
+      {
+        "kind": "converse.window_state",
+        "rows": 2000,
+        "sqlite_vm_steps_including_session_reads": 150077,
+        "maximum_generation": 0,
+        "response_bytes": 160,
+        "plan": [
+          "SEARCH entries USING INDEX sqlite_autoindex_entries_2 (session_id=? AND writer=?)"
+        ]
+      },
+      {
+        "kind": "conversation.window",
+        "rows": 50,
+        "sqlite_vm_steps_including_session_reads": 747,
+        "maximum_generation": 0,
+        "response_bytes": 160,
+        "plan": [
+          "SEARCH entries USING INDEX sqlite_autoindex_entries_2 (session_id=? AND writer=?)"
+        ]
+      },
+      {
+        "kind": "conversation.window",
+        "rows": 2000,
+        "sqlite_vm_steps_including_session_reads": 26077,
+        "maximum_generation": 0,
+        "response_bytes": 160,
+        "plan": [
+          "SEARCH entries USING INDEX sqlite_autoindex_entries_2 (session_id=? AND writer=?)"
+        ]
+      }
+    ],
+    "limit": "In-memory synthetic metadata operation counts; not elapsed-time/throughput/load evidence. Query work grows with retained native-writer session history; no checkpoint or new index."
+  },
+  "fixture_corrections": "Initial focused run98passed/3fixture failures: an invalid non-entry chunk fake and an index-name expectation. Corrected fixtures without production changes; actual existing UNIQUE(session_id,writer,idem) index retained."
+}

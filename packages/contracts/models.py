@@ -8,6 +8,8 @@ from uuid import uuid4
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 SCHEMA_VERSION = "1.0"
+# Flutter web/JSON numbers represent every integer only through this value.
+MAX_PLAYBACK_GENERATION = 9_007_199_254_740_991
 
 
 def new_id() -> str:
@@ -30,6 +32,13 @@ class Session(WireModel):
     channel: Literal["converse", "agent"]
     epoch: int = Field(default=1, ge=1)
     name: str = ""
+
+
+class PlaybackGeneration(WireModel):
+    session_id: str = Field(strict=True, min_length=1, max_length=128)
+    thread_id: str = Field(strict=True, min_length=1, max_length=128)
+    epoch: int = Field(strict=True, ge=1)
+    maximum_generation: int = Field(strict=True, ge=0, le=MAX_PLAYBACK_GENERATION)
 
 
 class AppendRequest(WireModel):

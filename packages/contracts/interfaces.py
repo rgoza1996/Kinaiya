@@ -3,7 +3,13 @@
 from collections.abc import AsyncIterator
 from typing import Any, Protocol
 
-from packages.contracts.models import AppendRequest, JournalEntry, ProviderInfo, Session
+from packages.contracts.models import (
+    AppendRequest,
+    JournalEntry,
+    PlaybackGeneration,
+    ProviderInfo,
+    Session,
+)
 
 
 class Journal(Protocol):
@@ -22,6 +28,10 @@ class Journal(Protocol):
     ) -> list[JournalEntry]: ...
 
     async def session(self, session_id: str) -> Session: ...
+
+    async def playback_generation(
+        self, session_id: str, thread_id: str, epoch: int
+    ) -> PlaybackGeneration: ...
 
     async def latest_window(
         self, session_id: str, epoch: int, utterance_id: str, window_index: int | None = None

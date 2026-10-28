@@ -4,7 +4,7 @@ from fastapi import Depends, FastAPI, HTTPException, Query, WebSocket, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from packages.contracts.models import AppendRequest, SessionRequest
+from packages.contracts.models import AppendRequest, PlaybackGeneration, SessionRequest
 from services.common.auth import Auth
 from services.session.store import JournalError, Store
 
@@ -130,6 +130,18 @@ def create_app(store: Store, auth: Auth) -> FastAPI:
     @app.get("/v1/transcript/recent", dependencies=[Depends(auth.require())])
     async def recent(session_id: str, limit: int = Query(100, ge=1, le=200)):
         return store.recent(session_id=session_id, limit=limit)
+
+    @app.get(
+        "/v1/transcript/playback/generation",
+        response_model=PlaybackGeneration,
+        dependencies=[Depends(auth.require("owner", "converse"))],
+    )
+    async def playback_generation(
+        session_id: str = Query(min_length=1, max_length=128),
+        thread_id: str = Query(min_length=1, max_length=128),
+        epoch: int = Query(ge=1),
+    ):
+        return store.playback_generation(session_id, thread_id, epoch)
 
     @app.get("/v1/transcript/windows/dispatches", dependencies=[Depends(auth.require())])
     async def window_dispatches(
