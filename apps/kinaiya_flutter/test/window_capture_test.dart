@@ -19,6 +19,7 @@ final session = SessionInfo(
 class WindowApi extends ControlledApi {
   final received = <Map<String, Object?>>[];
   final entries = <JournalEntry>[];
+  final deliveries = <String>[];
   final first = Completer<Map<String, Object?>>();
   @override
   Future<List<SessionInfo>> listSessions() async => [session];
@@ -54,7 +55,9 @@ class WindowApi extends ControlledApi {
     required String chunkId,
     required String status,
     double playedSeconds = 0,
-  }) async {}
+  }) async {
+    deliveries.add(status);
+  }
 }
 
 class WindowAudio extends CaptureAudio implements WindowSpeechAudio {
@@ -84,6 +87,28 @@ class WindowAudio extends CaptureAudio implements WindowSpeechAudio {
   }
 }
 
+class BufferedWindowAudio extends WindowAudio {
+  final playback = Completer<void>();
+  int playbackWaiters = 0, disarms = 0;
+
+  @override
+  Future<void> awaitPlayback() {
+    playbackWaiters++;
+    return playback.future;
+  }
+
+  @override
+  Future<void> stopPlayback() async {
+    await super.stopPlayback();
+    if (queued > 0 && !playback.isCompleted) playback.complete();
+  }
+
+  @override
+  Future<void> stopArmed() async {
+    disarms++;
+  }
+}
+
 Future<AppState> arm(
   WidgetTester tester,
   WindowApi api,
@@ -107,6 +132,82 @@ Future<AppState> arm(
 }
 
 void main() {
+  testWidgets(
+    'native generation stop clears buffered window audio without disarming mic',
+    (tester) async {
+      final api = WindowApi();
+      final audio = BufferedWindowAudio()..speaking = false;
+      final state = await arm(tester, api, audio);
+      for (var n = 0; n < 11; n++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      final utterance = api.received.first['utterance_id'];
+      api.entries.add(
+        JournalEntry(
+          eventId: 'reply',
+          sequence: 1,
+          sessionId: 'converse',
+          threadId: 'thread',
+          epoch: 1,
+          kind: 'conversation.converse',
+          origin: 'converse',
+          payload: {
+            'text': 'A reply whose PCM is still queued.',
+            'chunk_id': 'chunk',
+            'generation_epoch': 1,
+            'window_source_id': 'source',
+            'window_utterance_id': utterance,
+            'window_behavior': 'RESPOND_INTERRUPT_USER',
+          },
+        ),
+      );
+      await state.refreshNotices();
+      await tester.pump();
+      expect(audio.queued, 1);
+      expect(audio.playbackWaiters, 1);
+      expect(audio.playback.isCompleted, isFalse);
+      expect(api.deliveries, contains('playing'));
+      expect(api.deliveries, isNot(contains('played')));
+      final stops = audio.stops;
+      final nonce = state.turnNonce;
+
+      // Native WAIT recovery must emit this generation barrier even after
+      // text generation has ended. Exercise the real widget subscription.
+      api.entries.add(
+        JournalEntry(
+          eventId: 'stop',
+          sequence: 2,
+          sessionId: 'converse',
+          threadId: 'thread',
+          epoch: 1,
+          kind: 'delivery.updated',
+          origin: 'converse',
+          payload: {
+            'generation_epoch': 1,
+            'next_generation_epoch': 2,
+            'status': 'interrupted',
+            'alignment': 'delivery_unknown',
+          },
+        ),
+      );
+      await state.refreshNotices();
+      await tester.pump();
+      expect(audio.stops, stops + 1);
+      expect(audio.playback.isCompleted, isTrue);
+      expect(state.speechEpoch, 2);
+      expect(state.turnNonce, greaterThan(nonce));
+      expect(api.deliveries, isNot(contains('played')));
+      expect(audio.disarms, 0);
+      expect(find.byTooltip('Stop Live listen'), findsOneWidget);
+      expect(api.interrupts, 0);
+
+      api.first.complete({});
+      await tester.pump();
+      await tester.pumpWidget(const SizedBox.shrink());
+      state.dispose();
+    },
+  );
+
   testWidgets(
     'rolling capture continues through STT and acoustic overlap cannot interrupt',
     (tester) async {
