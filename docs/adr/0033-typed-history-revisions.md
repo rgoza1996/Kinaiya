@@ -95,3 +95,5 @@ delivery-note representation remain separate policy/design limits. Deterministic
 prompt capture proves the text offered to these fixtures, not external model
 behavior, physical audio, full M2 acceptance or task completion. Independent
 review and exact-head integration CI are separate gates.
+
+Independent final review at `ea313330` found no actionable issue: 599 cases passed in 67.11 seconds without warnings, including 376 repository cases and 223 independent policy/equivalence/metadata cases. The unchanged original two-journal probe forwarded zero stale drafts/private corrections. A reviewer-only invalid SpeechWindow fixture and its correction are retained in the review manifest. Lead integration with native generation recovery and typed cleanup passed 637 cases in 144.32 seconds with the existing TestClient warning. Helper/new-test bytes match the reviewed worker, and runtime AST outside history construction/imports is unchanged from corrected #79. The verification record preserves commands, hashes, original failures and policy limits. Dependency and final exact-head CI remain required before merge.

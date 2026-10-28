@@ -134,5 +134,331 @@
     "Typed delivery-note representation is unchanged; this is not a typed playback-context redesign.",
     "Pure malformed native-shaped fixtures include data current native append validation rejects; they are parser/projection evidence, not proof of native writer acceptance.",
     "No external provider behavior, physical audio, full M2/M3 acceptance, independent human approval or broad security audit is established."
+  ],
+  "worker_final_commit": "ea313330eea415746655ea49ca8d683ad34104ac",
+  "status": "Final independent review and combined local integration passed; corrected dependency PR83 and this change require exact-head full CI before merge.",
+  "durable_worker_artifacts": {
+    "directory": "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/typed-history-implementation-v1",
+    "files": {
+      "new-collection.log": {
+        "bytes": 27811,
+        "sha256": "40285fdd223ba7302b131a2cf0c9a4d2979d25063c4972d36deb70709abb207e"
+      },
+      "combined-py312.log": {
+        "bytes": 1329,
+        "sha256": "e05d209b68e9f99d5c5ea4b61244909221ad31d73c4e921968b713750de73a30"
+      },
+      "static-checks.log": {
+        "bytes": 725,
+        "sha256": "528b3bdaedd2acfc8e70022345698ba50137e91cf8cee4f2ecb4756a7d5f8b00"
+      },
+      "focused-py312.log": {
+        "bytes": 421,
+        "sha256": "3368a3a54b26bebd2dadf8ae2e3242320ffcd9d7a897269acb5fa3a645de7508"
+      },
+      "combined-py311.log": {
+        "bytes": 1333,
+        "sha256": "932f8025604d12223d3f5996fcff9cdc16db561edb9e9fb76439202e5e0a5320"
+      },
+      "typed_revision_probe.py": {
+        "bytes": 4207,
+        "sha256": "26cc035710b4c51744c68997b4d3700a3b823162c8c5ad8e7f392e3e044acd62"
+      },
+      "imports-py312.json": {
+        "bytes": 626,
+        "sha256": "615623e230214df37a71d1a8169b58c6a6ad75198d1bfe814a8384cc757f02b5"
+      },
+      "committed-probe.log": {
+        "bytes": 215,
+        "sha256": "728f1658d7ef0411106846922b36edf0acfe285da03c3e4e2fd3f2ce58d09835"
+      },
+      "before.log": {
+        "bytes": 215,
+        "sha256": "380e7d2d83c9d4bbc21c27349ca5eb403b28af23adcd5880884febcc1faaae94"
+      },
+      "imports-py311.json": {
+        "bytes": 632,
+        "sha256": "e9fe8c7271007fb035818d0a9bd717a71aa9276fe89ff119e2ff4dc07c151ba2"
+      },
+      "before/typed-results.json": {
+        "bytes": 3366,
+        "sha256": "217b54876cd8df5524351e0ef320e5e7c346d98714c2411dc91a7e4888ab5124"
+      },
+      "after/typed-results.json": {
+        "bytes": 3150,
+        "sha256": "d35bf2c73fbd8504b6c2fe0b0cda82f784bbd6d1b7697d78ae71253afd468966"
+      },
+      "committed/typed-results.json": {
+        "bytes": 3150,
+        "sha256": "31563e3f0b14ac33d55baffae909ba9d254e219a59a6f157af0caf9234a5308f"
+      }
+    }
+  },
+  "independent_final_review": {
+    "kind": "Automated independent Codex peer review, not independent human approval",
+    "agent": "transformers_port",
+    "reviewed_commit": "ea313330eea415746655ea49ca8d683ad34104ac",
+    "result": "No actionable finding remains in the reviewed #81 implementation scope.",
+    "focused_verification": {
+      "passed": 599,
+      "elapsed_seconds": 67.11,
+      "warnings": 0,
+      "repository_cases": 376,
+      "new_pure_history_and_typed_prompt_plus_unchanged_window_cases": 301,
+      "retained_typed_cleanup_cases": 75,
+      "independent_cases": 223,
+      "independent_window_metadata_cases": 55,
+      "independent_policy_extraction_and_history_cases": 168
+    },
+    "differential_verification": {
+      "baseline_window_commit": "dad69559f49aad81f4008e53880bb8f1d6b98502",
+      "baseline_helper_sha256": "18ea1d1e8c9c9a7d94a287e493016a8f6a084a081f9ac46d79358193733c739c",
+      "exact_window_message_and_metadata_comparisons": 108,
+      "typed_legacy_policy_full_text_and_turn_limit_comparisons": 36,
+      "other_scope_origin_revision_payload_checks": 24,
+      "description": "Window calls remain strict after unrelated permissive fold invocation. Valid native typed projection agrees with legacy entry_allowed; malformed/private revision chains never fall back to old drafts."
+    },
+    "original_typed_probe": {
+      "source_sha256": "26cc035710b4c51744c68997b4d3700a3b823162c8c5ad8e7f392e3e044acd62",
+      "unchanged_from_original": true,
+      "fixed_cases": 2,
+      "fixed_stale_drafts_forwarded": 0,
+      "fixed_denied_corrections_forwarded": 0,
+      "provider_calls_per_case": 1,
+      "transports": [
+        "native LocalJournal",
+        "native owner/Converse-authenticated JournalClient via ASGITransport"
+      ],
+      "prior_frozen_results_preserved": true,
+      "prior_pre76_and_then_main_cases": 4,
+      "prior_stale_drafts_forwarded": 4
+    },
+    "preservation_checks": {
+      "unchanged_from_base_sha256": {
+        "services/converse/windows.py": "fabdca4a45a3ac98bcd717c2488feebc38e89e6edf2f678f3450731195918f89",
+        "packages/providers/disclosure.py": "39b73bfc8656449195225b4d1f1a14c1b01ccbcf91047c0bf67dddb131ad0dd2",
+        "tests/integration/test_converse_delivery_context.py": "857db9e37fcdedef94745ad670f2d25b8496896dc912c598437933306447efab",
+        "tests/integration/test_converse_window_recovery.py": "4e0c574b565a523c101f5b848025b8a54ce71da6471c50ffecd214c651f713bd",
+        "tests/integration/test_converse_text_cleanup.py": "789f714e11f0f3a341b8ec37406d664c0217ba020c292d192db9ee3410bd892a"
+      },
+      "runtime_ast_outside_events_and_history_imports_unchanged": true,
+      "manual_events_diff": "Only old history selection / message construction replaced with typed_history; raw replay identity, current input, delivery notes, appends, generation and cleanup hunks unchanged."
+    },
+    "reviewer_fixture_failure_disposition": {
+      "initial_independent_run": "116 failed, 52 passed in 0.98s",
+      "cause": "Reviewer test constructor incorrectly added final=True to a strict SpeechWindow payload, so validation rejected the fixture before evaluating either implementation.",
+      "correction": "Use the exact SpeechWindow.model_dump payload; no production source or expected privacy/policy assertion changed.",
+      "retained_files": [
+        "test_independent_history.initial-fixture.py",
+        "draft-matrix.log"
+      ],
+      "corrected_draft_result": "168 passed in 0.34s",
+      "final_frozen_result": "All independent cases included in the 599 passed final suite."
+    },
+    "commands": [
+      {
+        "name": "final_focused_suite",
+        "cwd": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya",
+        "shell": "PYTHONPATH=/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya /home/roggoz/Disks/SN750/Kinaiya/.dev-run/supertonic-ci-venv/bin/python /tmp/kinaiya-81-independent-9p6n3zen/run_review.py ea313330eea415746655ea49ca8d683ad34104ac > /tmp/kinaiya-81-independent-9p6n3zen/final-focused.log 2>&1",
+        "returncode": 0,
+        "pytest_arguments": [
+          "-c",
+          "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/pyproject.toml",
+          "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/tests/unit/test_converse_history.py",
+          "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/tests/integration/test_converse_typed_history.py",
+          "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/tests/integration/test_converse_delivery_context.py",
+          "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/tests/integration/test_converse_text_cleanup.py",
+          "/tmp/kinaiya-81-independent-9p6n3zen/test_independent_history.py",
+          "/tmp/kinaiya-81-independent-9p6n3zen/test_adversarial_metadata.py",
+          "-q"
+        ]
+      },
+      {
+        "name": "unchanged_original_typed_probe",
+        "cwd": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya",
+        "shell": "PYTHONPATH=/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya /home/roggoz/Disks/SN750/Kinaiya/.dev-run/supertonic-ci-venv/bin/python /tmp/kinaiya-81-independent-9p6n3zen/typed_revision_probe.py /tmp/kinaiya-81-independent-9p6n3zen/final-fixed-typed > /tmp/kinaiya-81-independent-9p6n3zen/final-fixed-typed.log 2>&1",
+        "returncode": 0
+      },
+      {
+        "name": "ruff_check",
+        "cwd": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya",
+        "shell": "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/supertonic-ci-venv/bin/ruff check services/converse/history.py services/converse/delivery_context.py services/converse/runtime.py tests/unit/test_converse_history.py tests/integration/test_converse_typed_history.py > /tmp/kinaiya-81-independent-9p6n3zen/ruff-check.log 2>&1",
+        "result": "All checks passed!"
+      },
+      {
+        "name": "ruff_format_check",
+        "cwd": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya",
+        "shell": "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/supertonic-ci-venv/bin/ruff format --check services/converse/history.py services/converse/delivery_context.py services/converse/runtime.py tests/unit/test_converse_history.py tests/integration/test_converse_typed_history.py > /tmp/kinaiya-81-independent-9p6n3zen/ruff-format.log 2>&1",
+        "result": "5 files already formatted"
+      },
+      {
+        "name": "diff_check",
+        "cwd": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya",
+        "shell": "git diff dad69559f49aad81f4008e53880bb8f1d6b98502..ea313330eea415746655ea49ca8d683ad34104ac --check > /tmp/kinaiya-81-independent-9p6n3zen/diff-check.log 2>&1",
+        "returncode": 0
+      },
+      {
+        "name": "draft_independent_matrix",
+        "cwd": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya",
+        "shell": "PYTHONPATH=/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya /home/roggoz/Disks/SN750/Kinaiya/.dev-run/supertonic-ci-venv/bin/python -m pytest -c /home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/pyproject.toml /tmp/kinaiya-81-independent-9p6n3zen/test_independent_history.py -q > /tmp/kinaiya-81-independent-9p6n3zen/draft-matrix-corrected.log 2>&1",
+        "returncode": 0,
+        "result": "168 passed in 0.34s"
+      }
+    ],
+    "manifest_sha256": "49bbca0df1258fc2556cbf35c5dd6703c00081555d0c49aa0a4fee045f97631a",
+    "artifact_directory": "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/typed-history-final-review-v1",
+    "artifacts": {
+      "typed_revision_probe.py": {
+        "bytes": 4207,
+        "sha256": "26cc035710b4c51744c68997b4d3700a3b823162c8c5ad8e7f392e3e044acd62"
+      },
+      "baseline_delivery_context.py": {
+        "bytes": 10355,
+        "sha256": "18ea1d1e8c9c9a7d94a287e493016a8f6a084a081f9ac46d79358193733c739c"
+      },
+      "baseline-typed/pre76-typed-results.json": {
+        "bytes": 3368,
+        "sha256": "b1f3bf0304af669b7c121b055764b43b3d694dcdd4483a15659839a12f382c8a"
+      },
+      "baseline-typed/pre76-typed.log": {
+        "bytes": 216,
+        "sha256": "7abdfb5f4d091ba929cbf8d944f08f3b4c9957f556e390309f2bf01fccdaac75"
+      },
+      "baseline-typed/main76-typed-results.json": {
+        "bytes": 3358,
+        "sha256": "ae2fb3dcb7f7f76e3728df1ce6e668645ebb16d3d2140ec168484313f30863cb"
+      },
+      "baseline-typed/main76-typed.log": {
+        "bytes": 211,
+        "sha256": "f044eca77d77f4c9bcc8e8e96555b834b16b37a5503bca4ccce53c0b725f5d9e"
+      },
+      "test_independent_history.initial-fixture.py": {
+        "bytes": 6775,
+        "sha256": "f64f28aeb9d849ab56d773a4d43c96627c6836be3027f5af3371b9496edd8e0e"
+      },
+      "draft-matrix.log": {
+        "bytes": 324349,
+        "sha256": "0c3b71fbc4a375f805941769680bc8fccac6a052e19bc5b0201ded05081ea646"
+      },
+      "test_independent_history.py": {
+        "bytes": 6804,
+        "sha256": "2d9118faf154d03612f67622373d68c72b1420a3e586610f0b30113263a49680"
+      },
+      "draft-matrix-corrected.log": {
+        "bytes": 260,
+        "sha256": "ae098b9cedfb2dc31f719639470e571c2e26f17172d4e2a1d9d0b09613092f83"
+      },
+      "test_adversarial_metadata.py": {
+        "bytes": 8786,
+        "sha256": "2c3c1b33308620378fae52c62b8f4e772d8036d18124b08856802c33ada77b06"
+      },
+      "run_review.py": {
+        "bytes": 2884,
+        "sha256": "daa792a1755c96f4e1d54f2ec16461c52128b0df8917f9b9b3b342dd71d7641c"
+      },
+      "expected-source-hashes.json": {
+        "bytes": 796,
+        "sha256": "d4d0bc9343fec1ff34f9ab0f2d8a43dd91dfc7eb100aeb080fec157a9714ef25"
+      },
+      "final-focused.log": {
+        "bytes": 751,
+        "sha256": "6b26095bfa1979cc4fe76a6b8f7833dd1ed911dffb86954dc954a405d4e9a8b6"
+      },
+      "test-run-metadata.json": {
+        "bytes": 4498,
+        "sha256": "3e86e13113849d9121635c0ded3eb83d313c0380f698713d5f488e4fb95c3840"
+      },
+      "final-fixed-typed.log": {
+        "bytes": 215,
+        "sha256": "728f1658d7ef0411106846922b36edf0acfe285da03c3e4e2fd3f2ce58d09835"
+      },
+      "final-fixed-typed/typed-results.json": {
+        "bytes": 3150,
+        "sha256": "31563e3f0b14ac33d55baffae909ba9d254e219a59a6f157af0caf9234a5308f"
+      },
+      "preservation-checks.json": {
+        "bytes": 904,
+        "sha256": "912169968bc68a05a3532eacf5654624fa5de59837951a2c3705eac1b59871fa"
+      },
+      "reviewed-code.diff": {
+        "bytes": 8978,
+        "sha256": "9e1c699fdbf6fa225e27ff6f1d6c3411fd9a9449153e9cdbeb3b3aac54daf8a5"
+      },
+      "ruff-check.log": {
+        "bytes": 19,
+        "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+      },
+      "ruff-format.log": {
+        "bytes": 26,
+        "sha256": "f114d83b30c5c657ee43a847a45bafccaea255d82673feb87c26d252c61e29c1"
+      },
+      "diff-check.log": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "commands.json": {
+        "bytes": 3465,
+        "sha256": "86e1b7a9fe3b0e08c3c4b1ecf995e4c556f1146e3916848365946c4efc3eaa32"
+      },
+      "final-review-manifest.json": {
+        "bytes": 15795,
+        "sha256": "49bbca0df1258fc2556cbf35c5dd6703c00081555d0c49aa0a4fee045f97631a"
+      }
+    }
+  },
+  "lead_integration": {
+    "source_commit": "ac572c921c0c27db595f90a70f187d722e8cb2dd",
+    "dependency_79_head": "a45a164e5570959a63a5d08e527cce27531fb91d",
+    "dependency_79_pr": 83,
+    "dependency_79_ci": 40741559469,
+    "dependency_79_ci_status_at_recording": "running; must pass before publishing this PR",
+    "source_sha256": {
+      "services/converse/history.py": "f089cd5d0049a0ac9f241975b6738c22f6b3944dd1318bdb2dd517eece5e1d61",
+      "services/converse/delivery_context.py": "5a244a1e8ca05db1e48fbdd851d7c785c5b1e1485d328e184b5503b26f2b670f",
+      "services/converse/runtime.py": "3d6b4c55b68fee9b5997e50d1f26ca73da8d86f8cd4304fa35b31df88df90ccd",
+      "tests/unit/test_converse_history.py": "e58d64ef1512a98cecd18cba71aed266becf7dd73d4241b5eca2062351fbb8b6",
+      "tests/integration/test_converse_typed_history.py": "d2053cdce538542745c5c7ecbea446e350d3746c4ee24b9934a03e31ceaf4bc9"
+    },
+    "compatibility_note": "Shared history/delivery helpers and two new acceptance files match the reviewed worker. Runtime additionally retains the reviewed #79 native counter recovery and #76 typed ownership. The import conflict preserved PlaybackGeneration/MAX_PLAYBACK_GENERATION and removed only the no-longer-used direct entry_allowed import. Runtime AST outside _events and import nodes is identical to corrected #79. Two #79 fixture-only changes were merged later without changing the source exercised by the lead637 run.",
+    "runtime_ast_outside_events_and_imports_unchanged_from_corrected_79": true,
+    "python": "3.12.3",
+    "cwd": "/home/roggoz/.codex/worktrees/mcp-controls/Kinaiya",
+    "environment": {
+      "PYTHONPATH": "unset"
+    },
+    "command": [
+      "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/supertonic-ci-venv/bin/python",
+      "-m",
+      "pytest",
+      "-q",
+      "-p",
+      "no:cacheprovider",
+      "tests/unit/test_converse_history.py",
+      "tests/integration/test_converse_typed_history.py",
+      "tests/integration/test_playback_generation.py",
+      "tests/integration/test_session.py",
+      "tests/contract/test_contracts.py",
+      "tests/integration/test_converse_delivery_context.py",
+      "tests/integration/test_converse_text_cleanup.py",
+      "tests/integration/test_converse_window_recovery.py"
+    ],
+    "passed": 637,
+    "seconds": 144.32,
+    "warnings": [
+      "Existing Starlette/httpx TestClient deprecation"
+    ],
+    "log": "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/typed-history-final-integration-py312.log",
+    "log_sha256": "c451f188ffd16163556fd31cb31ed9a0cd724cabfe4442437ac3de20391c899b",
+    "imports_verified": true,
+    "ruff_check": "passed",
+    "ruff_format": "218 files already formatted",
+    "schema_export": "unchanged",
+    "git_diff_check": "passed"
+  },
+  "known_limits_retained": [
+    "Typed unscoped entries keep the established consent path; current input and typed delivery-note representation are unchanged.",
+    "Only one captured native suffix is projected; this does not promise an atomic view of corrections committed afterward or refill bases outside it.",
+    "Pure malformed-native-shaped cases are not native writer/auth proof. Actual prompt fixtures use synthetic providers and native local/authenticated ASGI journals.",
+    "No actual external model inference, physical audibility, full M2/M3, default/provider promotion or sustained-load result follows."
   ]
 }
