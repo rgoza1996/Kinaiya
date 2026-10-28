@@ -85,6 +85,15 @@ class Store:
             CREATE INDEX IF NOT EXISTS entries_window_semantic ON entries(
                 session_id, json_extract(value,'$.payload.semantic_key'), sequence)
                 WHERE kind='routing.window_dispatch';
+            CREATE INDEX IF NOT EXISTS entries_window_decision_source ON entries(
+                json_extract(value,'$.payload.source_event_id'), sequence)
+                WHERE kind='routing.window_decided';
+            CREATE INDEX IF NOT EXISTS entries_window_status_source ON entries(
+                json_extract(value,'$.payload.source_event_id'),
+                json_extract(value,'$.payload.phase'), sequence)
+                WHERE kind='routing.window_status';
+            CREATE INDEX IF NOT EXISTS entries_window_backlog ON entries(session_id, sequence)
+                WHERE kind='conversation.window';
             CREATE TABLE IF NOT EXISTS cursors(
                 writer TEXT NOT NULL, consumer TEXT NOT NULL, sequence INTEGER NOT NULL,
                 PRIMARY KEY(writer,consumer));
@@ -203,6 +212,41 @@ class Store:
                     )
                 ):
                     raise JournalError("Window decision does not bind an authenticated source")
+            elif request.kind == "routing.window_status":
+                payload = request.payload
+                source_id = payload.get("source_event_id")
+                if (
+                    not isinstance(source_id, str)
+                    or not 1 <= len(source_id) <= 128
+                    or payload.get("phase")
+                    not in {
+                        "classifying",
+                        "retrying",
+                        "classified",
+                        "busy",
+                        "error",
+                        "superseded",
+                        "expired",
+                        "obsolete",
+                    }
+                    or not isinstance(payload.get("reason"), str)
+                    or not 1 <= len(payload["reason"]) <= 120
+                    or (
+                        "attempt" in payload
+                        and (
+                            type(payload["attempt"]) is not int or payload["attempt"] not in (1, 2)
+                        )
+                    )
+                ):
+                    raise JournalError("Invalid window status payload")
+                source = self.entry(source_id)
+                if (
+                    source.kind != "conversation.window"
+                    or source.origin != "authenticated-user"
+                    or (source.session_id, source.thread_id, source.epoch, [source.event_id])
+                    != (request.session_id, request.thread_id, request.epoch, request.causes)
+                ):
+                    raise JournalError("Window status does not bind an authenticated source")
             row = self.db.execute(
                 "SELECT request,value FROM entries WHERE session_id=? AND writer=? AND idem=?",
                 (request.session_id, role, request.idempotency_key),
@@ -301,6 +345,69 @@ class Store:
                 (source_event_id,),
             ).fetchone()
         return JournalEntry.model_validate_json(row[0]) if row else None
+
+    def pending_windows(self, *, limit=100):
+        """Bounded fair admission from durable, undisposed transcript entries.
+
+        Busy/retrying/classifying receipts do not retire work. Epoch reset is
+        already a durable native fence; old epochs cannot accept new receipts.
+        Rank within sessions so one session's backlog cannot fill every page.
+        """
+        if type(limit) is not int or not 1 <= limit <= 200:
+            raise JournalError("Invalid pending-window query bound")
+        with self.lock:
+            # Unary + removes the column's TEXT affinity without changing the
+            # string value. SQLite can then SEARCH the JSON expression indexes
+            # instead of scanning every receipt for each candidate source.
+            rows = self.db.execute(
+                """WITH pending AS (
+                    SELECT e.sequence,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY e.session_id ORDER BY e.sequence
+                        ) AS session_position
+                    FROM entries e JOIN sessions s ON s.session_id=e.session_id
+                    WHERE e.kind='conversation.window'
+                      AND e.epoch=json_extract(s.value,'$.epoch')
+                      AND json_extract(s.value,'$.channel')='converse'
+                      AND NOT EXISTS (
+                          SELECT 1 FROM entries d WHERE d.kind='routing.window_decided'
+                          AND json_extract(d.value,'$.payload.source_event_id')=+e.event_id
+                      )
+                      AND NOT EXISTS (
+                          SELECT 1 FROM entries d WHERE d.kind='routing.window_status'
+                          AND json_extract(d.value,'$.payload.source_event_id')=+e.event_id
+                          AND json_extract(d.value,'$.payload.phase')
+                              IN ('superseded','expired','obsolete','error')
+                      )
+                ), admitted AS (
+                    SELECT sequence, session_position FROM pending
+                    ORDER BY session_position, sequence LIMIT ?
+                ) SELECT e.value FROM admitted a JOIN entries e ON e.sequence=a.sequence
+                  ORDER BY a.session_position, a.sequence""",
+                (limit,),
+            ).fetchall()
+        return [JournalEntry.model_validate_json(row[0]) for row in rows]
+
+    def window_classification_attempts(self, source_event_id):
+        if not isinstance(source_event_id, str) or not 1 <= len(source_event_id) <= 128:
+            raise JournalError("Invalid window source reference")
+        with self.lock:
+            rows = self.db.execute(
+                """SELECT json_extract(value,'$.payload.attempt') AS attempt,
+                          json_type(value,'$.payload.attempt') AS attempt_type
+                   FROM entries WHERE kind='routing.window_status'
+                   AND json_extract(value,'$.payload.source_event_id')=?
+                   AND json_extract(value,'$.payload.phase')='classifying' LIMIT 2""",
+                (source_event_id,),
+            ).fetchall()
+        attempts = [row["attempt"] for row in rows]
+        # Legacy code reused one unnumbered receipt across both retries. It
+        # cannot prove how many calls started, so do not admit a third call.
+        if any(row["attempt_type"] != "integer" for row in rows) or any(
+            type(attempt) is not int or attempt not in (1, 2) for attempt in attempts
+        ):
+            return 2
+        return max(attempts, default=0)
 
     def window_response(self, session_id, epoch, utterance_id):
         with self.lock:
@@ -500,6 +607,16 @@ class LocalJournal:
 
     async def window_decision(self, source_event_id):
         return self.store.window_decision(source_event_id)
+
+    async def pending_windows(self, *, limit=100):
+        if self.role not in {"owner", "decisions"}:
+            raise PermissionError("Window admission requires owner or Decisions")
+        return self.store.pending_windows(limit=limit)
+
+    async def window_classification_attempts(self, source_event_id):
+        if self.role not in {"owner", "decisions"}:
+            raise PermissionError("Window admission requires owner or Decisions")
+        return self.store.window_classification_attempts(source_event_id)
 
     async def window_response(self, session_id, epoch, utterance_id):
         return self.store.window_response(session_id, epoch, utterance_id)

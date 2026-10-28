@@ -100,6 +100,20 @@ def create_app(store: Store, auth: Auth) -> FastAPI:
         return store.latest_window(session_id, epoch, utterance_id, window_index)
 
     @app.get(
+        "/v1/transcript/windows/pending",
+        dependencies=[Depends(auth.require("owner", "decisions"))],
+    )
+    async def pending_windows(limit: int = Query(100, ge=1, le=200)):
+        return store.pending_windows(limit=limit)
+
+    @app.get(
+        "/v1/transcript/windows/attempts",
+        dependencies=[Depends(auth.require("owner", "decisions"))],
+    )
+    async def window_attempts(source_event_id: str = Query(min_length=1, max_length=128)):
+        return {"attempts": store.window_classification_attempts(source_event_id)}
+
+    @app.get(
         "/v1/transcript/windows/{source_event_id}/decision", dependencies=[Depends(auth.require())]
     )
     async def window_decision(source_event_id: str):
