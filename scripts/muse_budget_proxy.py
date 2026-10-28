@@ -189,9 +189,13 @@ class Handler(BaseHTTPRequestHandler):
 
     def local_json(self, status, value):
         raw = json.dumps(value).encode()
+        # Rejections can precede body consumption. Never parse a rejected body
+        # as the next HTTP request on a persistent connection.
+        self.close_connection = True
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(raw)))
+        self.send_header("Connection", "close")
         self.end_headers()
         self.wfile.write(raw)
 
@@ -200,7 +204,7 @@ class Handler(BaseHTTPRequestHandler):
             with LOCK:
                 self.local_json(200, STATE)
             return
-        if self.path == "/v1/models":
+        if self.path in {"/v1/models", "/muse-code/models"}:
             self.forward()
             return
         self.local_json(405, {"error": "Only model discovery and budget reads are supported"})
