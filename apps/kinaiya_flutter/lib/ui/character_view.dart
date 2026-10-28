@@ -8,6 +8,7 @@ import '../api/models.dart';
 import '../audio/speech_audio.dart';
 import '../audio/turn_audio.dart';
 import '../character/pack.dart';
+import '../character/playback.dart';
 import '../config/connection.dart';
 import '../presentation/controller.dart';
 import '../state/app_state.dart';
@@ -1214,6 +1215,16 @@ class _CharacterViewState extends State<CharacterView> {
     if (_micStopPending) return 'Stopping microphone…';
     if (_micStopUnconfirmed) return 'Microphone stop unconfirmed';
     if (_s.resourceStatusStale) return 'Voice availability unconfirmed';
+    if (_s.resourceConverseDesired == true && _s.resourcePhase == 'restoring') {
+      return 'Restoring voice…';
+    }
+    if (_s.resourceConverseDesired == true &&
+        _s.resourcePhase == 'initializing') {
+      return 'Starting voice services…';
+    }
+    if (_s.resourcesConfigured == true && _s.resourcePhase == 'failed') {
+      return 'Voice restoration failed';
+    }
     if (!_s.converseEnabled) {
       return _s.resourcePhase == 'local_work'
           ? 'Paused for local work'
@@ -1221,11 +1232,28 @@ class _CharacterViewState extends State<CharacterView> {
     }
     if (!_s.sessionAuthenticated) return 'Connect to start a conversation';
     if (!_s.converseInferenceAllowed) return 'Review inference settings';
+    if (_speaking) return 'Speaking';
     if (_recording) return 'Recording a voice message';
     if (_armed) return 'Live microphone on';
-    if (_speaking) return 'Speaking';
     if (_s.busyConverse) return 'Preparing a reply';
     return 'Ready to talk';
+  }
+
+  CharacterSignals get _characterSignals {
+    final work = _s.characterWorkActivity;
+    return CharacterSignals(
+      speaking: _speaking,
+      listening: _recording || _armed,
+      warming:
+          _s.sessionAuthenticated &&
+          !_s.resourceStatusStale &&
+          _s.resourcesConfigured == true &&
+          _s.resourceConverseDesired == true &&
+          const {'initializing', 'restoring'}.contains(_s.resourcePhase),
+      blocked: work == 'blocked',
+      working: work == 'working.generic',
+      activity: _s.busyConverse && _mood == 'thinking' ? 'thinking' : work,
+    );
   }
 
   Widget _mascot(CharacterPack? pack, double size) {
@@ -1251,9 +1279,8 @@ class _CharacterViewState extends State<CharacterView> {
                 pack: pack,
                 bundle: widget.character?.bundle,
                 size: size,
-                mood: _recording || _armed
-                    ? 'listening'
-                    : (_speaking ? 'speaking' : _mood),
+                mood: _characterSignals.semantic,
+                signals: _characterSignals,
               ),
       ),
     );
@@ -1565,6 +1592,14 @@ class _CharacterViewState extends State<CharacterView> {
         builder: (context, box) {
           final resourceNote = _s.resourceStatusStale
               ? 'Resource status is unavailable. Voice availability is unconfirmed; Agent Chat remains available.'
+              : _s.resourceConverseDesired == true &&
+                    const {
+                      'initializing',
+                      'restoring',
+                    }.contains(_s.resourcePhase)
+              ? 'Voice services are starting or restoring. Agent Chat and approvals remain available.'
+              : _s.resourcePhase == 'failed'
+              ? 'Voice restoration failed. Agent Chat and approvals remain available.'
               : _s.resourcePhase == 'local_work'
               ? 'Voice is paused for local work. Agent Chat and approvals remain available.'
               : 'Converse is off. Direct Agent Chat remains available.';

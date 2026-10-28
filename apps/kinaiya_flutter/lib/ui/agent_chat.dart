@@ -29,6 +29,7 @@ class _AgentChatState extends State<AgentChat> {
   Timer? _poll;
   KinaiyaClient? _lastClient;
   int _lastGeneration = 0;
+  int _taskRead = 0;
 
   @override
   void initState() {
@@ -102,19 +103,23 @@ class _AgentChatState extends State<AgentChat> {
   Future<void> _refreshTasks() async {
     final api = _s.client;
     final generation = _s.connectionGeneration;
+    final read = ++_taskRead;
+    bool ownsRead() =>
+        mounted && read == _taskRead && _s.ownsConnection(generation, api);
     final session = _s.agentSession;
     if (api == null || !mounted) return;
     if (!_s.ownsConnection(generation, api)) return;
     try {
       final tasks = await api.listTasks();
-      if (!mounted || !_s.ownsConnection(generation, api)) return;
+      if (!ownsRead()) return;
       _s.setTasks(tasks);
     } catch (_) {
-      if (!mounted || !_s.ownsConnection(generation, api)) return;
+      if (!ownsRead()) return;
+      _s.markTasksUnavailable();
     }
     try {
       var page = await api.pendingApprovals();
-      if (!mounted || !_s.ownsConnection(generation, api)) return;
+      if (!ownsRead()) return;
       if (page != null) {
         final found = <ApprovalRequest>[];
         final cursors = <String>{};
@@ -140,7 +145,7 @@ class _AgentChatState extends State<AgentChat> {
             throw const FormatException('Repeated approval cursor');
           }
           page = await api.pendingApprovals(after: after);
-          if (!mounted || !_s.ownsConnection(generation, api)) return;
+          if (!ownsRead()) return;
           if (page == null) {
             throw const FormatException(
               'Approval endpoint changed during read',
@@ -151,13 +156,13 @@ class _AgentChatState extends State<AgentChat> {
         return;
       }
     } catch (_) {
-      if (!mounted || !_s.ownsConnection(generation, api)) return;
+      if (!ownsRead()) return;
       _s.recordApprovals([]);
       return;
     }
     // Older hosts expose requests only through their session journal.
     if (session == null) return;
-    if (!mounted || !_s.ownsConnection(generation, api)) return;
+    if (!ownsRead()) return;
     // The approval scan belongs to the session captured before the await;
     // a reconnect installing a new session drops this stale read.
     if (_s.agentSession?.sessionId != session.sessionId ||
@@ -167,7 +172,7 @@ class _AgentChatState extends State<AgentChat> {
     }
     try {
       final entries = await api.recent(sessionId: session.sessionId);
-      if (!mounted || !_s.ownsConnection(generation, api)) return;
+      if (!ownsRead()) return;
       if (_s.agentSession?.sessionId != session.sessionId ||
           _s.agentSession?.threadId != session.threadId ||
           _s.agentSession?.epoch != session.epoch) {

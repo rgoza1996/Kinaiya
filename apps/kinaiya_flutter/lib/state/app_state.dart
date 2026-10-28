@@ -94,6 +94,7 @@ class AppState extends ChangeNotifier {
   Timer? _resourcesPoll;
   bool _pollingResources = false;
   bool? resourcesConfigured;
+  bool? resourceConverseDesired;
   bool resourceStatusStale = false;
   String resourcePhase = '';
   String? _resourceController;
@@ -127,6 +128,10 @@ class AppState extends ChangeNotifier {
   int voiceEpoch = 0;
 
   List<AgentTask> tasks = [];
+
+  /// Kept task rows remain inspectable after an outage; they are not fresh
+  /// evidence for current character activity until the next successful read.
+  bool tasksStatusStale = true;
   List<ApprovalRequest> approvals = [];
   List<CommandDef>? commands; // null: registry unavailable (honest).
   bool commandsAvailable = false;
@@ -193,10 +198,12 @@ class AppState extends ChangeNotifier {
   void connect(ConnectionProfile profile, {KinaiyaClient? injected}) {
     final previous = connection;
     final backendChanged = previous != null && !_sameBackend(previous, profile);
+    tasksStatusStale = true;
     client?.close();
     _noticesPoll?.cancel();
     _resourcesPoll?.cancel();
     resourcesConfigured = null;
+    resourceConverseDesired = null;
     resourceStatusStale = false;
     resourcePhase = '';
     _resourceController = null;
@@ -590,6 +597,7 @@ class AppState extends ChangeNotifier {
       if (generation != _connectionGeneration) return;
       if (status['configured'] == false) {
         resourcesConfigured = false;
+        resourceConverseDesired = null;
         resourceStatusStale = false;
         notifyListeners();
         return;
@@ -634,6 +642,7 @@ class AppState extends ChangeNotifier {
       _resourceRevision = revision;
       _resourceOwnerRevision = ownerRevision is int ? ownerRevision : null;
       resourcePhase = policy['phase'] as String? ?? 'failed';
+      resourceConverseDesired = policy['desired_converse'] as bool;
       converseEnabled =
           resourcePhase == 'ready' && policy['desired_converse'] == true;
       if (!converseEnabled) {
@@ -668,6 +677,8 @@ class AppState extends ChangeNotifier {
     client?.close();
     client = null;
     connected = false;
+    tasksStatusStale = true;
+    resourceConverseDesired = null;
     sessionAuthenticated = false;
     agentInferenceAllowed = false;
     converseInferenceAllowed = false;
@@ -800,7 +811,41 @@ class AppState extends ChangeNotifier {
 
   void setTasks(List<AgentTask> next) {
     tasks = next;
+    tasksStatusStale = false;
     notifyListeners();
+  }
+
+  void markTasksUnavailable() {
+    if (tasksStatusStale) return;
+    tasksStatusStale = true;
+    notifyListeners();
+  }
+
+  /// Work presentation uses only native task lifecycle observations. Objective
+  /// prose and completed tool receipts cannot establish a current specific tool.
+  String get characterWorkActivity {
+    if (!sessionAuthenticated || tasksStatusStale) return 'idle';
+    if (tasks.any(
+      (task) => const {
+        'blocked',
+        'awaiting_approval',
+        'paused',
+        'cancel_requested',
+      }.contains(task.state),
+    )) {
+      return 'blocked';
+    }
+    if (tasks.any(
+      (task) => const {
+        'accepted',
+        'queued',
+        'running',
+        'verifying',
+      }.contains(task.state),
+    )) {
+      return 'working.generic';
+    }
+    return 'idle';
   }
 
   void setCommands(List<CommandDef>? next) {

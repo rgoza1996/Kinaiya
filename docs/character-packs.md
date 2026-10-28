@@ -11,16 +11,36 @@ The first supported package is UTF-8 JSON with these exact top-level keys:
 ```json
 {
   "package_schema": 1,
-  "manifest": {"pack_schema": 2},
+  "manifest": {"pack_schema": 3},
   "files": [{"path": "assets/example/sheet.png", "base64": "..."}]
 }
 ```
 
-This example abbreviates the required v2 manifest and file data. Export the actual default pack for a complete working example. The [bundled manifest](../apps/kinaiya_flutter/assets/character/pack.json) declares pack/version IDs, name, author, license, provenance source asset and SHA-256, generator and prompt file, theme colors, an explicit null voice profile, fallback animation, anchor/scale limits, sheet geometry/checksums and animation frames/timing. Core animations are idle, listening, thinking and speaking. Unknown activity semantics use the validated fallback.
+This example abbreviates the manifest and file data. Export the actual default pack for a complete working example. The [bundled manifest](../apps/kinaiya_flutter/assets/character/pack.json) declares pack/version IDs, name, author, license, provenance source asset and SHA-256, generator and prompt file, theme colors, an explicit null voice profile, fallback animation, anchor/scale limits, sheet geometry/checksums and animation frames/timing. Core animations remain idle, listening, thinking and speaking.
 
 Each declared sheet, source PNG and provenance text file must appear exactly once in `files`. No unrelated files are accepted. Paths are logical keys under `assets/`, resolved only inside the imported memory bundle. They are never filesystem paths or URLs. Base64 is canonical; image checksums must match the manifest. Modifying an image requires updating its checksum and geometry. A palette-only change requires no image regeneration. Rights/provenance fields are supplied by the pack author; validation does not establish ownership or license authenticity.
 
-Imports accept v2 only; existing bundled v1 compatibility remains. ZIP is an optional roadmap packaging convenience and is not implemented here. Remote images, scripts, hooks, voice/personality/permission fields and provider configuration are not imported.
+Imports accept v2 and v3; existing bundled v1 compatibility remains. ZIP is an optional roadmap packaging convenience and is not implemented here. Remote images, scripts, hooks, voice/personality/permission fields and provider configuration are not imported.
+
+## Semantic animation in schema 3
+
+Schema 3 adds required `activities` and `fallbacks` objects. Each activity has one to eight variants; each variant names an existing animation, an integer `weight` (1–100), integer `cooldown_ms` (0–60000), and optional `when` array. For example:
+
+```json
+"activities": {
+  "working.generic": [
+    {"animation": "read_book", "weight": 3, "cooldown_ms": 2000, "when": ["quiet"]},
+    {"animation": "thinking", "weight": 1, "cooldown_ms": 0}
+  ]
+},
+"fallbacks": {"working.inspect_repo": "working.generic"}
+```
+
+Semantic IDs are `idle`, `listening`, `warming`, `speaking`, `thinking`, `working.generic`, `working.inspect_repo`, `working.write_code`, `working.reason`, `working.read_email`, `working.draft_document`, `blocked`, `alert.important` and `alert.critical`. Conditions are unique names from `speaking`, `listening`, `working`, `blocked`, `warming` and `quiet`; all listed conditions must hold. They are local presentation flags, never scripts or permissions. There are at most 16 mappings, 64 variants total and 16 fallback edges. Unknown fields, references, conditions and cyclic fallback chains fail validation. Existing image/frame budgets remain unchanged.
+
+Choice is deterministic for the pack identity/version and observed sequence. It is stable within a clip; looping clips select again at cycle boundaries. Cooldown starts when a variant is selected. Unavailable choices follow explicit fallbacks, then standard work/thinking/idle fallbacks. Non-looping clips clamp at their final frame. A 650 ms hold limits switching between work activities; speech, listening, blocking and critical attention bypass that hold. Reduced motion shows the actual semantic's first frame immediately. Hidden panes pause presentation time and do not consume missed variant cycles.
+
+Live activity comes from confirmed local playback/capture and native task lifecycle observations. An armed microphone no longer masks speaking frames. Old task rows remain inspectable after a failed refresh but do not claim current activity. The current host supplies generic work and blocked states; it does not guess a current coding/email phase from task prose. Restoring/initializing voice services can show a short approach, while the loading label remains until the resource state changes. Completed choreography is not proof that model weights loaded; ready speech never waits for it. Full Converse emotional cues and specialized work costumes remain unfinished.
 
 ## Bounds and failure behavior
 

@@ -238,7 +238,23 @@ void main() {
       final package =
           jsonDecode(exportCharacterSelection(selection))
               as Map<String, dynamic>;
-      expect(filesOf(package), hasLength(3));
+      expect(
+        filesOf(
+          package,
+        ).map((file) => (file as Map<String, dynamic>)['path']).toSet(),
+        {
+          'assets/character/kinaiya-core-v1.png',
+          'assets/character/kinaiya-activity-v1.png',
+          'assets/character/kinaiya-activity-v1.prompts.md',
+          'assets/mascot/kinaiya-mascot.png',
+        },
+      );
+      final imported = await inspectCharacterPackage(jsonEncode(package));
+      expect(imported.pack.version, packSchemaV3);
+      expect(
+        imported.pack.activities['working.generic']!.single.animation,
+        'generic_work',
+      );
     },
   );
 
