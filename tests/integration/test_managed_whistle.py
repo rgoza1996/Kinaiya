@@ -349,6 +349,196 @@ async def test_off_waiting_on_recovery_lock_prevents_resurrection(env):
     assert env.manager.status()["workers"]["whistle"]["state"] == "stopped"
 
 
+@pytest.mark.parametrize(
+    "refusal",
+    [
+        "conversation_priority",
+        "missing_headroom",
+        "boolean_headroom",
+        "oversized_headroom",
+        "invalid_gpu_headroom",
+        "unsupported_gpu",
+        "unavailable_gpu",
+        "no_gpu_residency",
+        "impossible_gpu",
+        "unmanaged_text",
+        "inactive_task",
+    ],
+)
+async def test_ineligible_handoff_does_not_preempt_valid_recovery(env, refusal):
+    if refusal != "conversation_priority":
+        await action(env, "profile", profile="local_work_priority")
+    fields = {"required_bytes": 128 * 1024**2}
+    if refusal == "missing_headroom":
+        fields = {}
+    elif refusal == "boolean_headroom":
+        fields["required_bytes"] = True  # internal call; HTTP rejects this earlier
+    elif refusal == "oversized_headroom":
+        fields["required_bytes"] = (1 << 46) + 1
+    elif refusal == "invalid_gpu_headroom":
+        fields["required_gpu_bytes"] = -1
+    elif refusal == "unsupported_gpu":
+        fields["required_gpu_bytes"] = 1
+    elif refusal in {"unavailable_gpu", "no_gpu_residency", "impossible_gpu"}:
+        sample = {
+            "worker_resident_bytes": 0 if refusal == "no_gpu_residency" else 1,
+            "total_bytes": 1,
+        }
+        env.coordinator.gpu_probe = lambda: None if refusal == "unavailable_gpu" else sample
+        fields["required_gpu_bytes"] = 2 if refusal == "impossible_gpu" else 1
+    elif refusal == "unmanaged_text":
+
+        async def health():
+            return {"provider": {"local": True}, "resource_enabled": True}
+
+        env.coordinator.converse.health = health
+    elif refusal == "inactive_task":
+
+        async def task_status(task_id):
+            return {"state": "succeeded"}
+
+        env.coordinator.task_status = task_status
+        fields["task_id"] = "public-synthetic-completed-task"
+    original = env.manager.owned_identity("whistle")
+    assert (await env.manager.stop_if_current(original))["ok"]
+    entered, release = asyncio.Event(), asyncio.Event()
+
+    async def before(worker):
+        entered.set()
+        await release.wait()
+
+    env.coordinator.before_start = before
+    transcription = asyncio.create_task(post(env))
+    await entered.wait()
+    rejected = asyncio.create_task(action(env, "handoff", key="ineligible-handoff", **fields))
+    try:
+        await asyncio.sleep(0)
+        assert env.coordinator._whistle_preemptions == 0
+    finally:
+        release.set()
+        response, result = await asyncio.gather(transcription, rejected)
+    assert response.status_code == 200, response.text
+    assert not result["ok"] and env.coordinator.state.record.phase == "ready"
+    assert env.coordinator.intent.read().enabled
+    assert env.manager.owned_identity("whistle") is not None
+
+
+async def test_eligible_handoff_waiting_on_recovery_still_preempts_and_measures_release(env):
+    await action(env, "profile", profile="local_work_priority")
+    original = env.manager.owned_identity("whistle")
+    assert (await env.manager.stop_if_current(original))["ok"]
+    entered, release = asyncio.Event(), asyncio.Event()
+
+    async def before(worker):
+        entered.set()
+        await release.wait()
+
+    env.coordinator.before_start = before
+    transcription = asyncio.create_task(post(env))
+    await entered.wait()
+    handoff = asyncio.create_task(action(env, "handoff", required_bytes=128 * 1024**2))
+    try:
+        await wait_for(lambda: env.coordinator._whistle_preemptions == 1)
+    finally:
+        release.set()
+    assert (await transcription).status_code == 503
+    result = await handoff
+    assert result["ok"] and result["policy"]["phase"] == "local_work"
+    assert env.manager.owned_identity("whistle") is None
+
+
+async def test_handoff_preview_revision_change_cannot_publish_a_stale_barrier(env, monkeypatch):
+    await action(env, "profile", profile="local_work_priority")
+    original = env.manager.owned_identity("whistle")
+    entered, release = asyncio.Event(), asyncio.Event()
+    barriers = []
+    original_action = env.coordinator._action
+
+    async def health():
+        entered.set()
+        await release.wait()
+        return {"provider": {"local": False}, "resource_enabled": True}
+
+    async def observed(payload):
+        barriers.append((payload["operation"], env.coordinator._whistle_preemptions))
+        return await original_action(payload)
+
+    monkeypatch.setattr(env.coordinator.converse, "health", health)
+    monkeypatch.setattr(env.coordinator, "_action", observed)
+    handoff = asyncio.create_task(action(env, "handoff", required_bytes=128 * 1024**2))
+    await entered.wait()
+    assert env.coordinator._whistle_preemptions == 0
+    changed = await action(env, "profile", key="new-profile", profile="conversation_priority")
+    assert changed["ok"]
+    release.set()
+    assert not (await handoff)["ok"]
+    assert barriers == [("profile", 0), ("handoff", 0)]
+    assert env.manager.is_current(original) and env.coordinator.state.record.phase == "ready"
+
+
+async def test_current_ram_shortage_does_not_predict_post_release_handoff_headroom(env):
+    await action(env, "profile", profile="local_work_priority")
+    original = env.manager.owned_identity("whistle")
+    assert (await env.manager.stop_if_current(original))["ok"]
+    entered, release = asyncio.Event(), asyncio.Event()
+
+    async def before(worker):
+        entered.set()
+        await release.wait()
+
+    env.coordinator.before_start = before
+    transcription = asyncio.create_task(post(env))
+    await entered.wait()
+    memory_reads = []
+
+    def memory():
+        memory_reads.append(env.coordinator.state.record.phase)
+        return None
+
+    env.coordinator.memory_probe = memory
+    handoff = asyncio.create_task(action(env, "handoff", required_bytes=128 * 1024**2))
+    try:
+        await wait_for(lambda: env.coordinator._whistle_preemptions == 1)
+        assert memory_reads == []  # only the actual release transition can judge this
+    finally:
+        release.set()
+    assert (await transcription).status_code == 503
+    result = await handoff
+    assert not result["ok"] and "Insufficient measured local headroom" in result["error"]
+    assert memory_reads == ["unloading"]
+    assert env.manager.owned_identity("whistle") is None
+    assert env.manager.status()["workers"]["whistle"]["stop_evidence"]["group_empty"]
+
+
+async def test_default_voice_coordinator_has_no_whistle_eligibility_preview(tmp_path):
+    class ObservedControl(Control):
+        health_calls = 0
+
+        async def health(self):
+            self.health_calls += 1
+            return await super().health()
+
+    control = ObservedControl()
+    manager = WorkerManager([WorkerSpec("voice", (sys.executable, "-c", "pass"), ROOT)])
+    state = ResourceState(tmp_path / "default-resources.json", profile="local_work_priority")
+    coordinator = ResourceCoordinator(manager, state, control)
+    try:
+        assert not coordinator._has_whistle
+        result = await coordinator.action(
+            {
+                "operation": "handoff",
+                "idempotency_key": "default-invalid-declaration",
+                "required_bytes": 0,
+            }
+        )
+        assert not result["ok"] and "Declare required local headroom" in result["error"]
+        assert control.health_calls == 1  # original authoritative read only
+        assert coordinator._whistle_preemptions == 0
+        assert manager.status()["workers"]["voice"]["owned_pid"] is None
+    finally:
+        await coordinator.close()
+
+
 async def test_unknown_cleanup_is_retained_and_cannot_start_replacement(env, monkeypatch):
     original_stop = env.manager.stop_if_current
     old = env.manager.owned_identity("whistle")

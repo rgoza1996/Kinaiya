@@ -55,6 +55,7 @@ class ResourceCoordinator:
         self.lock = asyncio.Lock()
         self.publication_pending = False
         self._whistle_preemptions = 0
+        self._has_whistle = "whistle" in self.manager.status()["workers"]
         database = state.path.parent / "resource-actions.sqlite"
         fd = os.open(
             database, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC, 0o600
@@ -170,8 +171,9 @@ class ResourceCoordinator:
         # already awaiting readiness under the lifecycle lock. A replay/conflict
         # must not revoke legitimate current work. This is only a Whistle gate;
         # the existing durable action implementation remains the authority.
-        preempt = payload.get("operation") == "handoff" or (
-            payload.get("operation") == "converse" and payload.get("enabled") is False
+        preempt = self._has_whistle and (
+            payload.get("operation") == "handoff"
+            or (payload.get("operation") == "converse" and payload.get("enabled") is False)
         )
         if preempt:
             preempt = (
@@ -180,6 +182,8 @@ class ResourceCoordinator:
                 ).fetchone()
                 is None
             )
+        if preempt and payload["operation"] == "handoff":
+            preempt = await self._handoff_may_preempt(payload)
         if preempt:
             self._whistle_preemptions += 1
         try:
@@ -187,6 +191,52 @@ class ResourceCoordinator:
         finally:
             if preempt:
                 self._whistle_preemptions -= 1
+
+    async def _handoff_may_preempt(self, payload):
+        """Read-only eligibility preview, never resource admission authority.
+
+        An already-ineligible handoff must not revoke recovery while waiting
+        for the lifecycle lock. Keep all authoritative under-lock checks in
+        _handoff_locked, including actual post-release memory measurements.
+        """
+        revision = self.state.record.revision
+        if self.state.record.profile == "conversation_priority" or self.state.record.lease_id:
+            return False
+        required, required_gpu = (
+            payload.get("required_bytes", 0),
+            payload.get("required_gpu_bytes", 0),
+        )
+        if (
+            type(required) is not int
+            or not self.minimum <= required <= 1 << 46
+            or type(required_gpu) is not int
+            or not 0 <= required_gpu <= 1 << 46
+            or (required_gpu and self.gpu_probe is None)
+        ):
+            return False
+        try:
+            # Do not mutate the cached locality observation outside the lock.
+            health = await self.converse.health()
+            if health.get("provider", {}).get("local") is not False:
+                return False
+            if self.gpu_probe is not None:
+                gpu = self.gpu_probe()
+                if (
+                    gpu is None
+                    or gpu["worker_resident_bytes"] <= 0
+                    or required_gpu > gpu["total_bytes"]
+                ):
+                    return False
+            task_id = payload.get("task_id")
+            if task_id and self.task_status:
+                task = await self.task_status(task_id)
+                if task.get("state") in {"succeeded", "failed", "cancelled", "paused"}:
+                    return False
+        except Exception:
+            # Uncertainty is not permission to disrupt. The existing action
+            # path records its authoritative result after acquiring the lock.
+            return False
+        return self.state.record.revision == revision
 
     def whistle_policy(self):
         record, choice = self.state.record, self.intent.read()

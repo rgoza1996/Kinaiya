@@ -135,6 +135,18 @@ off/handoff wins, and a revoked newly ready child is stopped before inference.
 An uncertain inference is never replayed. Resource restore/handoff includes
 this direct worker while standalone Agent controls remain independent.
 
+The handoff barrier first requires a nonmutating eligibility preview. An
+already-refused conversation-priority request, active lease, malformed or
+out-of-bounds headroom declaration, unsupported/impossible/unmeasured GPU
+request, unmanaged text provider or inactive task cannot revoke otherwise
+valid Whistle recovery. Preview uncertainty or a changed resource revision
+across its awaits declines the barrier. Every authoritative check still runs
+under the existing lifecycle lock; the preview grants no admission and does
+not mutate cached locality or durable state. Default coordinators without
+Whistle do not perform this additional health/task/GPU preview. Current RAM
+shortage is not a prediction of post-release headroom: actual RSS, group
+release and free-memory checks remain in the original locked transition.
+
 An already-reaped Whistle worker contributes zero current residency during
 handoff only with retained verified release and subsequent manager
 reconciliation. Missing RSS for other workers remains a refusal. Neither a
