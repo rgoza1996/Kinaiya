@@ -155,6 +155,10 @@ Map<String, dynamic> _object(Object? value, Set<String> keys) {
 }
 
 void _manifestShape(Map<String, dynamic> manifest) {
+  final schema = manifest['pack_schema'];
+  if (schema is! int || (schema != packSchemaV2 && schema != packSchemaV3)) {
+    _invalid();
+  }
   _object(manifest, {
     'pack_schema',
     'pack_id',
@@ -170,10 +174,8 @@ void _manifestShape(Map<String, dynamic> manifest) {
     'scale_limits',
     'sheets',
     'animations',
+    if (schema == packSchemaV3) ...{'activities', 'fallbacks'},
   });
-  if (manifest['pack_schema'] != 2 || manifest['pack_schema'] is! int) {
-    _invalid();
-  }
   _object(manifest['provenance'], {
     'source_asset',
     'source_sha256',
@@ -204,6 +206,45 @@ void _manifestShape(Map<String, dynamic> manifest) {
   for (final entry in animations.entries) {
     if (entry.key.isEmpty || entry.key.length > 128) _invalid();
     _object(entry.value, {'sheet', 'frames', 'frame_ms', 'loop'});
+  }
+  if (schema == packSchemaV3) {
+    final activities = _object(manifest['activities'], characterSemanticIds);
+    final fallbacks = _object(manifest['fallbacks'], characterSemanticIds);
+    if (activities.length > 16 || fallbacks.length > 16) _invalid();
+    var totalVariants = 0;
+    for (final variants in activities.values) {
+      if (variants is! List || variants.isEmpty || variants.length > 8) {
+        _invalid();
+      }
+      totalVariants += variants.length;
+      if (totalVariants > 64) _invalid();
+      for (final variant in variants) {
+        final value = _object(variant, {
+          'animation',
+          'weight',
+          'cooldown_ms',
+          'when',
+        });
+        if (!value.containsKey('animation') ||
+            !value.containsKey('weight') ||
+            !value.containsKey('cooldown_ms')) {
+          _invalid();
+        }
+        if (value.containsKey('when')) {
+          final conditions = value['when'];
+          if (conditions is! List ||
+              conditions.length > characterConditionIds.length ||
+              conditions.any(
+                (condition) =>
+                    condition is! String ||
+                    !characterConditionIds.contains(condition),
+              ) ||
+              conditions.toSet().length != conditions.length) {
+            _invalid();
+          }
+        }
+      }
+    }
   }
   final generator = (manifest['provenance'] as Map)['generator'];
   if (generator is! String || generator.length > 1024) _invalid();
@@ -295,9 +336,22 @@ CharacterPack _freeze(CharacterPack pack) => CharacterPack(
   sheets: Map.unmodifiable(pack.sheets),
   animations: Map.unmodifiable(pack.animations),
   fallbackAnimation: pack.fallbackAnimation,
+  activities: Map.unmodifiable({
+    for (final entry in pack.activities.entries)
+      entry.key: List<PackVariant>.unmodifiable([
+        for (final variant in entry.value)
+          PackVariant(
+            animation: variant.animation,
+            weight: variant.weight,
+            cooldownMs: variant.cooldownMs,
+            when: Set.unmodifiable(variant.when),
+          ),
+      ]),
+  }),
+  fallbacks: Map.unmodifiable(pack.fallbacks),
 );
 
-/// Fully validates and decodes a self-contained v2 package without activating it.
+/// Validates and decodes a self-contained v2/v3 pack without activating it.
 Future<CharacterSelection> inspectCharacterPackage(String raw) async {
   try {
     if (raw.length > maxCharacterPackageBytes ||
@@ -315,25 +369,11 @@ Future<CharacterSelection> inspectCharacterPackage(String raw) async {
         envelope['package_schema'] != 1) {
       _invalid();
     }
-    final manifest = _object(envelope['manifest'], {
-      'pack_schema',
-      'pack_id',
-      'version',
-      'name',
-      'author',
-      'license',
-      'provenance',
-      'theme',
-      'voice_profile',
-      'fallback_animation',
-      'anchor',
-      'scale_limits',
-      'sheets',
-      'animations',
-    });
+    final manifest = envelope['manifest'];
+    if (manifest is! Map<String, dynamic>) _invalid();
+    _manifestShape(manifest);
     final manifestJson = jsonEncode(_canonical(manifest));
     if (utf8.encode(manifestJson).length > _maxManifestBytes) _invalid();
-    _manifestShape(manifest);
     final entries = envelope['files'];
     if (entries is! List || entries.isEmpty || entries.length > _maxFiles) {
       _invalid();
