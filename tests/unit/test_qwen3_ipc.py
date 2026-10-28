@@ -9,6 +9,14 @@ from packages.providers import qwen3_ipc as ipc
 PID, INCARNATION, NONCE = 1234, "a" * 64, "b" * 64
 
 
+def test_snapshot_names_are_fixed_to_integer_pids(tmp_path):
+    assert ipc.snapshot_path(tmp_path, PID) == tmp_path / "model-1234"
+    assert ipc.snapshot_path(tmp_path, PID + 1) != ipc.snapshot_path(tmp_path, PID)
+    for bad in (True, False, 0, -1, 1.0, "../other", 2**31):
+        with pytest.raises(ValueError):
+            ipc.snapshot_path(tmp_path, bad)
+
+
 def hello():
     return {
         "version": 1,

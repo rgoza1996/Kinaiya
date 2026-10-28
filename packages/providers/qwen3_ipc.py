@@ -50,6 +50,13 @@ __all__ = [
 ]
 
 
+def snapshot_path(directory, pid):
+    """Fixed child snapshot name; this path is never process/cleanup authority."""
+    if type(pid) is not int or not 1 <= pid <= 2**31 - 1:
+        raise ValueError("Invalid Qwen snapshot PID")
+    return Path(directory) / f"model-{pid}"
+
+
 def validate_limits(max_input_tokens, max_new_tokens):
     if (
         type(max_input_tokens) is not int
