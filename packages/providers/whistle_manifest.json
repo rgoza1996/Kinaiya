@@ -27,6 +27,6 @@
     "license": "Apache-2.0",
     "header": "https://huggingface.co/Cactus-Compute/needle3/blob/d6c7d6a2e9655505e0f8e23339356dd1705900eb/linux-x86_64/needle.h",
     "header_sha256": "a27dac4b3239eead91d124b7f7dbce5495c13019903fd817b68c16d39b055a99",
-    "changes": "Minimal explicit ctypes batch binding only; no upstream import, resolver, downloader or telemetry. Adds sealed local inputs, bounded PCM-WAV decoding, owned IPC and process cancellation."
+    "changes": "Minimal explicit ctypes batch and opt-in native incremental process/stop bindings; no upstream import, resolver, downloader or telemetry. Adds sealed local inputs, bounded PCM-WAV/PCM16 decoding, strict committed/pending result validation and irreversible post-dispatch taint. Existing batch IPC/process cancellation remains; incremental transport/client integration is tracked in issue93."
   }
 }
