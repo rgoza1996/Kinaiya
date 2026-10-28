@@ -5,6 +5,7 @@ import json
 import subprocess
 import sys
 import threading
+from collections import OrderedDict
 from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
@@ -79,6 +80,64 @@ class Tokens:
         return self
 
 
+class PresetTensor:
+    def __init__(self, shape):
+        self.shape = shape
+        self.dtype = "bfloat16"
+        self.device = SimpleNamespace(type="cpu")
+        self.layout = "strided"
+        self.finite = True
+
+
+class Cache:
+    def __init__(self):
+        self.key_cache = []
+        self.value_cache = []
+        self._seen_tokens = 0
+
+    def update(self, key, value, index):
+        assert index == len(self.key_cache)
+        self.key_cache.append(key)
+        self.value_cache.append(value)
+        if index == 0:
+            self._seen_tokens += key.shape[2]
+
+
+def preset():
+    result = {}
+    for name, tokens, layers in (
+        ("lm", 108, 4),
+        ("tts_lm", 316, 20),
+        ("neg_lm", 1, 4),
+        ("neg_tts_lm", 1, 20),
+    ):
+        cache = vv._PresetCacheState()
+        cache._seen_tokens = tokens
+        cache.key_cache = [PresetTensor((1, 2, tokens, 64)) for _ in range(layers)]
+        cache.value_cache = [PresetTensor((1, 2, tokens, 64)) for _ in range(layers)]
+        output = vv._preset_output_state(PresetTensor((1, tokens, 896)), cache, None, None)
+        output.last_hidden_state = output["last_hidden_state"]
+        output.past_key_values = output["past_key_values"]
+        output.hidden_states = output.attentions = None
+        result[name] = output
+    return result
+
+
+def preset_runtime():
+    return SimpleNamespace(
+        torch=SimpleNamespace(
+            Tensor=PresetTensor,
+            bfloat16="bfloat16",
+            strided="strided",
+            isfinite=lambda tensor: SimpleNamespace(
+                all=lambda: SimpleNamespace(item=lambda: tensor.finite)
+            ),
+        ),
+        ModelOutput=lambda **kwargs: SimpleNamespace(**kwargs),
+        DynamicCache=Cache,
+    )
+
+
 def fake_runtime(monkeypatch, *, device="cpu"):
     calls = []
     scheduler = SimpleNamespace(config="pinned-scheduler")
@@ -101,7 +160,9 @@ def fake_runtime(monkeypatch, *, device="cpu"):
 
         def generate(self, **kwargs):
             calls.append(("generate", kwargs, threading.get_ident()))
-            kwargs["all_prefilled_outputs"]["mutable"].append("generation-owned")
+            kwargs["all_prefilled_outputs"]["lm"].past_key_values.key_cache.append(
+                "generation-owned"
+            )
             if self.action:
                 return self.action(kwargs)
             for value in (0.1, 0.2, 0.3):
@@ -145,9 +206,10 @@ def fake_runtime(monkeypatch, *, device="cpu"):
 
     def load(path, **kwargs):
         calls.append(("load_prompt", path, kwargs))
-        return {"mutable": []}
+        return preset()
 
     torch = SimpleNamespace(
+        **vars(preset_runtime().torch),
         float32="float32",
         set_num_threads=lambda value: calls.append(("threads", value)),
         get_num_interop_threads=lambda: 2,
@@ -163,8 +225,8 @@ def fake_runtime(monkeypatch, *, device="cpu"):
         AudioProcessor=lambda **kwargs: (
             calls.append(("audio_processor", kwargs)) or "audio-processor"
         ),
-        ModelOutput="official-output-class",
-        DynamicCache="official-cache-class",
+        ModelOutput=preset_runtime().ModelOutput,
+        DynamicCache=Cache,
     )
     monkeypatch.setattr(vv, "_verify_runtime", lambda manifest: calls.append(("runtime-verified",)))
     monkeypatch.setattr(vv, "_runtime_modules", lambda: modules)
@@ -305,7 +367,13 @@ def test_load_is_explicit_offline_cpu_and_uses_safe_public_preset(tmp_path, monk
     backend, calls, _ = loaded(tmp_path, monkeypatch)
     assert backend.assets_state == "verified"
     assert ("threads", 4) in calls and ("interop", 1) in calls
-    assert ("safe_globals", ["official-output-class", "official-cache-class"]) in calls
+    assert (
+        "safe_globals",
+        [
+            (vv._preset_output_state, "transformers.modeling_outputs.BaseModelOutputWithPast"),
+            (vv._PresetCacheState, "transformers.cache_utils.DynamicCache"),
+        ],
+    ) in calls
     model = next(call for call in calls if call[0] == "model")
     assert model[2] == dict(
         local_files_only=True,
@@ -336,6 +404,113 @@ def test_unexpected_gpu_parameter_is_refused(tmp_path, monkeypatch):
     assert backend.assets_state == "not_checked"
 
 
+def test_legacy_preset_reconstruction_preserves_all_tensor_objects_and_caches():
+    source = preset()
+    restored = vv._restore_prompt(source, preset_runtime())
+    assert set(restored) == set(source)
+    for name, output in restored.items():
+        original = source[name]
+        assert type(original) is OrderedDict
+        assert output.last_hidden_state is original["last_hidden_state"]
+        assert output.past_key_values._seen_tokens == original.past_key_values._seen_tokens
+        for field in ("key_cache", "value_cache"):
+            assert all(
+                left is right
+                for left, right in zip(
+                    getattr(output.past_key_values, field),
+                    getattr(original.past_key_values, field),
+                    strict=True,
+                )
+            )
+
+
+@pytest.mark.parametrize(
+    "kind",
+    [
+        "root_type",
+        "extra_output",
+        "missing_output",
+        "mapping_type",
+        "mapping_field",
+        "attribute_field",
+        "attribute_mismatch",
+        "hidden_states",
+        "attentions",
+        "cache_type",
+        "cache_field",
+        "seen_type",
+        "seen_count",
+        "layer_type",
+        "layer_count",
+        "tensor_type",
+        "hidden_shape",
+        "cache_shape",
+        "dtype",
+        "device",
+        "layout",
+        "nonfinite",
+    ],
+)
+def test_legacy_preset_rejects_schema_changes_before_runtime_construction(kind):
+    value = preset()
+    output = value["tts_lm"]
+    cache = output.past_key_values
+    if kind == "root_type":
+        value = OrderedDict(value)
+    elif kind == "extra_output":
+        value["unreviewed"] = output
+    elif kind == "missing_output":
+        del value["neg_lm"]
+    elif kind == "mapping_type":
+        value["tts_lm"] = dict(output)
+    elif kind == "mapping_field":
+        output["unreviewed"] = None
+    elif kind == "attribute_field":
+        output.unreviewed = None
+    elif kind == "attribute_mismatch":
+        output.last_hidden_state = PresetTensor((1, 316, 896))
+    elif kind in {"hidden_states", "attentions"}:
+        setattr(output, kind, [])
+    elif kind == "cache_type":
+        output.past_key_values = output["past_key_values"] = Cache()
+    elif kind == "cache_field":
+        cache.unreviewed = None
+    elif kind == "seen_type":
+        cache._seen_tokens = 316.0
+    elif kind == "seen_count":
+        cache._seen_tokens = 108
+    elif kind == "layer_type":
+        cache.key_cache = tuple(cache.key_cache)
+    elif kind == "layer_count":
+        cache.value_cache.pop()
+    elif kind == "tensor_type":
+        cache.key_cache[0] = SimpleNamespace(**vars(cache.key_cache[0]))
+    elif kind == "hidden_shape":
+        output.last_hidden_state.shape = (1, 315, 896)
+    elif kind == "cache_shape":
+        cache.value_cache[0].shape = (1, 2, 315, 64)
+    elif kind in {"dtype", "layout"}:
+        setattr(cache.key_cache[0], kind, "unreviewed")
+    elif kind == "device":
+        cache.key_cache[0].device.type = "cuda"
+    elif kind == "nonfinite":
+        cache.value_cache[0].finite = False
+    runtime = preset_runtime()
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("Runtime construction must follow full schema validation")
+
+    runtime.ModelOutput = runtime.DynamicCache = forbidden
+    with pytest.raises(vv.TTSBackendError, match="^Invalid pinned voice preset$"):
+        vv._restore_prompt(value, runtime)
+
+
+@pytest.mark.parametrize("args", [(), (None,), (None, None, [], None), (None, None, None, [])])
+def test_legacy_output_factory_refuses_unexpected_constructor_arguments(args):
+    with pytest.raises(vv.TTSBackendError, match="Invalid pinned voice preset"):
+        vv._preset_output_state(*args)
+
+
 def test_native_chunks_emit_on_callers_thread_and_preserve_prompt(tmp_path, monkeypatch):
     backend, calls, _ = loaded(tmp_path, monkeypatch)
     output = []
@@ -343,7 +518,7 @@ def test_native_chunks_emit_on_callers_thread_and_preserve_prompt(tmp_path, monk
     backend.produce("Public synthetic reply.", output.append, threading.Event())
     assert [item.sample_rate for item in output] == [24000] * 3
     assert [list(item.samples) for item in output] == [[0.1, -0.1], [0.2, -0.2], [0.3, -0.3]]
-    assert backend.prompt == {"mutable": []}
+    assert len(backend.prompt["lm"].past_key_values.key_cache) == 4
     generate = next(call for call in calls if call[0] == "generate")
     assert generate[2] == owner
     assert generate[1]["max_new_tokens"] == 904

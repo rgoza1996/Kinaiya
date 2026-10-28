@@ -12,6 +12,7 @@ import importlib.util
 import json
 import os
 import stat
+from collections import OrderedDict
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -145,6 +146,101 @@ def _runtime_modules():
     )
 
 
+class _PresetCacheState:
+    """Inert destination for the hash-pinned legacy cache's pickle state."""
+
+
+def _preset_output_state(*args):
+    # The public preset serializes a four-field ModelOutput using REDUCE,
+    # SETITEMS and BUILD. New Torch deliberately refuses SETITEMS on arbitrary
+    # dict subclasses. Decode into an exact built-in container instead of
+    # allowlisting the Transformers class or disabling weights_only.
+    if len(args) != 4 or args[2] is not None or args[3] is not None:
+        raise TTSBackendError("Invalid pinned voice preset")
+    return OrderedDict(zip(("last_hidden_state", "past_key_values"), args[:2], strict=True))
+
+
+def _restore_prompt(value, runtime):
+    """Validate the fixed Carter schema before constructing runtime objects.
+
+    This is a decoder for one verified public asset, not a general pickle
+    importer. No class or method name from the decoded data is dispatched.
+    """
+    torch = runtime.torch
+    shapes = {"lm": (108, 4), "tts_lm": (316, 20), "neg_lm": (1, 4), "neg_tts_lm": (1, 20)}
+
+    def invalid():
+        raise TTSBackendError("Invalid pinned voice preset")
+
+    def tensor(item, shape):
+        if (
+            type(item) is not torch.Tensor
+            or tuple(item.shape) != shape
+            or item.dtype != torch.bfloat16
+            or item.device.type != "cpu"
+            or item.layout != torch.strided
+            or not torch.isfinite(item).all().item()
+        ):
+            invalid()
+
+    if type(value) is not dict or set(value) != set(shapes):
+        invalid()
+    for name, (tokens, layers) in shapes.items():
+        output = value[name]
+        if type(output) is not OrderedDict or set(output) != {
+            "last_hidden_state",
+            "past_key_values",
+        }:
+            invalid()
+        attributes = vars(output)
+        if (
+            set(attributes)
+            != {"last_hidden_state", "past_key_values", "hidden_states", "attentions"}
+            or attributes["last_hidden_state"] is not output["last_hidden_state"]
+            or attributes["past_key_values"] is not output["past_key_values"]
+            or attributes["hidden_states"] is not None
+            or attributes["attentions"] is not None
+        ):
+            invalid()
+        tensor(output["last_hidden_state"], (1, tokens, 896))
+        cache = output["past_key_values"]
+        if type(cache) is not _PresetCacheState:
+            invalid()
+        state = vars(cache)
+        if (
+            set(state) != {"_seen_tokens", "key_cache", "value_cache"}
+            or type(state["_seen_tokens"]) is not int
+            or state["_seen_tokens"] != tokens
+        ):
+            invalid()
+        for field in ("key_cache", "value_cache"):
+            if type(state[field]) is not list or len(state[field]) != layers:
+                invalid()
+            for item in state[field]:
+                tensor(item, (1, 2, tokens, 64))
+    restored = {}
+    for name in shapes:
+        output = value[name]
+        state = output["past_key_values"]
+        cache = runtime.DynamicCache()
+        for index, (key, item) in enumerate(zip(state.key_cache, state.value_cache, strict=True)):
+            cache.update(key, item, index)
+        restored[name] = runtime.ModelOutput(
+            last_hidden_state=output["last_hidden_state"], past_key_values=cache
+        )
+    return restored
+
+
+def _load_prompt(runtime, path):
+    aliases = [
+        (_preset_output_state, "transformers.modeling_outputs.BaseModelOutputWithPast"),
+        (_PresetCacheState, "transformers.cache_utils.DynamicCache"),
+    ]
+    with runtime.torch.serialization.safe_globals(aliases):
+        value = runtime.torch.load(path, map_location="cpu", weights_only=True)
+    return _restore_prompt(value, runtime)
+
+
 class _CallbackStreamer:
     """Native streamer's two-method interface, with no internal queue/thread."""
 
@@ -232,12 +328,7 @@ class VibeVoiceBackend:
                 beta_schedule="squaredcos_cap_v2",
             )
             model.set_ddpm_inference_steps(num_steps=5)
-            with torch.serialization.safe_globals([runtime.ModelOutput, runtime.DynamicCache]):
-                prompt = torch.load(
-                    self.model_dir / "voices/en-Carter_man.pt",
-                    map_location="cpu",
-                    weights_only=True,
-                )
+            prompt = _load_prompt(runtime, self.model_dir / "voices/en-Carter_man.pt")
             self.model, self.processor, self.prompt, self.runtime = (
                 model,
                 processor,
