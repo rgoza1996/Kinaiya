@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "profile": "qwen3_0.6b_cpu_experimental",
+  "model": "Qwen/Qwen3-0.6B",
+  "revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+  "license": "Apache-2.0",
+  "assets": {
+    "LICENSE": {
+      "bytes": 11343,
+      "sha256": "832dd9e00a68dd83b3c3fb9f5588dad7dcf337a0db50f7d9483f310cd292e92e"
+    },
+    "README.md": {
+      "bytes": 13965,
+      "sha256": "1ab64a26fcb3b461423b89a433a8c858f1bf8d4086f979cbb3ff878d47cf20e9"
+    },
+    "config.json": {
+      "bytes": 726,
+      "sha256": "660db3b73d788119c04535e48cf9be5f55bc3100841a718637ae695b442f27dd"
+    },
+    "generation_config.json": {
+      "bytes": 239,
+      "sha256": "2325da0f15bb848e018c5ae071b7943332e9f871d6b60e2ed22ca97d4cb993d2"
+    },
+    "tokenizer.json": {
+      "bytes": 11422654,
+      "sha256": "aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4"
+    },
+    "tokenizer_config.json": {
+      "bytes": 9732,
+      "sha256": "d5d09f07b48c3086c508b30d1c9114bd1189145b74e982a265350c923acd8101"
+    },
+    "model.safetensors": {
+      "bytes": 1503300328,
+      "sha256": "f47f71177f32bcd101b7573ec9171e6a57f4f4d31148d38e382306f42996874b"
+    }
+  },
+  "runtime": {
+    "python": "3.12",
+    "torch": "2.14.1+cpu",
+    "transformers": "5.21.0",
+    "device": "cpu",
+    "dtype": "float32",
+    "intraop_threads": 2,
+    "interop_threads": 1
+  },
+  "runtime_core": {
+    "torch/__init__.py": {
+      "bytes": 130530,
+      "sha256": "bd4a10ff16357ed78f45aaf4b46ce5b771fdc0e8549402206e324d0eb792c672"
+    },
+    "torch/lib/libtorch_cpu.so": {
+      "bytes": 438232064,
+      "sha256": "5acf62dcd9d367db4788122f8fefd506027ed5a7aec70467a7fffd08a97ad64c"
+    },
+    "torch/lib/libc10.so": {
+      "bytes": 1553824,
+      "sha256": "9c142dbe5f1c5291e57605586bf22eaa07cd27da720825b1cf02fc2f6eb8047e"
+    },
+    "transformers/__init__.py": {
+      "bytes": 38847,
+      "sha256": "977776eaf81354c8ab65715c64418cef28e1e8cb01b83e1d158631af7f8bf889"
+    },
+    "transformers/models/qwen3/modeling_qwen3.py": {
+      "bytes": 21897,
+      "sha256": "63a6213c15d6fb04e58a1c64fd05a4cdfb49476443fbeef524f0e0486043824b"
+    },
+    "transformers/models/qwen3/configuration_qwen3.py": {
+      "bytes": 3624,
+      "sha256": "49d9ccd0f29ccd977b93dba2004f84b867891b3d0509b71fd8ba3ed01054e64d"
+    }
+  },
+  "runtime_coverage": "These six pinned core files and reported versions are checked; this is not full interpreter/package/build equivalence. No model or binary is redistributed."
+}

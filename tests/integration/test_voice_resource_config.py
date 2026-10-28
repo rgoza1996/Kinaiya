@@ -320,6 +320,8 @@ def test_supertonic_dependencies_are_opt_in_and_pinned():
         "whistle_manifest.json",
         "whistle_LICENSE.txt",
         "whistle_NOTICE.txt",
+        "qwen3_manifest.json",
+        "qwen3_LICENSE.txt",
     }
     assert not any(
         name in item
