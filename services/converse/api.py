@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import hashlib
 import json
@@ -5,12 +6,62 @@ import time
 from contextlib import aclosing
 
 from anyio import CancelScope
-from fastapi import Depends, FastAPI, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from packages.contracts.models import ConverseRequest, DeliveryRequest, SpeechWindow
+from packages.providers.speech import SpeechProviderError
+
+_STT_CLOSE_OWNERS = set()
+_STT_OWNERS = set()
+
+
+async def _transcribe_connected(request, operation):
+    """Bodies are already parsed; one receive owner now watches disconnect.
+
+    HTTP cleanup may outlive the bounded request wait. Retain that close task;
+    Whistle's broker separately owns native cancellation/reaping. This does
+    not establish that a legacy Whisper native thread has stopped.
+    """
+    if len(_STT_OWNERS) >= 32:
+        raise HTTPException(503, "STT transport cleanup is busy")
+    owner = object()
+    _STT_OWNERS.add(owner)
+
+    async def disconnected():
+        while (await request.receive())["type"] != "http.disconnect":
+            pass
+
+    work = asyncio.create_task(operation())
+    watcher = asyncio.create_task(disconnected())
+    try:
+        await asyncio.wait((work, watcher), return_when=asyncio.FIRST_COMPLETED)
+        # Give a simultaneously available disconnect its receive turn before
+        # accepting text or allowing the audio-window append below.
+        await asyncio.sleep(0)
+        if watcher.done():
+            raise HTTPException(499, "STT request disconnected")
+        return work.result()
+    except SpeechProviderError as exc:
+        raise HTTPException(exc.status_code, str(exc)) from exc
+    finally:
+        watcher.cancel()
+        if not work.done():
+            work.cancel()
+
+        async def close():
+            try:
+                await asyncio.gather(work, watcher, return_exceptions=True)
+            finally:
+                _STT_OWNERS.discard(owner)
+
+        cleanup = asyncio.create_task(close())
+        _STT_CLOSE_OWNERS.add(cleanup)
+        cleanup.add_done_callback(_STT_CLOSE_OWNERS.discard)
+        with CancelScope(shield=True):
+            await asyncio.wait((cleanup,), timeout=1)
 
 
 class SessionControl(BaseModel):
@@ -114,7 +165,7 @@ def create_app(runtime, auth, speech=None, window_controller=None):
             raise HTTPException(409, str(exc)) from exc
 
     @app.post("/v1/converse/transcribe", dependencies=owner)
-    async def transcribe(file: UploadFile):
+    async def transcribe(request: Request, file: UploadFile):
         if not runtime.enabled:
             raise HTTPException(409, "Converse is off; direct Agent Chat remains available")
         if speech is None:
@@ -124,7 +175,9 @@ def create_app(runtime, auth, speech=None, window_controller=None):
             raise HTTPException(413, "Recording exceeds 10 MB temporary limit")
         if not runtime.enabled:
             raise HTTPException(409, "Converse is off; direct Agent Chat remains available")
-        return await speech.transcribe(data, file.filename or "recording.wav")
+        return await _transcribe_connected(
+            request, lambda: speech.transcribe(data, file.filename or "recording.wav")
+        )
 
     @app.post("/v1/converse/windows", dependencies=owner)
     async def window(request: SpeechWindow):
@@ -139,7 +192,7 @@ def create_app(runtime, auth, speech=None, window_controller=None):
             raise HTTPException(409, str(exc)) from exc
 
     @app.post("/v1/converse/audio/windows", dependencies=owner)
-    async def audio_window(request: AudioWindow):
+    async def audio_window(request: AudioWindow, http_request: Request):
         if window_controller is None or speech is None:
             raise HTTPException(503, "Configure streaming conversation control and STT")
         if not runtime.enabled:
@@ -170,7 +223,9 @@ def create_app(runtime, auth, speech=None, window_controller=None):
         if request.revision != (previous.payload["revision"] + 1 if previous else 1):
             raise HTTPException(409, "Audio-window revision must increase by one")
         started = time.monotonic()
-        transcript = await speech.transcribe(data, "window.wav")
+        transcript = await _transcribe_connected(
+            http_request, lambda: speech.transcribe(data, "window.wav")
+        )
         fields = request.model_dump(exclude={"audio_base64"})
         fields.update(text=transcript.get("text", "").strip(), audio_sha256=digest)
         try:

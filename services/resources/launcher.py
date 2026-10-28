@@ -16,6 +16,7 @@ from services.resources.client import ConverseControl, local_base
 from services.resources.coordinator import ResourceCoordinator
 from services.resources.laya import ManagedLayaConfig, laya_gpu_sample, laya_ready, laya_worker
 from services.resources.state import ResourceRecord, ResourceState
+from services.resources.whistle import ManagedWhistleConfig, WhistleBroker, whistle_worker
 
 
 class LocalResourceConfig(BaseModel):
@@ -37,6 +38,7 @@ class LocalResourceConfig(BaseModel):
         default=2 * 1024 * 1024 * 1024, ge=128 * 1024 * 1024, le=1 << 46
     )
     laya: ManagedLayaConfig | None = None
+    whistle: ManagedWhistleConfig | None = None
 
     @field_validator("tts_model_dir")
     @classmethod
@@ -117,6 +119,23 @@ def resource_app(args, config, auth, tokens, root):
         },
     )
     specs = [spec]
+    whistle_endpoint = None
+    selected_stt = voice.get("stt")
+    if selected_stt is not None or settings.whistle is not None:
+        resources_url = f"http://127.0.0.1:{getattr(args, 'port', None) or 8764}"
+        if (
+            not isinstance(selected_stt, dict)
+            or set(selected_stt) != {"provider", "url"}
+            or selected_stt["provider"] != "whistle"
+            or settings.whistle is None
+            or local_base(selected_stt["url"]) != resources_url
+            or local_base(config.get("resources_url", "http://127.0.0.1:8764")) != resources_url
+        ):
+            raise ValueError("Select Whistle STT at the configured managed resources endpoint")
+        whistle_spec, whistle_endpoint = whistle_worker(
+            settings.whistle, root, args.workspace.resolve()
+        )
+        specs.append(whistle_spec)
     laya_probe = None
     if settings.laya is not None:
         if settings.laya.port in {settings.voice_port, 8760, 8761, 8762, 8763, 8764}:
@@ -145,6 +164,8 @@ def resource_app(args, config, auth, tokens, root):
     voice_health = {}
 
     async def readiness(worker_spec, process):
+        if worker_spec.id == "whistle":
+            return await whistle_endpoint.probe(worker_spec, process)
         if worker_spec.id == "laya":
             return await laya_ready(settings.laya, laya_probe, process)
         voice_health.clear()
@@ -210,6 +231,13 @@ def resource_app(args, config, auth, tokens, root):
         current = manager.status()["workers"][worker_id]
         if current["state"] == "running" and current["ready"]:
             return
+        if worker_id == "whistle":
+            from packages.providers.whistle_assets import validate_assets
+
+            validate_assets(
+                settings.whistle.weights, settings.whistle.library, args.workspace.resolve()
+            )
+            return
         try:
             _reader, writer = await asyncio.wait_for(
                 asyncio.open_connection(
@@ -240,7 +268,11 @@ def resource_app(args, config, auth, tokens, root):
         minimum_free_bytes=settings.minimum_free_bytes,
         before_start=before_start,
         restore_reserve_bytes=settings.voice_memory_reserve_bytes
-        + (settings.laya.host_memory_reserve_bytes if settings.laya else 0),
+        + (settings.laya.host_memory_reserve_bytes if settings.laya else 0)
+        + (settings.whistle.host_memory_reserve_bytes if settings.whistle else 0),
+        whistle_restore_reserve_bytes=(
+            settings.whistle.host_memory_reserve_bytes if settings.whistle else 0
+        ),
         gpu_probe=(
             (lambda: laya_gpu_sample(settings.laya, manager))
             if settings.laya is not None and settings.laya.device == "cuda"
@@ -248,7 +280,14 @@ def resource_app(args, config, auth, tokens, root):
         ),
         gpu_restore_reserve_bytes=(settings.laya.gpu_memory_reserve_bytes if settings.laya else 0),
     )
-    app = create_app(coordinator, auth)
+    whistle = (
+        WhistleBroker(
+            coordinator, whistle_endpoint, request_timeout_s=settings.whistle.request_timeout_s
+        )
+        if whistle_endpoint is not None
+        else None
+    )
+    app = create_app(coordinator, auth, whistle)
 
     @asynccontextmanager
     async def lifespan(app):
@@ -284,7 +323,11 @@ def resource_app(args, config, auth, tokens, root):
             publication.cancel()
             await asyncio.gather(publication, return_exceptions=True)
             try:
+                if whistle is not None:
+                    await whistle.close()
                 await coordinator.close()
+                if whistle_endpoint is not None:
+                    whistle_endpoint.close()
             finally:
                 await health_http.aclose()
                 await agent_http.aclose()
@@ -294,4 +337,5 @@ def resource_app(args, config, auth, tokens, root):
     app.router.lifespan_context = lifespan
     app.state.coordinator = coordinator
     app.state.voice_health = voice_health
+    app.state.whistle = whistle
     return app

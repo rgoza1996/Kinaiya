@@ -37,6 +37,7 @@ import secrets
 import signal
 import sys
 import time
+import weakref
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -44,7 +45,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any
 
-__all__ = ["MAX_WORKERS", "TAIL_MAX_BYTES", "WorkerManager", "WorkerSpec"]
+__all__ = ["MAX_WORKERS", "TAIL_MAX_BYTES", "WorkerIdentity", "WorkerManager", "WorkerSpec"]
 
 LOG = logging.getLogger(__name__)
 
@@ -389,6 +390,19 @@ def _mem_available_bytes() -> int | None:
     return None
 
 
+@dataclass(frozen=True, eq=False)
+class WorkerIdentity:
+    """Opaque, in-process identity observation; a PID is never cleanup authority.
+
+    Only the exact object retained by its manager can select an incarnation.
+    No process handle or mutable lifecycle state is exposed to the caller.
+    """
+
+    worker_id: str
+    pid: int
+    start_time: int
+
+
 @dataclass
 class _Managed:
     spec: WorkerSpec
@@ -412,6 +426,8 @@ class _Managed:
     pending_cleanup: asyncio.Task[Any] | None = None
     pending_fds: list[int] = field(default_factory=list)
     pending_obj: Any | None = None
+    identity: WorkerIdentity | None = None
+    identity_process: asyncio.subprocess.Process | None = None
 
 
 ReadinessProbe = Callable[[WorkerSpec, asyncio.subprocess.Process], bool | Awaitable[bool]]
@@ -450,6 +466,7 @@ class WorkerManager:
         self._readiness = readiness
         self._lock = asyncio.Lock()
         self._closed = False
+        self._identities: weakref.WeakSet[WorkerIdentity] = weakref.WeakSet()
 
     def status(self) -> dict[str, Any]:
         workers = {}
@@ -563,6 +580,63 @@ class WorkerManager:
     async def stop(self, worker_id: str) -> dict[str, Any]:
         async with self._lock:
             return await self._stop_locked(worker_id)
+
+    def owned_identity(self, worker_id: str) -> WorkerIdentity | None:
+        """Observe only a running, ready, kernel-verified owned incarnation."""
+        managed = self._workers.get(worker_id)
+        if (
+            self._closed
+            or managed is None
+            or managed.state != "running"
+            or not managed.ready
+            or managed.identity_process is not managed.process
+            or not self._identity_ok(managed)
+        ):
+            return None
+        return managed.identity
+
+    def is_current(self, identity: WorkerIdentity) -> bool:
+        return (
+            isinstance(identity, WorkerIdentity)
+            and self.owned_identity(identity.worker_id) is identity
+        )
+
+    async def stop_if_current(self, identity: WorkerIdentity) -> dict[str, Any]:
+        """Stop this exact binding, including an exited leader's retained group.
+
+        Superseded requests send no signal and invent no stop evidence. A new
+        binding is possible only after the existing start/quiescence gate has
+        confirmed release of the previous process/group. Unlike is_current,
+        this comparison deliberately does not require a live/ready leader.
+        """
+        if not isinstance(identity, WorkerIdentity):
+            raise TypeError("Cleanup requires an owned WorkerIdentity")
+        async with self._lock:
+            if identity not in self._identities:
+                return {"ok": False, "worker_id": identity.worker_id, "error": "unowned-identity"}
+            managed = self._workers.get(identity.worker_id)
+            if (
+                managed is None
+                or managed.identity is not identity
+                or managed.identity_process is not managed.process
+                or managed.leader_starttime != identity.start_time
+            ):
+                if self._closed:
+                    return {"ok": False, "worker_id": identity.worker_id, "error": "closed"}
+                return {"ok": True, "worker_id": identity.worker_id, "superseded": True}
+            result = await self._stop_locked(identity.worker_id)
+            evidence = managed.stop_evidence or {}
+            if (
+                result.get("ok")
+                and result.get("already")
+                and managed.state == "stopped"
+                and managed.pgid is None
+                and evidence.get("reaped")
+                and evidence.get("group_empty")
+            ):
+                # Retained verified release, not a fresh signal/RSS/stop event.
+                result = {**result, "release_confirmed": True}
+            return result
 
     async def restart(self, worker_id: str) -> dict[str, Any]:
         async with self._lock:
@@ -752,6 +826,9 @@ class WorkerManager:
             return await self._fail_unverified(managed, t0)
         managed.leader_fd = fd
         managed.leader_starttime = start
+        managed.identity = WorkerIdentity(worker_id, proc.pid, start)
+        managed.identity_process = proc
+        self._identities.add(managed.identity)
         try:
             os.write(grant_w, GRANT_BYTE)
         except OSError:

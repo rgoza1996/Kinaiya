@@ -385,9 +385,33 @@ def serve(args):
             resources_managed=resources_enabled,
         )
         voice = config.get("voice")
+        stt_settings = {}
+        if voice and voice.get("stt") is not None:
+            from services.resources.client import local_base
+            from services.resources.whistle import ManagedWhistleConfig
+
+            stt_choice = voice["stt"]
+            if (
+                not resources_enabled
+                or not isinstance(stt_choice, dict)
+                or set(stt_choice) != {"provider", "url"}
+                or stt_choice["provider"] != "whistle"
+                or local_base(stt_choice["url"])
+                != local_base(config.get("resources_url", "http://127.0.0.1:8764"))
+            ):
+                raise ValueError("Whistle STT must select the managed resources endpoint")
+            managed_stt = ManagedWhistleConfig.model_validate(config["resources"].get("whistle"))
+            stt_settings = {
+                "stt_url": stt_choice["url"],
+                "stt_provider": "whistle",
+                "stt_timeout_s": managed_stt.request_timeout_s,
+            }
         speech = (
             SpeechClient(
-                voice["url"], tokens["converse"], profile=voice.get("profile", "Kokoro 82M")
+                voice["url"],
+                tokens["converse"],
+                profile=voice.get("profile", "Kokoro 82M"),
+                **stt_settings,
             )
             if voice
             else None
