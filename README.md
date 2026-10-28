@@ -285,15 +285,18 @@ An opt-in [Supertonic 3 CPU backend](docs/adr/0027-retained-supertonic.md) also
 synthesizes through the same speech bridge using pinned, verified local assets.
 Its output is buffered before transport; the small synthetic screen does not meet
 the roadmap's warm-onset target or establish physical audible latency. The experimental
-[VibeVoice Realtime 0.5B CPU adapter](docs/adr/0028-retained-vibevoice.md) emits native
-waveform chunks with request-owned cancellation. Its newer minimal-runtime
-nine-reply synthetic screen observed median first PCM at 227 ms, first non-silent
-frame at 2.39 seconds, and RTF 2.63; it does not sustain realtime speech.
-The environment still has
-[unresolved advisories](https://github.com/rgoza1996/Kinaiya/issues/70), and a
-supported patched runtime remains under investigation. This is a research profile,
-with no default promotion or physical audibility claim. Ming 3 Tiny remains a
-retained candidate with an unconfigured backend; full M2 acceptance remains open.
+[VibeVoice Realtime 0.5B CPU adapter](docs/adr/0029-vibevoice-transformers5.md) emits native
+waveform chunks with request-owned cancellation. Its explicit Transformers 5.21
+runtime derivative preserves upstream and patched source provenance. A nine-reply
+synthetic screen observed median first PCM at 226 ms, first non-silent frame at
+2.88 seconds, and RTF 2.60; it does not sustain realtime speech. The newer
+installed-environment audit lists no vulnerabilities for covered packages and
+explicitly skips the custom runtime and direct CPU Torch wheel. Exact evidence,
+research-use qualifications and remaining acceptance gates are documented in the
+ADR. This is an experimental profile with no default promotion or physical
+audibility claim. [Ming 3 Tiny](https://github.com/rgoza1996/Kinaiya/issues/72)
+remains a retained candidate with an unconfigured backend; full M2 acceptance
+remains open.
 
 An opt-in [CPU voice resource coordinator](docs/adr/0013-resource-handoff.md)
 can own that worker, verify process release for an explicit local-work handoff,
