@@ -19,6 +19,12 @@ class WhistleAdmissionError(RuntimeError):
         self.cleanup_confirmed = cleanup_confirmed
 
 
+class Qwen3AdmissionError(RuntimeError):
+    def __init__(self, *, cleanup_confirmed=False):
+        super().__init__("Qwen3 resource admission is unavailable")
+        self.cleanup_confirmed = cleanup_confirmed
+
+
 class ResourceCoordinator:
     def __init__(
         self,
