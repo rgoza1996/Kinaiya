@@ -63,6 +63,34 @@ class AudioWaveform:
     sample_rate: int
 
 
+def produce_synthesis(backend, text, emit, cancelled):
+    """Run one producer to completion while its caller owns model execution.
+
+    Native streaming adapters implement blocking ``produce(text, emit, cancelled)``.
+    ``emit`` is synchronous and may block for bounded consumer backpressure; it
+    must stop when cancellation is set. Adapters return only after native work
+    has ended. Existing synchronous generators stop at waveform boundaries;
+    cancelling a request cannot preempt their current native kernel.
+    """
+    if cancelled.is_set():
+        return
+    producer = getattr(backend, "produce", None)
+    if producer is not None:
+        producer(text, emit, cancelled)
+        return
+    iterator = iter(backend.synthesize(text))
+    try:
+        while not cancelled.is_set():
+            waveform = next(iterator, None)
+            if waveform is None or cancelled.is_set():
+                return
+            emit(waveform)
+    finally:
+        close = getattr(iterator, "close", None)
+        if close is not None:
+            close()
+
+
 def pcm_frames(waveform, *, remaining_seconds=MAX_AUDIO_SECONDS):
     """Validate one actual mono waveform completely before exposing its frames.
 
