@@ -1,9 +1,9 @@
 # ADR 0035: opt-in managed Qwen3 dialogue
 
 Tracks [#91](https://github.com/rgoza1996/Kinaiya/issues/91). Status:
-implementation in review; bounded actual managed CPU text streaming and
-tokenizer capacity checks passed. Actual HTTP boundary checks and new exact-head
-CI remain pending. Full M2 and persistent STT #49 remain open.
+experimental opt-in CPU implementation. Bounded actual managed text streaming,
+tokenizer capacity, HTTP input boundaries, cancellation/recovery and owner
+controls passed. Full M2 and persistent STT #49 remain open.
 
 Converse may select an explicit `qwen3` text kind alongside independently
 selected STT and TTS. Agent/Decisions cannot select this kind. Optional native
@@ -214,12 +214,28 @@ A separate owned tokenizer-only child reproduced all four input counts and
 formed exact 2048/2049-token arrays using the fixed default personality,
 `Hello Kinaiya.` and 1911/1912 repetitions of ` test`. It made zero generation
 calls and was stopped/reaped before snapshot cleanup. This measures rendered
-token boundaries; actual managed HTTP refusal at 2049 and native generation at
-2048 remain separate pending checks. No history, cap or filler was adjusted.
+token boundaries; it does not itself prove managed HTTP behavior. No history,
+cap or filler was adjusted.
+
+The subsequent fixed two-request HTTP gate at source
+`1ed35c5d33220563898133f17b4bc27c6c5545bd` passed in 49.840 seconds. The
+2049-token request returned exactly one `input_limit` terminal, zero deltas and
+complete EOF. Production broker cleanup stopped/reaped that exact child before
+the distinct 2048-token request acquired a fresh identity. That request produced
+non-whitespace text and EOS with 2048 input / 16 output tokens, followed by EOF.
+Final cleanup released its child/group and the HTTP server. No retry or manual
+body-phase stop manufactured the rejection/recovery proof.
+
+The 2048-token request's first decoded HTTP text took 37.917 seconds, including
+its separately recorded 5.721-second new model startup. Initial preloaded-child
+startup was 6.583 seconds. These single observations establish bounded default
+capacity, not realtime performance, every configurable input limit, a latency
+distribution or model quality.
 
 Retained evidence: [original startup failure](../../evaluation/evidence/managed-qwen3-startup-failure-2026-10-28.json),
 [managed streaming run](../../evaluation/evidence/managed-qwen3-live-2026-10-28.json)
-and [tokenizer capacity](../../evaluation/evidence/managed-qwen3-token-capacity-2026-10-28.json).
+and [tokenizer capacity](../../evaluation/evidence/managed-qwen3-token-capacity-2026-10-28.json),
+followed by the [actual HTTP boundaries](../../evaluation/evidence/managed-qwen3-http-boundaries-2026-10-28.json).
 Raw diagnostic tails remain owner-private. Independent reviews checked the
 repair, constrained harness repins and raw/public evidence; those static
 checks did not execute another model call or establish full M2 acceptance.
