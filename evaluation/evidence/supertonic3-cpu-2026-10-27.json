@@ -30,7 +30,9 @@
     "path": "requirements-supertonic.lock",
     "sha256": "8ecf40ae6a1e9d755f303a7ac74e78d629c6c0d9e894cdefde5c90531c54b1ae",
     "hash_required_sync_passed": true,
-    "dependency_audit": "pip_audit --disable-pip: no known vulnerabilities found"
+    "dependency_audit": "pip_audit --disable-pip: no known vulnerabilities found",
+    "audit_execution": "local; current CI retains the base deterministic/dependency checks",
+    "additional_ci_step": "Not added: HTTPS OAuth credential lacks workflow scope and configured SSH deploy key is read-only. No credential or permission changes were made."
   },
   "direct_sdk_synthesis": {
     "sample_rate": 44100,
@@ -1263,9 +1265,9 @@
       "backend source-ended completion receipt"
     ],
     "verified": [
-      "44100 and24000Hz frames preserve queue order and exact PCM payloads",
-      "played requires whole response plus backend completion",
-      "stop after first44100Hz frame fences later frames and never acknowledges played"
+      "44,100 and 24,000 Hz frames preserve queue order and exact PCM payloads",
+      "played requires the whole response plus backend completion",
+      "stop after the first 44,100 Hz frame fences later frames and never acknowledges played"
     ],
     "analyzer": "passed",
     "format": "passed",
