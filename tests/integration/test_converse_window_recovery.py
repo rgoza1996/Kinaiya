@@ -11,6 +11,7 @@ import pytest
 from packages.contracts.client import JournalClient
 from packages.contracts.models import (
     AppendRequest,
+    ConverseRequest,
     SessionRequest,
     SpeechWindow,
     Task,
@@ -85,6 +86,10 @@ class Faults:
 
 
 def append_target(body):
+    if body["kind"] == "conversation.user":
+        return "user"
+    if body["kind"] == "delivery.updated" and "next_generation_epoch" in body["payload"]:
+        return "stop"
     if body["kind"] == "conversation.converse":
         return "reply"
     if body["kind"] == "converse.window_state":
@@ -319,6 +324,11 @@ async def test_exhausted_native_outage_fails_closed_and_healing_cannot_resume_bu
     ]
     assert errors and errors[-1].payload["error_source"] == "journal"
     assert errors[-1].payload["delivery"] == "delivery_unknown"
+    stops = env.store.read(kinds=["delivery.updated"])
+    if target != "preparing":
+        assert len(stops) == 1
+        assert stops[0].payload["next_generation_epoch"] == 2
+        assert stops[0].payload["control"] == "generation_stop"
     env.faults.remaining = 0
     await settle(env)
     assert env.provider.calls == calls
@@ -426,6 +436,266 @@ async def test_ignored_backchannel_preserves_blocked_explanation_and_both_chunks
     assert (await env.runtime._epoch(env.session.session_id)).generation == generation
     for entry in replies:
         await env.runtime.validate_speech(entry.event_id, generation)
+
+
+async def test_wait_after_completed_provider_publishes_durable_browser_stop(env):
+    await decision(env)
+    await settle(env)
+    previous = env.runtime.playback[env.session.session_id].generation
+    assert not env.runtime._active
+    assert env.store.read(kinds=["conversation.converse"])
+    await decision(
+        env,
+        name="wait",
+        text="Public synthetic unfinished request",
+        conversation="WAIT_FOR_NEXT_WINDOW",
+    )
+    await settle(env)
+    stops = env.store.read(kinds=["delivery.updated"])
+    assert len(stops) == 1
+    assert stops[0].payload["generation_epoch"] == previous
+    assert stops[0].payload["next_generation_epoch"] == previous + 1
+    assert stops[0].payload["status"] == "interrupted"
+    assert stops[0].payload["alignment"] == "delivery_unknown"
+    assert env.provider.calls == 1
+
+
+async def test_wait_fences_typed_admission_while_native_user_append_is_suspended(env):
+    env.faults.target, env.faults.remaining = "user", 1
+    env.faults.release = asyncio.Event()
+    stream = env.runtime.events(
+        ConverseRequest(
+            session_id=env.session.session_id,
+            thread_id=env.session.thread_id,
+            epoch=env.session.epoch,
+            text="Public synthetic held typed admission.",
+            idempotency_key="public-synthetic-held-admission",
+        )
+    )
+    admission = asyncio.create_task(anext(stream))
+    try:
+        await asyncio.wait_for(env.faults.entered.wait(), 1)
+        epoch = env.runtime.playback[env.session.session_id]
+        assert epoch.generation == 1 and not epoch.chunks and not env.runtime._active
+        await decision(env, name="wait", conversation="WAIT_FOR_NEXT_WINDOW")
+        await env.controller.tick()
+        assert epoch.generation == 2 and not env.provider.calls
+        stops = env.store.read(kinds=["delivery.updated"])
+        assert len(stops) == 1 and stops[0].payload["next_generation_epoch"] == 2
+        # Reprocessing this control does not invent another stop generation.
+        control = env.store.read(kinds=["routing.window_decided"])[0]
+        await env.controller.process(control)
+        assert epoch.generation == 2 and len(env.store.read(kinds=["delivery.updated"])) == 1
+    finally:
+        # #76 owns resumed typed admission -> no provider calls. This fixture
+        # isolates the window stop boundary without changing that scheduler.
+        admission.cancel()
+        await asyncio.gather(admission, return_exceptions=True)
+        env.faults.release.set()
+        await stream.aclose()
+
+
+async def test_interrupt_during_held_reply_native_claim_cannot_publish_stale_chunks(env):
+    await decision(env, user_speaking=True)
+    await settle(env)
+    prepared = env.controller.pending[env.session.session_id]
+    assert prepared.task.done() and prepared.generation is None and prepared.chunks
+    await decision(env, index=1, user_speaking=False)
+    original = env.journal.window_response
+    entered, release = asyncio.Event(), asyncio.Event()
+
+    async def held(*args):
+        entered.set()
+        await release.wait()
+        return await original(*args)
+
+    env.journal.window_response = held
+    flush = asyncio.create_task(env.controller.flush(prepared))
+    try:
+        await asyncio.wait_for(entered.wait(), 1)
+        await env.runtime.interrupt(env.session.session_id)
+        release.set()
+        await asyncio.wait_for(flush, 2)
+        assert not env.store.read(kinds=["conversation.converse"])
+        assert env.runtime.playback[env.session.session_id].generation == 1
+        assert prepared.abandoned
+    finally:
+        release.set()
+        env.journal.window_response = original
+        await asyncio.gather(flush, return_exceptions=True)
+
+
+@pytest.mark.parametrize("when", ["before", "after"])
+async def test_wait_stop_reconciles_exact_request_after_uncertain_append(env, when):
+    await decision(env)
+    await settle(env)
+    env.faults.target, env.faults.when, env.faults.remaining = "stop", when, 1
+    await decision(
+        env,
+        name="wait",
+        text="Public synthetic unfinished request",
+        conversation="WAIT_FOR_NEXT_WINDOW",
+    )
+    await settle(env)
+    stops = env.store.read(kinds=["delivery.updated"])
+    assert len(stops) == 1
+    assert len(env.faults.requests) >= 2
+    assert env.faults.requests[0] == env.faults.requests[1]
+    assert stops[0].payload["next_generation_epoch"] == 2
+    assert env.provider.calls == 1
+
+
+@pytest.mark.parametrize("when", ["before", "after"])
+async def test_higher_interruption_does_not_rewrite_an_uncertain_stop(env, when):
+    source, _ = await decision(env)
+    await settle(env)
+    env.faults.target, env.faults.when, env.faults.remaining = "stop", when, 1
+    env.faults.release = asyncio.Event()
+    first = asyncio.create_task(env.runtime.interrupt(env.session.session_id, 1))
+    second = None
+    try:
+        await asyncio.wait_for(env.faults.entered.wait(), 1)
+        original = env.faults.requests[0]
+        assert original["payload"]["source_event_id"] == source.event_id
+        second = asyncio.create_task(env.runtime.interrupt(env.session.session_id, 2))
+        for _ in range(100):
+            if env.runtime.playback[env.session.session_id].generation == 3:
+                break
+            await asyncio.sleep(0)
+        assert env.runtime.playback[env.session.session_id].generation == 3
+        assert env.faults.requests == [original]
+        assert original["payload"]["next_generation_epoch"] == 2
+        env.faults.release.set()
+        results = await asyncio.wait_for(asyncio.gather(first, second, return_exceptions=True), 2)
+        assert isinstance(results[0], httpx.ReadTimeout)
+        assert results[1]["generation_epoch"] == 3
+        assert env.faults.requests[0] == env.faults.requests[1]
+        stops = env.store.read(kinds=["delivery.updated"])
+        assert [e.payload["next_generation_epoch"] for e in stops] == [2, 3]
+        assert len({e.idempotency_key for e in stops}) == 2
+        assert all(e.payload["alignment"] == "delivery_unknown" for e in stops)
+        assert env.provider.calls == 1 and not env.store.read(kinds=["agent.command"])
+    finally:
+        env.faults.release.set()
+        await asyncio.gather(first, *([second] if second else []), return_exceptions=True)
+
+
+@pytest.mark.parametrize("when", ["before", "after"])
+async def test_native_reset_retires_uncertain_stop_without_rebinding_it(env, when):
+    await decision(env)
+    await settle(env)
+    old_scope = env.session.epoch
+    env.faults.target, env.faults.when, env.faults.remaining = "stop", when, 1
+    env.faults.release = asyncio.Event()
+    interruption = asyncio.create_task(env.runtime.interrupt(env.session.session_id))
+    try:
+        await asyncio.wait_for(env.faults.entered.wait(), 1)
+        request = env.faults.requests[0]
+        old_stop = env.runtime.playback[env.session.session_id].stop
+        env.session = env.store.reset(env.session.session_id)
+        env.faults.release.set()
+        await asyncio.gather(interruption, return_exceptions=True)
+        await env.controller.tick()
+        assert old_stop.retired and old_stop.confirmed_generation < old_stop.desired_generation
+        source, _ = await decision(env)
+        await settle(env)
+        replies = env.store.read(kinds=["conversation.converse"])
+        current = [e for e in replies if e.epoch == env.session.epoch]
+        assert len(current) == 2 and env.provider.calls == 2
+        assert {e.payload["generation_epoch"] for e in current} == {1}
+        assert {e.payload["window_source_id"] for e in current} == {source.event_id}
+        assert all(e.epoch == old_scope for e in env.store.read(kinds=["delivery.updated"]))
+        assert env.faults.requests == [request] and request["epoch"] == old_scope
+    finally:
+        env.faults.release.set()
+        await asyncio.gather(interruption, return_exceptions=True)
+
+
+async def test_late_old_abandon_cannot_fence_reused_generation_after_reset(env):
+    await decision(env)
+    await settle(env)
+    old = env.controller.pending[env.session.session_id]
+    old_reply = env.store.read(kinds=["conversation.converse"])[0]
+    # The same completed cache reclamation is exercised at the 32/33 boundary
+    # below. Retain a caller's old object while its cache reference is gone.
+    assert env.controller._reclaimable(old) and not old.abandoned
+    env.controller.pending.pop(env.session.session_id)
+    env.session = env.store.reset(env.session.session_id)
+    env.provider.block = True
+    env.provider.between.clear()
+    source, _ = await decision(env, name="new-scope")
+    await env.controller.tick()
+    new = env.controller.pending[env.session.session_id]
+    await asyncio.wait_for(env.provider.between.wait(), 1)
+    assert old.generation == new.generation == 1
+    env.controller._abandon(old)
+    assert not env.controller._local_current(old)
+    assert env.controller._local_current(new) and not new.task.done()
+    with pytest.raises(ValueError, match="different playback scope"):
+        env.runtime.fence_playback(env.session.session_id, source=old.source)
+    reply = next(
+        e
+        for e in env.store.read(kinds=["conversation.converse"])
+        if e.payload["window_source_id"] == source.event_id
+    )
+    await env.runtime.validate_speech(reply.event_id, 1)
+    with pytest.raises(ValueError):
+        await env.runtime.validate_speech(old_reply.event_id, 1)
+    assert env.runtime._active[env.session.session_id] is new.task
+    env.provider.release.set()
+    await settle(env)
+
+
+async def test_stop_tick_budget_rotates_past_a_hanging_session(env):
+    sessions = [env.session] + [
+        env.store.create_session(SessionRequest(channel="converse")) for _ in range(4)
+    ]
+    for session in sessions:
+        await env.runtime._epoch(session.session_id)
+        env.runtime.fence_playback(session.session_id)
+    env.controller._stop_batch_size = 2
+    env.controller._journal_timeout_s = 0.02
+    original = env.journal.session
+    calls = []
+
+    async def held(session_id):
+        calls.append(session_id)
+        if session_id == sessions[0].session_id:
+            await asyncio.Event().wait()
+        return await original(session_id)
+
+    env.journal.session = held
+    try:
+        await asyncio.wait_for(env.controller.tick(), 0.3)
+        assert calls == [sessions[0].session_id]
+        await asyncio.wait_for(env.controller.tick(), 0.3)
+        stops = env.store.read(kinds=["delivery.updated"])
+        assert [e.session_id for e in stops] == [s.session_id for s in sessions[1:3]]
+        assert len(calls) == 5
+        assert not env.runtime.playback[sessions[0].session_id].stop.retired
+        assert env.runtime.playback[sessions[0].session_id].stop.request is not None
+        assert env.provider.calls == 0
+    finally:
+        env.journal.session = original
+
+
+async def test_unknown_stop_retains_slot_and_recovers_even_when_transcript_read_fails(env):
+    await decision(env)
+    await settle(env)
+    old = env.controller.pending[env.session.session_id]
+    env.faults.target, env.faults.remaining = "stop", 100
+    await decision(env, name="wait", conversation="WAIT_FOR_NEXT_WINDOW")
+    await env.controller.tick()
+    assert old.abandoned and old.task.done() and not env.controller._released(old)
+    assert env.controller.pending[env.session.session_id] is old
+    assert not env.store.read(kinds=["delivery.updated"])
+    retained = old.stop.request.model_dump(mode="json")
+    env.faults.target, env.faults.remaining = "read", 100
+    await env.controller.tick()
+    stops = env.store.read(kinds=["delivery.updated"])
+    assert len(stops) == 1 and stops[0].idempotency_key == retained["idempotency_key"]
+    assert old.stop.covers(old.stop_generation) and env.controller._released(old)
+    assert env.provider.calls == 1
 
 
 async def test_admitted_healthy_explanation_can_continue_past_initial_source_age_limit(
@@ -744,6 +1014,17 @@ async def test_released_slots_are_reclaimed_while_oldest_cleanup_stays_owned(env
         await env.runtime.validate_speech(
             completed_reply.event_id, completed_reply.payload["generation_epoch"]
         )
+        # Its cache reference is gone while its generated browser audio can
+        # still be queued. WAIT must stop that generation without an active task.
+        env.session = env.store.session(completed.source.session_id)
+        await decision(env, name="wait-after-eviction", conversation="WAIT_FOR_NEXT_WINDOW")
+        await settle(env)
+        stops = env.store.read(session_id=env.session.session_id, kinds=["delivery.updated"])
+        assert len(stops) == 1
+        assert stops[0].payload["generation_epoch"] == completed.generation
+        assert stops[0].payload["next_generation_epoch"] == completed.generation + 1
+        assert stops[0].payload["source_event_id"] == completed.source.event_id
+        assert provider.calls == 33 and env.session.session_id not in env.controller.pending
         assert not oldest.cleanup.done() and not provider.iterators[0].cleanup_cancelled
         assert len(env.controller.pending) <= 32
         assert any(
@@ -840,8 +1121,66 @@ async def test_playback_restart_barrier_reuses_exact_generation_after_uncertain_
         if e.payload["reason"] == "playback_restart_barrier"
     ]
     assert len(barriers) == 1 and barriers[0].payload["generation_epoch"] == 6
+    stop = env.store.read(kinds=["delivery.updated"])
+    assert len(stop) == 1
+    assert stop[0].payload["generation_epoch"] == 5
+    assert stop[0].payload["next_generation_epoch"] == 6
+    assert stop[0].payload["runtime_id"] == env.runtime._runtime_id
+    assert stop[0].payload["alignment"] == "delivery_unknown"
     replies = env.store.read(kinds=["conversation.converse"])
     assert len(replies) == 2 and {e.payload["generation_epoch"] for e in replies} == {7}
+
+
+@pytest.mark.parametrize("when", ["before", "after"])
+async def test_restart_delivery_barrier_is_confirmed_before_playback_is_exposed(env, when):
+    await seed_previous_generation(env)
+    env.faults.target, env.faults.when, env.faults.remaining = "stop", when, 1
+    env.faults.release = asyncio.Event()
+    await decision(env)
+    tick = asyncio.create_task(env.controller.tick())
+    try:
+        await asyncio.wait_for(env.faults.entered.wait(), 1)
+        assert env.session.session_id not in env.runtime.playback and env.provider.calls == 0
+        retained = env.faults.requests[0]
+        env.faults.release.set()
+        await asyncio.wait_for(tick, 2)
+        await settle(env)
+        assert env.faults.requests == [retained, retained]
+        assert len(env.store.read(kinds=["delivery.updated"])) == 1
+        assert env.provider.calls == 1
+        assert {
+            e.payload["generation_epoch"] for e in env.store.read(kinds=["conversation.converse"])
+        } == {7}
+    finally:
+        env.faults.release.set()
+        await asyncio.gather(tick, return_exceptions=True)
+
+
+@pytest.mark.parametrize("when", ["before", "after"])
+async def test_reset_during_restart_delivery_stop_never_exposes_old_scope(env, when):
+    await seed_previous_generation(env)
+    env.faults.target, env.faults.when, env.faults.remaining = "stop", when, 1
+    env.faults.release = asyncio.Event()
+    await decision(env)
+    tick = asyncio.create_task(env.controller.tick())
+    try:
+        await asyncio.wait_for(env.faults.entered.wait(), 1)
+        old_request = env.faults.requests[0]
+        env.session = env.store.reset(env.session.session_id)
+        env.faults.release.set()
+        await asyncio.wait_for(tick, 2)
+        assert env.provider.calls == 0
+        source, _ = await decision(env)
+        await settle(env)
+        assert env.provider.calls == 1
+        assert all(e.epoch != env.session.epoch for e in env.store.read(kinds=["delivery.updated"]))
+        assert env.faults.requests == [old_request]
+        replies = env.store.read(kinds=["conversation.converse"])
+        assert {e.payload["window_source_id"] for e in replies} == {source.event_id}
+        assert {e.payload["generation_epoch"] for e in replies} == {1}
+    finally:
+        env.faults.release.set()
+        await asyncio.gather(tick, return_exceptions=True)
 
 
 @pytest.mark.parametrize("when", ["before", "after"])

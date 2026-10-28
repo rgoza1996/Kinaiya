@@ -70,6 +70,8 @@ class PreparedReply:
     provider_started: bool = False
     cleanup: object = None
     cleanup_failed: bool = False
+    stop: object = None
+    stop_generation: int = 0
 
 
 class WindowConverseController:
@@ -77,6 +79,7 @@ class WindowConverseController:
     _journal_retry_delay_s = 0.1
     _journal_attempts = 3
     _provider_cleanup_timeout_s = 1.0
+    _stop_batch_size = 32
 
     def __init__(self, runtime):
         self.runtime, self.journal = runtime, runtime.journal
@@ -102,7 +105,11 @@ class WindowConverseController:
         expected = (
             prepared.generation if prepared.generation is not None else prepared.base_generation
         )
-        return epoch is not None and epoch.accepts(expected)
+        return (
+            epoch is not None
+            and epoch.scope == (prepared.source.epoch, prepared.source.thread_id)
+            and epoch.accepts(expected)
+        )
 
     def _abandon(self, prepared):
         if prepared.abandoned:
@@ -112,17 +119,35 @@ class WindowConverseController:
         if (
             prepared.generation is not None
             and epoch is not None
+            and epoch.scope == (prepared.source.epoch, prepared.source.thread_id)
             and epoch.accepts(prepared.generation)
         ):
             # Invalidate local playback immediately, before any best-effort
             # diagnostic I/O. This is not an audible-delivery acknowledgment.
-            epoch.begin()
+            prepared.stop, prepared.stop_generation = self.runtime.fence_playback(
+                prepared.source.session_id,
+                source=prepared.source,
+                expected_generation=prepared.generation,
+            )
+        elif (
+            prepared.generation is not None
+            and epoch is not None
+            and epoch.scope == (prepared.source.epoch, prepared.source.thread_id)
+            and epoch.stop is not None
+            and epoch.stop.desired_generation > prepared.generation
+        ):
+            # An owner control may already have fenced this reply. Its unknown
+            # stop outcome still belongs to the original bounded reply slot.
+            prepared.stop = epoch.stop
+            prepared.stop_generation = prepared.generation + 1
         task = prepared.task
         if task is not None and task is not asyncio.current_task() and not task.done():
             task.cancel()
 
     @staticmethod
     def _released(prepared):
+        if prepared.stop is not None and not prepared.stop.covers(prepared.stop_generation):
+            return False
         if prepared.task is not None and not prepared.task.done():
             return False
         if prepared.cleanup_failed:
@@ -233,10 +258,38 @@ class WindowConverseController:
             return None
         return latest_window
 
-    async def yield_speech(self, session_id):
-        epoch = await self._native_call(self.runtime._epoch, session_id)
-        if self.runtime._active.get(session_id) is not None or epoch.chunks:
+    async def yield_speech(self, session_id, *, force=False):
+        epoch = self.runtime.playback.get(session_id)
+        if epoch is None:
+            epoch = await self._native_call(self.runtime._epoch, session_id)
+        already_fenced = (
+            epoch.stop is not None
+            and not epoch.stop.retired
+            and epoch.stop.desired_generation == epoch.generation
+        )
+        if not already_fenced and (
+            force or self.runtime._active.get(session_id) is not None or epoch.chunks
+        ):
             await self._native_call(self.runtime.interrupt, session_id)
+        else:
+            await self._native_call(self.runtime.reconcile_stop, session_id, epoch)
+
+    async def _reconcile_stops(self):
+        batch = self.runtime.stop_reconciliation_batch(self._stop_batch_size)
+
+        async def reconcile():
+            for session_id, epoch in batch:
+                try:
+                    await self.runtime.reconcile_stop(session_id, epoch)
+                except Exception:
+                    # One failed session does not consume another's chance,
+                    # subject to the single native time budget for this batch.
+                    self.last_error = "journal_unavailable"
+
+        try:
+            await self._native_call(reconcile)
+        except NativeJournalUnavailable:
+            self.last_error = "journal_unavailable"
 
     async def flush(self, prepared):
         try:
@@ -273,6 +326,8 @@ class WindowConverseController:
             if latest is None:
                 return False
             epoch = await self._native_call(self.runtime._epoch, source.session_id)
+            if not self._local_current(prepared):
+                return False
             if prepared.generation is None:
                 if (
                     prepared.behavior == "RESPOND_WITHOUT_INTERRUPTING_USER"
@@ -286,6 +341,8 @@ class WindowConverseController:
                 if await self._native(
                     "window_response", source.session_id, source.epoch, latest.utterance_id
                 ):
+                    return False
+                if not self._local_current(prepared):
                     return False
                 prepared.generation = epoch.begin()
                 self.runtime._active[source.session_id] = prepared.task
@@ -566,6 +623,7 @@ class WindowConverseController:
             return
         old = self.pending.get(source.session_id)
         if old is not None and old.abandoned:
+            await self._native_call(self.runtime.reconcile_stop, source.session_id)
             if not self._released(old):
                 raise ProviderCleanupPending
             self.pending.pop(source.session_id, None)
@@ -573,9 +631,12 @@ class WindowConverseController:
         if d.conversation == "WAIT_FOR_NEXT_WINDOW":
             if old is not None:
                 self._abandon(old)
+            # Typed admission may reserve a generation before its native user
+            # append, active task or first chunk exists. WAIT fences that too.
+            await self.yield_speech(source.session_id, force=True)
+            if old is not None:
                 if self._released(old):
                     self.pending.pop(source.session_id, None)
-            await self.yield_speech(source.session_id)
             await self.state(source, "waiting")
             return
         if await self._native("window_response", source.session_id, source.epoch, w.utterance_id):
@@ -590,6 +651,7 @@ class WindowConverseController:
             return
         if old is not None:
             self._abandon(old)
+            await self.yield_speech(source.session_id)
             if not self._released(old):
                 raise ProviderCleanupPending
         if source.session_id not in self.pending and len(self.pending) >= 32:
@@ -607,6 +669,9 @@ class WindowConverseController:
         self.pending[source.session_id] = candidate
 
     async def tick(self):
+        # Stops survive a completed/evicted reply and a failed transcript read.
+        # Scan at most 32 cached epochs, rotating fairly, with one native budget.
+        await self._reconcile_stops()
         try:
             entries = await self._recover(lambda: self._native("read", after=self.after, limit=100))
         except NativeJournalUnavailable:
@@ -634,6 +699,7 @@ class WindowConverseController:
         tasks = {p.task for p in self.pending.values() if p.task is not None}
         if tasks:
             await asyncio.wait(tasks, timeout=self._provider_cleanup_timeout_s)
+        await self._reconcile_stops()
         self.pending = {key: p for key, p in self.pending.items() if not self._released(p)}
 
     async def run(self):

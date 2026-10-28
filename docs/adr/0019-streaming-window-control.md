@@ -115,6 +115,39 @@ initialization, clears it on confirmation, and discards it on epoch/thread
 change. Playback is exposed only after journal confirmation and a final current
 session check; a reset cannot admit the older source through the cached barrier.
 
+The #75 browser-stop follow-up keeps local generation invalidation synchronous
+and retains one immutable `delivery.updated` stop request on the existing
+`PlaybackEpoch`. A completed provider can leave PCM queued in the browser after
+its active-task/cache reference is gone, so WAIT, replacement and native
+exhaustion must reconcile this instruction independently of active producers or
+remaining chunks. A higher local fence only raises a desired-generation integer;
+the outstanding request is never rewritten. Once acknowledged, a fresh request
+can cover the coalesced higher target. Reply reclamation waits for its required
+stop and provider cleanup, while a confirmed completed cache entry can still be
+removed without fencing its published audio.
+WAIT also fences an empty generation reserved by typed admission before its
+native user append/active producer exists; an already targeted generation is
+reconciled without another increment. The resumed typed provider-admission
+check is tracked separately by #76, not claimed by this stop-only change.
+
+Each tick scans at most 32 existing playback epochs, rotating as each is visited,
+with one shared one-second native budget. This avoids an all-history scan or a
+separate growing stop queue, and a hanging session yields its next turn to others.
+Reconciliation also runs when transcript reads fail and during bounded shutdown.
+Shutdown may wait one second for provider cleanup plus one second for this stop
+batch; unfinished ownership stays retained. Request scope comes from the known
+native session/thread/epoch. Native mismatch retires the obsolete instruction
+without asserting playback; an old reply cannot fence a new scope that reuses a
+generation number. Restart initialization confirms both its safety note and a
+matching delivery-generation stop before exposing recovered playback, reusing
+both exact requests across uncertain acknowledgments.
+
+These `interrupted`/`delivery_unknown` receipts are durable client stop
+instructions, with `control=generation_stop`, runtime identity and source
+identity when available. They are distinct from per-chunk playback receipts and
+do not prove the browser/device stopped, audio was heard, or any words were
+delivered. The existing typed producer lifecycle is outside this follow-up.
+
 A brief native outage pauses the same provider iterator. Exhaustion fences its
 generation, records a best-effort journal error with confirmed partial state and
 unknown delivery, and never replays inference or resumes its buffered text after
@@ -122,8 +155,8 @@ healing. Provider errors remain distinct. Owner-off and interruption own the
 stream before its first delta. Cancellation and provider cleanup are separate:
 unconfirmed cleanup retains its original slot in the existing 32-entry bound,
 and a decision deferred solely for cleanup keeps its cursor position. Shutdown
-waits at most one second, retaining unfinished ownership rather than asserting
-that cancellation closed a resource. An optional iterator `aclose` is used when
+waits at most one second for provider cleanup, retaining unfinished ownership
+rather than asserting that cancellation closed a resource. An optional iterator `aclose` is used when
 present; a conforming iterator without it remains supported. A hard process
 restart cannot resume an in-memory model stream; this repair makes no
 exactly-once inference or audible-delivery claim.
@@ -236,6 +269,28 @@ combined scope passed 194 tests on Python 3.12.3 and 194 on Python 3.11.15;
 imports again resolved to this worktree's runtime, window controller and text
 providers. Ruff lint/format passed for all 207 Python files and the diff check
 passed. Full-project and PR CI are separate lead integration evidence.
+
+The initial browser-stop regressions on `ad179818` failed all six local/HTTP
+cases: a completed reply followed by WAIT published no stop, including the two
+uncertain-append boundaries. The first repair passed all six and the prior
+combined 200-test scope on Python 3.12. A later boundary run had 40 passes and two
+failures: the fairness fixture observed one unnecessary native scope read after
+each confirmed stop. Removing that read preserved the explicit native-work bound.
+The final follow-up checks are recorded separately with their actual revision;
+these synthetic journals/HTTP transports do not establish physical playback.
+Both versions next passed the 222-test scope. The added suspended typed-admission
+fixture first rejected an unsupported test-only `ConverseRequest.content_scope`
+argument (two fixture failures); after removing it, both local/HTTP cases
+reproduced WAIT leaving the empty admitted generation unfenced. Their expected
+generation and durable-stop assertions were preserved in the force-fence repair.
+The 224-test scope then passed on both Python versions. A final local/HTTP
+regression reproduced interruption while a completed held reply awaited its
+native claim lookup: both cases published stale chunks after the local fence.
+Synchronous owner/scope/generation rechecks now precede allocation after these
+native awaits; the original no-publication assertions remain unchanged.
+The final combined scope passed 226 tests on Python 3.12.3 (94.69 seconds) and
+226 on Python 3.11.15 (95.74 seconds), with worker imports explicitly verified.
+Ruff lint/format passed for all 207 files; contracts remain unchanged.
 
 Deterministic checks exercise the real journal, authenticated HTTP, browser PCM
 encoding/bounds, independent timing, correction/replay, held/interrupting replies,
