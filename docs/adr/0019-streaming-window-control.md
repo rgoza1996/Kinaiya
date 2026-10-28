@@ -338,3 +338,13 @@ audible latency, echo robustness, production ASR accuracy or the full M3 gate.
 The older clip interface remains for hosts that do not advertise this capability;
 it is not claimed as semantic streaming. `streaming_windows.enabled=false`
 explicitly disables the new path during deployment rollback.
+
+Independent restart review also retained a pre-existing generation-discovery
+limit in [#79](https://github.com/rgoza1996/Kinaiya/issues/79). Initialization
+currently derives its prior generation from the latest 100 journal entries.
+After 105 non-generation window entries, it can reconstruct zero below an
+existing client's generation. The repaired WAIT barrier then cannot stop that
+client's queued audio. Baseline and repaired native/production-JS probes both
+demonstrate this limit. The completed-provider WAIT regression is repaired;
+arbitrary-history restart safety requires durable native generation discovery
+and is not established by this change.
