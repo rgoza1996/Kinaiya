@@ -1,0 +1,247 @@
+"""Allowlisted local CPU TTS adapters; optional inference imports stay lazy.
+
+No model installer, remote adapter, user-provided Python module or execution
+configuration is accepted here. Provider computation may finish after caller
+cancellation; the worker fences all subsequent inference and output separately.
+"""
+
+import hashlib
+import importlib.metadata
+import json
+import math
+import numbers
+import os
+import stat
+from array import array
+from dataclasses import dataclass
+from pathlib import Path
+
+SUPERTONIC_REVISION = "aafc6e32416a594460b32413efc49d7fe4ce6d46"
+SUPERTONIC_SDK_VERSION = "1.3.1"
+SUPERTONIC_ORT_VERSION = "1.23.1"
+SUPPORTED_TTS_PROFILES = ("Kokoro 82M", "Supertonic 3")
+SUPERTONIC_VOICES = frozenset(f"{gender}{index}" for gender in ("F", "M") for index in range(1, 6))
+KOKORO_VOICES = frozenset({"af_heart"})
+MAX_AUDIO_SECONDS = 120
+MAX_FRAME_SECONDS = 1
+_MANIFEST = Path(__file__).with_name("supertonic3_manifest.json")
+
+
+class TTSBackendError(RuntimeError):
+    """A safe boundary error: never expose model paths, text or runtime output."""
+
+
+def default_voice(profile):
+    if profile == "Kokoro 82M":
+        return "af_heart"
+    if profile == "Supertonic 3":
+        return "F1"
+    raise ValueError("Unsupported configured TTS profile")
+
+
+def validate_voice(profile, voice=None):
+    resolved = default_voice(profile) if voice is None else voice
+    allowed = KOKORO_VOICES if profile == "Kokoro 82M" else SUPERTONIC_VOICES
+    if (
+        not isinstance(profile, str)
+        or not isinstance(resolved, str)
+        or profile not in SUPPORTED_TTS_PROFILES
+        or resolved not in allowed
+    ):
+        raise ValueError("Unsupported configured TTS voice")
+    return resolved
+
+
+def synthesis_mode(profile):
+    default_voice(profile)
+    return "buffered" if profile == "Supertonic 3" else "sentence_buffered"
+
+
+@dataclass(frozen=True)
+class AudioWaveform:
+    samples: object
+    sample_rate: int
+
+
+def pcm_frames(waveform, *, remaining_seconds=MAX_AUDIO_SECONDS):
+    """Validate one actual mono waveform completely before exposing its frames.
+
+    Accept a vector or one-item batch, never flatten multiple channels/batches.
+    Keep actual padded/inter-phrase samples; predicted duration is not alignment.
+    Conversion needs no numpy import in the core/Agent environment.
+    """
+    if not isinstance(waveform, AudioWaveform):
+        raise TTSBackendError("Invalid voice waveform")
+    rate = waveform.sample_rate
+    if type(rate) is not int or not 8000 <= rate <= 96000:
+        raise TTSBackendError("Invalid voice sample rate")
+    samples = waveform.samples
+    shape = getattr(samples, "shape", None)
+    if shape is not None:
+        if len(shape) == 2 and shape[0] == 1:
+            samples = samples[0]
+        elif len(shape) != 1:
+            raise TTSBackendError("Voice waveform must be mono")
+    elif (
+        isinstance(samples, (list, tuple))
+        and samples
+        and isinstance(samples[0], (list, tuple, array))
+    ):
+        if len(samples) != 1:
+            raise TTSBackendError("Voice waveform must be mono")
+        samples = samples[0]
+    try:
+        count = len(samples)
+    except (TypeError, OverflowError) as exc:
+        raise TTSBackendError("Invalid voice waveform") from exc
+    if count < 1 or count > rate * remaining_seconds:
+        raise TTSBackendError("Voice audio exceeds bounded duration")
+    frames, values = [], array("h")
+    for value in samples:
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, numbers.Real)
+            or not math.isfinite(value)
+        ):
+            raise TTSBackendError("Invalid voice sample")
+        values.append(int(max(-1.0, min(1.0, value)) * 32767))
+        if len(values) == rate:
+            if os.sys.byteorder != "little":
+                values.byteswap()
+            frames.append(values.tobytes())
+            values = array("h")
+    if values:
+        if os.sys.byteorder != "little":
+            values.byteswap()
+        frames.append(values.tobytes())
+    if sum(len(frame) // 2 for frame in frames) != count:
+        raise TTSBackendError("Invalid voice waveform length")
+    return frames, count, rate
+
+
+def _verify_assets(model_dir, voice):
+    """Hash exact public artifacts through no-follow descriptors before loading.
+
+    Owner configuration keeps model assets outside Agent-writable roots. This
+    validator does not follow symlinks or accept an owner-supplied manifest.
+    """
+    if model_dir is None:
+        raise TTSBackendError("Pinned local voice assets are required")
+    manifest = json.loads(_MANIFEST.read_text())
+    if manifest.get("revision") != SUPERTONIC_REVISION:
+        raise TTSBackendError("Invalid pinned voice manifest")
+    records = manifest["files"]
+    required = {
+        "LICENSE",
+        "onnx/tts.json",
+        "onnx/unicode_indexer.json",
+        "onnx/duration_predictor.onnx",
+        "onnx/text_encoder.onnx",
+        "onnx/vector_estimator.onnx",
+        "onnx/vocoder.onnx",
+        f"voice_styles/{voice}.json",
+    }
+    if not required <= records.keys():
+        raise TTSBackendError("Incomplete pinned voice manifest")
+    root_fd = os.open(model_dir, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        for relative in sorted(required):
+            record = records[relative]
+            parts = relative.split("/")
+            parent_fd = os.dup(root_fd)
+            try:
+                for part in parts[:-1]:
+                    next_fd = os.open(
+                        part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent_fd
+                    )
+                    os.close(parent_fd)
+                    parent_fd = next_fd
+                descriptor = os.open(
+                    parts[-1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent_fd
+                )
+                try:
+                    info = os.fstat(descriptor)
+                    if not stat.S_ISREG(info.st_mode) or info.st_size != record["size_bytes"]:
+                        raise TTSBackendError("Pinned voice asset is invalid")
+                    digest = hashlib.sha256()
+                    with os.fdopen(descriptor, "rb", closefd=False) as source:
+                        for chunk in iter(lambda: source.read(1 << 20), b""):
+                            digest.update(chunk)
+                    if digest.hexdigest() != record["sha256"]:
+                        raise TTSBackendError("Pinned voice asset is invalid")
+                finally:
+                    os.close(descriptor)
+            finally:
+                os.close(parent_fd)
+    finally:
+        os.close(root_fd)
+
+
+class _KokoroBackend:
+    assets_state = "not_checked"
+
+    def __init__(self, voice):
+        self.voice = voice
+        self.pipeline = None
+
+    def load(self):
+        os.environ["HF_HUB_OFFLINE"] = "1"
+        os.environ["TRANSFORMERS_OFFLINE"] = "1"
+        from kokoro import KPipeline
+
+        self.pipeline = KPipeline(lang_code="a", device="cpu", repo_id="hexgrad/Kokoro-82M")
+
+    def synthesize(self, text):
+        for _, _, audio in self.pipeline(text, voice=self.voice):
+            yield AudioWaveform(audio.numpy() if hasattr(audio, "numpy") else audio, 24000)
+
+
+class _SupertonicBackend:
+    def __init__(self, model_dir, voice):
+        self.model_dir, self.voice = model_dir, voice
+        self.assets_state = "not_checked"
+        self.pipeline = self.style = None
+
+    def load(self):
+        _verify_assets(self.model_dir, self.voice)
+        if (
+            importlib.metadata.version("supertonic") != SUPERTONIC_SDK_VERSION
+            or importlib.metadata.version("onnxruntime") != SUPERTONIC_ORT_VERSION
+        ):
+            raise TTSBackendError("The pinned voice runtime is required")
+        from supertonic import TTS, loader
+
+        # The pinned SDK exposes the provider list through its loader constant,
+        # not an inference HTTP option. Also verify every constructed session.
+        loader.DEFAULT_ONNX_PROVIDERS = ["CPUExecutionProvider"]
+        self.pipeline = TTS(
+            model="supertonic-3",
+            model_dir=str(self.model_dir),
+            auto_download=False,
+            intra_op_num_threads=4,
+            inter_op_num_threads=1,
+        )
+        if self.pipeline.sample_rate != 44100:
+            raise TTSBackendError("Unexpected pinned voice sample rate")
+        for name in ("dp_ort", "text_enc_ort", "vector_est_ort", "vocoder_ort"):
+            if getattr(self.pipeline.model, name).get_providers() != ["CPUExecutionProvider"]:
+                raise TTSBackendError("The configured voice runtime must use CPU only")
+        self.style = self.pipeline.get_voice_style(self.voice)
+        self.assets_state = "verified"
+
+    def synthesize(self, text):
+        waveform, _predicted_duration = self.pipeline.synthesize(
+            text=text,
+            voice_style=self.style,
+            total_steps=8,
+            speed=1.05,
+            lang="en",
+        )
+        yield AudioWaveform(waveform, self.pipeline.sample_rate)
+
+
+def create_tts_backend(profile, model_dir=None, voice=None):
+    voice = validate_voice(profile, voice)
+    if profile == "Kokoro 82M":
+        return _KokoroBackend(voice)
+    return _SupertonicBackend(Path(model_dir) if model_dir is not None else None, voice)
