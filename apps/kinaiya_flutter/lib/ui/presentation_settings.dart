@@ -233,6 +233,12 @@ class _PresentationSettingsState extends State<PresentationSettings> {
     final enabled = !_busy && !controller.loading;
     final media = MediaQuery.of(context);
     final preview = _preview;
+    // Action results and controller storage status describe separate outcomes.
+    // Neither may hide the other, including when persistence fails after use.
+    final notices = <String>{
+      if (_notice != null) _notice!,
+      if (controller.notice != null) controller.notice!,
+    };
     final storageNotice = controller.persistent
         ? 'Presentation settings and imported artwork are saved in this browser on this device.'
         : 'Presentation settings last for this session. Persistent storage is unavailable on this platform.';
@@ -284,12 +290,12 @@ class _PresentationSettingsState extends State<PresentationSettings> {
                       ),
                       const SizedBox(height: 8),
                       Text(storageNotice),
-                      if (_notice != null || controller.notice != null)
+                      for (final notice in notices)
                         Semantics(
                           liveRegion: true,
                           child: Padding(
                             padding: const EdgeInsets.symmetric(vertical: 12),
-                            child: Text(_notice ?? controller.notice!),
+                            child: Text(notice),
                           ),
                         ),
                       _heading('Current character'),

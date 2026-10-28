@@ -20,9 +20,20 @@ class MemoryPresentationStorage implements PresentationStorage {
   Future<void> write(String value) async => record = value;
 }
 
-Future<PresentationController> initialized(WidgetTester tester) async {
+class FailingPresentationStorage extends MemoryPresentationStorage {
+  @override
+  bool get persistent => true;
+  @override
+  Future<void> write(String value) async =>
+      throw const FormatException('private-storage-error-marker');
+}
+
+Future<PresentationController> initialized(
+  WidgetTester tester, {
+  PresentationStorage? storage,
+}) async {
   final controller = PresentationController(
-    storage: MemoryPresentationStorage(),
+    storage: storage ?? MemoryPresentationStorage(),
   );
   await tester.runAsync(controller.initialize);
   addTearDown(controller.dispose);
@@ -379,6 +390,7 @@ void main() {
         findsOneWidget,
       );
       expect(find.textContaining('private-untrusted-marker'), findsNothing);
+      expect(find.text(controller.notice!), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );
@@ -406,6 +418,64 @@ void main() {
       );
       expect(controller.selected, same(original));
       expect(find.text('Character pack exported.'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'activation, export and restore retain local storage failure notice',
+    (tester) async {
+      final controller = await initialized(
+        tester,
+        storage: FailingPresentationStorage(),
+      );
+      final original = controller.selected!;
+      final exported = await tester.runAsync(controller.exportPackage);
+      final envelope = jsonDecode(exported!) as Map<String, dynamic>;
+      (envelope['manifest'] as Map<String, dynamic>)['name'] =
+          'Session character';
+      final package = jsonEncode(envelope);
+      String? downloaded;
+      await mount(
+        tester,
+        controller,
+        picker: () async => package,
+        downloader: (raw) async => downloaded = raw,
+      );
+      await press(tester, 'Import character pack');
+      await finishIo(
+        tester,
+        () => find.byType(MascotWidget).evaluate().isNotEmpty,
+      );
+      await press(tester, 'Use character pack');
+      expect(controller.selected!.pack.name, 'Session character');
+      const warning =
+          'Presentation is active for this session, but could not be saved locally.';
+      expect(controller.notice, warning);
+      expect(find.text('Character pack selected.'), findsOneWidget);
+      expect(find.text(warning), findsOneWidget);
+      await press(tester, 'Export current pack');
+      await finishIo(
+        tester,
+        () => find.text('Character pack exported.').evaluate().isNotEmpty,
+      );
+      await tester.pumpAndSettle();
+      expect(
+        (jsonDecode(downloaded!) as Map<String, dynamic>)['package_schema'],
+        1,
+      );
+      expect(find.text('Character pack exported.'), findsOneWidget);
+      expect(find.text(warning), findsOneWidget);
+      await press(tester, 'Restore default character');
+      await finishIo(
+        tester,
+        () => controller.selected!.pack.name == original.pack.name,
+      );
+      await tester.pumpAndSettle();
+      expect(controller.selected!.pack.name, original.pack.name);
+      expect(find.text('Default character restored.'), findsOneWidget);
+      expect(find.text(warning), findsOneWidget);
+      expect(find.textContaining('private-storage-error-marker'), findsNothing);
+      expect(tester.takeException(), isNull);
     },
   );
 
