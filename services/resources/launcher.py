@@ -9,7 +9,7 @@ import httpx
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from packages.contracts.client import JournalClient
-from packages.providers.tts_backends import SUPERTONIC_REVISION, validate_voice
+from packages.providers.tts_backends import profile_settings, validate_voice
 from packages.resources.processes import WorkerManager, WorkerSpec
 from services.resources.api import create_app
 from services.resources.client import ConverseControl, local_base
@@ -26,7 +26,10 @@ class LocalResourceConfig(BaseModel):
     stt_model: Literal["tiny", "tiny.en"] = "tiny.en"
     tts_model_dir: str | None = Field(default=None, min_length=1, max_length=4096)
     tts_voice: (
-        Literal["af_heart", "F1", "F2", "F3", "F4", "F5", "M1", "M2", "M3", "M4", "M5"] | None
+        Literal[
+            "af_heart", "F1", "F2", "F3", "F4", "F5", "M1", "M2", "M3", "M4", "M5", "en-Carter_man"
+        ]
+        | None
     ) = None
     profile: str = "conversation_priority"
     minimum_free_bytes: int = Field(default=128 * 1024 * 1024, ge=64 * 1024 * 1024, le=1 << 46)
@@ -62,13 +65,13 @@ def resource_app(args, config, auth, tokens, root):
     if not isinstance(tts_profile, str):
         raise ValueError("Select a configured retained TTS profile")
     tts_voice = validate_voice(tts_profile, settings.tts_voice)
-    supertonic = tts_profile == "Supertonic 3"
-    if supertonic and settings.tts_model_dir is None:
-        raise ValueError("Supertonic 3 requires its owner-configured local model directory")
-    if not supertonic and settings.tts_model_dir is not None:
-        raise ValueError("Kokoro does not accept a Supertonic model directory")
-    tts_revision = SUPERTONIC_REVISION if supertonic else None
-    synthesis_mode = "buffered" if supertonic else "sentence_buffered"
+    tts_settings = profile_settings(tts_profile)
+    if tts_settings.requires_model_directory and settings.tts_model_dir is None:
+        raise ValueError(f"{tts_profile} requires its owner-configured local model directory")
+    if not tts_settings.requires_model_directory and settings.tts_model_dir is not None:
+        raise ValueError("Kokoro does not accept an external model directory")
+    tts_revision = tts_settings.artifact_revision
+    synthesis_mode = tts_settings.mode
     if settings.tts_model_dir is not None:
         workspace = args.workspace.resolve()
         model_path = Path(settings.tts_model_dir)
@@ -176,7 +179,12 @@ def resource_app(args, config, auth, tokens, root):
                 or not isinstance(loaded, list)
                 or any(not isinstance(name, str) or name not in {"stt", "tts"} for name in loaded)
                 or len(loaded) != len(set(loaded))
-                or (supertonic and "tts" in loaded and payload["assets_state"] != "verified")
+                or (
+                    tts_settings.requires_model_directory
+                    and "tts" in loaded
+                    and payload["assets_state"] != "verified"
+                )
+                or payload.get("synthesis_quarantined", False) is not False
             ):
                 return False
             voice_health.clear()
