@@ -679,10 +679,17 @@ class ResourceCoordinator:
             await self._off_locked()
             return
         await self._save(phase="restoring")
+        reserve, recorded = self.restore_reserve, self.state.record.restore_bytes
+        if self._has_qwen3 and self.manager.owned_identity("qwen3") is not None:
+            # An existing verified text child is already included in the fresh
+            # host measurement. Reopening Converse must not reserve its whole
+            # startup allocation a second time. Other worker rules are unchanged.
+            reserve = max(0, reserve - self.qwen3_restore_reserve)
+            resident = self.manager.status()["workers"]["qwen3"].get("group_rss_bytes")
+            if type(resident) is int and resident >= 0:
+                recorded = max(0, recorded - resident)
         available = self.memory_probe()
-        if available is None or available < max(
-            self.minimum, self.restore_reserve, self.state.record.restore_bytes
-        ):
+        if available is None or available < max(self.minimum, reserve, recorded):
             raise RuntimeError("Restoration lacks measured minimum headroom")
         if self.gpu_probe is not None:
             gpu = self.gpu_probe()

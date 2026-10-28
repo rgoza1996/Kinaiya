@@ -197,3 +197,16 @@ async def test_replayed_off_does_not_revoke_later_admission(env):
     assert env.manager.is_current(current)
     assert await env.coordinator.admit_qwen3(env.coordinator.qwen3_policy()) is current
     assert env.coordinator._qwen3_preemptions == 0
+
+
+async def test_reopening_converse_does_not_reserve_a_resident_text_child_twice(env):
+    current = env.manager.owned_identity("qwen3")
+    env.coordinator.restore_reserve = 800 * MiB
+    env.memory[0] = 400 * MiB
+    assert (await action(env, "restore"))["ok"]
+    assert env.manager.is_current(current)
+    assert env.control.value
+    await env.manager.stop_if_current(current)
+    denied = await action(env, "restore", key="needs-fresh-allocation")
+    assert not denied["ok"] and "headroom" in denied["error"]
+    assert env.manager.owned_identity("qwen3") is None
