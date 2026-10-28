@@ -87,6 +87,12 @@ class WindowConverseController:
         self.after = 0
         self.last_error = None
         self.locks = {}
+        runtime._window_text_ready = self.provider_released
+
+    def provider_released(self, session_id):
+        """Read-only typed admission hook, including retained real cleanup."""
+        prepared = self.pending.get(session_id)
+        return prepared is None or self._released(prepared)
 
     async def _native_call(self, operation, *args, **kwargs):
         try:
@@ -464,6 +470,7 @@ class WindowConverseController:
             if (
                 messages is None
                 or not self._local_current(prepared)
+                or not self.runtime.typed_provider_ready(source.session_id)
                 or (datetime.now(UTC) - source.created_at).total_seconds() > 60
             ):
                 self._abandon(prepared)
@@ -639,6 +646,8 @@ class WindowConverseController:
                     self.pending.pop(source.session_id, None)
             await self.state(source, "waiting")
             return
+        if not self.runtime.typed_provider_ready(source.session_id):
+            raise ProviderCleanupPending("typed_cleanup_pending")
         if await self._native("window_response", source.session_id, source.epoch, w.utterance_id):
             return
         if (

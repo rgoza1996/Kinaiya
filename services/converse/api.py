@@ -4,6 +4,7 @@ import json
 import time
 from contextlib import aclosing
 
+from anyio import CancelScope
 from fastapi import Depends, FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -31,6 +32,18 @@ class AudioWindow(SpeechWindow):
     audio_base64: str = Field(min_length=1, max_length=14_000_000)
 
 
+class TypedTurnResponse(StreamingResponse):
+    async def __call__(self, scope, receive, send):
+        try:
+            await super().__call__(scope, receive, send)
+        finally:
+            # Disconnect can interrupt send while the generator is paused at
+            # accepted/text. Own that close explicitly, rather than relying on
+            # asynchronous-generator garbage collection after the ASGI return.
+            with CancelScope(shield=True):
+                await self.body_iterator.aclose()
+
+
 def create_app(runtime, auth, speech=None, window_controller=None):
     app = FastAPI(title="Kinaiya Converse", version="1.0")
     owner = [Depends(auth.require("owner"))]
@@ -54,6 +67,7 @@ def create_app(runtime, auth, speech=None, window_controller=None):
             "provider": runtime.provider.info.model_dump(),
             "voice_configured": speech is not None,
             "speech_operations": runtime.speech_status(),
+            "text_operations": runtime.text_status(),
             "streaming_windows": window_controller is not None,
         }
 
@@ -68,12 +82,13 @@ def create_app(runtime, auth, speech=None, window_controller=None):
     async def stream(request: ConverseRequest):
         async def generate():
             try:
-                async for event in runtime.events(request):
-                    yield "data: " + json.dumps(event) + "\n\n"
+                async with aclosing(runtime.events(request)) as events:
+                    async for event in events:
+                        yield "data: " + json.dumps(event) + "\n\n"
             except (ValueError, RuntimeError) as exc:
                 yield "data: " + json.dumps({"type": "error", "error": str(exc)}) + "\n\n"
 
-        return StreamingResponse(generate(), media_type="text/event-stream")
+        return TypedTurnResponse(generate(), media_type="text/event-stream")
 
     @app.post("/v1/converse/interrupt", dependencies=owner)
     async def interrupt(request: SessionControl):

@@ -418,6 +418,7 @@ def serve(args):
             await asyncio.gather(
                 observer, *([window_observer] if window_observer else []), return_exceptions=True
             )
+            await runtime.close()
             await journal.close()
             if speech:
                 await speech.close()
