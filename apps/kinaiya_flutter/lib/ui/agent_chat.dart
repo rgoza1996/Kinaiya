@@ -8,6 +8,7 @@ import '../api/models.dart';
 import '../state/app_state.dart';
 import 'mcp_settings.dart';
 import 'widgets.dart';
+import 'visual_theme.dart';
 
 /// Direct Agent Chat: real worker surface with tools, evidence, approvals
 /// and cancel. Slash commands are Agent-only and registry-driven; Converse
@@ -22,6 +23,8 @@ class AgentChat extends StatefulWidget {
 
 class _AgentChatState extends State<AgentChat> {
   late final TextEditingController _input;
+  final TextEditingController _search = TextEditingController();
+  String? _selectedTaskId;
   final Map<String, TextEditingController> _steer = {};
   Timer? _poll;
   KinaiyaClient? _lastClient;
@@ -57,6 +60,7 @@ class _AgentChatState extends State<AgentChat> {
     _poll?.cancel();
     _s.removeListener(_handleStateChange);
     _input.dispose();
+    _search.dispose();
     for (final c in _steer.values) {
       c.dispose();
     }
@@ -82,6 +86,8 @@ class _AgentChatState extends State<AgentChat> {
   }
 
   void _syncConnectionDraft() {
+    _search.clear();
+    _selectedTaskId = null;
     if (_input.text != _s.agentDraft) _input.text = _s.agentDraft;
     for (final controller in _steer.values) {
       controller.clear();
@@ -548,103 +554,394 @@ class _AgentChatState extends State<AgentChat> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
+  void _showMcp() => showDialog<void>(
+    context: context,
+    builder: (_) => McpSettings(state: _s),
+  );
+
+  Widget _tools() => Wrap(
+    spacing: 4,
+    children: [
+      IconButton(
+        tooltip: 'Agent commands',
+        onPressed: _s.commandsAvailable ? _showCommands : null,
+        icon: const Icon(Icons.terminal_rounded),
+      ),
+      IconButton(
+        tooltip: 'MCP connections',
+        onPressed: _s.client == null ? null : _showMcp,
+        icon: const Icon(Icons.hub_outlined),
+      ),
+    ],
+  );
+
+  Widget _composer() => SafeArea(
+    top: false,
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+      child: LayoutBuilder(
+        builder: (context, box) {
+          final input = TextField(
+            controller: _input,
+            key: const ValueKey('agent-input'),
+            decoration: const InputDecoration(
+              labelText: 'Work for the agent, or /command',
+            ),
+            minLines: 1,
+            maxLines: 4,
+            textInputAction: TextInputAction.send,
+            onChanged: (v) => _s.setDraft(AppView.agent, v),
+            onSubmitted: (_) => _send(),
+          );
+          final send = SendMascotButton(
+            label: 'Send task',
+            enabled: _canSubmitText(_input.text),
+            onPressed: _send,
+          );
+          if (box.maxWidth /
+                  MediaQuery.textScalerOf(context).scale(1).clamp(1, 2) <
+              620) {
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                input,
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    _tools(),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: send,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            );
+          }
+          return Row(
+            children: [
+              _tools(),
+              const SizedBox(width: 8),
+              Expanded(child: input),
+              const SizedBox(width: 12),
+              send,
+            ],
+          );
+        },
+      ),
+    ),
+  );
+
+  Widget _workspace(AgentTask? selected) {
+    final query = _search.text.trim().toLowerCase();
+    final tasks = _s.tasks.reversed.where(
+      (t) =>
+          query.isEmpty ||
+          '${t.objective} ${t.state} ${t.taskId}'.toLowerCase().contains(query),
+    );
+    return Container(
+      width: 260,
+      decoration: BoxDecoration(
+        border: Border(
+          right: BorderSide(
+            color: Theme.of(context).colorScheme.outlineVariant,
+          ),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
+            child: Text(
+              'Workspace',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text(
+              _s.agentSession?.name.isNotEmpty == true
+                  ? _s.agentSession!.name
+                  : 'New Agent session',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+          ),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 4, 16, 20),
+            child: Text('Direct instructions to Agent'),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: TextField(
+              controller: _search,
+              decoration: const InputDecoration(
+                labelText: 'Search tasks',
+                prefixIcon: Icon(Icons.search_rounded),
+              ),
+              onChanged: (_) => setState(() {}),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
+            child: Text(
+              'Tasks · ${_s.tasks.length}',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+          ),
+          Expanded(
+            child: ListView(
+              children: [
+                for (final task in tasks)
+                  ListTile(
+                    key: ValueKey('workspace-task-${task.taskId}'),
+                    selected: selected?.taskId == task.taskId,
+                    selectedTileColor: const Color(0xFF192B58),
+                    selectedColor: kinaiyaWhite,
+                    leading: Icon(
+                      task.isTerminal
+                          ? Icons.task_alt_rounded
+                          : Icons.pending_outlined,
+                    ),
+                    title: Text(
+                      task.objective,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitle: Text(
+                      '${task.state} · revision ${task.objectiveRevision}',
+                    ),
+                    onTap: () => setState(() => _selectedTaskId = task.taskId),
+                  ),
+                if (tasks.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Text(
+                      query.isEmpty ? 'No tasks yet.' : 'No matching tasks.',
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.terminal_rounded),
+            title: const Text('Commands'),
+            enabled: _s.commandsAvailable,
+            onTap: _s.commandsAvailable ? _showCommands : null,
+          ),
+          ListTile(
+            leading: const Icon(Icons.hub_outlined),
+            title: const Text('Connections'),
+            enabled: _s.client != null,
+            onTap: _s.client == null ? null : _showMcp,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _detail(String label, String value) => Padding(
+    padding: const EdgeInsets.only(bottom: 16),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: Theme.of(context).textTheme.labelLarge),
+        const SizedBox(height: 4),
+        SelectableText(value),
+      ],
+    ),
+  );
+
+  Widget _details(AgentTask? task) => Container(
+    width: 300,
+    decoration: BoxDecoration(
+      border: Border(
+        left: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+      ),
+    ),
+    child: ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        Text('Task details', style: Theme.of(context).textTheme.titleLarge),
+        const SizedBox(height: 24),
+        if (task == null)
+          const Text('Choose a task to inspect its status and evidence.')
+        else ...[
+          _detail('Objective', task.objective),
+          _detail('Current state', task.state),
+          _detail('Objective revision', '${task.objectiveRevision}'),
+          _detail('Task', task.taskId),
+          _detail('Session', task.sessionId),
+          _detail(
+            'Evidence',
+            task.evidence.isEmpty
+                ? 'No completion evidence recorded.'
+                : '${task.evidence.length} recorded items; inspect the receipts in the task card.',
+          ),
+          if (task.remainingRequiredWork.isNotEmpty)
+            _detail('Remaining work', task.remainingRequiredWork.join('\n')),
+        ],
+        const Divider(),
+        const SizedBox(height: 16),
+        _detail(
+          'Current Agent provider',
+          _s.agentProvider == null
+              ? 'Not verified'
+              : '${_s.agentProvider!['provider']} · ${_s.agentProvider!['model']}',
+        ),
+        _detail('Pending approvals', '${_s.approvals.length}'),
+        const Text(
+          'Inspecting a task does not change the recipient of a new instruction. Use its Steer or Stop control to affect that task.',
+        ),
+      ],
+    ),
+  );
+
+  Widget _conversation(bool wide, AgentTask? selected) {
     final tasksById = {for (final t in _s.tasks) t.taskId: t};
     return Column(
       children: [
-        if (!_s.commandsAvailable)
-          const MaterialBanner(
-            content: Text(
-              'Command registry unavailable; plain instructions still work.',
-            ),
-            actions: [SizedBox.shrink()],
-          ),
-        if (_s.agentNotice.isNotEmpty)
-          MaterialBanner(
-            content: Text(_s.agentNotice),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  _s.agentNotice = '';
-                  _s.touch();
-                },
-                child: const Text('DISMISS'),
-              ),
-            ],
-          ),
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            children: [
-              for (final a in _s.approvals)
-                _approvalCard(a, tasksById[a.taskId]),
-              for (final m in _s.agentHistory)
-                MessageBubble(role: m.role, text: m.text, note: m.note),
-              if (_s.tasks.isNotEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  child: Text('Worker tasks across sessions · newest first'),
-                ),
-              for (final t in _s.tasks.reversed) _taskCard(t),
-              if (_s.tasks.isEmpty && _s.agentHistory.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.all(24),
-                  child: Text(
-                    'Describe the work to do. Plain words become tasks; /commands need the registry.',
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-            ],
-          ),
-        ),
-        SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(8),
-            child: Row(
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                IconButton(
-                  tooltip: 'Agent commands',
-                  onPressed: _s.commandsAvailable ? _showCommands : null,
-                  icon: const Icon(Icons.terminal),
+                Text(
+                  'Direct Agent Chat',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.headlineSmall,
                 ),
-                IconButton(
-                  tooltip: 'MCP connections',
-                  onPressed: _s.client == null
-                      ? null
-                      : () => showDialog<void>(
-                          context: context,
-                          builder: (_) => McpSettings(state: _s),
-                        ),
-                  icon: const Icon(Icons.hub_outlined),
-                ),
-                Expanded(
-                  child: TextField(
-                    controller: _input,
-                    decoration: const InputDecoration(
-                      labelText: 'Work for the agent, or /command',
-                      border: OutlineInputBorder(),
-                    ),
-                    minLines: 1,
-                    maxLines: 4,
-                    textInputAction: TextInputAction.send,
-                    onChanged: (v) => _s.setDraft(AppView.agent, v),
-                    onSubmitted: (_) => _send(),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                SendMascotButton(
-                  label: 'Send task',
-                  enabled: _canSubmitText(_input.text),
-                  onPressed: _send,
+                const SizedBox(height: 4),
+                Text(
+                  _s.agentSession?.name.isNotEmpty == true
+                      ? 'Session: ${_s.agentSession!.name}'
+                      : 'New instructions use your Agent session.',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
           ),
         ),
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            children: [
+              if (!_s.commandsAvailable)
+                const MaterialBanner(
+                  content: Text(
+                    'Command registry unavailable; plain instructions still work.',
+                  ),
+                  actions: [SizedBox.shrink()],
+                ),
+              if (_s.agentNotice.isNotEmpty)
+                MaterialBanner(
+                  content: Text(_s.agentNotice),
+                  actions: [
+                    TextButton(
+                      onPressed: () {
+                        _s.agentNotice = '';
+                        _s.touch();
+                      },
+                      child: const Text('DISMISS'),
+                    ),
+                  ],
+                ),
+
+              for (final a in _s.approvals)
+                _approvalCard(a, tasksById[a.taskId]),
+              for (final m in _s.agentHistory)
+                MessageBubble(
+                  role: m.role,
+                  text: m.text,
+                  note: m.note,
+                  speaker: 'Agent',
+                ),
+              if (_s.tasks.isNotEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Text('Worker tasks across sessions · newest first'),
+                ),
+              if (wide && selected != null)
+                _taskCard(selected)
+              else
+                for (final task in _s.tasks.reversed) _taskCard(task),
+              if (_s.tasks.isEmpty && _s.agentHistory.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 32,
+                    vertical: 40,
+                  ),
+                  child: Column(
+                    children: [
+                      const Icon(Icons.auto_awesome_outlined, size: 40),
+                      const SizedBox(height: 16),
+                      Text(
+                        'What would you like to work on?',
+                        style: Theme.of(context).textTheme.titleLarge,
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Give Agent a task, inspect its work, and review approvals here. Your conversation stays in Converse.',
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+        _composer(),
       ],
     );
   }
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, box) {
+      final width =
+          box.maxWidth / MediaQuery.textScalerOf(context).scale(1).clamp(1, 2);
+      final wide = width >= 1080;
+      final matches = _s.tasks.where((t) => t.taskId == _selectedTaskId);
+      final selected = matches.isNotEmpty
+          ? matches.first
+          : _s.tasks.isEmpty
+          ? null
+          : _s.tasks.last;
+      final panes = Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (wide) _workspace(selected),
+          Expanded(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1120),
+                child: _conversation(wide, selected),
+              ),
+            ),
+          ),
+          if (width >= 1360) _details(selected),
+        ],
+      );
+      final minHeight = MediaQuery.textScalerOf(context).scale(1) >= 1.5
+          ? 560.0
+          : 420.0;
+      return SingleChildScrollView(
+        child: SizedBox(
+          height: box.maxHeight < minHeight ? minHeight : box.maxHeight,
+          child: panes,
+        ),
+      );
+    },
+  );
 
   Widget _taskCard(AgentTask task) {
     final grounded = task.isGroundedSuccess;
@@ -661,18 +958,29 @@ class _AgentChatState extends State<AgentChat> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Semantics(
-                    label: 'Task objective: ${task.objective}',
-                    child: Text(
-                      task.objective,
-                      style: Theme.of(context).textTheme.titleSmall,
-                    ),
+                Semantics(
+                  label: 'Task objective: ${task.objective}',
+                  child: Text(
+                    task.objective,
+                    style: Theme.of(context).textTheme.titleSmall,
                   ),
                 ),
-                StatusChip(text: task.state, tone: tone),
+                Wrap(
+                  spacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    StatusChip(text: task.state, tone: tone),
+                    if (!task.isTerminal)
+                      TextButton.icon(
+                        onPressed: () => _cancelTask(task),
+                        icon: const Icon(Icons.stop_circle_outlined),
+                        label: const Text('Stop'),
+                      ),
+                  ],
+                ),
               ],
             ),
             if (grounded)
@@ -714,24 +1022,23 @@ class _AgentChatState extends State<AgentChat> {
             if (!task.isTerminal)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _steer[task.taskId],
-                        decoration: const InputDecoration(
-                          labelText: 'Steer this task',
-                          border: OutlineInputBorder(),
-                        ),
+                    TextField(
+                      controller: _steer[task.taskId],
+                      decoration: const InputDecoration(
+                        labelText: 'Steer this task',
+                        border: OutlineInputBorder(),
                       ),
                     ),
-                    TextButton(
-                      onPressed: () => _steerTask(task),
-                      child: const Text('Steer'),
-                    ),
-                    TextButton(
-                      onPressed: () => _cancelTask(task),
-                      child: const Text('Stop'),
+                    Wrap(
+                      children: [
+                        TextButton(
+                          onPressed: () => _steerTask(task),
+                          child: const Text('Steer'),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -748,7 +1055,7 @@ class _AgentChatState extends State<AgentChat> {
         .join(' ');
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      color: Colors.amber.shade50,
+      color: Theme.of(context).colorScheme.tertiaryContainer,
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
@@ -776,7 +1083,9 @@ class _AgentChatState extends State<AgentChat> {
                 'Expired: this approval cannot be reused.',
                 style: TextStyle(color: Colors.red),
               ),
-            Row(
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
                 FilledButton(
                   onPressed: approval.isExpired

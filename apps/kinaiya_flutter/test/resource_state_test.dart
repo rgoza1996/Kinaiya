@@ -133,7 +133,7 @@ void main() {
       expect(audio.cancellations, greaterThan(0));
       expect(
         tester
-            .widget<IconButton>(find.widgetWithIcon(IconButton, Icons.mic))
+            .widget<OutlinedButton>(find.byKey(const ValueKey('tell-kinaiya')))
             .onPressed,
         isNull,
       );
@@ -240,14 +240,24 @@ void main() {
         find.textContaining('Voice is paused for local work'),
         findsOneWidget,
       );
-      for (final icon in [Icons.hearing, Icons.mic, Icons.audio_file]) {
-        expect(
-          tester
-              .widget<IconButton>(find.widgetWithIcon(IconButton, icon))
-              .onPressed,
-          isNull,
-        );
+      for (final control in <ButtonStyleButton>[
+        tester.widget<FilledButton>(find.byKey(const ValueKey('call-kinaiya'))),
+        tester.widget<OutlinedButton>(
+          find.byKey(const ValueKey('tell-kinaiya')),
+        ),
+      ]) {
+        expect(control.onPressed, isNull);
       }
+      expect(
+        tester
+            .widget<IconButton>(
+              find.byWidgetPredicate(
+                (w) => w is IconButton && w.tooltip == 'Use audio recording',
+              ),
+            )
+            .onPressed,
+        isNull,
+      );
       final priorClips = audio.clips;
       api.phase = 'ready';
       api.revision = 3;

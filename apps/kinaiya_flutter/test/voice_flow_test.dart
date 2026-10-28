@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kinaiya_flutter/app.dart';
 import 'package:kinaiya_flutter/audio/turn_audio.dart';
@@ -114,7 +113,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
     expect(find.text('Live'), findsOneWidget);
     expect(find.text('Silence'), findsOneWidget);
-    await tester.tap(find.byIcon(Icons.hearing));
+    await tester.tap(find.byTooltip('Start Live listen (armed mic)'));
     await tester.pump(const Duration(milliseconds: 300));
     expect(
       find.text('Live listening is unavailable here; text works.'),

@@ -20,11 +20,17 @@ Start the configured Python services separately. Export an owner-only credential
 
 ## Voice behavior
 
+Converse uses the moonlit concept in `assets/UIUX Concept`; Agent Chat uses the navy workspace concept. The desktop rail becomes bottom navigation on narrow or enlarged-text layouts. Both views remain mounted, preserving their independent drafts, sessions and active voice capture while navigating. A global activity strip keeps microphone/speech controls reachable from Agent Chat. Changing views never starts capture.
+
+**Call Kinaiya** arms the existing live browser listener; **Tell Kinaiya** records one message. These labels do not implement phone signaling or the mobile calling milestone. Global **Stop microphone** discards an unfinished recording without transcribing it or cancelling Agent work. Pending stops remain visible; a failed or three-second unacknowledged adapter stop stays unconfirmed and retryable. These acknowledgments do not establish physical device behavior.
+
 Live starts only after a user gesture. Capture continues while transcription and replies run; one latest pending utterance bounds the transcription queue. Separate speech/silence thresholds, minimum speech duration and selectable endpoint silence control turn-taking. Each complete recording has its own epoch and 60-second cap. During playback, sustained speech stops local queued audio before an asynchronous server interrupt. Repeated interruptions cannot clear a newer turn's state, and late permission/resume callbacks cannot restart capture/playback after disposal.
 
 Sentences play in order. Synthesis completion is distinct from the browser's audio `onended`; delivery records mark playback only after that local event. Interrupted elapsed time is an estimate, not word alignment or proof of physical audibility. Speech controls do not cancel Agent work. Background evidenced Agent results arrive through the authenticated journal and join the speech queue.
 
 ## Agent interface
+
+The wide workspace searches and inspects actual tasks. Selecting a task changes the details panel, while new instructions retain the current Agent session. Task state, evidence, revision and approvals come from the backend; the concept's illustrative weather, harness versions and voice-context timeline are not fabricated. [Layout and lifecycle rationale](../../docs/adr/0024-concept-layout.md) records the tested scope.
 
 Agent Chat consumes the backend command registry, including canonical names, aliases, descriptions and argument hints. Only explicit single-line Agent command input dispatches controls. Quoted/code/path/escaped slash text stays literal; unknown commands never become inference tasks. Commands, new/resume sessions, actual task state and digest/revision-bound approvals use the real backend. Converse has no command UI or parser.
 
