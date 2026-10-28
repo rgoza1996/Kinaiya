@@ -286,9 +286,10 @@ synthesizes through the same speech bridge using pinned, verified local assets.
 Its output is buffered before transport; the small synthetic screen does not meet
 the roadmap's warm-onset target or establish physical audible latency. The experimental
 [VibeVoice Realtime 0.5B CPU adapter](docs/adr/0028-retained-vibevoice.md) emits native
-waveform chunks with request-owned cancellation. Its nine-reply screen observed
-median first PCM at 258 ms, first non-silent frame at 3.33 seconds, and RTF 3.46;
-it does not sustain realtime speech. Its original evaluation dependencies have
+waveform chunks with request-owned cancellation. Its newer minimal-runtime
+nine-reply synthetic screen observed median first PCM at 227 ms, first non-silent
+frame at 2.39 seconds, and RTF 2.63; it does not sustain realtime speech.
+The environment still has
 [unresolved advisories](https://github.com/rgoza1996/Kinaiya/issues/70), and a
 supported patched runtime remains under investigation. This is a research profile,
 with no default promotion or physical audibility claim. Ming 3 Tiny remains a

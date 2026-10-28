@@ -21,7 +21,7 @@ Upstream retains generated waveforms and concatenates them internally even with 
 The [checked manifest](../../packages/providers/vibevoice_manifest.json) records all required regular files, sizes, SHA-256 digests and upstream provenance:
 
 - Microsoft checkpoint `microsoft/VibeVoice-Realtime-0.5B` revision `6bce5f06044837fe6d2c5d7a71a84f0416bd57e4`: safetensors, configuration, processor configuration and model card. The safetensors is 2,035,332,888 bytes and matches its upstream LFS SHA-256.
-- Runtime `microsoft/VibeVoice` revision `16fb2cb1217c9934a886e1948ffb06120caa2df5`, package 1.0.0; all 22 installed Python source files are verified. The runtime source archive is also hash-pinned in the optional lock.
+- Runtime `microsoft/VibeVoice` revision `16fb2cb1217c9934a886e1948ffb06120caa2df5`; all 22 installed Python source files are verified. The current derivative distribution, `kinaiya-vibevoice-runtime==1.0.0+kinaiya.1`, preserves those source bytes while removing the upstream demo dependencies.
 - Qwen tokenizer `Qwen/Qwen2.5-0.5B` revision `060db6499f32faf8b98477b0a26969ef7d8b9987`: tokenizer JSON/configuration, vocabulary, merges and Apache-2.0 notice. Separate Qwen model weights are unnecessary.
 - Public `demo/voices/streaming_model/en-Carter_man.pt`, SHA-256 `a7bfdf1cd4939c22469bcfc6f427ae9c4467b3df46c2c14303a39c294cfc6897`, and the Microsoft runtime MIT notice.
 
@@ -29,13 +29,27 @@ Use an owner-controlled absolute model directory containing `checkpoint/`, `toke
 
 The adapter explicitly constructs the processor with the verified local Qwen tokenizer. Upstream's `from_pretrained` processor helper otherwise resolves a separate tokenizer repository and forwards `revision` to both repositories; the VibeVoice revision is not a Qwen revision. Model/tokenizer loading uses `local_files_only=True`, `trust_remote_code=False`, disabled Hub downloads and a safetensors-only checkpoint. The local pinned upstream package supplies the model implementation; this is not an unreviewed Hub Python-code load.
 
-Preset loading verifies its hash first and uses `torch.load(..., map_location='cpu', weights_only=True)` with only the two official required classes, `BaseModelOutputWithPast` and `DynamicCache`, allowlisted. Each request deep-copies the cached prompt before native generation mutates caches. Arbitrary voice files, Python modules and inference settings are not accepted from speech requests.
+Preset loading verifies its hash first and uses `torch.load(..., map_location='cpu', weights_only=True)`. Torch 2.14 refuses the legacy preset's `SETITEMS` operation on a Transformers dictionary subclass. Two explicit serialized-name aliases therefore decode `BaseModelOutputWithPast` into an exact `OrderedDict` and `DynamicCache` into an inert local state container. The adapter checks all four fixed output records, mirrored attributes, token/layer counts, exact tensor shapes, bfloat16 CPU tensors and finite values before constructing the runtime cache/output objects. It never dispatches a method or class name from the decoded data. The original Torch 2.9 loader and this decoder produced identical canonical hashes for all 100 public-preset tensors and cache metadata. This narrowly scoped compatibility decoder is not a general untrusted-pickle importer or an operating-system sandbox.
+
+Each request deep-copies the cached prompt before native generation mutates caches. Arbitrary voice files, Python modules and inference settings are not accepted from speech requests.
 
 ## Optional environment and licensing
 
-`requirements-vibevoice.in` and its generated hash lock define a Linux x86_64 / CPython 3.12 reference environment. Torch 2.9.1+cpu comes directly from the official CPU wheel index; Transformers is 4.51.3, the upstream streaming-extra pin. The lock also includes the voice API and faster-whisper 1.2.1 with its resolved dependencies. STT weights must already be installed locally; inference never installs them. Source archives and all runtime dependencies are hashed. The broad dependencies declared by the upstream package include its demo UI/network libraries; their presence grants no runtime network authority.
+`requirements-vibevoice.in` and its generated hash lock define an experimental Linux x86_64 / CPython 3.12 environment. Torch 2.14.1+cpu comes directly from the official CPU wheel index; Transformers remains 4.51.3, the upstream streaming-extra pin with unresolved advisories. Pillow is 13.0.0 and setuptools is 84.2.1. The lock also includes the voice API and faster-whisper 1.2.1 with its resolved dependencies. STT weights must already be installed locally; inference never installs them.
 
-One reproducible setup route uses `uv venv --python python3.12 /absolute/owner/voice-vibevoice`, then `uv pip sync --python /absolute/owner/voice-vibevoice/bin/python --require-hashes --build-constraints requirements-vibevoice.lock requirements-vibevoice.lock`. The build constraints also pin setuptools/wheel for the upstream source package. Installation is an explicit owner action, never a model request. Base CI requires no optional runtime or weights.
+The standard-library-only [runtime wheel builder](../../scripts/build_vibevoice_runtime.py) verifies the 22 upstream sources and MIT notice through bounded no-follow reads. It executes no upstream build script. Its deterministic wheel contains the unchanged sources, license, minimal dependency metadata and a valid hashed `RECORD`; adjacent provenance records every source and the wheel digest. This removes Gradio, aiortc and other demo dependencies without hiding or fixing Transformers advisories. The current wheel SHA-256 is `beef94dace5211e8c9c46565b41cc3ea79746aea8ced9e34191ad83b812db097`.
+
+With an owner-controlled checkout of the exact Microsoft revision and the verified license already present, a setup route from the Kinaiya repository is:
+
+```sh
+uv venv --python python3.12 /absolute/owner/voice-vibevoice
+uv pip sync --python /absolute/owner/voice-vibevoice/bin/python --require-hashes requirements-vibevoice.lock
+python scripts/build_vibevoice_runtime.py --source-dir /absolute/owner/microsoft-vibevoice --license-file /absolute/owner/assets/licenses/runtime-MIT.txt --output-dir /absolute/owner/runtime-wheel
+uv pip install --python /absolute/owner/voice-vibevoice/bin/python --no-deps /absolute/owner/runtime-wheel/kinaiya_vibevoice_runtime-1.0.0+kinaiya.1-py3-none-any.whl
+uv pip check --python /absolute/owner/voice-vibevoice/bin/python
+```
+
+The source directory contains `vibevoice/`; existing output files are refused. Inspect the builder's provenance and wheel digest before installation. Re-running `uv pip sync` removes the separately installed runtime wheel, which must then be installed again. Installation is an explicit owner action, never a model request. Base CI requires no optional runtime or weights. Invoke the probes from the repository as `python -m scripts.probe_retained_voice` and `python -m scripts.probe_retained_resources`, with their explicit environment/profile/model/output arguments.
 
 Runtime code carries MIT. Checkpoint metadata declares MIT, but its model card additionally describes research-only intended use and exclusions using licensing language, and no standalone checkpoint LICENSE is supplied. Preserve those qualifications rather than calling the checkpoint unconditionally permissive. Presets ship in the MIT repository without a separate voice-specific provenance/license notice; independent voice-rights evidence was not established. Qwen tokenizer files carry Apache-2.0. Review these notices before use or redistribution.
 
@@ -49,7 +63,7 @@ The separate authorized live screen must record exact environment, cold load, wa
 
 ## Actual CPU screen and lifecycle proof
 
-[Recorded evidence](../../evaluation/evidence/vibevoice-cpu-2026-10-27.json) contains one new-process request and nine warm synthetic replies on the Ryzen 7 5800X. Filesystem/page caches were not flushed, host load was uncontrolled, and portions overlapped focused test work. This is a feasibility screen, not a controlled provider comparison or p95 qualification.
+[Original recorded evidence](../../evaluation/evidence/vibevoice-cpu-2026-10-27.json) contains one new-process request and nine warm synthetic replies on the Ryzen 7 5800X with Torch 2.9.1+cpu and the original upstream distribution. The following table belongs to that preserved environment, not the newer lock. Filesystem/page caches were not flushed, host load was uncontrolled, and portions overlapped focused test work. This is a feasibility screen, not a controlled provider comparison or p95 qualification.
 
 | Measurement | Observed result |
 | --- | --- |
@@ -68,7 +82,26 @@ The generic [voice probe](../../scripts/probe_retained_voice.py) reproduces the 
 
 Whisper tiny.en in the same optional environment transcribed one retained synthetic VibeVoice WAV as “I am here. What would you like to do?” through the actual transcription HTTP endpoint. This establishes a synthetic roundtrip, not microphone or human quality acceptance.
 
-The integrated Python suite passed 1,153 tests without a repository-wide `PYTHONPATH` override. An independent Codex review while that delegation was authorized ran 274 focused tests with no actionable findings. A genuine visible Muse Spark 1.3 Contributor/xhigh CLI static review of source `69d5322` also reported no findings and ran no tools/tests. Neither is human approval or a passed dependency audit. The later user instruction restricts all new subagent delegation to Muse CLI Contributor.
+The original integrated Python suite passed 1,153 tests without a repository-wide `PYTHONPATH` override. An independent Codex review while that delegation was authorized ran 274 focused tests with no actionable findings. A genuine visible Muse Spark 1.3 Contributor/xhigh CLI static review of source `69d5322` also reported no findings and ran no tools/tests. Neither review covers later changes automatically or represents human approval or a passed dependency audit. The user's latest instruction permits both Codex subagents and visible Muse CLI Contributor subagents at max/xhigh; the shared Meta budget guard still applies.
+
+## Minimal-runtime screen on 2026-10-28
+
+[Separate evidence](../../evaluation/evidence/vibevoice-minimal-cpu-2026-10-28.json) records the newer 74-package environment at implementation `d67dafe`. All native source/model/tokenizer/preset identities remain pinned; only the explicitly documented package/dependency profile and restricted preset translation differ. Nine warm synthetic requests were measured before the regression tests started, with uncontrolled host load and unflushed filesystem caches. Diffusion output lengths vary, so these observations are not a controlled comparison with the original screen.
+
+| Measurement | Observed result |
+| --- | --- |
+| Warm first decoded PCM | 0.227 s median; 0.217–0.227 s range |
+| Warm first non-silent frame, 1% PCM amplitude threshold | 2.385 s median; 0.227–2.933 s range |
+| Warm full synthesis RTF including HTTP | 2.627 median; 2.469–2.776 range |
+| New-process first decoded/non-silent PCM | 6.885 s / 8.618 s |
+| Observed process-lifetime peak RSS | 7,829,159,936 bytes |
+| HTTP response close to observed producer-thread exit | 0.464 s, one cancellation observation |
+
+All nine warm requests emitted PCM before producer exit. Cancellation ended the native producer without quarantine and a subsequent request succeeded. A second owned-worker proof verified actual process-group release, a new restored PID, fresh synthesis, stale-speech 409 and durable owner-off, using an explicit 8 GiB reserve. All owned processes and private temporary data were removed. Whisper tiny.en in the same new environment transcribed one public synthetic WAV correctly in 0.900 seconds through the HTTP endpoint. No physical audio, human listening, p95, GPU or loaded-stack acceptance was measured; the CPU profile remains slower than realtime.
+
+The updated full Python 3.12 suite passed 1,193 tests; Ruff lint and formatting passed. A separate Python 3.11 run passed 144 focused backend/builder/Converse-cancellation tests. An earlier full run on that local standalone Python 3.11 failed 48 tests because its `fcntl` module lacks `F_ADD_SEALS`; worker bootstrap correctly refused to run without sealing. No fallback or test weakening was added. GitHub's Python 3.11 environment supplies those prerequisites and remains the cross-version integration check. The original CI run also exposed a real cancellation-monitor race and a first-frame test synchronization error; both were corrected before this screen.
+
+An independent Codex review of changes through `d67dafe` reported no actionable findings, passed 164 focused tests, independently compared the 100 tensor-state records and verified all wheel source/license/RECORD digests. It did not rerun heavy inference or perform exploit testing. The genuine Muse CLI proposed the initial minimal wheel implementation; the lead applied, hardened and tested it. Neither that proposal nor the earlier static Muse review is a review of all later changes. Transformers advisory disposition and a supported patched port remain open in #70; this profile remains outside the running reference defaults.
 
 ## Primary sources
 
@@ -76,6 +109,7 @@ The integrated Python suite passed 1,153 tests without a repository-wide `PYTHON
 - [Pinned checkpoint/card](https://huggingface.co/microsoft/VibeVoice-Realtime-0.5B/tree/6bce5f06044837fe6d2c5d7a71a84f0416bd57e4) and [upstream blob metadata](https://huggingface.co/api/models/microsoft/VibeVoice-Realtime-0.5B/revision/6bce5f06044837fe6d2c5d7a71a84f0416bd57e4?blobs=true).
 - [Pinned tokenizer/license](https://huggingface.co/Qwen/Qwen2.5-0.5B/tree/060db6499f32faf8b98477b0a26969ef7d8b9987).
 - [PyTorch HIP semantics](https://docs.pytorch.org/docs/main/notes/hip.html), relevant only to future separately measured GPU profiles.
+- [PyTorch restricted serialization and serialized-name aliases](https://docs.pytorch.org/docs/2.14/notes/serialization.html), and the [official CPU release wheels](https://pytorch.org/get-started/previous-versions/).
 
 ## Dependency security gate remains open
 
@@ -83,6 +117,8 @@ The first installed-environment audit reported 70 advisory records across Pillow
 
 A separate isolated compatibility investigation tried the then-current official PyPI releases Transformers 5.21.0, Pillow 13.0.0, setuptools 84.2.1 and wheel 0.48.0. All model/tokenizer/preset and 22 native-source hashes remained enforced; only the expected dependency version was explicitly overridden for the experiment. The unchanged Microsoft runtime failed during import: its `AutoModel.register` collides with a native Transformers VibeVoice acoustic-tokenizer registration. A probe-only registration override then exposed its import of removed `transformers.models.qwen2.tokenization_qwen2_fast`. The installed native Transformers implementations cover `vibevoice`, ASR and acoustic tokenizers, without this checkpoint's `vibevoice_streaming` configuration or `audio_streamer`/`stop_check_fn` waveform API. A native drop-in replacement was not established.
 
-Transformers 4.57.6 with the three updated packaging/image dependencies successfully loaded the unchanged native source, emitted a public synthetic reply through the actual waveform callback and returned from cooperative cancellation after one chunk. This is compatibility evidence only: 4.57.6 still had 11 advisory records in official release metadata. The dependency override also conflicts with the upstream streaming extra's exact 4.51.3 pin and Gradio's Pillow `<13` constraint; it is not a dependency-consistent supported production environment. No patched dependency lock or runtime was promoted. A future minimal reviewed runtime-package build could remove unused demo dependencies while preserving the native-source hashes, but that packaging change alone would not resolve the remaining Transformers advisories.
+Transformers 4.57.6 with the three updated packaging/image dependencies successfully loaded the unchanged native source, emitted a public synthetic reply through the actual waveform callback and returned from cooperative cancellation after one chunk. This is compatibility evidence only: 4.57.6 still had 11 advisory records in official release metadata. The dependency override also conflicts with the upstream streaming extra's exact 4.51.3 pin and Gradio's Pillow `<13` constraint; that experimental environment is not promoted.
+
+The subsequent minimal wheel and Torch 2.14.1+cpu lock above form a dependency-consistent 74-package environment. Its installed-environment audit still reports 28 Transformers records, representing 19 distinct PYSEC identifiers. It skips the derivative runtime and direct CPU Torch distribution; a separate official base-version lookup is not an audit of that binary. The audit is not green. The initial Torch 2.14 load refused the legacy preset; the restricted translation described above addresses that compatibility failure while retaining hash checks and `weights_only=True`.
 
 The installed-environment audit also does not establish coverage of the direct CPU Torch binary or the source-only Microsoft distribution. A separate official PyPI lookup for base Torch 2.9.1 reported `PYSEC-2026-139`, `GHSA-rrmf-rvhw-rf47`, `GHSA-qfhq-4f3w-5fph` and `PYSEC-2026-2286`, with fixes listed through 2.13.0 and one record without a listed fix. This is base-version advisory metadata, not proof of exact `2.9.1+cpu` binary reachability or safety. The allowlisted local assets, safetensors-only checkpoint, restricted preset unpickling, bounded authenticated input and CPU-only profile limit the exposed interfaces; they do not justify dismissing these findings. Reachability review, a supported compatible patched runtime and renewed actual inference/resource checks remain required before closing the security gate.

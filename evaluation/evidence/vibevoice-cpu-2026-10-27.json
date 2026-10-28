@@ -3357,7 +3357,7 @@
       "patched-4x-pip-check.log"
     ]
   },
-  "orchestration_current": "New delegation: visible Muse CLI only, Muse Spark1.3Contributor; existing Codex tasks finished under prior authorization.",
+  "orchestration_current": "Historical instruction at recording: Muse CLI only; existing Codex tasks finished under prior authorization. Superseded by later explicit user authorization for both Codex and Muse CLI Contributor max/xhigh; see vibevoice-minimal-cpu-2026-10-28.json.",
   "meta_budget": {
     "catalogue_estimate_usd": 0.9946971160000002,
     "conservative_spent_usd": 20.207360600000012,

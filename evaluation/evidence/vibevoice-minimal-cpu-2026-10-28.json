@@ -1,0 +1,2677 @@
+{
+  "schema": 1,
+  "recorded_utc": "2026-10-28T13:25:23.501267+00:00",
+  "scope": "Separate optional CPU compatibility environment; synthetic PCM and authenticated owned-process proof; not a patched security acceptance or default promotion",
+  "issues": [
+    69,
+    70,
+    4
+  ],
+  "implementation_commit": "d67dafe17812588a984b7c228eecf103c78e3280",
+  "specification": {
+    "Roadmap.md": "6a95af2b69c7f7f12d0ab0f7883b6226887141d234967514f3e647d9bd6108b0",
+    "clarification.md": "5876bdc47e2209ac00aa0abb09480218c96da3ee03b5f6aec046fe38300e0afe"
+  },
+  "profile": {
+    "distribution": "kinaiya-vibevoice-runtime",
+    "runtime_version": "1.0.0+kinaiya.1",
+    "torch": "2.14.1+cpu",
+    "transformers": "4.51.3",
+    "Pillow": "13.0.0",
+    "setuptools": "84.2.1",
+    "installed_packages": 74,
+    "dependency_consistency_check": "uv pip check passed for all 74 installed packages",
+    "requirements_input_sha256": "706b55b08cfcd877233c33985186d01860a82313ac882af3735e40998f22961d",
+    "requirements_lock_sha256": "3f77c7971f8e3c701cf7a4f027d3211e9c987c23cbe4ea4ae3f89b31119b9b1c",
+    "manifest_sha256": "969b92bf6ae0e7e43df9092325df46fd3cdfe3b4725a6f8a247a85bbfa31dc4b"
+  },
+  "wheel_provenance": {
+    "distribution": "kinaiya-vibevoice-runtime",
+    "license_sha256": "98a96c38494df4963951e32b81ec4effebe4c8a812ab8d9e7d185d59e86fe2fc",
+    "license_size": 1066,
+    "requires_dist": [
+      "torch>=2.14,<2.15",
+      "transformers>=4.51.3,<5",
+      "accelerate>=1.15,<2",
+      "diffusers>=0.39,<1",
+      "numpy>=2.3.3,<3",
+      "scipy>=1.17,<2",
+      "librosa>=0.11,<1",
+      "tqdm>=4.67,<5",
+      "ml-collections>=1.1,<2",
+      "absl-py>=2.5,<3"
+    ],
+    "requires_python": ">=3.11",
+    "source_revision": "16fb2cb1217c9934a886e1948ffb06120caa2df5",
+    "sources": {
+      "vibevoice/__init__.py": "d2545b8b4f70348514a367a04ae38d0da3de98174a88745cdb5e64bb0e4b6839",
+      "vibevoice/modular/__init__.py": "a5453c864eedead47a9d52a03d78e8893bb9983dc3e93ca9ef1205e6803d7448",
+      "vibevoice/modular/configuration_vibevoice.py": "bcf59d8749405d5d25436923444436f6719cb9b2b403941a8a5e46f5b94873d0",
+      "vibevoice/modular/configuration_vibevoice_streaming.py": "1b4417ea2ffe5b42a58d1ee6b3c9508bc253930c2d55f8ec1f10916e36b8029e",
+      "vibevoice/modular/modeling_vibevoice.py": "6a7fbe0f967f09cd05c2cbbd270276bac8e90a6061510a82029cbf8bc680caf2",
+      "vibevoice/modular/modeling_vibevoice_asr.py": "847f1613ad836d8f2176ce90c27b4405af27b4f236320637cc693237b09facbb",
+      "vibevoice/modular/modeling_vibevoice_streaming.py": "96d402716fe2cc6284c4ad7f8b2309dd8d06d2133681e266387466116e908afb",
+      "vibevoice/modular/modeling_vibevoice_streaming_inference.py": "cb5360a62dbf3a836cea763348bc6330c4d7a422fbe572f4abf7b3c7a15bce8b",
+      "vibevoice/modular/modular_vibevoice_diffusion_head.py": "8a90ac685b9e32793749e2c58b48906758486d8b0bc0d92c8dfd141aa053852e",
+      "vibevoice/modular/modular_vibevoice_text_tokenizer.py": "03df076a9d7da769de4243e09c880d5787b2db360b568e9efecb77932b13f8e5",
+      "vibevoice/modular/modular_vibevoice_tokenizer.py": "f2fdcdaff26a685510c982634cad3be8258b299f89566a87188c932fd85f816d",
+      "vibevoice/modular/streamer.py": "e6129f46e2c61466ca96ce479c04adfaad32f483230f4d3531c96717bd16f603",
+      "vibevoice/processor/__init__.py": "957a1c1b18310691647cc0adaece1d8f940785deaa4d8d17ece2059bee0b9dc8",
+      "vibevoice/processor/audio_utils.py": "e15f184c18f754862e38082836b9c19c0f97c03c939412ab856838dc30788bcf",
+      "vibevoice/processor/vibevoice_asr_processor.py": "9fac3c57cf2f40e2d383f684fcff484a0ff2267668a8491bfeb54034763afa59",
+      "vibevoice/processor/vibevoice_processor.py": "5b28fa5247a83cb65385e06428fb112369f50723e343d7b38c7a6e7e1dfddab5",
+      "vibevoice/processor/vibevoice_streaming_processor.py": "41ff57a7da668db9099c395ab7bbee9b2cd7aa0c2f8f0b0c214768c051aa5a53",
+      "vibevoice/processor/vibevoice_tokenizer_processor.py": "3b18571d3b5cac91211412f03c3a8477bb0242173a4a53a633498cac470f1068",
+      "vibevoice/schedule/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "vibevoice/schedule/dpm_solver.py": "be10eae978afda40a6bc082806fa1e8f0f4b4e451fd1d21cec97347116ffba73",
+      "vibevoice/schedule/timestep_sampler.py": "70b003bdfdc716d09942ecfcd0e2f438bac27ea16da9527e105e008a0069dd83",
+      "vibevoice/scripts/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "version": "1.0.0+kinaiya.1",
+    "wheel_filename": "kinaiya_vibevoice_runtime-1.0.0+kinaiya.1-py3-none-any.whl",
+    "wheel_sha256": "beef94dace5211e8c9c46565b41cc3ea79746aea8ced9e34191ad83b812db097",
+    "wheel_size": 84433
+  },
+  "preset_translation": {
+    "verified_public_asset_sha256": "a7bfdf1cd4939c22469bcfc6f427ae9c4467b3df46c2c14303a39c294cfc6897",
+    "original_torch": "2.9.1+cpu",
+    "translated_torch": "2.14.1+cpu",
+    "weights_only": true,
+    "compared_tensor_count": 100,
+    "canonical_state_sha256": "180f85e218172350c1aa92205afa84e9ebc5e04bf953c1830659d4c28adaee0b",
+    "all_records_equal": true,
+    "method": "For each of the four outputs, compare hidden-state tensor and every key/value-cache tensor: shape, dtype and SHA256 of exact raw bytes, plus seen-token count. Original loader uses only the two official allowlisted Transformers classes; translated loader uses validated inert aliases and reconstructs native objects only after full schema validation. Canonical JSON sorts keys with default json.dumps separators.",
+    "original_state_file_sha256": "40529a23d18209808f16b73834ffb54edae8fedb8108ef96274be0d00ad336c0",
+    "translated_state_file_sha256": "40529a23d18209808f16b73834ffb54edae8fedb8108ef96274be0d00ad336c0",
+    "comparison_script_sha256": "e852454970d1139d3f7120ee81ecd5a734368800f44f48dd2ff9c9a37d27b7ec"
+  },
+  "actual_tts_http_screen": {
+    "kind": "isolated_retained_tts_screen",
+    "profile": "VibeVoice Realtime 0.5B",
+    "source_commit": "d67dafe17812588a984b7c228eecf103c78e3280",
+    "source_dirty": false,
+    "host": {
+      "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",
+      "machine": "x86_64",
+      "cpu_model": "AMD Ryzen 7 5800X 8-Core Processor"
+    },
+    "probe_python": "3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]",
+    "worker_environment": {
+      "python": "3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]",
+      "packages": {
+        "ctranslate2": "4.8.4",
+        "torch": "2.14.1+cpu",
+        "numpy": "2.3.3",
+        "fastapi": "0.162.0",
+        "soundfile": "0.14.0",
+        "httpx": "0.28.1",
+        "uvicorn": "0.54.0",
+        "diffusers": "0.39.0",
+        "accelerate": "1.15.0",
+        "transformers": "4.51.3",
+        "onnxruntime": "1.31.1",
+        "pydantic": "2.14.1",
+        "faster-whisper": "1.2.1"
+      }
+    },
+    "health_before": {
+      "service": "local-voice",
+      "device": "cpu",
+      "pid": 833294,
+      "loaded": [],
+      "tts_profile": "VibeVoice Realtime 0.5B",
+      "tts_voice": "en-Carter_man",
+      "synthesis_mode": "native_streaming",
+      "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+      "assets_state": "not_checked",
+      "retained_candidates": [
+        "Ming 3 Tiny",
+        "VibeVoice Realtime 0.5B",
+        "Kokoro 82M",
+        "Supertonic 3"
+      ],
+      "other_profiles": "not_configured",
+      "synthesis_active": false,
+      "active_producers": 0,
+      "producer_stopped": true,
+      "synthesis_quarantined": false,
+      "completed_producers": 0,
+      "last_producer_seconds": null,
+      "last_producer_cancelled": null
+    },
+    "health_after": {
+      "service": "local-voice",
+      "device": "cpu",
+      "pid": 833294,
+      "loaded": [
+        "tts"
+      ],
+      "tts_profile": "VibeVoice Realtime 0.5B",
+      "tts_voice": "en-Carter_man",
+      "synthesis_mode": "native_streaming",
+      "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+      "assets_state": "verified",
+      "retained_candidates": [
+        "Ming 3 Tiny",
+        "VibeVoice Realtime 0.5B",
+        "Kokoro 82M",
+        "Supertonic 3"
+      ],
+      "other_profiles": "not_configured",
+      "synthesis_active": false,
+      "active_producers": 0,
+      "producer_stopped": true,
+      "synthesis_quarantined": false,
+      "completed_producers": 12,
+      "last_producer_seconds": 10.126554321992444,
+      "last_producer_cancelled": false
+    },
+    "cold_process_first_request": {
+      "text": "I am here. What would you like to do?",
+      "request_to_first_decoded_pcm_seconds": 6.884800994012039,
+      "request_to_first_non_silent_frame_seconds": 8.617858551006066,
+      "request_to_complete_seconds": 14.987363066989928,
+      "audio_seconds": 3.2,
+      "rtf_including_http": 4.683550958434353,
+      "sample_rate": 24000,
+      "samples": 76800,
+      "chunks": 24,
+      "pcm_sha256": "52e2c01e14108b2851b3fcfa98c681b16e7991aa1b2653de858145ee23ebb529",
+      "first_frame_metadata": {
+        "provider": "VibeVoice Realtime 0.5B",
+        "device": "cpu",
+        "synthesis_mode": "native_streaming",
+        "elapsed_seconds": 6.8829482220171485,
+        "load_seconds": 6.645389880985022,
+        "first_waveform_seconds": 0.23243457899661735
+      },
+      "chunk_arrivals": [
+        {
+          "elapsed_seconds": 6.884800994012039,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 7.322216822009068,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 7.751913356012665,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 8.17966160699143,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 8.617858551006066,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 9.04508491398883,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 9.563784341007704,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 9.990275832999032,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 10.427508312015561,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 10.854174464009702,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 11.140725045988802,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 11.426460688991938,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 11.776063566008816,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 12.061784766992787,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 12.358272987010423,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 12.643480400991393,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 12.928550014010398,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 13.21350636499119,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 13.489873051992618,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 13.765106305014342,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 14.040744883008301,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 14.325553920993116,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 14.600242107000668,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 14.875686790997861,
+          "samples": 3200
+        }
+      ],
+      "producer_health_at_first_frame": {
+        "service": "local-voice",
+        "device": "cpu",
+        "pid": 833294,
+        "loaded": [
+          "tts"
+        ],
+        "tts_profile": "VibeVoice Realtime 0.5B",
+        "tts_voice": "en-Carter_man",
+        "synthesis_mode": "native_streaming",
+        "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+        "assets_state": "verified",
+        "retained_candidates": [
+          "Ming 3 Tiny",
+          "VibeVoice Realtime 0.5B",
+          "Kokoro 82M",
+          "Supertonic 3"
+        ],
+        "other_profiles": "not_configured",
+        "synthesis_active": true,
+        "active_producers": 1,
+        "producer_stopped": false,
+        "synthesis_quarantined": false,
+        "completed_producers": 0,
+        "last_producer_seconds": null,
+        "last_producer_cancelled": null
+      },
+      "decoded_before_producer_exit_observed": true,
+      "worker_rss_before_bytes": 49709056,
+      "worker_rss_after_bytes": 5869678592,
+      "worker_process_lifetime_peak_rss_bytes": 7829159936,
+      "worker_cpu_seconds": 39.53
+    },
+    "cold_definition": "New process and unloaded weights; filesystem/page caches were not flushed.",
+    "warm": [
+      {
+        "text": "I am here. What would you like to do?",
+        "request_to_first_decoded_pcm_seconds": 0.2274573010217864,
+        "request_to_first_non_silent_frame_seconds": 2.3850957520189695,
+        "request_to_complete_seconds": 10.0416756090126,
+        "audio_seconds": 3.8666666666666667,
+        "rtf_including_http": 2.5969850712963622,
+        "sample_rate": 24000,
+        "samples": 92800,
+        "chunks": 29,
+        "pcm_sha256": "a1241ab85034d6af92c2e0073196906564ec372fd5cec91974ea09560ed1fd7f",
+        "first_frame_metadata": {
+          "provider": "VibeVoice Realtime 0.5B",
+          "device": "cpu",
+          "synthesis_mode": "native_streaming",
+          "elapsed_seconds": 0.22596240299753845,
+          "load_seconds": 0.0,
+          "first_waveform_seconds": 0.21809304901398718
+        },
+        "chunk_arrivals": [
+          {
+            "elapsed_seconds": 0.2274573010217864,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 0.6564302800106816,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.0836342580150813,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.5210013650066685,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.9580936500278767,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.3850957520189695,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.9068655360024422,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.3444291730120312,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.785895145003451,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.225528825016227,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.511192765028682,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.785987845010823,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.134259143000236,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.420036503026495,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.70550906000426,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.981418712006416,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.27702176902676,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.553446396021172,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.839407338004094,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.124349726014771,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.399685270007467,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.6750143130193464,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.960309824004071,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.246626068023033,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.531588244019076,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.808987311000237,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.09417835000204,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.369982426025672,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.654957491002278,
+            "samples": 3200
+          }
+        ],
+        "producer_health_at_first_frame": {
+          "service": "local-voice",
+          "device": "cpu",
+          "pid": 833294,
+          "loaded": [
+            "tts"
+          ],
+          "tts_profile": "VibeVoice Realtime 0.5B",
+          "tts_voice": "en-Carter_man",
+          "synthesis_mode": "native_streaming",
+          "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+          "assets_state": "verified",
+          "retained_candidates": [
+            "Ming 3 Tiny",
+            "VibeVoice Realtime 0.5B",
+            "Kokoro 82M",
+            "Supertonic 3"
+          ],
+          "other_profiles": "not_configured",
+          "synthesis_active": true,
+          "active_producers": 1,
+          "producer_stopped": false,
+          "synthesis_quarantined": false,
+          "completed_producers": 1,
+          "last_producer_seconds": 14.98281297198264,
+          "last_producer_cancelled": false
+        },
+        "decoded_before_producer_exit_observed": true,
+        "worker_rss_before_bytes": 5869678592,
+        "worker_rss_after_bytes": 5872238592,
+        "worker_process_lifetime_peak_rss_bytes": 7829159936,
+        "worker_cpu_seconds": 37.08
+      },
+      {
+        "text": "The synthetic report contains three items, and the next review is at ten thirty.",
+        "request_to_first_decoded_pcm_seconds": 0.227232176985126,
+        "request_to_first_non_silent_frame_seconds": 1.9714417259965558,
+        "request_to_complete_seconds": 11.91349201099365,
+        "audio_seconds": 4.4,
+        "rtf_including_http": 2.7076118206803748,
+        "sample_rate": 24000,
+        "samples": 105600,
+        "chunks": 33,
+        "pcm_sha256": "541e33daffbc000c9109bd5263da58ea48fcb6464c44e13b091aaaebc731b24a",
+        "first_frame_metadata": {
+          "provider": "VibeVoice Realtime 0.5B",
+          "device": "cpu",
+          "synthesis_mode": "native_streaming",
+          "elapsed_seconds": 0.22564613798749633,
+          "load_seconds": 0.0,
+          "first_waveform_seconds": 0.2165720799821429
+        },
+        "chunk_arrivals": [
+          {
+            "elapsed_seconds": 0.227232176985126,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 0.655983353004558,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.0841307319933549,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.5337096650036983,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.9714417259965558,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.4095946209854446,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.9182831840007566,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.347530942002777,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.788150832988322,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.223080105992267,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.508139585988829,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.784891466988483,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.151209642004687,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.426192560989875,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.70253153599333,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.987455352005782,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.262764523999067,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.549924105987884,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.907084479986224,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.191714282002067,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.466696137998952,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.751588401006302,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.026363373995991,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.3113626090053,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.586115960992174,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.862344820983708,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.148178073985036,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.423845385987079,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.699428936000913,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.974765183986165,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.260100929997861,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.535664889001055,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.842359016998671,
+            "samples": 3200
+          }
+        ],
+        "producer_health_at_first_frame": {
+          "service": "local-voice",
+          "device": "cpu",
+          "pid": 833294,
+          "loaded": [
+            "tts"
+          ],
+          "tts_profile": "VibeVoice Realtime 0.5B",
+          "tts_voice": "en-Carter_man",
+          "synthesis_mode": "native_streaming",
+          "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+          "assets_state": "verified",
+          "retained_candidates": [
+            "Ming 3 Tiny",
+            "VibeVoice Realtime 0.5B",
+            "Kokoro 82M",
+            "Supertonic 3"
+          ],
+          "other_profiles": "not_configured",
+          "synthesis_active": true,
+          "active_producers": 1,
+          "producer_stopped": false,
+          "synthesis_quarantined": false,
+          "completed_producers": 2,
+          "last_producer_seconds": 10.035286633006763,
+          "last_producer_cancelled": false
+        },
+        "decoded_before_producer_exit_observed": true,
+        "worker_rss_before_bytes": 5872238592,
+        "worker_rss_after_bytes": 5881700352,
+        "worker_process_lifetime_peak_rss_bytes": 7829159936,
+        "worker_cpu_seconds": 44.14
+      },
+      {
+        "text": "Kinaiya can keep our conversation available while the independent agent works.",
+        "request_to_first_decoded_pcm_seconds": 0.22656264700344764,
+        "request_to_first_non_silent_frame_seconds": 1.5040324389992747,
+        "request_to_complete_seconds": 11.713080107001588,
+        "audio_seconds": 4.4,
+        "rtf_including_http": 2.662063660682179,
+        "sample_rate": 24000,
+        "samples": 105600,
+        "chunks": 33,
+        "pcm_sha256": "35a75d7b520016d47ef3d2adc2f122204440df0573073ff6af52f2ea5f04785a",
+        "first_frame_metadata": {
+          "provider": "VibeVoice Realtime 0.5B",
+          "device": "cpu",
+          "synthesis_mode": "native_streaming",
+          "elapsed_seconds": 0.22508544998709112,
+          "load_seconds": 0.0,
+          "first_waveform_seconds": 0.21667978999903426
+        },
+        "chunk_arrivals": [
+          {
+            "elapsed_seconds": 0.22656264700344764,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 0.6483786670141853,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.0759100650029723,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.5040324389992747,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.951499660994159,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.3803560830128845,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.9089265229995362,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.345961620012531,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.772509930015076,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.209203620994231,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.48406320399954,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.7692456700024195,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.125466486002551,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.401786076021381,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.687447025993606,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.963781335012754,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.240315027011093,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.526462170993909,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.80133959199884,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.077844971994637,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.363511920004385,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.652055031998316,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.937479106010869,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.21226513502188,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.487269564997405,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.763797773019178,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.049144415010232,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.325587702012854,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.61130479699932,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.887044164002873,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.172514436009806,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.457515663001686,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.742771881021326,
+            "samples": 3200
+          }
+        ],
+        "producer_health_at_first_frame": {
+          "service": "local-voice",
+          "device": "cpu",
+          "pid": 833294,
+          "loaded": [
+            "tts"
+          ],
+          "tts_profile": "VibeVoice Realtime 0.5B",
+          "tts_voice": "en-Carter_man",
+          "synthesis_mode": "native_streaming",
+          "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+          "assets_state": "verified",
+          "retained_candidates": [
+            "Ming 3 Tiny",
+            "VibeVoice Realtime 0.5B",
+            "Kokoro 82M",
+            "Supertonic 3"
+          ],
+          "other_profiles": "not_configured",
+          "synthesis_active": true,
+          "active_producers": 1,
+          "producer_stopped": false,
+          "synthesis_quarantined": false,
+          "completed_producers": 3,
+          "last_producer_seconds": 11.904510694002965,
+          "last_producer_cancelled": false
+        },
+        "decoded_before_producer_exit_observed": true,
+        "worker_rss_before_bytes": 5881700352,
+        "worker_rss_after_bytes": 5890457600,
+        "worker_process_lifetime_peak_rss_bytes": 7829159936,
+        "worker_cpu_seconds": 43.49000000000001
+      },
+      {
+        "text": "I am here. What would you like to do?",
+        "request_to_first_decoded_pcm_seconds": 0.22642552299657837,
+        "request_to_first_non_silent_frame_seconds": 2.914348883990897,
+        "request_to_complete_seconds": 8.412619231006829,
+        "audio_seconds": 3.2,
+        "rtf_including_http": 2.628943509689634,
+        "sample_rate": 24000,
+        "samples": 76800,
+        "chunks": 24,
+        "pcm_sha256": "3d9567bd121cb935fd02a7ee17c7389f942883842811cda360240abc46898418",
+        "first_frame_metadata": {
+          "provider": "VibeVoice Realtime 0.5B",
+          "device": "cpu",
+          "synthesis_mode": "native_streaming",
+          "elapsed_seconds": 0.2251247479871381,
+          "load_seconds": 0.0,
+          "first_waveform_seconds": 0.21634730402729474
+        },
+        "chunk_arrivals": [
+          {
+            "elapsed_seconds": 0.22642552299657837,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 0.6542046520044096,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.0808287659892812,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.5073106990021188,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.9467615229950752,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.3845279759843834,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.914348883990897,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.352140615985263,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.799709801998688,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.227865758992266,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.513556735997554,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.801078454009257,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.161653852002928,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.446909883001354,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.742085679987213,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.018905970995547,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.3040685589949135,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.579946548008593,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.864931944001,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.150169091997668,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.435535922006238,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.730706225993345,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.015704190009274,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.300874095992185,
+            "samples": 3200
+          }
+        ],
+        "producer_health_at_first_frame": {
+          "service": "local-voice",
+          "device": "cpu",
+          "pid": 833294,
+          "loaded": [
+            "tts"
+          ],
+          "tts_profile": "VibeVoice Realtime 0.5B",
+          "tts_voice": "en-Carter_man",
+          "synthesis_mode": "native_streaming",
+          "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+          "assets_state": "verified",
+          "retained_candidates": [
+            "Ming 3 Tiny",
+            "VibeVoice Realtime 0.5B",
+            "Kokoro 82M",
+            "Supertonic 3"
+          ],
+          "other_profiles": "not_configured",
+          "synthesis_active": true,
+          "active_producers": 1,
+          "producer_stopped": false,
+          "synthesis_quarantined": false,
+          "completed_producers": 4,
+          "last_producer_seconds": 11.705534308013739,
+          "last_producer_cancelled": false
+        },
+        "decoded_before_producer_exit_observed": true,
+        "worker_rss_before_bytes": 5890457600,
+        "worker_rss_after_bytes": 5897281536,
+        "worker_process_lifetime_peak_rss_bytes": 7829159936,
+        "worker_cpu_seconds": 30.72999999999999
+      },
+      {
+        "text": "The synthetic report contains three items, and the next review is at ten thirty.",
+        "request_to_first_decoded_pcm_seconds": 0.22626271200715564,
+        "request_to_first_non_silent_frame_seconds": 2.924979509989498,
+        "request_to_complete_seconds": 13.543983367999317,
+        "audio_seconds": 5.333333333333333,
+        "rtf_including_http": 2.539496881499872,
+        "sample_rate": 24000,
+        "samples": 128000,
+        "chunks": 40,
+        "pcm_sha256": "80bc25c10aef70d69da2011098f9ec90662cd9cb8737f94875c5d42e2696b0bf",
+        "first_frame_metadata": {
+          "provider": "VibeVoice Realtime 0.5B",
+          "device": "cpu",
+          "synthesis_mode": "native_streaming",
+          "elapsed_seconds": 0.2248567360220477,
+          "load_seconds": 0.0,
+          "first_waveform_seconds": 0.2172214059974067
+        },
+        "chunk_arrivals": [
+          {
+            "elapsed_seconds": 0.22626271200715564,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 0.6550995970028453,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.0920487779949326,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.5396660520054866,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.9669311770121567,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.4053094210103154,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.924979509989498,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.365303414990194,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.803014589007944,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.251783312007319,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.526873844006332,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.814028066990431,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.174220588000026,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.449939095997252,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.734880061994772,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.010566020006081,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.285185093991458,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.561103482003091,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.9172732529987115,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.1947782000061125,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.480151369003579,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.765205453993985,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.04097170001478,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.326368807989638,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.601785219012527,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.87828400201397,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.164688190998277,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.450498193007661,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.737935412995284,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.023881766013801,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.31058108698926,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.60572825599229,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.89078441800666,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 11.176343175000511,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 11.463015043991618,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 11.748376797011588,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 12.023653532000026,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 12.319543438992696,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 12.594569259992568,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 12.880945293989498,
+            "samples": 3200
+          }
+        ],
+        "producer_health_at_first_frame": {
+          "service": "local-voice",
+          "device": "cpu",
+          "pid": 833294,
+          "loaded": [
+            "tts"
+          ],
+          "tts_profile": "VibeVoice Realtime 0.5B",
+          "tts_voice": "en-Carter_man",
+          "synthesis_mode": "native_streaming",
+          "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+          "assets_state": "verified",
+          "retained_candidates": [
+            "Ming 3 Tiny",
+            "VibeVoice Realtime 0.5B",
+            "Kokoro 82M",
+            "Supertonic 3"
+          ],
+          "other_profiles": "not_configured",
+          "synthesis_active": true,
+          "active_producers": 1,
+          "producer_stopped": false,
+          "synthesis_quarantined": false,
+          "completed_producers": 5,
+          "last_producer_seconds": 8.403187190007884,
+          "last_producer_cancelled": false
+        },
+        "decoded_before_producer_exit_observed": true,
+        "worker_rss_before_bytes": 5897281536,
+        "worker_rss_after_bytes": 5907709952,
+        "worker_process_lifetime_peak_rss_bytes": 7829159936,
+        "worker_cpu_seconds": 50.56
+      },
+      {
+        "text": "Kinaiya can keep our conversation available while the independent agent works.",
+        "request_to_first_decoded_pcm_seconds": 0.2265887230169028,
+        "request_to_first_non_silent_frame_seconds": 1.5303614640142769,
+        "request_to_complete_seconds": 11.842865219019586,
+        "audio_seconds": 4.266666666666667,
+        "rtf_including_http": 2.7756715357077155,
+        "sample_rate": 24000,
+        "samples": 102400,
+        "chunks": 32,
+        "pcm_sha256": "9daac1b706572cc4f39ae5136c67aa74117a70c10f0da21823961a8253821313",
+        "first_frame_metadata": {
+          "provider": "VibeVoice Realtime 0.5B",
+          "device": "cpu",
+          "synthesis_mode": "native_streaming",
+          "elapsed_seconds": 0.2249878339935094,
+          "load_seconds": 0.0,
+          "first_waveform_seconds": 0.21750397700816393
+        },
+        "chunk_arrivals": [
+          {
+            "elapsed_seconds": 0.2265887230169028,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 0.6660222780192271,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.0928118629963137,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.5303614640142769,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.9676041700004134,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.405633325019153,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.9457988340000156,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.3743326459953096,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.8220892010140233,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.260174933006056,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.5451695550000295,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.820245380018605,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.187080197996693,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.482782033010153,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.767972796020331,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.053956927004037,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.34065486601321,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.626841050019721,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.893697366002016,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.178726825019112,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.4641564690100495,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.7515494039980695,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.036806835007155,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.332519546995172,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.617923148005502,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.90317292799591,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.188212253997335,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.474565136013553,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.770064893993549,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.048418980994029,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.334109224000713,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.619112999003846,
+            "samples": 3200
+          }
+        ],
+        "producer_health_at_first_frame": {
+          "service": "local-voice",
+          "device": "cpu",
+          "pid": 833294,
+          "loaded": [
+            "tts"
+          ],
+          "tts_profile": "VibeVoice Realtime 0.5B",
+          "tts_voice": "en-Carter_man",
+          "synthesis_mode": "native_streaming",
+          "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+          "assets_state": "verified",
+          "retained_candidates": [
+            "Ming 3 Tiny",
+            "VibeVoice Realtime 0.5B",
+            "Kokoro 82M",
+            "Supertonic 3"
+          ],
+          "other_profiles": "not_configured",
+          "synthesis_active": true,
+          "active_producers": 1,
+          "producer_stopped": false,
+          "synthesis_quarantined": false,
+          "completed_producers": 6,
+          "last_producer_seconds": 13.536388779990375,
+          "last_producer_cancelled": false
+        },
+        "decoded_before_producer_exit_observed": true,
+        "worker_rss_before_bytes": 5907709952,
+        "worker_rss_after_bytes": 5914664960,
+        "worker_process_lifetime_peak_rss_bytes": 7829159936,
+        "worker_cpu_seconds": 43.97
+      },
+      {
+        "text": "I am here. What would you like to do?",
+        "request_to_first_decoded_pcm_seconds": 0.21803322198684327,
+        "request_to_first_non_silent_frame_seconds": 2.9333283609885257,
+        "request_to_complete_seconds": 8.405440810980508,
+        "audio_seconds": 3.2,
+        "rtf_including_http": 2.626700253431409,
+        "sample_rate": 24000,
+        "samples": 76800,
+        "chunks": 24,
+        "pcm_sha256": "75aa8e0d3f24732769b0f78e8b650447d175637e2cdbf0704b2459af3cc5a109",
+        "first_frame_metadata": {
+          "provider": "VibeVoice Realtime 0.5B",
+          "device": "cpu",
+          "synthesis_mode": "native_streaming",
+          "elapsed_seconds": 0.2165409750014078,
+          "load_seconds": 0.0,
+          "first_waveform_seconds": 0.2140057449869346
+        },
+        "chunk_arrivals": [
+          {
+            "elapsed_seconds": 0.21803322198684327,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 0.656381941982545,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.093466845981311,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.5305514599895105,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.967535940988455,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.4047482539899647,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.9333283609885257,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.3723251039918978,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.8200100469985045,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.249836379982298,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.534834257996408,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.809407193999505,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.155369349988177,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.453046584007097,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.738561556994682,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.038477825990412,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.324003896996146,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.609231815004023,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.895168941002339,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.170076957991114,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.455006631003926,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.732003721990623,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.017549810989294,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.292494107998209,
+            "samples": 3200
+          }
+        ],
+        "producer_health_at_first_frame": {
+          "service": "local-voice",
+          "device": "cpu",
+          "pid": 833294,
+          "loaded": [
+            "tts"
+          ],
+          "tts_profile": "VibeVoice Realtime 0.5B",
+          "tts_voice": "en-Carter_man",
+          "synthesis_mode": "native_streaming",
+          "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+          "assets_state": "verified",
+          "retained_candidates": [
+            "Ming 3 Tiny",
+            "VibeVoice Realtime 0.5B",
+            "Kokoro 82M",
+            "Supertonic 3"
+          ],
+          "other_profiles": "not_configured",
+          "synthesis_active": true,
+          "active_producers": 1,
+          "producer_stopped": false,
+          "synthesis_quarantined": false,
+          "completed_producers": 7,
+          "last_producer_seconds": 11.838869631988928,
+          "last_producer_cancelled": false
+        },
+        "decoded_before_producer_exit_observed": true,
+        "worker_rss_before_bytes": 5914664960,
+        "worker_rss_after_bytes": 5927522304,
+        "worker_process_lifetime_peak_rss_bytes": 7829159936,
+        "worker_cpu_seconds": 30.730000000000018
+      },
+      {
+        "text": "The synthetic report contains three items, and the next review is at ten thirty.",
+        "request_to_first_decoded_pcm_seconds": 0.21660660798079334,
+        "request_to_first_non_silent_frame_seconds": 2.903944538003998,
+        "request_to_complete_seconds": 13.496753074985463,
+        "audio_seconds": 5.466666666666667,
+        "rtf_including_http": 2.46891824542417,
+        "sample_rate": 24000,
+        "samples": 131200,
+        "chunks": 41,
+        "pcm_sha256": "84040347ca6db4040b1b46a70d6b26ae9781fbe836ba223e3a4a5ce8fb626048",
+        "first_frame_metadata": {
+          "provider": "VibeVoice Realtime 0.5B",
+          "device": "cpu",
+          "synthesis_mode": "native_streaming",
+          "elapsed_seconds": 0.21488634799607098,
+          "load_seconds": 0.0,
+          "first_waveform_seconds": 0.21223278698744252
+        },
+        "chunk_arrivals": [
+          {
+            "elapsed_seconds": 0.21660660798079334,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 0.6444966709823348,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.0818897929857485,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.5192754250019789,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.9466715999878943,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.3842162719811313,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.903944538003998,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.3413557169842534,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.779616804997204,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.217099222994875,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.492604511004174,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.767904695007019,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.147411529003875,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.443130259984173,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.7282220470078755,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.013180492998799,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.299556574987946,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.584483118989738,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.93027629898279,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.2062331390043255,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.491297153988853,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.767902139981743,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.05324335800833,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.329284667997854,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.614965957996901,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.89002827598597,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.165149384003598,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.441034769988619,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.715685912000481,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.99028491199715,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.275692097988212,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.550622832990484,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.826420865982072,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 11.112565019982867,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 11.388197291002143,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 11.673804018006194,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 11.950554601004114,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 12.23586497400538,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 12.510282289993484,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 12.794947554008104,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 13.079832810995867,
+            "samples": 3200
+          }
+        ],
+        "producer_health_at_first_frame": {
+          "service": "local-voice",
+          "device": "cpu",
+          "pid": 833294,
+          "loaded": [
+            "tts"
+          ],
+          "tts_profile": "VibeVoice Realtime 0.5B",
+          "tts_voice": "en-Carter_man",
+          "synthesis_mode": "native_streaming",
+          "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+          "assets_state": "verified",
+          "retained_candidates": [
+            "Ming 3 Tiny",
+            "VibeVoice Realtime 0.5B",
+            "Kokoro 82M",
+            "Supertonic 3"
+          ],
+          "other_profiles": "not_configured",
+          "synthesis_active": true,
+          "active_producers": 1,
+          "producer_stopped": false,
+          "synthesis_quarantined": false,
+          "completed_producers": 8,
+          "last_producer_seconds": 8.402649408002617,
+          "last_producer_cancelled": false
+        },
+        "decoded_before_producer_exit_observed": true,
+        "worker_rss_before_bytes": 5927522304,
+        "worker_rss_after_bytes": 5937119232,
+        "worker_process_lifetime_peak_rss_bytes": 7829159936,
+        "worker_cpu_seconds": 50.31999999999999
+      },
+      {
+        "text": "Kinaiya can keep our conversation available while the independent agent works.",
+        "request_to_first_decoded_pcm_seconds": 0.22662332199979573,
+        "request_to_first_non_silent_frame_seconds": 0.22662332199979573,
+        "request_to_complete_seconds": 10.14308732401696,
+        "audio_seconds": 3.8666666666666667,
+        "rtf_including_http": 2.6232122389699035,
+        "sample_rate": 24000,
+        "samples": 92800,
+        "chunks": 29,
+        "pcm_sha256": "9db3cdd567efcf85b70a671844d0ef6eed6719a634742dae4035e20f9458ce13",
+        "first_frame_metadata": {
+          "provider": "VibeVoice Realtime 0.5B",
+          "device": "cpu",
+          "synthesis_mode": "native_streaming",
+          "elapsed_seconds": 0.2252497049921658,
+          "load_seconds": 0.0,
+          "first_waveform_seconds": 0.21871584100881591
+        },
+        "chunk_arrivals": [
+          {
+            "elapsed_seconds": 0.22662332199979573,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 0.6564508540031966,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.0944875400164165,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.53154670400545,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.9785388029995374,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.4066406120255124,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.924991003004834,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.3533800540026277,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.791788990027271,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.24034023200511,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.516713354998501,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.802571086998796,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.1592301150085405,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.434218631009571,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.719425225019222,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.995532853004988,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.291768212016905,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.578098778001731,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.853294705011649,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.131111051014159,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.40891375602223,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.7147696360189,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.9925563709985,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.2781672560086,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.55520753201563,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.842991602024995,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.164509649999673,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.449958571000025,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.73564618601813,
+            "samples": 3200
+          }
+        ],
+        "producer_health_at_first_frame": {
+          "service": "local-voice",
+          "device": "cpu",
+          "pid": 833294,
+          "loaded": [
+            "tts"
+          ],
+          "tts_profile": "VibeVoice Realtime 0.5B",
+          "tts_voice": "en-Carter_man",
+          "synthesis_mode": "native_streaming",
+          "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+          "assets_state": "verified",
+          "retained_candidates": [
+            "Ming 3 Tiny",
+            "VibeVoice Realtime 0.5B",
+            "Kokoro 82M",
+            "Supertonic 3"
+          ],
+          "other_profiles": "not_configured",
+          "synthesis_active": true,
+          "active_producers": 1,
+          "producer_stopped": false,
+          "synthesis_quarantined": false,
+          "completed_producers": 9,
+          "last_producer_seconds": 13.488923444005195,
+          "last_producer_cancelled": false
+        },
+        "decoded_before_producer_exit_observed": true,
+        "worker_rss_before_bytes": 5937119232,
+        "worker_rss_after_bytes": 5945352192,
+        "worker_process_lifetime_peak_rss_bytes": 7829159936,
+        "worker_cpu_seconds": 37.44999999999999
+      }
+    ],
+    "warm_summary": {
+      "samples": 9,
+      "statistics": {
+        "request_to_first_decoded_pcm_seconds": {
+          "minimum": 0.21660660798079334,
+          "median": 0.22656264700344764,
+          "maximum": 0.2274573010217864
+        },
+        "request_to_complete_seconds": {
+          "minimum": 8.405440810980508,
+          "median": 11.713080107001588,
+          "maximum": 13.543983367999317
+        },
+        "rtf_including_http": {
+          "minimum": 2.46891824542417,
+          "median": 2.626700253431409,
+          "maximum": 2.7756715357077155
+        }
+      },
+      "percentile_claim": null
+    },
+    "physical_audible_latency_seconds": null,
+    "client_playback_measured": false,
+    "native_inference_cancellation_measured": true,
+    "cancellation": {
+      "boundary": "HTTP response close to observed producer-thread exit; polled at 50ms",
+      "close_to_observed_producer_exit_seconds": 0.46434170298743993,
+      "health_before": {
+        "service": "local-voice",
+        "device": "cpu",
+        "pid": 833294,
+        "loaded": [
+          "tts"
+        ],
+        "tts_profile": "VibeVoice Realtime 0.5B",
+        "tts_voice": "en-Carter_man",
+        "synthesis_mode": "native_streaming",
+        "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+        "assets_state": "verified",
+        "retained_candidates": [
+          "Ming 3 Tiny",
+          "VibeVoice Realtime 0.5B",
+          "Kokoro 82M",
+          "Supertonic 3"
+        ],
+        "other_profiles": "not_configured",
+        "synthesis_active": false,
+        "active_producers": 0,
+        "producer_stopped": true,
+        "synthesis_quarantined": false,
+        "completed_producers": 10,
+        "last_producer_seconds": 10.141423885012046,
+        "last_producer_cancelled": false
+      },
+      "health_after_first_frame": {
+        "service": "local-voice",
+        "device": "cpu",
+        "pid": 833294,
+        "loaded": [
+          "tts"
+        ],
+        "tts_profile": "VibeVoice Realtime 0.5B",
+        "tts_voice": "en-Carter_man",
+        "synthesis_mode": "native_streaming",
+        "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+        "assets_state": "verified",
+        "retained_candidates": [
+          "Ming 3 Tiny",
+          "VibeVoice Realtime 0.5B",
+          "Kokoro 82M",
+          "Supertonic 3"
+        ],
+        "other_profiles": "not_configured",
+        "synthesis_active": true,
+        "active_producers": 1,
+        "producer_stopped": false,
+        "synthesis_quarantined": false,
+        "completed_producers": 10,
+        "last_producer_seconds": 10.141423885012046,
+        "last_producer_cancelled": false
+      },
+      "health_after_exit": {
+        "service": "local-voice",
+        "device": "cpu",
+        "pid": 833294,
+        "loaded": [
+          "tts"
+        ],
+        "tts_profile": "VibeVoice Realtime 0.5B",
+        "tts_voice": "en-Carter_man",
+        "synthesis_mode": "native_streaming",
+        "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+        "assets_state": "verified",
+        "retained_candidates": [
+          "Ming 3 Tiny",
+          "VibeVoice Realtime 0.5B",
+          "Kokoro 82M",
+          "Supertonic 3"
+        ],
+        "other_profiles": "not_configured",
+        "synthesis_active": false,
+        "active_producers": 0,
+        "producer_stopped": true,
+        "synthesis_quarantined": false,
+        "completed_producers": 11,
+        "last_producer_seconds": 0.6707993530144449,
+        "last_producer_cancelled": true
+      },
+      "subsequent_synthesis": {
+        "text": "I am here. What would you like to do?",
+        "request_to_first_decoded_pcm_seconds": 0.2369805210037157,
+        "request_to_first_non_silent_frame_seconds": 2.0056828999950085,
+        "request_to_complete_seconds": 10.130298564996338,
+        "audio_seconds": 3.3333333333333335,
+        "rtf_including_http": 3.039089569498901,
+        "sample_rate": 24000,
+        "samples": 80000,
+        "chunks": 25,
+        "pcm_sha256": "9f4aed8d5899fc6e9c50a5275e3f2a995cedf9f1d1bef961595d93d9f3e934fa",
+        "first_frame_metadata": {
+          "provider": "VibeVoice Realtime 0.5B",
+          "device": "cpu",
+          "synthesis_mode": "native_streaming",
+          "elapsed_seconds": 0.23575321698444895,
+          "load_seconds": 0.0,
+          "first_waveform_seconds": 0.22905382901080884
+        },
+        "chunk_arrivals": [
+          {
+            "elapsed_seconds": 0.2369805210037157,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 0.6779875229985919,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.1258260339964181,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.56453805800993,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.0056828999950085,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.4430391670030076,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.9653045920131262,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.4146458150062244,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.852623776998371,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.289062691008439,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.563924343994586,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.848880642995937,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.194919914996717,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.489900949003641,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.775033929006895,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.060164880007505,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.334916619991418,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.6098268310015555,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.904778622993035,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.181230032001622,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.4665873530029785,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.754351242008852,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.04180466599064,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.32716595599777,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.613349415012635,
+            "samples": 3200
+          }
+        ],
+        "producer_health_at_first_frame": {
+          "service": "local-voice",
+          "device": "cpu",
+          "pid": 833294,
+          "loaded": [
+            "tts"
+          ],
+          "tts_profile": "VibeVoice Realtime 0.5B",
+          "tts_voice": "en-Carter_man",
+          "synthesis_mode": "native_streaming",
+          "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+          "assets_state": "verified",
+          "retained_candidates": [
+            "Ming 3 Tiny",
+            "VibeVoice Realtime 0.5B",
+            "Kokoro 82M",
+            "Supertonic 3"
+          ],
+          "other_profiles": "not_configured",
+          "synthesis_active": true,
+          "active_producers": 1,
+          "producer_stopped": false,
+          "synthesis_quarantined": false,
+          "completed_producers": 11,
+          "last_producer_seconds": 0.6707993530144449,
+          "last_producer_cancelled": true
+        },
+        "decoded_before_producer_exit_observed": true,
+        "worker_rss_before_bytes": 5947953152,
+        "worker_rss_after_bytes": 5959249920,
+        "worker_process_lifetime_peak_rss_bytes": 7829159936,
+        "worker_cpu_seconds": 37.30000000000001
+      },
+      "physical_audio_stop_measured": false
+    },
+    "limitations": [
+      "Synthetic HTTP/PCM screen only; no physical microphone/speaker or hearing measurement.",
+      "Transport frame count alone is not native streaming; first-frame health records whether production was still active.",
+      "No loaded Decisions/Converse contention comparison or M2 performance acceptance.",
+      "A single cold process observation and disclosed warm repetitions; no p95 claim."
+    ]
+  },
+  "warm_summary": {
+    "request_to_first_decoded_pcm_seconds": {
+      "observations": 9,
+      "minimum": 0.21660660798079334,
+      "median": 0.22656264700344764,
+      "maximum": 0.2274573010217864
+    },
+    "request_to_first_non_silent_frame_seconds": {
+      "observations": 9,
+      "minimum": 0.22662332199979573,
+      "median": 2.3850957520189695,
+      "maximum": 2.9333283609885257
+    },
+    "request_to_complete_seconds": {
+      "observations": 9,
+      "minimum": 8.405440810980508,
+      "median": 11.713080107001588,
+      "maximum": 13.543983367999317
+    },
+    "rtf_including_http": {
+      "observations": 9,
+      "minimum": 2.46891824542417,
+      "median": 2.626700253431409,
+      "maximum": 2.7756715357077155
+    }
+  },
+  "actual_owned_resource_proof": {
+    "schema": 1,
+    "profile": "VibeVoice Realtime 0.5B",
+    "scope": "Actual owned CPU voice worker and HTTP PCM; scripted text plus authenticated ASGI controls",
+    "started_utc": "2026-10-28T13:17:41.567942+00:00",
+    "passed": true,
+    "limits": [
+      "No physical playback or microphone",
+      "No real cloud inference or Agent task execution",
+      "No GPU release/reservation proof",
+      "No latency benchmark or percentile claim",
+      "Only disposable reserved ports; existing live ports are never contacted"
+    ],
+    "reserved_ports_initially_unoccupied": [
+      18960,
+      18961,
+      18962,
+      18966
+    ],
+    "source": {
+      "commit": "d67dafe17812588a984b7c228eecf103c78e3280",
+      "files_sha256": {
+        "packages/providers/voice_worker.py": "f4a11b4ee6cb86f12775305c928d5f36220ed03566572c10f4d1e08f11b8d5c8",
+        "packages/providers/tts_backends.py": "96e19c069c8b294d20820f0804e4085830f2e3436456fb1de6f8077c2bb99e1f",
+        "packages/providers/supertonic3_manifest.json": "22ffec6f2416bdf6cb137c252adc2c8ae741efb4486a07c168c40060582c4c27",
+        "scripts/probe_retained_resources.py": "1d516beff97904289a7902056522ec5b1af4fded022cf5ebe546dccefe4deca4",
+        "packages/providers/vibevoice_backend.py": "d15bb326f5a03e437299f6e1a876bb01a4fdf38b4965ddd6b35a91cc7354d8c4",
+        "packages/providers/vibevoice_manifest.json": "969b92bf6ae0e7e43df9092325df46fd3cdfe3b4725a6f8a247a85bbfa31dc4b",
+        "services/resources/launcher.py": "567fec78d207e2e440d646711eb276edaf487ff4697e104260b0ebd8ff298475",
+        "services/converse/api.py": "57716d45cefbcc55993c60b1ccdae2d40e1369e083aab51010de54fdbda0751a",
+        "services/converse/runtime.py": "f7ab35fd1e43511c95d149486684bfa1fde86875bf50a1663218696ef3d1634c",
+        "packages/providers/speech.py": "49b8fd18fbe1667de91402826942f2a10c75421b0f3c70a512e0584a3a1accb4",
+        "services/resources/coordinator.py": "6aad3c3ff77aca3801c9f724b52ba9dedd94683fb5c91bc76e5f5799bf4b63f1",
+        "packages/resources/processes.py": "f5c789f7929d7e8531c2464f633dd17a122fc674c2abec75ef448579a744c66b"
+      },
+      "commit_after_probe": "d67dafe17812588a984b7c228eecf103c78e3280"
+    },
+    "before_handoff": {
+      "identity": {
+        "pid": 938128,
+        "start_ticks": 17170031
+      },
+      "api_ready_health": {
+        "service": "local-voice",
+        "pid": 938128,
+        "device": "cpu",
+        "loaded": [],
+        "tts_profile": "VibeVoice Realtime 0.5B",
+        "tts_voice": "en-Carter_man",
+        "synthesis_mode": "native_streaming",
+        "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+        "assets_state": "not_checked"
+      },
+      "loaded_health": {
+        "service": "local-voice",
+        "pid": 938128,
+        "device": "cpu",
+        "loaded": [
+          "tts"
+        ],
+        "tts_profile": "VibeVoice Realtime 0.5B",
+        "tts_voice": "en-Carter_man",
+        "synthesis_mode": "native_streaming",
+        "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+        "assets_state": "verified"
+      },
+      "worker": {
+        "state": "running",
+        "ready": true,
+        "readiness": "verified",
+        "owned_pid": 938128,
+        "owned_pgid": 938128,
+        "rss_bytes": 5870866432,
+        "group_rss_bytes": 5870866432,
+        "stop_evidence": null
+      },
+      "audio": {
+        "frames": 20,
+        "samples": 64000,
+        "sample_rate": 24000,
+        "audio_seconds": 2.6666666666666665,
+        "nonzero_samples": 63009,
+        "pcm_sha256": "9e6f50ffc7f7a810b5c976a8a67bde59705fb04c2cdf1b25393006b032a4a246",
+        "synthesis_mode": "native_streaming",
+        "timing_measurement": false
+      },
+      "memory_available_bytes": 43149017088
+    },
+    "handoff": {
+      "phase": "local_work",
+      "worker": {
+        "state": "stopped",
+        "ready": false,
+        "readiness": "verified",
+        "owned_pid": 938128,
+        "owned_pgid": null,
+        "rss_bytes": null,
+        "group_rss_bytes": null,
+        "stop_evidence": {
+          "pid": 938128,
+          "pgid": 938128,
+          "rss_before_bytes": 5870866432,
+          "group_rss_before_bytes": 5870866432,
+          "mem_available_bytes": 43149340672,
+          "term_sent": true,
+          "kill_sent": false,
+          "reaped": true,
+          "group_empty": true,
+          "residual_pids": [],
+          "ownership_verified": true,
+          "duration_s": 0.6319629530189559,
+          "at": "2026-10-28T13:18:00.429056+00:00"
+        }
+      },
+      "required_bytes": 134217728,
+      "restore_high_water_bytes": 6005084160,
+      "memory_available_bytes": 48804474880,
+      "retained_pidfd_exited": true,
+      "old_identity_absent": true,
+      "old_speech_http": 409,
+      "bound_task_status": "scripted_running"
+    },
+    "restored": {
+      "identity": {
+        "pid": 938244,
+        "start_ticks": 17171883
+      },
+      "api_ready_health": {
+        "service": "local-voice",
+        "pid": 938244,
+        "device": "cpu",
+        "loaded": [],
+        "tts_profile": "VibeVoice Realtime 0.5B",
+        "tts_voice": "en-Carter_man",
+        "synthesis_mode": "native_streaming",
+        "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+        "assets_state": "not_checked"
+      },
+      "loaded_health": {
+        "service": "local-voice",
+        "pid": 938244,
+        "device": "cpu",
+        "loaded": [
+          "tts"
+        ],
+        "tts_profile": "VibeVoice Realtime 0.5B",
+        "tts_voice": "en-Carter_man",
+        "synthesis_mode": "native_streaming",
+        "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+        "assets_state": "verified"
+      },
+      "worker": {
+        "state": "running",
+        "ready": true,
+        "readiness": "verified",
+        "owned_pid": 938244,
+        "owned_pgid": 938244,
+        "rss_bytes": 5871312896,
+        "group_rss_bytes": 5871312896,
+        "stop_evidence": {
+          "pid": 938128,
+          "pgid": 938128,
+          "rss_before_bytes": 5870866432,
+          "group_rss_before_bytes": 5870866432,
+          "mem_available_bytes": 43149340672,
+          "term_sent": true,
+          "kill_sent": false,
+          "reaped": true,
+          "group_empty": true,
+          "residual_pids": [],
+          "ownership_verified": true,
+          "duration_s": 0.6319629530189559,
+          "at": "2026-10-28T13:18:00.429056+00:00"
+        }
+      },
+      "audio": {
+        "frames": 28,
+        "samples": 89600,
+        "sample_rate": 24000,
+        "audio_seconds": 3.7333333333333334,
+        "nonzero_samples": 71573,
+        "pcm_sha256": "6f745cba42d95ff8a38cf7878c3b354192e37f0e4b8db3f1b7ed41034aadee21",
+        "synthesis_mode": "native_streaming",
+        "timing_measurement": false
+      },
+      "old_speech_http": 409
+    },
+    "owner_off_restore": {
+      "owner_enabled": false,
+      "phase": "off",
+      "worker": {
+        "state": "stopped",
+        "ready": false,
+        "readiness": "verified",
+        "owned_pid": 938244,
+        "owned_pgid": null,
+        "rss_bytes": null,
+        "group_rss_bytes": null,
+        "stop_evidence": {
+          "pid": 938244,
+          "pgid": 938244,
+          "rss_before_bytes": 5871312896,
+          "group_rss_before_bytes": 5871312896,
+          "mem_available_bytes": 43008851968,
+          "term_sent": true,
+          "kill_sent": false,
+          "reaped": true,
+          "group_empty": true,
+          "residual_pids": [],
+          "ownership_verified": true,
+          "duration_s": 0.6320026589964982,
+          "at": "2026-10-28T13:18:18.799019+00:00"
+        }
+      },
+      "retained_pidfd_exited": true
+    },
+    "synthetic_text_calls": 1,
+    "resource_journal_events": 10,
+    "cleanup": {
+      "manager_closed": true,
+      "all_owned_workers_stopped": true,
+      "reserved_voice_port_released": true,
+      "private_temporary_data_removed": true
+    },
+    "finished_utc": "2026-10-28T13:18:18.874282+00:00"
+  },
+  "actual_synthetic_tts_to_stt": {
+    "kind": "synthetic_http_stt_roundtrip",
+    "passed": true,
+    "physical_microphone": false,
+    "human_listening": false,
+    "wav_sha256": "30cf6c026625dae427657737b10ce47e5a582ad03e074ced8807a1b7382922ed",
+    "source_commit": "d67dafe17812588a984b7c228eecf103c78e3280",
+    "health_before": {
+      "service": "local-voice",
+      "device": "cpu",
+      "pid": 938584,
+      "loaded": [],
+      "tts_profile": "VibeVoice Realtime 0.5B",
+      "tts_voice": "en-Carter_man",
+      "synthesis_mode": "native_streaming",
+      "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+      "assets_state": "not_checked",
+      "retained_candidates": [
+        "Ming 3 Tiny",
+        "VibeVoice Realtime 0.5B",
+        "Kokoro 82M",
+        "Supertonic 3"
+      ],
+      "other_profiles": "not_configured",
+      "synthesis_active": false,
+      "active_producers": 0,
+      "producer_stopped": true,
+      "synthesis_quarantined": false,
+      "completed_producers": 0,
+      "last_producer_seconds": null,
+      "last_producer_cancelled": null
+    },
+    "transcription": {
+      "text": "I am here. What would you like to do?",
+      "language": "en",
+      "final": true,
+      "provider": "faster-whisper",
+      "model": "tiny.en",
+      "stt_seconds": 0.8973313899768982,
+      "retained_audio": false
+    },
+    "request_seconds": 0.8999269029882271,
+    "health_after": {
+      "service": "local-voice",
+      "device": "cpu",
+      "pid": 938584,
+      "loaded": [
+        "stt"
+      ],
+      "tts_profile": "VibeVoice Realtime 0.5B",
+      "tts_voice": "en-Carter_man",
+      "synthesis_mode": "native_streaming",
+      "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+      "assets_state": "not_checked",
+      "retained_candidates": [
+        "Ming 3 Tiny",
+        "VibeVoice Realtime 0.5B",
+        "Kokoro 82M",
+        "Supertonic 3"
+      ],
+      "other_profiles": "not_configured",
+      "synthesis_active": false,
+      "active_producers": 0,
+      "producer_stopped": true,
+      "synthesis_quarantined": false,
+      "completed_producers": 0,
+      "last_producer_seconds": null,
+      "last_producer_cancelled": null
+    },
+    "owned_process_reaped": true,
+    "private_temp_removed": true
+  },
+  "regression": {
+    "python3.12": {
+      "command": "env -u PYTHONPATH .../supertonic-ci-venv/bin/pytest -m 'not live' -q",
+      "passed": 1193,
+      "warnings": 1,
+      "seconds": 190.92,
+      "log_sha256": "f577f66da63aab663e1dee05d3be4bd19f0b1adab1dbd7639536f404d4b0199d"
+    },
+    "python3.11_focused": {
+      "command": "PYTHONPATH=. .../vibevoice-py311-venv/bin/python -m pytest -q tests/unit/test_vibevoice_backend.py tests/unit/test_vibevoice_runtime_build.py tests/unit/test_tts_backends.py tests/integration/test_converse_speech_cancel.py",
+      "passed": 144,
+      "seconds": 7.73,
+      "log_sha256": "9c881827638848705a0b2e016b18fcc6f231fc86975ca4e07b29fd3932b48bed"
+    },
+    "local_python3.11_full_earlier": {
+      "passed": 1106,
+      "failed": 48,
+      "seconds": 176.05,
+      "cause": "Local standalone Python3.11.15 fcntl module does not expose F_ADD_SEALS. Direct sealed bootstrap construction raises AttributeError and affected trusted workers fail closed. No fallback, isolation weakening or test removal applied. GitHub Python3.11 runner supplies the required sealing API.",
+      "log_sha256": "d0838a45c1205757f7c015ab79dbde2c8870b41c36c0fb384b4e5f3d98adb4c3"
+    },
+    "ruff": {
+      "lint": "passed",
+      "format_check": "204 files already formatted"
+    },
+    "github_ci": "Pending updated PR71 push; original f941fa7 run40643454711 passed Python3.12/Flutter but failed two Python3.11 tests corrected in020b262; see preserved original evidence.",
+    "failed_probe_attempts": [
+      "First Torch2.14 synthesis returned sanitized503 because its restricted unpickler refused legacy ModelOutput SETITEMS; corrected through validated inert translation.",
+      "A direct script invocation failed before worker startup because the optional environment did not have the source package installed; successful probes use python -m scripts.probe_retained_voice from repository root.",
+      "An initial local focused test command named a nonexistent test file; no tests ran. Corrected command above passed144."
+    ]
+  },
+  "review": {
+    "reviewer": "Independent Codex minimal_runtime_review after user reauthorization",
+    "source_commit": "d67dafe17812588a984b7c228eecf103c78e3280",
+    "finding_count": 0,
+    "focused_tests": {
+      "passed": 164,
+      "seconds": 20.06
+    },
+    "verified": [
+      "All100tensor/cache state records identical",
+      "All22wheel source hashes, MIT license, RECORD entries and provenance match",
+      "Recorded native cancellation and resource lifecycle results"
+    ],
+    "limits": [
+      "No heavy inference rerun",
+      "No exploit testing",
+      "No full regression rerun by reviewer",
+      "No fresh Python3.11 run by reviewer",
+      "Neither human approval nor a clean dependency audit"
+    ],
+    "historical_muse_review": "Genuine visible Muse Spark1.3Contributor/xhigh static review69d5322 predates later changes; no tests run by that review"
+  },
+  "dependency_audit": {
+    "passed": false,
+    "installed_environment_raw_sha256": "6956239a853c187be025e8081390c3d15f6241bd44585c4a31ca7a08fce9056a",
+    "affected_packages": [
+      {
+        "name": "transformers",
+        "version": "4.51.3",
+        "records": 28,
+        "advisory_ids": [
+          "PYSEC-2025-211",
+          "PYSEC-2025-212",
+          "PYSEC-2025-213",
+          "PYSEC-2025-214",
+          "PYSEC-2025-215",
+          "PYSEC-2025-216",
+          "PYSEC-2025-217",
+          "PYSEC-2025-218",
+          "PYSEC-2026-1977",
+          "PYSEC-2026-1980",
+          "PYSEC-2026-1981",
+          "PYSEC-2026-1983",
+          "PYSEC-2026-1986",
+          "PYSEC-2026-1988",
+          "PYSEC-2026-2288",
+          "PYSEC-2026-2289",
+          "PYSEC-2026-2290",
+          "PYSEC-2026-3929",
+          "PYSEC-2026-4174"
+        ],
+        "fix_versions": [
+          "4.52.1",
+          "4.53.0",
+          "5.0.0",
+          "5.0.0rc3",
+          "5.10.0",
+          "5.3.0",
+          "5.5.0"
+        ]
+      }
+    ],
+    "skipped": [
+      {
+        "name": "kinaiya-vibevoice-runtime",
+        "reason": "Dependency not found on PyPI and could not be audited: kinaiya-vibevoice-runtime (1.0.0+kinaiya.1)"
+      },
+      {
+        "name": "torch",
+        "reason": "Dependency not found on PyPI and could not be audited: torch (2.14.1+cpu)"
+      }
+    ],
+    "interpretation": "Remaining28Transformerrecords/19distinctIDs are unresolved. Exact CPU Torch and derivative are skipped, not clean. Earlier independent static reachability review did not identify a trigger in the fixed offlineSDPAprofile; that is not audit clearance or proof against all reachable defects. Separate5.21port investigation is ongoing."
+  },
+  "orchestration": {
+    "current_user_instruction": "Codex subagents and actual visible Muse CLI subagents; Muse Spark1.3Contributor max/xhigh",
+    "muse_model": "muse-spark-1.3-contributor",
+    "contributor_mode": "on",
+    "reasoning_effort": "xhigh",
+    "implementation_proposal": "Actual visible Muse CLI returned initial minimal-wheel patch; lead applied, hardened, tested and committed it. Initial native-tools inspection hit its one-step cap; a bad workspace-equals-worktree invocation failed before any API call; a corrected CLI continuation returned the patch. Genuine events and exit statuses preserved.",
+    "new_paid_muse_calls": "Not admitted because the full-context reservation would exceed the unchanged22USD admission ceiling."
+  },
+  "meta_budget": {
+    "limit_usd": 25,
+    "admission_limit_usd": 22,
+    "billing_reported_usd": null,
+    "contributor_estimated_usd": 1.0084956160000003,
+    "admission_estimated_usd": 20.234957600000012,
+    "reserved_usd": 1.5558100499999998,
+    "admission_policy": "2x Contributor catalog rates; uncached input; full-context reservations; $3 buffer"
+  },
+  "limits": [
+    "Synthetic fixed public texts/assets only; no private user conversation, prototype, credentials or lab data supplied to Contributor",
+    "No physical audible-onset or physical cancellation measurement",
+    "No p95 or listening-quality claim",
+    "CPU synthesis remains slower than realtime; early chunks may be silent",
+    "Not a controlled comparison between old and new environments; diffusion outputs and host load differ",
+    "No GPU or loaded Converse/Decisions contention acceptance",
+    "Original environment and measurements preserved separately",
+    "Running reference services, provider configuration and defaults unchanged",
+    "No security or production acceptance; issue70 and fullM2 remain open"
+  ]
+}
