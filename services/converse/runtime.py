@@ -62,6 +62,8 @@ class SpeechOperation:
     queue: asyncio.Queue
     cancelled: bool = False
     stopped: asyncio.Event = field(default_factory=asyncio.Event)
+    cleanup: asyncio.Task | None = None
+    cleanup_failed: bool = False
 
     def cancel(self):
         if self.cancelled:
@@ -77,6 +79,8 @@ class SpeechOperation:
 
 
 class ConverseRuntime:
+    _speech_cleanup_timeout = 5.0
+
     def __init__(
         self,
         journal,
@@ -225,6 +229,18 @@ class ConverseRuntime:
             for operation in list(self._speech.get(key, ())):
                 operation.cancel()
 
+    def speech_status(self):
+        operations = [operation for group in self._speech.values() for operation in group]
+        return {
+            "active": sum(not operation.cancelled for operation in operations),
+            "cancellation_pending": sum(operation.cancelled for operation in operations),
+            "cleanup_failed": sum(operation.cleanup_failed for operation in operations),
+        }
+
+    def check_speech_ready(self):
+        if self.speech_status()["cancellation_pending"]:
+            raise ValueError("Previous speech cleanup is unconfirmed; inspect Converse health")
+
     async def _watch_speech(self, operation):
         # Native control hooks cancel synchronously. This bounded monitor also
         # observes owner-file changes and session resets made by another service;
@@ -275,22 +291,33 @@ class ConverseRuntime:
         a model kernel or a physical playback device has stopped.
         """
         queue = asyncio.Queue(maxsize=1)
-        iterator = synthesize(event.payload["text"])
+        iterator = None
+        close_failed = False
 
         async def produce():
+            nonlocal iterator, close_failed
             try:
                 try:
                     await self.validate_speech(event.event_id, generation)
+                    iterator = synthesize(event.payload["text"])
                     async for chunk in iterator:
                         if operation is None or operation.cancelled:
                             return
                         await queue.put(("frame", chunk))
                 finally:
-                    await iterator.aclose()
+                    if iterator is not None:
+                        try:
+                            await iterator.aclose()
+                        except Exception:
+                            close_failed = True
+                            raise
             except asyncio.CancelledError:
                 return
             except Exception as exc:
-                await queue.put(("error", exc))
+                if operation is not None and operation.cancelled:
+                    close_failed = True
+                else:
+                    await queue.put(("error", exc))
             else:
                 await queue.put(("done", None))
 
@@ -303,6 +330,7 @@ class ConverseRuntime:
             # producer's authoritative asynchronous validation is suspended.
             try:
                 admission = self.admission()
+                self.check_speech_ready()
             except (OSError, ValueError, RuntimeError):
                 return
             playback = self.playback.get(event.session_id)
@@ -352,22 +380,36 @@ class ConverseRuntime:
                     producer.cancel()
                 if monitor is not None:
                     monitor.cancel()
-                try:
-                    await asyncio.gather(
-                        producer,
-                        *([monitor] if monitor is not None else []),
-                        return_exceptions=True,
-                    )
-                    # Also close an iterator cancelled before its producer's
-                    # first instruction. Async-generator close is idempotent.
-                    await iterator.aclose()
-                finally:
-                    if operation is not None:
-                        operations = self._speech.get(event.session_id)
-                        if operations is not None:
-                            operations.discard(operation)
-                            if not operations:
-                                self._speech.pop(event.session_id, None)
+
+                async def finish_cleanup():
+                    try:
+                        await asyncio.gather(
+                            producer,
+                            *([monitor] if monitor is not None else []),
+                            return_exceptions=True,
+                        )
+                        if iterator is not None:
+                            await iterator.aclose()
+                        if close_failed:
+                            raise RuntimeError("Upstream speech iterator cleanup failed")
+                    except Exception:
+                        if operation is not None:
+                            operation.cleanup_failed = True
+                    else:
+                        if operation is not None:
+                            operations = self._speech.get(event.session_id)
+                            if operations is not None:
+                                operations.discard(operation)
+                                if not operations:
+                                    self._speech.pop(event.session_id, None)
+
+                cleanup = asyncio.create_task(finish_cleanup())
+                if operation is not None:
+                    operation.cleanup = cleanup
+                # Wait at most five seconds without cancelling a finally block
+                # that may own an HTTP socket. A timed-out operation stays in
+                # the registry/health and refuses new speech until confirmed.
+                await asyncio.wait((cleanup,), timeout=self._speech_cleanup_timeout)
 
     async def interrupt(self, session_id, expected_generation=None):
         epoch = await self._epoch(session_id)

@@ -53,6 +53,7 @@ def create_app(runtime, auth, speech=None, window_controller=None):
             **availability,
             "provider": runtime.provider.info.model_dump(),
             "voice_configured": speech is not None,
+            "speech_operations": runtime.speech_status(),
             "streaming_windows": window_controller is not None,
         }
 
@@ -172,6 +173,7 @@ def create_app(runtime, auth, speech=None, window_controller=None):
         if speech is None:
             raise HTTPException(503, "Configure a TTS provider in settings")
         try:
+            runtime.check_speech_ready()
             event = await runtime.validate_speech(request.event_id, request.generation_epoch)
         except ValueError as exc:
             raise HTTPException(409, str(exc)) from exc

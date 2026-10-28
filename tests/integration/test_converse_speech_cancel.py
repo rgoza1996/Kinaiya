@@ -571,6 +571,100 @@ async def test_asgi_disconnect_waits_for_upstream_iterator_cleanup(state):
         await asyncio.gather(pending, return_exceptions=True)
 
 
+@pytest.mark.parametrize("phase", ["generation", "close"])
+async def test_cleanup_deadline_retains_ownership_and_rejects_new_speech(state, phase):
+    store, runtime = state
+    runtime._speech_cleanup_timeout = 0.02
+    session, entry = await reply(store, runtime)
+    entered, held, release, closed = (asyncio.Event() for _ in range(4))
+
+    class SlowCancellation:
+        async def synthesize(self, text):
+            try:
+                entered.set()
+                try:
+                    await asyncio.Event().wait()
+                except asyncio.CancelledError:
+                    if phase == "generation":
+                        held.set()
+                        await release.wait()
+                        yield FRAME
+                    else:
+                        raise
+            finally:
+                if phase == "close":
+                    held.set()
+                    await release.wait()
+                closed.set()
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=create_app(runtime, AUTH, SlowCancellation())),
+        base_url="http://test",
+    ) as client:
+        pending = asyncio.create_task(
+            client.post("/v1/converse/speech", json=speech_body(entry), headers=OWNER)
+        )
+        try:
+            await asyncio.wait_for(entered.wait(), 1)
+            operation = next(iter(runtime._speech[session.session_id]))
+            await runtime.interrupt(session.session_id)
+            await asyncio.wait_for(held.wait(), 1)
+            response = await asyncio.wait_for(pending, 1)
+            assert response.status_code == 200 and not response.content
+            assert not operation.task.done() and not closed.is_set()
+            assert not operation.cleanup.done()
+            health = (await client.get("/health")).json()["speech_operations"]
+            assert health == {"active": 0, "cancellation_pending": 1, "cleanup_failed": 0}
+            refused = await client.post(
+                "/v1/converse/speech", json=speech_body(entry), headers=OWNER
+            )
+            assert refused.status_code == 409 and "unconfirmed" in refused.text
+            release.set()
+            await asyncio.wait_for(operation.cleanup, 1)
+            assert closed.is_set() and not runtime._speech
+            runtime.check_speech_ready()
+        finally:
+            release.set()
+            pending.cancel()
+            await asyncio.gather(pending, return_exceptions=True)
+
+
+async def test_failed_iterator_cleanup_is_visible_and_does_not_reopen_admission(state):
+    store, runtime = state
+    session, entry = await reply(store, runtime)
+    entered = asyncio.Event()
+
+    class FailedClose:
+        async def synthesize(self, text):
+            try:
+                entered.set()
+                await asyncio.Event().wait()
+                yield FRAME
+            finally:
+                raise OSError("synthetic close failure")
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=create_app(runtime, AUTH, FailedClose())),
+        base_url="http://test",
+    ) as client:
+        pending = asyncio.create_task(
+            client.post("/v1/converse/speech", json=speech_body(entry), headers=OWNER)
+        )
+        try:
+            await asyncio.wait_for(entered.wait(), 1)
+            operation = next(iter(runtime._speech[session.session_id]))
+            await runtime.interrupt(session.session_id)
+            assert (await asyncio.wait_for(pending, 1)).status_code == 200
+            assert operation.task.done() and operation.cleanup.done()
+            health = (await client.get("/health")).json()["speech_operations"]
+            assert health == {"active": 0, "cancellation_pending": 1, "cleanup_failed": 1}
+            with pytest.raises(ValueError, match="unconfirmed"):
+                runtime.check_speech_ready()
+        finally:
+            pending.cancel()
+            await asyncio.gather(pending, return_exceptions=True)
+
+
 async def test_upstream_http_error_closes_stream_and_unregisters_operation(state):
     store, runtime = state
     _, entry = await reply(store, runtime)
