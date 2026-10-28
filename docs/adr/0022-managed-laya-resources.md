@@ -111,7 +111,8 @@ M6 acceptance.
 
 ## Evidence
 
-The public live record links exact source hashes, runtime and budget data to
+The [public live record](../../evaluation/evidence/laya-managed-resources-2026-10-27.json)
+links exact source hashes, runtime and budget data to
 actual independent core services, cached CPU Whisper/Kokoro, pinned GPU Laya,
 and real Meta Contributor Agent/Converse inference. It verifies two owned groups
 released, a bounded 256 MiB GPU allocation/compute during the lease, direct
