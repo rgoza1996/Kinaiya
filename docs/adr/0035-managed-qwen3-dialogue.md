@@ -1,8 +1,9 @@
 # ADR 0035: opt-in managed Qwen3 dialogue
 
 Tracks [#91](https://github.com/rgoza1996/Kinaiya/issues/91). Status:
-implementation in review; actual managed-runtime acceptance is not yet
-verified. Full M2 and persistent STT #49 remain open.
+implementation in review; bounded actual managed CPU text streaming and
+tokenizer capacity checks passed. Actual HTTP boundary checks and new exact-head
+CI remain pending. Full M2 and persistent STT #49 remain open.
 
 Converse may select an explicit `qwen3` text kind alongside independently
 selected STT and TTS. Agent/Decisions cannot select this kind. Optional native
@@ -45,7 +46,7 @@ nonempty cache-file write is allowed. Eager inference does not request compiled
 artifacts. Unexpected cache entries still fail the existing fixed-shape parent
 cleanup; no recursive or expanded cleanup authority is added. The original
 failed startup and confirmed child/group release are retained as evidence;
-this repair still requires a new actual managed acceptance run.
+the subsequent distinct V3 managed run verified this repaired startup path.
 
 `sealed_model(model_dir, workspace, snapshot_dir)` in `qwen3_assets` is a context
 manager yielding that immutable snapshot path. `validate_runtime()` validates
@@ -175,7 +176,50 @@ snapshot compatibility or representative prompt capacity. Retain their
 4,884,344 KiB whole-child peak and greeting brevity failure. Test malformed
 identity/sequence/terminal data, limits, actual sealed files and process
 cleanup, disconnect/backpressure and owner/handoff races. Then perform bounded
-actual cold/warm streaming, cancellation/recovery and representative Converse
+actual streaming, cancellation/recovery and representative Converse
 prompt admission with exact source/assets/runtime measurements and full CI.
 No realtime, quality, p95, physical voice or default promotion is established
 until its applicable broader acceptance evidence exists.
+
+### Actual CPU text evidence, October 28, 2026
+
+At source `5f413ed431adfc06081ff28430da7d4412829cd3`, the fixed seven-request
+managed run passed in 115.255 seconds, with startup separately measured at
+7.664 seconds. The four unchanged production-builder captures completed EOS
+through actual resource HTTP and native IPC:
+
+| Capture | Input tokens | Output tokens | First decoded HTTP text, seconds |
+| --- | ---: | ---: | ---: |
+| Minimal typed | 143 | 19 | 1.176 |
+| Twelve-history typed | 1326 | 63 | 15.864 |
+| Latest typed after interruption | 440 | 49 | 3.907 |
+| Eight-history live window | 1524 | 41 | 19.731 |
+
+One distinct typed `ConverseRuntime.events` turn also completed. A distinct
+request was cancelled after its first non-whitespace HTTP delta while native
+work remained pending. The exact child/group was stopped and reaped before a
+distinct request recovered with a new identity. Owner-off, restore while off,
+owner-on, handoff and restore passed; all four actual children and the uvicorn
+server were released. These controls used synthetic Converse/session state;
+there was no STT, TTS, Agent execution or physical audio in this test.
+
+Highest observed child VmHWM was 5,004,234,752 bytes (4.661 GiB), including
+startup. Process observations exclude complete physical/unmapped sealed-memfd
+accounting and do not prove a hard RSS cap or steady footprint. Different
+prompts do not establish a cold/warm distribution. The long-history first-text
+delays keep this CPU float32 profile experimental; they do not meet a realtime
+voice claim.
+
+A separate owned tokenizer-only child reproduced all four input counts and
+formed exact 2048/2049-token arrays using the fixed default personality,
+`Hello Kinaiya.` and 1911/1912 repetitions of ` test`. It made zero generation
+calls and was stopped/reaped before snapshot cleanup. This measures rendered
+token boundaries; actual managed HTTP refusal at 2049 and native generation at
+2048 remain separate pending checks. No history, cap or filler was adjusted.
+
+Retained evidence: [original startup failure](../../evaluation/evidence/managed-qwen3-startup-failure-2026-10-28.json),
+[managed streaming run](../../evaluation/evidence/managed-qwen3-live-2026-10-28.json)
+and [tokenizer capacity](../../evaluation/evidence/managed-qwen3-token-capacity-2026-10-28.json).
+Raw diagnostic tails remain owner-private. Independent reviews checked the
+repair, constrained harness repins and raw/public evidence; those static
+checks did not execute another model call or establish full M2 acceptance.

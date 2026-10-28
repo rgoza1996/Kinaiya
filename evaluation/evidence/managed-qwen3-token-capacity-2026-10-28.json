@@ -1,0 +1,148 @@
+{
+  "schema_version": 1,
+  "issue": "https://github.com/rgoza1996/Kinaiya/issues/91",
+  "status": "actual_tokenizer_counts_and_exact_boundary_arrays_verified; managed_HTTP_boundary_exercise_pending",
+  "source_head": "5f413ed431adfc06081ff28430da7d4412829cd3",
+  "model_manifest_sha256": "6684dbd38572a450d11fb0d666e684cab3667ecec02e3d4e3e2029fd1f6af4bc",
+  "captures_sha256": "883de1ab8f59297adc16e95b52a79a5adcb99e14d46112a53084fb2700622639",
+  "runtime": {
+    "python": "3.12",
+    "torch": "2.14.1+cpu",
+    "transformers": "5.21.0",
+    "device": "cpu",
+    "dtype": "float32",
+    "intraop_threads": 2,
+    "interop_threads": 1
+  },
+  "tokenizer_class": "transformers.models.qwen2.tokenization_qwen2.Qwen2Tokenizer",
+  "chat_template_sha256": "a55ee1b1660128b7098723e0abcd92caa0788061051c62d51cbe87d9cf1974d8",
+  "harness": {
+    "parent_sha256": "88e4b9cf9a7a69cc920abdadc9d4db7e614aa022eda1ac9aaeb0dd293536f55d",
+    "child_sha256": "8099413d9a4777746b78dc8574c43c9ded7e0ded8ead20ac206833c7cd214cce",
+    "plan_sha256": "2bbfa7a180f69ebc9cf4e5652daafb39675a3388695b4b0f041adadf6daa9e51",
+    "manifest_sha256": "396687a097a610fab2682e33d6e8a809cdbe2fae8ad1c9c92fde937e8dbd826e",
+    "original_bundle_preserved_unexecuted": true,
+    "review": "Original static guard findings were fixed in a distinct V2 before root execution: explicit optimization refusal, clean source checkout, bounded Git queries and parent optional-runtime guards."
+  },
+  "actual_counts": [
+    {
+      "case": "minimal_typed",
+      "input_tokens": 143,
+      "request_bytes": 740,
+      "rendered_utf8_bytes": 765,
+      "input_ids_sha256": "c4d6fe9714bd125f5c39c123262caad5998674e6e2c1404ae72beea5065558b0",
+      "fits_default_2048": true
+    },
+    {
+      "case": "representative_12_history_typed",
+      "input_tokens": 1326,
+      "request_bytes": 6098,
+      "rendered_utf8_bytes": 6010,
+      "input_ids_sha256": "e238bd3cdb6e1c4ff1c02ce6ad56f7c3f28b02fff709a1748ac8f508392e49cf",
+      "fits_default_2048": true
+    },
+    {
+      "case": "latest_typed_after_interruption",
+      "input_tokens": 440,
+      "request_bytes": 2003,
+      "rendered_utf8_bytes": 1989,
+      "input_ids_sha256": "34f46b3241cce117779bc8c0be43674125e097984ad87c2b1839decc58fed5b1",
+      "fits_default_2048": true
+    },
+    {
+      "case": "live_window_8_history",
+      "input_tokens": 1524,
+      "request_bytes": 6361,
+      "rendered_utf8_bytes": 6163,
+      "input_ids_sha256": "48bc6ad585ee36d204736f5e39d5200c774a1d4e86353de2846fa86eec340e55",
+      "fits_default_2048": true
+    }
+  ],
+  "boundary_counts": {
+    "2048": {
+      "input_tokens": 2048,
+      "request_bytes": 10271,
+      "rendered_utf8_bytes": 10296,
+      "input_ids_sha256": "d449b52702cba9e5426c7730e1331defb62c116ca5ef80311b9c056aa4ffb150",
+      "repetitions": 1911
+    },
+    "2049": {
+      "input_tokens": 2049,
+      "request_bytes": 10276,
+      "rendered_utf8_bytes": 10301,
+      "input_ids_sha256": "c801a810f1a9f9f89b94df9eb411a47e5fee0f703f7898d34cdfbcff8fff3d7e",
+      "repetitions": 1912
+    }
+  },
+  "fixed_boundary_construction": {
+    "greeting": "Hello Kinaiya.",
+    "filler": " test",
+    "default_personality_sha256": "2bd5a98c5ff3d4fe0bc2192c331f460ecb4e7ba7819d654537035afe36a3a12d",
+    "search": "Fixed lower-bound binary searches over 0..4096 repetitions with shared cache, exact target requirement and observed monotonicity check; no alternate filler or prompt/cap adjustment.",
+    "probes_count": 12
+  },
+  "execution": {
+    "generation_calls": 0,
+    "owned_identity": {
+      "pid": 1150520,
+      "start_time": 20497358
+    },
+    "startup_seconds": 5.374942865979392,
+    "stop_evidence": {
+      "pid": 1150520,
+      "pgid": 1150520,
+      "rss_before_bytes": 389767168,
+      "group_rss_before_bytes": 389767168,
+      "mem_available_bytes": 46941097984,
+      "term_sent": true,
+      "kill_sent": false,
+      "reaped": true,
+      "group_empty": true,
+      "residual_pids": [],
+      "ownership_verified": true,
+      "duration_s": 0.38133104497683235,
+      "at": "2026-10-28T22:32:21.051270+00:00"
+    },
+    "manager_close_confirmed": true,
+    "snapshot_cleanup_confirmed": true,
+    "cleanup_confirmed": true,
+    "stream_overflow": false,
+    "work_lifecycle_budget_seconds": 90,
+    "work_lifecycle_budget_exceeded": false
+  },
+  "owner_private_artifacts": {
+    "result.json": {
+      "bytes": 26975,
+      "sha256": "edca493e381bba9300b3d0edeab555bf55d5274dd5fb391302a3d2e4c15598da"
+    },
+    "token-counts.json": {
+      "bytes": 1027,
+      "sha256": "a8d838c56f4b3d535dc6a3042290e940a4c8671b48e7aec76d8f435494d69463"
+    },
+    "boundary-2048.messages.json": {
+      "bytes": 10296,
+      "sha256": "1dbf2e0a605e06683c3ddb4ae9cacc0e610e6efa95543269fe651939aae9d148"
+    },
+    "boundary-2049.messages.json": {
+      "bytes": 10301,
+      "sha256": "e8cb06e9becb6ea7080b77f94e5dc9419a55eddbdb37361a9edad7fa65796762"
+    },
+    "stdout.bin": {
+      "bytes": 24237,
+      "sha256": "9775bccd37474ea47b90b426bce02c573ba3e81a20cdff77cce8045f506ae814"
+    },
+    "stderr.bin": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "limitations": [
+    "Tokenizer-only: the child imported the pinned Torch/Transformers runtime and loaded the local tokenizer from production sealed model inputs, but constructed no model and made zero generate calls. Manifest float32 denotes the production model profile; token tensors were CPU int64.",
+    "The four unchanged actual typed/live-window builder captures match the independent managed-generation receipt at143/1326/440/1524tokens. Four fitting examples do not establish every possible history fits; oversize context must be refused, never truncated.",
+    "The arrays have exact2048/2049rendered tokens. This audit does not demonstrate actual managedHTTP refusal at2049 or native model generation at2048; those remain a separate bounded gate.",
+    "FSIZE0 and network fences preceded optional imports; sealed copies preceded FSIZE0. Existing private temp/cache selection was retained, not a writable cache exception.",
+    "The90s asyncio budget covers work/lifecycle after setup, with individually bounded5s Git queries. Existing emergency cleanup may overrun that deadline; an overrun would fail. This is not a hard end-to-end operating-system wall-clock guarantee.",
+    "A private auditor-only drain hook observes at most64KiBperstream while the base WorkerManager stays sole reader. Actual ready output is bounded60KiB JSON and bound to childPID+nonce before its exact owned identity is stopped.",
+    "Runtime validation checks six pinned core files and versions, not full build equivalence. Counts and cleanup are not speech latency, quality, performance, small-VRAM, physical audio, or full M2 acceptance."
+  ]
+}

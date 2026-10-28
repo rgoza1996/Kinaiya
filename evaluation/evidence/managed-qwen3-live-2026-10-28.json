@@ -1,0 +1,475 @@
+{
+  "schema_version": 1,
+  "issue": "https://github.com/rgoza1996/Kinaiya/issues/91",
+  "pull_request": "https://github.com/rgoza1996/Kinaiya/pull/92",
+  "status": "actual_managed_text_smoke_passed; exact_token_boundary_and_new_CI_pending; experimental_opt_in_only",
+  "scope": "CPU text only; synthetic LocalJournal and real ConverseAPI via ASGI control; real loopback resources HTTP and private native IPC; no STT/TTS/Agent/GPU/physical audio",
+  "source": {
+    "head": "5f413ed431adfc06081ff28430da7d4412829cd3",
+    "tree": "cc8402a600b62ab3c7cc6d89abc328b66ff02e78",
+    "source_before_equals_after": true,
+    "critical_source_sha256": {
+      "packages/contracts/models.py": "f42ff1f3694a6634abfc362bfb84f84cd309e90d25f31c78bdbd5724e2928e0e",
+      "packages/providers/disclosure.py": "39b73bfc8656449195225b4d1f1a14c1b01ccbcf91047c0bf67dddb131ad0dd2",
+      "packages/providers/qwen3.py": "9a1dc01a694778a3df2c943654b69aa590b61c211907fefe64307ba39fb88070",
+      "packages/providers/qwen3_assets.py": "5ebbe1076593430c601cf4713c55bb8200cf0459485a10420b5864eedd32a666",
+      "packages/providers/qwen3_backend.py": "7b98e7f29fa1102fe866ad85d3a3018b89ea8b6a1292cb170686b7a6b1fbd209",
+      "packages/providers/qwen3_ipc.py": "1077861e1fc760e3a3c423852a3778a6349da0df83808be17114176c08a28f09",
+      "packages/providers/qwen3_manifest.json": "6684dbd38572a450d11fb0d666e684cab3667ecec02e3d4e3e2029fd1f6af4bc",
+      "packages/providers/qwen3_worker.py": "e1685128caa4e7013b9430f8328ccba8d4f93ca23bf1f7efcdae13b6560f9fa4",
+      "packages/providers/text.py": "410cec4adcd15c5d6ec73dcfd10aad279b6dadac0ea717205a6367d6da598663",
+      "packages/providers/whistle_assets.py": "3e2a185584497e83d26a86bab2127831b61ae86e82b685d5def489d019495de5",
+      "packages/providers/whistle_ipc.py": "831b7916e533df28cffee4342975d57173cdb8e2699615f80547d8fbb8c6dafd",
+      "packages/providers/whistle_isolation.py": "743978c5f1192eddc291168dbb649a5f7b9341a760d56bb072f3cfad1739bccb",
+      "packages/resources/_bootstrap.py": "0689a68ed813fd11e336f4a96a1fc4c60e908cf627c9dece6037f2d88b0da9f2",
+      "packages/resources/processes.py": "86fd15bf472e99804678f9ecda8fa48e6b4342af53efa95777ab9601df286ec0",
+      "services/common/auth.py": "1af3197f710abbbdc7ebe33e4886789813ac2d3088ee530c52a40023843b4bb6",
+      "services/converse/api.py": "9a00517687886704d3b29bda6595cc032380ad8510f3c13b058b74018fea9310",
+      "services/converse/delivery_context.py": "5a244a1e8ca05db1e48fbdd851d7c785c5b1e1485d328e184b5503b26f2b670f",
+      "services/converse/history.py": "f089cd5d0049a0ac9f241975b6738c22f6b3944dd1318bdb2dd517eece5e1d61",
+      "services/converse/intent.py": "cdbf41758880528ba7bd05ad8744cbc75591ffc3e3593ff086a0d7b9387a65b4",
+      "services/converse/runtime.py": "3d6b4c55b68fee9b5997e50d1f26ca73da8d86f8cd4304fa35b31df88df90ccd",
+      "services/resources/api.py": "2eb3d4f2386c3baa063b2f78f19e2c156c272cfef9ded42f0970a6e203f9f603",
+      "services/resources/client.py": "f588df415d466477d6b1dba808a69e416ae8501af85c77be66b62b737b6a8694",
+      "services/resources/coordinator.py": "b6b268f4b28ae7e21a29ae8bddfb429bc9a8cbe4ad3ba510bb4d4a7c131ca807",
+      "services/resources/providers.py": "3f73039c5d9d76f75030aa798c204e1df3dbfb2cdf979e82848bc6ddc21e7a46",
+      "services/resources/qwen3.py": "4357fb8407c83dde4dc731f6197c4762fd2772be142d22b8162dbb87f3efec62",
+      "services/resources/state.py": "54330f45ff056d3ff2b2860b66a8faf995c88348da4027a2f5a9a2a40fab89ea",
+      "services/session/store.py": "92ee33bf6446d12a8d2cd5283d2a85c73a0e9db9069877bcb522918f8f847ca5"
+    }
+  },
+  "harness": {
+    "script_sha256": "1c498a0597bb1377b6f8bed58ae185693dfda436988f1c3915079ff4af651ae0",
+    "plan_sha256": "5966fc0cefe753e61db4b742f63a96ee976cecc9f2f68f429108300ff4c2f16c",
+    "manifest_sha256": "805b4357e131c310fc59e1a23aa09acb5538bb26ee3d354ee7bfdac76967e457",
+    "captures_sha256": "883de1ab8f59297adc16e95b52a79a5adcb99e14d46112a53084fb2700622639",
+    "maximum_fixed_request_attempts": 7,
+    "no_retries_or_prompt_cap_changes": true
+  },
+  "owner_private_artifacts": {
+    "result.json": {
+      "bytes": 72593,
+      "sha256": "19971018e4e2776e3300bab1330b57971b289d0bcaa3541fead1e8c8e150a344"
+    },
+    "artifact-manifest.json": {
+      "bytes": 1534,
+      "sha256": "814cb4882d5be016c9c03836f762608bc0593ab6a4873e7fafb68fc94c1c0f3d"
+    },
+    "own-worker-diagnostics.json": {
+      "bytes": 517,
+      "sha256": "2768b49b2daa61fc87ec2a0b1e0bdac1a38d1faebb9bedc210985943b4efba0b"
+    }
+  },
+  "model": {
+    "model": "Qwen/Qwen3-0.6B",
+    "revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+    "manifest_sha256": "6684dbd38572a450d11fb0d666e684cab3667ecec02e3d4e3e2029fd1f6af4bc",
+    "runtime": {
+      "device": "cpu",
+      "dtype": "float32",
+      "interop_threads": 1,
+      "intraop_threads": 2,
+      "python": "3.12",
+      "torch": "2.14.1+cpu",
+      "transformers": "5.21.0"
+    },
+    "runtime_coverage": "These six pinned core files and reported versions are checked; this is not full interpreter/package/build equivalence. No model or binary is redistributed."
+  },
+  "settings": {
+    "cpu_affinity_count": 2,
+    "host_memory_reserve_bytes": 8589934592,
+    "max_input_tokens": 2048,
+    "max_new_tokens": 128,
+    "memory_bytes": 17179869184,
+    "request_timeout_s": 120,
+    "startup_timeout_s": 120
+  },
+  "outcome": {
+    "passed": true,
+    "native_startup_attempted": true,
+    "inference_started": true,
+    "generation_request_attempts": 7,
+    "startup_seconds": 7.664073461986845,
+    "elapsed_seconds": 115.25452844600659,
+    "all_four_captured_requests_usable": true,
+    "recovery_new_identity": true,
+    "controls_completed": true,
+    "kernel_release_confirmed": true,
+    "endpoint_pruned_after_release": true,
+    "uvicorn_shutdown_confirmed": true,
+    "cleanup_confirmed": true,
+    "cleanup_errors": [],
+    "parent_optional_model_modules_absent": true
+  },
+  "requests": [
+    {
+      "name": "minimal_typed",
+      "request_attempt_number": 1,
+      "messages_sha256": "d35ed554aec8fb3d7142e9a2982ac4642a99163dcc9738e39dae8fd4a19caf61",
+      "status_code": 200,
+      "first_http_decoded_text_seconds": 1.1759658489900175,
+      "elapsed_seconds": 3.304322344978573,
+      "terminal": {
+        "finish_reason": "eos",
+        "input_tokens": 143,
+        "kind": "done",
+        "output_tokens": 19
+      },
+      "usable": true,
+      "identity": {
+        "pid": 1145725,
+        "start_time": 20430731,
+        "worker_id": "qwen3"
+      },
+      "raw_ndjson_sha256": "873ec6bf072cab9a06dd3fa4797e17d797bda49477f414f9e5e271e771c1a10b"
+    },
+    {
+      "name": "representative_12_history_typed",
+      "request_attempt_number": 2,
+      "messages_sha256": "d38e1de5b715e40057d975fd449704e8d5af9537065f11941264efc3127cba0e",
+      "status_code": 200,
+      "first_http_decoded_text_seconds": 15.863913806009805,
+      "elapsed_seconds": 28.83777126899804,
+      "terminal": {
+        "finish_reason": "eos",
+        "input_tokens": 1326,
+        "kind": "done",
+        "output_tokens": 63
+      },
+      "usable": true,
+      "identity": {
+        "pid": 1145725,
+        "start_time": 20430731,
+        "worker_id": "qwen3"
+      },
+      "raw_ndjson_sha256": "92d642d6052306660aaadc56fb04d4cb6751249d9b6dd92f36f126042d5eeade"
+    },
+    {
+      "name": "latest_typed_after_interruption",
+      "request_attempt_number": 3,
+      "messages_sha256": "ffd8cf14f76a4eccc88db5e59a185d0774f66af88bd833e3d57a1abbfbe62859",
+      "status_code": 200,
+      "first_http_decoded_text_seconds": 3.9067765770014375,
+      "elapsed_seconds": 11.484982443012996,
+      "terminal": {
+        "finish_reason": "eos",
+        "input_tokens": 440,
+        "kind": "done",
+        "output_tokens": 49
+      },
+      "usable": true,
+      "identity": {
+        "pid": 1145725,
+        "start_time": 20430731,
+        "worker_id": "qwen3"
+      },
+      "raw_ndjson_sha256": "e6873e695bf550a6674f40e559e7f7ecaa586e1a4780c6e09710471668f0b7e0"
+    },
+    {
+      "name": "live_window_8_history",
+      "request_attempt_number": 4,
+      "messages_sha256": "fa29391cd8f0ed37f92f8c6d3f83c34c9475c7ebb10d25d3efcf3b872b6ef8a6",
+      "status_code": 200,
+      "first_http_decoded_text_seconds": 19.731201301998226,
+      "elapsed_seconds": 31.152680949977366,
+      "terminal": {
+        "finish_reason": "eos",
+        "input_tokens": 1524,
+        "kind": "done",
+        "output_tokens": 41
+      },
+      "usable": true,
+      "identity": {
+        "pid": 1145725,
+        "start_time": 20430731,
+        "worker_id": "qwen3"
+      },
+      "raw_ndjson_sha256": "26296de1d5fad7ebde4f953ea573fc5390c3a48ea47a34c8c8342b11b3ac6653"
+    },
+    {
+      "name": "cancel_distinct_after_first_text",
+      "request_attempt_number": 6,
+      "messages_sha256": "b4a616b0be9863b9eba4241299d12e0e567895de5c1edc0b1c6a3e74bb65173e",
+      "status_code": 200,
+      "first_http_decoded_text_seconds": 0.7282794200000353,
+      "elapsed_seconds": 0.7289157579944003,
+      "terminal": null,
+      "usable": false,
+      "identity": {
+        "pid": 1145725,
+        "start_time": 20430731,
+        "worker_id": "qwen3"
+      },
+      "raw_ndjson_sha256": "d127f2ce7e996dee108f30f6c5775242d31fad50391662ce380beb7199f0467b",
+      "native_operation_pending_at_close": true,
+      "deliberately_interrupted": true
+    },
+    {
+      "name": "recovery_distinct_once",
+      "request_attempt_number": 7,
+      "messages_sha256": "bb0e867f206b59010a56ca7aeae7d956edb49824c3202a59d31cbb3524e1e658",
+      "status_code": 200,
+      "first_http_decoded_text_seconds": 9.10056960300426,
+      "elapsed_seconds": 10.03776960799587,
+      "terminal": {
+        "finish_reason": "eos",
+        "input_tokens": 55,
+        "kind": "done",
+        "output_tokens": 11
+      },
+      "usable": true,
+      "identity": {
+        "pid": 1146364,
+        "start_time": 20439346,
+        "worker_id": "qwen3"
+      },
+      "raw_ndjson_sha256": "81c4a13953d221f85a1e6eacff3c2fcdee85e564b89fd591f9dea1f00f20c624"
+    }
+  ],
+  "typed_runtime": {
+    "request_attempt_number": 5,
+    "usable": true,
+    "first_runtime_text_event_seconds": 1.313950888987165,
+    "elapsed_seconds": 2.1821213759831153,
+    "event_types": [
+      "accepted",
+      "text",
+      "text",
+      "done"
+    ],
+    "text_operations_after": {
+      "active": 0,
+      "admitting": 0,
+      "capacity": 32,
+      "cleanup_failed": 0,
+      "cleanup_pending": 0
+    },
+    "delivery": "Generated transcript text only; not synthesized, played or heard audio."
+  },
+  "owner_controls": [
+    {
+      "operation": "converse",
+      "fields": {
+        "enabled": false
+      },
+      "http_status": 200,
+      "ok": true,
+      "phase": "off",
+      "desired_converse": false
+    },
+    {
+      "operation": "restore",
+      "fields": {},
+      "http_status": 200,
+      "ok": true,
+      "phase": "off",
+      "desired_converse": false
+    },
+    {
+      "operation": "converse",
+      "fields": {
+        "enabled": true
+      },
+      "http_status": 200,
+      "ok": true,
+      "phase": "ready",
+      "desired_converse": true
+    },
+    {
+      "operation": "handoff",
+      "fields": {
+        "reason": "Public synthetic managed Qwen smoke",
+        "required_bytes": 134217728,
+        "required_gpu_bytes": 0
+      },
+      "http_status": 200,
+      "ok": true,
+      "phase": "local_work",
+      "desired_converse": true
+    },
+    {
+      "operation": "restore",
+      "fields": {},
+      "http_status": 200,
+      "ok": true,
+      "phase": "ready",
+      "desired_converse": true
+    }
+  ],
+  "owned_releases": [
+    {
+      "phase": "cancel_release",
+      "identity": {
+        "pid": 1145725,
+        "start_time": 20430731,
+        "worker_id": "qwen3"
+      },
+      "confirmed": true,
+      "returncode": -15,
+      "stop_evidence": {
+        "at": "2026-10-28T22:22:35.100163+00:00",
+        "duration_s": 0.6358728529885411,
+        "group_empty": true,
+        "group_rss_before_bytes": 2952155136,
+        "kill_sent": false,
+        "mem_available_bytes": 44276113408,
+        "ownership_verified": true,
+        "pgid": 1145725,
+        "pid": 1145725,
+        "reaped": true,
+        "residual_pids": [],
+        "rss_before_bytes": 2952155136,
+        "term_sent": true
+      }
+    },
+    {
+      "phase": "owner_off_release",
+      "identity": {
+        "pid": 1146364,
+        "start_time": 20439346,
+        "worker_id": "qwen3"
+      },
+      "confirmed": true,
+      "returncode": -15,
+      "stop_evidence": {
+        "at": "2026-10-28T22:22:45.682180+00:00",
+        "duration_s": 0.4295546999783255,
+        "group_empty": true,
+        "group_rss_before_bytes": 2919780352,
+        "kill_sent": false,
+        "mem_available_bytes": 44145717248,
+        "ownership_verified": true,
+        "pgid": 1146364,
+        "pid": 1146364,
+        "reaped": true,
+        "residual_pids": [],
+        "rss_before_bytes": 2919780352,
+        "term_sent": true
+      }
+    },
+    {
+      "phase": "handoff_release",
+      "identity": {
+        "pid": 1146480,
+        "start_time": 20440423,
+        "worker_id": "qwen3"
+      },
+      "confirmed": true,
+      "returncode": -15,
+      "stop_evidence": {
+        "at": "2026-10-28T22:22:54.921308+00:00",
+        "duration_s": 0.6293770560005214,
+        "group_empty": true,
+        "group_rss_before_bytes": 2881138688,
+        "kill_sent": false,
+        "mem_available_bytes": 44143710208,
+        "ownership_verified": true,
+        "pgid": 1146480,
+        "pid": 1146480,
+        "reaped": true,
+        "residual_pids": [],
+        "rss_before_bytes": 2881138688,
+        "term_sent": true
+      }
+    },
+    {
+      "phase": "final_cleanup",
+      "identity": {
+        "pid": 1146512,
+        "start_time": 20441335,
+        "worker_id": "qwen3"
+      },
+      "confirmed": true,
+      "stop_evidence": {
+        "at": "2026-10-28T22:23:03.697871+00:00",
+        "duration_s": 0.43377922399668023,
+        "group_empty": true,
+        "group_rss_before_bytes": 2880954368,
+        "kill_sent": false,
+        "mem_available_bytes": 44188925952,
+        "ownership_verified": true,
+        "pgid": 1146512,
+        "pid": 1146512,
+        "reaped": true,
+        "residual_pids": [],
+        "rss_before_bytes": 2880954368,
+        "term_sent": true
+      }
+    }
+  ],
+  "observed_per_child": [
+    {
+      "identity": {
+        "pid": 1145725,
+        "start_time": 20430731,
+        "worker_id": "qwen3"
+      },
+      "sample_count": 1529,
+      "highest_observed_vm_hwm_bytes": 5003608064,
+      "highest_observed_vm_rss_bytes": 3813355520,
+      "latest_sample_cpu_seconds": 128.78
+    },
+    {
+      "identity": {
+        "pid": 1146364,
+        "start_time": 20439346,
+        "worker_id": "qwen3"
+      },
+      "sample_count": 35,
+      "highest_observed_vm_hwm_bytes": 5003870208,
+      "highest_observed_vm_rss_bytes": 2919780352,
+      "latest_sample_cpu_seconds": 11.42
+    },
+    {
+      "identity": {
+        "pid": 1146480,
+        "start_time": 20440423,
+        "worker_id": "qwen3"
+      },
+      "sample_count": 2,
+      "highest_observed_vm_hwm_bytes": 5004234752,
+      "highest_observed_vm_rss_bytes": 2881138688,
+      "latest_sample_cpu_seconds": 9.06
+    },
+    {
+      "identity": {
+        "pid": 1146512,
+        "start_time": 20441335,
+        "worker_id": "qwen3"
+      },
+      "sample_count": 2,
+      "highest_observed_vm_hwm_bytes": 5003706368,
+      "highest_observed_vm_rss_bytes": 2880954368,
+      "latest_sample_cpu_seconds": 8.93
+    }
+  ],
+  "independent_raw_audit": {
+    "check_count": 479,
+    "receipt": {
+      "bytes": 34213,
+      "sha256": "0a9c196e4f008f2da40fe8aaa9d3e859486fe84289a3adc87c4312c28ba261cc"
+    },
+    "scope": "Static receipt/hash/strict NDJSON/source/identity/control consistency; no new runtime or inference."
+  },
+  "original_startup_failure": "managed-qwen3-startup-failure-2026-10-28.json preserves the pre-repair zero-generation failure and confirmed release. The runtime-path repair was independently reviewed with five synthetic checks before this distinct exact-source run.",
+  "measurement_limits": [
+    "One fixed run with different prompts is not a cold/warm latency distribution, p95, throughput or quality study. Initial startup is separate from first-generation HTTP text; recovery HTTP timing includes a new startup.",
+    "First HTTP text means the first non-whitespace decoded delta, not token callbacks, a complete thought, PCM, device playback or audible voice latency. Typed runtime timing ends at its generated text event.",
+    "Cancellation was requested after decoded text while the broker/native producer operation remained pending; this proves pending-work cancellation and exact child release, not the exact native instruction executing at close or a complete cancellation latency distribution.",
+    "Per-child VmHWM and sampled RSS/CPU are process observations, not a hard RSS cap, all physical/unmapped sealed-memfd memory, exact wait4 CPU accounting or a steady model footprint. AS16GiB is a virtual address-space limit; eightGiB reserve retains observed startup/sealing headroom.",
+    "The four unchanged actual builder prompts used143/1326/440/1524input tokens and all EOS outputs. An exact2048/2049 tokenizer-boundary audit remains separate; the entire supported envelope is not inferred from four requests.",
+    "CPU float32/eager only. No STT/TTS/Decisions/Agent work/GPU/physical audio, quantization, small-VRAM performance, realtime acceptance or default promotion. Full M2#4 and persistent STT#49 remain open.",
+    "Six runtime core file/version pins are verified, not complete interpreter/package/build equivalence. Raw bounded worker stderr stays owner-private."
+  ],
+  "budget_checkpoint": {
+    "new_Meta_calls_during_this_local_smoke": 0,
+    "Contributor_token_cost_estimate_usd": 1.035254822,
+    "conservative_guard_total_with_retained_reservations_usd": 3.626319694,
+    "authorized_limit_usd": 25,
+    "admission_ceiling_usd": 22,
+    "actual_billed_total_usd": null
+  },
+  "status_scope": "Historical gates at this smoke run close. The later companion managed-qwen3-token-capacity-2026-10-28.json records exact tokenizer boundary counts; actual managed HTTP boundary exercise and new exact-head CI remain separate gates.",
+  "budget_checkpoint_provenance": "Separate root read of the corrected live guard/aggregate ledger after the smoke; excluded from the independent raw-smoke/public-projection audit, not provider billing.",
+  "independent_reviewed_projection_sha256": "a61bd6d89e2e30662bcc10a8eefe1335259d0884e1b98054b383ca4ef1d7d509"
+}
