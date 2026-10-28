@@ -86,13 +86,13 @@ $$
 \frac{0.10(I-K)+0.002K+0.20O}{10^6}.
 $$
 
-Admission uses twice the verified Contributor input/output rates, ignores cache discounts, and reserves the full catalog context plus bounded output for every outstanding request. Thus $\widehat C_{\mathrm{spent}}=(0.20I+0.40O)/10^6$. This admission estimate, unsettled reservations, and the next reservation must fit the script's **$22 ceiling** within its **$25 development budget**:
+For settled responses with validated usage and exact requested/resolved Contributor identity, admission uses twice the cache-aware Contributor estimate. The earlier uncached admission estimate remains a separate audit counter. Unexplained legacy charges, incomplete usage and uncertain reservations are preserved; real reported billing remains a floor. Each future request still reserves the full uncached catalog context plus bounded output at twice Contributor rates. Settled admission, outstanding reservations, and the next reservation must fit the script's **$22 ceiling** within its **$25 development budget**:
 
 $$
-\widehat C_{\mathrm{spent}}+C_{\mathrm{reserved}}+C_{\mathrm{next}}\le 22.
+\max(\widehat C_{\mathrm{settled}},C_{\mathrm{billing}})+C_{\mathrm{reserved}}+C_{\mathrm{next}}\le 22.
 $$
 
-These constants reflect this repository's development proxy, **not a guarantee of current Meta prices or actual charges**.
+The [Meta pricing page](https://dev.meta.ai/docs/pricing-rate-limits) was verified on October 28, 2026. These token calculations remain estimates, **not provider invoices**. Hosted tools with additional fees are refused; Muse's local function tools remain available. No cache discount is assumed before a response reports it.
 
 [Budget proxy](scripts/muse_budget_proxy.py)
 
