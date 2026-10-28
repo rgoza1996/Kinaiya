@@ -3,6 +3,7 @@
 import argparse
 import asyncio
 import json
+import math
 import os
 import signal
 import subprocess
@@ -64,7 +65,7 @@ def load_config(path):
     return json.loads(path.read_text())
 
 
-def provider(config, role, *, resource_state=None):
+def provider(config, role, *, resource_state=None, service_token=None):
     from packages.providers.text import CompatibleTextProvider, MetaResponsesProvider
 
     profile = dict(config["providers"][role])
@@ -85,6 +86,59 @@ def provider(config, role, *, resource_state=None):
             result = LayaRoutingProvider(**profile)
         else:
             result = CompatibleTextProvider(**profile)
+    elif kind == "qwen3":
+        if role != "converse":
+            raise SystemExit(
+                "Qwen3 is a managed Converse provider, not an Agent or Decisions model"
+            )
+        from packages.providers.qwen3_ipc import validate_limits
+        from services.resources.client import local_base
+
+        resources = config.get("resources")
+        if (
+            set(profile) - {"base_url", "max_input_tokens", "max_new_tokens", "request_timeout_s"}
+            or not isinstance(resources, dict)
+            or resources.get("enabled") is not True
+            or not isinstance(resources.get("qwen3"), dict)
+            or resource_state is None
+            or not isinstance(service_token, str)
+            or not service_token.strip()
+            or any(char in service_token for char in "\0\r\n")
+        ):
+            raise ValueError("Qwen3 requires explicit managed resources and a service credential")
+        base_url = profile.get("base_url")
+        resources_url = config.get("resources_url", "http://127.0.0.1:8764")
+        if (
+            not isinstance(base_url, str)
+            or not isinstance(resources_url, str)
+            or local_base(base_url) != local_base(resources_url)
+        ):
+            raise ValueError("Qwen3 must select the configured managed resources endpoint")
+        managed = resources["qwen3"]
+        limits = validate_limits(
+            managed.get("max_input_tokens", 2048), managed.get("max_new_tokens", 128)
+        )
+        selected = validate_limits(
+            profile.get("max_input_tokens", limits["max_input_tokens"]),
+            profile.get("max_new_tokens", limits["max_new_tokens"]),
+        )
+        timeout = managed.get("request_timeout_s", 120)
+        selected_timeout = profile.get("request_timeout_s", timeout)
+        if (
+            selected != limits
+            or type(timeout) not in {int, float}
+            or not math.isfinite(timeout)
+            or timeout <= 0
+            or type(selected_timeout) not in {int, float}
+            or not math.isfinite(selected_timeout)
+            or selected_timeout != timeout
+        ):
+            raise ValueError("Qwen3 provider limits must match its managed worker settings")
+        from packages.providers.qwen3 import ManagedQwen3Provider
+
+        result = ManagedQwen3Provider(
+            local_base(base_url), service_token, **limits, request_timeout_s=timeout
+        )
     else:
         raise SystemExit(
             f"Unsupported {role} provider kind {kind}; configure a live provider explicitly"
@@ -380,7 +434,12 @@ def serve(args):
         )
         runtime = ConverseRuntime(
             journal,
-            provider(config, "converse", resource_state=resource_state),
+            provider(
+                config,
+                "converse",
+                resource_state=resource_state,
+                service_token=tokens["converse"],
+            ),
             intent=intent,
             resources_managed=resources_enabled,
         )

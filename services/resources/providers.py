@@ -1,9 +1,56 @@
 """Resource policy constrains provider calls; it never chooses a fallback."""
 
+from collections.abc import Mapping
 from pathlib import Path
 
 from packages.providers.text import ProviderError
 from services.resources.state import read_record
+
+
+def managed_text_binding(provider):
+    """Read only the static configured identity, never readiness or policy state."""
+    try:
+        value = getattr(provider, "managed_binding", None)
+        if value is None:
+            return None
+        from packages.providers.qwen3_ipc import MANIFEST_SHA256, MODEL, PROFILE, validate_limits
+        from services.resources.client import local_base
+
+        if not isinstance(value, Mapping):
+            raise ValueError("Invalid managed text binding shape")
+        value = dict(value)
+        if set(value) != {
+            "provider",
+            "model",
+            "profile",
+            "manifest_sha256",
+            "resources_url",
+            "max_input_tokens",
+            "max_new_tokens",
+        }:
+            raise ValueError("Invalid managed text binding shape")
+        limits = validate_limits(value["max_input_tokens"], value["max_new_tokens"])
+        info = provider.info
+        if (
+            any(
+                type(value[key]) is not str
+                for key in ("provider", "model", "profile", "manifest_sha256", "resources_url")
+            )
+            or value["provider"] != "managed-qwen3"
+            or value["model"] != MODEL
+            or value["profile"] != PROFILE
+            or value["manifest_sha256"] != MANIFEST_SHA256
+            or not isinstance(value["resources_url"], str)
+            or local_base(value["resources_url"]) != value["resources_url"]
+            or info.provider != value["provider"]
+            or info.model != value["model"]
+            or info.local is not True
+            or info.streaming is not True
+        ):
+            raise ValueError("Invalid managed text binding identity")
+        return {**value, **limits}
+    except Exception as exc:
+        raise ProviderError("Managed text configuration identity is unavailable") from exc
 
 
 class ResourceBoundProvider:
@@ -15,6 +62,10 @@ class ResourceBoundProvider:
     @property
     def info(self):
         return self.provider.info
+
+    @property
+    def managed_binding(self):
+        return managed_text_binding(self.provider)
 
     def _check(self):
         try:

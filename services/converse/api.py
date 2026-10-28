@@ -108,11 +108,14 @@ def create_app(runtime, auth, speech=None, window_controller=None):
 
     @app.get("/health")
     async def health():
+        from packages.providers.text import ProviderError
+        from services.resources.providers import managed_text_binding
+
         try:
             availability = runtime.availability()
         except (OSError, ValueError):
             availability = {"enabled": False, "owner_intent_unavailable": True}
-        return {
+        result = {
             "service": "converse",
             **availability,
             "provider": runtime.provider.info.model_dump(),
@@ -121,6 +124,13 @@ def create_app(runtime, auth, speech=None, window_controller=None):
             "text_operations": runtime.text_status(),
             "streaming_windows": window_controller is not None,
         }
+        try:
+            binding = managed_text_binding(runtime.provider)
+        except ProviderError as exc:
+            raise HTTPException(503, "Managed text configuration identity is unavailable") from exc
+        if binding is not None:
+            result["managed_text"] = binding
+        return result
 
     @app.post("/v1/converse/turns", dependencies=owner)
     async def turn(request: ConverseRequest):
