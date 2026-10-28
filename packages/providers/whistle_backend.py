@@ -160,21 +160,22 @@ class WhistleEngine:
                 return_code=code,
                 is_final=False,
             )
+            self._received_samples = total
+            self._committed_text = parsed["candidate"]
+            self._stream_started = True
+            return {
+                "delta_text": parsed["delta_text"],
+                "committed_text": parsed["candidate"],
+                "pending_text": parsed["pending_text"],
+                "received_samples": total,
+                "final": False,
+                "native_pass_ms": parsed["pass_ms"],
+                "language": parsed["language"],
+            }
         except BaseException:
             self._tainted = True
+            self._stream_active = True
             raise RuntimeError("Whistle stream failed") from None
-        self._received_samples = total
-        self._committed_text = parsed["candidate"]
-        self._stream_started = True
-        return {
-            "delta_text": parsed["delta_text"],
-            "committed_text": parsed["candidate"],
-            "pending_text": parsed["pending_text"],
-            "received_samples": total,
-            "final": False,
-            "native_pass_ms": parsed["pass_ms"],
-            "language": parsed["language"],
-        }
 
     def finish_stream(self):
         if self._tainted:
@@ -206,22 +207,23 @@ class WhistleEngine:
                 return_code=code,
                 is_final=True,
             )
+            self._committed_text = parsed["candidate"]
+            committed = parsed["candidate"]
+            result = {
+                "delta_text": parsed["delta_text"],
+                "committed_text": committed,
+                "pending_text": parsed["pending_text"],
+                "received_samples": total,
+                "final": True,
+                "native_pass_ms": parsed["pass_ms"],
+                "language": parsed["language"],
+            }
+            self._stream_active = False
+            self._received_samples = 0
+            self._committed_text = ""
+            self._stream_started = False
+            return result
         except BaseException:
             self._tainted = True
+            self._stream_active = True
             raise RuntimeError("Whistle stream failed") from None
-        self._committed_text = parsed["candidate"]
-        committed = parsed["candidate"]
-        result = {
-            "delta_text": parsed["delta_text"],
-            "committed_text": committed,
-            "pending_text": parsed["pending_text"],
-            "received_samples": total,
-            "final": True,
-            "native_pass_ms": parsed["pass_ms"],
-            "language": parsed["language"],
-        }
-        self._stream_active = False
-        self._received_samples = 0
-        self._committed_text = ""
-        self._stream_started = False
-        return result

@@ -456,3 +456,47 @@ def test_normal_finish_allows_real_new_stream_and_batch(monkeypatch):
             engine.finish_stream()
     assert calls == [("push", 160), ("finish", 160)] * 2
     assert engine.transcribe(b"synthetic WAV") == "Public fixture"
+
+
+@pytest.mark.parametrize("phase", ["push", "finish"])
+@pytest.mark.parametrize("failure", [KeyboardInterrupt, MemoryError])
+def test_postdispatch_publication_failure_cannot_reuse_engine(monkeypatch, phase, failure):
+    """A native call can succeed before Python fails while publishing its result."""
+    calls = []
+
+    def proc(pcm, count, language, keywords, output, capacity):
+        calls.append("push")
+        output.value = _payload("", "", [], count / 16000)
+        return 0
+
+    def stop(output, capacity):
+        calls.append("finish")
+        output.value = _payload("", "", [], 0.01)
+        return 0
+
+    class PublicationFailure(backend.WhistleEngine):
+        def __setattr__(self, name, value):
+            if getattr(self, "fail_publication", None) == name:
+                super().__setattr__("fail_publication", None)
+                raise failure("synthetic publication interruption")
+            super().__setattr__(name, value)
+
+    engine, _, _, _, _ = _mk(monkeypatch, proc=proc, stop=stop)
+    engine.__class__ = PublicationFailure
+    engine.begin_stream()
+    if phase == "finish":
+        engine.stream_pcm(bytes(320))
+    engine.fail_publication = "_received_samples" if phase == "push" else "_committed_text"
+    with pytest.raises(RuntimeError, match="Whistle stream failed"):
+        engine.stream_pcm(bytes(320)) if phase == "push" else engine.finish_stream()
+    dispatched = list(calls)
+    assert engine._stream_active
+    for operation in (
+        engine.begin_stream,
+        lambda: engine.stream_pcm(bytes(320)),
+        engine.finish_stream,
+        lambda: engine.transcribe(b"unused"),
+    ):
+        with pytest.raises(RuntimeError, match="tainted"):
+            operation()
+    assert calls == dispatched
