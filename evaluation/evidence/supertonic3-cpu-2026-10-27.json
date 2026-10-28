@@ -1273,5 +1273,30 @@
     "format": "passed",
     "physical_audio": false,
     "browser_playback_timing": false
+  },
+  "ci_import_repair": {
+    "initial_head": "261f9090da728d04b93d35597af5c88fdf0d98d3",
+    "initial_run": "https://github.com/rgoza1996/Kinaiya/actions/runs/40637777009",
+    "confirmed_collection_error": "ModuleNotFoundError: No module named scripts (tests/unit/test_retained_voice_probe.py)",
+    "python_311_job": "failed",
+    "python_312_job": "cancelled after pytest step failure",
+    "cause": "Repository script namespace was not installed; local PYTHONPATH had masked the test import assumption.",
+    "repair_commit": "55690654d12305b26fdddec45dc8433c17abdaf1",
+    "repair": "Load development helper scripts by file path using the established test import pattern; no runtime or assertion changes.",
+    "independent_review": "Codex read-only review found no material issue; no reviewer tests run."
+  },
+  "clean_console_verification": {
+    "source_commit": "55690654d12305b26fdddec45dc8433c17abdaf1",
+    "environment": "New Python3.12.3 virtual environment; requirements-dev.lock installed with required hashes; editable checkout installed without dependencies.",
+    "command": "env -u PYTHONPATH pytest -m \"not live\" -q",
+    "tests_passed": 1031,
+    "seconds": 170.41,
+    "warnings": 1,
+    "result": "passed",
+    "ruff_check": "passed",
+    "ruff_format_check": "passed (196 files)",
+    "contract_export_diff": "clean",
+    "optional_runtime_audit": "No known vulnerabilities found",
+    "test_helper_sha256": "b2090469d20ac4529d56570a5c21e2764cb5ce9c2327e39920d25e3fb8f82a0a"
   }
 }
