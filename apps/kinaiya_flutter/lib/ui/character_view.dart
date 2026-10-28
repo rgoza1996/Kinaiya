@@ -9,6 +9,7 @@ import '../audio/speech_audio.dart';
 import '../audio/turn_audio.dart';
 import '../character/pack.dart';
 import '../config/connection.dart';
+import '../presentation/controller.dart';
 import '../state/app_state.dart';
 import 'book_sheet.dart';
 import 'moonlit_scene.dart';
@@ -51,10 +52,18 @@ class CharacterView extends StatefulWidget {
     required this.state,
     this.audio,
     this.onActivityChanged,
+    this.character,
+    this.showCharacter = true,
+    this.showCaptions = true,
+    this.scenePrimary = kinaiyaIndigo,
+    this.sceneBackground = kinaiyaWhite,
   });
   final AppState state;
   final SpeechAudio? audio;
   final ValueChanged<VoiceActivity>? onActivityChanged;
+  final CharacterSelection? character;
+  final bool showCharacter, showCaptions;
+  final Color scenePrimary, sceneBackground;
 
   @override
   State<CharacterView> createState() => _CharacterViewState();
@@ -140,7 +149,9 @@ class _CharacterViewState extends State<CharacterView> {
     _input = TextEditingController(text: widget.state.converseDraft);
     _audio = widget.audio ?? speechAudio();
     _lastClient = _s.client;
-    _pack = loadCharacterPack();
+    _pack = widget.character == null
+        ? loadCharacterPack()
+        : Future.value(widget.character!.pack);
     _refreshVoice();
     _noticeSubscription = _s.outcomeNotices.listen((entry) {
       final api = _s.client;
@@ -189,6 +200,12 @@ class _CharacterViewState extends State<CharacterView> {
   @override
   void didUpdateWidget(covariant CharacterView oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.character, widget.character)) {
+      // Presentation changes never invalidate audio/session/task ownership.
+      _pack = widget.character == null
+          ? loadCharacterPack()
+          : Future.value(widget.character!.pack);
+    }
     if (_lastClient != _s.client) {
       _lastClient = _s.client;
       if (_input.text != _s.converseDraft) _input.text = _s.converseDraft;
@@ -1211,23 +1228,36 @@ class _CharacterViewState extends State<CharacterView> {
     return 'Ready to talk';
   }
 
-  Widget _mascot(CharacterPack? pack, double size) => Semantics(
-    button: true,
-    label: 'Open Agent Chat',
-    child: InkWell(
-      onTap: _openAgent,
-      borderRadius: BorderRadius.circular(24),
-      child: pack == null
-          ? SizedBox(width: size, height: size)
-          : MascotWidget(
-              pack: pack,
-              size: size,
-              mood: _recording || _armed
-                  ? 'listening'
-                  : (_speaking ? 'speaking' : _mood),
-            ),
-    ),
-  );
+  Widget _mascot(CharacterPack? pack, double size) {
+    if (!widget.showCharacter) {
+      return Semantics(
+        label: 'Conversation without character animation',
+        child: Icon(
+          Icons.chat_bubble_outline_rounded,
+          size: size.clamp(48, 72),
+          color: Theme.of(context).colorScheme.primary,
+        ),
+      );
+    }
+    return Semantics(
+      button: true,
+      label: 'Open Agent Chat',
+      child: InkWell(
+        onTap: _openAgent,
+        borderRadius: BorderRadius.circular(24),
+        child: pack == null
+            ? SizedBox(width: size, height: size)
+            : MascotWidget(
+                pack: pack,
+                bundle: widget.character?.bundle,
+                size: size,
+                mood: _recording || _armed
+                    ? 'listening'
+                    : (_speaking ? 'speaking' : _mood),
+              ),
+      ),
+    );
+  }
 
   Widget _stage(CharacterPack? pack, BoxConstraints box) {
     final size = (box.maxHeight - 76).clamp(100.0, 320.0);
@@ -1265,7 +1295,11 @@ class _CharacterViewState extends State<CharacterView> {
                   padding: const EdgeInsets.all(8),
                   child: Text(
                     pack.note,
-                    style: const TextStyle(color: kinaiyaWhite),
+                    style: TextStyle(
+                      color: widget.showCharacter
+                          ? kinaiyaWhite
+                          : Theme.of(context).colorScheme.onSurface,
+                    ),
                   ),
                 ),
             ],
@@ -1290,7 +1324,10 @@ class _CharacterViewState extends State<CharacterView> {
 
   Widget _conversation(CharacterPack? pack) => LayoutBuilder(
     builder: (context, box) {
-      if (_s.converseHistory.isEmpty) return _stage(pack, box);
+      if (_s.converseHistory.isEmpty ||
+          (!widget.showCaptions && widget.showCharacter)) {
+        return _stage(pack, box);
+      }
       final scale = MediaQuery.textScalerOf(context).scale(1).clamp(1, 2);
       if (box.maxWidth / scale >= 1040) {
         return Row(
@@ -1324,9 +1361,18 @@ class _CharacterViewState extends State<CharacterView> {
                 _mascot(pack, 72),
                 const SizedBox(width: 12),
                 Flexible(
-                  child: Text(
-                    _status,
-                    style: const TextStyle(color: kinaiyaWhite),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: kinaiyaNavy,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: Text(
+                        _status,
+                        style: const TextStyle(color: kinaiyaWhite),
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -1512,6 +1558,9 @@ class _CharacterViewState extends State<CharacterView> {
   Widget build(BuildContext context) => FutureBuilder<CharacterPack>(
     future: _pack,
     builder: (context, snap) => MoonlitScene(
+      primary: widget.scenePrimary,
+      background: widget.sceneBackground,
+      enabled: widget.showCharacter,
       child: LayoutBuilder(
         builder: (context, box) {
           final resourceNote = _s.resourceStatusStale
@@ -1543,7 +1592,12 @@ class _CharacterViewState extends State<CharacterView> {
                   banner,
                   SizedBox(
                     height: (box.maxHeight - 240 * scale).clamp(120.0, 700.0),
-                    child: _conversation(snap.data),
+                    child: _conversation(
+                      widget.character?.pack ??
+                          (snap.connectionState == ConnectionState.done
+                              ? snap.data
+                              : null),
+                    ),
                   ),
                   _composer(),
                 ],
