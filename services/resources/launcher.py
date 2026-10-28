@@ -6,9 +6,10 @@ from pathlib import Path
 from typing import Literal
 
 import httpx
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from packages.contracts.client import JournalClient
+from packages.providers.tts_backends import SUPERTONIC_REVISION, validate_voice
 from packages.resources.processes import WorkerManager, WorkerSpec
 from services.resources.api import create_app
 from services.resources.client import ConverseControl, local_base
@@ -23,12 +24,25 @@ class LocalResourceConfig(BaseModel):
     voice_python: str = Field(min_length=1, max_length=4096)
     voice_port: int = Field(default=8765, ge=1024, le=65535)
     stt_model: Literal["tiny", "tiny.en"] = "tiny.en"
+    tts_model_dir: str | None = Field(default=None, min_length=1, max_length=4096)
+    tts_voice: (
+        Literal["af_heart", "F1", "F2", "F3", "F4", "F5", "M1", "M2", "M3", "M4", "M5"] | None
+    ) = None
     profile: str = "conversation_priority"
     minimum_free_bytes: int = Field(default=128 * 1024 * 1024, ge=64 * 1024 * 1024, le=1 << 46)
     voice_memory_reserve_bytes: int = Field(
         default=2 * 1024 * 1024 * 1024, ge=128 * 1024 * 1024, le=1 << 46
     )
     laya: ManagedLayaConfig | None = None
+
+    @field_validator("tts_model_dir")
+    @classmethod
+    def absolute_tts_directory(cls, value):
+        if value is not None and (
+            not Path(value).is_absolute() or any(char in value for char in "\0\r\n")
+        ):
+            raise ValueError("TTS model directory must be an absolute owner-configured path")
+        return value
 
 
 def resource_app(args, config, auth, tokens, root):
@@ -41,7 +55,31 @@ def resource_app(args, config, auth, tokens, root):
     data = args.data_dir.resolve()
     state_path = data / "resources-state.json"
     voice_url = f"http://127.0.0.1:{settings.voice_port}"
-    if local_base(config.get("voice", {}).get("url", "")) != voice_url:
+    voice = config.get("voice")
+    if not isinstance(voice, dict):
+        raise ValueError("Configure the managed local voice endpoint")
+    tts_profile = voice.get("profile", "Kokoro 82M")
+    if not isinstance(tts_profile, str):
+        raise ValueError("Select a configured retained TTS profile")
+    tts_voice = validate_voice(tts_profile, settings.tts_voice)
+    supertonic = tts_profile == "Supertonic 3"
+    if supertonic and settings.tts_model_dir is None:
+        raise ValueError("Supertonic 3 requires its owner-configured local model directory")
+    if not supertonic and settings.tts_model_dir is not None:
+        raise ValueError("Kokoro does not accept a Supertonic model directory")
+    tts_revision = SUPERTONIC_REVISION if supertonic else None
+    synthesis_mode = "buffered" if supertonic else "sentence_buffered"
+    if settings.tts_model_dir is not None:
+        workspace = args.workspace.resolve()
+        model_path = Path(settings.tts_model_dir)
+        for location in (model_path, model_path.resolve()):
+            if (
+                location == workspace
+                or location.is_relative_to(workspace)
+                or workspace.is_relative_to(location)
+            ):
+                raise ValueError("Managed TTS model inputs must be outside the Agent workspace")
+    if local_base(voice.get("url", "")) != voice_url:
         raise ValueError(
             "The configured Converse voice endpoint must match its managed local worker"
         )
@@ -57,6 +95,11 @@ def resource_app(args, config, auth, tokens, root):
             str(settings.voice_port),
             "--stt-model",
             settings.stt_model,
+            "--tts-profile",
+            tts_profile,
+            "--tts-voice",
+            tts_voice,
+            *(("--tts-model-dir", settings.tts_model_dir) if settings.tts_model_dir else ()),
             "--resource-policy",
             str(state_path),
         ),
@@ -101,13 +144,39 @@ def resource_app(args, config, auth, tokens, root):
     async def readiness(worker_spec, process):
         if worker_spec.id == "laya":
             return await laya_ready(settings.laya, laya_probe, process)
+        voice_health.clear()
         try:
             response = await health_http.get("/health")
             payload = response.json()
+            required = {
+                "service",
+                "pid",
+                "device",
+                "loaded",
+                "tts_profile",
+                "tts_voice",
+                "synthesis_mode",
+                "tts_artifact_revision",
+                "assets_state",
+            }
+            if not isinstance(payload, dict) or not required.issubset(payload):
+                return False
+            loaded = payload["loaded"]
             if (
                 response.status_code != 200
-                or payload.get("service") != "local-voice"
-                or payload.get("pid") != process.pid
+                or payload["service"] != "local-voice"
+                or type(payload["pid"]) is not int
+                or payload["pid"] != process.pid
+                or payload["device"] != "cpu"
+                or payload["tts_profile"] != tts_profile
+                or payload["tts_voice"] != tts_voice
+                or payload["synthesis_mode"] != synthesis_mode
+                or payload["tts_artifact_revision"] != tts_revision
+                or payload["assets_state"] not in ("not_checked", "verified")
+                or not isinstance(loaded, list)
+                or any(not isinstance(name, str) or name not in {"stt", "tts"} for name in loaded)
+                or len(loaded) != len(set(loaded))
+                or (supertonic and "tts" in loaded and payload["assets_state"] != "verified")
             ):
                 return False
             voice_health.clear()
@@ -115,7 +184,12 @@ def resource_app(args, config, auth, tokens, root):
                 {
                     "pid": process.pid,
                     "device": payload.get("device"),
-                    "loaded": [x for x in payload.get("loaded", []) if x in {"stt", "tts"}],
+                    "loaded": list(loaded),
+                    "tts_profile": tts_profile,
+                    "tts_voice": tts_voice,
+                    "synthesis_mode": synthesis_mode,
+                    "tts_artifact_revision": tts_revision,
+                    "assets_state": payload["assets_state"],
                 }
             )
             return True
