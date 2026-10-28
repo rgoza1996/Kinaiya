@@ -195,10 +195,26 @@ speech, owner, typed cleanup and window regressions remain part of validation.
 The existing package-data assertion is extended with the three exact new
 files while retaining exact equality and all prior entries.
 
-No new Whistle inference is part of this implementation verification. The
-separately frozen preflight observed one cold exact 4.7-second public phrase
-in 28.87 seconds on two CPUs; a warm attempt failed the old cumulative CPU
-cap. Those failures remain evidence. This change requires a separate lead
-integration smoke with the pinned actual engine, independent review and
-exact-head CI. It establishes no real-time, quality, sustained-load, p95,
-physical-audio, default-promotion or full M2 acceptance claim.
+The [lead integration smoke](../../evaluation/evidence/managed-whistle-integration-2026-10-28.json)
+used the actual pinned engine through production HTTP, IPC, ownership and
+resource management. The same child transcribed the exact 4.7-second public
+phrase cold in 27.35 seconds and warm in 27.20 seconds on two CPUs. Its highest
+observed VmHWM was 77,164,544 bytes (73.59 MiB), not a guaranteed final peak.
+The third request was canceled while pending with measured process CPU
+advancement; exact native entry was not instrumented. Its process/group was
+confirmed released before a new silence request recovered a different owned
+child. Owner-off, restore-while-off, on, handoff and restore also passed; all
+four observed children were reaped with empty groups. Converse control and
+provider locality were synthetic; this was not a full voice-to-Agent test.
+
+The first managed smoke failed before readiness with no transcription
+requests. The separate startup diagnostic identified the file-size cap
+blocking sealed memfd copies; the correction and original failure are
+retained. The earlier preflight's warm cumulative-CPU-cap failure also remains
+evidence. Independent lifecycle/kernel reviews and an actual
+[Muse Contributor review](../../evaluation/evidence/managed-whistle-muse-review-2026-10-28.json)
+record their source identities and limits. Exact-head CI remains a merge
+requirement. Each speech request took about 5.8 times the input audio duration,
+which is too slow for real-time voice; this screen establishes no general
+quality, sustained-load, p95, physical-audio, default-promotion or full M2
+acceptance claim.

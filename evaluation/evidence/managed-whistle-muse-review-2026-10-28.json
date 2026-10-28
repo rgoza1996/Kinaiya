@@ -1,0 +1,170 @@
+{
+  "actual_run": {
+    "actual_cli": true,
+    "configured_model": "muse-spark-1.3-contributor",
+    "direct_child_reaped": true,
+    "effort_evidence": "Pinned run.py command arguments and saved receipt; event stream does not independently expose effective backend effort.",
+    "elapsed_seconds": 116.41875996897579,
+    "event_evidence": "179 parsed JSON records, including configured model, one usage record, completed task lifecycle and completed run terminal; three non-JSON lines excluded.",
+    "exit_code": 0,
+    "forced_termination": false,
+    "isolation": "Fresh HOME/XDG and empty workspace; empty preset; writes, shell and web tools disabled; one model step; key provided via stdin. No credential values copied here.",
+    "ledger_requested_and_resolved_model": "muse-spark-1.3-contributor",
+    "model_tasks_cancelled": 0,
+    "model_tasks_completed": 1,
+    "model_tasks_failed": 0,
+    "prompt_event_matches_prompt_file": true,
+    "provider": "meta",
+    "provider_last_wire_event": "response.completed",
+    "requested_model": "muse-spark-1.3-contributor",
+    "requested_reasoning_effort": "xhigh",
+    "terminal": "completed",
+    "usage_reported_model": "muse-spark-1.3-contributor"
+  },
+  "budget": {
+    "contributor_token_price_estimate_usd": "0.0140312",
+    "invoice_or_billed_amount": null,
+    "lead_observed_sanitized_budget_after_record_1385": {
+      "billing_reported_usd": null,
+      "cache_aware_admission_estimated_usd": "2.045053632",
+      "contributor_estimated_usd": "1.022526816",
+      "independently_requested_by_this_verifier": false,
+      "legacy_uncached_audit_estimated_usd": "20.2630200",
+      "ordinary_model_comparison_estimated_usd": "129.82695875",
+      "retained_unknown_reservations_usd": "1.55581005"
+    },
+    "pre_dispatch_maximum_reservation_usd": "0.2278138",
+    "price_usd_per_million_tokens": {
+      "cached_input": "0.002",
+      "input": "0.10",
+      "output": "0.20"
+    },
+    "qualification": "Reported usage and configured token prices produce estimates, not invoices. Pre-dispatch reservation is a conservative maximum, not a charge. Existing unknown reservations remain retained.",
+    "record_canonical_sha256": "bb0ea4992a3c02949d6f0e95ea1c5f39471f9979b2702fb324f6f2ff5243c851",
+    "record_id": 1385,
+    "record_state": "usage_reported",
+    "record_verification_scope": "Only the authorized single record was decoded; no historical call bodies or credentials inspected.",
+    "settled_two_times_cache_aware_admission_basis_usd": "0.0280624"
+  },
+  "model_reported_usage": {
+    "cached_input_tokens": 0,
+    "input_tokens": 66704,
+    "output_tokens": 36804,
+    "reasoning_tokens": 35874,
+    "reasoning_tokens_are_not_added_again_to_output_price": true
+  },
+  "original_artifacts": {
+    "events.jsonl": {
+      "bytes": 551525,
+      "retention": "owner-private original; not copied",
+      "sha256": "0b5e7d85ed6ffb3f1e56d4460cbff72c396c9714473b359b794041f0207bbd50"
+    },
+    "prompt.txt": {
+      "bytes": 216369,
+      "retention": "owner-private original; not copied",
+      "sha256": "b686371c847b1904c3b3f7d2b7dce988942990bc561b9c8b27168af5b30b8cb8"
+    },
+    "receipt.json": {
+      "bytes": 662,
+      "retention": "owner-private original; not copied",
+      "sha256": "f5222713bc0b09a33cf37213cda5264bb6d3b35da40adeeee2042d4c36d57bb6"
+    },
+    "run.py": {
+      "bytes": 3455,
+      "retention": "owner-private original; not copied",
+      "sha256": "1fc582e8f46f4445aeb356ab150a55a959e33c29e0ba633f71278e01184864ac"
+    }
+  },
+  "purpose": "Public-safe evidence for the saved actual Muse Whistle lifecycle/transport review v2; no new model call or worker execution.",
+  "review_outcome": {
+    "gates_not_satisfied_by_this_review": [
+      "opaque native binary and decoder behavior",
+      "Whistle runtime/performance acceptance",
+      "persistent streaming issue #49",
+      "physical audio delivery",
+      "full roadmap/M2 acceptance"
+    ],
+    "model_reported_actionable_findings": 0,
+    "qualification": "A completed actual LLM review, not executed runtime proof. The model reported no actionable lifecycle/transport defects; speculative edge cases were not established defects.",
+    "scope": "Read-only lifecycle/transport reasoning over supplied source and synthetic tests.",
+    "tests_executed_by_reviewer": false,
+    "tools_or_external_providers_invoked_by_reviewer": false,
+    "whistle_or_other_native_model_inference_executed_by_reviewer": false
+  },
+  "schema_version": 1,
+  "source": {
+    "base_commit": "ba3c9659fae4651f5486bdc80e98d0e43178296d",
+    "binding": "All 11 supplied numbered source sections were matched byte-for-byte against git show of this commit; fixed review instructions and synthetic project fixtures only.",
+    "commit": "4cc2c5e84ca0247c0dc2c97e445f4f88482541ba",
+    "files": [
+      {
+        "bytes": 11546,
+        "path": "docs/adr/0034-managed-whistle-cpu-stt.md",
+        "sha256": "74c39370e5ddf822b23bc5a451861ca6909733eb5a212d63cfcc808365c50b0c"
+      },
+      {
+        "bytes": 56145,
+        "path": "packages/resources/processes.py",
+        "sha256": "86fd15bf472e99804678f9ecda8fa48e6b4342af53efa95777ab9601df286ec0"
+      },
+      {
+        "bytes": 17057,
+        "path": "services/resources/whistle.py",
+        "sha256": "0ceca7c54cd2ff1a02d3a8d0dd6d769a8139170e828aaa1e779ae4a6ca0749a0"
+      },
+      {
+        "bytes": 28628,
+        "path": "services/resources/coordinator.py",
+        "sha256": "4598741d5cb64af5a9c355302159f6fdcee639affed47e775b2c8e64c00181c0"
+      },
+      {
+        "bytes": 3355,
+        "path": "services/resources/api.py",
+        "sha256": "befedbcf782a7b7af3d3b746d2ddbfcb456e28008b47ccd9fe7ee557bd525b7e"
+      },
+      {
+        "bytes": 13783,
+        "path": "services/resources/launcher.py",
+        "sha256": "ee2e0e5091e904aa38ffa6b35317e54f4001f04be126723ba38a1b0e9576e49c"
+      },
+      {
+        "bytes": 11301,
+        "path": "services/converse/api.py",
+        "sha256": "ff3347a6849430a8200f4282140e61c76838b10d00b755d636befabd267ee54c"
+      },
+      {
+        "bytes": 5163,
+        "path": "packages/providers/speech.py",
+        "sha256": "941b647a8dce7122c5f74553dce6c0464c415a6b05191c028f8925eec63b9622"
+      },
+      {
+        "bytes": 37773,
+        "path": "tests/integration/test_managed_whistle.py",
+        "sha256": "75605c2107b5fac9b0b4faf1aa0a21e4906072ff62dbedb440a77a24687dc522"
+      },
+      {
+        "bytes": 3961,
+        "path": "tests/integration/test_worker_identity.py",
+        "sha256": "4d070fd55951778351a3c30d72206301403a0eb851429b3296a349d00ff689d1"
+      },
+      {
+        "bytes": 2758,
+        "path": "tests/unit/test_whistle_transport.py",
+        "sha256": "41bfec9ec41bde8ff2e7a338164c7a5ebe15f84dcc90aca4096ef184e8c6ddf6"
+      }
+    ],
+    "private_prototype_or_credentials_in_prompt": false,
+    "publication_qualification": "Public-project source; some supplied changes were unpublished at review time. This verifies local commit content, not independent web availability.",
+    "pull_request": "https://github.com/rgoza1996/Kinaiya/pull/89",
+    "repository": "https://github.com/rgoza1996/Kinaiya",
+    "tree": "09f0fd7352d828c4595be3f12f773dadf85624df"
+  },
+  "verification": {
+    "new_muse_or_provider_calls": 0,
+    "new_worker_or_service_calls": 0,
+    "original_artifact_hashes_rechecked_at_public_handoff": true,
+    "raw_events_prompts_and_credentials_not_copied": true,
+    "source_commit_tree_and_all_supplied_source_hashes_rechecked_at_public_handoff": true,
+    "source_ledger_and_original_artifact_mutations": false
+  }
+}

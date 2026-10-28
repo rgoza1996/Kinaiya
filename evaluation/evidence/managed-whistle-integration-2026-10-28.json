@@ -1,0 +1,531 @@
+{
+  "schema_version": "1.0",
+  "date": "2026-10-28",
+  "issue": 85,
+  "pull_request": "https://github.com/rgoza1996/Kinaiya/pull/89",
+  "status": "Actual pinned-engine buffered HTTP/IPC STT integration passed; experimental, no default promotion or full M2/streaming acceptance.",
+  "source": {
+    "root": "/home/roggoz/.codex/worktrees/mcp-controls/Kinaiya",
+    "commit": "a9523595305ec3c318077fd3f77c39907452b302",
+    "tree": "16c16e5242ba93f64a3a516562ae674967f7d456",
+    "clean": true,
+    "files": {
+      "packages/resources/processes.py": {
+        "bytes": 56145,
+        "sha256": "86fd15bf472e99804678f9ecda8fa48e6b4342af53efa95777ab9601df286ec0"
+      },
+      "packages/resources/_bootstrap.py": {
+        "bytes": 4263,
+        "sha256": "0689a68ed813fd11e336f4a96a1fc4c60e908cf627c9dece6037f2d88b0da9f2"
+      },
+      "packages/providers/speech.py": {
+        "bytes": 5163,
+        "sha256": "941b647a8dce7122c5f74553dce6c0464c415a6b05191c028f8925eec63b9622"
+      },
+      "packages/providers/whistle_assets.py": {
+        "bytes": 2770,
+        "sha256": "3e2a185584497e83d26a86bab2127831b61ae86e82b685d5def489d019495de5"
+      },
+      "packages/providers/whistle_audio.py": {
+        "bytes": 4179,
+        "sha256": "10506b65c3fec87b9fc94c9085e16c91833879e060487a08fe1bf3f3a797f80e"
+      },
+      "packages/providers/whistle_backend.py": {
+        "bytes": 2931,
+        "sha256": "545bfa0d8d720c231c1d26f04dfe702653f43cfecf31c94a8cbdedbccc9eb5da"
+      },
+      "packages/providers/whistle_ipc.py": {
+        "bytes": 3619,
+        "sha256": "831b7916e533df28cffee4342975d57173cdb8e2699615f80547d8fbb8c6dafd"
+      },
+      "packages/providers/whistle_isolation.py": {
+        "bytes": 3419,
+        "sha256": "743978c5f1192eddc291168dbb649a5f7b9341a760d56bb072f3cfad1739bccb"
+      },
+      "packages/providers/whistle_worker.py": {
+        "bytes": 4746,
+        "sha256": "b744c7973fddf936c82627a708851907308800fe42c262ebcdbd782701d7f69b"
+      },
+      "packages/providers/whistle_manifest.json": {
+        "bytes": 1648,
+        "sha256": "6d66fc47e2658d99b83ae85c2e73e19b3607cf81057c49065566047d7519aa3c"
+      },
+      "packages/providers/whistle_NOTICE.txt": {
+        "bytes": 1185,
+        "sha256": "b0748e4e5d6dac103cf8d1bd1c500b03230b8c1acd77e88cfe4d0a484993032f"
+      },
+      "packages/providers/whistle_LICENSE.txt": {
+        "bytes": 11358,
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      },
+      "services/common/auth.py": {
+        "bytes": 2384,
+        "sha256": "1af3197f710abbbdc7ebe33e4886789813ac2d3088ee530c52a40023843b4bb6"
+      },
+      "services/converse/intent.py": {
+        "bytes": 5662,
+        "sha256": "cdbf41758880528ba7bd05ad8744cbc75591ffc3e3593ff086a0d7b9387a65b4"
+      },
+      "services/resources/api.py": {
+        "bytes": 3355,
+        "sha256": "befedbcf782a7b7af3d3b746d2ddbfcb456e28008b47ccd9fe7ee557bd525b7e"
+      },
+      "services/resources/coordinator.py": {
+        "bytes": 28628,
+        "sha256": "4598741d5cb64af5a9c355302159f6fdcee639affed47e775b2c8e64c00181c0"
+      },
+      "services/resources/state.py": {
+        "bytes": 4211,
+        "sha256": "54330f45ff056d3ff2b2860b66a8faf995c88348da4027a2f5a9a2a40fab89ea"
+      },
+      "services/resources/whistle.py": {
+        "bytes": 17057,
+        "sha256": "0ceca7c54cd2ff1a02d3a8d0dd6d769a8139170e828aaa1e779ae4a6ca0749a0"
+      },
+      "requirements-whistle.lock": {
+        "bytes": 2730,
+        "sha256": "6d22464de9f0ff308deee728f9dee3ff7acb14c7f3bd36c1fb0c9304602de613"
+      }
+    }
+  },
+  "reproduction": {
+    "harness_sha256": "97d4ded414b310320ff6516552b9bd6041ad16f75f5e46bdf710d696934e59cf",
+    "harness_local_path": "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/whistle-managed-live-v3/managed_smoke.py",
+    "result_sha256": "ebec037884567c12da0926e899c5dcb7b569ea5e0f24eaad53a30dfd2cfbf3bf",
+    "result_local_path": "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/whistle-managed-live-v3/attempt-1/result.json",
+    "static_plan_sha256": "bdedcb8f9e551617cf66fa912f49decefb277c1a29efc95ebf2da5395e385a3a",
+    "claim_sha256": "30d715c1a788c0d2c04d414b5ea976c782369b7bd430e57fb4e9bbd8caf29f5c",
+    "source_clean_before_and_after": true,
+    "source_critical_bytes_unchanged_after": true,
+    "command": "env -i PATH=/usr/local/bin:/usr/bin:/bin LANG=C.UTF-8 PYTHONDONTWRITEBYTECODE=1 HOME=<fresh private parent-home> XDG_CONFIG_HOME=<fresh private parent-config> XDG_CACHE_HOME=<fresh private parent-cache> XDG_DATA_HOME=<fresh private parent-data> <supertonic-ci-venv>/bin/python -I -B <fresh prepared harness>/managed_smoke.py --source-root <reviewed checkout> --expected-commit a9523595305ec3c318077fd3f77c39907452b302 --run --expected-harness-sha256 97d4ded414b310320ff6516552b9bd6041ad16f75f5e46bdf710d696934e59cf --owner-controls",
+    "claim_policy": "Fresh one-shot execution claim; prior failed attempt retained, never reset or reused. This historical harness uses the retained local paths/interpreters in its source; not a clean-machine model installer."
+  },
+  "configuration": {
+    "production_config": {
+      "python": "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/vibevoice-venv/bin/python",
+      "weights": "/home/roggoz/.cache/kinaiya-whistle-preflight-20261028/whistle.cact",
+      "library": "/home/roggoz/.cache/kinaiya-whistle-preflight-20261028/libneedle3.so",
+      "cpu_affinity_count": 2,
+      "memory_bytes": 1073741824,
+      "host_memory_reserve_bytes": 268435456,
+      "startup_timeout_s": 20.0,
+      "request_timeout_s": 65.0
+    },
+    "child_version_only_probe": {
+      "python": "3.12.3",
+      "av": "17.1.0"
+    },
+    "limits_s": {
+      "each_http_call": 70.0,
+      "production_request": 65.0,
+      "body": 200.0,
+      "cleanup": 15.0,
+      "global": 220.0
+    },
+    "assets": {
+      "weights": {
+        "path": "/home/roggoz/.cache/kinaiya-whistle-preflight-20261028/whistle.cact",
+        "bytes": 16919407,
+        "sha256": "b6e02f048568ac5d01a2042556c658061e699acbc0aa2a1439f52f3d461dffeb"
+      },
+      "library": {
+        "path": "/home/roggoz/.cache/kinaiya-whistle-preflight-20261028/libneedle3.so",
+        "bytes": 1590584,
+        "sha256": "87476ff70e80334d7c766dbf236b72f42876072df22014c6ec8a9b087b82b260"
+      }
+    },
+    "public_input": {
+      "path": "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/whistle-managed-live-v3/public-input.wav",
+      "sha256": "90ad6ae5b041513e102ebd39d48ccfe8c5c7ac87e732338ec8f0aa2ffff23d9b",
+      "seconds": 4.7,
+      "sample_rate": 24000
+    },
+    "expected_public_speech": "Please create a new file named proof containing only the number seven.",
+    "cpu_affinity_count": 2,
+    "observed_threads_at_ready": 12,
+    "no_cumulative_rlimit_cpu": true,
+    "model_or_library_downloads": 0
+  },
+  "actual_boundary": {
+    "real": [
+      "WorkerSpec and WorkerManager direct owned child",
+      "required seccomp network fence and no-new-privileges",
+      "exact sealed pinned assets and explicit ctypes native engine",
+      "private Unix socket and PID/UID/incarnation/nonce checks",
+      "production coordinator/broker/resources HTTP API on ephemeral loopback",
+      "SpeechClient HTTP transport",
+      "fresh measured memory admission"
+    ],
+    "synthetic": {
+      "converse_control": true,
+      "provider_locality": "synthetic local=False; no real text model",
+      "auth": "fresh in-memory service tokens; never persisted",
+      "tts": "not exercised",
+      "audio": "generated public speech and generated silence only"
+    },
+    "http_transcription_requests_started": 4,
+    "no_automatic_uncertain_inference_retry": true,
+    "native_started": true
+  },
+  "observations": {
+    "started_utc": "2026-10-28T20:26:45Z",
+    "global_wall_s": 57.589823177986545,
+    "calls": [
+      {
+        "stage": "cold_public_speech",
+        "input_sha256": "90ad6ae5b041513e102ebd39d48ccfe8c5c7ac87e732338ec8f0aa2ffff23d9b",
+        "audio_seconds": 4.7,
+        "wall_s": 27.34860446600942,
+        "response": {
+          "text": "Please create a new file named proof containing only the number seven.",
+          "provider": "whistle",
+          "profile": "experimental_buffered_cpu"
+        },
+        "exact_expected_phrase": true,
+        "worker": {
+          "worker_id": "whistle",
+          "pid": 1104099,
+          "start_time": 19744435
+        },
+        "http_wall_to_audio_ratio": 5.818852014044557
+      },
+      {
+        "stage": "warm_public_speech",
+        "input_sha256": "90ad6ae5b041513e102ebd39d48ccfe8c5c7ac87e732338ec8f0aa2ffff23d9b",
+        "audio_seconds": 4.7,
+        "wall_s": 27.204715658008354,
+        "response": {
+          "text": "Please create a new file named proof containing only the number seven.",
+          "provider": "whistle",
+          "profile": "experimental_buffered_cpu"
+        },
+        "exact_expected_phrase": true,
+        "worker": {
+          "worker_id": "whistle",
+          "pid": 1104099,
+          "start_time": 19744435
+        },
+        "http_wall_to_audio_ratio": 5.78823737404433
+      },
+      {
+        "stage": "new_silence_http_auto_recovery",
+        "input_sha256": "643f8a8dc8bd9c19225afffad2becfec5426180b3749cb208abdf1a6c8354efc",
+        "audio_seconds": 1.0,
+        "wall_s": 0.2471798240148928,
+        "response": {
+          "text": "",
+          "provider": "whistle",
+          "profile": "experimental_buffered_cpu"
+        },
+        "exact_expected_phrase": true,
+        "worker": {
+          "worker_id": "whistle",
+          "pid": 1104360,
+          "start_time": 19749961
+        },
+        "http_wall_to_audio_ratio": 0.2471798240148928
+      }
+    ],
+    "cancel": {
+      "stage": "cancel_pending_third_http",
+      "wall_s": 0.2031083190231584,
+      "worker": {
+        "worker_id": "whistle",
+        "pid": 1104099,
+        "start_time": 19744435
+      },
+      "pending_work_observed": true,
+      "worker_cpu_advance_s": 0.12999999999999545,
+      "native_entry": "not instrumented; pending work plus process CPU advancement only",
+      "http_cancelled": true,
+      "release": {
+        "evidence": {
+          "pid": 1104099,
+          "pgid": 1104099,
+          "rss_before_bytes": 77164544,
+          "group_rss_before_bytes": 77164544,
+          "mem_available_bytes": 48573956096,
+          "term_sent": true,
+          "kill_sent": false,
+          "reaped": true,
+          "group_empty": true,
+          "residual_pids": [],
+          "ownership_verified": true,
+          "duration_s": 0.08282765100011602,
+          "at": "2026-10-28T20:27:41.202119+00:00"
+        },
+        "exit_code": -15,
+        "observer_pidfd_dead": true
+      }
+    },
+    "recovery": {
+      "old": {
+        "worker_id": "whistle",
+        "pid": 1104099,
+        "start_time": 19744435
+      },
+      "new": {
+        "worker_id": "whistle",
+        "pid": 1104360,
+        "start_time": 19749961
+      },
+      "old_release_confirmed_before_new_request": true,
+      "same_numeric_pid": false
+    },
+    "owner_actions": [
+      {
+        "stage": "owner_converse",
+        "ok": true,
+        "phase": "off",
+        "desired_converse": false
+      },
+      {
+        "stage": "owner_restore",
+        "ok": true,
+        "phase": "off",
+        "desired_converse": false
+      },
+      {
+        "stage": "owner_converse",
+        "ok": true,
+        "phase": "ready",
+        "desired_converse": true
+      },
+      {
+        "stage": "owner_profile",
+        "ok": true,
+        "phase": "ready",
+        "desired_converse": true
+      },
+      {
+        "stage": "owner_handoff",
+        "ok": true,
+        "phase": "local_work",
+        "desired_converse": true
+      },
+      {
+        "stage": "owner_restore",
+        "ok": true,
+        "phase": "ready",
+        "desired_converse": true
+      }
+    ],
+    "highest_observed_vmhwm_bytes": 77164544,
+    "observed_workers": [
+      {
+        "identity": {
+          "worker_id": "whistle",
+          "pid": 1104099,
+          "start_time": 19744435
+        },
+        "samples": 549,
+        "max_sampled_rss_bytes": 77164544,
+        "max_observed_vmhwm_bytes": 77164544,
+        "release": {
+          "evidence": {
+            "pid": 1104099,
+            "pgid": 1104099,
+            "rss_before_bytes": 77164544,
+            "group_rss_before_bytes": 77164544,
+            "mem_available_bytes": 48573956096,
+            "term_sent": true,
+            "kill_sent": false,
+            "reaped": true,
+            "group_empty": true,
+            "residual_pids": [],
+            "ownership_verified": true,
+            "duration_s": 0.08282765100011602,
+            "at": "2026-10-28T20:27:41.202119+00:00"
+          },
+          "exit_code": -15,
+          "observer_pidfd_dead": true
+        },
+        "observed_limits": {
+          "address_space_soft_bytes": 1073741824,
+          "address_space_hard_bytes": 1073741824,
+          "cpu_soft": "unlimited",
+          "cpu_hard": "unlimited"
+        },
+        "environment_keys_verified": [
+          "LANG",
+          "PATH",
+          "PYTHONDONTWRITEBYTECODE",
+          "PYTHONNOUSERSITE",
+          "PYTHONPATH"
+        ]
+      },
+      {
+        "identity": {
+          "worker_id": "whistle",
+          "pid": 1104360,
+          "start_time": 19749961
+        },
+        "samples": 3,
+        "max_sampled_rss_bytes": 65679360,
+        "max_observed_vmhwm_bytes": 65679360,
+        "release": {
+          "evidence": {
+            "pid": 1104360,
+            "pgid": 1104360,
+            "rss_before_bytes": 65679360,
+            "group_rss_before_bytes": 65679360,
+            "mem_available_bytes": 48579219456,
+            "term_sent": true,
+            "kill_sent": false,
+            "reaped": true,
+            "group_empty": true,
+            "residual_pids": [],
+            "ownership_verified": true,
+            "duration_s": 0.07598823198350146,
+            "at": "2026-10-28T20:27:41.652111+00:00"
+          },
+          "exit_code": -15,
+          "observer_pidfd_dead": true
+        },
+        "observed_limits": {
+          "address_space_soft_bytes": 1073741824,
+          "address_space_hard_bytes": 1073741824,
+          "cpu_soft": "unlimited",
+          "cpu_hard": "unlimited"
+        },
+        "environment_keys_verified": [
+          "LANG",
+          "PATH",
+          "PYTHONDONTWRITEBYTECODE",
+          "PYTHONNOUSERSITE",
+          "PYTHONPATH"
+        ]
+      },
+      {
+        "identity": {
+          "worker_id": "whistle",
+          "pid": 1104396,
+          "start_time": 19750023
+        },
+        "samples": 3,
+        "max_sampled_rss_bytes": 42827776,
+        "max_observed_vmhwm_bytes": 59547648,
+        "release": {
+          "evidence": {
+            "pid": 1104396,
+            "pgid": 1104396,
+            "rss_before_bytes": 42827776,
+            "group_rss_before_bytes": 42827776,
+            "mem_available_bytes": 48535109632,
+            "term_sent": true,
+            "kill_sent": false,
+            "reaped": true,
+            "group_empty": true,
+            "residual_pids": [],
+            "ownership_verified": true,
+            "duration_s": 0.07938073700643145,
+            "at": "2026-10-28T20:27:42.386543+00:00"
+          },
+          "exit_code": -15,
+          "observer_pidfd_dead": true
+        },
+        "observed_limits": {
+          "address_space_soft_bytes": 1073741824,
+          "address_space_hard_bytes": 1073741824,
+          "cpu_soft": "unlimited",
+          "cpu_hard": "unlimited"
+        },
+        "environment_keys_verified": [
+          "LANG",
+          "PATH",
+          "PYTHONDONTWRITEBYTECODE",
+          "PYTHONNOUSERSITE",
+          "PYTHONPATH"
+        ]
+      },
+      {
+        "identity": {
+          "worker_id": "whistle",
+          "pid": 1104446,
+          "start_time": 19750088
+        },
+        "samples": 1,
+        "max_sampled_rss_bytes": 42778624,
+        "max_observed_vmhwm_bytes": 59498496,
+        "release": {
+          "evidence": {
+            "pid": 1104446,
+            "pgid": 1104446,
+            "rss_before_bytes": 42778624,
+            "group_rss_before_bytes": 42778624,
+            "mem_available_bytes": 48530919424,
+            "term_sent": true,
+            "kill_sent": false,
+            "reaped": true,
+            "group_empty": true,
+            "residual_pids": [],
+            "ownership_verified": true,
+            "duration_s": 0.08388410799670964,
+            "at": "2026-10-28T20:27:42.861798+00:00"
+          },
+          "exit_code": -15,
+          "observer_pidfd_dead": true
+        },
+        "observed_limits": {
+          "address_space_soft_bytes": 1073741824,
+          "address_space_hard_bytes": 1073741824,
+          "cpu_soft": "unlimited",
+          "cpu_hard": "unlimited"
+        },
+        "environment_keys_verified": [
+          "LANG",
+          "PATH",
+          "PYTHONDONTWRITEBYTECODE",
+          "PYTHONNOUSERSITE",
+          "PYTHONPATH"
+        ]
+      }
+    ],
+    "sampling_errors": {
+      "count": 1,
+      "class": "PermissionError",
+      "operation": "A /proc/<owned-pid>/environ sampling read failed once; retained in the original receipt. All four worker entries also retain successful environment-key verification. No metric was fabricated for the failed sample."
+    }
+  },
+  "cleanup": {
+    "confirmed": true,
+    "wall_s": 0.21939679500064813,
+    "all_observed_processes_reaped": true,
+    "all_observer_pidfds_dead": true,
+    "manager_closed": true
+  },
+  "passed": true,
+  "failures": [],
+  "prior_failure_preserved": {
+    "source_commit": "4cc2c5e84ca0247c0dc2c97e445f4f88482541ba",
+    "result_sha256": "f9ab58a9be7649323a23f32acc8bfe37ae43f8e1d6adbb8db9002d72caf5a294",
+    "stage": "owned_startup",
+    "http_transcription_requests_started": 0,
+    "ready": false,
+    "worker_exit_code": 1,
+    "stderr_bytes": 1018,
+    "cleanup_confirmed": true,
+    "one_separate_startup_only_diagnostic": "EFBIG during memfd copy, before native CDLL; no audio requests. Safe category and retained regression evidence: managed-whistle-fsize-startup-2026-10-28.json. Owner-private raw traceback not published."
+  },
+  "review_evidence": {
+    "lifecycle_final_review_sha256": "8794ac3b73954666f5765f6d6ebf4767de8173cc23d7d892daa4d184b6aa7c4a",
+    "lifecycle_receipt_sha256": "db12883f57d4d9a955775b75f95cda68965ddd9c631da5df43527cec3a251e5a",
+    "fsize_final_review_sha256": "74f7350eb093d5d619a0b3242ab7332e3bcf9e175218a9e89ff5c651bf8f8bf8",
+    "fsize_receipt_sha256": "f1b928c50b6eef7c2af35df8ad74468b78e65a741aaf252c7e37b9512e1ab2bc",
+    "muse_public_evidence": "managed-whistle-muse-review-2026-10-28.json",
+    "nature": "Independent automated source/kernel reviews and genuine Contributor reasoning; not human approval. Actual smoke receipt is also being independently checked before merge."
+  },
+  "limits": [
+    "VmHWM is the highest kernel value observed before exit, not a guaranteed final post-exit peak",
+    "sampled RSS maximum is not an unsampled peak",
+    "worker CPU deltas include decode/IPC/native work; no exact native-entry timing",
+    "two CPU affinity is not proof of two native threads",
+    "synthetic Converse provider locality/control; no text model/TTS/device hearing proof",
+    "single planned cold/warm pair is not a latency distribution or benchmark",
+    "Only STT integration is exercised; no actual Converse language model, TTS, Agent task execution, microphone, speaker or physical audibility in this smoke.",
+    "Two identical 4.7-second public phrases do not establish general recognition quality, sustained load, latency distributions or p95.",
+    "Persistent streaming/revisions #49 and full M2 remain open; measured speech-to-audio ratio is about 5.8 on this CPU profile.",
+    "All original preflight, failed startup, unsupported decoder attempt and lifecycle race failures remain retained."
+  ],
+  "frozen_assets_unchanged_after_run": true
+}
