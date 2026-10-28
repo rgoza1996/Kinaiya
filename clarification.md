@@ -240,3 +240,139 @@ These are illustrative outcomes; real decisions depend on context and must be te
 **Core architectural statement:**
 
 Kinaiya is not intended to be an LLM that can perform every possible task internally. It is intended to be an autonomous agent that can expand what it is capable of doing by acquiring, composing, and constructing executable software—including software that does not use an LLM at all.
+## 11. Cross-Surface Task Coordination, "Steered by Converse," and Voice Traceability
+
+**Status:** Product and architectural design intent; requirements below are not claims of completed implementation.  
+**Scope:** Converse, Decisions, Agent, shared journal, Flutter Agent UI, harness inspector, audio retention.  
+**Relationship to §10:** Section 10 specifies how Decisions classifies conversational and Agent-facing routing. This section specifies the **authoritative outcomes, user-visible provenance, and persistent traceability** of that routing.
+
+### 11.1 Principle and responsibilities
+
+Converse is the personality-focused voice surface; Agent is the independent working surface. A user may speak with Converse while watching Agent work, and may open or close either interface without inadvertently starting, stopping, or redirecting a task.
+
+The shared journal/supervisor—not the UI or a generated harness—is the authority for what was requested, accepted, applied, rejected, or completed. Decisions proposes routing, but only Agent's actual supervisor/executor acknowledgment proves that a queue, steer, or interruption took effect. Neither classification nor conversational acknowledgment grants tool permissions.
+
+Every consequential voice-originated task change must be traceable through: **speech transcript event → Decisions routing request → supervisor outcome → task/objective revision → selected harness and authorized execution → result**.
+
+### 11.2 Agent interface and session highlighting
+
+The Agent desktop UI uses **two independently collapsible left sidebars**: (1) a Harness Tree displaying protected Core, baseline and approved/eligible specialized harnesses and their versions; (2) a Workspace Tree displaying Core sessions, projects, tools, settings, and approved extension-provided entries. The central work area remains a familiar agent chat/task workspace; a separate collapsible context inspector may appear on the right.
+
+The session tree independently distinguishes:
+
+- **Selected**: the session currently displayed, with prominent selection highlighting;
+- **Running**: a session with executing work, with an activity indicator even when not selected;
+- **Converse-linked**: a session created or later affected by a voice event, with a microphone/provenance indicator;
+- **Attention required**: blocked on permission, confirmation, or another user response.
+
+These states can coexist and must not be conveyed solely by color. Switching views or collapsing panels does not cancel or migrate running tasks. Core navigation remains available even when a specialized harness contributes contextual sections.
+
+### 11.3 User-visible provenance versus execution state
+
+Provenance is **not** task status. A session may be “Steered by Converse · Running” or “Queued by Converse · Waiting.” Supported origin/outcome labels are:
+
+| Label | Authoritative meaning |
+| --- | --- |
+| **Started via Converse** | A Converse-originated request actually created a task. |
+| **Queued by Converse** | Agent accepted the request for deferred execution; it has not necessarily run. |
+| **Steered by Converse** | The supervisor applied a Converse-originated revision to an existing task objective. |
+| **Interrupted by Converse** | The executor acknowledged the applicable interruption; a mere request does not qualify. |
+| **Direct Agent** | The instruction originated in Agent Chat rather than the Converse routing path. |
+
+Show pending proposals as **Steering requested**, **Interruption requested**, etc., not successful past-tense outcomes. Preserve the difference between *requested*, *accepted*, *queued*, *applied*, *rejected*, *superseded*, and *failed*. Ignored transcript windows stay in history but do not create meaningless Agent sessions. The user's spoken acknowledgment and the backend's actual acknowledgment must not be conflated.
+
+### 11.4 "View voice context" inspector
+
+Each consequential Converse-originated event exposes an accessible **View voice context** action in the session header, routed-event chip, or task timeline. It opens the specific source passage, not an unrelated entire conversation, with an option to expand adjacent context.
+
+The inspector displays, where available:
+
+1. Source Converse conversation/session, timestamps, original recognized user utterance, and neighboring transcript windows.
+2. Converse's conversational response or acknowledgment, clearly distinguished from Agent execution acknowledgment.
+3. Decisions classification, dispatch state, supervisor outcome, target Agent session/task, and objective revision before/after.
+4. The harness ID/version **actually pinned to the affected task** and the recorded execution result.
+5. The audio's current availability/pruning status and any later transcript corrections.
+
+**View voice context** answers *what was said*; **View execution trace** answers *what Agent did*; **Compare objectives** answers *what changed*. These are separate, linked actions. The trace must not expose private model chain-of-thought; show observable events, summaries, tool calls, approvals, and results instead. UI navigation never silently transfers an unfinished Converse draft to Agent Chat or vice versa.
+
+### 11.5 Authoritative event contract and causal links
+
+Use append-only, versioned, backend-sequenced journal events (not independent frontend state) with stable identifiers and explicit relationships. Illustrative **proposed** applied-steering event:
+
+\`\`\`json
+{
+  "schema_version": 1,
+  "event_id": "evt_1047_21",
+  "event_type": "agent.task.steering_applied",
+  "source": {
+    "surface": "converse",
+    "conversation_id": "conv_42",
+    "transcript_event_ids": ["transcript_102"]
+  },
+  "target": {
+    "agent_task_id": "task_89",
+    "session_id": "session_12"
+  },
+  "routing": {
+    "requested_action": "steer",
+    "result": "applied"
+  },
+  "objective": {
+    "previous_revision": 1,
+    "new_revision": 2
+  },
+  "execution": {
+    "harness_id": "development",
+    "harness_version": "1.2.1"
+  },
+  "timestamp": "2026-10-28T17:47:00Z"
+}
+\`\`\`
+
+The example is a design sketch, not a claim that this exact schema is implemented. Real event IDs, timestamps and revisions come from the authoritative backend. Bind routing requests and outcomes to the source transcript, target task, expected objective revision and relevant authorization context; reject or re-evaluate stale instructions.
+
+Requirements: monotonic event sequence and objective revisions; idempotent delivery/replay; no duplicate task creation or reapplication on reconnection; durable request/outcome linkage; correct ordering for queued/superseded commands; safe cancellation acknowledgments; and no silently fabricated success. If a session's pinned harness changes, record an independently authorized and tested checkpoint migration instead of silently rewriting provenance.
+
+### 11.6 Live cross-surface synchronization
+
+Converse, Decisions and Agent can operate concurrently. The Agent UI subscribes to journal projections and shows task creation, queue admission, steering requests/outcomes, execution steps, approvals, and terminal results without a manual refresh. Converse receives concise confirmed progress when conversationally relevant, without blocking normal voice responses on long-running Agent work.
+
+On reconnect, resume from the last acknowledged journal sequence, replay missing events idempotently, and reconcile against the supervisor's authoritative task state. Keep selection, running, origin, and blocked indicators separate.
+
+### 11.7 Audio pruning and durable transcripts
+
+Separate three retention classes with user-configurable, privacy-aware policies:
+
+- **Raw audio** (for example, temporary \`.wav\` segments): useful for recognition, playback, diagnostics; may be pruned once required persistence and retention conditions are met.
+- **Full text transcript**: timestamped, searchable conversation history; retain according to the user's configured policy even after audio pruning.
+- **Agent task/event records**: causal references to transcript IDs, routing outcomes, approvals, objective revisions, harness versions and execution results; retain according to policy.
+
+Store durable references to transcript events rather than copying the entire dialogue into every task. Confirm successful persistence of required transcript/event references **before automatic audio deletion**. Mark audio as pruned and remove misleading playback controls once unavailable. Retaining recognized text does not preserve tone/prosody or prove STT accuracy.
+
+Preserve originally committed recognition text; record user corrections as later attributable revisions, not silent overwrites. For consequential low-confidence speech, require appropriate confirmation before privileged actions. Support appropriate user access, search, export, deletion, retention settings and authorization checks; do not show sensitive transcript snippets in notifications by default. Ensure deletion/retention reconciliation does not leave broken references masquerading as accessible original evidence.
+
+### 11.8 Protected Core and harness independence
+
+Cross-surface provenance, authoritative journal, supervisor acknowledgments, permission checks, and baseline navigation are **Kinaiya Core responsibilities**, not optional facilities controlled by a generated harness. Specialized harnesses may contribute versioned task details or registered, validated UI views, but may not forge or rewrite transcript origins, route results, objective histories, approval records, harness identities, or execution evidence.
+
+Self-modification does not permit an extension to decide what constitutes a successful routing, promotion, or evaluation. A selected task must identify its *actually active/pinned* harness; model-generated descriptions of harness selection are not proof of activation.
+
+### 11.9 Acceptance criteria
+
+1. Converse-originated creation, queueing, steering, and interruption appear in Agent with accurate provenance **and** independent execution status.
+2. The selected Agent session is highlighted; running, Converse-linked and attention-required indicators remain independently visible.
+3. Only supervisor-confirmed applied changes receive past-tense **Steered**/**Interrupted** labels; rejected or stale requests are not shown as successes.
+4. **View voice context** resolves the correct source transcript passage and nearby context; **View execution trace** and **Compare objectives** link to the same causal event.
+5. The actual task-pinned harness ID/version and objective revision history remain inspectable.
+6. Pruned audio leaves a truthful “audio unavailable/pruned” indicator while permitted transcript and event records remain inspectable.
+7. Restart/reconnect restores authoritative state without duplicate effects or lost routing transitions.
+8. Unauthorized users, models, plugins, and harness extensions cannot forge provenance or read restricted transcripts.
+9. Both left sidebars and the optional right inspector collapse independently without interrupting background work.
+10. Tests cover STT correction, false routing, stale steer, duplicate events, queued supersession, cancellation that fails to stop already dispatched actions, audio retention/deletion, and multi-session concurrent activity.
+
+### 11.10 Delivery sequence
+
+Implement in dependency order: **(A)** versioned causal event contracts and backend authority; **(B)** task/session projection and selected/active/provenance UI indicators; **(C)** voice-context, execution-trace and objective-diff inspector; **(D)** live subscriptions, reconnect replay, and correctness tests; **(E)** audio pruning and retention controls; **(F)** versioned extension UI integration and adversarial provenance tests.
+
+**Interpretation rule:** “Steered by Converse” is a verified record of an Agent objective change caused by a particular voice interaction—not merely a model's opinion that a task was steered.
+
