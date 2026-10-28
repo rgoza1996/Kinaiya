@@ -805,7 +805,19 @@ async def test_admission_and_new_close_share_one_request_wait_budget(state):
         await runtime.turn(request_for(session))
         first = runtime._text[session.session_id]
         assert closing[0].is_set() and not first.cleanup.done()
+        admitting = asyncio.Event()
+        original_admission = runtime._wait_text_admission
+
+        async def observe_admission(*args):
+            admitting.set()
+            return await original_admission(*args)
+
+        runtime._wait_text_admission = observe_admission
         pending = asyncio.create_task(runtime.turn(request_for(session, "next")))
+        # Time the intended old-cleanup wait after admission actually begins;
+        # scheduling or earlier journal work must not consume this fixture's
+        # 80 ms before the runtime starts accounting for that wait.
+        await asyncio.wait_for(admitting.wait(), 1)
         await asyncio.sleep(0.08)
         releases[0].set()
         done, _ = await asyncio.wait({pending}, timeout=0.09)
