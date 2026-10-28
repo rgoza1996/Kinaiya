@@ -210,3 +210,20 @@ async def test_reopening_converse_does_not_reserve_a_resident_text_child_twice(e
     denied = await action(env, "restore", key="needs-fresh-allocation")
     assert not denied["ok"] and "headroom" in denied["error"]
     assert env.manager.owned_identity("qwen3") is None
+
+
+async def test_lost_resident_credit_requires_fresh_headroom_after_await(env):
+    credited = env.manager.owned_identity("qwen3")
+    env.coordinator.restore_reserve = 800 * MiB
+    env.memory[0] = 400 * MiB
+
+    async def lose_credited_child(worker_id):
+        assert worker_id == "qwen3"
+        stopped = await env.manager.stop_if_current(credited)
+        assert stopped["stop_evidence"]["reaped"] and stopped["stop_evidence"]["group_empty"]
+
+    env.coordinator.before_start = lose_credited_child
+    refused = await action(env, "restore", key="lost-credit")
+    assert not refused["ok"] and "headroom" in refused["error"]
+    assert env.manager.owned_identity("qwen3") is None
+    assert env.coordinator.state.record.phase == "failed"

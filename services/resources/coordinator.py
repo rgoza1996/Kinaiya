@@ -680,7 +680,8 @@ class ResourceCoordinator:
             return
         await self._save(phase="restoring")
         reserve, recorded = self.restore_reserve, self.state.record.restore_bytes
-        if self._has_qwen3 and self.manager.owned_identity("qwen3") is not None:
+        credited_qwen = self.manager.owned_identity("qwen3") if self._has_qwen3 else None
+        if credited_qwen is not None:
             # An existing verified text child is already included in the fresh
             # host measurement. Reopening Converse must not reserve its whole
             # startup allocation a second time. Other worker rules are unchanged.
@@ -710,6 +711,21 @@ class ResourceCoordinator:
                 return
             if self.before_start:
                 await self.before_start(worker_id)
+            if worker_id == "qwen3":
+                if credited_qwen is not None and self.manager.is_current(credited_qwen):
+                    # Reuse that exact credited incarnation without calling
+                    # start(), which could replace an exited leader after an
+                    # await. Later loss is handled by ordinary fresh admission.
+                    continue
+                needed = max(self.minimum, self.qwen3_restore_reserve)
+                if credited_qwen is not None:
+                    # The earlier credit no longer applies. A replacement
+                    # requires a fresh full restore observation, not the old
+                    # discounted measurement from before awaited work.
+                    needed = max(needed, self.restore_reserve, self.state.record.restore_bytes)
+                available = self.memory_probe()
+                if available is None or available < needed:
+                    raise RuntimeError("Qwen3 restoration lacks measured minimum headroom")
             result = await self.manager.start(worker_id)
             if not result.get("ok") or not result.get("ready"):
                 raise RuntimeError("Managed conversation worker did not become ready")
