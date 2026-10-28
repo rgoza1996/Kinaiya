@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "issue": "https://github.com/rgoza1996/Kinaiya/issues/91",
+  "status": "original_actual_startup_failure_preserved; narrow_repair_awaits_new_actual_acceptance",
+  "source_head": "e920fa81c457e9dc0336f668a71e494ed5abf55d",
+  "scope": "CPU text only; synthetic LocalJournal and real ConverseAPI via ASGI control; real loopback resources HTTP and private native IPC; no STT/TTS/Agent/GPU/physical audio",
+  "harness_sha256": "e5157355b25a459385cbafc63c2cbd8e39f854c4133a741c124a140f0b0cc48b",
+  "plan_sha256": "295e221b5686ac62702584cf5aaea72bf2f072961d0a62b5f7bac2f21e563093",
+  "capture_sha256": "883de1ab8f59297adc16e95b52a79a5adcb99e14d46112a53084fb2700622639",
+  "original_owner_private_artifacts": {
+    "result.json": {
+      "bytes": 12399,
+      "sha256": "02403c6e1e2c4ee1c9dacc143bc1acf34900f2e8298167b01cee4c4b51ae1a5a"
+    },
+    "own-worker-stderr-tail.bin": {
+      "bytes": 7653,
+      "sha256": "6c7e5ebd85a0e7d75193916be4d790e3b275df566e6ea250394db83b784abc73"
+    },
+    "own-worker-diagnostics.json": {
+      "bytes": 518,
+      "sha256": "d10f6d4d588abd883424dc055c7a2c9694504c100f13b49f999a923777711511"
+    },
+    "artifact-manifest.json": {
+      "bytes": 668,
+      "sha256": "37338a616d399fca22e80643fe08f3c83d2c8934a3c2f358d9bf91d1238e5cb6"
+    }
+  },
+  "observed": {
+    "passed": false,
+    "native_startup_attempted": true,
+    "inference_started": false,
+    "generation_request_attempts": 0,
+    "startup_seconds": 7.539242699014721,
+    "elapsed_seconds": 8.022800449019996,
+    "kernel_release_confirmed": true,
+    "endpoint_pruned_after_release": true,
+    "cleanup_confirmed": false,
+    "cleanup_errors": []
+  },
+  "stop_evidence": {
+    "at": "2026-10-28T22:07:32.401647+00:00",
+    "duration_s": 9.169001714326441e-05,
+    "group_empty": true,
+    "group_rss_before_bytes": null,
+    "kill_sent": false,
+    "mem_available_bytes": 48682119168,
+    "ownership_verified": true,
+    "pgid": null,
+    "pid": 1139764,
+    "reaped": true,
+    "residual_pids": [],
+    "rss_before_bytes": null,
+    "term_sent": false
+  },
+  "cleanup_interpretation": "Owned direct child reaped and process group empty; endpoint pruned only after release. The whole-harness cleanup_confirmed field is false because startup failed before uvicorn was created, so its shutdown flag was never set. No HTTP server or generation request started.",
+  "diagnosis": "Torch model-class import reached its Dynamo cache-root utility, which called first-use tempfile.gettempdir(). The stdlib probe writes four bytes; RLIMIT_FSIZE(0,0) correctly refused it in every fallback directory. This is a production startup incompatibility, not a model generation failure.",
+  "repair": "Explicitly select the existing validated owner-private IPC root as child tempfile.tempdir and TORCHINDUCTOR_CACHE_DIR before FSIZE(0). No new directory, global owner cache, nonempty file-write exception, native-import ordering change or expanded cleanup authority.",
+  "synthetic_verification": {
+    "regression": "Real worker.main and actual Linux fences with synthetic sealed-input and loader stubs reproduced the same FileNotFoundError before the repair. After repair, first-use temp selection succeeds, ambient cache selection is overwritten, nonempty file writes still raise EFBIG, and only the fixed socket entry remains. No Torch/Transformers import or inference.",
+    "command": "python -m pytest tests/unit/test_qwen3_native.py tests/integration/test_qwen3_worker.py -q",
+    "passed": 33,
+    "elapsed_seconds": 1.37,
+    "lint": "Ruff check and format checks passed for all three changed Python files; git diff --check passed.",
+    "all_qwen_checks": {
+      "passed": 277,
+      "elapsed_seconds": 25.91,
+      "scope": "All nine Qwen3 unit/integration test files; synthetic runtime, owned processes and protocol/lifecycle checks, not actual model inference."
+    }
+  },
+  "limitations": "The repaired managed loader, native streaming, representative prompt capacity, cold/warm latency, cancellation/recovery and owner/handoff behavior still require a fresh exact-source actual acceptance run. Prior CI is not evidence that this runtime failure was absent. Full M2 and persistent STT remain open."
+}

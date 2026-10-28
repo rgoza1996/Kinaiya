@@ -35,6 +35,18 @@ links before applying `RLIMIT_FSIZE(0,0)`, then verify runtime identity/import
 and load the model under the file/core/address-space/network limits. The
 owned parent removes only this fixed snapshot after confirmed group release.
 
+The first actual managed startup failed before generation: Torch's import of
+its Dynamo cache utility called first-use `tempfile.gettempdir()`, whose probe
+write was correctly refused by the zero file-size limit. Explicitly select the
+existing private IPC directory for this child's `tempfile.tempdir` and
+`TORCHINDUCTOR_CACHE_DIR` before that limit. Torch's import-time cache-root
+creation then sees an existing directory; no global owner cache is used and no
+nonempty cache-file write is allowed. Eager inference does not request compiled
+artifacts. Unexpected cache entries still fail the existing fixed-shape parent
+cleanup; no recursive or expanded cleanup authority is added. The original
+failed startup and confirmed child/group release are retained as evidence;
+this repair still requires a new actual managed acceptance run.
+
 `sealed_model(model_dir, workspace, snapshot_dir)` in `qwen3_assets` is a context
 manager yielding that immutable snapshot path. `validate_runtime()` validates
 the six installed file pins without importing Torch/Transformers and returns

@@ -13,6 +13,7 @@ import secrets
 import socket
 import stat
 import sys
+import tempfile
 from contextlib import closing
 
 from packages.providers import qwen3_ipc
@@ -237,6 +238,12 @@ def main():
         # Sealed copies and links first; the file-size fence also covers
         # memfd writes, so it must land before any native import or load.
         with sealed_model(args.model_dir, args.workspace, snapshot) as sealed:
+            # First-use tempfile discovery writes a probe, which FSIZE(0)
+            # correctly refuses. Select this existing private root explicitly;
+            # Torch's import-time cache_dir() needs only makedirs(exist_ok).
+            # Eager inference gets no global cache or writable cache exception.
+            tempfile.tempdir = str(directory)
+            os.environ["TORCHINDUCTOR_CACHE_DIR"] = str(directory)
             resource.setrlimit(resource.RLIMIT_FSIZE, (0, 0))
             runtime = validate_runtime()
             from packages.providers.qwen3_backend import Qwen3Engine

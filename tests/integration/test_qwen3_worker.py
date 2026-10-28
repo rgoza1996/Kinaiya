@@ -8,6 +8,7 @@ import asyncio
 import ctypes.util
 import os
 import platform
+import subprocess
 import sys
 import tempfile
 import types
@@ -333,6 +334,71 @@ pytestmark = pytest.mark.skipif(
     or not ctypes.util.find_library("seccomp"),
     reason="Optional Linux x86_64/seccomp process tier unavailable",
 )
+
+
+def test_worker_runtime_paths_under_real_zero_file_limit():
+    """Exercise main's real fences with a synthetic loader, not native inference."""
+    driver = r"""
+import errno, os, resource, signal, sys, tempfile
+from contextlib import contextmanager
+from packages.providers import qwen3_assets, qwen3_backend, qwen3_worker
+
+directory = sys.argv[1]
+tempfile.tempdir = None
+os.environ['TORCHINDUCTOR_CACHE_DIR'] = '/unselected-owner-cache'
+signal.signal(signal.SIGXFSZ, signal.SIG_IGN)
+
+@contextmanager
+def sealed(*args):
+    yield args[-1]
+
+def engine(*args, **kwargs):
+    assert resource.getrlimit(resource.RLIMIT_FSIZE) == (0, 0)
+    assert tempfile.gettempdir() == directory
+    assert os.environ['TORCHINDUCTOR_CACHE_DIR'] == directory
+    # Torch's import-time cache_dir() only needs this existing directory.
+    os.makedirs(os.environ['TORCHINDUCTOR_CACHE_DIR'], exist_ok=True)
+    path = os.path.join(directory, 'write-must-fail')
+    fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    try:
+        try:
+            os.write(fd, b'x')
+        except OSError as exc:
+            assert exc.errno == errno.EFBIG
+        else:
+            raise AssertionError('nonempty file write escaped the fence')
+    finally:
+        os.close(fd)
+        os.unlink(path)
+    assert 'torch' not in sys.modules and 'transformers' not in sys.modules
+    return object()
+
+qwen3_assets.sealed_model = sealed
+qwen3_assets.validate_runtime = lambda: dict(qwen3_assets.RUNTIME)
+qwen3_backend.Qwen3Engine = engine
+qwen3_worker.serve = lambda *args: None
+sys.argv = ['worker', '--socket-dir', directory, '--model-dir', directory,
+            '--workspace', directory]
+qwen3_worker.main()
+assert sorted(os.listdir(directory)) == [str(os.getpid()) + '.sock']
+print('synthetic-runtime-paths-ok')
+"""
+    with tempfile.TemporaryDirectory(prefix="qwen3-runtime-paths-", dir="/tmp") as directory:
+        result = subprocess.run(
+            [sys.executable, "-B", "-c", driver, directory],
+            cwd=ROOT,
+            env={
+                "PATH": os.defpath,
+                "LANG": "C.UTF-8",
+                "PYTHONPATH": str(ROOT),
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+            },
+            capture_output=True,
+            timeout=10,
+        )
+    assert result.returncode == 0, result.stderr.decode(errors="replace")
+    assert result.stdout == b"synthetic-runtime-paths-ok\n"
 
 
 @pytest.mark.asyncio

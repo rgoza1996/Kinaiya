@@ -166,6 +166,8 @@ def test_worker_native_order_gates():
         "listener.listen",
         "deny_network()",
         "sealed_model",
+        "tempfile.tempdir",
+        "TORCHINDUCTOR_CACHE_DIR",
         "RLIMIT_FSIZE",
         "validate_runtime()",
         "Qwen3Engine",
@@ -465,6 +467,8 @@ def test_main_seals_before_zero_file_limit_and_imports(sealed_layout, monkeypatc
     def limit(which, values):
         if which == resource.RLIMIT_FSIZE:
             assert values == (0, 0)
+            assert qwen3_worker.tempfile.gettempdir() == str(socket_dir)
+            assert os.environ["TORCHINDUCTOR_CACHE_DIR"] == str(socket_dir)
             snapshot = qwen3_ipc.snapshot_path(socket_dir, os.getpid())
             assert {p.name for p in snapshot.iterdir()} == set(contents)
             assert all((snapshot / name).read_bytes() == data for name, data in contents.items())
@@ -488,6 +492,8 @@ def test_main_seals_before_zero_file_limit_and_imports(sealed_layout, monkeypatc
     monkeypatch.setattr(qwen3_assets, "validate_runtime", runtime)
     monkeypatch.setattr(qwen3_backend, "Qwen3Engine", engine)
     monkeypatch.setattr(qwen3_worker, "serve", lambda *args: steps.append("served"))
+    monkeypatch.setattr(qwen3_worker.tempfile, "tempdir", None)
+    monkeypatch.setenv("TORCHINDUCTOR_CACHE_DIR", "/unselected-owner-cache")
     monkeypatch.setattr(sys, "dont_write_bytecode", sys.dont_write_bytecode)
     monkeypatch.setattr(
         sys,
