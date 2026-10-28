@@ -4,6 +4,7 @@ import asyncio
 import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from itertools import islice
 
 from anyio import CancelScope
 
@@ -34,10 +35,26 @@ class SpeechChunker:
 
 
 @dataclass
+class PlaybackStop:
+    """One immutable in-flight instruction; newer local fences only raise its target."""
+
+    desired_generation: int
+    confirmed_generation: int
+    request: AppendRequest | None = None
+    retired: bool = False
+    lock: asyncio.Lock = field(default_factory=asyncio.Lock, repr=False)
+
+    def covers(self, generation):
+        return self.retired or self.confirmed_generation >= generation
+
+
+@dataclass
 class PlaybackEpoch:
     generation: int = 0
     chunks: dict = field(default_factory=dict)
     on_begin: Callable | None = field(default=None, repr=False, compare=False)
+    scope: tuple[int, str] | None = None
+    stop: PlaybackStop | None = None
 
     def begin(self):
         if self.on_begin is not None:
@@ -48,6 +65,12 @@ class PlaybackEpoch:
 
     def accepts(self, generation):
         return generation == self.generation
+
+
+@dataclass
+class PlaybackStart:
+    playback: PlaybackEpoch
+    request: AppendRequest | None = None
 
 
 @dataclass(eq=False)
@@ -112,6 +135,7 @@ class ConverseRuntime:
         self._speech = {}
         self._dedupe_locks = {}
         self._epoch_locks = {}
+        self._playback_start = {}
         self._runtime_id = new_id()
 
     def availability(self):
@@ -183,29 +207,48 @@ class ConverseRuntime:
         return await self.journal.read(session_id=session_id, limit=100)
 
     async def _epoch(self, session_id):
-        if session_id in self.playback:
-            return self.playback[session_id]
         lock = self._epoch_locks.setdefault(session_id, asyncio.Lock())
         async with lock:
-            if session_id in self.playback:
-                return self.playback[session_id]
-            existing = await self._recent(session_id)
             session = await self.journal.session(session_id)
-            generations = [
-                value
-                for event in existing
-                if event.epoch == session.epoch
-                for key in ("generation_epoch", "next_generation_epoch")
-                if type(value := event.payload.get(key)) is int and value >= 0
-            ]
-            previous = max(generations, default=0)
-            generation = previous + 1 if previous else 0
-            if previous:
-                # Persist the recovered boundary before exposing it. Runtime
-                # identity additionally prevents reuse when bounded history
-                # omits an old counter or two runtimes observe the same value.
-                await self.journal.append(
-                    AppendRequest(
+            scope = session.epoch, session.thread_id
+            cached = self.playback.get(session_id)
+            if cached is not None:
+                if cached.scope == scope:
+                    await self.reconcile_stop(session_id, cached)
+                    session = await self.journal.session(session_id)
+                    scope = session.epoch, session.thread_id
+                    if cached.scope == scope:
+                        return cached
+                self._retire_stop(cached)
+                cached.begin()
+                self.playback.pop(session_id, None)
+            start = self._playback_start.get(session_id)
+            if start is not None and start.playback.scope != scope:
+                self._retire_stop(start.playback)
+                self._playback_start.pop(session_id, None)
+                start = None
+            if start is None:
+                existing = await self._recent(session_id)
+                generations = [
+                    value
+                    for event in existing
+                    if event.epoch == session.epoch
+                    for key in ("generation_epoch", "next_generation_epoch")
+                    if type(value := event.payload.get(key)) is int and value >= 0
+                ]
+                previous = max(generations, default=0)
+                generation = previous + 1 if previous else 0
+                playback = PlaybackEpoch(
+                    generation,
+                    on_begin=lambda: self._cancel_speech(session_id),
+                    scope=scope,
+                )
+                start = PlaybackStart(playback)
+                if previous:
+                    # A lost acknowledgment may already retain this boundary.
+                    # Reusing its exact request avoids deriving a new counter
+                    # under the same runtime/epoch idempotency key on retry.
+                    start.request = AppendRequest(
                         session_id=session_id,
                         thread_id=session.thread_id,
                         epoch=session.epoch,
@@ -217,11 +260,122 @@ class ConverseRuntime:
                         },
                         idempotency_key=f"playback-start:{self._runtime_id}:{session.epoch}",
                     )
-                )
-            self.playback[session_id] = PlaybackEpoch(
-                generation, on_begin=lambda: self._cancel_speech(session_id)
-            )
+                    self._queue_stop(session_id, playback, previous, generation)
+                self._playback_start[session_id] = start
+            if start.request is not None:
+                await self.journal.append(start.request)
+            # A safety note alone is not the browser's delivery-generation
+            # control. Confirm that instruction before exposing recovered audio.
+            await self.reconcile_stop(session_id, start.playback)
+            current = await self.journal.session(session_id)
+            if (current.epoch, current.thread_id) != scope:
+                self._retire_stop(start.playback)
+                self._playback_start.pop(session_id, None)
+                raise ValueError("Session changed during playback initialization")
+            self.playback[session_id] = start.playback
+            self._playback_start.pop(session_id, None)
         return self.playback[session_id]
+
+    @staticmethod
+    def _retire_stop(playback):
+        if playback.stop is not None:
+            # Native reset makes this scope obsolete, not audibly delivered.
+            playback.stop.retired = True
+
+    def _stop_request(self, session_id, playback, previous, target, source_id=None):
+        epoch, thread_id = playback.scope
+        return AppendRequest(
+            session_id=session_id,
+            thread_id=thread_id,
+            epoch=epoch,
+            kind="delivery.updated",
+            causes=[source_id] if source_id is not None else [],
+            payload={
+                "generation_epoch": previous,
+                "next_generation_epoch": target,
+                "status": "interrupted",
+                "alignment": "delivery_unknown",
+                "control": "generation_stop",
+                "runtime_id": self._runtime_id,
+                **({"source_event_id": source_id} if source_id is not None else {}),
+            },
+            idempotency_key=f"playback-stop:{self._runtime_id}:{epoch}:{target}",
+        )
+
+    def _queue_stop(self, session_id, playback, previous, target, source_id=None):
+        stop = playback.stop
+        if stop is None or stop.retired:
+            stop = playback.stop = PlaybackStop(target, previous)
+        stop.desired_generation = max(stop.desired_generation, target)
+        if stop.request is None and not stop.covers(target):
+            stop.request = self._stop_request(session_id, playback, previous, target, source_id)
+        return stop
+
+    def fence_playback(self, session_id, *, source=None, expected_generation=None):
+        """Fence local output synchronously, retaining the client instruction before I/O."""
+        playback = self.playback[session_id]
+        if source is not None and (
+            source.session_id != session_id or (source.epoch, source.thread_id) != playback.scope
+        ):
+            raise ValueError("Obsolete source cannot stop a different playback scope")
+        previous = playback.generation
+        if expected_generation is not None and previous != expected_generation:
+            raise ValueError("Obsolete interruption cannot stop a newer speech generation")
+        source_id = source.event_id if source is not None else None
+        if source_id is None and playback.chunks:
+            entry = next(reversed(playback.chunks.values()))
+            source_id = entry.payload.get("window_source_id", entry.event_id)
+        target = playback.begin()
+        stop = self._queue_stop(session_id, playback, previous, target, source_id)
+        task = self._active.get(session_id)
+        if task is not None and task is not asyncio.current_task() and not task.done():
+            task.cancel()
+        return stop, target
+
+    async def reconcile_stop(self, session_id, playback=None):
+        playback = playback if playback is not None else self.playback[session_id]
+        stop = playback.stop
+        if stop is None or stop.retired or stop.covers(stop.desired_generation):
+            return
+        async with stop.lock:
+            # Two writes suffice for the original request and one coalesced
+            # higher target. Further concurrent stops remain owned for a tick.
+            for _ in range(2):
+                if stop.retired or stop.covers(stop.desired_generation):
+                    return
+                current = await self.journal.session(session_id)
+                if (current.epoch, current.thread_id) != playback.scope:
+                    self._retire_stop(playback)
+                    return
+                if stop.retired or stop.covers(stop.desired_generation):
+                    return
+                if stop.request is None:
+                    stop.request = self._stop_request(
+                        session_id, playback, stop.confirmed_generation, stop.desired_generation
+                    )
+                request = stop.request
+                await self.journal.append(request)
+                current = await self.journal.session(session_id)
+                if (current.epoch, current.thread_id) != playback.scope:
+                    self._retire_stop(playback)
+                    return
+                stop.confirmed_generation = request.payload["next_generation_epoch"]
+                stop.request = None
+            if not stop.covers(stop.desired_generation):
+                raise RuntimeError("Newer playback stop needs reconciliation")
+
+    def stop_reconciliation_batch(self, limit):
+        # Rotate the existing playback map rather than scan retained history or
+        # maintain another growing queue. Even nonpending sessions cost one slot.
+        for session_id in list(islice(self.playback, limit)):
+            playback = self.playback.pop(session_id, None)
+            if playback is None:
+                continue
+            self.playback[session_id] = playback
+            if playback.stop is not None and not playback.stop.covers(
+                playback.stop.desired_generation
+            ):
+                yield session_id, playback
 
     def _cancel_speech(self, session_id=None):
         sessions = list(self._speech) if session_id is None else [session_id]
@@ -416,30 +570,11 @@ class ConverseRuntime:
                 await asyncio.wait((cleanup,), timeout=self._speech_cleanup_timeout)
 
     async def interrupt(self, session_id, expected_generation=None):
-        epoch = await self._epoch(session_id)
-        if expected_generation is not None and epoch.generation != expected_generation:
-            raise ValueError("Obsolete interruption cannot stop a newer speech generation")
-        previous = epoch.generation
-        epoch.begin()
-        task = self._active.get(session_id)
-        if task and not task.done():
-            task.cancel()
-        session = await self.journal.session(session_id)
-        await self.journal.append(
-            AppendRequest(
-                session_id=session_id,
-                thread_id=session.thread_id,
-                epoch=session.epoch,
-                kind="delivery.updated",
-                payload={
-                    "generation_epoch": previous,
-                    "next_generation_epoch": epoch.generation,
-                    "status": "interrupted",
-                    "alignment": "delivery_unknown",
-                },
-                idempotency_key=f"speech-interrupt:{session.epoch}:{epoch.generation}",
-            )
-        )
+        epoch = self.playback.get(session_id)
+        if epoch is None:
+            epoch = await self._epoch(session_id)
+        self.fence_playback(session_id, expected_generation=expected_generation)
+        await self.reconcile_stop(session_id, epoch)
         return {
             "generation_epoch": epoch.generation,
             "speech_stopped": True,

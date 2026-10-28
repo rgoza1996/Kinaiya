@@ -1,0 +1,471 @@
+{
+  "schema": 1,
+  "date": "2026-10-28",
+  "status": "repaired local integration verified; final PR CI pending",
+  "issue": 75,
+  "issue_url": "https://github.com/rgoza1996/Kinaiya/issues/75",
+  "parent_issues": [
+    49,
+    5
+  ],
+  "scope": "Converse recovery over native retained windows and authenticated local/HTTP journals, with scripted text and mocked HTTP streams; no new model-quality, physical-audio or full M3 acceptance",
+  "baseline": "6336484b041a377a8549d80f950cc9fc3991c928",
+  "agent_commits": [
+    "ce4795fc0c2c039b4c406a335d915c2d1d96db84",
+    "134613033f5bf60f9c144828d3b5bc8170b7b1b1",
+    "ad179818025fff2a712b3a2fe84aa248bcb4c1c8"
+  ],
+  "integrated_tested_commit": "baee9c5e70a320687ce96c2cc8d7a4f64afc0375",
+  "integrated_tested_tree": "8ba27ed633283e45149eafe7f6a618419b8b1fbb",
+  "source_sha256": {
+    "services/converse/windows.py": "059c79a4988bb90eb216ad10167362d416f69a79415fabce63d05bba863eccab",
+    "services/converse/runtime.py": "2d170e7c312d75ec75c0358343989f1ba340fb45ff608f557ff05bf545f8607c",
+    "packages/providers/text.py": "410cec4adcd15c5d6ec73dcfd10aad279b6dadac0ea717205a6367d6da598663",
+    "tests/integration/test_converse_window_recovery.py": "910fcf2d425d207f96eac004df74ec4eacacf162dbcc4c4d4c1cf46f2058fed1",
+    "tests/unit/test_providers.py": "1e860dd5d9edb1d38208df516d1dcefd4645352afb2589afb648eeaf0e863cfc",
+    "docs/adr/0019-streaming-window-control.md": "4b1373b07e514a05b6c5c3cd7070d0ba6c2f4c0a4369642e97d27eb65b8af848"
+  },
+  "source_equivalence": {
+    "method": "Direct SHA-256 comparison of all six implementation/test/ADR files in worker and lead checkouts",
+    "equal": true,
+    "other_worker_to_lead_differences": [
+      "clarification.md",
+      "evaluation/evidence/decisions-window-backlog-2026-10-28.json"
+    ]
+  },
+  "requirements": {
+    "Roadmap.md_sha256": "6a95af2b69c7f7f12d0ab0f7883b6226887141d234967514f3e647d9bd6108b0",
+    "clarification.md_sha256": "3d9db15ba6aa3bae3b570aa29385cbfb0988d1f5451d044f71aaf40afd9b228f",
+    "main_documentation_commit": "9f0c626381719ca20f5cabeec57a6942dce0b6aa",
+    "main_documentation_change": "Adds clarification section 11 only; this documentation commit does not implement the complete Converse-to-Agent provenance/voice-context/task-traceability requirements",
+    "full_roadmap_complete": false
+  },
+  "implementation": {
+    "cursor": "Advance after confirmed admission; transient source lookup failure retains the durable decision for a later healthy tick",
+    "uncertain_appends": "Retain exact prepare/start/reply requests, reconcile native start receipts, and pause the same admitted provider iterator without replaying inference",
+    "restart_barrier": "Retain one immutable initialization request; generation 5 history reconciles barrier 6 rather than conflicting under the same key; recheck session epoch/thread before exposing playback",
+    "native_retry": {
+      "attempts_per_recovery": 3,
+      "operation_timeout_s": 1.0,
+      "backoff_s": 0.1
+    },
+    "cleanup": "Retain original ownership until confirmed; failed/self-cancelled HTTP close keeps its slot; terminal cancellation starts no diagnostic I/O",
+    "http_cleanup_scope": "Explicit task-local window ownership only; defaults off for ordinary typed Converse/Agent calls and stays isolated during shared-provider reuse",
+    "capacity": "At most 32 retained replies; bounded scan reclaims completed cache references without invalidating published audio; held replies and unconfirmed cleanup defer admission without consuming its cursor",
+    "authority": "Preserve source/owner/epoch/generation/disclosure checks, non-authoritative Decisions, Converse-only personality, independent Agent dispatch and receipt-based completion"
+  },
+  "lead_full_python3.12": {
+    "cwd": "/home/roggoz/.codex/worktrees/mcp-controls/Kinaiya",
+    "same_source_between_runs": true,
+    "initial": {
+      "status": "failed; preserved",
+      "command": null,
+      "command_provenance": "Exact initial invocation is not embedded in the retained log and was not recovered",
+      "passed": 1371,
+      "failed": 1,
+      "warnings": 1,
+      "seconds": 270.38,
+      "log_path": "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/converse-window-recovery-full-py312.log",
+      "log_sha256": "450ccfaf820b39379e6caa7a05b32175373652a340041d8fe91342491c3da1a5",
+      "failed_test": "tests/integration/test_resource_boundaries.py::test_identity_loss_refuses_and_spares_sentinel",
+      "failure": "Initial started['ok'] assertion at line 134, before the test injects identity loss or creates its sentinel; captured processes.py:801 ownership-unverified category"
+    },
+    "unchanged_repeat": {
+      "status": "passed; does not explain the initial failure",
+      "command": "env -u PYTHONPATH /home/roggoz/Disks/SN750/Kinaiya/.dev-run/supertonic-ci-venv/bin/pytest -m 'not live' -q",
+      "command_provenance": "Lead orchestration record, session 45579; command is not embedded in the log header",
+      "exit_code": 0,
+      "passed": 1372,
+      "failed": 0,
+      "warnings": 1,
+      "seconds": 256.27,
+      "log_path": "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/converse-window-recovery-full-py312-repeat.log",
+      "log_sha256": "42c899cf4ba4fd4ce1ca5a54cf8325068ec9ace823118ea9d5b4819f71853dd4"
+    },
+    "warning": "Existing Starlette/httpx TestClient deprecation warning in both logs"
+  },
+  "unexplained_resource_refusal": {
+    "status": "cause unestablished; initial failure not discarded",
+    "source": "packages/resources/processes.py:335-378 and 742-752; rejection before execution grant, reported by _fail_unverified at line 801",
+    "what_log_proves": "The pre-grant verifier returned no verified pidfd; no individual failed predicate, errno or bootstrap return code was printed by the failing assertion",
+    "what_is_not_established": "No causal link to Qwen, host pressure, #75, PID reuse or a leaked fixture has been established",
+    "sealed_fd_distinction": "Sealed-config construction failure uses spawn-failed; config parsing and configured exec occur after grant, so those are not identified by the captured pre-grant log",
+    "unchanged_from_baseline": true,
+    "source_sha256": {
+      "packages/resources/processes.py": "f5c789f7929d7e8531c2464f633dd17a122fc674c2abec75ef448579a744c66b",
+      "packages/resources/_bootstrap.py": "0689a68ed813fd11e336f4a96a1fc4c60e908cf627c9dece6037f2d88b0da9f2",
+      "tests/integration/test_resource_boundaries.py": "8830eddbbcf67016399dfd843d98dbceace61be8b36d4bdb1b9432593dbd103e"
+    },
+    "tracking": {
+      "url": "https://github.com/rgoza1996/Kinaiya/issues/9#issuecomment-6474148301",
+      "provenance": "Lead reports transparent tracking of the unexplained event on issue 9; no causal claim"
+    },
+    "independent_bounded_investigation": {
+      "source_commit": "ad179818025fff2a712b3a2fe84aa248bcb4c1c8",
+      "python": "3.12.3",
+      "cwd": "/home/roggoz/.codex/worktrees/vibevoice-backend/Kinaiya",
+      "exact_case": {
+        "passed": 1,
+        "seconds": 0.47
+      },
+      "resource_boundaries_file": {
+        "passed": 13,
+        "seconds": 2.8
+      },
+      "resource_parent_and_processes_files": {
+        "passed": 35,
+        "seconds": 13.9
+      },
+      "fixed_disposable_start_batch": {
+        "attempts": 16,
+        "verified": 16,
+        "cleanup_successes": 16,
+        "retries": 0,
+        "method": "Process-local observational wrappers recorded the original live-state/starttime, parent/session/group, nonce/path, pidfd-open and bind-back checks without bypassing a predicate"
+      },
+      "interpretation": "No reproduction or concrete startup/ownership race found; these successes do not explain or erase the original failure",
+      "evidence_storage": "Observed tool-console completions and traces; no separate filesystem log retained",
+      "guard_changes": false
+    },
+    "next_diagnostic_evidence": "If it recurs, retain the exact failed verification predicate/errno and bootstrap return code during one ordered run while preserving every guard"
+  },
+  "implementation_agent_checks": {
+    "python3.12": {
+      "python": "3.12.3",
+      "cwd": "/home/roggoz/.codex/worktrees/vibevoice-backend/Kinaiya",
+      "command": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=. /home/roggoz/Disks/SN750/Kinaiya/.dev-run/supertonic-ci-venv/bin/python -B -m pytest -q tests/integration/test_converse_window_recovery.py tests/integration/test_speech_windows.py tests/integration/test_converse_speech_cancel.py tests/integration/test_window_http.py tests/unit/test_providers.py",
+      "passed": 194,
+      "failed": 0,
+      "seconds": 76.86,
+      "imports_verified": "runtime, windows and text provider modules resolved to the worker checkout",
+      "evidence_storage": "Observed tool-console completion; no separate filesystem log retained"
+    },
+    "python3.11": {
+      "python": "3.11.15",
+      "cwd": "/home/roggoz/.codex/worktrees/vibevoice-backend/Kinaiya",
+      "command": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=. /home/roggoz/Disks/SN750/Kinaiya/.dev-run/vibevoice-py311-venv/bin/python -B -m pytest -q tests/integration/test_converse_window_recovery.py tests/integration/test_speech_windows.py tests/integration/test_converse_speech_cancel.py tests/integration/test_window_http.py tests/unit/test_providers.py",
+      "passed": 194,
+      "failed": 0,
+      "seconds": 77.87,
+      "imports_verified": "runtime, windows and text provider modules resolved to the worker checkout",
+      "evidence_storage": "Observed tool-console completion; no separate filesystem log retained"
+    },
+    "ruff": "Full check and format check passed for 207 Python files",
+    "diff_check": "passed",
+    "draft_failures": "Original reproductions and intermediate fixture/code failures remain documented in docs/adr/0019-streaming-window-control.md at the recorded hash; final passing counts do not replace them"
+  },
+  "independent_review": {
+    "reviewer": "Codex minimal_runtime_review",
+    "source_commit": "ad179818025fff2a712b3a2fe84aa248bcb4c1c8",
+    "python": "3.12.3",
+    "cwd": "/home/roggoz/.codex/worktrees/vibevoice-backend/Kinaiya",
+    "command": "PYTHONDONTWRITEBYTECODE=1 /home/roggoz/Disks/SN750/Kinaiya/.dev-run/supertonic-ci-venv/bin/python -m pytest -q -p no:cacheprovider tests/integration/test_converse_window_recovery.py tests/integration/test_speech_windows.py tests/integration/test_window_http.py tests/unit/test_providers.py",
+    "passed": 160,
+    "seconds": 64.79,
+    "warnings_summary": "none reported",
+    "imports_verified": "runtime, windows and text provider modules resolved to worker checkout",
+    "other_checks": "Five changed Python files passed Ruff lint/format; diff check against 6336484 passed",
+    "additional_native_probes": [
+      "Lost barrier acknowledgment reused generations [6,6], one fixture provider call, no pending initialization",
+      "One held cleanup plus 31 reclaimable entries admitted the 33rd fixture call with 32 slots, original owner retained and published audio still valid",
+      "Cancelled HTTP-close failure preserved cancelled producer, zero diagnostic requests and original failed-cleanup slot"
+    ],
+    "provenance": "Anchored results supplied directly by the reviewer; observed console output only, no retained filesystem log/hash",
+    "human_acceptance": false,
+    "merge_readiness": "Superseded by the later completed-generation/browser-stop regression below; the 160-test result remains evidence for its exact scope."
+  },
+  "limits": [
+    "Scripted providers and mocked HTTP bytes are not actual model inference or provider-quality evaluation",
+    "Native journal and independent Agent-submit fixture do not prove real Agent execution or complete delegation",
+    "No physical microphone/speaker, echo robustness, audible completion, end-to-end latency or p95 measurement",
+    "A hard process restart cannot resume an in-memory provider stream; no exactly-once inference claim",
+    "Opaque third-party iterator hidden transport cleanup cannot be universally introspected or guaranteed",
+    "A failed or indefinitely unconfirmed window cleanup retains its bounded slot and can require operator reconciliation",
+    "The broader #49/#53/M3 gates and full authoritative Roadmap remain open",
+    "Pre-existing #79: restart generation discovery still depends on recent100; after enough non-generation entries it can reconstruct below an existing client. No arbitrary-history restart safety claim."
+  ],
+  "orchestration": {
+    "implementation_and_review": "Codex subagents within user-authorized orchestration",
+    "new_paid_Meta_calls": 0,
+    "held_out_reuse_or_tuning": false,
+    "reference_or_provider_default_changes": false,
+    "reference_promoted": false,
+    "new_tests_or_inference_for_this_draft": false,
+    "initial_implementation_private_prototype_access": false,
+    "subsequent_prototype_comparison": "Lead/Codex read-only inspection of the authorized private prototype; behavioral lessons only, no private source copied to Kinaiya or sent to Contributor.",
+    "private_prototype_source_sent_to_contributor": false
+  },
+  "uncertainties": [
+    "Exact initial full-suite command was not recovered; the successful repeat command comes from lead orchestration records",
+    "The original pre-grant resource rejection remains unexplained despite an unchanged successful full repeat and bounded diagnostic checks",
+    "Focused implementation, peer review and resource-investigation results are console evidence without independently retained filesystem logs",
+    "This file records local evidence; PR CI and release receipts are separate verification evidence."
+  ],
+  "related_issues": [
+    53,
+    76,
+    77,
+    79
+  ],
+  "source_hash_provenance": "Hashes identify integrated_tested_commit, before this evidence-only commit.",
+  "additional_review_regression": {
+    "reviewed_commit": "7dd70ad32f68a1ea463749d2b571bc1591865077",
+    "baseline": "6336484b041a377a8549d80f950cc9fc3991c928",
+    "finding": "WAIT locally invalidates a completed generation and clears its chunks before yield_speech checks them; no durable generation-stop event reaches the browser.",
+    "results": [
+      {
+        "name": "baseline",
+        "commit": "6336484b041a377a8549d80f950cc9fc3991c928",
+        "imports": "/tmp/kinaiya-wait-stop-review-5fjcf24x/baseline/services/converse/windows.py",
+        "before_wait": {
+          "generation_task_done": true,
+          "runtime_active": false,
+          "queued_native_chunks": 1,
+          "server_generation": 1
+        },
+        "after_wait": {
+          "server_generation": 2,
+          "queued_native_chunks": 0,
+          "pending": 0
+        },
+        "wait_event_kinds": [
+          "conversation.window",
+          "routing.window_decided",
+          "delivery.updated",
+          "converse.window_state"
+        ],
+        "wait_generation_signals": [
+          {
+            "kind": "delivery.updated",
+            "generation_epoch": 1,
+            "next_generation_epoch": 2
+          }
+        ],
+        "bridge": {
+          "before": "yes",
+          "wait_stop_signals": 1,
+          "after_wait": "no",
+          "control_stop_signals": 1,
+          "after_explicit_interrupt_control": "no",
+          "assertion": "pass"
+        }
+      },
+      {
+        "name": "current",
+        "commit": "7dd70ad32f68a1ea463749d2b571bc1591865077",
+        "imports": "/tmp/kinaiya-wait-stop-review-5fjcf24x/current/services/converse/windows.py",
+        "before_wait": {
+          "generation_task_done": true,
+          "runtime_active": false,
+          "queued_native_chunks": 1,
+          "server_generation": 1
+        },
+        "after_wait": {
+          "server_generation": 2,
+          "queued_native_chunks": 0,
+          "pending": 0
+        },
+        "wait_event_kinds": [
+          "conversation.window",
+          "routing.window_decided",
+          "converse.window_state"
+        ],
+        "wait_generation_signals": [],
+        "bridge": {
+          "before": "yes",
+          "wait_stop_signals": 0,
+          "after_wait": "yes",
+          "control_stop_signals": 1,
+          "after_explicit_interrupt_control": "no",
+          "assertion": "FAIL: WAIT must emit a client-visible stop for queued PCM\n\n'yes' !== 'no'\n"
+        }
+      }
+    ],
+    "artifacts_directory": "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/wait-stop-review-v1",
+    "artifact_sha256": {
+      "probe.py": "d766a19e5712935ffa7b0e4190b6a6fb36190832ae2d6f4cf56acedf619db49e",
+      "project.js": "eae126f71654d3ca81ccb9034c6ea0ce71e37a55c117e4b0e769519f2dab031f",
+      "baseline-native.json": "fb8a4ec3a217d087b54723a6da0a8d67a74ad2f8fabb84a51400a9aea973765b",
+      "current-native.json": "5f13698a5f437015140564a8d7ea89e97cc063e144391fa0a018909234fc13f3",
+      "summary.json": "9a5d38dc5d4c954178e5f4df3ba058220212e43ec21908a30561ed6260fb5a5c"
+    },
+    "limits": "Real Store/controller and production JS audio bridge with existing fake AudioContext; source-derived client event projector, not an executed Flutter widget or physical audio.",
+    "positive_control": "Explicit native runtime.interrupt stops queued bridge PCM on both revisions.",
+    "merge_held": true,
+    "review_url": "https://github.com/rgoza1996/Kinaiya/pull/78#pullrequestreview-5685972423",
+    "resolution": "Fixed by 5cbddb; original scripts unchanged, native stop emitted exactly once and production JS queue stops. Complementary real Flutter subscription regression passes."
+  },
+  "complementary_flutter_regression": {
+    "commit": "0590715",
+    "sdk_revision": "737ba8f885dc774b53b442759999a312c9461e4e",
+    "focused_command": "flutter test --no-pub test/window_capture_test.dart",
+    "focused_passed": 3,
+    "full_command": "flutter test --no-pub",
+    "full_passed": 341,
+    "analysis_command": "flutter analyze --no-pub",
+    "analysis": "No issues found",
+    "provenance": "Lead tool-console results; no retained log file.",
+    "scope": "Real AppState.refreshNotices and CharacterView subscription consume the native stop receipt while fake playback is buffered; stop releases the waiter, advances epoch, retains armed mic and never reports played or interrupts Agent.",
+    "limit": "Injected journal receipt proves client consumption; backend regression separately must prove emission. No physical audio."
+  },
+  "initial_ci": {
+    "head_sha": "7dd70ad32f68a1ea463749d2b571bc1591865077",
+    "run_id": 40723618238,
+    "url": "https://github.com/rgoza1996/Kinaiya/actions/runs/40723618238",
+    "all_jobs_passed": true,
+    "python3.11": {
+      "job_id": 122940882288,
+      "passed": 1372,
+      "warnings": 1,
+      "seconds": 160.83
+    },
+    "python3.12": {
+      "job_id": 122940882483,
+      "passed": 1372,
+      "warnings": 1,
+      "seconds": 185.37
+    },
+    "flutter": {
+      "job_id": 122940881814,
+      "analysis_tests_build": "passed",
+      "audio_bridge_tests": 25,
+      "formatted_files": 60
+    },
+    "other_checks": "Ruff lint/format, contract export comparison, dependency audit passed on both Python jobs.",
+    "merge_readiness": "Not cleared: this CI scope lacked the later independently demonstrated completed-generation WAIT stop regression."
+  },
+  "stop_repair": {
+    "worker_commit": "5cbddb83e0a15418b3da7e5188a53eab1c3fb1ba",
+    "lead_tested_commit": "c1eaed35b1b01521d0aa195ba78928a1c5262ce7",
+    "source_sha256": {
+      "services/converse/runtime.py": "0722eec4266ac12f1ed40653655e21a601e0b746e6562c1e69d571ab13d12fbb",
+      "services/converse/windows.py": "51b8cc4d991171814955e3ce2a21384c4c6349e3a66df486f77faf987e3333a8",
+      "packages/providers/text.py": "410cec4adcd15c5d6ec73dcfd10aad279b6dadac0ea717205a6367d6da598663",
+      "tests/integration/test_converse_window_recovery.py": "4e0c574b565a523c101f5b848025b8a54ce71da6471c50ffecd214c651f713bd"
+    },
+    "implementation": "One immutable pending generation-stop request per existing PlaybackEpoch, coalesced higher target, native scope retirement, bounded fair 32-epoch reconciliation under one one-second native budget, and matching restart control before playback exposure. Unconfirmed stops retain original reply ownership. Force-WAIT fences reserved generations; local rechecks prevent held replies allocating a new generation after interruption.",
+    "boundary": "Typed request resume/provider-admission completion remains #76; long-history restart discovery remains #79.",
+    "python3.12": {
+      "version": "3.12.3",
+      "passed": 226,
+      "seconds": 94.69
+    },
+    "python3.11": {
+      "version": "3.11.15",
+      "passed": 226,
+      "seconds": 95.74
+    },
+    "focused_command_scope": "test_converse_window_recovery.py, test_speech_windows.py, test_converse_speech_cancel.py, test_window_http.py, test_providers.py",
+    "checks": "Ruff lint/format for 207 Python files, contract export unchanged and git diff check passed.",
+    "evidence_provenance": "Worker tool-console results; independent review artifacts below include a retained focused log.",
+    "independent_review": {
+      "reviewed_commit": "5cbddb83e0a15418b3da7e5188a53eab1c3fb1ba",
+      "worker": "/home/roggoz/.codex/worktrees/vibevoice-backend/Kinaiya",
+      "python": "3.12.3",
+      "source_sha256": {
+        "services/converse/runtime.py": "0722eec4266ac12f1ed40653655e21a601e0b746e6562c1e69d571ab13d12fbb",
+        "services/converse/windows.py": "51b8cc4d991171814955e3ce2a21384c4c6349e3a66df486f77faf987e3333a8"
+      },
+      "focused_tests": {
+        "result": "72 passed in 46.79s",
+        "log": "focused.log",
+        "command": "focused-command.json",
+        "warning_summary": null
+      },
+      "original_probe": {
+        "native": "native.json",
+        "result": "summary.json",
+        "unchanged_script_sha256": {
+          "probe.py": "d766a19e5712935ffa7b0e4190b6a6fb36190832ae2d6f4cf56acedf619db49e",
+          "project.js": "eae126f71654d3ca81ccb9034c6ea0ce71e37a55c117e4b0e769519f2dab031f"
+        }
+      },
+      "independent_fault_probe": {
+        "validated_script": "fault_probe_v3.py",
+        "sha256": "d7da237e60fbee54b4bdc5783fee607283f5daca53f5e54614d0e9b127493e54",
+        "result": "fault-summary.json",
+        "cases": 4,
+        "result_summary": "all passed: local/authenticated ASGI, before commit/after commit lost acknowledgment, three exhausted attempts and one exact recovery attempt",
+        "excluded_exploratory_harnesses": "fault_probe.py/v2 incorrectly expected exhaustion after a single injected outage despite controller retries; v3 injects three faults with a decrementing counter. Those exploratory harness assertions are not product regressions."
+      },
+      "retained_history_limitation": {
+        "current_native": "history/native.json",
+        "current_bridge": "history/bridge.log",
+        "baseline_native": "history-baseline/native.json",
+        "baseline_commit": "6336484b041a377a8549d80f950cc9fc3991c928",
+        "result": "pre-existing: bounded recent100 generation discovery forgets prior client generation after105 non-generation windows; current WAIT emits0->1 for a client already at1 and bridge remains active"
+      },
+      "scope_limit": "Synthetic native Store/authenticated ASGI/provider fixtures and actual production JS bridge; Flutter control projection in JS is source-derived, not an executed Flutter handler or physical audio proof. No inference, paid calls or live services."
+    },
+    "independent_artifact_directory": "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/wait-stop-review-fixed-v1",
+    "independent_artifact_sha256": {
+      "probe.py": "d766a19e5712935ffa7b0e4190b6a6fb36190832ae2d6f4cf56acedf619db49e",
+      "project.js": "eae126f71654d3ca81ccb9034c6ea0ce71e37a55c117e4b0e769519f2dab031f",
+      "native.json": "3fc6e08a2e6b3132e39f4f3cc84d3ba2159a18492c8ba7896edbf25d55f6a419",
+      "summary.json": "b3efb8b89ef37da276a078c4d24016a4eceaecb2193aae25416ec3960abbf8ac",
+      "review-manifest.json": "b743f73cf11214a14dbd61a80bf9cbc30b8ac03c30cfd080d3f2cf3a7b459415",
+      "focused.log": "17956c445ad12b01ace6f8739504a07f602b122df79aa05bc2fef46fbdfb985e",
+      "focused-command.json": "e773b1b6a59ce12cb28cc22830ab192aa280b52e97bcde11460dd435ad3c1dff",
+      "fault_probe_v3.py": "d7da237e60fbee54b4bdc5783fee607283f5daca53f5e54614d0e9b127493e54",
+      "fault-summary.json": "0b58dd429001e1b08ea6ab33f87462de2cf4bb89c7de9e065ef60ab19d3f82fe",
+      "history_probe.py": "0b422d8813da74185ad349ad4ac5c953e26f3e63f7a1191802e9f561560c3d24",
+      "history/native.json": "fb4985f54872598102764a20e678c7de0c092d23e51c0c7ba93933ae95cf0019",
+      "history/bridge.log": "9178dcc10cec2d2603a811ea8f10bc95eee24489e2d168b9649d8e01e9b909ee",
+      "history-baseline/native.json": "9d466e73025f2d540e52c0b39fe57621487459353638dad31917425de0f01c51"
+    },
+    "original_probe_fixed_result": {
+      "commit": "5cbddb83e0a15418b3da7e5188a53eab1c3fb1ba",
+      "root": "/tmp/kinaiya-wait-stop-fixed-ncopylks",
+      "native_before": {
+        "generation_task_done": true,
+        "runtime_active": false,
+        "queued_native_chunks": 1,
+        "server_generation": 1
+      },
+      "native_after": {
+        "server_generation": 2,
+        "queued_native_chunks": 0,
+        "pending": 0
+      },
+      "wait_events": [
+        [
+          "conversation.window",
+          null
+        ],
+        [
+          "routing.window_decided",
+          null
+        ],
+        [
+          "delivery.updated",
+          2
+        ],
+        [
+          "converse.window_state",
+          null
+        ]
+      ],
+      "bridge": {
+        "before": "yes",
+        "wait_stop_signals": 1,
+        "after_wait": "no",
+        "control_stop_signals": 1,
+        "after_explicit_interrupt_control": "no",
+        "assertion": "pass"
+      }
+    },
+    "review_verdict": "No remaining new actionable finding in the inspected repair scope; pre-existing recent100 generation discovery explicitly remains open in #79.",
+    "lead_full_python3.12": {
+      "command": "env -u PYTHONPATH /home/roggoz/Disks/SN750/Kinaiya/.dev-run/supertonic-ci-venv/bin/pytest -m 'not live' -q",
+      "cwd": "/home/roggoz/.codex/worktrees/mcp-controls/Kinaiya",
+      "exit_code": 0,
+      "passed": 1404,
+      "warnings": 1,
+      "seconds": 284.68,
+      "log_path": "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/converse-window-recovery-final-full-py312.log",
+      "log_sha256": "1c6baa625ae86f96ebefc9a4db91d9cb55566b84209c6030e36fd7a222d3fb8e",
+      "imports_verified": "runtime, windows and text modules resolved to lead checkout before the run."
+    },
+    "post_test_changes": "This evidence and ADR notes only; production source remains identical to the tested commit."
+  }
+}

@@ -96,6 +96,92 @@ one utterance. Browser ownership prevents historical window replies from playing
 after reconnect/disarm; first actual scheduled reply audio starts a new capture
 utterance without closing the explicitly armed microphone.
 
+Issue [#75](https://github.com/rgoza1996/Kinaiya/issues/75) repairs native journal
+recovery in this consumer. The cursor advances only after decision admission is
+confirmed; an unavailable source lookup leaves the retained decision recoverable.
+Prepare, start and reply appends retain the exact request across an uncertain
+acknowledgment. A native start receipt reconciles an allocated generation before
+publication. Native I/O has a one-second operation deadline and at most three
+attempts with 100 ms backoff. Each attempt rechecks source, current intent, owner
+admission and playback generation; backoff releases the per-session lock. An admitted
+healthy explanation has no new universal 60-second reply deadline; the existing
+source age bound still governs admission.
+
+The existing runtime's restart barrier also retains its exact request until
+acknowledged. With prior generation 5, a committed but unacknowledged boundary
+remains generation 6 on retry, rather than conflicting with generation 7 under
+the same idempotency key. This adds one pending request per existing session
+initialization, clears it on confirmation, and discards it on epoch/thread
+change. Playback is exposed only after journal confirmation and a final current
+session check; a reset cannot admit the older source through the cached barrier.
+
+The #75 browser-stop follow-up keeps local generation invalidation synchronous
+and retains one immutable `delivery.updated` stop request on the existing
+`PlaybackEpoch`. A completed provider can leave PCM queued in the browser after
+its active-task/cache reference is gone, so WAIT, replacement and native
+exhaustion must reconcile this instruction independently of active producers or
+remaining chunks. A higher local fence only raises a desired-generation integer;
+the outstanding request is never rewritten. Once acknowledged, a fresh request
+can cover the coalesced higher target. Reply reclamation waits for its required
+stop and provider cleanup, while a confirmed completed cache entry can still be
+removed without fencing its published audio.
+WAIT also fences an empty generation reserved by typed admission before its
+native user append/active producer exists; an already targeted generation is
+reconciled without another increment. The resumed typed provider-admission
+check is tracked separately by #76, not claimed by this stop-only change.
+
+Each tick scans at most 32 existing playback epochs, rotating as each is visited,
+with one shared one-second native budget. This avoids an all-history scan or a
+separate growing stop queue, and a hanging session yields its next turn to others.
+Reconciliation also runs when transcript reads fail and during bounded shutdown.
+Shutdown may wait one second for provider cleanup plus one second for this stop
+batch; unfinished ownership stays retained. Request scope comes from the known
+native session/thread/epoch. Native mismatch retires the obsolete instruction
+without asserting playback; an old reply cannot fence a new scope that reuses a
+generation number. Restart initialization confirms both its safety note and a
+matching delivery-generation stop before exposing recovered playback, reusing
+both exact requests across uncertain acknowledgments.
+
+These `interrupted`/`delivery_unknown` receipts are durable client stop
+instructions, with `control=generation_stop`, runtime identity and source
+identity when available. They are distinct from per-chunk playback receipts and
+do not prove the browser/device stopped, audio was heard, or any words were
+delivered. The existing typed producer lifecycle is outside this follow-up.
+
+A brief native outage pauses the same provider iterator. Exhaustion fences its
+generation, records a best-effort journal error with confirmed partial state and
+unknown delivery, and never replays inference or resumes its buffered text after
+healing. Provider errors remain distinct. Owner-off and interruption own the
+stream before its first delta. Cancellation and provider cleanup are separate:
+unconfirmed cleanup retains its original slot in the existing 32-entry bound,
+and a decision deferred solely for cleanup keeps its cursor position. Shutdown
+waits at most one second for provider cleanup, retaining unfinished ownership
+rather than asserting that cancellation closed a resource. An optional iterator `aclose` is used when
+present; a conforming iterator without it remains supported. A hard process
+restart cannot resume an in-memory model stream; this repair makes no
+exactly-once inference or audible-delivery claim.
+
+At capacity, a scan of at most 32 entries reclaims confirmed completed or
+abandoned-and-released cache entries without interrupting published audio.
+Replies buffered for a real user opening remain useful work and are retained;
+admission reports `window_capacity_busy` while all slots remain owned.
+
+Review extended #75 narrowly into the two in-repository HTTP text adapters:
+HTTPX may close a response inside its iterator at natural EOF, before the
+provider context exits. Within an explicit task-local ownership scope, one
+shielded task owns the actual response-stream close at EOF, provider error or
+cancellation. The window controller enables this scope while retaining its
+bounded slot. It defaults off for ordinary typed Converse and Agent calls;
+concurrent reuse of one provider instance does not transfer window ownership.
+Failed or self-cancelled HTTP
+cleanup reports `ProviderCleanupError` and keeps its original bounded slot;
+an exhausted generator's later no-op `aclose` cannot prove resource release.
+If stop is already cancelling that producer, cleanup failure preserves the
+terminal cancellation and local error state without starting diagnostic I/O.
+Request bodies, authentication, proxy/budget handling, disclosure and provider
+deadlines are unchanged. An opaque third-party iterator's hidden transport
+cleanup cannot be introspected or universally guaranteed by this controller.
+
 Agent routing uses native submit/steer/interrupt with exact authenticated source
 text and current task revision. Queue receipts wait for task completion and
 release work in order while Agent is idle. Cancelled targets, newer interrupts,
@@ -129,6 +215,82 @@ expiry during inference, source-bound status receipts, session fairness,
 owner-off/reset fences and duplicate dispatch. The fixed 2,000-source query
 fixture requires indexed point lookups and a generous SQLite VM-operation
 budget; it is a deterministic regression, not a loaded latency benchmark.
+
+#75 initial verification at `ce4795f` passed 174 Python 3.12 tests: the new local/authenticated
+HTTP recovery matrix, existing speech-window/cancellation/window-HTTP integration
+checks and provider unit tests. The 107 recovery/provider tests also passed on
+Python 3.11. Imports explicitly resolved to the isolated worker checkout on both
+versions. Ruff lint and format checks passed for all 207 Python files.
+These fixtures use native journals and deterministic text or mocked HTTP bytes;
+they perform no paid inference, reference-service requests or physical audio.
+Full-project and PR CI remain lead integration checks.
+
+The original #75 reproduction on main `6336484` lost a retained decision after
+one transient source read: Converse made no provider call while independent
+native Agent dispatch still submitted its fixture task. Prepare append failures
+lost admission; a failed start could strand an allocated generation; uncertain
+start/reply acknowledgments closed the provider after its first delta. The
+blocked `IGNORE` backchannel control preserved both chunks and refuted the
+separate truncation hypothesis. Tests now cover the actual failures, exact
+append identity, stale intent/owner/epoch changes during uncertain appends,
+timeout recovery/exhaustion, long healthy replies, and 32 cleanup owners holding
+the 33rd durable decision until cleanup confirms.
+
+Draft checks are retained rather than relabelled as passes: the first combined
+run had 129 passes and four fixture failures. A committed native start receipt
+correctly reconciles a permanently lost acknowledgment, so it is now a positive
+case; the final-read interrupt fixture now enters through `tick` so its decision
+cursor is actually consumed. A later run had 139 passes and four fixture failures:
+the capacity test now awaits its bounded parent completion, and the mocked
+remote provider URL uses required HTTPS. A subsequent 147-test run passed before
+review exposed HTTP EOF/error cleanup cancellation: the targeted reproduction
+had two passes and four failures. The response-close guard then passed all 12
+blocked/EOF/error adapter cases; final checks additionally cover failed and
+self-cancelled HTTP cleanup without releasing the original slot.
+
+The scoped ownership follow-up passed 22 targeted adapter/ownership tests. The
+restart-barrier regression initially had six passes and four failures: the local
+and HTTP committed-but-lost acknowledgments permanently conflicted while the
+journal was otherwise healthy. Retaining the immutable request then passed all
+ten barrier cases, including pre-commit timeout and reset during uncertainty.
+Both versions then passed the 186-test combined scope. The mixed-capacity
+reproduction subsequently failed both local and HTTP cases: one oldest
+unfinished close blocked admission despite 31 reclaimable entries. The bounded
+scan passed all six capacity cases, including 32 unfinished cleanups and 32
+buffered replies waiting for an opening, with completed audio still valid after
+its cache entry was reclaimed.
+Both versions next passed 190 tests before review exposed a pending stop being
+swallowed by cleanup-error diagnostics. All four local/HTTP adapter reproductions
+failed: a 20 ms diagnostic timeout could not cancel an already-cancelling task.
+The producer now preserves terminal cancellation without starting that diagnostic
+append; the bounded slot and explicit local cleanup failure remain retained.
+The related 28 cleanup/timeout cases passed after that correction. The final
+combined scope passed 194 tests on Python 3.12.3 and 194 on Python 3.11.15;
+imports again resolved to this worktree's runtime, window controller and text
+providers. Ruff lint/format passed for all 207 Python files and the diff check
+passed. Full-project and PR CI are separate lead integration evidence.
+
+The initial browser-stop regressions on `ad179818` failed all six local/HTTP
+cases: a completed reply followed by WAIT published no stop, including the two
+uncertain-append boundaries. The first repair passed all six and the prior
+combined 200-test scope on Python 3.12. A later boundary run had 40 passes and two
+failures: the fairness fixture observed one unnecessary native scope read after
+each confirmed stop. Removing that read preserved the explicit native-work bound.
+The final follow-up checks are recorded separately with their actual revision;
+these synthetic journals/HTTP transports do not establish physical playback.
+Both versions next passed the 222-test scope. The added suspended typed-admission
+fixture first rejected an unsupported test-only `ConverseRequest.content_scope`
+argument (two fixture failures); after removing it, both local/HTTP cases
+reproduced WAIT leaving the empty admitted generation unfenced. Their expected
+generation and durable-stop assertions were preserved in the force-fence repair.
+The 224-test scope then passed on both Python versions. A final local/HTTP
+regression reproduced interruption while a completed held reply awaited its
+native claim lookup: both cases published stale chunks after the local fence.
+Synchronous owner/scope/generation rechecks now precede allocation after these
+native awaits; the original no-publication assertions remain unchanged.
+The final combined scope passed 226 tests on Python 3.12.3 (94.69 seconds) and
+226 on Python 3.11.15 (95.74 seconds), with worker imports explicitly verified.
+Ruff lint/format passed for all 207 files; contracts remain unchanged.
 
 Deterministic checks exercise the real journal, authenticated HTTP, browser PCM
 encoding/bounds, independent timing, correction/replay, held/interrupting replies,
@@ -176,3 +338,13 @@ audible latency, echo robustness, production ASR accuracy or the full M3 gate.
 The older clip interface remains for hosts that do not advertise this capability;
 it is not claimed as semantic streaming. `streaming_windows.enabled=false`
 explicitly disables the new path during deployment rollback.
+
+Independent restart review also retained a pre-existing generation-discovery
+limit in [#79](https://github.com/rgoza1996/Kinaiya/issues/79). Initialization
+currently derives its prior generation from the latest 100 journal entries.
+After 105 non-generation window entries, it can reconstruct zero below an
+existing client's generation. The repaired WAIT barrier then cannot stop that
+client's queued audio. Baseline and repaired native/production-JS probes both
+demonstrate this limit. The completed-provider WAIT regression is repaired;
+arbitrary-history restart safety requires durable native generation discovery
+and is not established by this change.

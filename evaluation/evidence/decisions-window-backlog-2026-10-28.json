@@ -71,7 +71,26 @@
       "contract_export": "unchanged",
       "pytest_failures": "none reported during implementation"
     },
-    "github_ci": "Pending PR source push"
+    "github_ci": {
+      "run_id": 40707335297,
+      "url": "https://github.com/rgoza1996/Kinaiya/actions/runs/40707335297",
+      "tested_head": "f2dbbcb0fb16fc8947a596a3a669f98ea67782ca",
+      "merged_main": "6336484b041a377a8549d80f950cc9fc3991c928",
+      "identical_source_tree": "e21239acbab64778c23d53a6b1114da48a41ff91",
+      "python3.11": {
+        "passed": 1254,
+        "warnings": 1,
+        "seconds": 144.81
+      },
+      "python3.12": {
+        "passed": 1254,
+        "warnings": 1,
+        "seconds": 137.48
+      },
+      "ruff_contract_export_base_audit": "passed",
+      "flutter_format_analysis_tests_web_build": "passed",
+      "browser_bridge_tests": 25
+    }
   },
   "independent_review": {
     "reviewer": "Codex minimal_runtime_review",
@@ -116,5 +135,29 @@
     "No physical audio, echo, listening, end-to-end latency or p95 result",
     "Full #49/#53/M3 remain open",
     "The preceding alpha14 CI/release receipt is included as historical verification and does not cover this new patch"
-  ]
+  ],
+  "release": {
+    "tag": "v0.1.0-alpha.15",
+    "reviewed_head": "f2dbbcb0fb16fc8947a596a3a669f98ea67782ca",
+    "merged_main": "6336484b041a377a8549d80f950cc9fc3991c928",
+    "verified_tree": "e21239acbab64778c23d53a6b1114da48a41ff91",
+    "ci_run": 40707335297,
+    "ci_url": "https://github.com/rgoza1996/Kinaiya/actions/runs/40707335297",
+    "artifact_id": 12824179033,
+    "artifact_bytes": 18427545,
+    "artifact_sha256": "ad472d5fff75f3fc90af020304ebcbb51e1e73fed33457dd6704b55c9c252a4a",
+    "main_js_sha256": "9fed1a57c7d1e280384c37d92fc104bdf46d8fafd24363e276ba0fad1247f4b3",
+    "python3.11_tests": 1254,
+    "python3.12_tests": 1254,
+    "browser_bridge_tests": 25,
+    "flutter_analysis_tests_build": "passed",
+    "base_dependency_audit": "passed",
+    "reference_promoted": false,
+    "limits": [
+      "Journal selection/ranking still grows with retained metadata history",
+      "Synthetic classifier/Agent fixtures do not prove actual provider quality",
+      "Full #49/#53/M3, physical audio and complete roadmap remain open"
+    ],
+    "url": "https://github.com/rgoza1996/Kinaiya/releases/tag/v0.1.0-alpha.15"
+  }
 }
