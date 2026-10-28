@@ -179,9 +179,15 @@ def resource_app(args, config, auth, tokens, root):
                     await asyncio.sleep(0.1)
         await coordinator.initialize()
 
-        async def retry_publication():
+        async def maintain_control():
             while True:
-                await asyncio.sleep(1)
+                await asyncio.sleep(0.25)
+                try:
+                    await coordinator.reconcile_owner_intent()
+                except (OSError, ValueError):
+                    # Invalid owner policy blocks Converse at its own boundary;
+                    # never replace it with an enabled default here.
+                    pass
                 if coordinator.publication_pending:
                     try:
                         await asyncio.wait_for(coordinator._publish(), timeout=1)
@@ -189,7 +195,7 @@ def resource_app(args, config, auth, tokens, root):
                     except Exception:
                         pass
 
-        publication = asyncio.create_task(retry_publication())
+        publication = asyncio.create_task(maintain_control())
         try:
             yield
         finally:

@@ -1,0 +1,330 @@
+{
+  "schema_version": "1.0",
+  "study": "Converse durable owner intent during resource restoration",
+  "recorded_unix": 1793152174.900149,
+  "code_commit": "127cac3741fe2e6c66eb8d36375a3a6dfb3802f9",
+  "integration_base": "f1373ff4ef630374fa478858ced236d6ed7a9d6a",
+  "source_sha256": {
+    "services/converse/intent.py": "cdbf41758880528ba7bd05ad8744cbc75591ffc3e3593ff086a0d7b9387a65b4",
+    "services/converse/api.py": "0683b3da95d05169bfe0829c9defcc87590a172ffc9d87c9ffbbe64760be79e4",
+    "services/converse/runtime.py": "ecb586db7079a752f88a4f48f42456ddc90fbe1a679e638b9065a96de007565b",
+    "services/converse/windows.py": "e68f4840419fe74cf8442f2d0ab6a53b698c7fb123bdb8e0411af29ca920d81d",
+    "services/resources/coordinator.py": "6aad3c3ff77aca3801c9f724b52ba9dedd94683fb5c91bc76e5f5799bf4b63f1",
+    "services/resources/client.py": "f588df415d466477d6b1dba808a69e416ae8501af85c77be66b62b737b6a8694",
+    "services/resources/state.py": "54330f45ff056d3ff2b2860b66a8faf995c88348da4027a2f5a9a2a40fab89ea",
+    "services/resources/launcher.py": "dac450061f337336605d6ccba39b0c1950adafb40afd647989cbeeee0b2be13b",
+    "services/launcher.py": "4e53ea9f7afac8f7c62fd88ee517cc74e53d2228864217e2d36ba115a01058b2",
+    "apps/kinaiya_flutter/lib/state/app_state.dart": "f285ade573a1b11e5fa08c383a1b16039af4e81cfb59a506707bb67b5436f4b7",
+    "tests/integration/test_converse_owner_processes.py": "b38cce86981ebadf58eecc3c5e8e82b975526c0d6632250da21dcbb51a8c7bf4"
+  },
+  "baseline_failure": {
+    "measured_main_commit": "1a1c162e7973617ef3a31d227d21a870d643f57e",
+    "acknowledged_owner_off_http_status": 200,
+    "acknowledged_owner_off_response": {
+      "enabled": false
+    },
+    "after_restore_enabled": true,
+    "after_restore_phase": "ready",
+    "scope": "Legacy Converse owner off races resource restoration; native disposable CPU worker and real API authority, synthetic inference, zero Meta/GPU/microphone",
+    "limits": "Prior manual fixture shutdown emitted an asyncio transport loop-close warning; the API race observation is retained separately from cleanup acceptance. The same control path at integration_base was inspected; the measured baseline here is 1a1c162."
+  },
+  "native_process_fixture": {
+    "scope": "independent native Converse HTTP process; real owned 40MiB fixture; zero model/voice inference",
+    "converse_pid": 686384,
+    "initial_worker_pid": 686386,
+    "owner_off_response": {
+      "enabled": false,
+      "owner_enabled": false,
+      "owner_intent_revision": 1,
+      "resource_enabled": false
+    },
+    "owner_off_acknowledged_before_start_release": true,
+    "status_during_restore": {
+      "revision": 9,
+      "profile": "local_work_priority",
+      "phase": "restoring",
+      "desired_converse": false,
+      "owner_intent_revision": 1,
+      "lease_id": "432cb0fe-625f-4542-aae8-44996f6e5709",
+      "lease_task_id": "synthetic-native-task",
+      "required_bytes": 134217728,
+      "restore_bytes": 188432384,
+      "required_gpu_bytes": 0,
+      "restore_gpu_bytes": 0,
+      "reason": "Explicit local work handoff"
+    },
+    "after_restore": {
+      "policy": {
+        "revision": 10,
+        "profile": "local_work_priority",
+        "phase": "off",
+        "desired_converse": false,
+        "owner_intent_revision": 1,
+        "lease_id": null,
+        "lease_task_id": null,
+        "required_bytes": 0,
+        "restore_bytes": 188432384,
+        "required_gpu_bytes": 0,
+        "restore_gpu_bytes": 0,
+        "reason": "Explicit local work handoff"
+      },
+      "worker": {
+        "state": "stopped",
+        "ready": false,
+        "owned_pid": 686394,
+        "owned_pgid": null,
+        "rss_bytes": null,
+        "group_rss_bytes": null,
+        "stop_evidence": {
+          "pid": 686394,
+          "pgid": 686394,
+          "rss_before_bytes": 54210560,
+          "group_rss_before_bytes": 54210560,
+          "mem_available_bytes": 37628416000,
+          "term_sent": true,
+          "kill_sent": false,
+          "reaped": true,
+          "group_empty": true,
+          "residual_pids": [],
+          "ownership_verified": true,
+          "duration_s": 0.08579126599943265,
+          "at": "2026-10-28T01:46:49.727181+00:00"
+        }
+      }
+    },
+    "later_explicit_on": {
+      "response": {
+        "enabled": false,
+        "owner_enabled": true,
+        "owner_intent_revision": 2,
+        "resource_enabled": false
+      },
+      "worker": {
+        "state": "running",
+        "ready": true,
+        "owned_pid": 686395,
+        "owned_pgid": 686395,
+        "rss_bytes": 54210560,
+        "group_rss_bytes": 54210560,
+        "stop_evidence": {
+          "pid": 686394,
+          "pgid": 686394,
+          "rss_before_bytes": 54210560,
+          "group_rss_before_bytes": 54210560,
+          "mem_available_bytes": 37628416000,
+          "term_sent": true,
+          "kill_sent": false,
+          "reaped": true,
+          "group_empty": true,
+          "residual_pids": [],
+          "ownership_verified": true,
+          "duration_s": 0.08579126599943265,
+          "at": "2026-10-28T01:46:49.727181+00:00"
+        }
+      }
+    },
+    "cleanup": {
+      "converse_returncode": -15,
+      "converse_reaped": true,
+      "initial_worker_reaped": true,
+      "final_worker_reaped": true
+    },
+    "headroom_probe": "Deterministic synthetic 2GiB available-memory input; no host memory-pressure benchmark. Worker RSS/reaping/group receipts are native measurements."
+  },
+  "reproduction": {
+    "command": "PYTHONPATH=. python -m pytest -q tests/integration/test_converse_owner_processes.py",
+    "result": "1 passed in 1.93s",
+    "environment": "Linux, Python3.12.3, existing pinned core development environment; native HTTP/process fixture; no model or voice inference",
+    "first_fixture_attempt": "Refused before handoff because the synthetic compatible profile advertised an unmanaged local text model. Corrected fixture explicitly advertises nonlocal synthetic metadata; that endpoint is never invoked. This is fixture correction, not a relaxation of the handoff refusal."
+  },
+  "local_checks": {
+    "full_python": {
+      "command": "PYTHONPATH=. python -m pytest -m 'not live' -q",
+      "passed": 877,
+      "seconds": 174.3,
+      "warnings": [
+        "one existing Starlette/httpx TestClient deprecation"
+      ]
+    },
+    "two_added_regressions": {
+      "passed": 2,
+      "scope": "old resource owner-on replay after newer legacy off; durable owner-off with delivery journal failure",
+      "note": "Added after the full-suite invocation; current production source is unchanged."
+    },
+    "ruff_check": "passed",
+    "ruff_format": "184 files passed",
+    "contract_export": "unchanged",
+    "dart_format": "37 files unchanged",
+    "flutter_analyze": "passed",
+    "flutter_tests": 103,
+    "flutter_release_web_build": "passed; existing CupertinoIcons font warning"
+  },
+  "muse_orchestration": {
+    "model": "muse-spark-1.3-contributor",
+    "contributor_mode": "on",
+    "reasoning_effort": "xhigh",
+    "implementation_v1": {
+      "calls": [
+        1370,
+        1371,
+        1372,
+        1373,
+        1374,
+        1375
+      ],
+      "terminal": "failed at six-step cap; read-only reconnaissance; no code artifacts"
+    },
+    "implementation_v2": {
+      "calls": [
+        1376
+      ],
+      "terminal": "completed, CLI exit0; single-call two-file generation; no tools/tests run by worker",
+      "lead_corrections": "Initial generated tests had7 invalid assertions (format preservation and assignment-as-exception). Lead corrected them, simplified the file store, bounded/rejected duplicate/malformed JSON and unsafe files, and integrated full runtime/controller/Flutter regressions. Raw artifacts retained locally."
+    },
+    "independent_review": {
+      "call": 1377,
+      "code_commit": "127cac3741fe2e6c66eb8d36375a3a6dfb3802f9",
+      "terminal": "completed",
+      "verdict": "No actionable introduced defects found in this Issue 9 scope.\n\nReviewed `services/converse/intent.py`, `services/converse/runtime.py`, `services/converse/api.py`, `services/converse/windows.py`, `services/resources/coordinator.py`, `services/resources/client.py`, `services/resources/state.py`, `services/resources/providers.py`, `services/launcher.py`, `docs/adr/0023-converse-owner-intent.md`, `tests/integration/test_converse_owner_controls.py`, `tests/integration/test_converse_owner_processes.py`, `tests/unit/test_converse_intent.py`, and Flutter `app_state.dart` diff against requirements.\n\nOwner choice stays separate from resource pause. Automatic `restore`/`task_finished` re-reads intent and settles to `off` when disabled. Both owner paths share `converse-intent.json` with atomic replace, nonblocking lock, and revision advance. Old receipt replay returns stored result without rewriting newer choice. Owner ack persists before any journal/delivery await and does not hold worker `asyncio.Lock`. Managed Converse starts suspended and only opens after verified readiness. Direct Agent controls remain independent. Stale speech is blocked by `runtime_id` plus `owner_intent_revision` and `availability_generation` rechecks around async work.\n\nNo new concurrency, persistence, authorization, revision/idempotency, restart, or async-speech violation introduced in the supplied diff was identified. Physical playback and real model inference remain outside this fixture as stated.\n",
+      "limits": "Separate actual read-only CLI instance, one model step, no tools or tests; supplied public committed sources. Automated review, not independent human approval."
+    },
+    "usage": [
+      {
+        "id": 1370,
+        "state": "usage_reported",
+        "model": "muse-spark-1.3-contributor",
+        "resolved_model": "muse-spark-1.3-contributor",
+        "reported_usage": {
+          "input_tokens": 27173,
+          "output_tokens": 132,
+          "input_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "contributor_estimated_usd": 0.0027437000000000004,
+        "admission_estimated_usd": 0.005487400000000001
+      },
+      {
+        "id": 1371,
+        "state": "usage_reported",
+        "model": "muse-spark-1.3-contributor",
+        "resolved_model": "muse-spark-1.3-contributor",
+        "reported_usage": {
+          "input_tokens": 28472,
+          "output_tokens": 132,
+          "input_tokens_details": {
+            "cached_tokens": 27121
+          }
+        },
+        "contributor_estimated_usd": 0.000215742,
+        "admission_estimated_usd": 0.005747200000000001
+      },
+      {
+        "id": 1372,
+        "state": "usage_reported",
+        "model": "muse-spark-1.3-contributor",
+        "resolved_model": "muse-spark-1.3-contributor",
+        "reported_usage": {
+          "input_tokens": 28822,
+          "output_tokens": 103,
+          "input_tokens_details": {
+            "cached_tokens": 28401
+          }
+        },
+        "contributor_estimated_usd": 0.00011950200000000001,
+        "admission_estimated_usd": 0.0058056
+      },
+      {
+        "id": 1373,
+        "state": "usage_reported",
+        "model": "muse-spark-1.3-contributor",
+        "resolved_model": "muse-spark-1.3-contributor",
+        "reported_usage": {
+          "input_tokens": 29475,
+          "output_tokens": 90,
+          "input_tokens_details": {
+            "cached_tokens": 28785
+          }
+        },
+        "contributor_estimated_usd": 0.00014457,
+        "admission_estimated_usd": 0.005931
+      },
+      {
+        "id": 1374,
+        "state": "usage_reported",
+        "model": "muse-spark-1.3-contributor",
+        "resolved_model": "muse-spark-1.3-contributor",
+        "reported_usage": {
+          "input_tokens": 29587,
+          "output_tokens": 90,
+          "input_tokens_details": {
+            "cached_tokens": 29425
+          }
+        },
+        "contributor_estimated_usd": 9.305e-05,
+        "admission_estimated_usd": 0.0059534
+      },
+      {
+        "id": 1375,
+        "state": "usage_reported",
+        "model": "muse-spark-1.3-contributor",
+        "resolved_model": "muse-spark-1.3-contributor",
+        "reported_usage": {
+          "input_tokens": 29860,
+          "output_tokens": 112,
+          "input_tokens_details": {
+            "cached_tokens": 29553
+          }
+        },
+        "contributor_estimated_usd": 0.00011220600000000002,
+        "admission_estimated_usd": 0.0060168
+      },
+      {
+        "id": 1376,
+        "state": "usage_reported",
+        "model": "muse-spark-1.3-contributor",
+        "resolved_model": "muse-spark-1.3-contributor",
+        "reported_usage": {
+          "input_tokens": 17798,
+          "output_tokens": 18841,
+          "input_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "contributor_estimated_usd": 0.005548,
+        "admission_estimated_usd": 0.011096
+      },
+      {
+        "id": 1377,
+        "state": "usage_reported",
+        "model": "muse-spark-1.3-contributor",
+        "resolved_model": "muse-spark-1.3-contributor",
+        "reported_usage": {
+          "input_tokens": 53928,
+          "output_tokens": 11722,
+          "input_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        "contributor_estimated_usd": 0.0077372000000000005,
+        "admission_estimated_usd": 0.015474400000000001
+      }
+    ]
+  },
+  "budget_checkpoint": {
+    "limit_usd": 25,
+    "admission_limit_usd": 22,
+    "billing_reported_usd": null,
+    "contributor_estimated_usd": 0.9503217160000001,
+    "admission_estimated_usd": 20.11860980000001,
+    "reserved_usd": 1.5558100499999998,
+    "admission_policy": "2x Contributor catalog rates; uncached input; full-context reservations; $3 buffer"
+  },
+  "limits": [
+    "No physical microphone, speaker, echo or audible latency proof in this fixture.",
+    "No model inference or full mixed Converse-Laya-Agent delegation in this owner-control study; actual model/GPU handoff evidence remains in the separate PR57 study.",
+    "Linux owner-data configuration boundary; no defense against host administrator rewriting policy.",
+    "A loader already in progress can finish before its owned process is stopped; inference remains owner-gated.",
+    "M6 general scheduling, constrained-memory/device-loss and broader roadmap gates remain open. No reference/default provider switch is implied."
+  ]
+}

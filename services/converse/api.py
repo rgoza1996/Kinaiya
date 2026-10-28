@@ -6,7 +6,7 @@ import time
 from fastapi import Depends, FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from packages.contracts.models import ConverseRequest, DeliveryRequest, SpeechWindow
 
@@ -22,6 +22,7 @@ class SpeechRequest(BaseModel):
 
 
 class EnabledRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
     enabled: bool
 
 
@@ -32,6 +33,7 @@ class AudioWindow(SpeechWindow):
 def create_app(runtime, auth, speech=None, window_controller=None):
     app = FastAPI(title="Kinaiya Converse", version="1.0")
     owner = [Depends(auth.require("owner"))]
+    require_control = auth.require("owner", "resources")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(auth.allowed_origins),
@@ -41,9 +43,13 @@ def create_app(runtime, auth, speech=None, window_controller=None):
 
     @app.get("/health")
     async def health():
+        try:
+            availability = runtime.availability()
+        except (OSError, ValueError):
+            availability = {"enabled": False, "owner_intent_unavailable": True}
         return {
             "service": "converse",
-            "enabled": runtime.enabled,
+            **availability,
             "provider": runtime.provider.info.model_dump(),
             "voice_configured": speech is not None,
             "streaming_windows": window_controller is not None,
@@ -74,13 +80,14 @@ def create_app(runtime, auth, speech=None, window_controller=None):
         except ValueError as exc:
             raise HTTPException(409, str(exc)) from exc
 
-    @app.post("/v1/converse/enabled", dependencies=[Depends(auth.require("owner", "resources"))])
-    async def enabled(request: EnabledRequest):
-        runtime.enabled = request.enabled
-        if not request.enabled:
-            for session_id in list(runtime.playback):
-                await runtime.interrupt(session_id)
-        return {"enabled": runtime.enabled}
+    @app.post("/v1/converse/enabled")
+    async def enabled(request: EnabledRequest, actor: str = Depends(require_control)):
+        try:
+            return await runtime.set_enabled(request.enabled, owner=actor == "owner")
+        except (OSError, ValueError, RuntimeError, OverflowError) as exc:
+            raise HTTPException(
+                503, "Converse control is unconfirmed; inspect availability"
+            ) from exc
 
     @app.post("/v1/converse/delivery", dependencies=owner)
     async def delivery(request: DeliveryRequest):

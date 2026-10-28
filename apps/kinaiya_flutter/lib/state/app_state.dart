@@ -98,6 +98,7 @@ class AppState extends ChangeNotifier {
   String resourcePhase = '';
   String? _resourceController;
   int _resourceRevision = -1;
+  int? _resourceOwnerRevision;
 
   AppView view = AppView.character;
 
@@ -200,6 +201,7 @@ class AppState extends ChangeNotifier {
     resourcePhase = '';
     _resourceController = null;
     _resourceRevision = -1;
+    _resourceOwnerRevision = null;
     // The registry is honest only for its own connection: invalidate on
     // every (re)connect until the new registry loads.
     commands = null;
@@ -605,15 +607,32 @@ class AppState extends ChangeNotifier {
       resourceStatusStale = false;
       final controller = status['controller_id'] as String;
       final revision = (policy['revision'] as num).toInt();
+      final ownerRevision = policy['owner_intent_revision'];
+      if (ownerRevision != null &&
+          (ownerRevision is! int || ownerRevision < 0)) {
+        throw const FormatException('Invalid Converse owner revision');
+      }
       if (_resourceController != controller) {
         _resourceController = controller;
         _resourceRevision = -1;
+        _resourceOwnerRevision = null;
       }
       if (revision < _resourceRevision) {
         throw const FormatException('Obsolete resource status');
       }
-      if (revision == _resourceRevision && !wasStale) return;
+      if (_resourceOwnerRevision != null &&
+          (ownerRevision is! int || ownerRevision < _resourceOwnerRevision!)) {
+        throw const FormatException('Obsolete Converse owner intent');
+      }
+      // Owner intent can change immediately while a restoration still holds
+      // the controller lock. Its revision is independent of worker progress.
+      if (revision == _resourceRevision &&
+          ownerRevision == _resourceOwnerRevision &&
+          !wasStale) {
+        return;
+      }
       _resourceRevision = revision;
+      _resourceOwnerRevision = ownerRevision is int ? ownerRevision : null;
       resourcePhase = policy['phase'] as String? ?? 'failed';
       converseEnabled =
           resourcePhase == 'ready' && policy['desired_converse'] == true;

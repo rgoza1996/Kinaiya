@@ -114,6 +114,24 @@ async def test_response_is_prepared_but_not_published_over_speaking_user(env):
     )
 
 
+async def test_prepared_reply_cannot_resume_after_owner_off_then_on(env):
+    source = await window(env, "Public synthetic old question.")
+    await env.controller.process(decide(env, source, "RESPOND_WITHOUT_INTERRUPTING_USER"))
+    await settle(env)
+    assert env.controller.pending[env.session.session_id].chunks
+    assert not env.store.read(kinds=["conversation.converse"])
+    await env.runtime.set_enabled(False, owner=True)
+    await env.runtime.set_enabled(True, owner=True)
+    opening = await window(env, "Public synthetic old question.", index=1, speaking=False)
+    await env.controller.process(opening)
+    assert not env.store.read(kinds=["conversation.converse"])
+    fresh = await window(env, "Public synthetic fresh question.", speaking=False, utterance="fresh")
+    await env.controller.process(decide(env, fresh, "RESPOND_WITHOUT_INTERRUPTING_USER"))
+    await settle(env)
+    replies = env.store.read(kinds=["conversation.converse"])
+    assert len(replies) == 1 and replies[0].payload["window_source_id"] == fresh.event_id
+
+
 async def test_interrupting_response_can_start_before_user_stops(env):
     source = await window(env, "Stop, don't delete that!")
     await env.controller.process(decide(env, source, "RESPOND_INTERRUPT_USER"))

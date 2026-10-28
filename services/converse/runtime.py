@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 
 from packages.contracts.models import AppendRequest, ConverseRequest, DeliveryRequest, new_id
 from packages.providers.disclosure import entry_allowed
+from services.converse.intent import ConverseIntent
 
 
 class SpeechChunker:
@@ -44,7 +45,17 @@ class PlaybackEpoch:
 
 
 class ConverseRuntime:
-    def __init__(self, journal, provider, *, name="Kinaiya", personality=None, context_turns=12):
+    def __init__(
+        self,
+        journal,
+        provider,
+        *,
+        name="Kinaiya",
+        personality=None,
+        context_turns=12,
+        intent=None,
+        resources_managed=False,
+    ):
         self.journal, self.provider = journal, provider
         self.name, self.context_turns = name, context_turns
         self.personality = personality or (
@@ -58,11 +69,74 @@ class ConverseRuntime:
             " generated text from estimated playback; never assume unheard words were delivered."
         )
         self.playback = {}
-        self.enabled = True
+        self.intent = intent if intent is not None else ConverseIntent()
+        self._resource_enabled = not resources_managed
+        self._availability_generation = 0
         self._active = {}
         self._dedupe_locks = {}
         self._epoch_locks = {}
         self._runtime_id = new_id()
+
+    def availability(self):
+        choice = self.intent.read()
+        return {
+            "enabled": choice.enabled and self._resource_enabled,
+            "owner_enabled": choice.enabled,
+            "owner_intent_revision": choice.revision,
+            "resource_enabled": self._resource_enabled,
+        }
+
+    @property
+    def enabled(self):
+        try:
+            return self.availability()["enabled"]
+        except (OSError, ValueError):
+            # Missing or corrupt owner policy is never permission to speak.
+            return False
+
+    @enabled.setter
+    def enabled(self, value):
+        """Resource availability only; a pause cannot rewrite owner intent."""
+        if type(value) is not bool:
+            raise ValueError("Resource availability must be a boolean")
+        self._resource_enabled = value
+        if not value:
+            self._availability_generation += 1
+
+    def admission(self):
+        state = self.availability()
+        if not state["enabled"]:
+            raise RuntimeError("Converse is disabled; direct Agent Chat remains available")
+        return state["owner_intent_revision"], self._availability_generation
+
+    def admission_current(self, admission):
+        try:
+            return self.admission() == admission
+        except (OSError, ValueError, RuntimeError):
+            return False
+
+    async def set_enabled(self, value, *, owner=False):
+        if owner:
+            # Persist before any await: an acknowledged off survives process
+            # loss and is visible to a restoring controller immediately.
+            self.intent.set(value)
+            self._availability_generation += 1
+        else:
+            self.enabled = value
+        if not self.enabled:
+            # Cancel every producer before journal I/O can suspend this request.
+            for task in list(self._active.values()):
+                if not task.done():
+                    task.cancel()
+            failures = []
+            for session_id in list(self.playback):
+                try:
+                    await self.interrupt(session_id)
+                except Exception as exc:
+                    failures.append(exc)
+            if failures:
+                raise RuntimeError("Converse is off; delivery interruption needs reconciliation")
+        return self.availability()
 
     async def _recent(self, session_id):
         if hasattr(self.journal, "recent"):
@@ -140,8 +214,7 @@ class ConverseRuntime:
         }
 
     async def events(self, request: ConverseRequest):
-        if not self.enabled:
-            raise RuntimeError("Converse is disabled; direct Agent Chat remains available")
+        admission = self.admission()
         session = await self.journal.session(request.session_id)
         if session.channel != "converse" or (session.epoch, session.thread_id) != (
             request.epoch,
@@ -163,6 +236,8 @@ class ConverseRuntime:
                     for e in existing
                     if prior_user.event_id in e.causes and e.kind == "conversation.converse"
                 ]
+                if not self.admission_current(admission):
+                    raise RuntimeError("Converse availability changed during turn admission")
                 for reply in replies:
                     yield {"type": "text", "entry": reply.model_dump(mode="json"), "replay": True}
                 yield {"type": "done", "replay": True, "pending": not bool(replies)}
@@ -242,6 +317,8 @@ class ConverseRuntime:
             except Exception as exc:
                 await queue.put(("error", type(exc).__name__))
 
+        if not self.admission_current(admission):
+            raise RuntimeError("Converse availability changed during turn admission")
         producer = asyncio.create_task(produce())
         self._active[request.session_id] = producer
         yield {
@@ -252,7 +329,11 @@ class ConverseRuntime:
         try:
             while True:
                 kind, value = await queue.get()
-                if not playback.accepts(generation) or kind == "interrupted":
+                if (
+                    not self.admission_current(admission)
+                    or not playback.accepts(generation)
+                    or kind == "interrupted"
+                ):
                     yield {"type": "interrupted", "generation_epoch": generation}
                     break
                 if kind == "error":
@@ -294,6 +375,8 @@ class ConverseRuntime:
                                 "revision": 1,
                                 "generation_epoch": generation,
                                 "runtime_id": self._runtime_id,
+                                "owner_intent_revision": admission[0],
+                                "availability_generation": admission[1],
                                 "chunk_id": new_id(),
                                 "delivery": "generated",
                             },
@@ -301,6 +384,9 @@ class ConverseRuntime:
                             idempotency_key=f"reply:{source.event_id}:{index}",
                         )
                     )
+                    if not self.admission_current(admission) or not playback.accepts(generation):
+                        yield {"type": "interrupted", "generation_epoch": generation}
+                        return
                     playback.chunks[event.event_id] = event
                     yield {"type": "text", "entry": event.model_dump(mode="json")}
                     index += 1
@@ -325,6 +411,10 @@ class ConverseRuntime:
         event = await self.journal.entry(event_id)
         session = await self.journal.session(event.session_id)
         playback = await self._epoch(event.session_id)
+        try:
+            admission = self.admission()
+        except (OSError, ValueError, RuntimeError) as exc:
+            raise ValueError("Obsolete or unauthorized speech") from exc
         if (
             not self.enabled
             or session.epoch != event.epoch
@@ -333,6 +423,8 @@ class ConverseRuntime:
             or event.payload.get("runtime_id") != self._runtime_id
             or not playback.accepts(generation_epoch)
             or event.payload.get("generation_epoch") != generation_epoch
+            or event.payload.get("owner_intent_revision", admission[0]) != admission[0]
+            or event.payload.get("availability_generation", admission[1]) != admission[1]
         ):
             raise ValueError("Obsolete or unauthorized speech")
         if event.payload.get("window_source_id"):
@@ -364,6 +456,8 @@ class ConverseRuntime:
             ]
             if newer:
                 raise ValueError("Outcome changed before playback")
+        if not self.admission_current(admission) or not playback.accepts(generation_epoch):
+            raise ValueError("Obsolete or unauthorized speech")
         return event
 
     async def acknowledge_delivery(self, request: DeliveryRequest):
@@ -415,6 +509,10 @@ class ConverseRuntime:
         session = await self.journal.session(outcome.session_id)
         if session.epoch != outcome.epoch or session.channel != "converse" or not self.enabled:
             return None
+        try:
+            admission = self.admission()
+        except (OSError, ValueError, RuntimeError):
+            return None
         playback = await self._epoch(session.session_id)
         scopes = []
         for source_id in task.get("source_event_ids", []):
@@ -432,6 +530,8 @@ class ConverseRuntime:
                 if s in scopes
             )
         # Completion does not cancel current social speech. It joins the current epoch.
+        if not self.admission_current(admission):
+            return None
         if playback.generation == 0:
             playback.begin()
         event = await self.journal.append(
@@ -447,6 +547,8 @@ class ConverseRuntime:
                     "revision": 1,
                     "generation_epoch": playback.generation,
                     "runtime_id": self._runtime_id,
+                    "owner_intent_revision": admission[0],
+                    "availability_generation": admission[1],
                     "chunk_id": new_id(),
                     "delivery": "generated",
                     "outcome_event_id": outcome.event_id,

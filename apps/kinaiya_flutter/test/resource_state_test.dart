@@ -20,6 +20,8 @@ class ResourceApi extends KinaiyaClient {
   String controller = 'first';
   String phase = 'ready';
   int revision = 1;
+  Object? ownerRevision = 0;
+  bool desiredConverse = true;
   bool fail = false;
   bool malformed = false;
 
@@ -32,7 +34,8 @@ class ResourceApi extends KinaiyaClient {
       'policy': {
         'revision': revision,
         'phase': phase,
-        'desired_converse': true,
+        'desired_converse': desiredConverse,
+        if (ownerRevision != null) 'owner_intent_revision': ownerRevision,
       },
     };
   }
@@ -59,6 +62,48 @@ class PendingMicAudio extends CaptureAudio {
 }
 
 void main() {
+  test(
+    'owner-off revision stops voice while worker revision is unchanged',
+    () async {
+      final api = ResourceApi();
+      final state = AppState()
+        ..connect(ConnectionProfile.defaults(), injected: api);
+      await state.refreshResources();
+      expect(state.converseEnabled, isTrue);
+      state.turnNonce = 10;
+      api.desiredConverse = false;
+      api.ownerRevision = 1;
+      await state.refreshResources();
+      expect(state.converseEnabled, isFalse);
+      expect(state.turnNonce, 11);
+      await state.refreshResources();
+      expect(state.turnNonce, 11);
+      api.desiredConverse = true;
+      api.ownerRevision = 2;
+      api.phase = 'off';
+      await state.refreshResources();
+      expect(state.converseEnabled, isFalse);
+      api.revision++;
+      api.phase = 'ready';
+      await state.refreshResources();
+      expect(state.converseEnabled, isTrue);
+      api.ownerRevision = 1;
+      await state.refreshResources();
+      expect(state.resourceStatusStale, isTrue);
+      expect(state.converseEnabled, isFalse);
+      api.ownerRevision = 'invalid';
+      await state.refreshResources();
+      expect(state.resourceStatusStale, isTrue);
+      api.controller = 'new';
+      api.revision = 0;
+      api.ownerRevision = 0;
+      await state.refreshResources();
+      expect(state.resourceStatusStale, isFalse);
+      expect(state.converseEnabled, isTrue);
+      state.dispose();
+    },
+  );
+
   testWidgets(
     'late mic completion cannot rearm paused voice or cancel a newer recording',
     (tester) async {

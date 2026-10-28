@@ -77,7 +77,11 @@ async def test_launcher_requires_both_owned_endpoints_before_ready(
         elif request.url.port == 8912:
             if request.method == "POST":
                 enabled = json.loads(request.content)["enabled"]
-            body = {"enabled": enabled, "provider": {"local": False}}
+            body = {
+                "enabled": enabled,
+                "resource_enabled": enabled,
+                "provider": {"local": False},
+            }
         elif request.url.path == "/v1/sessions":
             body = []
         else:

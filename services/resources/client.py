@@ -86,7 +86,7 @@ class ConverseControl:
         response = await self.http.post("/v1/converse/enabled", json={"enabled": enabled})
         response.raise_for_status()
         result = response.json()
-        if result.get("enabled") is not enabled:
+        if result.get("resource_enabled") is not enabled:
             raise RuntimeError("Converse did not acknowledge its requested state")
         return result
 

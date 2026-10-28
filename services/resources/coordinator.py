@@ -9,6 +9,7 @@ import stat
 
 from packages.contracts.models import AppendRequest, new_id
 from packages.resources.processes import _mem_available_bytes
+from services.converse.intent import ConverseIntent
 from services.resources.state import PROFILES
 
 
@@ -30,6 +31,10 @@ class ResourceCoordinator:
         gpu_restore_reserve_bytes=0,
     ):
         self.manager, self.state, self.converse = manager, state, converse
+        self.intent = ConverseIntent(
+            state.path.parent / "converse-intent.json",
+            initial_enabled=state.record.desired_converse,
+        )
         self.controller_id = new_id()
         self.journal, self.task_status = journal, task_status
         self.memory_probe, self.minimum = memory_probe, minimum_free_bytes
@@ -59,10 +64,16 @@ class ResourceCoordinator:
 
     def status(self):
         gpu = self.gpu_probe() if self.gpu_probe is not None else None
+        choice = self.intent.read()
+        policy = {
+            **self.state.record.model_dump(),
+            "desired_converse": choice.enabled,
+            "owner_intent_revision": choice.revision,
+        }
         return {
             "schema_version": "1.0",
             "controller_id": self.controller_id,
-            "policy": self.state.record.model_dump(),
+            "policy": policy,
             **self.manager.status(),
             "memory_available_bytes": self.memory_probe(),
             "coverage": (
@@ -100,6 +111,12 @@ class ResourceCoordinator:
             )
 
     async def _save(self, **changes):
+        choice = self.intent.read()
+        changes["desired_converse"] = choice.enabled
+        if (changes.get("phase") == "ready" and choice.enabled) or (
+            changes.get("phase") == "off" and not choice.enabled
+        ):
+            changes["owner_intent_revision"] = choice.revision
         self.state.save(**changes)
         try:
             await asyncio.wait_for(self._publish(), timeout=1)
@@ -122,17 +139,22 @@ class ResourceCoordinator:
                 return
             try:
                 health = await self.converse.health()
-                self.local_converse_unmanaged = bool(health.get("provider", {}).get("local", False))
-                desired = self.state.record.desired_converse and health.get("enabled") is True
-                await self._save(phase="initializing", desired_converse=desired)
-                if desired:
+                self._provider_locality(health)
+                await self._save(phase="initializing")
+                if self.intent.read().enabled:
                     await self._restore_locked()
                 else:
-                    await self._save(phase="off")
+                    await self._off_locked()
             except Exception:
                 await self._save(
                     phase="failed", reason="Resource startup failed; inspect worker status"
                 )
+
+    def _provider_locality(self, health):
+        local = health.get("provider", {}).get("local")
+        if type(local) is not bool:
+            raise RuntimeError("Converse provider locality is unavailable; handoff refused")
+        self.local_converse_unmanaged = local
 
     async def action(self, payload):
         encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
@@ -172,19 +194,12 @@ class ResourceCoordinator:
                     await self._restore_locked()
                 elif operation == "converse":
                     desired = payload["enabled"]
-                    await self._save(desired_converse=desired)
+                    choice = self.intent.set(desired)
+                    await self._save(owner_intent_revision=choice.revision)
                     if desired:
                         await self._restore_locked()
                     else:
-                        await self.converse.enabled(False)
-                        await self._stop_workers()
-                        await self._save(
-                            phase="off",
-                            lease_id=None,
-                            lease_task_id=None,
-                            required_bytes=0,
-                            required_gpu_bytes=0,
-                        )
+                        await self._off_locked()
                 elif operation == "task_finished":
                     if (
                         self.state.record.phase == "local_work"
@@ -218,6 +233,59 @@ class ResourceCoordinator:
                 )
             return result
 
+    async def reconcile_owner_intent(self):
+        """Observe legacy owner controls without holding their acknowledgment up.
+
+        A file revision is the wakeup, not permission for automatic retries of a
+        failed restoration. Each explicit owner request advances that revision.
+        """
+        async with self.lock:
+            choice = self.intent.read()
+            if choice.revision == self.state.record.owner_intent_revision:
+                if not choice.enabled or self.state.record.phase != "ready":
+                    return
+                # A freshly restarted managed Converse begins suspended. Reuse
+                # verified workers before reopening its resource gate; its owner
+                # choice remains independent and is checked again by restoration.
+                try:
+                    health = await self.converse.health()
+                    self._provider_locality(health)
+                except Exception:
+                    return
+                if health.get("resource_enabled") is not False:
+                    return
+            # Handle this explicit intent once. A newer revision arriving while
+            # a worker starts remains pending, even if a policy snapshot sees it.
+            await self._save(owner_intent_revision=choice.revision)
+            try:
+                if choice.enabled:
+                    await self._restore_locked()
+                else:
+                    await self._off_locked()
+            except Exception:
+                await self._save(phase="failed", reason="Owner control reconciliation failed")
+
+    async def _off_locked(self):
+        # The durable owner gate already blocks inference even if Converse's
+        # HTTP service is unavailable. Stop only workers this controller owns.
+        control_error = None
+        try:
+            await self.converse.enabled(False)
+        except Exception as exc:
+            control_error = exc
+        await self._stop_workers()
+        await self._save(
+            phase="off",
+            lease_id=None,
+            lease_task_id=None,
+            required_bytes=0,
+            required_gpu_bytes=0,
+        )
+        if control_error is not None:
+            raise RuntimeError(
+                "Workers stopped; Converse control acknowledgment is unavailable"
+            ) from control_error
+
     async def _stop_workers(self):
         results = []
         for worker_id in self.manager.status()["workers"]:
@@ -237,6 +305,7 @@ class ResourceCoordinator:
             raise ValueError(
                 "Conversation priority queues demanding local work; select local work priority for handoff"
             )
+        self._provider_locality(await self.converse.health())
         if self.local_converse_unmanaged:
             raise ValueError(
                 "The local Converse text worker is not managed; its release cannot be verified"
@@ -272,10 +341,6 @@ class ResourceCoordinator:
             phase="quiescing",
             reason=payload.get("reason", "Explicit local work handoff"),
             restore_gpu_bytes=restore_gpu,
-        )
-        health = await self.converse.health()
-        await self._save(
-            desired_converse=self.state.record.desired_converse and health.get("enabled") is True
         )
         await self.converse.enabled(False)
         await self._save(phase="unloading")
@@ -317,14 +382,8 @@ class ResourceCoordinator:
         )
 
     async def _restore_locked(self):
-        if not self.state.record.desired_converse:
-            await self._save(
-                phase="off",
-                lease_id=None,
-                lease_task_id=None,
-                required_bytes=0,
-                required_gpu_bytes=0,
-            )
+        if not self.intent.read().enabled:
+            await self._off_locked()
             return
         await self._save(phase="restoring")
         available = self.memory_probe()
@@ -346,12 +405,21 @@ class ResourceCoordinator:
             ):
                 raise RuntimeError("Restoration lacks measured GPU headroom")
         for worker_id in self.manager.status()["workers"]:
+            if not self.intent.read().enabled:
+                await self._off_locked()
+                return
             if self.before_start:
                 await self.before_start(worker_id)
             result = await self.manager.start(worker_id)
             if not result.get("ok") or not result.get("ready"):
                 raise RuntimeError("Managed conversation worker did not become ready")
+        if not self.intent.read().enabled:
+            await self._off_locked()
+            return
         await self.converse.enabled(True)
+        if not self.intent.read().enabled:
+            await self._off_locked()
+            return
         await self._save(
             phase="ready",
             lease_id=None,

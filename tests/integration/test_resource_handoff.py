@@ -20,6 +20,7 @@ from packages.providers.voice_worker import create_app as voice_app
 from packages.resources import WorkerManager, WorkerSpec
 from services.common.auth import Auth
 from services.converse.api import create_app as converse_app
+from services.converse.intent import ConverseIntent
 from services.converse.runtime import ConverseRuntime
 from services.resources.api import ResourceAction, create_app
 from services.resources.client import ConverseControl, ResourceClient, local_base
@@ -32,8 +33,7 @@ AUTH = Auth({"owner": "o" * 32, "resources": "r" * 32, "converse": "c" * 32, "ag
 MiB = 1024 * 1024
 
 
-@pytest.fixture
-async def coordinated(tmp_path):
+async def make_coordinated(tmp_path):
     ready = tmp_path / "ready"
     script = tmp_path / "worker.py"
     script.write_text(
@@ -51,7 +51,15 @@ async def coordinated(tmp_path):
     store.create_session(SessionRequest(channel="converse"))
     provider = ScriptedProvider([])
     provider.info = ProviderInfo(provider="synthetic-cloud", model="fixture", local=False)
-    runtime = ConverseRuntime(LocalJournal(store, "converse"), provider)
+    runtime = ConverseRuntime(
+        LocalJournal(store, "converse"),
+        provider,
+        intent=ConverseIntent(
+            state.path.parent / "converse-intent.json",
+            initial_enabled=state.record.desired_converse,
+        ),
+        resources_managed=True,
+    )
     control = ConverseControl(
         "http://127.0.0.1:8762",
         "r" * 32,
@@ -65,6 +73,12 @@ async def coordinated(tmp_path):
         memory_probe=lambda: 2 * 1024 * MiB,
     )
     await coordinator.initialize()
+    return coordinator, runtime, store
+
+
+@pytest.fixture
+async def coordinated(tmp_path):
+    coordinator, runtime, store = await make_coordinated(tmp_path)
     yield coordinator, runtime, store
     await coordinator.close()
     store.close()
@@ -109,6 +123,222 @@ async def test_user_off_choice_is_not_overridden_by_restore(coordinated):
     restored = await action(coordinator, "restore")
     assert restored["ok"] and restored["policy"]["phase"] == "off"
     assert coordinator.status()["workers"]["voice"]["state"] == "stopped"
+
+
+async def legacy_choice(runtime, enabled):
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=converse_app(runtime, AUTH)),
+        base_url="http://test",
+        headers={"Authorization": "Bearer " + "o" * 32},
+    ) as client:
+        response = await client.post("/v1/converse/enabled", json={"enabled": enabled})
+        assert response.status_code == 200, response.text
+        return response.json()
+
+
+@pytest.mark.parametrize("operation", ["restore", "task_finished", "converse"])
+async def test_acknowledged_legacy_off_wins_during_worker_restoration(coordinated, operation):
+    coordinator, runtime, _ = coordinated
+    await action(coordinator, "profile", profile="local_work_priority")
+    assert (await action(coordinator, "handoff", required_bytes=128 * MiB, task_id="target"))["ok"]
+    entered, release = asyncio.Event(), asyncio.Event()
+    original = coordinator.manager.start
+
+    async def delayed(worker_id):
+        entered.set()
+        await release.wait()
+        return await original(worker_id)
+
+    coordinator.manager.start = delayed
+    fields = {"task_id": "target"} if operation == "task_finished" else {}
+    if operation == "converse":
+        fields["enabled"] = True
+    restoration = asyncio.create_task(action(coordinator, operation, key="race-restore", **fields))
+    try:
+        await asyncio.wait_for(entered.wait(), 2)
+        off = await asyncio.wait_for(legacy_choice(runtime, False), 1)
+        assert off["enabled"] is False and off["owner_enabled"] is False
+        assert not restoration.done(), "owner acknowledgment must not wait for the worker lock"
+        assert runtime.enabled is False
+        # Status observes owner intent even before a worker transition can finish.
+        policy = coordinator.status()["policy"]
+        assert policy["desired_converse"] is False
+        assert policy["owner_intent_revision"] == off["owner_intent_revision"]
+        release.set()
+        result = await asyncio.wait_for(restoration, 4)
+        assert result["ok"] and result["policy"]["phase"] == "off"
+        assert runtime.enabled is False
+        stopped = coordinator.status()["workers"]["voice"]
+        assert stopped["state"] == "stopped"
+        assert stopped["stop_evidence"]["reaped"] and stopped["stop_evidence"]["group_empty"]
+        assert (await action(coordinator, "restore", key="later-automatic-restore"))["policy"][
+            "phase"
+        ] == "off"
+        assert runtime.enabled is False
+    finally:
+        release.set()
+        await asyncio.gather(restoration, return_exceptions=True)
+
+
+async def test_owner_on_during_handoff_is_not_lost_by_a_policy_snapshot(coordinated):
+    coordinator, runtime, _ = coordinated
+    await action(coordinator, "profile", profile="local_work_priority")
+    entered, release = asyncio.Event(), asyncio.Event()
+    original = coordinator.manager.stop
+
+    async def delayed(worker_id):
+        entered.set()
+        await release.wait()
+        return await original(worker_id)
+
+    coordinator.manager.stop = delayed
+    handoff = asyncio.create_task(action(coordinator, "handoff", required_bytes=128 * MiB))
+    try:
+        await asyncio.wait_for(entered.wait(), 2)
+        await legacy_choice(runtime, False)
+        on = await legacy_choice(runtime, True)
+        assert on["owner_enabled"] is True and on["enabled"] is False
+        release.set()
+        assert (await asyncio.wait_for(handoff, 4))["policy"]["phase"] == "local_work"
+        assert coordinator.state.record.owner_intent_revision < on["owner_intent_revision"]
+        await coordinator.reconcile_owner_intent()
+        assert coordinator.state.record.phase == "ready" and runtime.enabled
+    finally:
+        release.set()
+        await asyncio.gather(handoff, return_exceptions=True)
+
+
+async def test_controller_outage_and_both_service_restarts_preserve_off_then_explicit_on(tmp_path):
+    coordinator, runtime, store = await make_coordinated(tmp_path)
+    old_pid = coordinator.status()["workers"]["voice"]["owned_pid"]
+    await coordinator.close()
+    try:
+        # Converse's native owner control needs neither the resource controller
+        # nor an inference worker to commit the preference.
+        off = await legacy_choice(runtime, False)
+        assert off["enabled"] is False and off["owner_enabled"] is False
+    finally:
+        store.close()
+    coordinator, runtime, store = await make_coordinated(tmp_path)
+    try:
+        assert not runtime.enabled
+        assert coordinator.state.record.phase == "off"
+        assert coordinator.status()["workers"]["voice"]["owned_pid"] is None
+        on = await legacy_choice(runtime, True)
+        assert on["owner_enabled"] and not on["enabled"]
+        await coordinator.reconcile_owner_intent()
+        assert coordinator.state.record.phase == "ready" and runtime.enabled
+        assert coordinator.status()["workers"]["voice"]["owned_pid"] != old_pid
+    finally:
+        await coordinator.close()
+        store.close()
+
+
+async def test_legacy_resource_owner_off_seeds_new_intent_without_starting_workers(tmp_path):
+    from services.resources.state import ResourceRecord
+
+    control = tmp_path / "control"
+    control.mkdir(mode=0o700)
+    legacy = ResourceRecord(desired_converse=False).model_dump()
+    legacy.pop("owner_intent_revision")
+    policy = control / "resources-state.json"
+    policy.write_text(json.dumps(legacy))
+    policy.chmod(0o600)
+    coordinator, runtime, store = await make_coordinated(tmp_path)
+    try:
+        assert coordinator.intent.read().enabled is False
+        assert runtime.enabled is False and coordinator.state.record.phase == "off"
+        assert coordinator.status()["workers"]["voice"]["owned_pid"] is None
+    finally:
+        await coordinator.close()
+        store.close()
+
+
+async def test_failed_owner_on_is_not_retried_until_a_new_explicit_request(coordinated):
+    coordinator, runtime, _ = coordinated
+    await action(coordinator, "converse", enabled=False)
+    coordinator.memory_probe = lambda: 0
+    await legacy_choice(runtime, True)
+    await coordinator.reconcile_owner_intent()
+    assert coordinator.state.record.phase == "failed" and not runtime.enabled
+    previous = coordinator.state.record.revision
+    coordinator.memory_probe = lambda: 2 * 1024 * MiB
+    await coordinator.reconcile_owner_intent()
+    assert coordinator.state.record.revision == previous and not runtime.enabled
+    await legacy_choice(runtime, True)
+    await coordinator.reconcile_owner_intent()
+    assert coordinator.state.record.phase == "ready" and runtime.enabled
+
+
+async def test_replayed_old_owner_on_receipt_cannot_change_a_newer_legacy_off(coordinated):
+    coordinator, runtime, _ = coordinated
+    original = await action(coordinator, "converse", key="old-owner-on", enabled=True)
+    assert original["ok"]
+    off = await legacy_choice(runtime, False)
+    replayed = await action(coordinator, "converse", key="old-owner-on", enabled=True)
+    assert replayed == original
+    assert not runtime.enabled
+    assert coordinator.intent.read().revision == off["owner_intent_revision"]
+    assert coordinator.status()["policy"]["desired_converse"] is False
+    await coordinator.reconcile_owner_intent()
+    assert coordinator.state.record.phase == "off"
+
+
+async def test_resource_owner_off_still_stops_owned_workers_when_converse_http_is_down(coordinated):
+    coordinator, runtime, _ = coordinated
+    original = coordinator.converse.enabled
+
+    async def unavailable(enabled):
+        raise httpx.ConnectError("synthetic Converse control outage")
+
+    coordinator.converse.enabled = unavailable
+    try:
+        result = await action(coordinator, "converse", enabled=False)
+        assert result["ok"] is False, "missing control acknowledgment must stay unconfirmed"
+        assert not coordinator.intent.read().enabled and not runtime.enabled
+        stopped = coordinator.status()["workers"]["voice"]
+        assert stopped["state"] == "stopped"
+        assert stopped["stop_evidence"]["reaped"] and stopped["stop_evidence"]["group_empty"]
+    finally:
+        coordinator.converse.enabled = original
+
+
+async def test_converse_only_restart_requires_and_recovers_resource_readiness(coordinated):
+    coordinator, runtime, store = coordinated
+    pid = coordinator.status()["workers"]["voice"]["owned_pid"]
+    recovered = ConverseRuntime(
+        LocalJournal(store, "converse"),
+        runtime.provider,
+        intent=ConverseIntent(runtime.intent.path),
+        resources_managed=True,
+    )
+    assert not recovered.enabled and recovered.intent.read().enabled
+    previous = coordinator.converse
+    coordinator.converse = ConverseControl(
+        "http://127.0.0.1:8762",
+        "r" * 32,
+        transport=httpx.ASGITransport(app=converse_app(recovered, AUTH)),
+    )
+    try:
+        await coordinator.reconcile_owner_intent()
+        assert recovered.enabled and coordinator.state.record.phase == "ready"
+        assert coordinator.status()["workers"]["voice"]["owned_pid"] == pid
+        await legacy_choice(recovered, False)
+        await coordinator.reconcile_owner_intent()
+        assert not recovered.enabled and coordinator.state.record.phase == "off"
+    finally:
+        await previous.close()
+
+
+async def test_handoff_rechecks_provider_locality_after_converse_reconfiguration(coordinated):
+    coordinator, runtime, _ = coordinated
+    before = coordinator.status()["workers"]["voice"]["owned_pid"]
+    await action(coordinator, "profile", profile="local_work_priority")
+    runtime.provider.info = ProviderInfo(provider="synthetic-local", model="fixture", local=True)
+    result = await action(coordinator, "handoff", required_bytes=128 * MiB)
+    assert not result["ok"] and "not managed" in result["error"]
+    assert runtime.enabled and coordinator.state.record.phase == "ready"
+    assert coordinator.status()["workers"]["voice"]["owned_pid"] == before
 
 
 async def test_unknown_headroom_refuses_admission_after_verified_stop(coordinated):

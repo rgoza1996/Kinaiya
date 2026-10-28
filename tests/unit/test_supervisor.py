@@ -1,17 +1,19 @@
+import pytest
+
 from services.launcher import supervise
 
 
-def test_decisions_worker_source_cannot_be_an_agent_workspace(tmp_path, monkeypatch):
+@pytest.mark.parametrize("source_service", ["decisions", "converse"])
+def test_control_source_cannot_be_an_agent_workspace(tmp_path, monkeypatch, source_service):
     import json
     from types import SimpleNamespace
 
-    import pytest
     import uvicorn
 
     from services import launcher
 
     root = tmp_path / "source"
-    workspace = root / "services/decisions"
+    workspace = root / "services" / source_service
     workspace.mkdir(parents=True)
     data = tmp_path / "owner-data"
     config = tmp_path / "config.json"

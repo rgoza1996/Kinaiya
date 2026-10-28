@@ -291,7 +291,8 @@ and restore voice when a bound Agent task finishes. Optional
 worker ownership, AMD driver telemetry and explicit GPU headroom admission.
 `/resources` controls stay in Agent Chat; approvals remain usable while Converse
 is paused. General GPU scheduling, other local text-model unloading and complete
-M6 reliability remain open, including the tracked legacy owner-off/restore race.
+M6 reliability remain open. [Durable owner intent](docs/adr/0023-converse-owner-intent.md)
+keeps acknowledged Converse-off choices effective through restoration and restarts.
 
 Provider keys belong in secret references/environment variables. Development Meta
 Contributor profiles are for public code and synthetic inputs only. The live test

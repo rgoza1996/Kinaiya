@@ -102,12 +102,10 @@ their difference is not exact causal attribution or a hard reservation. GPU
 requests on other backends, general Agent model scheduling and hostile escaped
 daemons are not covered by this AMD adapter.
 
-A pre-existing race remains tracked in #9: an acknowledged owner-off request
-through the separate legacy Converse endpoint can be overwritten by an already
-running resource restoration. Resource-mediated owner actions are serialized;
-the legacy entry point still needs unified durable owner intent. This was
-reproduced on main with a disposable CPU worker and is not counted as passing
-M6 acceptance.
+The legacy owner-off/restore race reproduced during this study is addressed by
+[ADR 0023](0023-converse-owner-intent.md): both native entry points now share
+durable owner intent, separate from temporary resource availability. Its
+regression evidence does not establish the remaining full M6 acceptance gates.
 
 ## Evidence
 
