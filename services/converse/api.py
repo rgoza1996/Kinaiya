@@ -2,6 +2,7 @@ import base64
 import hashlib
 import json
 import time
+from contextlib import aclosing
 
 from fastapi import Depends, FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -176,22 +177,21 @@ def create_app(runtime, auth, speech=None, window_controller=None):
             raise HTTPException(409, str(exc)) from exc
 
         async def generate():
-            async for chunk in speech.synthesize(event.payload["text"]):
-                try:
-                    await runtime.validate_speech(request.event_id, request.generation_epoch)
-                except ValueError:
-                    return
-                yield (
-                    json.dumps(
-                        {
-                            **chunk,
-                            "event_id": event.event_id,
-                            "generation_epoch": request.generation_epoch,
-                            "chunk_id": event.payload["chunk_id"],
-                        }
+            async with aclosing(
+                runtime.speech_frames(event, request.generation_epoch, speech.synthesize)
+            ) as frames:
+                async for chunk in frames:
+                    yield (
+                        json.dumps(
+                            {
+                                **chunk,
+                                "event_id": event.event_id,
+                                "generation_epoch": request.generation_epoch,
+                                "chunk_id": event.payload["chunk_id"],
+                            }
+                        )
+                        + "\n"
                     )
-                    + "\n"
-                )
 
         return StreamingResponse(generate(), media_type="application/x-ndjson")
 
