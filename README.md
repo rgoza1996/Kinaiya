@@ -66,7 +66,7 @@ $$
 An action-specific approval is tied to the canonicalized tool name, arguments, and objective revision:
 
 $$
-h=\operatorname{SHA256}(\operatorname{CanonicalJSON}(a,\theta_a,r)).
+h=\mathrm{SHA256}(\mathrm{CanonicalJSON}(a,\theta_a,r)).
 $$
 
 The supervisor accepts it only when its digest and revision match, it has not expired, and it has not been consumed. Hashing helps bind authorization to a particular action; **it does not by itself authorize the action or make the system infallible**.
@@ -149,7 +149,7 @@ $$
 \widehat{\Delta}=\frac{1}{n}\sum_{i=1}^{n}
 \bigl[Q_i(H_1)-Q_i(H_0)\bigr],
 \qquad
-\operatorname{SE}(\widehat{\Delta})=\frac{s_d}{\sqrt n}.
+\mathrm{SE}(\widehat{\Delta})=\frac{s_d}{\sqrt n}.
 $$
 
 Here $s_d$ is the sample standard deviation of paired task-score differences. Repeated runs, held-out tasks, uncertainty reporting, and controlled baselines are needed before claiming an improvement. If a candidate saves $C_0-C_1>0$ per task after adaptation costing $C_{\mathrm{adapt}}$, a simple break-even estimate is
@@ -166,7 +166,7 @@ $$
 \max_{H\in\mathcal H}\quad&
 \mathbb E_{x\sim\mathcal D}[Q(H,x)]\\
 \text{subject to}\quad&
-\operatorname{Safe}(H)=1,\quad\operatorname{Integrity}(H)=1,\\
+\mathrm{Safe}(H)=1,\quad\mathrm{Integrity}(H)=1,\\
 &C_{\mathrm{adapt}}(H)\le B_{\mathrm{adapt}},\quad
 C_{\mathrm{run}}(H)\le B_{\mathrm{run}}.
 \end{aligned}
