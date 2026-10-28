@@ -39,7 +39,10 @@ def budget(tmp_path, monkeypatch):
     class Upstream:
         def open(self, request, timeout):
             calls.append(request)
-            payload = {"model": module.MODEL, "usage": result.usage}
+            if hasattr(result, "opened"):
+                result.opened.set()
+                assert result.release.wait(timeout=5)
+            payload = {"model": getattr(result, "model", module.MODEL), "usage": result.usage}
             if result.stream:
                 raw = b"data: " + json.dumps({"response": payload}).encode() + b"\n\n"
             else:
@@ -228,3 +231,149 @@ def test_unmetered_routes_never_reach_upstream(gateway):
         client.post("/v1/batches", json={"model": "muse-spark-1.3-contributor"}).status_code == 405
     )
     assert calls == []
+
+
+def settled_contributor(module, *, cached=950_000, state="usage_reported"):
+    return {
+        "model": module.MODEL,
+        "resolved_model": module.MODEL,
+        "state": state,
+        "reservation_usd": 0.2278138,
+        "reported_usage": {
+            "input_tokens": 1_000_000,
+            "output_tokens": 20_000,
+            "input_tokens_details": {"cached_tokens": cached},
+        },
+    }
+
+
+def test_verified_settled_cache_has_separate_enforcement_basis(budget):
+    module, _, _ = budget
+    state = copy.deepcopy(module.STATE)
+    state["calls"] = [settled_contributor(module)]
+    module.reconcile(state)
+    assert state["admission_estimated_usd"] == pytest.approx(0.208)
+    assert state["cache_aware_admission_estimated_usd"] == pytest.approx(0.0218)
+    assert state["calls"][0]["reported_usage"]["input_tokens_details"]["cached_tokens"] == 950_000
+    assert module.reconcile(copy.deepcopy(state)) == state
+
+
+@pytest.mark.parametrize("cached", [0, 1_000_000])
+def test_cache_misses_and_full_hits_use_reported_counts(budget, cached):
+    module, _, _ = budget
+    state = copy.deepcopy(module.STATE)
+    row = settled_contributor(module, cached=cached)
+    state["calls"] = [row]
+    module.reconcile(state)
+    expected = 2 * ((1_000_000 - cached) * 0.10 + cached * 0.002 + 20_000 * 0.20) / 1_000_000
+    assert state["cache_aware_admission_estimated_usd"] == pytest.approx(expected)
+    assert state["admission_estimated_usd"] == pytest.approx(0.208)
+
+
+@pytest.mark.parametrize("key", ["model", "resolved_model"])
+@pytest.mark.parametrize("identity", [None, "muse-spark-1.3", "unverified-alias"])
+def test_cache_credit_requires_both_contributor_identities(budget, key, identity):
+    module, _, _ = budget
+    state = copy.deepcopy(module.STATE)
+    row = settled_contributor(module)
+    if identity is None:
+        row.pop(key)
+    else:
+        row[key] = identity
+    state["calls"] = [row]
+    module.reconcile(state)
+    assert state["cache_aware_admission_estimated_usd"] == pytest.approx(0.208)
+
+
+def test_cache_credit_preserves_legacy_premiums_unknown_floor_and_reservations(budget):
+    module, _, _ = budget
+    state = copy.deepcopy(module.STATE)
+    row = settled_contributor(module)
+    row["admission_estimated_usd"] = 0.508  # unexplained per-record premium0.30
+    state.update(admission_estimated_usd=0.758, reserved_usd=0.75, billing_reported_usd=9.0)
+    unknown = {"state": "http_401_reservation_retained", "reservation_usd": 0.75}
+    state["calls"] = [row, unknown]
+    module.reconcile(state)
+    assert state["cache_aware_admission_estimated_usd"] == pytest.approx(0.0218 + 0.30 + 0.25)
+    assert state["admission_estimated_usd"] == 0.758
+    assert state["reserved_usd"] == 0.75
+    assert state["billing_reported_usd"] == 9.0
+    assert unknown == {"state": "http_401_reservation_retained", "reservation_usd": 0.75}
+    assert module.reconcile(copy.deepcopy(state)) == state
+
+
+@pytest.mark.parametrize("phase", ["in_flight", "usage_missing_reservation_retained"])
+def test_unsettled_usage_never_receives_cache_credit(budget, phase):
+    module, _, _ = budget
+    state = copy.deepcopy(module.STATE)
+    state["calls"] = [settled_contributor(module, state=phase)]
+    module.reconcile(state)
+    assert state["cache_aware_admission_estimated_usd"] == pytest.approx(0.208)
+    assert state["reserved_usd"] == pytest.approx(0.2278138)
+
+
+def test_cache_basis_never_refunds_existing_new_policy_charge(budget):
+    module, _, _ = budget
+    state = copy.deepcopy(module.STATE)
+    state["calls"] = [settled_contributor(module)]
+    state["cache_aware_admission_estimated_usd"] = 3.0
+    module.reconcile(state)
+    assert state["cache_aware_admission_estimated_usd"] == 3.0
+
+
+def test_gateway_cache_settlement_and_billing_floor(gateway):
+    module, calls, result, client = gateway
+    result.usage = settled_contributor(module)["reported_usage"]
+    assert client.post("/v1/responses", json={"model": module.MODEL}).status_code == 200
+    assert module.STATE["admission_estimated_usd"] == pytest.approx(0.208)
+    assert module.STATE["cache_aware_admission_estimated_usd"] == pytest.approx(0.0218)
+    assert module.STATE["reserved_usd"] == pytest.approx(0)
+    module.STATE["billing_reported_usd"] = 22.0
+    assert client.post("/v1/responses", json={"model": module.MODEL}).status_code == 402
+    assert len(calls) == 1
+
+
+def test_gateway_refuses_cache_discount_for_unexpected_resolved_model(gateway):
+    module, _, result, client = gateway
+    result.usage = settled_contributor(module)["reported_usage"]
+    result.model = "muse-spark-1.3"
+    assert client.post("/v1/responses", json={"model": module.MODEL}).status_code == 200
+    assert module.STATE["cache_aware_admission_estimated_usd"] == pytest.approx(0.208)
+
+
+@pytest.mark.parametrize("tools", [[{"type": "web_search"}], [{"type": "mcp"}], {}, [None]])
+def test_hosted_or_ambiguous_tools_are_not_silently_unmetered(gateway, tools):
+    module, calls, _, client = gateway
+    assert (
+        client.post("/v1/responses", json={"model": module.MODEL, "tools": tools}).status_code
+        == 403
+    )
+    assert calls == [] and module.STATE["calls"] == []
+
+
+def test_local_function_tool_schema_remains_usable(gateway):
+    module, calls, _, client = gateway
+    response = client.post(
+        "/v1/responses",
+        json={"model": module.MODEL, "tools": [{"type": "function", "name": "public_fixture"}]},
+    )
+    assert response.status_code == 200 and len(calls) == 1
+
+
+def test_simultaneous_requests_reserve_before_dispatch(gateway):
+    from concurrent.futures import ThreadPoolExecutor
+
+    module, calls, result, client = gateway
+    module.STATE["cache_aware_admission_estimated_usd"] = 21.65
+    module.STATE["admission_estimated_usd"] = 21.65
+    result.opened, result.release = threading.Event(), threading.Event()
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        first = pool.submit(client.post, "/v1/responses", json={"model": module.MODEL})
+        try:
+            assert result.opened.wait(timeout=3)
+            assert module.STATE["reserved_usd"] > 0.22
+            second = client.post("/v1/responses", json={"model": module.MODEL})
+            assert second.status_code == 402 and len(calls) == 1
+        finally:
+            result.release.set()
+        assert first.result(timeout=3).status_code == 200

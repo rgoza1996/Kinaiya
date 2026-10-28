@@ -1,8 +1,8 @@
 """Run-local Meta admission proxy. Never persists credentials or prompt contents.
 
-Forward only the authorized Contributor model. Reserve full context and bounded
-output at twice the verified Contributor rates, ignoring cache discounts for
-admission. Keep the ordinary-Spark comparison separately. Fail closed on missing usage.
+Forward only the authorized Contributor model. Reserve future context/output at
+twice uncached Contributor rates. Settle verified Contributor usage at twice its
+reported cached/uncached cost. Preserve legacy estimates and uncertain reserves.
 Dollar values computed from tokens are estimates, not a provider billing receipt.
 Run with the workspace Python; Muse --base-url points at this loopback listener.
 """
@@ -77,8 +77,13 @@ def money(value):
 
 
 def reconcile(state):
-    """Migration never refunds an earlier charge or unresolved reservation."""
-    known = unsettled = newly_uncertain = 0.0
+    """Preserve history while crediting only verified, settled Contributor cache.
+
+    The old uncached estimate is retained verbatim as a separate audit floor.
+    Its unexplained aggregate/per-call premiums are never discounted. Neither
+    real billing nor an unresolved request reservation is a cache estimate.
+    """
+    known = cache_aware = unsettled = newly_uncertain = 0.0
     for record in state["calls"]:
         reservation = money(record["reservation_usd"])
         try:
@@ -95,10 +100,25 @@ def reconcile(state):
                 money(record.get("admission_estimated_usd", 0)), costs["admission"]
             )
             known += record["admission_estimated_usd"]
+            if (
+                record["state"] == "usage_reported"
+                and record.get("model") == MODEL
+                and record.get("resolved_model") == MODEL
+            ):
+                premium = max(0.0, record["admission_estimated_usd"] - costs["admission"])
+                cache_aware += 2 * costs["contributor"] + premium
+            else:
+                # Legacy/mismatched model identity cannot justify a discount.
+                cache_aware += record["admission_estimated_usd"]
             if record["state"] != "usage_reported":
                 unsettled += reservation
     state["reserved_usd"] = max(money(state["reserved_usd"]), unsettled) + newly_uncertain
     state["admission_estimated_usd"] = max(money(state.get("admission_estimated_usd", 0)), known)
+    unexplained = max(0.0, state["admission_estimated_usd"] - known)
+    state["cache_aware_admission_estimated_usd"] = max(
+        money(state.get("cache_aware_admission_estimated_usd", 0)), cache_aware + unexplained
+    )
+    state["admission_basis"] = "verified_contributor_cache_v1"
     state["ordinary_spark_comparison_usd"] = money(state["estimated_usd"])
     return state
 
@@ -184,6 +204,14 @@ class Handler(BaseHTTPRequestHandler):
             if data.get("model") != MODEL:
                 self.local_json(403, {"error": "This run authorizes Contributor only"})
                 return
+            tools = data.get("tools", [])
+            if not isinstance(tools, list) or any(
+                not isinstance(tool, dict) or tool.get("type") != "function" for tool in tools
+            ):
+                # Hosted search has additional per-query fees outside token
+                # usage. Muse's local function tools do not incur those fees.
+                self.local_json(403, {"error": "Only local function tools are budgeted"})
+                return
             output = data.get("max_output_tokens", OUTPUT_CAP)
             if type(output) is not int or output <= 0:
                 self.local_json(400, {"error": "Positive integer output bound required"})
@@ -196,7 +224,12 @@ class Handler(BaseHTTPRequestHandler):
             with LOCK:
                 billed = STATE.get("billing_reported_usd")
                 spent = max(
-                    STATE["admission_estimated_usd"], 0 if billed is None else money(billed)
+                    money(
+                        STATE.get(
+                            "cache_aware_admission_estimated_usd", STATE["admission_estimated_usd"]
+                        )
+                    ),
+                    0 if billed is None else money(billed),
                 )
                 if spent + STATE["reserved_usd"] + reservation > 22:
                     self.local_json(402, {"error": "Run budget admission limit reached"})
@@ -316,6 +349,7 @@ class Handler(BaseHTTPRequestHandler):
                         record["state"] = "usage_reported"
                     else:
                         record["state"] = "usage_missing_reservation_retained"
+                    reconcile(STATE)
                     save()
                     print(
                         json.dumps(
@@ -324,6 +358,9 @@ class Handler(BaseHTTPRequestHandler):
                                 "call": record["id"],
                                 "state": record["state"],
                                 "admission_estimated_usd": STATE["admission_estimated_usd"],
+                                "cache_aware_admission_estimated_usd": STATE[
+                                    "cache_aware_admission_estimated_usd"
+                                ],
                                 "reserved_usd": STATE["reserved_usd"],
                                 "contributor_estimated_usd": STATE["contributor_estimated_usd"],
                             }
@@ -359,10 +396,12 @@ def main():
         )
         reconcile(STATE)
         STATE["admission_policy"] = (
-            "2x Contributor catalog rates; uncached input; full-context reservations; $3 buffer"
+            "2x verified Contributor cached/uncached settled cost; full uncached-context "
+            "future reservations; uncertain reserves retained; $3 buffer"
         )
         STATE["pricing_source"] = (
-            "Muse provider catalog 2026-10-26; Contributor input 0.10/output 0.20/cached 0.002 USD per million"
+            "https://dev.meta.ai/docs/pricing-rate-limits verified 2026-10-28; "
+            "Contributor input 0.10/output 0.20/cached 0.002 USD per million"
         )
         save()
         print(f"Budget proxy listening on 127.0.0.1:{args.port}; admission ceiling $22", flush=True)
