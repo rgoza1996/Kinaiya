@@ -117,3 +117,5 @@ warning. Imports were verified to this worktree, rather than the shared venv's
 editable checkout. Ruff lint and 169-file format checks passed; schema export
 adds only the new wire model, and `git diff --check` passed. Full integrated CI
 and independent final review remain pending outside this implementation check.
+
+Independent final review at `116afe5d` passed 113 cases in 24.77 seconds, with the existing TestClient warning, plus its own native local/HTTP/auth/reset/corrupt-writer probes. Lead integration with #76/#77 passed 449 cases in 123.46 seconds. A separate independent 16-case actual-adapter probe verified exhausted-scope reset while old HTTP cleanup and a native append were held: ownership remained retained, overlap was refused, fresh work began after confirmed close, and the late old write could not disturb its owner. The pending-start variant explicitly arranges that registry boundary around the real producer. Source bytes remained unchanged. Exact-head CI is still required before merge; full commands, hashes, fixture corrections and limits are in the verification record.

@@ -93,7 +93,25 @@
       "warnings": [
         "Existing Starlette/httpx TestClient deprecation"
       ],
-      "log_sha256": "c8dbb09aa57d84e1922efc2fe198638d94f7899d96c15d898667f45280dce8e9"
+      "log_sha256": "c8dbb09aa57d84e1922efc2fe198638d94f7899d96c15d898667f45280dce8e9",
+      "exact_command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/supertonic-ci-venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "tests/integration/test_playback_generation.py",
+        "tests/integration/test_session.py",
+        "tests/contract/test_contracts.py",
+        "tests/integration/test_converse_window_recovery.py",
+        "tests/integration/test_speech_windows.py",
+        "tests/integration/test_converse_speech_cancel.py",
+        "tests/integration/test_window_http.py",
+        "tests/unit/test_providers.py"
+      ],
+      "cwd": "/home/roggoz/.codex/worktrees/speech-generation-history/Kinaiya",
+      "interpreter_version": "3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]"
     },
     {
       "python": "3.11.15",
@@ -123,7 +141,25 @@
       "warnings": [
         "Existing Starlette/httpx TestClient deprecation"
       ],
-      "log_sha256": "e7baf1476910075b309fb42ed23fa87e842e8b96f9d56683f589f170b14445a6"
+      "log_sha256": "e7baf1476910075b309fb42ed23fa87e842e8b96f9d56683f589f170b14445a6",
+      "exact_command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/vibevoice-py311-venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "tests/integration/test_playback_generation.py",
+        "tests/integration/test_session.py",
+        "tests/contract/test_contracts.py",
+        "tests/integration/test_converse_window_recovery.py",
+        "tests/integration/test_speech_windows.py",
+        "tests/integration/test_converse_speech_cancel.py",
+        "tests/integration/test_window_http.py",
+        "tests/unit/test_providers.py"
+      ],
+      "cwd": "/home/roggoz/.codex/worktrees/speech-generation-history/Kinaiya",
+      "interpreter_version": "3.11.15 (main, Jul 18 2026, 17:02:49) [Clang 22.1.3 ]"
     }
   ],
   "query_cost": {
@@ -173,5 +209,513 @@
     ],
     "limit": "In-memory synthetic metadata operation counts; not elapsed-time/throughput/load evidence. Query work grows with retained native-writer session history; no checkpoint or new index."
   },
-  "fixture_corrections": "Initial focused run98passed/3fixture failures: an invalid non-entry chunk fake and an index-name expectation. Corrected fixtures without production changes; actual existing UNIQUE(session_id,writer,idem) index retained."
+  "fixture_corrections": "Initial focused run98passed/3fixture failures: an invalid non-entry chunk fake and an index-name expectation. Corrected fixtures without production changes; actual existing UNIQUE(session_id,writer,idem) index retained.",
+  "worker_commit": "116afe5dd3fe98d642f2cf7cbb7e4565cdafe38d",
+  "status": "Final worker and combined integration review/local checks passed; exact-head CI is required and its receipt is recorded in the pull request before merge.",
+  "lead_integration": {
+    "main_parent": "4c67c386a73d7ae47d43acb9a18fbea96edc0799",
+    "source_commit": "d9c7f15fb03322a841fd2cdbd6e92a7b99d9c1b5",
+    "source_sha256": {
+      "packages/contracts/models.py": "f42ff1f3694a6634abfc362bfb84f84cd309e90d25f31c78bdbd5724e2928e0e",
+      "packages/contracts/interfaces.py": "99fb5766b32737b599e46f0effa8bf7fb0ade152022d23ad5e8d6fd0825e134d",
+      "packages/contracts/client.py": "f3574db25517d6db8337e2071bb7006a481ecd2c5edfda127f7ae33d75f4f909",
+      "packages/contracts/schemas/PlaybackGeneration.json": "ec725892ec5a75c2b06015729cee6e564de00c61e96f2c06009ec1c4156d0278",
+      "services/session/store.py": "92ee33bf6446d12a8d2cd5283d2a85c73a0e9db9069877bcb522918f8f847ca5",
+      "services/session/api.py": "7bce9305f540393f1fdac303763f05eb0521b9f02c78fc400b3830b11687d6b8",
+      "services/converse/runtime.py": "2f82ae713fa456222b783b43b98ae2d3a4654ecbd5ec2e8ae6369f13d46db6b7",
+      "tests/integration/test_playback_generation.py": "f9380ea346418ab86487e539ea5ee87f67ed059ec64053c489aaa51bdd26c41e",
+      "tests/contract/test_contracts.py": "272d86c49879f7fea5a34921623deac6b9bdb716c8af9db9c2cb95d376ae251a"
+    },
+    "note": "All #79 native contract/Store/API/test files match the reviewed worker. Runtime additionally retains merged #76 typed ownership and its _cancel_generation callback. The main #77 squash was merged without changing the tested source tree212ae81. Lead adds only verification/ADR notes afterward.",
+    "python": "3.12.3",
+    "cwd": "/home/roggoz/.codex/worktrees/mcp-controls/Kinaiya",
+    "environment": {
+      "PYTHONPATH": "unset"
+    },
+    "command": [
+      "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/supertonic-ci-venv/bin/python",
+      "-m",
+      "pytest",
+      "-q",
+      "-p",
+      "no:cacheprovider",
+      "tests/integration/test_playback_generation.py",
+      "tests/integration/test_session.py",
+      "tests/contract/test_contracts.py",
+      "tests/integration/test_converse_delivery_context.py",
+      "tests/integration/test_converse_text_cleanup.py",
+      "tests/integration/test_converse_window_recovery.py"
+    ],
+    "passed": 449,
+    "seconds": 123.46,
+    "warnings": [
+      "Existing Starlette/httpx TestClient deprecation"
+    ],
+    "imports_verified": true,
+    "log": "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/playback-generation-final-integration-py312.log",
+    "log_sha256": "06a8572557b7da0118495bbf5ed75b5905670dcf9e441bcde1e9d59790119575",
+    "ruff_check": "passed",
+    "ruff_format": "214 files already formatted",
+    "schema_export": "matches committed new PlaybackGeneration model",
+    "git_diff_check": "passed"
+  },
+  "independent_final_review": {
+    "kind": "Automated independent Codex peer review; not independent human approval",
+    "agent": "decisions_next_gate",
+    "worker_commit": "116afe5dd3fe98d642f2cf7cbb7e4565cdafe38d",
+    "result": "No actionable issue in scoped native recovery/API/auth/client/contract/reset/overflow review.",
+    "command": [
+      "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/supertonic-ci-venv/bin/python",
+      "-B",
+      "-m",
+      "pytest",
+      "-q",
+      "-p",
+      "no:cacheprovider",
+      "tests/integration/test_playback_generation.py",
+      "tests/integration/test_session.py",
+      "tests/contract/test_contracts.py"
+    ],
+    "environment": {
+      "PYTHONDONTWRITEBYTECODE": "1",
+      "PYTHONPATH": "."
+    },
+    "cwd": "/home/roggoz/.codex/worktrees/speech-generation-history/Kinaiya",
+    "passed": 113,
+    "seconds": 24.77,
+    "warnings": [
+      "Existing Starlette/httpx TestClient deprecation"
+    ],
+    "source_hashes_verified_before_after": true,
+    "own_probe_results": {
+      "source_sha256": {
+        "/home/roggoz/.codex/worktrees/speech-generation-history/Kinaiya/services/converse/runtime.py": "5813df420fd9c5053e6eee2bfab105ba6cf8450104707c2ff2dc50aa097abcb5",
+        "/home/roggoz/.codex/worktrees/speech-generation-history/Kinaiya/services/session/store.py": "92ee33bf6446d12a8d2cd5283d2a85c73a0e9db9069877bcb522918f8f847ca5"
+      },
+      "modes": {
+        "local": {
+          "writer_filtered_long_history": {
+            "maximum": 37,
+            "restart": 38,
+            "native_stop_count": 1
+          },
+          "cached_reset": true,
+          "pending_reset": true,
+          "malformed_trusted_counter_refused": true,
+          "auth": {
+            "owner": 200,
+            "converse": 200,
+            "agent": 403,
+            "decisions": 403,
+            "resources": 403
+          }
+        },
+        "http": {
+          "writer_filtered_long_history": {
+            "maximum": 37,
+            "restart": 38,
+            "native_stop_count": 1
+          },
+          "cached_reset": true,
+          "pending_reset": true,
+          "malformed_trusted_counter_refused": true,
+          "auth": {
+            "owner": 200,
+            "converse": 200,
+            "agent": 403,
+            "decisions": 403,
+            "resources": 403
+          }
+        }
+      }
+    },
+    "artifact_directory": "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/playback-generation-review-v1/independent",
+    "fixture_disposition": "Initial independent probe used generic Store.read after deliberately corrupting an unrelated OWNER row, causing a validation error before the planned query. The unused generic read was removed in a fresh copied probe; production source was unchanged. This was not a product defect."
+  },
+  "independent_combined_typed_probe": {
+    "agent": "decisions_next_gate",
+    "commit": "d9c7f15fb03322a841fd2cdbd6e92a7b99d9c1b5",
+    "runtime_sha256": "2f82ae713fa456222b783b43b98ae2d3a4654ecbd5ec2e8ae6369f13d46db6b7",
+    "command": [
+      "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/supertonic-ci-venv/bin/python",
+      "-B",
+      "/tmp/kinaiya-79-typed-integration-mx0djstv/probe.py"
+    ],
+    "environment": {
+      "PYTHONDONTWRITEBYTECODE": "1",
+      "PYTHONPATH": "."
+    },
+    "cwd": "/home/roggoz/.codex/worktrees/mcp-controls/Kinaiya",
+    "log_capture": "pipefail + tee probe.log",
+    "passed_cases": 16,
+    "matrix": "Compatible/Meta actual HTTPX MockTransport \u00d7 cached/pending-start exhausted ownership \u00d7 typed/window successor \u00d7 LocalJournal/authenticated HTTP journal",
+    "behavior": [
+      "A native MAX-2 seed creates a real old typed MAX generation; its EOF transport close and assistant native append are held.",
+      "Native reset invokes preserved generation cancellation, clears obsolete scope without incrementing MAX, and retains actual HTTP cleanup ownership.",
+      "Typed/window overlap is refused until confirmed old close; fresh scope then admits exactly once.",
+      "Late old native append fails as stale and publishes no old reply; old cleanup cannot clear the fresh owner/active task."
+    ],
+    "requests_per_case": 2,
+    "actual_close_per_stream": 1,
+    "pending_start_fixture": "Explicitly arranges the existing PlaybackStart registry boundary around the real producer, as in the #79 boundary regression.",
+    "source_unchanged": true,
+    "artifact_directory": "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/playback-generation-review-v1/typed-integration",
+    "results_sha256": "657147c58f6e1fa53a1817e534ed9053a8023070e6e7eddba997245ee913b272",
+    "results": {
+      "before": {
+        "head": "d9c7f15fb03322a841fd2cdbd6e92a7b99d9c1b5",
+        "status": "",
+        "sha256": {
+          "services/converse/runtime.py": "2f82ae713fa456222b783b43b98ae2d3a4654ecbd5ec2e8ae6369f13d46db6b7",
+          "services/converse/windows.py": "fabdca4a45a3ac98bcd717c2488feebc38e89e6edf2f678f3450731195918f89",
+          "packages/providers/text.py": "410cec4adcd15c5d6ec73dcfd10aad279b6dadac0ea717205a6367d6da598663",
+          "services/session/store.py": "92ee33bf6446d12a8d2cd5283d2a85c73a0e9db9069877bcb522918f8f847ca5",
+          "packages/contracts/client.py": "f3574db25517d6db8337e2071bb7006a481ecd2c5edfda127f7ae33d75f4f909"
+        }
+      },
+      "python": "3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]",
+      "executable": "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/supertonic-ci-venv/bin/python",
+      "cases": {
+        "compatible-cached-typed-local": {
+          "old_generation": 9007199254740991,
+          "new_scope_epoch": 2,
+          "provider_requests": 2,
+          "old_callback_count": 1,
+          "old_late_write_error": "JournalError",
+          "old_chunks_cleared": true,
+          "held_close_retained": true,
+          "overlap_refused": true,
+          "fresh_identity_survives_old_release": true,
+          "fresh_reply_count": 1
+        },
+        "compatible-cached-typed-http": {
+          "old_generation": 9007199254740991,
+          "new_scope_epoch": 2,
+          "provider_requests": 2,
+          "old_callback_count": 1,
+          "old_late_write_error": "HTTPStatusError",
+          "old_chunks_cleared": true,
+          "held_close_retained": true,
+          "overlap_refused": true,
+          "fresh_identity_survives_old_release": true,
+          "fresh_reply_count": 1
+        },
+        "compatible-cached-window-local": {
+          "old_generation": 9007199254740991,
+          "new_scope_epoch": 2,
+          "provider_requests": 2,
+          "old_callback_count": 1,
+          "old_late_write_error": "JournalError",
+          "old_chunks_cleared": true,
+          "held_close_retained": true,
+          "overlap_refused": true,
+          "fresh_identity_survives_old_release": true,
+          "fresh_reply_count": 1
+        },
+        "compatible-cached-window-http": {
+          "old_generation": 9007199254740991,
+          "new_scope_epoch": 2,
+          "provider_requests": 2,
+          "old_callback_count": 1,
+          "old_late_write_error": "HTTPStatusError",
+          "old_chunks_cleared": true,
+          "held_close_retained": true,
+          "overlap_refused": true,
+          "fresh_identity_survives_old_release": true,
+          "fresh_reply_count": 1
+        },
+        "compatible-pending-typed-local": {
+          "old_generation": 9007199254740991,
+          "new_scope_epoch": 2,
+          "provider_requests": 2,
+          "old_callback_count": 1,
+          "old_late_write_error": "JournalError",
+          "old_chunks_cleared": true,
+          "held_close_retained": true,
+          "overlap_refused": true,
+          "fresh_identity_survives_old_release": true,
+          "fresh_reply_count": 1
+        },
+        "compatible-pending-typed-http": {
+          "old_generation": 9007199254740991,
+          "new_scope_epoch": 2,
+          "provider_requests": 2,
+          "old_callback_count": 1,
+          "old_late_write_error": "HTTPStatusError",
+          "old_chunks_cleared": true,
+          "held_close_retained": true,
+          "overlap_refused": true,
+          "fresh_identity_survives_old_release": true,
+          "fresh_reply_count": 1
+        },
+        "compatible-pending-window-local": {
+          "old_generation": 9007199254740991,
+          "new_scope_epoch": 2,
+          "provider_requests": 2,
+          "old_callback_count": 1,
+          "old_late_write_error": "JournalError",
+          "old_chunks_cleared": true,
+          "held_close_retained": true,
+          "overlap_refused": true,
+          "fresh_identity_survives_old_release": true,
+          "fresh_reply_count": 1
+        },
+        "compatible-pending-window-http": {
+          "old_generation": 9007199254740991,
+          "new_scope_epoch": 2,
+          "provider_requests": 2,
+          "old_callback_count": 1,
+          "old_late_write_error": "HTTPStatusError",
+          "old_chunks_cleared": true,
+          "held_close_retained": true,
+          "overlap_refused": true,
+          "fresh_identity_survives_old_release": true,
+          "fresh_reply_count": 1
+        },
+        "meta-cached-typed-local": {
+          "old_generation": 9007199254740991,
+          "new_scope_epoch": 2,
+          "provider_requests": 2,
+          "old_callback_count": 1,
+          "old_late_write_error": "JournalError",
+          "old_chunks_cleared": true,
+          "held_close_retained": true,
+          "overlap_refused": true,
+          "fresh_identity_survives_old_release": true,
+          "fresh_reply_count": 1
+        },
+        "meta-cached-typed-http": {
+          "old_generation": 9007199254740991,
+          "new_scope_epoch": 2,
+          "provider_requests": 2,
+          "old_callback_count": 1,
+          "old_late_write_error": "HTTPStatusError",
+          "old_chunks_cleared": true,
+          "held_close_retained": true,
+          "overlap_refused": true,
+          "fresh_identity_survives_old_release": true,
+          "fresh_reply_count": 1
+        },
+        "meta-cached-window-local": {
+          "old_generation": 9007199254740991,
+          "new_scope_epoch": 2,
+          "provider_requests": 2,
+          "old_callback_count": 1,
+          "old_late_write_error": "JournalError",
+          "old_chunks_cleared": true,
+          "held_close_retained": true,
+          "overlap_refused": true,
+          "fresh_identity_survives_old_release": true,
+          "fresh_reply_count": 1
+        },
+        "meta-cached-window-http": {
+          "old_generation": 9007199254740991,
+          "new_scope_epoch": 2,
+          "provider_requests": 2,
+          "old_callback_count": 1,
+          "old_late_write_error": "HTTPStatusError",
+          "old_chunks_cleared": true,
+          "held_close_retained": true,
+          "overlap_refused": true,
+          "fresh_identity_survives_old_release": true,
+          "fresh_reply_count": 1
+        },
+        "meta-pending-typed-local": {
+          "old_generation": 9007199254740991,
+          "new_scope_epoch": 2,
+          "provider_requests": 2,
+          "old_callback_count": 1,
+          "old_late_write_error": "JournalError",
+          "old_chunks_cleared": true,
+          "held_close_retained": true,
+          "overlap_refused": true,
+          "fresh_identity_survives_old_release": true,
+          "fresh_reply_count": 1
+        },
+        "meta-pending-typed-http": {
+          "old_generation": 9007199254740991,
+          "new_scope_epoch": 2,
+          "provider_requests": 2,
+          "old_callback_count": 1,
+          "old_late_write_error": "HTTPStatusError",
+          "old_chunks_cleared": true,
+          "held_close_retained": true,
+          "overlap_refused": true,
+          "fresh_identity_survives_old_release": true,
+          "fresh_reply_count": 1
+        },
+        "meta-pending-window-local": {
+          "old_generation": 9007199254740991,
+          "new_scope_epoch": 2,
+          "provider_requests": 2,
+          "old_callback_count": 1,
+          "old_late_write_error": "JournalError",
+          "old_chunks_cleared": true,
+          "held_close_retained": true,
+          "overlap_refused": true,
+          "fresh_identity_survives_old_release": true,
+          "fresh_reply_count": 1
+        },
+        "meta-pending-window-http": {
+          "old_generation": 9007199254740991,
+          "new_scope_epoch": 2,
+          "provider_requests": 2,
+          "old_callback_count": 1,
+          "old_late_write_error": "HTTPStatusError",
+          "old_chunks_cleared": true,
+          "held_close_retained": true,
+          "overlap_refused": true,
+          "fresh_identity_survives_old_release": true,
+          "fresh_reply_count": 1
+        }
+      },
+      "after": {
+        "head": "d9c7f15fb03322a841fd2cdbd6e92a7b99d9c1b5",
+        "status": "",
+        "sha256": {
+          "services/converse/runtime.py": "2f82ae713fa456222b783b43b98ae2d3a4654ecbd5ec2e8ae6369f13d46db6b7",
+          "services/converse/windows.py": "fabdca4a45a3ac98bcd717c2488feebc38e89e6edf2f678f3450731195918f89",
+          "packages/providers/text.py": "410cec4adcd15c5d6ec73dcfd10aad279b6dadac0ea717205a6367d6da598663",
+          "services/session/store.py": "92ee33bf6446d12a8d2cd5283d2a85c73a0e9db9069877bcb522918f8f847ca5",
+          "packages/contracts/client.py": "f3574db25517d6db8337e2071bb7006a481ecd2c5edfda127f7ae33d75f4f909"
+        }
+      }
+    }
+  },
+  "prior_ci": {
+    "pr": 82,
+    "main_commit": "4c67c386a73d7ae47d43acb9a18fbea96edc0799",
+    "run": 40738007455,
+    "head": "3daa27590aeece7c18694d2c3fa62baac3c0f012",
+    "conclusion": "success",
+    "python311": {
+      "job_id": 122991674087,
+      "passed": 1592,
+      "warnings": 1,
+      "seconds": 209.1
+    },
+    "python312": {
+      "job_id": 122991673613,
+      "passed": 1592,
+      "warnings": 1,
+      "seconds": 212.0
+    },
+    "flutter": {
+      "job_id": 122991674233,
+      "tests": 341,
+      "javascript_tests": 25,
+      "analysis": "passed",
+      "release_build": "passed"
+    }
+  },
+  "retained_artifacts": {
+    "implementation": {
+      "directory": "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/playback-generation-review-v1/implementation",
+      "files": {
+        "command.json": {
+          "bytes": 440,
+          "sha256": "2e50804da0bb61a03bc21857ad71ecbba4a2c8aa3d5cce20ba099de44532fed6"
+        },
+        "query-cost.json": {
+          "bytes": 1512,
+          "sha256": "666b7aa7d6af67402b3249c1a3808b60b7b446fa1a5d844f7166933523618754"
+        },
+        "affected-py311.log": {
+          "bytes": 1012,
+          "sha256": "e7baf1476910075b309fb42ed23fa87e842e8b96f9d56683f589f170b14445a6"
+        },
+        "affected-py312-command.json": {
+          "bytes": 683,
+          "sha256": "db95e812128e945a98cbada278634cd84b4b020752b28ac954f75a11437e1b90"
+        },
+        "affected-py312.log": {
+          "bytes": 1009,
+          "sha256": "c8dbb09aa57d84e1922efc2fe198638d94f7899d96c15d898667f45280dce8e9"
+        },
+        "affected-py311-command.json": {
+          "bytes": 689,
+          "sha256": "439aa8680bd941caa724e3483ceab595f0680b84e5c7b91be6f90272efcd2d8e"
+        },
+        "reset-counter-red.log": {
+          "bytes": 33857,
+          "sha256": "d78da1a1c00e6172fa8cb27a020d7d7f642a2990476efa80bc8b6f7a12468ded"
+        },
+        "focused.log": {
+          "bytes": 8324,
+          "sha256": "44aa19da53df82dcf60c696f529fdeddb03879836187213de0066736419ecf40"
+        },
+        "project.js": {
+          "bytes": 2073,
+          "sha256": "eae126f71654d3ca81ccb9034c6ea0ce71e37a55c117e4b0e769519f2dab031f"
+        },
+        "history_probe.py": {
+          "bytes": 3536,
+          "sha256": "0b422d8813da74185ad349ad4ac5c953e26f3e63f7a1191802e9f561560c3d24"
+        },
+        "history/native.json": {
+          "bytes": 114316,
+          "sha256": "c87bcfb8beac2da8981bd53518fe49a0474f5a1a4b25a9a0a1e9017768180ff3"
+        },
+        "history/bridge.log": {
+          "bytes": 141,
+          "sha256": "846bce5a40a908d5fa7f2071fb591cddf22e0db7e8bf18e39c7c055969d75550"
+        }
+      }
+    },
+    "independent": {
+      "directory": "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/playback-generation-review-v1/independent",
+      "files": {
+        "focused-py312.log": {
+          "bytes": 758,
+          "sha256": "c2b8c22bfe0a6a42329f06beaf4ded8337cb5dab0e58547e992f7aaa7fe9243a"
+        },
+        "probe.log": {
+          "bytes": 1173,
+          "sha256": "c8030213d98f6a7cee73d546a66119e96594dd7a4ed87913679b51aad284b8b4"
+        },
+        "probe.py": {
+          "bytes": 6705,
+          "sha256": "7325326b6ca7c019ae85d8bc80736571e242ddc5ec3f4eec1e373d4c6e26a98c"
+        },
+        "results.json": {
+          "bytes": 1173,
+          "sha256": "c8030213d98f6a7cee73d546a66119e96594dd7a4ed87913679b51aad284b8b4"
+        }
+      }
+    },
+    "typed-integration": {
+      "directory": "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/playback-generation-review-v1/typed-integration",
+      "files": {
+        "probe.log": {
+          "bytes": 598,
+          "sha256": "9346a6fd6e74733702af137c4e52cc16bca60af5f61747f1c9e336d322aa16f6"
+        },
+        "probe.py": {
+          "bytes": 12931,
+          "sha256": "32cc1f4794a99023d9abbe02f5ab83b90d907cbec0d6e1b034d85bbb682e7eac"
+        },
+        "results.json": {
+          "bytes": 7885,
+          "sha256": "657147c58f6e1fa53a1817e534ed9053a8023070e6e7eddba997245ee913b272"
+        }
+      }
+    }
+  },
+  "remaining_limits": [
+    "Native metadata scan work grows with retained session history; scalar response size is bounded, not scan cost.",
+    "In-memory inference ownership does not resume after hard process restart; this repair recovers native generation metadata.",
+    "Synthetic native/ASGI/MockTransport/production-JS queue checks do not establish physical audibility, remote-kernel preemption or sustained network/load behavior.",
+    "Old journal servers lacking this additive endpoint are refused; there is no recent-history fallback.",
+    "Pre-existing typed-history revision disclosure remains #81. Full M2/M3 and provider/default promotion are not claimed."
+  ],
+  "controls": {
+    "meta_calls": 0,
+    "model_downloads": 0,
+    "dependencies_changed": false,
+    "database_migration": false,
+    "provider_defaults_changed": false,
+    "live_reference_restarted": false,
+    "private_prototype_used": false,
+    "heldout_data_used": false
+  }
 }
