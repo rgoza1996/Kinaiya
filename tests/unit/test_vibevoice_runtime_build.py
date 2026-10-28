@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import difflib
 import errno
 import hashlib
 import importlib.util
@@ -99,11 +100,11 @@ def test_wheel_preserves_bytes_metadata_and_record(tmp_path, monkeypatch):
         assert handle.read(builder.LICENSE_ARCNAME) == LICENSE_BYTES
         metadata = handle.read(f"{builder.DIST_INFO}/METADATA").decode()
         assert "kinaiya-vibevoice-runtime" in metadata
-        assert "1.0.0+kinaiya.1" in metadata
+        assert "1.0.0+kinaiya.2" in metadata
         assert "microsoft/VibeVoice" in metadata
         assert REVISION in metadata
         assert "MIT" in metadata
-        assert "Packaging-only" in metadata
+        assert "explicit checked compatibility patch" in metadata
         assert "Requires-Python: >=3.11" in metadata
         for dep in builder.REQUIRES_DIST:
             assert f"Requires-Dist: {dep}" in metadata
@@ -306,3 +307,146 @@ def test_checked_manifest_refuses_a_different_revision_or_incomplete_runtime(tmp
     path.write_text(json.dumps(manifest))
     with pytest.raises(builder.BuildError, match="checked manifest"):
         builder._load_checked_manifest()
+
+
+def test_exact_patch_handles_multiple_hunks_files_and_zero_length_ranges():
+    original = {
+        "vibevoice/a.py": b"one\ntwo\nthree\nfour\nfive\nsix\nseven\neight\n",
+        "vibevoice/b.py": b"delete\nretained\n",
+    }
+    expected = {
+        "vibevoice/a.py": b"added\none\nTWO\nthree\nfour\nfive\nsix\nSEVEN\neight\n",
+        "vibevoice/b.py": b"retained\n",
+    }
+    patch = "".join(
+        line
+        for name in original
+        for line in difflib.unified_diff(
+            original[name].decode().splitlines(keepends=True),
+            expected[name].decode().splitlines(keepends=True),
+            fromfile=f"a/{name}",
+            tofile=f"b/{name}",
+            n=0,
+        )
+    ).encode()
+    assert builder._apply_unified_patch(original, patch) == expected
+    assert original["vibevoice/a.py"].startswith(b"one\n")
+
+
+@pytest.mark.parametrize(
+    "patch",
+    [
+        b"",
+        b"\xff\n",
+        b"--- a/vibevoice/a.py\n+++ b/vibevoice/a.py\n",
+        b"--- a/../escape.py\n+++ b/../escape.py\n@@ -1 +1 @@\n-old\n+new\n",
+        b"--- a/vibevoice/a.py\n+++ b/vibevoice/b.py\n@@ -1 +1 @@\n-old\n+new\n",
+        b"--- a/vibevoice/missing.py\n+++ b/vibevoice/missing.py\n@@ -1 +1 @@\n-old\n+new\n",
+        b"--- a/vibevoice/a.py\n+++ b/vibevoice/a.py\n@@ -1 +1 @@\n-wrong\n+new\n",
+        b"--- a/vibevoice/a.py\n+++ b/vibevoice/a.py\n@@ -1,2 +1 @@\n-old\n+new\n",
+        b"--- a/vibevoice/a.py\n+++ b/vibevoice/a.py\n@@ -1 +2 @@\n-old\n+new\n",
+        b"--- a/vibevoice/a.py\n+++ b/vibevoice/a.py\n@@ -99 +99 @@\n-old\n+new\n",
+        b"--- a/vibevoice/a.py\n+++ b/vibevoice/a.py\n@@ -1 +1 @@\n-old\n+new",
+        b"--- a/vibevoice/a.py\n+++ b/vibevoice/a.py\n@@ -1 +1 @@\n-old\n!new\n",
+        b"--- a/vibevoice/a.py\n+++ b/vibevoice/a.py\n@@ -1 +1 @@\n-old\n+new\n"
+        b"--- a/vibevoice/a.py\n+++ b/vibevoice/a.py\n@@ -1 +1 @@\n-old\n+again\n",
+        b"--- a/vibevoice/a.py\n+++ b/vibevoice/a.py\n@@ -1 +1 @@\n-old\n+new\n"
+        b"@@ -1 +1 @@\n-old\n+again\n",
+    ],
+)
+def test_exact_patch_refuses_malformed_unmatched_fuzzy_and_unsafe_changes(patch):
+    with pytest.raises(builder.BuildError):
+        builder._apply_unified_patch({"vibevoice/a.py": b"old\n"}, patch)
+
+
+def _patched_fixture(tmp_path, monkeypatch):
+    src = tmp_path / "source"
+    src.mkdir()
+    license_path = _write_fixtures(src, SYNTHETIC_FILES, LICENSE_BYTES)
+    manifest = _synthetic_manifest(SYNTHETIC_FILES, LICENSE_BYTES)
+    manifest["upstream_runtime_files"] = dict(manifest["runtime_files"])
+    patched = b"class DerivedModel:\n    pass\n"
+    name = "vibevoice/modular/model.py"
+    manifest["runtime_files"][name] = {
+        "size_bytes": len(patched),
+        "sha256": hashlib.sha256(patched).hexdigest(),
+    }
+    patch = "".join(
+        difflib.unified_diff(
+            SYNTHETIC_FILES[name].decode().splitlines(keepends=True),
+            patched.decode().splitlines(keepends=True),
+            fromfile=f"a/{name}",
+            tofile=f"b/{name}",
+        )
+    ).encode()
+    patch_path = tmp_path / "packages/providers/vibevoice_transformers5.patch"
+    patch_path.parent.mkdir(parents=True)
+    patch_path.write_bytes(patch)
+    manifest["runtime_patch"] = {
+        "path": "packages/providers/vibevoice_transformers5.patch",
+        "size_bytes": len(patch),
+        "sha256": hashlib.sha256(patch).hexdigest(),
+    }
+    monkeypatch.setattr(builder, "_repository_root", lambda: tmp_path)
+    monkeypatch.setattr(builder, "_load_checked_manifest", lambda: manifest)
+    return src, license_path, patch_path, manifest, patched
+
+
+def test_derived_wheel_has_exact_upstream_patch_and_final_source_provenance(tmp_path, monkeypatch):
+    src, license_path, patch_path, manifest, patched = _patched_fixture(tmp_path, monkeypatch)
+    result = builder.build_runtime_wheel(src, license_path, tmp_path / "out")
+    proof = result["attestation"]
+    name = "vibevoice/modular/model.py"
+    assert proof["source_patch_sha256"] == hashlib.sha256(patch_path.read_bytes()).hexdigest()
+    assert proof["upstream_sources"][name] == manifest["upstream_runtime_files"][name]["sha256"]
+    assert proof["sources"][name] == manifest["runtime_files"][name]["sha256"]
+    assert proof["sources"][name] != proof["upstream_sources"][name]
+    with zipfile.ZipFile(result["wheel_path"]) as wheel:
+        assert wheel.read(name) == patched
+    assert (src / name).read_bytes() == SYNTHETIC_FILES[name]
+
+
+@pytest.mark.parametrize("kind", ["input", "patch", "output", "symlink", "path", "file_set"])
+def test_derived_build_refuses_tampering_before_creating_outputs(tmp_path, monkeypatch, kind):
+    src, license_path, patch_path, manifest, _ = _patched_fixture(tmp_path, monkeypatch)
+    name = "vibevoice/modular/model.py"
+    if kind == "input":
+        (src / name).write_bytes(b"class UntestedModel:\n    pass\n")
+    elif kind == "patch":
+        patch_path.write_bytes(patch_path.read_bytes().replace(b"DerivedModel", b"ChangedModel"))
+    elif kind == "output":
+        manifest["runtime_files"][name]["sha256"] = "0" * 64
+    elif kind == "symlink":
+        target = tmp_path / "elsewhere.patch"
+        patch_path.rename(target)
+        patch_path.symlink_to(target)
+    elif kind == "path":
+        manifest["runtime_patch"]["path"] = "elsewhere.patch"
+    else:
+        del manifest["upstream_runtime_files"][name]
+    output = tmp_path / "out"
+    with pytest.raises(builder.BuildError):
+        builder.build_runtime_wheel(src, license_path, output)
+    assert not output.exists()
+
+
+def test_checked_transformers5_manifest_keeps_all_upstream_hashes_and_explicit_changes():
+    manifest = builder._load_checked_manifest()
+    assert manifest["runtime_versions"] == {
+        "kinaiya-vibevoice-runtime": builder.VERSION,
+        "transformers": "5.21.0",
+        "torch": "2.14.1+cpu",
+    }
+    upstream = manifest["upstream_runtime_files"]
+    derived = manifest["runtime_files"]
+    assert len(upstream) == len(derived) == 22
+    assert set(upstream) == set(derived)
+    assert {name for name in upstream if upstream[name]["sha256"] != derived[name]["sha256"]} == {
+        "vibevoice/modular/modeling_vibevoice_streaming.py",
+        "vibevoice/modular/modeling_vibevoice_streaming_inference.py",
+        "vibevoice/modular/modular_vibevoice_text_tokenizer.py",
+        "vibevoice/modular/modular_vibevoice_tokenizer.py",
+    }
+    patch = builder._repository_root() / manifest["runtime_patch"]["path"]
+    builder._verify_bytes(patch.read_bytes(), manifest["runtime_patch"])
+    assert manifest["runtime_packaging"]["upstream_python_files_unchanged"] is False

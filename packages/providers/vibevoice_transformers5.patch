@@ -1,0 +1,273 @@
+--- a/vibevoice/modular/modeling_vibevoice_streaming.py
++++ b/vibevoice/modular/modeling_vibevoice_streaming.py
+@@ -12,21 +12,18 @@
+ from transformers.activations import ACT2FN
+ from transformers.modeling_outputs import CausalLMOutput, BaseModelOutputWithPast, ModelOutput
+ from transformers.models.llama.modeling_llama import LlamaRMSNorm
+-from transformers import modeling_utils
+ from transformers.modeling_utils import PreTrainedModel
+ from transformers.modeling_flash_attention_utils import FlashAttentionKwargs
+ from transformers.utils import logging
+ 
+ from .modular_vibevoice_diffusion_head import VibeVoiceDiffusionHead
++from .modular_vibevoice_tokenizer import VibeVoiceAcousticTokenizerModel
+ from vibevoice.schedule.dpm_solver import DPMSolverMultistepScheduler
+ 
+ from .configuration_vibevoice_streaming import VibeVoiceStreamingConfig
+ 
+ 
+ logger = logging.get_logger(__name__)
+-
+-if not hasattr(modeling_utils, "ALL_PARALLEL_STYLES") or modeling_utils.ALL_PARALLEL_STYLES is None:
+-    modeling_utils.ALL_PARALLEL_STYLES = ["tp", "none", "colwise", "rowwise"]
+ 
+ 
+ class BinaryClassifier(nn.Module):
+@@ -122,7 +119,7 @@
+         self.tts_input_types = nn.Embedding(num_embeddings=2, embedding_dim=config.decoder_config.hidden_size)
+         
+         # Initialize speech components if needed
+-        self.acoustic_tokenizer = AutoModel.from_config(config.acoustic_tokenizer_config).to(dtype)
++        self.acoustic_tokenizer = VibeVoiceAcousticTokenizerModel(config.acoustic_tokenizer_config).to(dtype)
+         self.acoustic_connector = SpeechConnector(config.acoustic_vae_dim, lm_config.hidden_size).to(dtype)
+         
+         # Register scaling factors as buffers - use 1D tensors for FSDP compatibility
+@@ -133,11 +130,14 @@
+         self.prediction_head = AutoModel.from_config(config.diffusion_head_config).to(dtype)
+ 
+         # Initialize noise scheduler
+-        self.noise_scheduler = DPMSolverMultistepScheduler(
+-            num_train_timesteps=config.diffusion_head_config.ddpm_num_steps,
+-            beta_schedule=config.diffusion_head_config.ddpm_beta_schedule,
+-            prediction_type=config.diffusion_head_config.prediction_type
+-        )
++        # Transformers 5 constructs model parameters on the meta device.
++        # The scheduler's real CPU constants are not model checkpoint tensors.
++        with torch.device("cpu"):
++            self.noise_scheduler = DPMSolverMultistepScheduler(
++                num_train_timesteps=config.diffusion_head_config.ddpm_num_steps,
++                beta_schedule=config.diffusion_head_config.ddpm_beta_schedule,
++                prediction_type=config.diffusion_head_config.prediction_type
++            )
+     
+     def get_input_embeddings(self):
+         if hasattr(self.language_model, 'embed_tokens'):
+--- a/vibevoice/modular/modeling_vibevoice_streaming_inference.py
++++ b/vibevoice/modular/modeling_vibevoice_streaming_inference.py
+@@ -1,14 +1,12 @@
+ from dataclasses import dataclass
+ from typing import Any, Dict, List, Optional, Tuple, Union, Callable
+ from tqdm import tqdm
+-import inspect
+ import torch
+ import torch.nn as nn
+ 
+ from transformers.models.auto import AutoModel, AutoModelForCausalLM
+ from transformers.generation import GenerationMixin, GenerationConfig, LogitsProcessor, LogitsProcessorList, StoppingCriteriaList
+ from transformers.modeling_outputs import BaseModelOutputWithPast, ModelOutput
+-from transformers import modeling_utils
+ from transformers.modeling_utils import PreTrainedModel
+ from transformers.modeling_flash_attention_utils import FlashAttentionKwargs
+ from transformers.utils import logging
+@@ -23,97 +21,11 @@
+ 
+ logger = logging.get_logger(__name__)
+ 
+-if not hasattr(modeling_utils, "ALL_PARALLEL_STYLES") or modeling_utils.ALL_PARALLEL_STYLES is None:
+-    modeling_utils.ALL_PARALLEL_STYLES = ["tp", "none", "colwise", "rowwise"]
+-
+ TTS_TEXT_WINDOW_SIZE = 5
+ TTS_SPEECH_WINDOW_SIZE = 6
+ 
+ 
+-# ============================================================================
+-# Transformers >= 4.57 Compatibility Layer
+-# The cache system was refactored in transformers 4.57, requiring these helpers.
+-# ============================================================================
+-
+-class MockCacheLayer:
+-    """
+-    Mock cache layer for transformers >= 4.57 compatibility.
+-    Provides the `layers` interface expected by DynamicCache in newer versions.
+-    """
+-    
+-    def __init__(self, key_cache, value_cache, parent_cache=None, layer_idx=0):
+-        self.key_cache = key_cache
+-        self.value_cache = value_cache
+-        self._parent_cache = parent_cache
+-        self._layer_idx = layer_idx
+-    
+-    def get_mask_sizes(self, cache_position):
+-        """Return KV length and offset for mask creation."""
+-        seq_length = self.key_cache.shape[2] if self.key_cache is not None else 0
+-        query_length = cache_position.shape[0]
+-        return seq_length + query_length, 0
+-    
+-    def update(self, key_states, value_states, cache_kwargs=None):
+-        """Update the cache with new key/value states."""
+-        if self._parent_cache is None:
+-            return self.key_cache, self.value_cache
+-        
+-        parent = self._parent_cache
+-        idx = self._layer_idx
+-        
+-        # Extend cache lists if needed
+-        while len(parent.key_cache) <= idx:
+-            parent.key_cache.append(None)
+-            parent.value_cache.append(None)
+-        
+-        # Concatenate or initialize cache
+-        if parent.key_cache[idx] is not None:
+-            parent.key_cache[idx] = torch.cat([parent.key_cache[idx], key_states], dim=2)
+-            parent.value_cache[idx] = torch.cat([parent.value_cache[idx], value_states], dim=2)
+-        else:
+-            parent.key_cache[idx] = key_states
+-            parent.value_cache[idx] = value_states
+-        
+-        # Update local references
+-        self.key_cache = parent.key_cache[idx]
+-        self.value_cache = parent.value_cache[idx]
+-        return self.key_cache, self.value_cache
+-
+-
+-def _ensure_cache_has_layers(cache):
+-    """
+-    Ensure the cache has all required attributes for transformers >= 4.57.
+-    Creates MockCacheLayer wrappers to provide the expected `layers` interface.
+-    """
+-    if cache is None:
+-        return cache
+-    
+-    # Add required attributes (skip if read-only)
+-    for attr, default in [('layer_class_to_replicate', None), ('offloading', False), ('is_compileable', False)]:
+-        if not hasattr(cache, attr):
+-            try:
+-                setattr(cache, attr, default)
+-            except AttributeError:
+-                pass
+-    
+-    # Build layers list from key_cache/value_cache
+-    if hasattr(cache, 'key_cache') and hasattr(cache, 'value_cache'):
+-        try:
+-            cache.layers = [
+-                MockCacheLayer(cache.key_cache[i], cache.value_cache[i], parent_cache=cache, layer_idx=i)
+-                for i in range(len(cache.key_cache))
+-            ]
+-        except AttributeError:
+-            pass
+-    elif not hasattr(cache, 'layers'):
+-        try:
+-            cache.layers = []
+-        except AttributeError:
+-            pass
+-    
+-    return cache
+-
+-
++# Native Transformers 5 caches provide the layers API; no mock layers are used.
+ def _update_model_kwargs_for_generation(
+     outputs: ModelOutput,
+     model_kwargs: Dict[str, Any],
+@@ -124,7 +36,7 @@
+     
+     Updates past_key_values, attention_mask, and cache_position for the next forward pass.
+     """
+-    model_kwargs["past_key_values"] = _ensure_cache_has_layers(outputs.past_key_values)
++    model_kwargs["past_key_values"] = outputs.past_key_values
+     
+     attention_mask = model_kwargs["attention_mask"]
+     model_kwargs["attention_mask"] = torch.cat(
+@@ -200,17 +112,6 @@
+     @property
+     def acoustic_connector(self):
+         return self.model.acoustic_connector
+-        
+-    def tie_weights(self):
+-        """
+-        Tie the weights between the input embeddings and the output embeddings.
+-        """
+-        # Tie lm_head.weight to language_model.embed_tokens.weight
+-        if not getattr(self.config, 'tie_word_embeddings', False):
+-            return
+-         
+-        if hasattr(self, 'lm_head') and hasattr(self.model.language_model, 'embed_tokens'):
+-            self.lm_head.weight = self.model.language_model.embed_tokens.weight
+         
+     def get_input_embeddings(self):
+         return self.model.get_input_embeddings()
+@@ -304,35 +205,14 @@
+         is_encoder_decoder=False,
+         num_new_tokens=1,
+     ):
+-        """Override to ensure cache compatibility with transformers >= 4.57."""
+-        model_kwargs = super()._update_model_kwargs_for_generation(
+-            outputs, model_kwargs, is_encoder_decoder=is_encoder_decoder, num_new_tokens=num_new_tokens
+-        )
+-        if "past_key_values" in model_kwargs:
+-            model_kwargs["past_key_values"] = _ensure_cache_has_layers(model_kwargs["past_key_values"])
+-        return model_kwargs
++        """Keep the streaming window position alongside native Transformers 5 caches."""
++        if is_encoder_decoder:
++            raise ValueError("The retained streaming profile is decoder-only")
++        return _update_model_kwargs_for_generation(outputs, model_kwargs, num_new_tokens)
+ 
+     def _init_cache_for_generation(self, generation_config, model_kwargs, batch_size, max_cache_length, device):
+-        """
+-        Initialize cache for generation, handling different transformers versions.
+-        For transformers >= 4.57, returns None to let the model create the cache dynamically.
+-        """
+-        try:
+-            from transformers.cache_utils import DynamicCache
+-            sig = inspect.signature(DynamicCache.__init__)
+-            if 'config' in sig.parameters:
+-                # transformers >= 4.57: let model handle cache creation
+-                return None
+-            else:
+-                # Older versions: use parent method
+-                prep_sig = inspect.signature(self._prepare_cache_for_generation)
+-                if 'device' in prep_sig.parameters:
+-                    self._prepare_cache_for_generation(generation_config, model_kwargs, None, batch_size, max_cache_length, device)
+-                else:
+-                    self._prepare_cache_for_generation(generation_config, model_kwargs, None, batch_size, max_cache_length)
+-                return model_kwargs.get("past_key_values")
+-        except Exception:
+-            return None
++        """The native Qwen2 model creates its cache; presets use validated caches."""
++        return None
+ 
+     # @can_return_tuple
+     def forward_lm(
+@@ -511,8 +391,7 @@
+             )
+ 
+         generation_config, model_kwargs = self._prepare_generation_config(
+-            generation_config, 
+-            True, 
++            generation_config,
+             speech_start_id=tokenizer.speech_start_id, 
+             speech_end_id=tokenizer.speech_end_id, 
+             speech_diffusion_id=tokenizer.speech_diffusion_id, 
+--- a/vibevoice/modular/modular_vibevoice_text_tokenizer.py
++++ b/vibevoice/modular/modular_vibevoice_text_tokenizer.py
+@@ -4,7 +4,8 @@
+ 
+ from transformers.utils import logging
+ from transformers.models.qwen2.tokenization_qwen2 import Qwen2Tokenizer
+-from transformers.models.qwen2.tokenization_qwen2_fast import Qwen2TokenizerFast
++# Transformers 5 uses one tokenizers-backed Qwen2 class.
++from transformers.models.qwen2.tokenization_qwen2 import Qwen2Tokenizer as Qwen2TokenizerFast
+ 
+ logger = logging.get_logger(__name__)
+ 
+--- a/vibevoice/modular/modular_vibevoice_tokenizer.py
++++ b/vibevoice/modular/modular_vibevoice_tokenizer.py
+@@ -1197,7 +1197,8 @@
+         sampled_latents, _ = self.sampling(encoder_output, dist_type='none')
+         return None, sampled_latents
+ 
+-AutoModel.register(VibeVoiceAcousticTokenizerConfig, VibeVoiceAcousticTokenizerModel)
++# The retained streaming model constructs this implementation explicitly.
++# Transformers 5 also owns this model type; do not override its global registry.
+ AutoModel.register(VibeVoiceSemanticTokenizerConfig, VibeVoiceSemanticTokenizerModel)
+ 
+ __all__ = [

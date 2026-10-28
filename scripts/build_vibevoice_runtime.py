@@ -1,4 +1,4 @@
-"""Build minimal derivative VibeVoice runtime wheel from pinned source."""
+"""Build a checked Transformers 5 derivative of the pinned VibeVoice runtime."""
 
 from __future__ import annotations
 
@@ -9,20 +9,22 @@ import hashlib
 import io
 import json
 import os
+import re
 import stat
 import sys
 import zipfile
 from pathlib import Path
 
 DISTRIBUTION = "kinaiya-vibevoice-runtime"
-VERSION = "1.0.0+kinaiya.1"
-WHEEL_FILENAME = "kinaiya_vibevoice_runtime-1.0.0+kinaiya.1-py3-none-any.whl"
-DIST_INFO = "kinaiya_vibevoice_runtime-1.0.0+kinaiya.1.dist-info"
+VERSION = "1.0.0+kinaiya.2"
+WHEEL_FILENAME = "kinaiya_vibevoice_runtime-1.0.0+kinaiya.2-py3-none-any.whl"
+DIST_INFO = "kinaiya_vibevoice_runtime-1.0.0+kinaiya.2.dist-info"
 PROVENANCE_FILENAME = WHEEL_FILENAME + ".provenance.json"
 REQUIRES_PYTHON = ">=3.11"
 REQUIRES_DIST = (
     "torch>=2.14,<2.15",
-    "transformers>=4.51.3,<5",
+    "transformers>=5.21,<5.22",
+    "huggingface-hub>=1.10,<2",
     "accelerate>=1.15,<2",
     "diffusers>=0.39,<1",
     "numpy>=2.3.3,<3",
@@ -54,8 +56,17 @@ def _load_checked_manifest() -> dict:
     if (
         not isinstance(data, dict)
         or data.get("runtime_revision") != RUNTIME_REVISION
+        or data.get("runtime_versions")
+        != {
+            DISTRIBUTION: VERSION,
+            "transformers": "5.21.0",
+            "torch": "2.14.1+cpu",
+        }
         or not isinstance(data.get("runtime_files"), dict)
         or len(data["runtime_files"]) != 22
+        or not isinstance(data.get("upstream_runtime_files"), dict)
+        or len(data["upstream_runtime_files"]) != 22
+        or not isinstance(data.get("runtime_patch"), dict)
     ):
         raise BuildError("invalid checked manifest")
     return data
@@ -193,12 +204,108 @@ def _verify_bytes(data: bytes, record: dict) -> str:
     return digest
 
 
+def _apply_unified_patch(payloads: dict[str, bytes], patch: bytes) -> dict[str, bytes]:
+    """Apply only exact existing-file hunks; never execute patch or source code.
+
+    This deliberately excludes fuzzy offsets, renames, file creation, binary
+    patches and missing final newlines. Both input and final file hashes are
+    checked separately by the builder.
+    """
+    try:
+        lines = patch.decode("utf-8").splitlines(keepends=True)
+    except UnicodeError:
+        raise BuildError("invalid source patch") from None
+    if not lines or any(not line.endswith("\n") for line in lines):
+        raise BuildError("invalid source patch")
+    result = dict(payloads)
+    changed: set[str] = set()
+    pos = 0
+    while pos < len(lines):
+        if not lines[pos].startswith("--- a/") or pos + 1 >= len(lines):
+            raise BuildError("invalid source patch")
+        name = lines[pos][6:-1]
+        _check_arcname(name)
+        if name not in payloads or name in changed or lines[pos + 1] != f"+++ b/{name}\n":
+            raise BuildError("invalid source patch")
+        changed.add(name)
+        pos += 2
+        try:
+            original = payloads[name].decode("utf-8").splitlines(keepends=True)
+        except UnicodeError:
+            raise BuildError("invalid source patch") from None
+        output: list[str] = []
+        cursor = 0
+        hunks = 0
+        while pos < len(lines) and lines[pos].startswith("@@"):
+            header = re.fullmatch(r"@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@\n", lines[pos])
+            if header is None:
+                raise BuildError("invalid source patch")
+            old_start, old_count, new_start, new_count = (
+                int(part) if part is not None else 1 for part in header.groups()
+            )
+            # A zero-length range starts after the preceding line (unified-diff
+            # convention); nonempty ranges use one-based line positions.
+            start = old_start if old_count == 0 else old_start - 1
+            if start < cursor or start > len(original):
+                raise BuildError("invalid source patch")
+            output.extend(original[cursor:start])
+            new_index = new_start if new_count == 0 else new_start - 1
+            if new_index != len(output):
+                raise BuildError("invalid source patch")
+            pos += 1
+            before: list[str] = []
+            after: list[str] = []
+            while pos < len(lines) and not lines[pos].startswith(("@@", "--- a/")):
+                line = lines[pos]
+                if line[0] not in " +-":
+                    raise BuildError("invalid source patch")
+                if line[0] in " -":
+                    before.append(line[1:])
+                if line[0] in " +":
+                    after.append(line[1:])
+                pos += 1
+            if (
+                len(before) != old_count
+                or len(after) != new_count
+                or original[start : start + old_count] != before
+            ):
+                raise BuildError("invalid source patch")
+            output.extend(after)
+            cursor = start + old_count
+            hunks += 1
+        if hunks == 0:
+            raise BuildError("invalid source patch")
+        output.extend(original[cursor:])
+        result[name] = "".join(output).encode()
+    return result
+
+
+def _patch_payloads(
+    payloads: dict[str, bytes], manifest: dict
+) -> tuple[dict[str, bytes], str | None]:
+    record = manifest.get("runtime_patch")
+    if record is None:
+        return payloads, None
+    if not isinstance(record, dict) or set(record) != {"path", "size_bytes", "sha256"}:
+        raise BuildError("invalid source patch record")
+    # The checked repository owns this one patch. Caller paths cannot select
+    # arbitrary patches or source code.
+    if record["path"] != "packages/providers/vibevoice_transformers5.patch":
+        raise BuildError("invalid source patch record")
+    root_fd = _directory_fd(_repository_root())
+    try:
+        patch = _read_relative(root_fd, record["path"], record)
+    finally:
+        os.close(root_fd)
+    return _apply_unified_patch(payloads, patch), hashlib.sha256(patch).hexdigest()
+
+
 def _metadata_bytes(revision: str) -> bytes:
     lines = [
         "Metadata-Version: 2.4",
         f"Name: {DISTRIBUTION}",
         f"Version: {VERSION}",
-        "Summary: Packaging-only derivative runtime for Microsoft VibeVoice",
+        "Summary: Checked Transformers 5 derivative runtime for Microsoft VibeVoice",
         "License-Expression: MIT",
         "License-File: LICENSE",
         f"Requires-Python: {REQUIRES_PYTHON}",
@@ -209,8 +316,9 @@ def _metadata_bytes(revision: str) -> bytes:
         [
             "",
             f"Derived from microsoft/VibeVoice at revision {revision}.",
-            "MIT-licensed upstream Python source, byte-preserved.",
-            "Packaging-only derivative: source-only wheel, no weights,",
+            "MIT-licensed source with an explicit checked compatibility patch.",
+            "Upstream and derived source digests are retained in provenance.",
+            "Source-only derivative: no weights,",
             "tokenizer, presets, demos or web requirements.",
             "Installs no dependencies here; owner applies a hashed CPU lock.",
             "Declared ranges are not claimed security-clean.",
@@ -248,6 +356,9 @@ def build_runtime_wheel(source_dir: Path, license_file: Path, output_dir: Path) 
     if not revision:
         raise BuildError("invalid runtime revision")
     records = _runtime_files(manifest)
+    upstream_records = manifest.get("upstream_runtime_files", records)
+    if not isinstance(upstream_records, dict) or set(upstream_records) != set(records):
+        raise BuildError("invalid upstream runtime file list")
     license_record = _license_record(manifest)
     for name in list(records) + [LICENSE_ARCNAME]:
         _check_arcname(name)
@@ -266,8 +377,8 @@ def build_runtime_wheel(source_dir: Path, license_file: Path, output_dir: Path) 
     source_digests: dict[str, str] = {}
     try:
         for arcname in sorted(records):
-            data = _read_relative(source_fd, arcname, records[arcname])
-            digest = _verify_bytes(data, records[arcname])
+            data = _read_relative(source_fd, arcname, upstream_records[arcname])
+            digest = _verify_bytes(data, upstream_records[arcname])
             payloads[arcname] = data
             source_digests[arcname] = digest
     finally:
@@ -275,6 +386,11 @@ def build_runtime_wheel(source_dir: Path, license_file: Path, output_dir: Path) 
             os.close(source_fd)
         except OSError:
             pass
+    upstream_digests = dict(source_digests)
+    payloads, patch_digest = _patch_payloads(payloads, manifest)
+    source_digests = {
+        name: _verify_bytes(payloads[name], records[name]) for name in sorted(records)
+    }
     absolute_license = Path(os.path.abspath(license_file))
     license_parent = _directory_fd(absolute_license.parent)
     try:
@@ -308,6 +424,8 @@ def build_runtime_wheel(source_dir: Path, license_file: Path, output_dir: Path) 
         "wheel_filename": WHEEL_FILENAME,
         "source_revision": revision,
         "sources": dict(sorted(source_digests.items())),
+        "upstream_sources": dict(sorted(upstream_digests.items())),
+        "source_patch_sha256": patch_digest,
         "license_sha256": license_digest,
         "license_size": len(license_bytes),
         "wheel_sha256": wheel_digest,

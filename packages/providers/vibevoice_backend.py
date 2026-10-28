@@ -24,7 +24,7 @@ RUNTIME_REVISION = "16fb2cb1217c9934a886e1948ffb06120caa2df5"
 TOKENIZER_REVISION = "060db6499f32faf8b98477b0a26969ef7d8b9987"
 SAMPLE_RATE = 24000
 RUNTIME_DISTRIBUTION = "kinaiya-vibevoice-runtime"
-RUNTIME_VERSION = "1.0.0+kinaiya.1"
+RUNTIME_VERSION = "1.0.0+kinaiya.2"
 _MANIFEST = Path(__file__).with_name("vibevoice_manifest.json")
 _REQUIRED = frozenset(
     {
@@ -55,7 +55,7 @@ def _manifest():
         or value.get("runtime_versions")
         != {
             RUNTIME_DISTRIBUTION: RUNTIME_VERSION,
-            "transformers": "4.51.3",
+            "transformers": "5.21.0",
             "torch": "2.14.1+cpu",
         }
     ):

@@ -8,8 +8,8 @@
   "tokenizer_revision": "060db6499f32faf8b98477b0a26969ef7d8b9987",
   "voice": "en-Carter_man",
   "runtime_versions": {
-    "kinaiya-vibevoice-runtime": "1.0.0+kinaiya.1",
-    "transformers": "4.51.3",
+    "kinaiya-vibevoice-runtime": "1.0.0+kinaiya.2",
+    "transformers": "5.21.0",
     "torch": "2.14.1+cpu"
   },
   "files": {
@@ -87,6 +87,107 @@
     }
   },
   "runtime_files": {
+    "vibevoice/__init__.py": {
+      "size_bytes": 422,
+      "sha256": "d2545b8b4f70348514a367a04ae38d0da3de98174a88745cdb5e64bb0e4b6839"
+    },
+    "vibevoice/modular/__init__.py": {
+      "size_bytes": 589,
+      "sha256": "a5453c864eedead47a9d52a03d78e8893bb9983dc3e93ca9ef1205e6803d7448"
+    },
+    "vibevoice/modular/configuration_vibevoice.py": {
+      "size_bytes": 16434,
+      "sha256": "bcf59d8749405d5d25436923444436f6719cb9b2b403941a8a5e46f5b94873d0"
+    },
+    "vibevoice/modular/configuration_vibevoice_streaming.py": {
+      "size_bytes": 4667,
+      "sha256": "1b4417ea2ffe5b42a58d1ee6b3c9508bc253930c2d55f8ec1f10916e36b8029e"
+    },
+    "vibevoice/modular/modeling_vibevoice.py": {
+      "size_bytes": 22454,
+      "sha256": "6a7fbe0f967f09cd05c2cbbd270276bac8e90a6061510a82029cbf8bc680caf2"
+    },
+    "vibevoice/modular/modeling_vibevoice_asr.py": {
+      "size_bytes": 34678,
+      "sha256": "847f1613ad836d8f2176ce90c27b4405af27b4f236320637cc693237b09facbb"
+    },
+    "vibevoice/modular/modeling_vibevoice_streaming.py": {
+      "size_bytes": 8100,
+      "sha256": "100807a71b4493ea58a9a8cd9f592fae342fa31bca90bd6513df83660285b66b"
+    },
+    "vibevoice/modular/modeling_vibevoice_streaming_inference.py": {
+      "size_bytes": 37676,
+      "sha256": "fd78fbf2257711f3237e7e2e031fb4d46e7ed1d620bb93722bc69bd88db33f18"
+    },
+    "vibevoice/modular/modular_vibevoice_diffusion_head.py": {
+      "size_bytes": 9222,
+      "sha256": "8a90ac685b9e32793749e2c58b48906758486d8b0bc0d92c8dfd141aa053852e"
+    },
+    "vibevoice/modular/modular_vibevoice_text_tokenizer.py": {
+      "size_bytes": 11365,
+      "sha256": "3ab07dc9bc085ae6aaef95b5b9b231de61e79ac633f1cad66f5d38d0dc85daf4"
+    },
+    "vibevoice/modular/modular_vibevoice_tokenizer.py": {
+      "size_bytes": 51968,
+      "sha256": "8d951fc519673e80d1fe7d1ffe184a9e24f2d47c09ced11b32b01b3a8772cb60"
+    },
+    "vibevoice/modular/streamer.py": {
+      "size_bytes": 9492,
+      "sha256": "e6129f46e2c61466ca96ce479c04adfaad32f483230f4d3531c96717bd16f603"
+    },
+    "vibevoice/processor/__init__.py": {
+      "size_bytes": 378,
+      "sha256": "957a1c1b18310691647cc0adaece1d8f940785deaa4d8d17ece2059bee0b9dc8"
+    },
+    "vibevoice/processor/audio_utils.py": {
+      "size_bytes": 6478,
+      "sha256": "e15f184c18f754862e38082836b9c19c0f97c03c939412ab856838dc30788bcf"
+    },
+    "vibevoice/processor/vibevoice_asr_processor.py": {
+      "size_bytes": 24934,
+      "sha256": "9fac3c57cf2f40e2d383f684fcff484a0ff2267668a8491bfeb54034763afa59"
+    },
+    "vibevoice/processor/vibevoice_processor.py": {
+      "size_bytes": 30082,
+      "sha256": "5b28fa5247a83cb65385e06428fb112369f50723e343d7b38c7a6e7e1dfddab5"
+    },
+    "vibevoice/processor/vibevoice_streaming_processor.py": {
+      "size_bytes": 18620,
+      "sha256": "41ff57a7da668db9099c395ab7bbee9b2cd7aa0c2f8f0b0c214768c051aa5a53"
+    },
+    "vibevoice/processor/vibevoice_tokenizer_processor.py": {
+      "size_bytes": 15682,
+      "sha256": "3b18571d3b5cac91211412f03c3a8477bb0242173a4a53a633498cac470f1068"
+    },
+    "vibevoice/schedule/__init__.py": {
+      "size_bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "vibevoice/schedule/dpm_solver.py": {
+      "size_bytes": 49964,
+      "sha256": "be10eae978afda40a6bc082806fa1e8f0f4b4e451fd1d21cec97347116ffba73"
+    },
+    "vibevoice/schedule/timestep_sampler.py": {
+      "size_bytes": 701,
+      "sha256": "70b003bdfdc716d09942ecfcd0e2f438bac27ea16da9527e105e008a0069dd83"
+    },
+    "vibevoice/scripts/__init__.py": {
+      "size_bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "runtime_archive": {
+    "source": "https://github.com/microsoft/VibeVoice/archive/16fb2cb1217c9934a886e1948ffb06120caa2df5.zip",
+    "sha256": "bb552c43591b3a57cf08681e77caa555092f56a961786a1b474b975a211fe8b2"
+  },
+  "runtime_packaging": {
+    "distribution": "kinaiya-vibevoice-runtime",
+    "version": "1.0.0+kinaiya.2",
+    "builder": "scripts/build_vibevoice_runtime.py",
+    "upstream_python_files_unchanged": false,
+    "excluded": "Unused upstream demo dependencies; explicit Transformers5 compatibility patch preserves upstream and derived source digests. Security follow-up#70 remains open pending independent audit and lifecycle checks."
+  },
+  "upstream_runtime_files": {
     "vibevoice/__init__.py": {
       "size_bytes": 422,
       "sha256": "d2545b8b4f70348514a367a04ae38d0da3de98174a88745cdb5e64bb0e4b6839",
@@ -198,15 +299,9 @@
       "git_blob_id": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391"
     }
   },
-  "runtime_archive": {
-    "source": "https://github.com/microsoft/VibeVoice/archive/16fb2cb1217c9934a886e1948ffb06120caa2df5.zip",
-    "sha256": "bb552c43591b3a57cf08681e77caa555092f56a961786a1b474b975a211fe8b2"
-  },
-  "runtime_packaging": {
-    "distribution": "kinaiya-vibevoice-runtime",
-    "version": "1.0.0+kinaiya.1",
-    "builder": "scripts/build_vibevoice_runtime.py",
-    "upstream_python_files_unchanged": true,
-    "excluded": "Unused upstream demo dependencies; dependency advisories remain tracked in#70."
+  "runtime_patch": {
+    "path": "packages/providers/vibevoice_transformers5.patch",
+    "sha256": "7ba36f7d03cc04d8a4520efa761dbb5ccbcd8f1a63999e0697633ab5af5905da",
+    "size_bytes": 12131
   }
 }

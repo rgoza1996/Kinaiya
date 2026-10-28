@@ -30,8 +30,8 @@ def assets(tmp_path, monkeypatch):
         "tokenizer_revision": vv.TOKENIZER_REVISION,
         "voice": vv.VIBEVOICE_VOICE,
         "runtime_versions": {
-            "kinaiya-vibevoice-runtime": "1.0.0+kinaiya.1",
-            "transformers": "4.51.3",
+            "kinaiya-vibevoice-runtime": "1.0.0+kinaiya.2",
+            "transformers": "5.21.0",
             "torch": "2.14.1+cpu",
         },
         "files": files,
@@ -422,6 +422,36 @@ def test_legacy_preset_reconstruction_preserves_all_tensor_objects_and_caches():
                     strict=True,
                 )
             )
+
+
+def test_legacy_preset_reconstruction_uses_native_layer_cache_update_api():
+    """Transformers 5 caches expose layers, without legacy key_cache fields."""
+
+    class LayerCache:
+        def __init__(self):
+            self.layers = []
+
+        def update(self, key, value, index):
+            assert index == len(self.layers)
+            self.layers.append(SimpleNamespace(keys=key, values=value))
+            return key, value
+
+    runtime = preset_runtime()
+    runtime.DynamicCache = LayerCache
+    original = preset()
+    restored = vv._restore_prompt(original, runtime)
+    count = 0
+    for name, output in restored.items():
+        source = original[name]
+        assert output.last_hidden_state is source.last_hidden_state
+        assert not hasattr(output.past_key_values, "key_cache")
+        assert len(output.past_key_values.layers) == len(source.past_key_values.key_cache)
+        count += 1
+        for index, layer in enumerate(output.past_key_values.layers):
+            assert layer.keys is source.past_key_values.key_cache[index]
+            assert layer.values is source.past_key_values.value_cache[index]
+            count += 2
+    assert count == 100
 
 
 @pytest.mark.parametrize(
