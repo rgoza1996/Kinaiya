@@ -4,6 +4,7 @@ import hashlib
 import json
 import subprocess
 import sys
+import threading
 from types import SimpleNamespace
 
 import pytest
@@ -76,7 +77,7 @@ import sys
 from packages.providers.tts_backends import create_tts_backend
 create_tts_backend('Kokoro 82M')
 create_tts_backend('Supertonic 3', '/does/not/exist')
-assert not {'kokoro', 'numpy', 'supertonic', 'onnxruntime', 'faster_whisper'} & sys.modules.keys()
+assert not {'kokoro', 'numpy', 'supertonic', 'onnxruntime', 'faster_whisper', 'vibevoice', 'transformers', 'diffusers', 'torch'} & sys.modules.keys()
 """
     result = subprocess.run(
         [sys.executable, "-c", script], capture_output=True, text=True, timeout=10
@@ -98,6 +99,9 @@ def test_selected_official_voice_allowlist(voice):
         ("Supertonic 3", "af_heart"),
         ("Kokoro 82M", "F1"),
         ("Supertonic 3", []),
+        ("VibeVoice Realtime 0.5B", "../en-Carter_man"),
+        ("VibeVoice Realtime 0.5B", "af_heart"),
+        ([], None),
     ],
 )
 def test_configuration_cannot_select_arbitrary_runtime_or_voice(profile, voice):
@@ -274,3 +278,42 @@ def test_kokoro_preserves_sentence_yields_and_cpu_offline_loading(monkeypatch):
     frames = list(backend.synthesize("One. Two."))
     assert [frame.sample_rate for frame in frames] == [24000, 24000]
     assert [frame.samples for frame in frames] == [[0.0, 0.5], [0.25, -0.5]]
+
+
+def test_native_producer_receives_same_cancellation_and_backpressure_callback():
+    cancelled = threading.Event()
+    calls = []
+
+    def emit(waveform):
+        calls.append(waveform)
+        cancelled.set()
+
+    def produce(text, callback, token):
+        assert text == "Public synthetic text" and callback is emit and token is cancelled
+        callback(tts.AudioWaveform([0.5], 24000))
+        assert token.is_set()
+
+    tts.produce_synthesis(
+        SimpleNamespace(produce=produce), "Public synthetic text", emit, cancelled
+    )
+    assert calls == [tts.AudioWaveform([0.5], 24000)]
+
+
+def test_legacy_generator_stops_between_waveforms_and_closes():
+    cancelled = threading.Event()
+    calls = []
+
+    def synthesize(text):
+        try:
+            yield tts.AudioWaveform([0.5], 24000)
+            raise AssertionError("Obsolete generation resumed")
+        finally:
+            calls.append("closed")
+
+    def emit(waveform):
+        calls.append(waveform)
+        cancelled.set()
+
+    tts.produce_synthesis(SimpleNamespace(synthesize=synthesize), "Public", emit, cancelled)
+    assert calls == [tts.AudioWaveform([0.5], 24000), "closed"]
+    tts.produce_synthesis(SimpleNamespace(), "Public", emit, cancelled)

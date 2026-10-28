@@ -4,6 +4,7 @@ import base64
 import importlib.util
 import wave
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -81,3 +82,53 @@ def test_voice_to_task_fixture_preserves_backend_sample_rate(tmp_path, rate):
         assert wav.getframerate() == rate
         assert wav.getnframes() == 10
         assert wav.readframes(10) == pcm
+
+
+@pytest.mark.parametrize("failure", ["wrong_pid", "quarantined", "no_cancel", "no_completion"])
+def test_cancellation_probe_refuses_unconfirmed_native_stop(monkeypatch, failure):
+    frame = {
+        "type": "audio",
+        "chunk_index": 0,
+        "samples": 1,
+        "sample_rate": 24000,
+        "audio": "AQA=",
+    }
+    states = iter(
+        [
+            {"pid": 42, "completed_producers": 1},
+            {"pid": 999 if failure == "wrong_pid" else 42, "active_producers": 1},
+            {
+                "pid": 42,
+                "active_producers": 0,
+                "producer_stopped": True,
+                "synthesis_quarantined": failure == "quarantined",
+                "last_producer_cancelled": failure != "no_cancel",
+                "completed_producers": 1 if failure == "no_completion" else 2,
+            },
+        ]
+    )
+
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def raise_for_status(self):
+            pass
+
+        def iter_lines(self):
+            yield voice_probe.json.dumps(frame)
+
+    client = SimpleNamespace(
+        get=lambda _: SimpleNamespace(json=lambda: next(states)),
+        stream=lambda *args, **kwargs: Response(),
+    )
+
+    def forbidden_followup(*args, **kwargs):
+        raise AssertionError("Unconfirmed cleanup cannot count as successful recovery")
+
+    monkeypatch.setattr(voice_probe, "measure", forbidden_followup)
+    with pytest.raises(ValueError):
+        voice_probe.measure_cancellation(client, "VibeVoice Realtime 0.5B", 42)
