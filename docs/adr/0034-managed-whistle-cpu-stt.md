@@ -146,6 +146,11 @@ not mutate cached locality or durable state. Default coordinators without
 Whistle do not perform this additional health/task/GPU preview. Current RAM
 shortage is not a prediction of post-release headroom: actual RSS, group
 release and free-memory checks remain in the original locked transition.
+The idempotency ledger is checked again after the awaited preview, immediately
+before publishing a barrier. A same-key action can record a rejection without
+changing the resource revision; its matching replay or conflicting input must
+not publish cancellation. Digest comparison and cached/uncertain result
+handling remain exclusively in the authoritative locked action.
 
 An already-reaped Whistle worker contributes zero current residency during
 handoff only with retained verified release and subsequent manager

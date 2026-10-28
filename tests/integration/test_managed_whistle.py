@@ -476,6 +476,62 @@ async def test_handoff_preview_revision_change_cannot_publish_a_stale_barrier(en
     assert env.manager.is_current(original) and env.coordinator.state.record.phase == "ready"
 
 
+@pytest.mark.parametrize("conflict", [False, True])
+async def test_recorded_same_key_during_preview_cannot_cancel_fresh_recovery(env, conflict):
+    await action(env, "profile", profile="local_work_priority")
+    entered, release_preview = asyncio.Event(), asyncio.Event()
+    calls = 0
+
+    async def health():
+        nonlocal calls
+        calls += 1
+        call = calls
+        if call == 1:
+            entered.set()
+            await release_preview.wait()
+        # The other action's preview is eligible, then its authoritative
+        # locality check refuses without advancing resource revision.
+        return {"provider": {"local": call == 3}, "resource_enabled": True}
+
+    env.coordinator.converse.health = health
+    revision = env.coordinator.state.record.revision
+    delayed = asyncio.create_task(
+        action(env, "handoff", key="same-preview-key", required_bytes=128 * 1024**2)
+    )
+    await entered.wait()
+    rejected = await action(
+        env, "handoff", key="same-preview-key", required_bytes=(256 if conflict else 128) * 1024**2
+    )
+    assert not rejected["ok"] and "local Converse text worker" in rejected["error"]
+    assert env.coordinator.state.record.revision == revision
+    original = env.manager.owned_identity("whistle")
+    assert (await env.manager.stop_if_current(original))["ok"]
+    recovery_entered, release_recovery = asyncio.Event(), asyncio.Event()
+
+    async def before(worker):
+        recovery_entered.set()
+        await release_recovery.wait()
+
+    env.coordinator.before_start = before
+    transcription = asyncio.create_task(post(env))
+    await recovery_entered.wait()
+    release_preview.set()
+    await asyncio.sleep(0)
+    barrier = env.coordinator._whistle_preemptions
+    release_recovery.set()
+    response, replay = await asyncio.gather(transcription, delayed, return_exceptions=True)
+    assert barrier == 0
+    assert isinstance(response, httpx.Response) and response.status_code == 200
+    assert response.json()["text"] == "Public synthetic Whistle transcript"
+    if conflict:
+        assert isinstance(replay, ValueError) and "idempotency key conflicts" in str(replay)
+    else:
+        assert replay == rejected
+    assert env.coordinator.state.record.phase == "ready" and env.coordinator.intent.read().enabled
+    current = env.manager.owned_identity("whistle")
+    assert current is not None and current is not original
+
+
 async def test_current_ram_shortage_does_not_predict_post_release_handoff_headroom(env):
     await action(env, "profile", profile="local_work_priority")
     original = env.manager.owned_identity("whistle")

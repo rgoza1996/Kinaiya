@@ -184,6 +184,16 @@ class ResourceCoordinator:
             )
         if preempt and payload["operation"] == "handoff":
             preempt = await self._handoff_may_preempt(payload)
+            if preempt:
+                # Another same-key action can finish while preview awaits,
+                # including a rejection that changes no resource revision.
+                # Replay/conflict remains exclusively _action's authority.
+                preempt = (
+                    self.db.execute(
+                        "SELECT 1 FROM actions WHERE key=?", (payload["idempotency_key"],)
+                    ).fetchone()
+                    is None
+                )
         if preempt:
             self._whistle_preemptions += 1
         try:
