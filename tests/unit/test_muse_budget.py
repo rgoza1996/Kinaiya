@@ -427,3 +427,37 @@ def test_nested_function_groups_are_bounded_without_reading_parameter_schemas(bu
     assert not module.local_function_tools([{"type": "namespace", "tools": tools}])
     assert module.local_function_tools(leaf * module.MAX_TOOL_NODES)
     assert not module.local_function_tools(leaf * (module.MAX_TOOL_NODES + 1))
+
+
+@pytest.mark.parametrize("path", ["/v1/models", "/muse-code/models"])
+def test_exact_read_only_catalog_routes_preserve_even_exhausted_budget(gateway, path):
+    module, calls, _, client = gateway
+    module.STATE["billing_reported_usd"] = 25.0
+    before = copy.deepcopy(module.STATE)
+    assert client.get(path).status_code == 200
+    assert len(calls) == 1
+    assert calls[0].get_method() == "GET"
+    assert calls[0].full_url == "https://api.meta.ai" + path
+    assert module.STATE == before and not module.LEDGER.exists()
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["/muse-code/models?x=1", "/muse-code/models/", "/muse-code/models/other", "/muse-code/usage"],
+)
+def test_catalog_allowlist_does_not_expand_to_other_gets_or_posts(gateway, path):
+    module, calls, _, client = gateway
+    assert client.get(path).status_code == 405
+    assert client.post(path, json={"model": module.MODEL}).status_code == 405
+    assert client.post("/muse-code/models", json={"model": module.MODEL}).status_code == 405
+    assert calls == [] and module.STATE["calls"] == []
+
+
+def test_rejected_post_body_cannot_corrupt_next_metered_request(gateway):
+    module, calls, _, client = gateway
+    rejected = client.post("/muse-code/models", content=b"unconsumed synthetic body")
+    assert rejected.status_code == 405 and rejected.headers["Connection"] == "close"
+    accepted = client.post("/v1/responses", json={"model": module.MODEL})
+    assert accepted.status_code == 200 and len(calls) == 1
+    assert len(module.STATE["calls"]) == 1
+    assert module.STATE["calls"][0]["state"] == "usage_reported"
