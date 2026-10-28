@@ -1,9 +1,11 @@
 """Owner-only explicit resource actions. No arbitrary process parameters."""
 
+import asyncio
 from typing import Literal
 
+from anyio import CancelScope
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import Response
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
@@ -40,7 +42,27 @@ class ResourceAction(BaseModel):
         return self
 
 
-def create_app(coordinator, auth, whistle=None):
+class ManagedTextResponse(StreamingResponse):
+    def __init__(self, body, *, timeout_s):
+        super().__init__(
+            body, media_type="application/x-ndjson", headers={"Cache-Control": "no-store"}
+        )
+        self.timeout_s = timeout_s
+
+    async def __call__(self, scope, receive, send):
+        # The broker alone receives disconnect after consuming the JSON body.
+        # In particular, do not invoke StreamingResponse's competing receiver.
+        try:
+            async with asyncio.timeout(self.timeout_s):
+                await self.stream_response(send)
+        finally:
+            # Even a failure sending headers closes a never-iterated body.
+            # The broker retains any cleanup that outlasts this bounded wait.
+            with CancelScope(shield=True):
+                await self.body_iterator.aclose()
+
+
+def create_app(coordinator, auth, whistle=None, qwen3=None):
     app = FastAPI(title="Kinaiya local resources")
     owner = [Depends(auth.require("owner"))]
 
@@ -54,6 +76,8 @@ def create_app(coordinator, auth, whistle=None):
             result = coordinator.status()
             if whistle is not None:
                 result["whistle"] = whistle.status()
+            if qwen3 is not None:
+                result["qwen3"] = qwen3.status()
             return result
         except (OSError, ValueError) as exc:
             raise HTTPException(503, "Resource owner intent is unavailable") from exc
@@ -75,5 +99,12 @@ def create_app(coordinator, auth, whistle=None):
 
         result = await whistle.transcribe(request)
         return Response(encode_json(result, MAX_RESPONSE_BYTES), media_type="application/json")
+
+    @app.post("/v1/converse/completions", dependencies=[Depends(auth.require("owner", "converse"))])
+    async def complete(request: Request):
+        if qwen3 is None:
+            raise HTTPException(503, "Managed Qwen3 dialogue is not selected")
+        body = await qwen3.stream(request)
+        return ManagedTextResponse(body, timeout_s=body.remaining_timeout_s + 1)
 
     return app

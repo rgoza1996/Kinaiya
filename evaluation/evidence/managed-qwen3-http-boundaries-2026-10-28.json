@@ -1,0 +1,225 @@
+{
+  "schema_version": 1,
+  "issue": "https://github.com/rgoza1996/Kinaiya/issues/91",
+  "pull_request": "https://github.com/rgoza1996/Kinaiya/pull/92",
+  "status": "actual_default_2048_token_HTTP_boundary_gate_passed; experimental_opt_in_CPU_profile",
+  "source": {
+    "head": "1ed35c5d33220563898133f17b4bc27c6c5545bd",
+    "tree": "3be0e074283a2fe9b968c911441fae8219756f6c",
+    "source_before_equals_after": true,
+    "critical_source_bindings": 29,
+    "critical_source_mapping_sha256": "2cd52eb5827b236bd58a957b359ec031805a823ba552d799fd646ef22cc10a9e"
+  },
+  "harness": {
+    "script_sha256": "7f96e785c41ae7b4ced329e7f5203b2626236f653c0259c0b894cec87428fa10",
+    "plan_sha256": "b71eb815ae67923b8aa22fbd9c1cb42f39f4c852d75cae8b10edb35260359870",
+    "manifest_sha256": "35a9fe42faf1226fdec8ebc6674b4cd0615c898e91f87240cd498d9cab90bed5",
+    "capacity_result_sha256": "edca493e381bba9300b3d0edeab555bf55d5274dd5fb391302a3d2e4c15598da",
+    "case_order": [
+      "boundary_2049",
+      "boundary_2048"
+    ],
+    "maximum_fresh_HTTP_requests": 2,
+    "no_retries_or_prompt_cap_changes": true
+  },
+  "model_manifest_sha256": "6684dbd38572a450d11fb0d666e684cab3667ecec02e3d4e3e2029fd1f6af4bc",
+  "model": {
+    "model": "Qwen/Qwen3-0.6B",
+    "revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+    "runtime": {
+      "device": "cpu",
+      "dtype": "float32",
+      "interop_threads": 1,
+      "intraop_threads": 2,
+      "python": "3.12",
+      "torch": "2.14.1+cpu",
+      "transformers": "5.21.0"
+    },
+    "runtime_coverage": "These six pinned core files and reported versions are checked; this is not full interpreter/package/build equivalence. No model or binary is redistributed."
+  },
+  "settings": {
+    "cpu_affinity_count": 2,
+    "host_memory_reserve_bytes": 8589934592,
+    "max_input_tokens": 2048,
+    "max_new_tokens": 128,
+    "memory_bytes": 17179869184,
+    "request_timeout_s": 120,
+    "startup_timeout_s": 120
+  },
+  "outcome": {
+    "passed": true,
+    "managed_http_request_attempts": 2,
+    "both_boundary_requests_passed": true,
+    "startup_seconds": 6.582618679996813,
+    "elapsed_seconds": 49.84002735099057,
+    "kernel_release_confirmed": true,
+    "endpoint_pruned_after_release": true,
+    "uvicorn_shutdown_confirmed": true,
+    "cleanup_confirmed": true,
+    "cleanup_errors": [],
+    "parent_optional_model_modules_absent": true
+  },
+  "requests": [
+    {
+      "name": "boundary_2049",
+      "request_attempt_number": 1,
+      "array_file_sha256": "e8cb06e9becb6ea7080b77f94e5dc9419a55eddbdb37361a9edad7fa65796762",
+      "messages_sha256": "34ec5e1bafd6bfab28946889dda35c162e4c84e553939d9f2f4c604d2d58a587",
+      "status_code": 200,
+      "identity_before_request": {
+        "pid": 1158066,
+        "start_time": 20593042,
+        "worker_id": "qwen3"
+      },
+      "identity": {
+        "pid": 1158066,
+        "start_time": 20593042,
+        "worker_id": "qwen3"
+      },
+      "frames": 1,
+      "terminal": {
+        "code": "input_limit",
+        "kind": "error"
+      },
+      "text": "",
+      "first_http_decoded_text_seconds": null,
+      "elapsed_seconds": 0.4671924379945267,
+      "http_eof_consumed": true,
+      "raw_ndjson_sha256": "707969abd89579d7735f281b729fe883567b4b7cd70f56176033d5678c011bd3",
+      "passed": true
+    },
+    {
+      "name": "boundary_2048",
+      "request_attempt_number": 2,
+      "array_file_sha256": "1dbf2e0a605e06683c3ddb4ae9cacc0e610e6efa95543269fe651939aae9d148",
+      "messages_sha256": "4f6220136d89f13ad5218cec9caf31aa01ad6bccc3c9410a8df446f05ddd4d26",
+      "status_code": 200,
+      "identity_before_request": null,
+      "identity": {
+        "pid": 1158106,
+        "start_time": 20593749,
+        "worker_id": "qwen3"
+      },
+      "frames": 12,
+      "terminal": {
+        "finish_reason": "eos",
+        "input_tokens": 2048,
+        "kind": "done",
+        "output_tokens": 16
+      },
+      "text": "Hello! I'm here to help. How can I assist you today?",
+      "first_http_decoded_text_seconds": 37.916630177001934,
+      "elapsed_seconds": 41.73554614701425,
+      "http_eof_consumed": true,
+      "raw_ndjson_sha256": "911b8141ace4f1a3afa438ec0ac4abb96d5beac8a9af3d80fe0110c43cb95874",
+      "passed": true
+    }
+  ],
+  "over_limit_release": {
+    "confirmed": true,
+    "identity": {
+      "pid": 1158066,
+      "start_time": 20593042,
+      "worker_id": "qwen3"
+    },
+    "returncode": -15,
+    "stop_evidence": {
+      "at": "2026-10-28T22:48:19.153370+00:00",
+      "duration_s": 0.43149428500328213,
+      "group_empty": true,
+      "group_rss_before_bytes": 2882342912,
+      "kill_sent": false,
+      "mem_available_bytes": 44097880064,
+      "ownership_verified": true,
+      "pgid": 1158066,
+      "pid": 1158066,
+      "reaped": true,
+      "residual_pids": [],
+      "rss_before_bytes": 2882342912,
+      "term_sent": true
+    }
+  },
+  "final_release": {
+    "identity": {
+      "pid": 1158106,
+      "start_time": 20593749,
+      "worker_id": "qwen3"
+    },
+    "stop_evidence": {
+      "at": "2026-10-28T22:49:01.416400+00:00",
+      "duration_s": 0.48139584599994123,
+      "group_empty": true,
+      "group_rss_before_bytes": 3595948032,
+      "kill_sent": false,
+      "mem_available_bytes": 43629735936,
+      "ownership_verified": true,
+      "pgid": 1158106,
+      "pid": 1158106,
+      "reaped": true,
+      "residual_pids": [],
+      "rss_before_bytes": 3595948032,
+      "term_sent": true
+    }
+  },
+  "observed_per_child": [
+    {
+      "identity": {
+        "pid": 1158066,
+        "start_time": 20593042,
+        "worker_id": "qwen3"
+      },
+      "highest_observed_vm_hwm_bytes": 5003771904,
+      "highest_observed_vm_rss_bytes": 2881835008,
+      "latest_sample_cpu_seconds": 7.37,
+      "sample_count": 2
+    },
+    {
+      "identity": {
+        "pid": 1158106,
+        "start_time": 20593749,
+        "worker_id": "qwen3"
+      },
+      "highest_observed_vm_hwm_bytes": 5003796480,
+      "highest_observed_vm_rss_bytes": 4207820800,
+      "latest_sample_cpu_seconds": 64.77,
+      "sample_count": 708
+    }
+  ],
+  "owner_private_artifacts": {
+    "result.json": {
+      "bytes": 31839,
+      "sha256": "45d9d96b72b83ec7cff8daaabd4386fa7748af4119bd7dacd513927b1b298e44"
+    },
+    "artifact-manifest.json": {
+      "bytes": 1225,
+      "sha256": "12303271e779603204de2c48c1cc8b68f1eefa17413f243c8612ff70abc490c2"
+    },
+    "boundary_2049.ndjson": {
+      "bytes": 38,
+      "sha256": "707969abd89579d7735f281b729fe883567b4b7cd70f56176033d5678c011bd3"
+    },
+    "boundary_2048.ndjson": {
+      "bytes": 426,
+      "sha256": "911b8141ace4f1a3afa438ec0ac4abb96d5beac8a9af3d80fe0110c43cb95874"
+    },
+    "own-worker-diagnostics.json": {
+      "bytes": 517,
+      "sha256": "bc6e9983a742dc7d44ddb5b089a82d715da9754998e04b0ba9f0fd579f767ce8"
+    }
+  },
+  "related_evidence": [
+    "managed-qwen3-muse-implementation-2026-10-28.json",
+    "managed-qwen3-startup-failure-2026-10-28.json",
+    "managed-qwen3-live-2026-10-28.json",
+    "managed-qwen3-token-capacity-2026-10-28.json"
+  ],
+  "measurement_limits": [
+    "Exactly one negative and one positive boundary request, with fixed measured arrays. No latency distribution, p95, throughput or quality claim. The configured2048 default was exercised; all other permitted configuration limits were not empirically tested.",
+    "The2049HTTPerror consists of one input_limit terminal and zero deltas, followed by complete EOF. The captured ready identity was automatically stopped by production broker cleanup and confirmed released before the distinct2048request; no body-phase manual stop or request replay manufactured this proof.",
+    "The2048request generated16output tokens with EOS and nonwhitespace decoded text on a new identity. Its first HTTP text at37.9166s includes new startup; the manager separately recorded5.7209s for that child startup. Initial preloaded-child startup6.5826s is separately recorded. These are distinct timing boundaries.",
+    "Highest observed per-child VmHWM/RSS and sampled cumulative CPU are process observations, not complete physical/unmapped sealed-memfd accounting, a hard RSS cap, exact wait4CPU or a steady model footprint. AS16GiB is virtual address space; the8GiB reserve is configuration informed by startup observations, not a full physical-memory proof.",
+    "Runtime checks cover6core file hashes plus versions, not full interpreter/package/build equivalence. Parent imports no Torch/Transformers; raw diagnostic tails remain owner-private.",
+    "CPUfloat32/eager experimental text only. No STT/TTS/Agent/Decisions work/GPU/physical or audible voice, quantization, small-VRAM performance, realtime or default promotion. Whole M2#4 and streaming#49 remain open.",
+    "Deterministic CIrun40781337553 passed at this sourcehead1ed35c5; any later source/evidence commit needs its own applicable exact-head checks before merging."
+  ]
+}
