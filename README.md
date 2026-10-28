@@ -281,6 +281,11 @@ capability acquisition remain open.
 Optional voice runs in a separate Python with the `voice` extra and preinstalled
 Kokoro/Whisper weights: `python -m packages.providers.voice_worker`. Model downloads
 are disabled by default; a clean-machine model installer is still a roadmap task.
+An opt-in [managed Whistle CPU STT profile](docs/adr/0034-managed-whistle-cpu-stt.md)
+selects transcription independently of TTS, using pinned local artifacts and a
+separate owned native process. It supports bounded PCM WAV slices with process
+cancellation and recovery. Persistent incremental STT and real-time acceptance
+remain open.
 An opt-in [Supertonic 3 CPU backend](docs/adr/0027-retained-supertonic.md) also
 synthesizes through the same speech bridge using pinned, verified local assets.
 Its output is buffered before transport; the small synthetic screen does not meet
