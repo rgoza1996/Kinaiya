@@ -19,6 +19,23 @@ import httpx
 from packages.providers.speech import SpeechClient
 
 
+def write_synthetic_wave(path, chunks):
+    if not chunks:
+        raise ValueError("Synthetic voice fixture has no audio")
+    rate = chunks[0]["sample_rate"]
+    pcm = []
+    for chunk in chunks:
+        data = base64.b64decode(chunk["audio"], validate=True)
+        if chunk["sample_rate"] != rate or len(data) != chunk["samples"] * 2:
+            raise ValueError("Synthetic voice fixture has inconsistent PCM metadata")
+        pcm.append(data)
+    with wave.open(str(path), "wb") as output:
+        output.setnchannels(1)
+        output.setsampwidth(2)
+        output.setframerate(rate)
+        output.writeframes(b"".join(pcm))
+
+
 class Probe:
     def __init__(self, args, token):
         self.args = args
@@ -73,15 +90,9 @@ class Probe:
     async def voice_case(self, speech, iteration):
         session = await self.session("converse")
         spoken = "Please create a new file named proof containing only the number seven."
-        pcm = b"".join(
-            [base64.b64decode(chunk["audio"]) async for chunk in speech.synthesize(spoken)]
-        )
+        chunks = [chunk async for chunk in speech.synthesize(spoken)]
         fixture = self.args.data_dir / f"synthetic-spoken-{iteration}.wav"
-        with wave.open(str(fixture), "wb") as output:
-            output.setnchannels(1)
-            output.setsampwidth(2)
-            output.setframerate(24000)
-            output.writeframes(pcm)
+        write_synthetic_wave(fixture, chunks)
         transcript = await speech.transcribe(fixture.read_bytes())
         request = {key: session[key] for key in ("session_id", "thread_id", "epoch")}
         request.update(
@@ -254,7 +265,11 @@ async def run(args):
         if (args.workspace / name).exists():
             raise SystemExit(f"Use a fresh synthetic workspace; {name} already exists")
     tokens = json.loads((args.data_dir / "service-tokens.json").read_text())
-    speech = SpeechClient(config["voice"]["url"], tokens["converse"])
+    speech = SpeechClient(
+        config["voice"]["url"],
+        tokens["converse"],
+        profile=config["voice"].get("profile", "Kokoro 82M"),
+    )
     probe = Probe(args, tokens["owner"])
     reports = []
     try:

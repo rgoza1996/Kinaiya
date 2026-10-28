@@ -61,6 +61,11 @@ async def test_launcher_requires_both_owned_endpoints_before_ready(
                 "pid": 999 if wrong_pid == "voice" else 42,
                 "device": "cpu",
                 "loaded": [],
+                "tts_profile": "Kokoro 82M",
+                "tts_voice": "af_heart",
+                "synthesis_mode": "sentence_buffered",
+                "tts_artifact_revision": None,
+                "assets_state": "not_checked",
             }
         elif request.url.port == 8916:
             body = {

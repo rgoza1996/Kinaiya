@@ -386,7 +386,9 @@ def serve(args):
         )
         voice = config.get("voice")
         speech = (
-            SpeechClient(voice["url"], tokens["converse"], profile=voice["profile"])
+            SpeechClient(
+                voice["url"], tokens["converse"], profile=voice.get("profile", "Kokoro 82M")
+            )
             if voice
             else None
         )
