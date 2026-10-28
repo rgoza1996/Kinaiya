@@ -16,6 +16,7 @@ class ResourceAction(BaseModel):
     ) = None
     enabled: bool | None = None
     required_bytes: int = Field(default=0, ge=0, le=1 << 46)
+    required_gpu_bytes: int = Field(default=0, ge=0, le=1 << 46)
     task_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
     reason: str = Field(default="Explicit owner resource control", max_length=160)
 
@@ -23,7 +24,7 @@ class ResourceAction(BaseModel):
     def valid_operation_fields(self):
         allowed = {
             "profile": {"profile"},
-            "handoff": {"required_bytes", "task_id", "reason"},
+            "handoff": {"required_bytes", "required_gpu_bytes", "task_id", "reason"},
             "restore": set(),
             "converse": {"enabled"},
             "task_finished": {"task_id"},

@@ -17,6 +17,7 @@ from tempfile import TemporaryDirectory
 from types import MappingProxyType
 
 ARTIFACT_HEADER = "X-Kinaiya-Laya-Artifact-SHA256"
+WORKER_PID_HEADER = "X-Kinaiya-Laya-Worker-Pid"
 _SHA256 = re.compile(r"[0-9a-f]{64}")
 _FILES = {
     "model.safetensors": 2 * 1024**3,

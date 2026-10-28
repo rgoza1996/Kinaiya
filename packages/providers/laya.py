@@ -9,7 +9,11 @@ from urllib.parse import urlparse
 import httpx
 
 from packages.contracts.models import ProviderInfo
-from packages.providers.laya_artifact import ARTIFACT_HEADER, valid_artifact_sha256
+from packages.providers.laya_artifact import (
+    ARTIFACT_HEADER,
+    WORKER_PID_HEADER,
+    valid_artifact_sha256,
+)
 from packages.providers.text import ProviderError, ProviderRefusal, _authorize_endpoint
 
 REASON_CODE = "laya_typed_choices"
@@ -237,6 +241,7 @@ class LayaRoutingProvider:
                     if encoding not in {"", "identity"}:
                         raise ProviderRefusal("Laya response used a non-identity encoding")
                     data = bytearray()
+                    worker_pid = response.headers.get(WORKER_PID_HEADER)
                     async for chunk in response.aiter_raw(chunk_size=4096):
                         if len(data) + len(chunk) > MAX_RESPONSE_BYTES:
                             raise ProviderRefusal("Laya response exceeded the bounded size")
@@ -253,6 +258,10 @@ class LayaRoutingProvider:
             raise ProviderRefusal("Laya response was malformed") from exc
         if not isinstance(payload, dict):
             raise ProviderRefusal("Laya response must be a JSON object")
+        if method == "GET" and path == "health":
+            # Overwrite any body claim: the first-party wrapper supplies this header.
+            # It is a diagnostic receipt, not process ownership or permission.
+            payload["_kinaiya_header_pid"] = worker_pid
         return payload
 
     async def health(self) -> dict:
@@ -290,6 +299,10 @@ class LayaRoutingProvider:
         }
         if self.expected_artifact_sha256 is not None:
             result["artifact_sha256"] = self.expected_artifact_sha256
+        pid = payload.get("_kinaiya_header_pid")
+        if isinstance(pid, str) and re.fullmatch(r"[1-9][0-9]{0,9}", pid):
+            if int(pid) <= 2**31 - 1:
+                result["worker_pid"] = int(pid)
         return result
 
     async def complete(self, messages) -> str:

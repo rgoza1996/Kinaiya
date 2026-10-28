@@ -121,6 +121,116 @@ async def test_unknown_headroom_refuses_admission_after_verified_stop(coordinate
     assert coordinator.status()["workers"]["voice"]["state"] == "stopped"
 
 
+def synthetic_gpu(coordinator):
+    running = coordinator.manager.status()["workers"]["voice"]["state"] == "running"
+    return {
+        "pci_bus_id": "0000:03:00.0",
+        "total_bytes": 8 * 1024 * MiB,
+        "used_bytes": (4 if running else 3) * 1024 * MiB,
+        "free_bytes": (4 if running else 5) * 1024 * MiB,
+        "worker_resident_bytes": 1024 * MiB if running else 0,
+    }
+
+
+async def test_gpu_declared_headroom_and_restore_use_measurement_not_a_pid_guess(coordinated):
+    coordinator, runtime, _ = coordinated
+    coordinator.gpu_probe = lambda: synthetic_gpu(coordinator)
+    coordinator.gpu_restore_reserve = 512 * MiB
+    before = coordinator.manager.status()["workers"]["voice"]["owned_pid"]
+    await action(coordinator, "profile", profile="local_work_priority")
+    result = await action(
+        coordinator,
+        "handoff",
+        key="gpu-handoff",
+        required_bytes=128 * MiB,
+        required_gpu_bytes=1024 * MiB,
+    )
+    assert result["ok"] and not runtime.enabled
+    assert result["policy"]["required_gpu_bytes"] == 1024 * MiB
+    assert result["policy"]["restore_gpu_bytes"] >= 1152 * MiB
+    assert coordinator.gpu_release["used_bytes_decrease"] == 1024 * MiB
+    repeated = await action(
+        coordinator,
+        "handoff",
+        key="gpu-handoff",
+        required_bytes=128 * MiB,
+        required_gpu_bytes=1024 * MiB,
+    )
+    assert repeated == result
+    restored = await action(coordinator, "restore", key="gpu-restore")
+    assert restored["ok"] and runtime.enabled
+    assert restored["policy"]["required_gpu_bytes"] == 0
+    assert coordinator.manager.status()["workers"]["voice"]["owned_pid"] != before
+
+
+async def test_gpu_request_without_supported_telemetry_does_not_disrupt_voice(coordinated):
+    coordinator, runtime, _ = coordinated
+    before = coordinator.manager.status()["workers"]["voice"]["owned_pid"]
+    await action(coordinator, "profile", profile="local_work_priority")
+    result = await action(
+        coordinator, "handoff", required_bytes=128 * MiB, required_gpu_bytes=1024 * MiB
+    )
+    assert not result["ok"] and runtime.enabled and result["policy"]["phase"] == "ready"
+    assert coordinator.manager.status()["workers"]["voice"]["owned_pid"] == before
+
+
+@pytest.mark.parametrize("when", ["before", "after"])
+async def test_unknown_gpu_measurement_never_admits_work(coordinated, when):
+    coordinator, runtime, _ = coordinated
+    coordinator.gpu_probe = lambda: (
+        None
+        if (
+            when == "before"
+            or coordinator.manager.status()["workers"]["voice"]["state"] == "stopped"
+        )
+        else synthetic_gpu(coordinator)
+    )
+    await action(coordinator, "profile", profile="local_work_priority")
+    result = await action(
+        coordinator, "handoff", required_bytes=128 * MiB, required_gpu_bytes=1024 * MiB
+    )
+    assert not result["ok"] and result["policy"]["lease_id"] is None
+    assert runtime.enabled is (when == "before")
+
+
+async def test_insufficient_gpu_after_release_refuses_and_recovery_keeps_high_water_mark(
+    coordinated,
+):
+    coordinator, runtime, _ = coordinated
+    coordinator.gpu_probe = lambda: synthetic_gpu(coordinator)
+    await action(coordinator, "profile", profile="local_work_priority")
+    result = await action(
+        coordinator, "handoff", required_bytes=128 * MiB, required_gpu_bytes=6 * 1024 * MiB
+    )
+    assert not result["ok"] and not runtime.enabled and result["policy"]["phase"] == "failed"
+    reserve = result["policy"]["restore_gpu_bytes"]
+    coordinator.gpu_probe = lambda: {**synthetic_gpu(coordinator), "free_bytes": 1}
+    refused = await action(coordinator, "restore", key="gpu-restore-pressure")
+    assert (
+        not refused["ok"] and coordinator.manager.status()["workers"]["voice"]["state"] == "stopped"
+    )
+    coordinator.gpu_probe = lambda: synthetic_gpu(coordinator)
+    restored = await action(coordinator, "restore", key="gpu-restore-recovered")
+    assert restored["ok"] and runtime.enabled and restored["policy"]["restore_gpu_bytes"] == reserve
+
+
+async def test_local_decisions_pause_during_handoff_but_direct_agent_remains_available(tmp_path):
+    state = ResourceState(tmp_path / "resources-state.json")
+    provider = ScriptedProvider(["direct Agent response"])
+    provider.info = ProviderInfo(provider="synthetic-local", model="fixture", local=True)
+    try:
+        state.save(phase="local_work")
+        with pytest.raises(ProviderError, match="Local Decisions.*paused"):
+            await ResourceBoundProvider(provider, state.path, "decisions").complete([])
+        assert provider.calls == []
+        assert (
+            await ResourceBoundProvider(provider, state.path, "agent").complete([])
+            == "direct Agent response"
+        )
+    finally:
+        state.close()
+
+
 async def test_task_bound_release_ignores_other_tasks_then_restores(coordinated):
     coordinator, _, _ = coordinated
 

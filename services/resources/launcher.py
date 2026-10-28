@@ -1,4 +1,4 @@
-"""Opt-in first-party CPU voice worker host; arbitrary argv is not an API."""
+"""Opt-in first-party conversation worker host; arbitrary argv is not an API."""
 
 import asyncio
 from contextlib import asynccontextmanager
@@ -13,6 +13,7 @@ from packages.resources.processes import WorkerManager, WorkerSpec
 from services.resources.api import create_app
 from services.resources.client import ConverseControl, local_base
 from services.resources.coordinator import ResourceCoordinator
+from services.resources.laya import ManagedLayaConfig, laya_gpu_sample, laya_ready, laya_worker
 from services.resources.state import ResourceRecord, ResourceState
 
 
@@ -27,6 +28,7 @@ class LocalResourceConfig(BaseModel):
     voice_memory_reserve_bytes: int = Field(
         default=2 * 1024 * 1024 * 1024, ge=128 * 1024 * 1024, le=1 << 46
     )
+    laya: ManagedLayaConfig | None = None
 
 
 def resource_app(args, config, auth, tokens, root):
@@ -68,6 +70,19 @@ def resource_app(args, config, auth, tokens, root):
             "TOKENIZERS_PARALLELISM": "false",
         },
     )
+    specs = [spec]
+    laya_probe = None
+    if settings.laya is not None:
+        if settings.laya.port in {settings.voice_port, 8760, 8761, 8762, 8763, 8764}:
+            raise ValueError("Managed Laya port must be separate from core/voice services")
+        laya_spec, laya_probe = laya_worker(
+            settings.laya,
+            config["providers"]["decisions"],
+            root,
+            args.workspace.resolve(),
+            service_tokens=tuple(tokens.values()),
+        )
+        specs.append(laya_spec)
     state = ResourceState(state_path, profile=settings.profile)
     if not state_path.exists():
         state.save()
@@ -84,6 +99,8 @@ def resource_app(args, config, auth, tokens, root):
     voice_health = {}
 
     async def readiness(worker_spec, process):
+        if worker_spec.id == "laya":
+            return await laya_ready(settings.laya, laya_probe, process)
         try:
             response = await health_http.get("/health")
             payload = response.json()
@@ -105,7 +122,7 @@ def resource_app(args, config, auth, tokens, root):
         except (httpx.HTTPError, ValueError):
             return False
 
-    manager = WorkerManager([spec], readiness=readiness)
+    manager = WorkerManager(specs, readiness=readiness)
 
     async def before_start(worker_id):
         current = manager.status()["workers"][worker_id]
@@ -113,14 +130,18 @@ def resource_app(args, config, auth, tokens, root):
             return
         try:
             _reader, writer = await asyncio.wait_for(
-                asyncio.open_connection("127.0.0.1", settings.voice_port), timeout=1
+                asyncio.open_connection(
+                    "127.0.0.1",
+                    settings.laya.port if worker_id == "laya" else settings.voice_port,
+                ),
+                timeout=1,
             )
         except ConnectionRefusedError:
             return
         writer.close()
         await writer.wait_closed()
         raise RuntimeError(
-            "Voice endpoint is occupied by an unverified process; it will not be adopted or stopped"
+            "Worker endpoint is occupied by an unverified process; it will not be adopted or stopped"
         )
 
     async def task_status(task_id):
@@ -136,7 +157,14 @@ def resource_app(args, config, auth, tokens, root):
         task_status=task_status,
         minimum_free_bytes=settings.minimum_free_bytes,
         before_start=before_start,
-        restore_reserve_bytes=settings.voice_memory_reserve_bytes,
+        restore_reserve_bytes=settings.voice_memory_reserve_bytes
+        + (settings.laya.host_memory_reserve_bytes if settings.laya else 0),
+        gpu_probe=(
+            (lambda: laya_gpu_sample(settings.laya, manager))
+            if settings.laya is not None and settings.laya.device == "cuda"
+            else None
+        ),
+        gpu_restore_reserve_bytes=(settings.laya.gpu_memory_reserve_bytes if settings.laya else 0),
     )
     app = create_app(coordinator, auth)
 
@@ -172,6 +200,8 @@ def resource_app(args, config, auth, tokens, root):
             finally:
                 await health_http.aclose()
                 await agent_http.aclose()
+                if laya_probe is not None:
+                    await laya_probe.close()
 
     app.router.lifespan_context = lifespan
     app.state.coordinator = coordinator

@@ -198,6 +198,7 @@ def serve(args):
             ROOT / "core",
             ROOT / "services/agent",
             ROOT / "services/session",
+            ROOT / "services/decisions",
             ROOT / "packages/contracts",
             ROOT / "packages/resources",
             ROOT / "services/resources",

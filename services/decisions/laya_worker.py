@@ -10,6 +10,7 @@ from pathlib import Path
 
 from packages.providers.laya_artifact import (
     ARTIFACT_HEADER,
+    WORKER_PID_HEADER,
     ArtifactError,
     verified_laya_checkpoint,
 )
@@ -35,10 +36,13 @@ class ArtifactIdentityApp:
                 message["headers"] = [
                     (name, value)
                     for name, value in message.get("headers", [])
-                    if name.lower() != self.identity[0]
+                    if name.lower() not in {self.identity[0], WORKER_PID_HEADER.lower().encode()}
                 ]
                 if 200 <= message["status"] < 300:
                     message["headers"].append(self.identity)
+                    message["headers"].append(
+                        (WORKER_PID_HEADER.lower().encode(), str(os.getpid()).encode())
+                    )
             await send(message)
 
         return await self.app(scope, receive, identified)

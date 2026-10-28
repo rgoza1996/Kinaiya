@@ -99,7 +99,10 @@ fallback. Readiness also requires actual residency/device. Local artifacts keep
 `revision: null` and report `artifact_sha256`. Unpinned legacy services retain
 the original reported-revision readiness check. This authenticated worker
 receipt is not hardware attestation against a malicious endpoint. The resource
-coordinator does not yet own/unload this external process.
+coordinator does not own a standalone process started by this command. Optional
+[managed residency and AMD handoffs](adr/0022-managed-laya-resources.md) launch
+their own verified child instead. Authenticated health also reports a worker
+PID receipt; it does not independently establish process ownership.
 
 Run the [native probe](../scripts/probe_laya_native.py) with the same pin:
 

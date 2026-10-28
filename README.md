@@ -125,7 +125,8 @@ RTF below 1 means synthesis is faster than audio duration. The roadmap proposes 
 
 ### 6. Local inference: GPU resource admission
 
-**Status:** Planned resource-management policy, not a measured GPU scheduler.
+**Status:** Explicit CPU voice/AMD Laya handoffs and measured headroom checks exist.
+The general scheduling formulation below remains proposed.
 
 Before loading several local workers, a resource manager could enforce a capacity constraint:
 
@@ -285,9 +286,12 @@ unconfigured backends; they are not represented as verified integrations.
 
 An opt-in [CPU voice resource coordinator](docs/adr/0013-resource-handoff.md)
 can own that worker, verify process release for an explicit local-work handoff,
-and restore voice when a bound Agent task finishes. `/resources` controls stay
-in Agent Chat; approvals remain usable while Converse is paused. GPU scheduling,
-local text-model unloading and complete M6 reliability remain open.
+and restore voice when a bound Agent task finishes. Optional
+[managed Laya residency](docs/adr/0022-managed-laya-resources.md) adds pinned
+worker ownership, AMD driver telemetry and explicit GPU headroom admission.
+`/resources` controls stay in Agent Chat; approvals remain usable while Converse
+is paused. General GPU scheduling, other local text-model unloading and complete
+M6 reliability remain open, including the tracked legacy owner-off/restore race.
 
 Provider keys belong in secret references/environment variables. Development Meta
 Contributor profiles are for public code and synthetic inputs only. The live test

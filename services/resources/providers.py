@@ -25,6 +25,12 @@ class ResourceBoundProvider:
             raise ProviderError("Local-only policy requires a configured local provider")
         if self.role == "converse" and (not state.desired_converse or state.phase != "ready"):
             raise ProviderError("Conversation inference is paused for resource coordination")
+        if (
+            self.role == "decisions"
+            and self.info.local
+            and (not state.desired_converse or state.phase != "ready")
+        ):
+            raise ProviderError("Local Decisions inference is paused for resource coordination")
 
     async def complete(self, messages):
         self._check()

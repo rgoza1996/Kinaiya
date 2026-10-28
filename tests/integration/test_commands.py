@@ -35,6 +35,47 @@ async def test_registry_distinguishes_inference_from_owner_controls(env):
     assert runtime.provider.calls == []
 
 
+@pytest.mark.parametrize(
+    "suffix,task", [("--gpu-bytes 1073741824", None), ("target --gpu-bytes 1073741824", "target")]
+)
+async def test_gpu_handoff_is_explicit_owner_control_without_inference(env, suffix, task):
+    _, session, runtime, registry = env
+    seen = []
+
+    class Client:
+        async def action(self, payload):
+            seen.append(payload)
+            return {"ok": True}
+
+        async def close(self):
+            pass
+
+    runtime.resource_client = Client()
+    result = await registry.execute(request(session, "/resources handoff 268435456 " + suffix))
+    assert result["status"] == "ok" and runtime.provider.calls == []
+    assert seen[0]["required_gpu_bytes"] == 1073741824
+    assert seen[0]["required_bytes"] == 268435456
+    assert seen[0].get("task_id") == task
+
+
+@pytest.mark.parametrize(
+    "suffix", ["--gpu-bytes", "--gpu-bytes 1 --gpu-bytes 2", "--gpu-bytes 1 misplaced-task"]
+)
+async def test_malformed_gpu_handoff_never_contacts_controller(env, suffix):
+    _, session, runtime, registry = env
+
+    class Client:
+        async def action(self, payload):
+            pytest.fail("malformed handoff reached controller")
+
+        async def close(self):
+            pass
+
+    runtime.resource_client = Client()
+    result = await registry.execute(request(session, "/resources handoff 268435456 " + suffix))
+    assert result["status"] == "error" and runtime.provider.calls == []
+
+
 @pytest.fixture
 async def env(tmp_path):
     store = Store(tmp_path / "journal.sqlite")

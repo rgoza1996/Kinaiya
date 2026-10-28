@@ -7,7 +7,7 @@ import httpx
 import pytest
 
 from packages.providers.laya import LayaRoutingProvider
-from packages.providers.laya_artifact import ARTIFACT_HEADER
+from packages.providers.laya_artifact import ARTIFACT_HEADER, WORKER_PID_HEADER
 from packages.providers.text import ProviderError, ProviderRefusal
 
 
@@ -153,6 +153,34 @@ def _client(handler):
 def test_artifact_identity_pin_validated_before_request(pin):
     with pytest.raises(ProviderError, match="artifact SHA-256"):
         LayaRoutingProvider("http://127.0.0.1:8871", expected_artifact_sha256=pin)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "pid,expected", [(None, None), ("42", 42), ("-1", None), ("2147483648", None)]
+)
+async def test_health_pid_comes_from_first_party_header_not_body(pid, expected):
+    payload = {
+        "status": "ok",
+        "loaded": ["english"],
+        "revisions": {"english": "a" * 40},
+        "device": "cpu",
+        "device_is_preference": False,
+        "_kinaiya_header_pid": "999",
+    }
+    provider = LayaRoutingProvider(
+        "http://127.0.0.1:8871",
+        transport=_client(
+            lambda _: httpx.Response(
+                200, json=payload, headers={WORKER_PID_HEADER: pid} if pid is not None else {}
+            )
+        ),
+    )
+    try:
+        health = await provider.health()
+        assert health["ready"] and health.get("worker_pid") == expected
+    finally:
+        await provider.close()
 
 
 @pytest.mark.asyncio
