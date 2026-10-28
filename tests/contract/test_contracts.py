@@ -5,7 +5,13 @@ import jsonschema
 import pytest
 from pydantic import ValidationError
 
-from packages.contracts.models import AppendRequest, Decision, JournalEntry, Task
+from packages.contracts.models import (
+    AppendRequest,
+    Decision,
+    JournalEntry,
+    PlaybackGeneration,
+    Task,
+)
 
 
 def test_source_cannot_supply_provenance():
@@ -26,7 +32,7 @@ def test_targeted_routing_requires_revision():
         Decision(source_event_ids=["e"], route="interrupt", idempotency_key="k")
 
 
-@pytest.mark.parametrize("model", [AppendRequest, Decision, JournalEntry, Task])
+@pytest.mark.parametrize("model", [AppendRequest, Decision, JournalEntry, PlaybackGeneration, Task])
 def test_exported_contract_matches_python(model):
     root = Path(__file__).resolve().parents[2]
     stored = json.loads((root / f"packages/contracts/schemas/{model.__name__}.json").read_text())

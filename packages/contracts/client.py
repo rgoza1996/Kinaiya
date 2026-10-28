@@ -1,6 +1,6 @@
 import httpx
 
-from packages.contracts.models import JournalEntry, Session
+from packages.contracts.models import JournalEntry, PlaybackGeneration, Session
 
 
 class JournalClient:
@@ -36,6 +36,17 @@ class JournalClient:
         response = await self.http.get(f"/v1/sessions/{session_id}")
         response.raise_for_status()
         return Session.model_validate(response.json())
+
+    async def playback_generation(self, session_id, thread_id, epoch) -> PlaybackGeneration:
+        response = await self.http.get(
+            "/v1/transcript/playback/generation",
+            params={"session_id": session_id, "thread_id": thread_id, "epoch": epoch},
+        )
+        response.raise_for_status()
+        maximum = PlaybackGeneration.model_validate(response.json())
+        if (maximum.session_id, maximum.thread_id, maximum.epoch) != (session_id, thread_id, epoch):
+            raise ValueError("Native playback generation has a different scope")
+        return maximum
 
     async def sessions(self):
         response = await self.http.get("/v1/sessions")

@@ -6,8 +6,10 @@ import threading
 from pathlib import Path
 
 from packages.contracts.models import (
+    MAX_PLAYBACK_GENERATION,
     AppendRequest,
     JournalEntry,
+    PlaybackGeneration,
     Session,
     SessionRequest,
     SpeechWindow,
@@ -129,6 +131,99 @@ class Store:
                     "SELECT value FROM sessions ORDER BY rowid DESC LIMIT 200"
                 )
             ]
+
+    def playback_generation(self, session_id, thread_id, epoch) -> PlaybackGeneration:
+        """Recover native allocation metadata, independent of conversational context.
+
+        The existing session index bounds the scope, not the amount of retained
+        metadata work. Stream the selected rows; never return transcript bodies.
+        """
+        if (
+            not isinstance(session_id, str)
+            or not 1 <= len(session_id) <= 128
+            or not isinstance(thread_id, str)
+            or not 1 <= len(thread_id) <= 128
+            or type(epoch) is not int
+            or epoch < 1
+        ):
+            raise JournalError("Invalid playback-generation scope")
+        with self.lock:
+            session = self.session(session_id)
+            if session.channel != "converse" or (session.thread_id, session.epoch) != (
+                thread_id,
+                epoch,
+            ):
+                raise JournalError("Stale or wrong playback-generation scope")
+            maximum = 0
+            rows = None
+            try:
+                rows = self.db.execute(
+                    """SELECT kind,
+                        CASE WHEN
+                            json_type(value,'$.payload')='object'
+                            AND json_type(value,'$.event_id')='text'
+                            AND json_extract(value,'$.event_id')=event_id
+                            AND json_type(value,'$.sequence')='integer'
+                            AND json_extract(value,'$.sequence')=sequence
+                            AND json_type(value,'$.session_id')='text'
+                            AND json_extract(value,'$.session_id')=session_id
+                            AND json_type(value,'$.thread_id')='text'
+                            AND json_extract(value,'$.thread_id')=thread_id
+                            AND json_type(value,'$.epoch')='integer'
+                            AND json_extract(value,'$.epoch')=epoch
+                            AND json_extract(value,'$.kind')=kind
+                            AND json_extract(value,'$.origin')=CASE
+                                WHEN kind='conversation.user' THEN 'authenticated-user'
+                                ELSE 'converse' END
+                        THEN 1 ELSE 0 END AS identity_matches,
+                        json_type(value,'$.payload.generation_epoch') AS generation_type,
+                        json_extract(value,'$.payload.generation_epoch') AS generation,
+                        CASE WHEN kind='delivery.updated' THEN
+                            json_type(value,'$.payload.next_generation_epoch') END AS next_type,
+                        CASE WHEN kind='delivery.updated' THEN
+                            json_extract(value,'$.payload.next_generation_epoch') END AS next_generation
+                        FROM entries WHERE session_id=? AND thread_id=? AND epoch=?
+                        AND writer='converse' AND kind IN (
+                            'conversation.user','conversation.converse','converse.safety',
+                            'converse.window_state','delivery.updated')""",
+                    (session_id, thread_id, epoch),
+                )
+                for row in rows:
+                    if not row["identity_matches"]:
+                        raise JournalError("Native playback metadata identity is corrupt")
+                    for type_key, value_key in (
+                        ("generation_type", "generation"),
+                        ("next_type", "next_generation"),
+                    ):
+                        field_type, counter = row[type_key], row[value_key]
+                        if field_type in {None, "null"}:
+                            continue
+                        if (
+                            field_type != "integer"
+                            or type(counter) is not int
+                            or not 0 <= counter <= MAX_PLAYBACK_GENERATION
+                        ):
+                            raise JournalError(
+                                "Native playback counter is corrupt or unrepresentable"
+                            )
+                        maximum = max(maximum, counter)
+            except sqlite3.Error as exc:
+                raise JournalError("Native playback metadata read failed") from exc
+            finally:
+                if rows is not None:
+                    rows.close()
+            current = self.session(session_id)
+            if current.channel != "converse" or (current.thread_id, current.epoch) != (
+                thread_id,
+                epoch,
+            ):
+                raise JournalError("Session changed during playback-generation read")
+            return PlaybackGeneration(
+                session_id=session_id,
+                thread_id=thread_id,
+                epoch=epoch,
+                maximum_generation=maximum,
+            )
 
     def reset(self, session_id: str) -> Session:
         with self.lock, self.db:
@@ -588,6 +683,11 @@ class LocalJournal:
 
     async def session(self, session_id):
         return self.store.session(session_id)
+
+    async def playback_generation(self, session_id, thread_id, epoch) -> PlaybackGeneration:
+        if self.role not in {"owner", "converse"}:
+            raise PermissionError("Playback-generation recovery requires owner or Converse")
+        return self.store.playback_generation(session_id, thread_id, epoch)
 
     async def sessions(self):
         if self.role not in {"owner", "resources"}:
