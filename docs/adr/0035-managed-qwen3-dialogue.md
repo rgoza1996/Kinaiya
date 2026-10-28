@@ -67,8 +67,11 @@ Probe and generate requests follow `request_message`/`parse_request`.
 Probe returns `event_message('ready',...)`; generation frames follow
 `parse_event` with nonce and monotonically increasing sequence starting at 0.
 Delta, done and fixed-code error shapes are distinct. EOF is never completion.
-Both child and parent enforce total 32 KiB text, 8192-byte deltas and at most
-4096 events. No queue, frame or deadline is unlimited.
+Both child and parent enforce total 32 KiB text, 8192-byte decoded deltas and
+at most 4096 stream events including the terminal. The 64 KiB encoded-frame
+bound accommodates JSON escaping of every valid decoded delta. Every event
+requires an explicit valid expected nonce, including a probe response.
+No queue, frame or deadline is unlimited.
 
 The parent factory `qwen3_worker(settings, root, workspace)` returns fixed
 WorkerSpec and endpoint. `Qwen3Endpoint(directory, max_input_tokens=...,

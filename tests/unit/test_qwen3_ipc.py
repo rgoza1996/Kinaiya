@@ -162,3 +162,32 @@ def test_probe_is_not_a_generation_terminal_and_untrusted_json_is_refused():
     for raw in [b'{"kind":"delta","kind":"done"}', b'{"token":NaN}', b"[]"]:
         with pytest.raises(ValueError):
             ipc.decode_json(raw, ipc.MAX_FRAME_BYTES)
+
+
+def test_stream_events_require_an_explicit_valid_expected_nonce():
+    value = event("delta", text="Public fixture")
+    value["nonce"] = {}
+    with pytest.raises(ValueError):
+        ipc.parse_event(value, PID, INCARNATION, None, seq=0)
+
+
+def test_event_bound_includes_the_terminal_frame():
+    final = event("done", finish_reason="eos", input_tokens=73, output_tokens=35)
+    final["seq"] = ipc.MAX_EVENTS - 1
+    assert ipc.parse_event(final, PID, INCARNATION, NONCE, seq=ipc.MAX_EVENTS - 1)
+    final["seq"] = ipc.MAX_EVENTS
+    with pytest.raises(ValueError):
+        ipc.parse_event(final, PID, INCARNATION, NONCE, seq=ipc.MAX_EVENTS)
+    delta = event("delta", text="Public fixture")
+    delta["seq"] = ipc.MAX_EVENTS - 1
+    with pytest.raises(ValueError):
+        ipc.parse_event(delta, PID, INCARNATION, NONCE, seq=ipc.MAX_EVENTS - 1)
+
+
+@pytest.mark.parametrize("character", ["é", "\x00", "🌙"])
+def test_valid_maximum_unicode_delta_fits_its_encoded_frame(character):
+    text = character * (ipc.MAX_DELTA_BYTES // len(character.encode("utf-8")))
+    value = event("delta", text=text)
+    assert parse_event(value)
+    wire = ipc.encode_json(value, ipc.MAX_FRAME_BYTES)
+    assert parse_event(ipc.decode_json(wire, ipc.MAX_FRAME_BYTES))["text"] == text

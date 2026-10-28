@@ -28,7 +28,8 @@ PROFILE = MANIFEST["profile"]
 MODEL = MANIFEST["model"]
 REVISION = MANIFEST["revision"]
 MAX_REQUEST_BYTES = 512 * 1024
-MAX_FRAME_BYTES = 16 * 1024
+# ASCII JSON escaping can expand an 8192-byte decoded delta sixfold.
+MAX_FRAME_BYTES = 64 * 1024
 MAX_MESSAGES = 32
 MAX_MESSAGES_BYTES = 128 * 1024
 MAX_DELTA_BYTES = 8192
@@ -193,6 +194,8 @@ def event_message(kind, pid, incarnation, nonce, *, seq=None, **payload):
 def parse_event(
     value, pid, incarnation, nonce, *, seq=None, max_input_tokens=4096, max_new_tokens=512
 ):
+    if not token(nonce):
+        raise ValueError("Qwen events require an explicit request nonce")
     _identity(value, pid, incarnation, nonce)
     base = {"version", "kind", "pid", "incarnation", "nonce"}
     kind = value.get("kind")
@@ -203,7 +206,7 @@ def parse_event(
     validate_limits(max_input_tokens, max_new_tokens)
     if (
         type(seq) is not int
-        or not 0 <= seq <= MAX_EVENTS
+        or not 0 <= seq < MAX_EVENTS
         or type(value.get("seq")) is not int
         or value["seq"] != seq
         or not isinstance(kind, str)
@@ -216,7 +219,7 @@ def parse_event(
             set(value) != base | {"text"}
             or not isinstance(value["text"], str)
             or not 1 <= len(value["text"].encode("utf-8")) <= MAX_DELTA_BYTES
-            or seq == MAX_EVENTS
+            or seq == MAX_EVENTS - 1
         ):
             raise ValueError("Invalid bounded Qwen text delta")
     elif kind == "done":
