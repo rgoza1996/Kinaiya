@@ -1,9 +1,11 @@
 """The opt-in screen refuses corrupt/reordered audio without running inference."""
 
 import base64
+import wave
 
 import pytest
 
+from scripts.live_slice import write_synthetic_wave
 from scripts.probe_retained_voice import decode_frame, summarize
 
 
@@ -51,3 +53,16 @@ def test_small_screen_reports_counts_and_extremes_without_percentile_claim():
         "median": 2,
         "maximum": 8,
     }
+
+
+@pytest.mark.parametrize("rate", [24000, 44100])
+def test_voice_to_task_fixture_preserves_backend_sample_rate(tmp_path, rate):
+    path = tmp_path / "synthetic.wav"
+    pcm = b"\x01\x00" * 10
+    write_synthetic_wave(
+        path, [{"sample_rate": rate, "samples": 10, "audio": base64.b64encode(pcm).decode()}]
+    )
+    with wave.open(str(path), "rb") as wav:
+        assert wav.getframerate() == rate
+        assert wav.getnframes() == 10
+        assert wav.readframes(10) == pcm

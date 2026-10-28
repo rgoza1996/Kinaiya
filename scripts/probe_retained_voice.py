@@ -89,7 +89,14 @@ def measure(client, text, profile, pid, *, wav_path=None):
                 first_pcm = now
                 metadata = {
                     key: row.get(key)
-                    for key in ("provider", "device", "synthesis_mode", "elapsed_seconds")
+                    for key in (
+                        "provider",
+                        "device",
+                        "synthesis_mode",
+                        "elapsed_seconds",
+                        "load_seconds",
+                        "first_waveform_seconds",
+                    )
                 }
             if first_non_silent is None and any(
                 abs(value[0]) >= 328 for value in struct.iter_unpack("<h", pcm)
