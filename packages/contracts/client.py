@@ -72,6 +72,21 @@ class JournalClient:
         response.raise_for_status()
         return JournalEntry.model_validate(response.json()) if response.json() is not None else None
 
+    async def pending_windows(self, *, limit=100):
+        response = await self.http.get("/v1/transcript/windows/pending", params={"limit": limit})
+        response.raise_for_status()
+        return [JournalEntry.model_validate(value) for value in response.json()]
+
+    async def window_classification_attempts(self, source_event_id):
+        response = await self.http.get(
+            "/v1/transcript/windows/attempts", params={"source_event_id": source_event_id}
+        )
+        response.raise_for_status()
+        attempts = response.json()["attempts"]
+        if type(attempts) is not int or not 0 <= attempts <= 2:
+            raise ValueError("Invalid native window-attempt count")
+        return attempts
+
     async def window_response(self, session_id, epoch, utterance_id):
         response = await self.http.get(
             "/v1/transcript/windows/response",

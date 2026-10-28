@@ -41,6 +41,43 @@ source remains fresh. Budget refusal is recorded explicitly and never retried.
 claiming that they meet the real-time latency target. Cache reuse also binds the
 current task identities, revisions, states and Agent availability.
 
+Issue [#73](https://github.com/rgoza1996/Kinaiya/issues/73) repairs admission after
+a burst or restart. The native journal selects at most 100 undisposed windows,
+ranking the first pending window from every session before second windows.
+Completed decisions and terminal `error`, `expired`, `superseded` or `obsolete`
+receipts are excluded before allocating the 32-entry in-memory admission cache.
+`busy`, `retrying` and `classifying` remain recoverable backlog, independently of
+that cache. The owner/Decisions-only journal queries work over local and HTTP
+interfaces; the result and native attempt counter are bounded. New indexes are
+additive; transcript contents and the existing schema version remain unchanged.
+Status receipts now also bind their authenticated window and exact causal,
+session/thread/epoch references in the journal before affecting admission.
+The SQL result, transferred payloads and in-memory admission are bounded; total
+query work still grows with retained window history. Indexed receipt lookups
+avoid a correlated full receipt scan. This is not a constant-work journal
+projection or a measured throughput/latency guarantee.
+
+Only the latest source event for an utterance may classify or publish a decision.
+Superseded entries receive an explicit non-dispatch status. Freshness is checked
+again after inference; expired entries receive `expired` without a decision.
+The default age limit remains 60 seconds and is checked at admission and result
+publication. Reset/deletion is a durable native fence, so obsolete epochs are
+excluded without appending old-epoch receipts into the new session.
+
+Numbered admission receipts retain the two-attempt limit across restart. A
+transient provider/transport failure has one 350 ms retry delay; recovery of an
+uncertain interrupted attempt applies the same delay. Exhaustion or a permanent
+refusal records `error`, not an invented ignore decision. Budget/output-limit
+refusals are never retried. An unnumbered legacy receipt cannot distinguish the
+old worker's first and second calls, so recovery conservatively exhausts it.
+Native journal transport, decoding or storage failures leave work pending after
+a 350 ms local backoff; reconciliation checks existing receipts before another
+admission. Such a failure cannot create a terminal classifier error or prove a
+decision append did not commit.
+A fresh corrected/resubmitted window can classify normally. The scheduler does
+not cancel an admitted remote request merely because a newer hypothesis arrives;
+it waits within the existing provider deadline and discards the stale result.
+
 ## Independent consumers
 
 Converse observes the durable decisions separately from the Agent dispatcher.
@@ -74,6 +111,24 @@ source scope. Retrieval authorization may withhold content from a cloud model
 without deleting it from the owner's full journal.
 
 ## Verification and limits
+
+#73 focused verification passed 124 Python 3.12 tests covering backlog, speech
+windows, window dispatch, Laya Decisions, window HTTP, partial-speech action
+approval and session boundaries. The 37 backlog tests also passed on Python
+3.11. Both runs explicitly imported this worktree's source; no inference or
+running reference service was used. Ruff lint/format passed and schema export
+was unchanged. The Python 3.12 run reported the existing Starlette/httpx
+deprecation warning. Full-project and PR CI remain lead integration checks.
+
+The original 35-window/restart reproduction left three sources without a
+decision. Before final integration, review also found and corrected ambiguous
+legacy retry counts, JSON boolean/integer collapsing, quadratic receipt scans,
+and retirement after a transient native journal failure before classification.
+Committed regressions exercise those failures, lost decision acknowledgments,
+expiry during inference, source-bound status receipts, session fairness,
+owner-off/reset fences and duplicate dispatch. The fixed 2,000-source query
+fixture requires indexed point lookups and a generous SQLite VM-operation
+budget; it is a deterministic regression, not a loaded latency benchmark.
 
 Deterministic checks exercise the real journal, authenticated HTTP, browser PCM
 encoding/bounds, independent timing, correction/replay, held/interrupting replies,

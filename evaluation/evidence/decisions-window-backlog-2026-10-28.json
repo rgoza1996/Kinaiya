@@ -1,0 +1,120 @@
+{
+  "schema": 1,
+  "date": "2026-10-28",
+  "issue": 73,
+  "parent_issues": [
+    49,
+    5
+  ],
+  "scope": "Native journal and deterministic public synthetic classification; no new model-quality, physical audio or full M3 acceptance",
+  "baseline": "43be3a5fefdbea93a05a2e668dfe02ac3e93bca1",
+  "agent_commit": "c7ed250cddfcd4d31685106790a55f69dca5b03e",
+  "integrated_implementation": "d83e853be9e5886fdccd7837c11ec2d7e22b18a9",
+  "requirement": {
+    "document": "Roadmap.md",
+    "section": "6.3",
+    "sha256": "6a95af2b69c7f7f12d0ab0f7883b6226887141d234967514f3e647d9bd6108b0",
+    "behavior": "Preserve pending messages when classification falls behind; coalesce superseded revisions and retain explicit routing dispositions."
+  },
+  "original_reproduction": {
+    "method": "Read-only in-memory native Store and WindowDecisionsWorker with deterministic classifier",
+    "fresh_distinct_windows": 35,
+    "decided": 32,
+    "busy_unfinished": 3,
+    "additional_calls_after_restart": 0,
+    "reason": "Cursor advanced before admission; completed windows refilled capacity during replay and displaced unfinished work."
+  },
+  "implementation": {
+    "backlog": "Journal-backed pending query excludes completed and terminal dispositions before bounded fair admission",
+    "admission_cache_max": 32,
+    "result_limit_default": 100,
+    "result_limit_range": [
+      1,
+      200
+    ],
+    "inference_parallel_max": 4,
+    "classification_attempt_max": 2,
+    "recovery": "Native read/append outages remain retryable; committed decision acknowledgments reconcile before repeating inference",
+    "scope_binding": "Status receipts validate authenticated source, causes, session, thread and epoch before affecting admission",
+    "legacy_attempts": "Unnumbered or malformed historical claims cannot prove remaining attempts and are treated as exhausted rather than admitting a third call."
+  },
+  "coverage": [
+    "35-window overflow and completed-history restart",
+    "Interrupted in-flight requests and unadmitted work recover after restart",
+    "Later sessions progress while earlier inference is blocked",
+    "Supersession, expiry and epoch reset prevent revival",
+    "Persistent retry bounds and malformed historical attempt values",
+    "Authenticated local and HTTP queries with boundary checks",
+    "Native journal outages do not retire unclassified work",
+    "Lost decision acknowledgment does not repeat inference or dispatch",
+    "Status-source binding and duplicate-dispatch refusal",
+    "2,000 completed sources use indexed receipt lookups"
+  ],
+  "regression": {
+    "lead_python3.12": {
+      "command": "env -u PYTHONPATH .../supertonic-ci-venv/bin/pytest -m 'not live' -q",
+      "passed": 1254,
+      "warnings": 1,
+      "seconds": 204.17,
+      "log_sha256": "ca05dac35dbddc909937bdeb6888372bcff3e248d9a030bd95958948e4208d68"
+    },
+    "implementation_agent": {
+      "python3.12_focused": {
+        "passed": 124,
+        "seconds": 56.65
+      },
+      "python3.11_backlog": {
+        "passed": 37,
+        "seconds": 26.26
+      },
+      "ruff": "full lint and format passed for 206 Python files",
+      "contract_export": "unchanged",
+      "pytest_failures": "none reported during implementation"
+    },
+    "github_ci": "Pending PR source push"
+  },
+  "independent_review": {
+    "reviewer": "Codex minimal_runtime_review",
+    "source_commit": "c7ed250cddfcd4d31685106790a55f69dca5b03e",
+    "source_tree": "c601d2f91483c2cfebb636acdaffd4a05446f72d",
+    "actionable_findings_remaining": 0,
+    "focused_python3.12": {
+      "passed": 124,
+      "warnings": 1,
+      "seconds": 49.1
+    },
+    "corrected_draft_findings": [
+      "Legacy receipt could ambiguously cover both prior attempts",
+      "SQLite affinity prevented indexed receipt comparison",
+      "Temporary native journal failure prematurely produced a terminal classifier error",
+      "SQLite extraction could confuse historical JSON boolean and integer attempt values"
+    ],
+    "additional_check": "Lost decision-append acknowledgment reconciled with one call, one decision and no pending source; now retained as a regression",
+    "limits": [
+      "No heavy inference or provider-quality evaluation",
+      "No loaded timing or mixed-provider acceptance",
+      "Neither human approval nor full M3 acceptance"
+    ]
+  },
+  "query_work_guard": {
+    "fixture_sources": 2000,
+    "method": "SQLite VM progress budget and query-plan checks for indexed point lookups",
+    "vm_operation_budget_approximately": 1000000,
+    "interpretation": "Guards this fixed fixture against repeated full receipt scans without wall-clock assumptions; total metadata work still grows with retained window history."
+  },
+  "orchestration": {
+    "user_authorization": "Codex subagents and actual visible Muse CLI Spark 1.3 Contributor max/xhigh",
+    "implementation_and_review": "Codex subagents",
+    "new_paid_Meta_calls": 0,
+    "held_out_reuse": false,
+    "live_reference_or_provider_changes": false,
+    "new_Muse_calls": "Blocked by unchanged shared-budget admission guard; no bypass."
+  },
+  "limits": [
+    "SQL metadata selection/ranking remains dependent on retained history; no history-independent query or projection guarantee",
+    "Synthetic classifier and Agent fixture do not establish model or full real-provider conversational delegation",
+    "No physical audio, echo, listening, end-to-end latency or p95 result",
+    "Full #49/#53/M3 remain open",
+    "The preceding alpha14 CI/release receipt is included as historical verification and does not cover this new patch"
+  ]
+}
