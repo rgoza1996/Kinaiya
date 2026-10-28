@@ -90,7 +90,8 @@ def main():
         raise ValueError("Invalid Whistle address-space limit")
     resource.setrlimit(resource.RLIMIT_AS, (args.memory_bytes, args.memory_bytes))
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
-    resource.setrlimit(resource.RLIMIT_FSIZE, (0, 0))
+    # Engine preparation seals both inputs before disabling file growth;
+    # RLIMIT_FSIZE also applies to the memfds used for those bounded copies.
     # No cumulative RLIMIT_CPU: the parent owns a finite deadline per request.
     path = socket_path(directory, os.getpid())
     if path.exists():

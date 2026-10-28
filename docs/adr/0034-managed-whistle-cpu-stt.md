@@ -98,6 +98,13 @@ absolute, regular and outside the Agent workspace. The loader copies and
 hashes exact local bytes into sealed memfds before an explicit
 `ctypes.CDLL('/proc/self/fd/...')`; later owner writes cannot change those
 validated inputs. There is no default native resolver or loader fallback.
+The child applies its zero `RLIMIT_FSIZE` only after both sealed copies are
+prepared, immediately before the Whistle `CDLL` call and native constructors
+or model load. Linux also applies file-size limits to memfd writes, so imposing
+zero earlier prevented startup before any transcription. The network fence,
+address-space/core limits and CPU affinity remain active during preparation.
+Failure to impose the zero limit refuses native loading and closes both inputs;
+the limit is not raised again in the resident worker.
 
 The new frozen `WorkerIdentity` is an in-process observation of a verified
 ready owned child. Only the manager's issued object selects its saved exact

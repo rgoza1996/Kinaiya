@@ -1,0 +1,318 @@
+{
+  "schema_version": "1.0",
+  "date": "2026-10-28",
+  "issue": 85,
+  "parent_worker_commit": "b568a95bee1c9cb46694afe02d32c74d1386889a",
+  "status": "Native startup file-limit ordering repaired; targeted synthetic-boundary/process tests and real decoder checks passed. Committed independent review and lead actual-engine smoke remain gates.",
+  "original_lead_failure": {
+    "commit": "4cc2c5e84ca0247c0dc2c97e445f4f88482541ba",
+    "receipt": "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/whistle-managed-live-v2/attempt-1/result.json",
+    "retained_untouched": true,
+    "audio_or_transcription_requests": 0,
+    "startup": "Worker exited1 before readiness; 1018 stderr bytes, cause initially unknown. This failed smoke is not reinterpreted as success."
+  },
+  "one_authorized_startup_diagnostic": {
+    "source_commit": "4cc2c5e84ca0247c0dc2c97e445f4f88482541ba",
+    "receipt_path": "/tmp/kinaiya-85-startup-diagnostic-hRLbiKSu/result.json",
+    "receipt_sha256": "ba301359a043586173120b555677ec6df303e14beba83cdd140423353da76538",
+    "capture_script_sha256": "922a625a666a7fefa29b1e5dcb5ae53bcb49c4d865c81d617b2ee3a43427895a",
+    "attempts": 1,
+    "actual_assets_interpreter_limits_match_lead": true,
+    "memory_bytes": 1073741824,
+    "cpu_affinity_count": 2,
+    "elapsed_seconds": 0.17072274300153367,
+    "start": {
+      "ok": false,
+      "worker_id": "whistle",
+      "error": "early-exit",
+      "returncode": 1
+    },
+    "safe_error": {
+      "class": "OSError",
+      "category": "RLIMIT_FSIZE blocks sealed memfd write before native CDLL",
+      "frames": [
+        {
+          "file": "<frozen runpy>",
+          "line": 198,
+          "function": "_run_module_as_main"
+        },
+        {
+          "file": "<frozen runpy>",
+          "line": 88,
+          "function": "_run_code"
+        },
+        {
+          "file": "whistle_worker.py",
+          "line": 114,
+          "function": "<module>"
+        },
+        {
+          "file": "whistle_worker.py",
+          "line": 109,
+          "function": "main"
+        },
+        {
+          "file": "whistle_backend.py",
+          "line": 35,
+          "function": "__init__"
+        },
+        {
+          "file": "contextlib.py",
+          "line": 137,
+          "function": "__enter__"
+        },
+        {
+          "file": "whistle_assets.py",
+          "line": 54,
+          "function": "sealed_asset"
+        }
+      ],
+      "bounded_stderr_bytes": 1018
+    },
+    "errno": 27,
+    "audio_or_transcription_requests": 0,
+    "reached_native_cdll": false,
+    "cleanup": {
+      "process_returncode": 1,
+      "owned_process_wait_complete": true,
+      "proc_pid_absent": true,
+      "original_group_scan_succeeded": true,
+      "original_group_empty": true,
+      "manager_closed": true
+    },
+    "private_traceback": {
+      "directory": "/tmp/kinaiya-85-startup-diagnostic-hRLbiKSu",
+      "raw_body_published": false,
+      "raw_body_copied_to_repo_or_durable_public_artifacts": false,
+      "bounded_bytes": 1018,
+      "sha256": "8819f9cfcb9a8637dd41aa8cc9301f11e5e9883c8cba1f10369e7009fc7f652b",
+      "handling": "Owner-private original raw capture retained unchanged; only safe class/category/basename frames and hashes are public. Never send raw capture to Contributor."
+    }
+  },
+  "cause": "RLIMIT_FSIZE(0,0) set in worker.main prohibited os.write to the bounded sealed-input memfds in whistle_assets.py:54. The OSError occurred before any Whistle CDLL or model load; Linux applies this limit to memfds as well as regular filesystem files.",
+  "repair": {
+    "production_scope": "Remove the early file-size cap from worker.main; lazily import resource inside WhistleEngine.__init__, prepare both exact sealed inputs, then set the hard+soft cap to zero immediately before ctypes.CDLL.",
+    "ordering": "Listener \u2192 real seccomp fence \u2192 verified/sealed bounded memfd copies \u2192 RLIMIT_FSIZE(0,0) \u2192 explicit CDLL/native constructors \u2192 needle_load. Existing AS/core/affinity limits remain before preparation.",
+    "fail_closed": "setrlimit failure propagates before CDLL and both descriptors close through their context managers. The cap is never increased again and there is no larger native file-write allowance.",
+    "generic_imports": "resource is imported lazily only in Engine construction; importing parent backend constants does not introduce the optional Unix module dependency.",
+    "unchanged": "Native pins, fixed C signatures, decoder, network fence, WorkerManager lifecycle, broker/coordinator and prior handoff/replay repairs are unchanged."
+  },
+  "regressions": {
+    "original_red": "Three owned synthetic-CDLL startup cases all failed with the original ordering before reaching their required native boundary/exit codes; source and raw failures retained.",
+    "actual_real_limits_proof": "The isolated child executes production worker.main, real memfd hashing/sealing and real seccomp. At synthetic CDLL and needle_load it verifies BOTH exact input contents remain readable, F_GET_SEALS includes WRITE/GROW/SHRINK/SEAL, hard+soft FSIZE are zero, and IPv4/IPv6/Unix socket creation returns EPERM.",
+    "cases": [
+      "Ready probe through actual private IPC after checked synthetic load",
+      "CDLL refusal after verified seals/limits/fence, then exact child/group cleanup",
+      "needle_load refusal after verified seals/limits/fence, then exact child/group cleanup",
+      "Injected setrlimit refusal closes both prepared FDs and never reaches CDLL"
+    ],
+    "unit_mock_disclosure": "Only the existing parent-process binding mock substitutes resource.setrlimit to avoid capping pytest itself; the new owned-child cases use actual kernel limits. Synthetic bytes/pin substitution exists only in the trusted test driver, never production configuration.",
+    "scope_limit": "No actual Whistle library/model is loaded by regression tests, no child transcription request is made, and synthetic readiness is not real-engine readiness."
+  },
+  "results": {
+    "focused_python312": {
+      "passed": 108,
+      "seconds": 20.84,
+      "warnings": 0,
+      "skips": 0
+    },
+    "actual_pyav_decoder": {
+      "passed": 6,
+      "seconds": 0.061,
+      "av_version": "17.1.0",
+      "environment": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/.dev-run/transformers521-env"
+    },
+    "static": {
+      "ruff_check": "passed",
+      "ruff_format": "4 files already formatted",
+      "git_diff_check": "passed"
+    },
+    "imports": {
+      "python": "3.12.3",
+      "modules": {
+        "packages.providers.whistle_backend": {
+          "path": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/packages/providers/whistle_backend.py",
+          "sha256": "545bfa0d8d720c231c1d26f04dfe702653f43cfecf31c94a8cbdedbccc9eb5da"
+        },
+        "packages.providers.whistle_worker": {
+          "path": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/packages/providers/whistle_worker.py",
+          "sha256": "b744c7973fddf936c82627a708851907308800fe42c262ebcdbd782701d7f69b"
+        }
+      }
+    },
+    "python311": "No process rerun on the known locally incapable3.11.15 sealing interpreter; exact-head GitHub3.11 process CI remains required."
+  },
+  "source_preservation": {
+    "parent_commit": "b568a95bee1c9cb46694afe02d32c74d1386889a",
+    "worker_serve_source_unchanged": true,
+    "fence_source_unchanged": true,
+    "source_sha256": {
+      "packages/providers/whistle_backend.py": "545bfa0d8d720c231c1d26f04dfe702653f43cfecf31c94a8cbdedbccc9eb5da",
+      "packages/providers/whistle_worker.py": "b744c7973fddf936c82627a708851907308800fe42c262ebcdbd782701d7f69b",
+      "tests/unit/test_whistle_native_boundary.py": "9cb88d9f01bcd94c834212e35abbc06ab483ef63dee3733103810f5b28659c02",
+      "tests/integration/test_whistle_startup_ordering.py": "8c4741253840e724cee52cd9af0fc934483b056af2009da514ce8fdc43fb388b",
+      "docs/adr/0034-managed-whistle-cpu-stt.md": "b6addbfb60cbf76f888f3b7d3f4dfd62e70649c082e3757d82743ef4730390b4"
+    }
+  },
+  "source_sha256": {
+    "packages/providers/whistle_backend.py": {
+      "bytes": 2931,
+      "sha256": "545bfa0d8d720c231c1d26f04dfe702653f43cfecf31c94a8cbdedbccc9eb5da"
+    },
+    "packages/providers/whistle_worker.py": {
+      "bytes": 4746,
+      "sha256": "b744c7973fddf936c82627a708851907308800fe42c262ebcdbd782701d7f69b"
+    },
+    "tests/unit/test_whistle_native_boundary.py": {
+      "bytes": 5359,
+      "sha256": "9cb88d9f01bcd94c834212e35abbc06ab483ef63dee3733103810f5b28659c02"
+    },
+    "tests/integration/test_whistle_startup_ordering.py": {
+      "bytes": 5729,
+      "sha256": "8c4741253840e724cee52cd9af0fc934483b056af2009da514ce8fdc43fb388b"
+    },
+    "docs/adr/0034-managed-whistle-cpu-stt.md": {
+      "bytes": 12066,
+      "sha256": "b6addbfb60cbf76f888f3b7d3f4dfd62e70649c082e3757d82743ef4730390b4"
+    }
+  },
+  "not_performed": [
+    "No second actual-engine startup after diagnosis",
+    "No model inference, audio request, full-smoke retry, package install or download",
+    "No paid API/Muse call, lead/main/push/PR/live/reference change",
+    "No promotion, real-time/quality/p95/fullstream49/M2 completion claim"
+  ],
+  "commands": [
+    {
+      "name": "original_ordering_regressions",
+      "argv": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/supertonic-ci-venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/integration/test_whistle_startup_ordering.py"
+      ],
+      "log": "red.log",
+      "result": "3 failed in0.72 seconds",
+      "returncode": 1,
+      "cwd": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya",
+      "environment": {
+        "PYTHONPATH": "."
+      }
+    },
+    {
+      "name": "fixed_focused_python312",
+      "argv": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/supertonic-ci-venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/integration/test_whistle_startup_ordering.py",
+        "tests/unit/test_whistle_native_boundary.py",
+        "tests/unit/test_whistle_boundaries.py",
+        "tests/integration/test_managed_whistle.py",
+        "tests/integration/test_worker_identity.py"
+      ],
+      "log": "focused-py312.log",
+      "result": "108 passed in20.84 seconds",
+      "returncode": 0,
+      "cwd": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya",
+      "environment": {
+        "PYTHONPATH": "."
+      }
+    },
+    {
+      "name": "actual_optional_decoder",
+      "argv": [
+        "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/.dev-run/transformers521-env/bin/python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests/optional",
+        "-p",
+        "test_whistle_decode.py",
+        "-v"
+      ],
+      "log": "decoder.log",
+      "result": "6 passed in0.061 seconds",
+      "returncode": 0,
+      "cwd": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya",
+      "environment": {
+        "PYTHONPATH": "."
+      }
+    }
+  ],
+  "raw_artifact_directory": "/tmp/kinaiya-85-fsize-repair",
+  "durable_artifact_directory": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/.dev-run/managed-whistle-fsize-repair-v1",
+  "artifacts": {
+    "backend-before.py": {
+      "bytes": 2602,
+      "sha256": "76eec279d7296631c7f1f800c95401005c925f65d6631b8e9ec815277bab618a"
+    },
+    "decoder.log": {
+      "bytes": 948,
+      "sha256": "810ef8c2bb84df7ff765f342a1951858eafb4290acf96be4dfffe1292d8a34a1"
+    },
+    "diff-check.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "final-0034-managed-whistle-cpu-stt.md": {
+      "bytes": 12066,
+      "sha256": "b6addbfb60cbf76f888f3b7d3f4dfd62e70649c082e3757d82743ef4730390b4"
+    },
+    "final-test_whistle_native_boundary.py": {
+      "bytes": 5359,
+      "sha256": "9cb88d9f01bcd94c834212e35abbc06ab483ef63dee3733103810f5b28659c02"
+    },
+    "final-test_whistle_startup_ordering.py": {
+      "bytes": 5729,
+      "sha256": "8c4741253840e724cee52cd9af0fc934483b056af2009da514ce8fdc43fb388b"
+    },
+    "final-whistle_backend.py": {
+      "bytes": 2931,
+      "sha256": "545bfa0d8d720c231c1d26f04dfe702653f43cfecf31c94a8cbdedbccc9eb5da"
+    },
+    "final-whistle_worker.py": {
+      "bytes": 4746,
+      "sha256": "b744c7973fddf936c82627a708851907308800fe42c262ebcdbd782701d7f69b"
+    },
+    "focused-py312.log": {
+      "bytes": 181,
+      "sha256": "87aee798ade034398fc88a19f8a45c6dffe8395270e20a35b541d8edad45e303"
+    },
+    "format.log": {
+      "bytes": 26,
+      "sha256": "177f260a5645724013185e4b140c7045cc39e56c0c97b120f5cb23599f85f0de"
+    },
+    "imports.json": {
+      "bytes": 530,
+      "sha256": "b7b00c13e5aa5d0f3807c21771f2cfa844b12338abf28ae185850e27255fa098"
+    },
+    "lint.log": {
+      "bytes": 19,
+      "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+    },
+    "preservation.json": {
+      "bytes": 751,
+      "sha256": "081158e78b234698840dd27dc49f7de6a0d5272c92c68bd7548af1bfdaa3fbb7"
+    },
+    "red.log": {
+      "bytes": 8332,
+      "sha256": "fffa8fe7f37c4bbdfd615632af7649af10b874f3a307864c7bdbc377a3cd43d1"
+    },
+    "regression-tests.py": {
+      "bytes": 5326,
+      "sha256": "b22f0b333587dcbdf027cb53bee643a4073a5c8fb49a1de24f43944ad0781c23"
+    },
+    "startup-safe-receipt.json": {
+      "bytes": 3095,
+      "sha256": "ba301359a043586173120b555677ec6df303e14beba83cdd140423353da76538"
+    },
+    "worker-before.py": {
+      "bytes": 4650,
+      "sha256": "ea2e1a3c76cb271a1af3959ccec2bea27fc0b75b5845965ad27b6fd09a03a05b"
+    }
+  }
+}

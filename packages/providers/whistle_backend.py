@@ -32,10 +32,16 @@ def transcript(raw):
 
 class WhistleEngine:
     def __init__(self, weights, library, workspace):
+        import resource
+
         with (
             sealed_asset(weights, MANIFEST["weights"], workspace) as weight_fd,
             sealed_asset(library, MANIFEST["library"], workspace) as library_fd,
         ):
+            # File-size limits cover memfd writes too. Prepare the exact sealed
+            # inputs first, then prohibit growth before any native constructor
+            # or needle_load can execute. Failure closes both inputs/refuses load.
+            resource.setrlimit(resource.RLIMIT_FSIZE, (0, 0))
             lib = ctypes.CDLL(f"/proc/self/fd/{library_fd}")
             lib.needle_load.argtypes = [ctypes.c_char_p, ctypes.c_uint64]
             lib.needle_load.restype = ctypes.c_int

@@ -21,6 +21,8 @@ class Function:
 
 
 def test_explicit_fd_load_and_exact_c_api_use_only_verified_sealed_bytes(monkeypatch):
+    import resource
+
     active, seen = {}, []
 
     @contextmanager
@@ -55,6 +57,7 @@ def test_explicit_fd_load_and_exact_c_api_use_only_verified_sealed_bytes(monkeyp
     lib = SimpleNamespace(needle_load=Function(load), needle_transcribe=Function(transcribe))
 
     def cdll(path):
+        assert seen == ["files_disabled"]
         assert path == f"/proc/self/fd/{active['library']}"
         assert active.keys() == {"weights", "library"}
         seen.append("explicit_cdll")
@@ -63,13 +66,52 @@ def test_explicit_fd_load_and_exact_c_api_use_only_verified_sealed_bytes(monkeyp
     monkeypatch.setattr(backend, "sealed_asset", sealed)
     monkeypatch.setattr(backend, "MANIFEST", {"weights": {"bytes": 22}, "library": {}})
     monkeypatch.setattr(backend.ctypes, "CDLL", cdll)
+
+    def disable_files(which, limits):
+        assert which == resource.RLIMIT_FSIZE and limits == (0, 0)
+        seen.append("files_disabled")
+
+    monkeypatch.setattr(resource, "setrlimit", disable_files)
     monkeypatch.setattr(backend, "decode_wav", lambda data: array.array("f", [0.25, -0.25]))
     engine = backend.WhistleEngine("weights", "library", "/synthetic/agent")
     assert active == {}
     assert lib.needle_load.argtypes == [ctypes.c_char_p, ctypes.c_uint64]
     assert lib.needle_transcribe.restype is ctypes.c_int
     assert engine.transcribe(b"fixture") == "Public fixture"
-    assert seen == ["explicit_cdll", "load", "batch"]
+    assert seen == ["files_disabled", "explicit_cdll", "load", "batch"]
+
+
+def test_file_limit_failure_closes_both_inputs_and_refuses_native_load(monkeypatch):
+    import resource
+
+    active, descriptors = set(), []
+
+    @contextmanager
+    def sealed(*args):
+        fd = os.memfd_create("synthetic-limit-failure")
+        active.add(fd)
+        descriptors.append(fd)
+        try:
+            yield fd
+        finally:
+            active.remove(fd)
+            os.close(fd)
+
+    def refused(which, limits):
+        assert len(active) == 2 and which == resource.RLIMIT_FSIZE and limits == (0, 0)
+        raise PermissionError("Synthetic limit refusal")
+
+    monkeypatch.setattr(backend, "sealed_asset", sealed)
+    monkeypatch.setattr(resource, "setrlimit", refused)
+    monkeypatch.setattr(
+        backend.ctypes, "CDLL", lambda path: pytest.fail("Native load after refusal")
+    )
+    with pytest.raises(PermissionError, match="limit refusal"):
+        backend.WhistleEngine("weights", "library", "/synthetic/agent")
+    assert not active and len(descriptors) == 2
+    for fd in descriptors:
+        with pytest.raises(OSError):
+            os.fstat(fd)
 
 
 def test_failed_asset_verification_never_reaches_cdll(monkeypatch):
