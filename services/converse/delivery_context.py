@@ -3,13 +3,12 @@
 import json
 import math
 import re
-from dataclasses import dataclass
 
 from packages.contracts.models import SpeechWindow
 from packages.providers.disclosure import scope_allowed
+from services.converse.history import MAX_INTEGER, fold_users, native_snapshot
 
 MAX_BLOCK_BYTES = 8192
-MAX_INTEGER = 9_007_199_254_740_991
 MAX_PLAYED_SECONDS = 86400
 STATUSES = {"generated", "playing", "played", "interrupted", "delivery_unknown"}
 PREFIX = (
@@ -176,61 +175,15 @@ def _block(rows):
     return content
 
 
-@dataclass
-class _UserHistory:
-    entry: object
-    revision: object
-    text: object
-    permitted: bool
-
-
 def window_context(recent, source, info):
     """Use one contiguous native suffix; later corrections/receipts qualify earlier text."""
-    snapshot = sorted(
-        (
-            e
-            for e in recent[-100:]
-            if (e.session_id, e.thread_id, e.epoch)
-            == (source.session_id, source.thread_id, source.epoch)
-        ),
-        key=lambda e: e.sequence,
-    )
+    snapshot = native_snapshot(recent, source)
     current = SpeechWindow.model_validate(source.payload)
-    users = {
-        e.event_id: _UserHistory(
-            e,
-            e.payload.get("revision", 1),
-            e.payload.get("text"),
-            _integer(e.payload.get("revision", 1)) and _allowed(info, e.payload),
-        )
-        for e in snapshot
-        if e.kind == "conversation.user" and e.origin == "authenticated-user"
-    }
+    users = fold_users(snapshot, lambda entry: _allowed(info, entry.payload))
     windows = {}
     prior_utterances = set()
     for entry in snapshot:
         p = entry.payload
-        if entry.kind == "conversation.revision" and entry.origin in {
-            "converse",
-            "authenticated-user",
-        }:
-            target = p.get("target_event_id")
-            original = users.get(target) if isinstance(target, str) else None
-            if original is not None:
-                if not (
-                    entry.sequence > original.entry.sequence
-                    and _integer(original.revision)
-                    and _integer(p.get("revision"))
-                    and p["revision"] == original.revision + 1
-                    and isinstance(p.get("text"), str)
-                ):
-                    # A rejected correction must not restore export of an old
-                    # draft. Taint is sticky across later public corrections.
-                    original.permitted = False
-                else:
-                    original.revision, original.text = p["revision"], p["text"]
-                    if "content_scope" in p:
-                        original.permitted = original.permitted and _allowed(info, p)
         if entry.kind != "conversation.window" or entry.origin != "authenticated-user":
             continue
         try:
