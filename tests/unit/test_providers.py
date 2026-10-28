@@ -1,9 +1,15 @@
+import asyncio
 import json
 
 import httpx
 import pytest
 
-from packages.providers.text import CompatibleTextProvider, MetaResponsesProvider, ProviderError
+from packages.providers.text import (
+    CompatibleTextProvider,
+    MetaResponsesProvider,
+    ProviderError,
+    owned_http_stream_cleanup,
+)
 
 
 async def test_meta_actions_are_constrained_and_commentary_cannot_break_json():
@@ -203,4 +209,75 @@ async def test_meta_mcp_actions_decode_from_strict_schema_fields(encoded):
             with pytest.raises(ProviderError, match="MCP arguments"):
                 await provider.complete([{"role": "user", "content": "public synthetic fixture"}])
     finally:
+        await provider.close()
+
+
+@pytest.mark.parametrize("adapter", ["compatible", "meta"])
+async def test_http_cleanup_ownership_is_opt_in_and_task_scoped_on_reused_provider(adapter):
+    class Bytes(httpx.AsyncByteStream):
+        def __init__(self):
+            self.closing, self.release = asyncio.Event(), asyncio.Event()
+            self.closed = self.cancelled = False
+
+        async def __aiter__(self):
+            if adapter == "compatible":
+                yield b'data: {"choices":[{"delta":{"content":"Public synthetic reply."}}]}\n\n'
+            else:
+                yield b'data: {"type":"response.output_text.delta","delta":"Public synthetic reply."}\n\n'
+                yield b'data: {"type":"response.completed"}\n\n'
+
+        async def aclose(self):
+            self.closing.set()
+            try:
+                await self.release.wait()
+                self.closed = True
+            except asyncio.CancelledError:
+                self.cancelled = True
+                raise
+
+    owned, ordinary = Bytes(), Bytes()
+    streams = iter([owned, ordinary])
+    transport = httpx.MockTransport(lambda _: httpx.Response(200, stream=next(streams)))
+    provider = (
+        CompatibleTextProvider("http://localhost/v1", "synthetic", transport=transport)
+        if adapter == "compatible"
+        else MetaResponsesProvider(
+            base_url="https://synthetic.invalid/v1",
+            api_key="synthetic-fixture-key",
+            allow_cloud=True,
+            transport=transport,
+        )
+    )
+
+    async def consume():
+        return [
+            delta async for delta in provider.stream([{"role": "user", "content": "Synthetic"}])
+        ]
+
+    async def consume_owned():
+        with owned_http_stream_cleanup():
+            return await consume()
+
+    tasks = []
+    try:
+        tasks.append(asyncio.create_task(consume_owned()))
+        await asyncio.wait_for(owned.closing.wait(), 1)
+        # The same instance serves an unrelated call in an unrelated task.
+        # A completed scope in this task must also restore the ordinary default.
+        with owned_http_stream_cleanup():
+            pass
+        tasks.append(asyncio.create_task(consume()))
+        await asyncio.wait_for(ordinary.closing.wait(), 1)
+        for task in tasks:
+            task.cancel()
+        await asyncio.wait_for(asyncio.gather(tasks[1], return_exceptions=True), 0.5)
+        assert ordinary.cancelled and not ordinary.closed
+        assert not tasks[0].done() and not owned.cancelled
+        owned.release.set()
+        await asyncio.wait_for(asyncio.gather(tasks[0], return_exceptions=True), 1)
+        assert owned.closed and not owned.cancelled
+    finally:
+        owned.release.set()
+        ordinary.release.set()
+        await asyncio.gather(*tasks, return_exceptions=True)
         await provider.close()

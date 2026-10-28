@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 
 from packages.contracts.models import AppendRequest, SpeechWindow, WindowDecision
 from packages.providers.disclosure import scope_allowed
-from packages.providers.text import ProviderCleanupError
+from packages.providers.text import ProviderCleanupError, owned_http_stream_cleanup
 from services.converse.runtime import SpeechChunker
 
 
@@ -448,6 +448,12 @@ class WindowConverseController:
 
     @asynccontextmanager
     async def _provider_stream(self, messages, prepared):
+        with owned_http_stream_cleanup():
+            async with self._owned_provider_stream(messages, prepared) as stream:
+                yield stream
+
+    @asynccontextmanager
+    async def _owned_provider_stream(self, messages, prepared):
         stream = self.runtime.provider.stream(messages)
         try:
             yield stream

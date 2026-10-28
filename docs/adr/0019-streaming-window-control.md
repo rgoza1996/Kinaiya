@@ -122,8 +122,12 @@ exactly-once inference or audible-delivery claim.
 
 Review extended #75 narrowly into the two in-repository HTTP text adapters:
 HTTPX may close a response inside its iterator at natural EOF, before the
-provider context exits. One shielded task now owns the actual response-stream
-close at EOF, provider error or cancellation. Failed or self-cancelled HTTP
+provider context exits. Within an explicit task-local ownership scope, one
+shielded task owns the actual response-stream close at EOF, provider error or
+cancellation. The window controller enables this scope while retaining its
+bounded slot. It defaults off for ordinary typed Converse and Agent calls;
+concurrent reuse of one provider instance does not transfer window ownership.
+Failed or self-cancelled HTTP
 cleanup reports `ProviderCleanupError` and keeps its original bounded slot;
 an exhausted generator's later no-op `aclose` cannot prove resource release.
 Request bodies, authentication, proxy/budget handling, disclosure and provider

@@ -5,6 +5,8 @@ import json
 import os
 from collections import deque
 from collections.abc import AsyncIterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -23,6 +25,19 @@ class ProviderRefusal(ProviderError):
 
 class ProviderCleanupError(ProviderError):
     """The provider's HTTP response did not confirm resource cleanup."""
+
+
+_http_cleanup_owned = ContextVar("http_cleanup_owned", default=False)
+
+
+@contextmanager
+def owned_http_stream_cleanup():
+    """Opt in only while a caller retains bounded, unconfirmed stream ownership."""
+    token = _http_cleanup_owned.set(True)
+    try:
+        yield
+    finally:
+        _http_cleanup_owned.reset(token)
 
 
 class _OwnedHTTPStream(httpx.AsyncByteStream):
@@ -148,7 +163,8 @@ class CompatibleTextProvider:
         ) as response:
             # httpx also closes from aiter_raw at natural EOF, before context
             # exit. Protect the actual stream close at both boundaries.
-            response.stream = _OwnedHTTPStream(response.stream)
+            if _http_cleanup_owned.get():
+                response.stream = _OwnedHTTPStream(response.stream)
             if response.is_error:
                 raise ProviderError(f"Provider HTTP {response.status_code}")
             async for line in response.aiter_lines():
@@ -379,7 +395,8 @@ class MetaResponsesProvider:
         async with self.http.stream(
             "POST", "responses", json=self.body(messages, True)
         ) as response:
-            response.stream = _OwnedHTTPStream(response.stream)
+            if _http_cleanup_owned.get():
+                response.stream = _OwnedHTTPStream(response.stream)
             if response.is_error:
                 raise ProviderError(f"Meta HTTP {response.status_code}")
             async for line in response.aiter_lines():
