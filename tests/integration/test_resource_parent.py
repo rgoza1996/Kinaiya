@@ -67,7 +67,8 @@ async def test_direct_managed_worker_dies_when_its_controller_is_killed(tmp_path
             path = Path(f"/proc/{child_pid}/stat")
             try:
                 state = path.read_text().rsplit(")", 1)[1].split()[0]
-            except FileNotFoundError:
+            except (FileNotFoundError, ProcessLookupError):
+                # A proc entry can disappear after open but before read completes.
                 state = "gone"
             if state in {"gone", "Z", "X"}:
                 break
