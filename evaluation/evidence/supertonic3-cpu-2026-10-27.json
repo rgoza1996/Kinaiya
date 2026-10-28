@@ -1245,5 +1245,31 @@
     "ruff_format_check": "passed (196 files)",
     "contract_export_diff": "clean",
     "git_diff_check": "passed"
+  },
+  "client_contract_verification": {
+    "kind": "deterministic Flutter widget/NDJSON integration",
+    "command": "flutter test test/multiframe_playback_test.dart",
+    "tests_passed": 3,
+    "flutter": "3.47.8",
+    "flutter_source": "737ba8f885dc774b53b442759999a312c9461e4e",
+    "fixture_test_sha256": "d5ee07880fa6b1920129ef4aeb034f7206f58e2d86bbb4306537204c14981d29",
+    "actual_components": [
+      "KinaiyaClient NDJSON decoder",
+      "CharacterView playback orchestration"
+    ],
+    "synthetic_components": [
+      "in-memory HTTP transport",
+      "PCM fixture frames",
+      "backend source-ended completion receipt"
+    ],
+    "verified": [
+      "44100 and24000Hz frames preserve queue order and exact PCM payloads",
+      "played requires whole response plus backend completion",
+      "stop after first44100Hz frame fences later frames and never acknowledges played"
+    ],
+    "analyzer": "passed",
+    "format": "passed",
+    "physical_audio": false,
+    "browser_playback_timing": false
   }
 }
