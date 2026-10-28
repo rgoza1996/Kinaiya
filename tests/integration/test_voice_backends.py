@@ -110,7 +110,7 @@ async def test_health_reports_selected_profile_without_constructing_backend(prof
     assert factory.calls == []
 
 
-@pytest.mark.parametrize("profile", ["Ming 3 Tiny", "VibeVoice Realtime 0.5B", "unknown"])
+@pytest.mark.parametrize("profile", ["Ming 3 Tiny", "unknown"])
 def test_unimplemented_or_unknown_configured_profile_fails_without_factory(profile):
     factory = SyntheticFactory()
     with pytest.raises(ValueError):
@@ -191,6 +191,9 @@ async def test_injected_backend_stays_lazy_and_loads_once_without_optional_impor
             "onnxruntime",
             "supertonic",
             "faster_whisper",
+            "vibevoice",
+            "transformers",
+            "diffusers",
         }:
             raise AssertionError(f"Optional runtime imported: {name}")
         return original_import(name, *args, **kwargs)

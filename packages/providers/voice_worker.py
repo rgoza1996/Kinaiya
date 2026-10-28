@@ -8,24 +8,29 @@ import asyncio
 import base64
 import io
 import json
+import math
 import os
+import queue
 import threading
 import time
+from contextlib import asynccontextmanager
 from fractions import Fraction
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from packages.providers.speech import RETAINED_TTS
 from packages.providers.tts_backends import (
-    SUPERTONIC_REVISION,
     AudioWaveform,
     TTSBackendError,
+    artifact_revision,
     create_tts_backend,
+    input_limit,
     pcm_frames,
+    produce_synthesis,
     synthesis_mode,
     validate_voice,
 )
@@ -41,7 +46,18 @@ def create_app(
     tts_profile="Kokoro 82M",
     tts_model_dir=None,
     tts_factory=None,
+    first_frame_timeout=300.0,
+    idle_frame_timeout=60.0,
+    producer_close_timeout=5.0,
 ):
+    for value in (first_frame_timeout, idle_frame_timeout, producer_close_timeout):
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not math.isfinite(value)
+            or value <= 0
+        ):
+            raise ValueError("Voice deadlines must be finite positive seconds")
     voice = validate_voice(tts_profile, voice)
     mode = synthesis_mode(tts_profile)
     factory = tts_factory if tts_factory is not None else create_tts_backend
@@ -49,10 +65,32 @@ def create_app(
     models = {}
     selected_backend = None
     lock = threading.Lock()
+    admission = asyncio.Lock()
+    sessions = set()
+    producers = set()
+    quarantined = threading.Event()
+    shutting_down = threading.Event()
+    completed_producers = 0
+    last_producer_seconds = None
+    last_producer_cancelled = None
+    poll_seconds = 0.01
+
+    def reap_producers():
+        nonlocal completed_producers, last_producer_seconds, last_producer_cancelled
+        for stream in tuple(producers):
+            # A finally block/event in the producer is not proof the thread exited.
+            if not stream.thread.is_alive():
+                stream.thread.join(timeout=0)
+                producers.remove(stream)
+                completed_producers += 1
+                last_producer_seconds = stream.producer_seconds
+                last_producer_cancelled = stream.producer_cancelled
 
     def allow_inference():
+        if quarantined.is_set() or shutting_down.is_set():
+            raise HTTPException(503, "Voice producer unavailable; worker restart required")
         if resource_policy is None:
-            return
+            return None
         from services.resources.state import read_record
 
         try:
@@ -61,9 +99,12 @@ def create_app(
             raise HTTPException(503, "Resource policy unavailable; voice inference paused") from exc
         if state.phase != "ready" or not state.desired_converse:
             raise HTTPException(409, "Voice inference paused for resource coordination")
+        return state.revision
 
     @app.get("/health")
     async def health():
+        reap_producers()
+        active = sum(stream.thread.is_alive() for stream in producers)
         return {
             "service": "local-voice",
             "device": "cpu",
@@ -72,10 +113,17 @@ def create_app(
             "tts_profile": tts_profile,
             "tts_voice": voice,
             "synthesis_mode": mode,
-            "tts_artifact_revision": SUPERTONIC_REVISION if tts_profile == "Supertonic 3" else None,
+            "tts_artifact_revision": artifact_revision(tts_profile),
             "assets_state": getattr(selected_backend, "assets_state", "not_checked"),
             "retained_candidates": list(RETAINED_TTS),
             "other_profiles": "not_configured",
+            "synthesis_active": bool(sessions),
+            "active_producers": active,
+            "producer_stopped": active == 0,
+            "synthesis_quarantined": quarantined.is_set(),
+            "completed_producers": completed_producers,
+            "last_producer_seconds": last_producer_seconds,
+            "last_producer_cancelled": last_producer_cancelled,
         }
 
     def recognize(data):
@@ -125,83 +173,175 @@ def create_app(
         pass
 
     class SynthesisStream:
-        def __init__(self, text):
+        def __init__(self, text, request):
             self.text = text
+            self.request = request
             self.cancelled = threading.Event()
-            self.iterator = None
-            self.pending = []
+            self.frames = queue.Queue(maxsize=2)
+            self.thread = None
+            self.admission = None
+            self.owns_slot = False
+            self.monitor = None
+            self.failure = None
+            self.monitor_failure = None
             self.samples = 0
             self.rate = None
             self.index = 0
-            self.start = time.perf_counter()
+            self.start_time = time.perf_counter()
             self.load_seconds = 0.0
             self.first_waveform_seconds = None
             self.synthesis_started = None
+            self.producer_seconds = None
+            self.producer_cancelled = None
+            self.policy_revision = allow_inference()
+            self.closed = False
+            self.close_lock = asyncio.Lock()
 
         def check(self):
             if self.cancelled.is_set():
+                if self.monitor_failure is not None:
+                    raise self.monitor_failure
                 raise SynthesisCancelled("Voice request cancelled")
-            allow_inference()
+            revision = allow_inference()
+            if revision != self.policy_revision:
+                raise HTTPException(409, "Voice resource admission changed")
 
-        def close(self):
-            self.cancelled.set()
-            if lock.acquire(blocking=False):
+        async def watch(self):
+            # FastAPI has already consumed the JSON body. This is the sole
+            # ASGI receive consumer until cleanup, including after headers.
+            try:
+                while True:
+                    try:
+                        message = await asyncio.wait_for(self.request.receive(), poll_seconds)
+                    except TimeoutError:
+                        message = None
+                    if message is not None and message["type"] == "http.disconnect":
+                        raise HTTPException(499, "Voice request disconnected")
+                    self.check()
+            except HTTPException as exc:
+                self.monitor_failure = exc
+                self.cancelled.set()
+            except SynthesisCancelled:
+                pass
+            except Exception:
+                self.monitor_failure = HTTPException(503, "Voice request monitor unavailable")
+                self.cancelled.set()
+
+        def emit(self, waveform):
+            self.check()
+            if not isinstance(waveform, AudioWaveform):
+                raise TTSBackendError("Invalid voice waveform")
+            if self.rate is not None and waveform.sample_rate != self.rate:
+                raise TTSBackendError("Voice sample rate changed during synthesis")
+            remaining = (
+                120 if self.rate is None else Fraction(120 * self.rate - self.samples, self.rate)
+            )
+            if self.first_waveform_seconds is None:
+                self.first_waveform_seconds = time.perf_counter() - self.synthesis_started
+            frames, count, rate = pcm_frames(waveform, remaining_seconds=remaining)
+            self.samples += count
+            self.rate = rate
+            for pcm in frames:
+                deadline = time.perf_counter() + idle_frame_timeout
+                while True:
+                    self.check()
+                    if time.perf_counter() >= deadline:
+                        raise TTSBackendError("Voice queue deadline exceeded")
+                    try:
+                        # pcm_frames owns immutable PCM bytes; the native
+                        # producer cannot mutate an already queued waveform.
+                        self.frames.put((pcm, rate), timeout=poll_seconds)
+                        break
+                    except queue.Full:
+                        pass
+            self.check()
+
+        def produce(self):
+            nonlocal selected_backend
+            started = time.perf_counter()
+            try:
+                while not lock.acquire(timeout=poll_seconds):
+                    self.check()
                 try:
-                    if self.iterator is not None and hasattr(self.iterator, "close"):
-                        self.iterator.close()
+                    self.check()
+                    if "tts" not in models:
+                        loading = time.perf_counter()
+                        backend = factory(tts_profile, tts_model_dir, voice)
+                        selected_backend = backend
+                        self.check()
+                        backend.load()
+                        self.load_seconds = time.perf_counter() - loading
+                        models["tts"] = backend
+                        self.check()
+                    self.check()
+                    self.synthesis_started = time.perf_counter()
+                    # The producer retains the STT/model lock through native
+                    # execution, callback backpressure, and adapter cleanup.
+                    produce_synthesis(models["tts"], self.text, self.emit, self.cancelled)
+                    self.check()
                 finally:
                     lock.release()
+            except (HTTPException, SynthesisCancelled) as exc:
+                self.failure = exc
+            except BaseException:
+                self.failure = TTSBackendError("Selected voice backend returned invalid audio")
+            finally:
+                self.producer_seconds = time.perf_counter() - started
+                self.producer_cancelled = self.cancelled.is_set()
 
-        def next_frame(self):
-            nonlocal selected_backend
+        async def start(self):
+            self.monitor = asyncio.create_task(self.watch())
+            self.admission = asyncio.create_task(admission.acquire())
+            deadline = self.start_time + first_frame_timeout
+            while not self.admission.done():
+                self.check()
+                if time.perf_counter() >= deadline:
+                    raise TTSBackendError("Voice first waveform deadline exceeded")
+                await asyncio.wait({self.admission}, timeout=poll_seconds)
+            self.owns_slot = self.admission.result()
             self.check()
-            while not lock.acquire(timeout=0.05):
+            if time.perf_counter() >= deadline:
+                raise TTSBackendError("Voice first waveform deadline exceeded")
+            self.thread = threading.Thread(
+                target=self.produce, name="kinaiya-tts-producer", daemon=True
+            )
+            self.thread.start()
+            producers.add(self)
+
+        async def next_frame(self, *, first=False):
+            deadline = (
+                self.start_time + first_frame_timeout
+                if first
+                else time.perf_counter() + idle_frame_timeout
+            )
+            while True:
                 self.check()
-            try:
-                self.check()
-                if "tts" not in models:
-                    started = time.perf_counter()
-                    backend = factory(tts_profile, tts_model_dir, voice)
-                    selected_backend = backend
-                    self.check()
-                    backend.load()
-                    self.load_seconds = time.perf_counter() - started
-                    models["tts"] = backend
-                    self.check()
-                self.check()
-                if self.iterator is None:
-                    self.synthesis_started = time.perf_counter()
-                    self.iterator = iter(models["tts"].synthesize(self.text))
-                if not self.pending:
-                    waveform = next(self.iterator, None)
-                    self.check()
-                    if waveform is None:
+                if time.perf_counter() >= deadline:
+                    raise TTSBackendError("Voice waveform deadline exceeded")
+                try:
+                    pcm, rate = self.frames.get_nowait()
+                except queue.Empty:
+                    if self.thread.is_alive():
+                        await asyncio.sleep(poll_seconds)
+                        continue
+                    reap_producers()
+                    # The producer may have queued its final frame between
+                    # the empty check and confirmed thread exit. Drain after
+                    # that boundary before interpreting EOF or its failure.
+                    try:
+                        pcm, rate = self.frames.get_nowait()
+                    except queue.Empty:
+                        if self.failure is not None:
+                            raise self.failure from None
                         return None
-                    if self.first_waveform_seconds is None:
-                        self.first_waveform_seconds = time.perf_counter() - self.synthesis_started
-                    if not isinstance(waveform, AudioWaveform):
-                        raise TTSBackendError("Invalid voice waveform")
-                    if self.rate is not None and waveform.sample_rate != self.rate:
-                        raise TTSBackendError("Voice sample rate changed during synthesis")
-                    # Count duration from actual samples, never model duration predictions.
-                    remaining = (
-                        120
-                        if self.rate is None
-                        else Fraction(120 * self.rate - self.samples, self.rate)
-                    )
-                    frames, count, rate = pcm_frames(waveform, remaining_seconds=remaining)
-                    self.pending = frames
-                    self.samples += count
-                    self.rate = rate
                 self.check()
-                pcm = self.pending.pop(0)
                 frame = {
                     "type": "audio",
                     "audio": base64.b64encode(pcm).decode(),
-                    "sample_rate": self.rate,
+                    "sample_rate": rate,
                     "samples": len(pcm) // 2,
                     "chunk_index": self.index,
-                    "elapsed_seconds": time.perf_counter() - self.start,
+                    "elapsed_seconds": time.perf_counter() - self.start_time,
                     "provider": tts_profile,
                     "device": "cpu",
                     "synthesis_mode": mode,
@@ -210,60 +350,129 @@ def create_app(
                 }
                 self.index += 1
                 return json.dumps(frame) + "\n"
-            except (HTTPException, SynthesisCancelled):
-                raise
-            except Exception:
-                raise TTSBackendError("Selected voice backend returned invalid audio") from None
-            finally:
+
+        async def close(self):
+            async with self.close_lock:
+                await self._close()
+
+        async def _close(self):
+            if self.closed:
+                return
+            self.cancelled.set()
+            if self.monitor is not None:
+                self.monitor.cancel()
+                await asyncio.gather(self.monitor, return_exceptions=True)
+            if self.admission is not None and not self.admission.done():
+                self.admission.cancel()
+                await asyncio.gather(self.admission, return_exceptions=True)
+            # An admission task may have acquired immediately before cancellation.
+            if (
+                self.admission is not None
+                and not self.admission.cancelled()
+                and self.admission.done()
+            ):
+                self.owns_slot = self.admission.result()
+            deadline = time.perf_counter() + producer_close_timeout
+            while (
+                self.thread is not None
+                and self.thread.is_alive()
+                and time.perf_counter() < deadline
+            ):
+                await asyncio.sleep(poll_seconds)
+            if self.thread is not None and self.thread.is_alive():
+                quarantined.set()
+                # Keep admission and the real model lock owned. Only restarting
+                # the process can establish a usable model after this failure.
+            else:
+                reap_producers()
+                if self.owns_slot:
+                    admission.release()
+                    self.owns_slot = False
+                self.text = None
+            self.closed = True
+            sessions.discard(self)
+
+    class SynthesisResponse(StreamingResponse):
+        def __init__(self, stream, content):
+            super().__init__(content, media_type="application/x-ndjson")
+            self.stream = stream
+
+        async def __call__(self, scope, receive, send):
+            # Do not run StreamingResponse's second disconnect listener. The
+            # request monitor owns receive before and after the first headers.
+            async def bounded_send(message):
                 try:
-                    if (
-                        self.cancelled.is_set()
-                        and self.iterator is not None
-                        and hasattr(self.iterator, "close")
-                    ):
-                        self.iterator.close()
-                finally:
-                    lock.release()
+                    await asyncio.wait_for(send(message), idle_frame_timeout)
+                except TimeoutError:
+                    raise TTSBackendError("Voice output deadline exceeded") from None
+
+            sender = asyncio.create_task(self.stream_response(bounded_send))
+            try:
+                done, _ = await asyncio.wait(
+                    {sender, self.stream.monitor}, return_when=asyncio.FIRST_COMPLETED
+                )
+                if sender in done:
+                    await sender
+                elif self.stream.monitor_failure is not None:
+                    if self.stream.monitor_failure.status_code != 499:
+                        raise self.stream.monitor_failure
+            finally:
+                self.stream.cancelled.set()
+                sender.cancel()
+                await asyncio.gather(sender, return_exceptions=True)
+                await asyncio.shield(self.stream.close())
 
     @app.post("/v1/audio/speech", dependencies=[Depends(auth.require("converse", "owner"))])
-    async def speech(request: Synthesis):
+    async def speech(request: Synthesis, connection: Request):
         allow_inference()
         if request.profile != tts_profile:
             raise HTTPException(503, "Selected retained profile needs its configured backend")
-        if tts_profile == "Supertonic 3" and len(request.input) > 1200:
-            raise HTTPException(413, "Buffered voice input exceeds the 1200 character limit")
-        stream = SynthesisStream(request.input)
+        if len(request.input) > input_limit(tts_profile):
+            raise HTTPException(413, "Voice input exceeds the configured profile limit")
+        stream = SynthesisStream(request.input, connection)
+        sessions.add(stream)
         try:
-            first = await asyncio.to_thread(stream.next_frame)
-            allow_inference()
+            await stream.start()
+            first = await stream.next_frame(first=True)
+            stream.check()
             if first is None:
                 raise TTSBackendError("Voice backend returned no audio")
         except asyncio.CancelledError:
-            stream.close()
+            await asyncio.shield(stream.close())
             raise
         except HTTPException:
-            stream.close()
+            await asyncio.shield(stream.close())
             raise
         except Exception:
-            stream.close()
+            await asyncio.shield(stream.close())
             raise HTTPException(
                 503, "Selected voice backend is unavailable or returned invalid audio."
             ) from None
 
         async def generate():
-            try:
-                allow_inference()
-                yield first
-                while True:
-                    frame = await asyncio.to_thread(stream.next_frame)
-                    if frame is None:
-                        return
-                    allow_inference()
-                    yield frame
-            finally:
-                stream.close()
+            stream.check()
+            yield first
+            while True:
+                frame = await stream.next_frame()
+                if frame is None:
+                    return
+                stream.check()
+                yield frame
 
-        return StreamingResponse(generate(), media_type="application/x-ndjson")
+        return SynthesisResponse(stream, generate())
+
+    @asynccontextmanager
+    async def lifespan(app):
+        try:
+            yield
+        finally:
+            shutting_down.set()
+            remaining = tuple(sessions | producers)
+            for stream in remaining:
+                stream.cancelled.set()
+            await asyncio.gather(*(stream.close() for stream in remaining))
+
+    app.router.lifespan_context = lifespan
 
     return app
 
