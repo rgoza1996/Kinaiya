@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:crypto/crypto.dart';
@@ -7,18 +8,21 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart' show AssetBundle, rootBundle;
 
 import '../character/pack.dart';
+import '../character/playback.dart';
 
-/// Local decorative frame playback. It never gates speech or runtime work.
+/// Local decorative playback. Asset loading never gates speech or runtime work.
 class MascotWidget extends StatefulWidget {
   const MascotWidget({
     super.key,
     required this.pack,
     required this.mood,
+    this.signals,
     this.size = 220,
     this.bundle,
   });
   final CharacterPack pack;
   final String mood;
+  final CharacterSignals? signals;
   final double size;
   final AssetBundle? bundle;
   @override
@@ -28,24 +32,52 @@ class MascotWidget extends StatefulWidget {
 class _MascotWidgetState extends State<MascotWidget>
     with SingleTickerProviderStateMixin {
   late final Ticker _ticker;
-  Duration _latest = Duration.zero, _animStart = Duration.zero;
-  late String _animId;
+  late CharacterPlayback _playback;
+  late CharacterFrame _frame;
+  Duration _clock = Duration.zero, _tickerBase = Duration.zero;
   int _framePos = 0, _loadGen = 0;
+  double _approach = 1, _legacyScale = 1, _legacyAngle = 0;
   ui.Image? _image;
-  String? _imageSheetId;
+  String? _imageSheetId, _pendingSheetId;
+  final Set<String> _failedSheets = {};
+  final Map<String, Future<ByteData>> _sheetReads = {};
   bool _decodeFailed = false;
+  bool _reduced = false, _visible = true, _dependenciesReady = false;
+
+  CharacterSignals get _signals =>
+      widget.signals ??
+      CharacterSignals(
+        speaking: widget.mood == 'speaking',
+        listening: widget.mood == 'listening',
+        warming: widget.mood == 'warming',
+        working: widget.mood == 'working' || widget.mood.startsWith('working.'),
+        blocked: widget.mood == 'blocked',
+        activity: widget.mood,
+      );
 
   @override
   void initState() {
     super.initState();
-    _animId = widget.pack.resolveAnimationId(widget.mood);
     _ticker = createTicker(_onTick);
-    _loadCurrentSheet();
+    _playback = CharacterPlayback(widget.pack);
+    _selectFrame();
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final wasReduced = _reduced;
+    _reduced = MediaQuery.of(context).disableAnimations;
+    _visible = TickerMode.valuesOf(context).enabled;
+    if (_dependenciesReady && wasReduced && !_reduced) {
+      _playback.restartAnimation(_clock);
+    }
+    _dependenciesReady = true;
+    if (_visible) _selectFrame();
+    if (_reduced) {
+      _framePos = 0;
+      _approach = 1;
+    }
     _syncTicker();
   }
 
@@ -55,61 +87,102 @@ class _MascotWidgetState extends State<MascotWidget>
     final replaced =
         !identical(oldWidget.pack, widget.pack) ||
         oldWidget.bundle != widget.bundle;
-    final next = widget.pack.resolveAnimationId(widget.mood);
-    final previousSheet = widget.pack.animations[_animId]?.sheet;
-    final nextSheet = widget.pack.animations[next]?.sheet;
-    if (replaced || next != _animId) {
-      _framePos = 0;
-      _animStart = _latest;
-      _animId = next;
-    }
     if (replaced) {
+      _ticker.stop();
+      _clock = _tickerBase = Duration.zero;
       _loadGen++;
       _image?.dispose();
       _image = null;
-      _imageSheetId = null;
+      _imageSheetId = _pendingSheetId = null;
+      _failedSheets.clear();
+      _sheetReads.clear();
       _decodeFailed = false;
-      _loadCurrentSheet();
-    } else if (previousSheet != nextSheet) {
-      _loadGen++;
-      _decodeFailed = false;
-      if (_imageSheetId != nextSheet) _loadCurrentSheet();
+      _playback = CharacterPlayback(widget.pack);
     }
+    // Hidden input changes are sampled on return, without selection/cooldown
+    // churn while TickerMode is off. A new pack still has an initial frame.
+    if (_visible || replaced) _selectFrame();
     _syncTicker();
   }
 
   void _syncTicker() {
-    final reduced = MediaQuery.of(context).disableAnimations;
-    if (reduced || _decodeFailed) {
+    if (_reduced || !_visible) {
       _ticker.stop();
-      _latest = _animStart = Duration.zero;
-      _framePos = 0;
     } else if (!_ticker.isActive) {
-      // Ticker.start resets elapsed time. Its animation origin must match.
-      _latest = _animStart = Duration.zero;
+      // Stopping the ticker, rather than merely muting it, excludes hidden
+      // wall time from animation, approach, variant cycles and cooldowns.
+      _tickerBase = _clock;
       _ticker.start();
     }
   }
 
-  void _onTick(Duration elapsed) {
-    _latest = elapsed;
-    if (!widget.pack.isSpritesheet) {
-      setState(() {});
-      return;
+  void _selectFrame() {
+    _frame = _playback.update(_signals, _clock, reducedMotion: _reduced);
+    final animation = widget.pack.animations[_frame.animationId];
+    _framePos = _reduced || animation == null
+        ? 0
+        : CharacterPack.frameIndexFor(animation, _frame.animationElapsed);
+    _approach = _reduced ? 1 : _frame.approach;
+    if (!widget.pack.isSpritesheet && !_reduced) {
+      final phase = CharacterPack.motionPhase(_frame.semantic);
+      final t =
+          _clock.inMilliseconds / 3000 * 2 * math.pi + phase * math.pi / 180;
+      _legacyScale =
+          1 + (_frame.semantic == 'speaking' ? .05 : .02) * math.sin(t);
+      _legacyAngle = .02 * math.sin(t * .7);
+    } else {
+      _legacyScale = 1;
+      _legacyAngle = 0;
     }
-    final anim = widget.pack.animations[_animId];
-    if (anim == null) return;
-    final pos = CharacterPack.frameIndexFor(anim, elapsed - _animStart);
-    if (pos != _framePos) setState(() => _framePos = pos);
+    _ensureSelectedSheet();
   }
 
-  Future<void> _loadCurrentSheet() async {
+  void _onTick(Duration elapsed) {
+    if (_reduced || !_visible) return;
+    _clock = _tickerBase + elapsed;
+    final oldFrame = _frame;
+    final oldPosition = _framePos;
+    final oldApproach = _approach;
+    final oldFailure = _decodeFailed;
+    final oldScale = _legacyScale, oldAngle = _legacyAngle;
+    _selectFrame();
+    if (_framePos != oldPosition ||
+        _approach != oldApproach ||
+        _frame.animationId != oldFrame.animationId ||
+        _frame.semantic != oldFrame.semantic ||
+        _decodeFailed != oldFailure ||
+        _legacyScale != oldScale ||
+        _legacyAngle != oldAngle) {
+      setState(() {});
+    }
+  }
+
+  void _ensureSelectedSheet() {
     if (!widget.pack.isSpritesheet) return;
-    final sheet = widget.pack.sheetForAnimation(_animId);
+    final sheet = widget.pack.sheetForAnimation(_frame.animationId);
     if (sheet == null) return;
+    _decodeFailed = _failedSheets.contains(sheet.id);
+    if (_imageSheetId == sheet.id || _decodeFailed) {
+      if (_pendingSheetId != null) {
+        _loadGen++;
+        _pendingSheetId = null;
+      }
+      return;
+    }
+    if (_pendingSheetId == sheet.id) return;
+    _loadSheet(sheet);
+  }
+
+  Future<void> _loadSheet(PackSheet sheet) async {
+    _pendingSheetId = sheet.id;
     final gen = ++_loadGen;
     try {
-      final data = await (widget.bundle ?? rootBundle).load(sheet.asset);
+      // At most one read per declared sheet and pack/bundle ownership. A
+      // canceled selection can reuse its pending bytes without duplicate I/O.
+      final data = await _sheetReads.putIfAbsent(
+        sheet.id,
+        () => (widget.bundle ?? rootBundle).load(sheet.asset),
+      );
       if (!mounted || gen != _loadGen) return;
       final bytes = data.buffer.asUint8List(
         data.offsetInBytes,
@@ -142,20 +215,27 @@ class _MascotWidgetState extends State<MascotWidget>
       }
       if (!mounted ||
           gen != _loadGen ||
-          widget.pack.sheetForAnimation(_animId)?.id != sheet.id ||
-          frame.image.width != sheet.width ||
-          frame.image.height != sheet.height) {
+          widget.pack.sheetForAnimation(_frame.animationId)?.id != sheet.id) {
         frame.image.dispose();
         return;
+      }
+      if (frame.image.width != sheet.width ||
+          frame.image.height != sheet.height) {
+        frame.image.dispose();
+        throw const FormatException('Unexpected sprite dimensions');
       }
       _image?.dispose();
       _image = frame.image;
       _imageSheetId = sheet.id;
+      _pendingSheetId = null;
       setState(() {});
     } catch (_) {
       if (!mounted || gen != _loadGen) return;
+      _pendingSheetId = null;
+      // The set is bounded by the pack's validated sheet count. Failed sheets
+      // are not retried every frame; another selected sheet can still recover.
+      _failedSheets.add(sheet.id);
       setState(() => _decodeFailed = true);
-      _syncTicker();
     }
   }
 
@@ -164,6 +244,7 @@ class _MascotWidgetState extends State<MascotWidget>
     _loadGen++;
     _ticker.dispose();
     _image?.dispose();
+    _sheetReads.clear();
     super.dispose();
   }
 
@@ -175,48 +256,68 @@ class _MascotWidgetState extends State<MascotWidget>
     errorBuilder: (_, _, _) => Icon(Icons.face, size: widget.size),
   );
 
+  Widget _approaching(Widget child) {
+    if (_reduced || _approach >= 1) return child;
+    return Transform.translate(
+      key: const ValueKey('mascot-approach'),
+      offset: Offset(0, 40 * (1 - _approach)),
+      transformHitTests: false,
+      child: Transform.scale(
+        key: const ValueKey('mascot-approach-scale'),
+        scale: 0.55 + 0.45 * _approach,
+        alignment: Alignment.bottomCenter,
+        transformHitTests: false,
+        child: child,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final reduced = MediaQuery.of(context).disableAnimations;
-    final label = 'Kinaiya mascot, ${widget.mood}';
+    final label = 'Kinaiya mascot, ${_frame.semantic}';
     if (!widget.pack.isSpritesheet) {
       final image = _fallback(label);
-      if (reduced) return image;
-      final phase = CharacterPack.motionPhase(widget.mood);
-      final t =
-          _latest.inMilliseconds / 3000 * 2 * math.pi + phase * math.pi / 180;
-      return Transform.scale(
-        scale: 1 + (widget.mood == 'speaking' ? .05 : .02) * math.sin(t),
-        child: Transform.rotate(angle: .02 * math.sin(t * .7), child: image),
+      return _approaching(
+        _reduced
+            ? image
+            : Transform.scale(
+                key: const ValueKey('mascot-legacy-scale'),
+                scale: _legacyScale,
+                child: Transform.rotate(angle: _legacyAngle, child: image),
+              ),
       );
     }
-    final anim = widget.pack.animations[_animId];
-    final sheet = widget.pack.sheetForAnimation(_animId);
+    final animation = widget.pack.animations[_frame.animationId];
+    final sheet = widget.pack.sheetForAnimation(_frame.animationId);
     if (_decodeFailed) {
       return Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _fallback(label),
+          _approaching(_fallback(label)),
           const Text('Animation unavailable; showing original mascot.'),
         ],
       );
     }
-    if (anim == null ||
+    if (animation == null ||
         sheet == null ||
         _image == null ||
         _imageSheetId != sheet.id) {
-      return _fallback(label);
+      return _approaching(_fallback(label));
     }
-    final pos = reduced ? 0 : _framePos.clamp(0, anim.frames.length - 1);
+    final position = _reduced
+        ? 0
+        : _framePos.clamp(0, animation.frames.length - 1);
     return Semantics(
       label: label,
       image: true,
-      child: CustomPaint(
-        size: Size(widget.size, widget.size),
-        painter: MascotFramePainter(
-          image: _image!,
-          src: sheet.frameRect(anim.frames[pos]),
-          anchor: Offset(widget.pack.anchorX, widget.pack.anchorY),
+      child: _approaching(
+        CustomPaint(
+          size: Size(widget.size, widget.size),
+          painter: MascotFramePainter(
+            image: _image!,
+            src: sheet.frameRect(animation.frames[position]),
+            anchor: Offset(widget.pack.anchorX, widget.pack.anchorY),
+          ),
         ),
       ),
     );
