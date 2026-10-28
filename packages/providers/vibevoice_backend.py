@@ -22,6 +22,8 @@ VIBEVOICE_VOICE = "en-Carter_man"
 RUNTIME_REVISION = "16fb2cb1217c9934a886e1948ffb06120caa2df5"
 TOKENIZER_REVISION = "060db6499f32faf8b98477b0a26969ef7d8b9987"
 SAMPLE_RATE = 24000
+RUNTIME_DISTRIBUTION = "kinaiya-vibevoice-runtime"
+RUNTIME_VERSION = "1.0.0+kinaiya.1"
 _MANIFEST = Path(__file__).with_name("vibevoice_manifest.json")
 _REQUIRED = frozenset(
     {
@@ -50,7 +52,11 @@ def _manifest():
         or value.get("voice") != VIBEVOICE_VOICE
         or set(value.get("files", {})) != _REQUIRED
         or value.get("runtime_versions")
-        != {"vibevoice": "1.0.0", "transformers": "4.51.3", "torch": "2.9.1+cpu"}
+        != {
+            RUNTIME_DISTRIBUTION: RUNTIME_VERSION,
+            "transformers": "4.51.3",
+            "torch": "2.14.1+cpu",
+        }
     ):
         raise TTSBackendError("Invalid pinned voice manifest")
     return value
@@ -101,7 +107,7 @@ def _verify_runtime(manifest):
     for package, version in manifest["runtime_versions"].items():
         if importlib.metadata.version(package) != version:
             raise TTSBackendError("The pinned CPU voice runtime is required")
-    distribution = importlib.metadata.distribution("vibevoice")
+    distribution = importlib.metadata.distribution(RUNTIME_DISTRIBUTION)
     files = manifest.get("runtime_files", {})
     actual = {
         str(path)

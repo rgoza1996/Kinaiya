@@ -28,7 +28,11 @@ def assets(tmp_path, monkeypatch):
         "runtime_revision": vv.RUNTIME_REVISION,
         "tokenizer_revision": vv.TOKENIZER_REVISION,
         "voice": vv.VIBEVOICE_VOICE,
-        "runtime_versions": {"vibevoice": "1.0.0", "transformers": "4.51.3", "torch": "2.9.1+cpu"},
+        "runtime_versions": {
+            "kinaiya-vibevoice-runtime": "1.0.0+kinaiya.1",
+            "transformers": "4.51.3",
+            "torch": "2.14.1+cpu",
+        },
         "files": files,
         "runtime_files": {"vibevoice/__init__.py": files["checkpoint/README.md"]},
     }
