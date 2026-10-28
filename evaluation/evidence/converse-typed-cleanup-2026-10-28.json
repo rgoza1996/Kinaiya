@@ -1,0 +1,367 @@
+{
+  "schema_version": "1.0",
+  "recorded_date": "2026-10-28",
+  "issue": "https://github.com/rgoza1996/Kinaiya/issues/76",
+  "parent_issue": 4,
+  "related_issues": [
+    75,
+    77,
+    79
+  ],
+  "status": "Independent final review and integrated local checks passed; exact final-head CI is required before merge.",
+  "requirement": "Bound typed Converse request cleanup while retaining real provider ownership, admission and speech-generation fences.",
+  "baseline": {
+    "main_commit": "01ee0c4934dd636f3f0c7da33f9650ff543c41cd",
+    "prior_pr": 78,
+    "prior_pr_ci": {
+      "id": 40731824763,
+      "head": "c3b4430c65e468f603c5a256cc11056d18e19e00",
+      "conclusion": "success",
+      "python311": {
+        "job_id": 122969869648,
+        "passed": 1404,
+        "warnings": 1,
+        "seconds": 180.13
+      },
+      "python312": {
+        "job_id": 122969869657,
+        "passed": 1404,
+        "warnings": 1,
+        "seconds": 201.74
+      },
+      "flutter": {
+        "job_id": 122969869155,
+        "tests": 341,
+        "javascript_tests": 25,
+        "analysis": "passed",
+        "release_build": "passed"
+      }
+    }
+  },
+  "revisions": {
+    "worker_final": "3c3cbe9927d59e06e52618cda9cdc61dd55edb66",
+    "worker_commits": [
+      "385b9a7ba5acade9dcedbedb488e4e1c478dd4db",
+      "3c3cbe9927d59e06e52618cda9cdc61dd55edb66"
+    ],
+    "integration_source_commit": "42f92d0a04e68ebc6f43c274e8bc1bc942f2306d",
+    "integration_note": "The shared #75 helper was already in main and was not cherry-picked twice. The epoch callback preserves _cancel_generation. All five implementation/test files are byte-identical to the independently reviewed worker; lead adds only this evidence and ADR review notes."
+  },
+  "source_sha256": {
+    "services/converse/runtime.py": "80b913317a9f28dcb54fcd971ae78d3aea71ac37b40bde6fccbae7c4196270a0",
+    "services/converse/api.py": "530d167279e4e6e5c474f29787d6a029257a885022480697302f510ec5b2b092",
+    "services/converse/windows.py": "0ee1ff71c752dbc79b4862f0e9274a4cb2449c4e75e902bbc08b226f0b4b34b2",
+    "services/launcher.py": "0a56f36d26ab539fe7668877e4bec8715e4091c2c92e17804a5224c165aeb277",
+    "tests/integration/test_converse_text_cleanup.py": "789f714e11f0f3a341b8ec37406d664c0217ba020c292d192db9ee3410bd892a"
+  },
+  "ownership": {
+    "session_capacity": 32,
+    "request_cleanup_admission_wait_seconds": 1.0,
+    "failed_cleanup": "retained and quarantined",
+    "active_index": "cancellation index, never release evidence",
+    "sse_disconnect": "explicit response/body-iterator finalizer",
+    "window_reuse": "bidirectional readiness fences; direct stop controls bypass admission"
+  },
+  "worker_verification": [
+    {
+      "python": "3.12.3",
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/supertonic-ci-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_converse_text_cleanup.py",
+        "tests/integration/test_converse_speech_cancel.py",
+        "tests/integration/test_converse_window_recovery.py",
+        "tests/integration/test_converse_owner_controls.py",
+        "tests/integration/test_window_http.py",
+        "tests/integration/test_window_backlog.py",
+        "tests/integration/test_speech_windows.py",
+        "tests/integration/test_speech_boundary.py",
+        "tests/integration/test_window_agent_routing.py",
+        "tests/unit/test_providers.py",
+        "tests/integration/test_converse_owner_processes.py",
+        "-q",
+        "-x"
+      ],
+      "environment": {
+        "PYTHONPATH": "."
+      },
+      "cwd": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya",
+      "passed": 388,
+      "seconds": 153.53,
+      "log": "kinaiya-76-final-py312.log"
+    },
+    {
+      "python": "3.11.15",
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/vibevoice-py311-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_converse_text_cleanup.py",
+        "tests/integration/test_converse_speech_cancel.py",
+        "tests/integration/test_converse_window_recovery.py",
+        "tests/integration/test_converse_owner_controls.py",
+        "tests/integration/test_window_http.py",
+        "tests/integration/test_window_backlog.py",
+        "tests/integration/test_speech_windows.py",
+        "tests/integration/test_speech_boundary.py",
+        "tests/integration/test_window_agent_routing.py",
+        "tests/unit/test_providers.py",
+        "-q",
+        "-x"
+      ],
+      "environment": {
+        "PYTHONPATH": "."
+      },
+      "cwd": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya",
+      "passed": 387,
+      "seconds": 156.26,
+      "log": "kinaiya-76-final-py311.log",
+      "omitted": [
+        "tests/integration/test_converse_owner_processes.py"
+      ],
+      "reason": "This installed interpreter lacks fcntl seal constants; the unchanged worker fails closed. Full supported CI must still cover that fixture."
+    },
+    {
+      "python": "3.12.3",
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/supertonic-ci-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_converse_text_cleanup.py",
+        "-q",
+        "-k",
+        "external_scope_change"
+      ],
+      "environment": {
+        "PYTHONPATH": "."
+      },
+      "passed": 3,
+      "deselected": 72,
+      "seconds": 1.43,
+      "log": "kinaiya-76-owner-file-py312.log",
+      "note": "After broad runs only the scope-change fixtures were strengthened to use a separate on-disk owner-intent writer; production source did not change."
+    },
+    {
+      "python": "3.11.15",
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/vibevoice-py311-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_converse_text_cleanup.py",
+        "-q",
+        "-k",
+        "external_scope_change"
+      ],
+      "environment": {
+        "PYTHONPATH": "."
+      },
+      "passed": 3,
+      "deselected": 72,
+      "seconds": 1.42,
+      "log": "kinaiya-76-owner-file-py311.log",
+      "note": "After broad runs only the scope-change fixtures were strengthened to use a separate on-disk owner-intent writer; production source did not change."
+    }
+  ],
+  "independent_final_review": {
+    "agent": "minimal_runtime_review",
+    "kind": "automated independent peer review; no independent human approval claimed",
+    "worker_commit": "3c3cbe9927d59e06e52618cda9cdc61dd55edb66",
+    "result": "No new actionable finding in reviewed #76 scope; known restart generation discovery remains separate issue79.",
+    "command": [
+      "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/supertonic-ci-venv/bin/python",
+      "-m",
+      "pytest",
+      "-q",
+      "-p",
+      "no:cacheprovider",
+      "tests/integration/test_converse_text_cleanup.py",
+      "tests/integration/test_converse_window_recovery.py::test_wait_fences_typed_admission_while_native_user_append_is_suspended",
+      "tests/integration/test_converse_window_recovery.py::test_interrupt_during_held_reply_native_claim_cannot_publish_stale_chunks",
+      "tests/integration/test_converse_window_recovery.py::test_wait_stop_reconciles_exact_request_after_uncertain_append"
+    ],
+    "python": "3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]",
+    "passed": 83,
+    "seconds": 19.18,
+    "manifest_sha256": "b212b6c85e64c59a6e77ce00460ab971f64eb0752909e1a2e24e77951d1e7d25",
+    "focused_log_sha256": "926a927cba1a77f1c8ed8c5ed2f387a59d6040579042d5ba6725c8813521082e",
+    "asgi24_probe_sha256": "b1eed006f6927656db5850b1b62cacd6f11837a6facdfeca9ba3b9dde545aff6",
+    "asgi24_results": [
+      {
+        "adapter": "compatible",
+        "asgi_spec": "2.4",
+        "error_type": "ClientDisconnect",
+        "seconds": 0.0412,
+        "before_release": {
+          "active": 0,
+          "cleanup_pending": 1,
+          "cleanup_failed": 0,
+          "admitting": 0,
+          "capacity": 32
+        },
+        "actual_transport_closed": true,
+        "transport_close_calls": 1,
+        "provider_calls": 1
+      },
+      {
+        "adapter": "meta",
+        "asgi_spec": "2.4",
+        "error_type": "ClientDisconnect",
+        "seconds": 0.0325,
+        "before_release": {
+          "active": 0,
+          "cleanup_pending": 1,
+          "cleanup_failed": 0,
+          "admitting": 0,
+          "capacity": 32
+        },
+        "actual_transport_closed": true,
+        "transport_close_calls": 1,
+        "provider_calls": 1
+      }
+    ],
+    "scope": "Producer/iterator ownership, shared reservation cap, cleanup/admission/control wait, window hooks, owner/reset fencing and deterministic SSE finalization."
+  },
+  "lead_verification": {
+    "python": "3.12.3",
+    "cwd": "/home/roggoz/.codex/worktrees/mcp-controls/Kinaiya",
+    "command": [
+      "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/supertonic-ci-venv/bin/python",
+      "-m",
+      "pytest",
+      "-q",
+      "-p",
+      "no:cacheprovider",
+      "tests/integration/test_converse_text_cleanup.py",
+      "tests/integration/test_converse_window_recovery.py::test_wait_fences_typed_admission_while_native_user_append_is_suspended",
+      "tests/integration/test_converse_window_recovery.py::test_interrupt_during_held_reply_native_claim_cannot_publish_stale_chunks",
+      "tests/integration/test_converse_window_recovery.py::test_wait_stop_reconciles_exact_request_after_uncertain_append"
+    ],
+    "environment": {
+      "PYTHONPATH": "unset"
+    },
+    "import_paths_verified": [
+      "services/converse/runtime.py",
+      "services/converse/api.py",
+      "services/converse/windows.py"
+    ],
+    "passed": 83,
+    "seconds": 19.43,
+    "log": "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/typed-cleanup-integration-py312.log",
+    "log_sha256": "06536fd3fc0925a7c6dea4dcc1bb50cd80a8d30c364dd0828d1fb23a1fec0cb3",
+    "ruff_check": "passed",
+    "ruff_format": "209 files already formatted",
+    "schema_export": "unchanged",
+    "git_diff_check": "passed against origin/main01ee0c4"
+  },
+  "retained_failures": [
+    {
+      "log": "kinaiya-76-baseline.log",
+      "result": "1 failed in 0.51s",
+      "finding": "Interrupt blocked in unbounded typed producer cleanup.",
+      "disposition": "Independent retained cleanup ownership and bounded caller wait."
+    },
+    {
+      "log": "kinaiya-76-stop-baseline.log",
+      "result": "2 failed, 69 deselected in 0.89s",
+      "finding": "Held admission survived WAIT; refused replacement lacked a durable old-audio stop.",
+      "disposition": "Integrated shared #75 stop helper, distinct inference generation and final scope/generation checks."
+    },
+    {
+      "log": "kinaiya-76-py311.log",
+      "result": "1 failed, 230 passed in 112.92s",
+      "finding": "Unchanged sealed-worker fixture refused spawn on installed Python3.11 without fcntl.F_ADD_SEALS/F_SEAL_*; unchanged _make_config_fd reproduced AttributeError.",
+      "disposition": "No worker/test weakening. Compatible remainder119 passed48.45s; final3.11 command explicitly omitted that fixture.3.12 fixture passed. Require full supported3.11 CI."
+    },
+    {
+      "record": "worker tool history",
+      "findings": [
+        "Paused ASGI send needed explicit body-iterator finalization.",
+        "Invalid synthetic read limit1000 was corrected to existing200 maximum.",
+        "Held-scope fixture was corrected to suspend post-epoch validation.",
+        "Unconditional empty fencing was corrected to preserve fresh generation1 acceptance."
+      ],
+      "disposition": "No #75 acceptance expectations or worker protections changed."
+    }
+  ],
+  "artifacts": {
+    "directory": "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/typed-cleanup-review-v1",
+    "manifest": {
+      "review-manifest.json": {
+        "bytes": 2509,
+        "sha256": "b212b6c85e64c59a6e77ce00460ab971f64eb0752909e1a2e24e77951d1e7d25"
+      },
+      "focused.log": {
+        "bytes": 180,
+        "sha256": "926a927cba1a77f1c8ed8c5ed2f387a59d6040579042d5ba6725c8813521082e"
+      },
+      "asgi24-results.json": {
+        "bytes": 725,
+        "sha256": "2a45eea7e79f80e07bcbc4e1e3c24ea570588af6bba017eacb5fb9d6e8a84526"
+      },
+      "command.json": {
+        "bytes": 1126,
+        "sha256": "8cf12872e8b462c2a13b69fe589390d47407ed6f7c58f2e2bd091c626c487a94"
+      },
+      "asgi24_probe.py": {
+        "bytes": 2970,
+        "sha256": "b1eed006f6927656db5850b1b62cacd6f11837a6facdfeca9ba3b9dde545aff6"
+      },
+      "kinaiya-76-final-py312.log": {
+        "bytes": 512,
+        "sha256": "72c2414e741e8530d7c51a10da6c255881b30aa905582429e2ce3c91dbd6fe9c"
+      },
+      "kinaiya-76-final-py311.log": {
+        "bytes": 512,
+        "sha256": "901823d6478ee0d9be813eccbda43f5effeaacbe6c943db95adcde43f06e1c87"
+      },
+      "kinaiya-76-owner-file-py312.log": {
+        "bytes": 113,
+        "sha256": "f640b651b77ef57e4a69646809a06a2ee3e5a9851373d3c317ad22aa528021a2"
+      },
+      "kinaiya-76-owner-file-py311.log": {
+        "bytes": 113,
+        "sha256": "742493cdfbf2e09dda4071de54db8628cf244e73ccfa33de7ec29e6214f33404"
+      },
+      "kinaiya-76-stop-baseline.log": {
+        "bytes": 4661,
+        "sha256": "a38fdfa9a96fff6848e0e4c4375827ba6db7c64ba478be34f6dd5af37791a17f"
+      },
+      "kinaiya-76-baseline.log": {
+        "bytes": 2527,
+        "sha256": "155f54c056e35d470ba5e4f8b72cad1d88429e4f90af5317f1b401d28f3e0e8d"
+      },
+      "kinaiya-76-py312.log": {
+        "bytes": 432,
+        "sha256": "44d34fc8a21170102f77a9f5ff60edb71c58caa0585f7d015d9677c5c4cbd48d"
+      },
+      "kinaiya-76-py311.log": {
+        "bytes": 5244,
+        "sha256": "e42707e5ef6fe9d891ab892333dccbcc90becf531134aafcf1e707161ab3e4fa"
+      },
+      "kinaiya-76-py311-remaining.log": {
+        "bytes": 181,
+        "sha256": "b609a3c93dc8a0f090311db9dc0871b10196b6db8bc1372a3dd3ee9fb3a46c9a"
+      },
+      "kinaiya-76-integrated-focused.log": {
+        "bytes": 180,
+        "sha256": "4d1f5ab9906df6c4406f72ca5d07c94a1db71b6896ef52eec72b0ac132a0c0b3"
+      }
+    }
+  },
+  "limitations": [
+    "Synthetic native/ASGI and real Compatible/Meta adapters over HTTPX MockTransport; no live network-socket or model quality proof.",
+    "HTTP cleanup does not establish remote-kernel preemption or physical audio stop.",
+    "This is in-memory runtime ownership; hard restart cannot resume inference.",
+    "Pre-existing arbitrary-history playback-generation recovery remains #79.",
+    "Delivery-qualified live-window conversational context remains #77.",
+    "This does not complete M2/M3 or the production roadmap."
+  ],
+  "controls": {
+    "meta_calls": 0,
+    "model_downloads": 0,
+    "provider_defaults_changed": false,
+    "live_reference_restarted": false,
+    "heldout_data_used": false
+  }
+}

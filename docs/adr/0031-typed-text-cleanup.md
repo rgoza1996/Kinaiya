@@ -108,4 +108,4 @@ passed on 3.12. After those broad runs, the external-owner fixture was
 strengthened to use a separate on-disk intent writer; all three scope-change
 cases passed again on both interpreters. Production source was unchanged.
 Ruff lint, formatting and `git diff --check` passed for the affected files.
-Independent final review and integrated CI remain the lead's release gate.
+Independent final review passed 83 scoped cases and two actual ASGI 2.4 send-failure probes over the Compatible and Meta adapters. The integrated lead checkout passed the same 83 cases with imports bound to that checkout. All implementation and test bytes match the reviewed worker. Exact final-head CI remains required before merge; see the [verification record](../../evaluation/evidence/converse-typed-cleanup-2026-10-28.json).
