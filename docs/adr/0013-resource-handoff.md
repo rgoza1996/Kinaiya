@@ -148,5 +148,6 @@ Process tests exercise real synthetic workers and injected rare boundary
 failures; coordinator tests use deterministic memory-admission inputs. Live
 proof is a small public synthetic Agent file task, not demanding local model
 execution, a memory-pressure benchmark or physical microphone/hearing proof.
-No GPU is present on the tested host. Latency targets, full M6, private beta
+That first study did not measure GPU residency; [ADR 0022](0022-managed-laya-resources.md)
+adds optional managed Laya with AMD driver measurements. Latency targets, full M6, private beta
 readiness and complete roadmap implementation are not claimed.

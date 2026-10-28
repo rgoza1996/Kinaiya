@@ -1,6 +1,32 @@
 from services.launcher import supervise
 
 
+def test_decisions_worker_source_cannot_be_an_agent_workspace(tmp_path, monkeypatch):
+    import json
+    from types import SimpleNamespace
+
+    import pytest
+    import uvicorn
+
+    from services import launcher
+
+    root = tmp_path / "source"
+    workspace = root / "services/decisions"
+    workspace.mkdir(parents=True)
+    data = tmp_path / "owner-data"
+    config = tmp_path / "config.json"
+    config.write_text(json.dumps({"session_url": "http://127.0.0.1:12345"}))
+    monkeypatch.setattr(launcher, "ROOT", root)
+    monkeypatch.setattr(
+        uvicorn, "run", lambda *args, **kwargs: pytest.fail("unsafe workspace was served")
+    )
+    args = SimpleNamespace(
+        data_dir=data, config=config, service="agent", workspace=workspace, port=None
+    )
+    with pytest.raises(SystemExit, match="disjoint"):
+        launcher.serve(args)
+
+
 def test_unloading_converse_does_not_terminate_agent_or_storage():
     children, stopped = {}, []
 

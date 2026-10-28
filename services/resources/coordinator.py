@@ -1,4 +1,4 @@
-"""Explicit measured CPU voice handoff; core services remain independent."""
+"""Explicit measured conversation-worker handoff; core services stay independent."""
 
 import asyncio
 import hashlib
@@ -26,6 +26,8 @@ class ResourceCoordinator:
         local_converse_unmanaged=False,
         before_start=None,
         restore_reserve_bytes=0,
+        gpu_probe=None,
+        gpu_restore_reserve_bytes=0,
     ):
         self.manager, self.state, self.converse = manager, state, converse
         self.controller_id = new_id()
@@ -34,6 +36,9 @@ class ResourceCoordinator:
         self.local_converse_unmanaged = local_converse_unmanaged
         self.before_start = before_start
         self.restore_reserve = restore_reserve_bytes
+        self.gpu_probe = gpu_probe
+        self.gpu_restore_reserve = gpu_restore_reserve_bytes
+        self.gpu_release = None
         self.lock = asyncio.Lock()
         self.publication_pending = False
         database = state.path.parent / "resource-actions.sqlite"
@@ -53,13 +58,20 @@ class ResourceCoordinator:
         self.db.commit()
 
     def status(self):
+        gpu = self.gpu_probe() if self.gpu_probe is not None else None
         return {
             "schema_version": "1.0",
             "controller_id": self.controller_id,
             "policy": self.state.record.model_dump(),
             **self.manager.status(),
             "memory_available_bytes": self.memory_probe(),
-            "coverage": "managed local voice process; no GPU allocator proof",
+            "coverage": (
+                "managed local voice/Laya processes; AMD driver counters; no hard reservation"
+                if self.gpu_probe is not None
+                else "managed local voice processes; no GPU allocator proof"
+            ),
+            "gpu_memory": gpu,
+            "gpu_release_observation": self.gpu_release,
             "local_text_worker_unmanaged": self.local_converse_unmanaged,
             "client_notification_pending": self.publication_pending,
             "physical_playback_stopped": "unconfirmed",
@@ -166,7 +178,13 @@ class ResourceCoordinator:
                     else:
                         await self.converse.enabled(False)
                         await self._stop_workers()
-                        await self._save(phase="off", lease_id=None, lease_task_id=None)
+                        await self._save(
+                            phase="off",
+                            lease_id=None,
+                            lease_task_id=None,
+                            required_bytes=0,
+                            required_gpu_bytes=0,
+                        )
                 elif operation == "task_finished":
                     if (
                         self.state.record.phase == "local_work"
@@ -228,13 +246,32 @@ class ResourceCoordinator:
         required = payload.get("required_bytes", 0)
         if type(required) is not int or not self.minimum <= required <= 1 << 46:
             raise ValueError("Declare required local headroom in bytes")
+        required_gpu = payload.get("required_gpu_bytes", 0)
+        if type(required_gpu) is not int or not 0 <= required_gpu <= 1 << 46:
+            raise ValueError("Invalid requested GPU headroom")
+        if required_gpu and self.gpu_probe is None:
+            raise ValueError("No managed GPU measurement supports the requested VRAM headroom")
+        gpu_before = self.gpu_probe() if self.gpu_probe is not None else None
+        restore_gpu = self.state.record.restore_gpu_bytes
+        if self.gpu_probe is not None:
+            if gpu_before is None or gpu_before["worker_resident_bytes"] <= 0:
+                raise ValueError("Managed GPU residency is unavailable; handoff refused")
+            if required_gpu > gpu_before["total_bytes"]:
+                raise ValueError("Requested GPU headroom exceeds the configured device capacity")
+            restore_gpu = max(
+                restore_gpu,
+                self.gpu_restore_reserve,
+                gpu_before["worker_resident_bytes"] + self.minimum,
+            )
         task_id = payload.get("task_id")
         if task_id and self.task_status:
             task = await self.task_status(task_id)
             if task.get("state") in {"succeeded", "failed", "cancelled", "paused"}:
                 raise ValueError("The bound task is inactive; no resource handoff was started")
         await self._save(
-            phase="quiescing", reason=payload.get("reason", "Explicit local work handoff")
+            phase="quiescing",
+            reason=payload.get("reason", "Explicit local work handoff"),
+            restore_gpu_bytes=restore_gpu,
         )
         health = await self.converse.health()
         await self._save(
@@ -254,18 +291,40 @@ class ResourceCoordinator:
         available = self.memory_probe()
         if available is None or available < required:
             raise RuntimeError("Insufficient measured local headroom; admission refused")
+        if self.gpu_probe is not None:
+            gpu_after = self.gpu_probe()
+            if gpu_after is None or gpu_after["worker_resident_bytes"] != 0:
+                raise RuntimeError("GPU release measurement unavailable; admission refused")
+            self.gpu_release = {
+                "before": gpu_before,
+                "after": gpu_after,
+                "used_bytes_decrease": gpu_before["used_bytes"] - gpu_after["used_bytes"],
+                "limits": "Driver samples can race other workloads; verified worker group is reaped",
+            }
+            if gpu_after["free_bytes"] < required_gpu:
+                raise RuntimeError("Insufficient measured GPU headroom; admission refused")
         if task_id and self.task_status:
             task = await self.task_status(task_id)
             if task.get("state") in {"succeeded", "failed", "cancelled", "paused"}:
                 await self._restore_locked()
                 return
         await self._save(
-            phase="local_work", required_bytes=required, lease_id=new_id(), lease_task_id=task_id
+            phase="local_work",
+            required_bytes=required,
+            required_gpu_bytes=required_gpu,
+            lease_id=new_id(),
+            lease_task_id=task_id,
         )
 
     async def _restore_locked(self):
         if not self.state.record.desired_converse:
-            await self._save(phase="off", lease_id=None, lease_task_id=None, required_bytes=0)
+            await self._save(
+                phase="off",
+                lease_id=None,
+                lease_task_id=None,
+                required_bytes=0,
+                required_gpu_bytes=0,
+            )
             return
         await self._save(phase="restoring")
         available = self.memory_probe()
@@ -273,19 +332,33 @@ class ResourceCoordinator:
             self.minimum, self.restore_reserve, self.state.record.restore_bytes
         ):
             raise RuntimeError("Restoration lacks measured minimum headroom")
+        if self.gpu_probe is not None:
+            gpu = self.gpu_probe()
+            if (
+                gpu is None
+                or gpu["free_bytes"]
+                < max(
+                    0,
+                    self.gpu_restore_reserve,
+                    self.state.record.restore_gpu_bytes,
+                )
+                - gpu["worker_resident_bytes"]
+            ):
+                raise RuntimeError("Restoration lacks measured GPU headroom")
         for worker_id in self.manager.status()["workers"]:
             if self.before_start:
                 await self.before_start(worker_id)
             result = await self.manager.start(worker_id)
             if not result.get("ok") or not result.get("ready"):
-                raise RuntimeError("Managed voice API did not become ready")
+                raise RuntimeError("Managed conversation worker did not become ready")
         await self.converse.enabled(True)
         await self._save(
             phase="ready",
             lease_id=None,
             lease_task_id=None,
             required_bytes=0,
-            reason="Voice API ready; model weights load on demand",
+            required_gpu_bytes=0,
+            reason="Managed APIs ready; voice weights load on demand",
         )
 
     async def close(self):

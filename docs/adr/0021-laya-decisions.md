@@ -106,7 +106,9 @@ must match on every health/inference response before body decoding. Readiness
 still requires actual residency/device; local artifacts report `revision: null`
 and separate `artifact_sha256`. This is an authenticated worker receipt, not
 hardware attestation. It does not invent a Hub revision. The coordinator can enforce local
-disclosure policy but does not own or unload this external Laya process.
+disclosure policy. Standalone workers remain external; the optional
+[managed adapter](0022-managed-laya-resources.md) owns a new verified child and
+supports measured AMD GPU handoffs.
 
 ## Verification and research limits
 

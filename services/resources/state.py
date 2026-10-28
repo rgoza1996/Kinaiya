@@ -33,6 +33,8 @@ class ResourceRecord(BaseModel):
     lease_task_id: str | None = Field(default=None, max_length=128)
     required_bytes: int = Field(default=0, ge=0, le=1 << 46)
     restore_bytes: int = Field(default=0, ge=0, le=1 << 46)
+    required_gpu_bytes: int = Field(default=0, ge=0, le=1 << 46)
+    restore_gpu_bytes: int = Field(default=0, ge=0, le=1 << 46)
     reason: str = Field(default="", max_length=160)
 
 

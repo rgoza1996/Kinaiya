@@ -14,6 +14,7 @@ import pytest
 
 from packages.providers.laya_artifact import (
     ARTIFACT_HEADER,
+    WORKER_PID_HEADER,
     ArtifactError,
     verified_laya_checkpoint,
 )
@@ -193,6 +194,7 @@ async def test_identity_header_only_on_authenticated_success(key, status, has_id
             "http://worker/health", headers={"Authorization": f"Bearer {key}"}
         )
     assert (response.headers.get(ARTIFACT_HEADER) == "a" * 64) is has_identity
+    assert (response.headers.get(WORKER_PID_HEADER) == str(os.getpid())) is has_identity
 
 
 @pytest.mark.parametrize("mutate_on_load", [False, True])

@@ -1,0 +1,682 @@
+{
+  "schema_version": "1.0",
+  "status": "experimental_verified_managed_laya_handoff",
+  "recorded_unix": 1793149198.1820583,
+  "code_commit": "1ab09d936c519fc7188dffddf2de36a0eef7e504",
+  "requirements": [
+    "Roadmap 14.2-14.4",
+    "M6/#9",
+    "Laya integration/#53"
+  ],
+  "source_file_sha256": {
+    "packages/commands/__init__.py": "2ee4c583a3b80a26a81bee590d4d5ce6b3175b64faa18e90f21bf142ee19d0f4",
+    "packages/providers/laya.py": "06dbfea987fddcadb4a393976adf1a79ded84358b7b336bd2937520425b1e319",
+    "packages/providers/laya_artifact.py": "cf89fb18ee82521efd15fabb006da989f674b105761d16b7475cd9fda03a6ded",
+    "packages/resources/gpu.py": "a8bf4e3d8acb173a45176f8f0a8a49bc7514257226feaa5b2c611788d3dc0715",
+    "services/decisions/laya_worker.py": "5821d11e4264c277fccf3908da34dcedd6671f4457cb642943e15440ba534108",
+    "services/launcher.py": "1270be192bdd9f0cf5ae63847c91088e03466b6e5db97aca8d8e0a3c2b094dac",
+    "services/resources/api.py": "99b8bedf18f0f067da6f3408bdb7ee7ea47feba3d670172892c654286d2a3acd",
+    "services/resources/coordinator.py": "def332e4215aa42b1334d736b2c0e660358774f4f17965410bcf540290b5e96e",
+    "services/resources/launcher.py": "e56ab266e691744f8b0e7a35ee23d6ac0d2a62b027f0d46952d2f1ea83e4a86f",
+    "services/resources/laya.py": "b9d7d8588126ee3e3349c2b7cf17c97158fd17089c7af3c41f950f06a057528a",
+    "services/resources/providers.py": "b56b4e50542096d8ba42644459ddfd3d27b6546974d88892118e1309837f7c75",
+    "services/resources/state.py": "ab35060a315a4fe36854d1802d7618f337364eb23b62bfcf1c75da126cb82fb4",
+    "tests/integration/test_commands.py": "91923055e8252e4bf817ea016e0ba78b2cf092d305756c0882e906c5d2cd6743",
+    "tests/integration/test_managed_laya_launcher.py": "31cf69973ec80d90a37ef69f818462dfdb493b362b9ddcf21c44e46e742aee78",
+    "tests/integration/test_resource_handoff.py": "58fdc27f659807aa4276ea090f5a2278e03d081730ad15864015bda1a89d35a6",
+    "tests/unit/test_laya_artifact.py": "ee67be93e209210d2413671dd032a222f423bc1051f81da6f9da11d299a4ae15",
+    "tests/unit/test_laya_provider.py": "0fd6b1350b102346aa69e010612432f357c1017a4777480416e55701dd05d00a",
+    "tests/unit/test_managed_laya.py": "7351e1a1e1c236bac10cf3c4fd38747d4fbf7716bab435d70bec200e85f1a8e0",
+    "tests/unit/test_resource_gpu.py": "e5d76babd8d8451eeedd7ae1e61e4dbfcd30461825ca53dd85a983d6c5004361",
+    "tests/unit/test_supervisor.py": "092e66cb155c6801d98e8f75681d620ac3a0c7d696bbec50952e814e2c5095a9"
+  },
+  "live_record_raw_sha256": "c0dca7caefca042972745c3a665bfeec7aafeb0e193f90c7b576358b3786b058",
+  "live": {
+    "schema_version": "1.0",
+    "synthetic_only": true,
+    "device": "AMD ROCm gfx1201 (Torch cuda API), CPU Whisper/Kokoro",
+    "gpu_verified": true,
+    "physical_playback_stopped": "unconfirmed",
+    "checks": {
+      "local_decisions_paused_during_lease": true,
+      "agent_commands_and_core_services_while_converse_off": true,
+      "fresh_owned_laya_and_voice_after_task": true,
+      "old_speech_rejected_after_restore": 409,
+      "task_bound_automatic_restore_new_pid": true,
+      "fresh_stt_tts_after_restore": true
+    },
+    "failures": [],
+    "scope": "Live managed GPU/voice handoff, real Meta Agent/Converse and local Laya probe. Agent task is direct; this is not full conversational delegation or microphone/echo acceptance.",
+    "warm_voice": {
+      "pid": 664099,
+      "health": {
+        "service": "local-voice",
+        "device": "cpu",
+        "pid": 664099,
+        "loaded": [
+          "stt",
+          "tts"
+        ],
+        "tts_profile": "Kokoro 82M",
+        "retained_candidates": [
+          "Ming 3 Tiny",
+          "VibeVoice Realtime 0.5B",
+          "Kokoro 82M",
+          "Supertonic 3"
+        ],
+        "other_profiles": "not_configured"
+      },
+      "rss_bytes": 2935476224,
+      "stt_text": "Please create a new file named proof containing only the number seven.",
+      "tts_samples": 70800
+    },
+    "laya_before": {
+      "pid": 664105,
+      "health": {
+        "ready": true,
+        "model": "kinaiya-v4",
+        "revision": null,
+        "device": "cuda",
+        "artifact_sha256": "5363e1728bf8026ca0a9a248d9e2c3b125f3de08888ba4b9c133531260798339",
+        "worker_pid": 664105
+      },
+      "classification": {
+        "conversation": "IGNORE",
+        "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
+        "target_task_id": null,
+        "expected_objective_revision": null,
+        "reason_code": "laya_typed_choices"
+      }
+    },
+    "before_handoff": {
+      "schema_version": "1.0",
+      "controller_id": "b7546fcf-e17f-42d2-adf2-7662b2c60fe7",
+      "policy": {
+        "revision": 4,
+        "profile": "conversation_priority",
+        "phase": "ready",
+        "desired_converse": true,
+        "lease_id": null,
+        "lease_task_id": null,
+        "required_bytes": 0,
+        "restore_bytes": 0,
+        "required_gpu_bytes": 0,
+        "restore_gpu_bytes": 0,
+        "reason": "Managed APIs ready; voice weights load on demand"
+      },
+      "workers": {
+        "voice": {
+          "id": "voice",
+          "state": "running",
+          "ready": true,
+          "readiness": "verified",
+          "owned_pid": 664099,
+          "owned_pgid": 664099,
+          "error": null,
+          "rss_bytes": 2935476224,
+          "group_rss_bytes": 2935476224,
+          "mem_available_bytes": 32414715904,
+          "log_tail_stdout": "",
+          "log_tail_stderr": "",
+          "log_stdout_bytes": 0,
+          "log_stderr_bytes": 511,
+          "last_transition": {
+            "event": "started",
+            "at": "2026-10-28T00:55:54.046077+00:00",
+            "duration_s": 0.4291057149966946
+          },
+          "stop_evidence": null
+        },
+        "laya": {
+          "id": "laya",
+          "state": "running",
+          "ready": true,
+          "readiness": "verified",
+          "owned_pid": 664105,
+          "owned_pgid": 664105,
+          "error": null,
+          "rss_bytes": 3592368128,
+          "group_rss_bytes": 3592368128,
+          "mem_available_bytes": 32414457856,
+          "log_tail_stdout": "",
+          "log_tail_stderr": "",
+          "log_stdout_bytes": 0,
+          "log_stderr_bytes": 0,
+          "last_transition": {
+            "event": "started",
+            "at": "2026-10-28T00:56:10.492613+00:00",
+            "duration_s": 16.435008022002876
+          },
+          "stop_evidence": null
+        }
+      },
+      "worker_count": 2,
+      "closed": false,
+      "gpu": "unknown/unverified",
+      "memory_available_bytes": 32414457856,
+      "coverage": "managed local voice/Laya processes; AMD driver counters; no hard reservation",
+      "gpu_memory": {
+        "pci_bus_id": "0000:2f:00.0",
+        "total_bytes": 34208743424,
+        "used_bytes": 15884664832,
+        "free_bytes": 18324078592,
+        "worker_resident_bytes": 2965479424
+      },
+      "gpu_release_observation": null,
+      "local_text_worker_unmanaged": false,
+      "client_notification_pending": false,
+      "physical_playback_stopped": "unconfirmed"
+    },
+    "converse_turn": {
+      "events": [
+        {
+          "type": "accepted",
+          "source_event_id": "d2931f91-a6af-4a30-b1d8-c90c4d771e31",
+          "generation_epoch": 1
+        },
+        {
+          "type": "text",
+          "entry": {
+            "schema_version": "1.0",
+            "session_id": "7c6d047d-7534-4d5d-80f7-2824fd31aea7",
+            "thread_id": "7c4f4db4-f0ca-4a55-8105-4e8e236aa1a1",
+            "epoch": 1,
+            "kind": "conversation.converse",
+            "payload": {
+              "text": "Hello, glad to connect for this voice test.",
+              "final": true,
+              "revision": 1,
+              "generation_epoch": 1,
+              "runtime_id": "f0154475-99b4-4ffa-870f-b368b37afc94",
+              "chunk_id": "6717dd33-6494-46fe-84cf-795498a02651",
+              "delivery": "generated"
+            },
+            "causes": [
+              "d2931f91-a6af-4a30-b1d8-c90c4d771e31"
+            ],
+            "task_refs": [],
+            "idempotency_key": "reply:d2931f91-a6af-4a30-b1d8-c90c4d771e31:0",
+            "event_id": "901efdb0-9e1a-4539-8412-2431a747a799",
+            "sequence": 3,
+            "origin": "converse",
+            "created_at": "2026-10-28T00:56:33.292782Z"
+          }
+        },
+        {
+          "type": "done",
+          "generation_epoch": 1
+        }
+      ],
+      "text": "Hello, glad to connect for this voice test."
+    },
+    "task_id": "e85ee6c8-c206-46cf-bd73-c4ed82d73fb8",
+    "handoff": {
+      "schema_version": "1.0",
+      "controller_id": "b7546fcf-e17f-42d2-adf2-7662b2c60fe7",
+      "policy": {
+        "revision": 10,
+        "profile": "local_work_priority",
+        "phase": "local_work",
+        "desired_converse": true,
+        "lease_id": "9b89477c-9422-446b-bc5c-951a91015fae",
+        "lease_task_id": "e85ee6c8-c206-46cf-bd73-c4ed82d73fb8",
+        "required_bytes": 2147483648,
+        "restore_bytes": 6662062080,
+        "required_gpu_bytes": 1073741824,
+        "restore_gpu_bytes": 4294967296,
+        "reason": "Explicit local work handoff"
+      },
+      "workers": {
+        "voice": {
+          "id": "voice",
+          "state": "stopped",
+          "ready": false,
+          "readiness": "verified",
+          "owned_pid": 664099,
+          "owned_pgid": null,
+          "error": null,
+          "rss_bytes": null,
+          "group_rss_bytes": null,
+          "mem_available_bytes": 37977579520,
+          "log_tail_stdout": "",
+          "log_tail_stderr": "",
+          "log_stdout_bytes": 0,
+          "log_stderr_bytes": 511,
+          "last_transition": {
+            "event": "stopped",
+            "at": "2026-10-28T00:56:40.521067+00:00",
+            "duration_s": 0.44319350700243376
+          },
+          "stop_evidence": {
+            "pid": 664099,
+            "pgid": 664099,
+            "rss_before_bytes": 2935476224,
+            "group_rss_before_bytes": 2935476224,
+            "mem_available_bytes": 33352245248,
+            "term_sent": true,
+            "kill_sent": false,
+            "reaped": true,
+            "group_empty": true,
+            "residual_pids": [],
+            "ownership_verified": true,
+            "duration_s": 0.44319350700243376,
+            "at": "2026-10-28T00:56:40.521046+00:00"
+          }
+        },
+        "laya": {
+          "id": "laya",
+          "state": "stopped",
+          "ready": false,
+          "readiness": "verified",
+          "owned_pid": 664105,
+          "owned_pgid": null,
+          "error": null,
+          "rss_bytes": null,
+          "group_rss_bytes": null,
+          "mem_available_bytes": 37977579520,
+          "log_tail_stdout": "",
+          "log_tail_stderr": "",
+          "log_stdout_bytes": 0,
+          "log_stderr_bytes": 0,
+          "last_transition": {
+            "event": "stopped",
+            "at": "2026-10-28T00:56:41.010550+00:00",
+            "duration_s": 0.4894336029974511
+          },
+          "stop_evidence": {
+            "pid": 664105,
+            "pgid": 664105,
+            "rss_before_bytes": 3592368128,
+            "group_rss_before_bytes": 3592368128,
+            "mem_available_bytes": 35437072384,
+            "term_sent": true,
+            "kill_sent": false,
+            "reaped": true,
+            "group_empty": true,
+            "residual_pids": [],
+            "ownership_verified": true,
+            "duration_s": 0.4894336029974511,
+            "at": "2026-10-28T00:56:41.010531+00:00"
+          }
+        }
+      },
+      "worker_count": 2,
+      "closed": false,
+      "gpu": "unknown/unverified",
+      "memory_available_bytes": 37977579520,
+      "coverage": "managed local voice/Laya processes; AMD driver counters; no hard reservation",
+      "gpu_memory": {
+        "pci_bus_id": "0000:2f:00.0",
+        "total_bytes": 34208743424,
+        "used_bytes": 6145982464,
+        "free_bytes": 28062760960,
+        "worker_resident_bytes": 0
+      },
+      "gpu_release_observation": {
+        "before": {
+          "pci_bus_id": "0000:2f:00.0",
+          "total_bytes": 34208743424,
+          "used_bytes": 9155039232,
+          "free_bytes": 25053704192,
+          "worker_resident_bytes": 2965479424
+        },
+        "after": {
+          "pci_bus_id": "0000:2f:00.0",
+          "total_bytes": 34208743424,
+          "used_bytes": 7880384512,
+          "free_bytes": 26328358912,
+          "worker_resident_bytes": 0
+        },
+        "used_bytes_decrease": 1274654720,
+        "limits": "Driver samples can race other workloads; verified worker group is reaped"
+      },
+      "local_text_worker_unmanaged": false,
+      "client_notification_pending": false,
+      "physical_playback_stopped": "unconfirmed"
+    },
+    "gpu_job": {
+      "pid": 664741,
+      "device": "cuda:0",
+      "allocated_bytes": 268435456,
+      "reserved_bytes": 270532608,
+      "initial_free_bytes": 23565697024,
+      "total_bytes": 34208743424,
+      "verified_mean": 1.0
+    },
+    "gpu_during_job": {
+      "pci_bus_id": "0000:2f:00.0",
+      "total_bytes": 34208743424,
+      "used_bytes": 13939220480,
+      "free_bytes": 20269522944,
+      "worker_resident_bytes": 0
+    },
+    "task": {
+      "schema_version": "1.0",
+      "task_id": "e85ee6c8-c206-46cf-bd73-c4ed82d73fb8",
+      "session_id": "bd11e50d-ae15-432a-a3a2-14a6a9daadbc",
+      "thread_id": "7164c302-9c36-4aa3-9daa-8da7f8551d9c",
+      "epoch": 1,
+      "objective": "Write resource-proof.txt with exactly 'public synthetic resource handoff proof', without a terminal newline. Then use native read_file to verify it and finish with the current objective revision. Do not use shell or other files.",
+      "objective_revision": 1,
+      "state": "succeeded",
+      "summary": "Wrote resource-proof.txt with exact content and verified via read_file",
+      "evidence": [
+        {
+          "schema_version": "1.0",
+          "evidence_id": "871e9331-abf2-43b5-b10d-18d7ef81c4bd",
+          "kind": "file",
+          "summary": "wrote <local>/.dev-run/laya-managed-workspace-v3/resource-proof.txt",
+          "path": "<local>/.dev-run/laya-managed-workspace-v3/resource-proof.txt",
+          "sha256": "6d96c925e85ae97cc6a6c6bb4337e5689b44e2d60bae34ec0625485613cb5694",
+          "exit_code": null,
+          "output": "",
+          "objective_revision": 1
+        },
+        {
+          "schema_version": "1.0",
+          "evidence_id": "823fd7c2-10af-41cb-a43c-682e544be4b2",
+          "kind": "read",
+          "summary": "read <local>/.dev-run/laya-managed-workspace-v3/resource-proof.txt",
+          "path": "<local>/.dev-run/laya-managed-workspace-v3/resource-proof.txt",
+          "sha256": "6d96c925e85ae97cc6a6c6bb4337e5689b44e2d60bae34ec0625485613cb5694",
+          "exit_code": null,
+          "output": "",
+          "objective_revision": 1
+        }
+      ],
+      "remaining_required_work": [],
+      "source_event_ids": [],
+      "idempotency_key": "resource-proof-task",
+      "harness_version": "seed-v1",
+      "error": null
+    },
+    "artifact_sha256": "6d96c925e85ae97cc6a6c6bb4337e5689b44e2d60bae34ec0625485613cb5694",
+    "owner_approvals": 1,
+    "restored": {
+      "schema_version": "1.0",
+      "controller_id": "b7546fcf-e17f-42d2-adf2-7662b2c60fe7",
+      "policy": {
+        "revision": 12,
+        "profile": "local_work_priority",
+        "phase": "ready",
+        "desired_converse": true,
+        "lease_id": null,
+        "lease_task_id": null,
+        "required_bytes": 0,
+        "restore_bytes": 6662062080,
+        "required_gpu_bytes": 0,
+        "restore_gpu_bytes": 4294967296,
+        "reason": "Managed APIs ready; voice weights load on demand"
+      },
+      "workers": {
+        "voice": {
+          "id": "voice",
+          "state": "running",
+          "ready": true,
+          "readiness": "verified",
+          "owned_pid": 664933,
+          "owned_pgid": 664933,
+          "error": null,
+          "rss_bytes": 60272640,
+          "group_rss_bytes": 60272640,
+          "mem_available_bytes": 34301980672,
+          "log_tail_stdout": "",
+          "log_tail_stderr": "",
+          "log_stdout_bytes": 0,
+          "log_stderr_bytes": 0,
+          "last_transition": {
+            "event": "started",
+            "at": "2026-10-28T00:57:04.303875+00:00",
+            "duration_s": 0.3775853190018097
+          },
+          "stop_evidence": {
+            "pid": 664099,
+            "pgid": 664099,
+            "rss_before_bytes": 2935476224,
+            "group_rss_before_bytes": 2935476224,
+            "mem_available_bytes": 33352245248,
+            "term_sent": true,
+            "kill_sent": false,
+            "reaped": true,
+            "group_empty": true,
+            "residual_pids": [],
+            "ownership_verified": true,
+            "duration_s": 0.44319350700243376,
+            "at": "2026-10-28T00:56:40.521046+00:00"
+          }
+        },
+        "laya": {
+          "id": "laya",
+          "state": "running",
+          "ready": true,
+          "readiness": "verified",
+          "owned_pid": 664939,
+          "owned_pgid": 664939,
+          "error": null,
+          "rss_bytes": 3356250112,
+          "group_rss_bytes": 3356250112,
+          "mem_available_bytes": 34301980672,
+          "log_tail_stdout": "",
+          "log_tail_stderr": "",
+          "log_stdout_bytes": 0,
+          "log_stderr_bytes": 0,
+          "last_transition": {
+            "event": "started",
+            "at": "2026-10-28T00:57:18.317210+00:00",
+            "duration_s": 13.998239757987903
+          },
+          "stop_evidence": {
+            "pid": 664105,
+            "pgid": 664105,
+            "rss_before_bytes": 3592368128,
+            "group_rss_before_bytes": 3592368128,
+            "mem_available_bytes": 35437072384,
+            "term_sent": true,
+            "kill_sent": false,
+            "reaped": true,
+            "group_empty": true,
+            "residual_pids": [],
+            "ownership_verified": true,
+            "duration_s": 0.4894336029974511,
+            "at": "2026-10-28T00:56:41.010531+00:00"
+          }
+        }
+      },
+      "worker_count": 2,
+      "closed": false,
+      "gpu": "unknown/unverified",
+      "memory_available_bytes": 34301980672,
+      "coverage": "managed local voice/Laya processes; AMD driver counters; no hard reservation",
+      "gpu_memory": {
+        "pci_bus_id": "0000:2f:00.0",
+        "total_bytes": 34208743424,
+        "used_bytes": 15445057536,
+        "free_bytes": 18763685888,
+        "worker_resident_bytes": 1949339648
+      },
+      "gpu_release_observation": {
+        "before": {
+          "pci_bus_id": "0000:2f:00.0",
+          "total_bytes": 34208743424,
+          "used_bytes": 9155039232,
+          "free_bytes": 25053704192,
+          "worker_resident_bytes": 2965479424
+        },
+        "after": {
+          "pci_bus_id": "0000:2f:00.0",
+          "total_bytes": 34208743424,
+          "used_bytes": 7880384512,
+          "free_bytes": 26328358912,
+          "worker_resident_bytes": 0
+        },
+        "used_bytes_decrease": 1274654720,
+        "limits": "Driver samples can race other workloads; verified worker group is reaped"
+      },
+      "local_text_worker_unmanaged": false,
+      "client_notification_pending": false,
+      "physical_playback_stopped": "unconfirmed"
+    },
+    "laya_after": {
+      "pid": 664939,
+      "health": {
+        "ready": true,
+        "model": "kinaiya-v4",
+        "revision": null,
+        "device": "cuda",
+        "artifact_sha256": "5363e1728bf8026ca0a9a248d9e2c3b125f3de08888ba4b9c133531260798339",
+        "worker_pid": 664939
+      },
+      "classification": {
+        "conversation": "IGNORE",
+        "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
+        "target_task_id": null,
+        "expected_objective_revision": null,
+        "reason_code": "laya_typed_choices"
+      }
+    },
+    "restored_voice_health_before_inference": {
+      "service": "local-voice",
+      "device": "cpu",
+      "pid": 664933,
+      "loaded": [],
+      "tts_profile": "Kokoro 82M",
+      "retained_candidates": [
+        "Ming 3 Tiny",
+        "VibeVoice Realtime 0.5B",
+        "Kokoro 82M",
+        "Supertonic 3"
+      ],
+      "other_profiles": "not_configured"
+    },
+    "restored_voice_health_after_inference": {
+      "service": "local-voice",
+      "device": "cpu",
+      "pid": 664933,
+      "loaded": [
+        "stt",
+        "tts"
+      ],
+      "tts_profile": "Kokoro 82M",
+      "retained_candidates": [
+        "Ming 3 Tiny",
+        "VibeVoice Realtime 0.5B",
+        "Kokoro 82M",
+        "Supertonic 3"
+      ],
+      "other_profiles": "not_configured"
+    },
+    "source_sha256": {
+      "services/resources/coordinator.py": "def332e4215aa42b1334d736b2c0e660358774f4f17965410bcf540290b5e96e",
+      "services/resources/api.py": "99b8bedf18f0f067da6f3408bdb7ee7ea47feba3d670172892c654286d2a3acd",
+      "services/resources/__init__.py": "ac83c951f140c8232d46b28b7a832259a808ab25d0705f92c7fa2c560efeebae",
+      "services/resources/client.py": "541ce28ab53b5690ed84de9988f265426b2f6ef04d1cda4fcc6df9276b32963a",
+      "services/resources/laya.py": "b9d7d8588126ee3e3349c2b7cf17c97158fd17089c7af3c41f950f06a057528a",
+      "services/resources/state.py": "ab35060a315a4fe36854d1802d7618f337364eb23b62bfcf1c75da126cb82fb4",
+      "services/resources/launcher.py": "e56ab266e691744f8b0e7a35ee23d6ac0d2a62b027f0d46952d2f1ea83e4a86f",
+      "services/resources/providers.py": "b56b4e50542096d8ba42644459ddfd3d27b6546974d88892118e1309837f7c75",
+      "packages/resources/processes.py": "f5c789f7929d7e8531c2464f633dd17a122fc674c2abec75ef448579a744c66b",
+      "packages/resources/gpu.py": "a8bf4e3d8acb173a45176f8f0a8a49bc7514257226feaa5b2c611788d3dc0715",
+      "packages/resources/__init__.py": "382c4c1eeced27f864b934a4f7891b7dd0a3655f500242f7aae55c88e6c0f98e",
+      "packages/resources/_bootstrap.py": "0689a68ed813fd11e336f4a96a1fc4c60e908cf627c9dece6037f2d88b0da9f2",
+      "packages/providers/laya_artifact.py": "cf89fb18ee82521efd15fabb006da989f674b105761d16b7475cd9fda03a6ded",
+      "packages/providers/voice_worker.py": "0af118c3bfb4449ad85e505dba0c6c2e3e478b08a55487a82c3dfc8d756a8fa8",
+      "packages/providers/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "packages/providers/speech.py": "a4c7696db4eaac61b970041d687246fdd46dcc5f34e6dd16bffb2af5fda1920e",
+      "packages/providers/laya.py": "06dbfea987fddcadb4a393976adf1a79ded84358b7b336bd2937520425b1e319",
+      "packages/providers/text.py": "03ebff915a95e6739ccb0b9f21102dc77cd5d35045dfad31bc1c81783ba278f8",
+      "packages/providers/disclosure.py": "39b73bfc8656449195225b4d1f1a14c1b01ccbcf91047c0bf67dddb131ad0dd2"
+    },
+    "result": "passed",
+    "meta_budget_after": {
+      "limit_usd": 25,
+      "admission_limit_usd": 22,
+      "billing_reported_usd": null,
+      "contributor_estimated_usd": 0.9336077460000002,
+      "admission_estimated_usd": 20.057098000000014,
+      "reserved_usd": 1.5558100499999998
+    }
+  },
+  "runtime_reference": "laya-2026-10-27/report.json",
+  "model_manifest_sha256": "5363e1728bf8026ca0a9a248d9e2c3b125f3de08888ba4b9c133531260798339",
+  "earlier_probes": [
+    {
+      "version": 1,
+      "result": "failed",
+      "raw_sha256": "e20732ace2d3b2b6ab6e0c88e5a1151f632f88d8dea365762aeb96153a313844",
+      "failure_analysis": "Probe expected exactly path/content, but the valid structured write action also supplied objective_revision=1. No approval was resolved and no target file was written. Corrected the fixture to validate the optional revision against the native approval revision; no effect expectation or permission boundary changed.",
+      "target_file_written": false
+    },
+    {
+      "version": 2,
+      "result": "passed",
+      "raw_sha256": "f749671a03358aa9fde38724ef8de4c4f8d5ef3d3f1739f094c9d28e4cff0fac",
+      "note": "Passed before final lexical path and fixed child-secret-name hardening; v3 repeated on final code with only core provider profiles."
+    }
+  ],
+  "muse_implementation": {
+    "actual_cli": true,
+    "model": "muse-spark-1.3-contributor",
+    "contributor_mode": "on",
+    "reasoning_effort": "xhigh",
+    "bounded_model_steps": 4,
+    "physical_model_calls": [
+      1355,
+      1356,
+      1357,
+      1358
+    ],
+    "terminal": "model-step-cap; no completion verdict",
+    "owned_files": [
+      "packages/resources/gpu.py",
+      "tests/unit/test_resource_gpu.py"
+    ],
+    "lead_changes": "Corrected two fixture errors, bounded decimal conversion/scandir/aggregate counters, added integration/native policy checks. Raw worker output/initial failures retained."
+  },
+  "verification": {
+    "local_python_tests": 811,
+    "ruff_check_and_format": "passed",
+    "contract_export": "unchanged",
+    "automated_review": {
+      "actual_cli": true,
+      "model": "muse-spark-1.3-contributor",
+      "contributor_mode": "on",
+      "reasoning_effort": "xhigh",
+      "code_commit": "1ab09d936c519fc7188dffddf2de36a0eef7e504",
+      "physical_model_call": 1365,
+      "input_tokens": 32849,
+      "output_tokens": 18072,
+      "cached_input_tokens": 0,
+      "result": "No actionable introduced findings in bounded source scope; no tests run by reviewer; not human approval."
+    }
+  },
+  "known_failures": [
+    {
+      "issue": "https://github.com/rgoza1996/Kinaiya/issues/9#issuecomment-6457640027",
+      "evidence": {
+        "main_commit": "1a1c162e7973617ef3a31d227d21a870d643f57e",
+        "recorded_unix": 1793148332.5461981,
+        "confirmed_race": true,
+        "owner_off_http_status": 200,
+        "owner_off_response": {
+          "enabled": false
+        },
+        "after_restore_enabled": true,
+        "after_restore_phase": "ready",
+        "scope": "Legacy Converse owner off races resource restoration; native disposable CPU worker and real API authority, synthetic inference, zero Meta/GPU/microphone",
+        "sources": {
+          "services/resources/coordinator.py": "f59bc8c7d53296bb937abca6d49c26970bc55eaaf54ae2eccab6931a15110b12",
+          "services/converse/api.py": "aafe9a5d63337032c1e1b1e638eea71d6bfccf311933bd75f9c60349c9061452"
+        }
+      },
+      "note": "Existing owner-off legacy API race confirmed on main; remains open and is not passing M6 acceptance. The manual reproduction also emitted an asyncio subprocess-transport loop-close warning after fixture cleanup; the primary live v3 process/endpoint cleanup is checked separately."
+    }
+  ],
+  "limits": [
+    "Direct Agent task, not proof of full Converse-to-Agent conversational delegation.",
+    "Public synthetic/prerecorded audio only; no microphone, echo or audible-latency acceptance.",
+    "Global AMD counters can race other workloads; process group release and post-stop headroom are distinct observations, not exact causal GPU byte attribution.",
+    "The bounded GPU compute job is a lead-authored local fixture; Agent performs a real file task through native approvals/tools.",
+    "No hard allocator reservation, general Agent GPU scheduler, hostile daemon containment or full M6/device-loss/constrained-memory proof.",
+    "Reference provider configuration has not been promoted or switched by this study."
+  ]
+}

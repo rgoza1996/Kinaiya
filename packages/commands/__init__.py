@@ -35,7 +35,7 @@ DEFINITIONS = {
     "resources": (
         "Inspect policy or explicitly hand local voice resources to work",
         [],
-        "status|profile <name>|handoff <bytes> [task-id]|restore|converse on|off",
+        "status|profile <name>|handoff <bytes> [task-id] [--gpu-bytes N]|restore|converse on|off",
     ),
     "skills": (
         "Inspect or manage installed skills without inference",
@@ -547,15 +547,24 @@ class Registry:
             }
             if args[0] == "profile" and len(args) == 2:
                 fields["profile"] = args[1]
-            elif args[0] == "handoff" and len(args) in {2, 3}:
-                fields["required_bytes"] = int(args[1])
-                if len(args) == 3:
-                    fields["task_id"] = args[2]
+            elif args[0] == "handoff":
+                inputs = list(args[1:])
+                if "--gpu-bytes" in inputs:
+                    index = inputs.index("--gpu-bytes")
+                    if index != len(inputs) - 2 or inputs.count("--gpu-bytes") != 1:
+                        raise ValueError("Use one trailing --gpu-bytes N")
+                    fields["required_gpu_bytes"] = int(inputs[-1])
+                    inputs = inputs[:index]
+                if len(inputs) not in {1, 2}:
+                    raise ValueError("Handoff needs host bytes, optional task ID and --gpu-bytes N")
+                fields["required_bytes"] = int(inputs[0])
+                if len(inputs) == 2:
+                    fields["task_id"] = inputs[1]
             elif args[0] == "converse" and len(args) == 2 and args[1] in {"on", "off"}:
                 fields["enabled"] = args[1] == "on"
             elif args != ["restore"]:
                 raise ValueError(
-                    "Usage: /resources status|profile <name>|handoff <bytes> [task-id]|restore|converse on|off"
+                    "Usage: /resources status|profile <name>|handoff <bytes> [task-id] [--gpu-bytes N]|restore|converse on|off"
                 )
             result = await client.action(fields)
             if result.get("ok") is not True:
