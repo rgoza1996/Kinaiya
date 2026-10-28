@@ -85,6 +85,12 @@ snapshot are also present. User revisions fold in native sequence order against
 their exact target and next revision. Only corrected text is used; unrelated
 payload fields cannot overwrite source identity or widen original/intervening
 disclosure. Assistant revisions are forbidden by the existing Store contract.
+An invalid base revision or any unprocessable revision chain permanently omits
+that user message from this prompt. Refusing a malformed correction must never
+restore permission to export an older public draft. Denied or malformed scope
+is likewise sticky; a later public label cannot untaint the chain. Canonical
+journal acceptance/resolution stays unchanged, and counters are never coerced
+to recover prompt permission.
 
 Window hypotheses deduplicate by `(window_index, revision, sequence)` before
 disclosure filtering. A later denied hypothesis cannot fall back to an older
@@ -112,6 +118,26 @@ private-assistant/public-receipt disclosure cases passed on both versions
 lint/format passed for all 210 Python files; contract export left schemas
 unchanged and the diff check passed. Independent review and full integration
 CI remain separate checks.
+
+Independent review at `79c9eff` then established a disclosure fallback: the Store
+accepts legacy base revisions `true`, `1.0` and `0` plus their numeric successors,
+but the strict context fold skipped private corrections and retained the older
+public draft. Six of eight independent local/HTTP cases forwarded stale text;
+the two valid-integer controls omitted it. The original result artifact SHA-256
+is `77668d1d93a7bb199ed1160a9b8e42ef725a1c7ae6566e4ff3b92e4603578fa4`.
+New regressions use actual owner-authenticated HTTP writes as well as local
+journals, cover those bases and a valid base followed by `2.0` or a JSON-unsafe
+counter, and test later public labels after malformed/denied scopes. Before the
+sticky omission repair, 20 cases failed and 12 scope controls passed (7.59 s).
+All 32 passed afterward (7.07 s), preserving the original no-export assertions.
+The full focused scope then passed 339 tests on Python 3.12.3 (137.58 s) and
+339 on Python 3.11.15 (138.33 s), with no warnings summary and worktree imports
+verified. Retained combined log SHA-256 values are
+`ed88504717e477cc46b048f601b78ef8cc1fde241096fcf6943d2f3c25a5ee2d`
+(3.12) and `7744197e224699159a10af06ff740bbd364fde48a70ff940c083415c0ee02c8d`
+(3.11), under `/tmp/kinaiya-77-revision-repair-effpy9ge`. The red and repaired
+32-case logs are retained there as well. Ruff lint/format, unchanged schema
+export and diff checks passed after the repair.
 
 Typed Converse scheduling, Decisions context/contracts, native stop ownership,
 canonical receipt schemas and #79 durable generation discovery remain separate.

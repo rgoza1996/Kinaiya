@@ -42,14 +42,26 @@ class RecordingProvider:
 async def env(tmp_path, request):
     store = Store(tmp_path / "journal.sqlite")
     session = store.create_session(SessionRequest(channel="converse"))
+    auth = Auth(
+        {
+            "converse": "synthetic-converse-credential-000000000",
+            "owner": "synthetic-owner-credential-11111111111",
+        }
+    )
     if request.param == "local":
         journal = LocalJournal(store, "converse")
+        owner_journal = LocalJournal(store, "owner")
     else:
-        auth = Auth({"converse": "synthetic-converse-credential-000000000"})
+        app = create_app(store, auth)
         journal = JournalClient(
             "http://fixture",
             auth.tokens["converse"],
-            transport=httpx.ASGITransport(app=create_app(store, auth)),
+            transport=httpx.ASGITransport(app=app),
+        )
+        owner_journal = JournalClient(
+            "http://fixture",
+            auth.tokens["owner"],
+            transport=httpx.ASGITransport(app=app),
         )
     provider = RecordingProvider()
     runtime = ConverseRuntime(journal, provider)
@@ -58,6 +70,7 @@ async def env(tmp_path, request):
         store=store,
         session=session,
         journal=journal,
+        owner_journal=owner_journal,
         provider=provider,
         runtime=runtime,
         controller=controller,
@@ -68,6 +81,7 @@ async def env(tmp_path, request):
         await controller.close()
         if isinstance(journal, JournalClient):
             await journal.close()
+            await owner_journal.close()
         store.close()
 
 
@@ -154,6 +168,8 @@ async def write(env, kind, payload, *, causes=None, role="converse", key=None):
     )
     if role == "converse":
         return await env.journal.append(request)
+    if role == "owner":
+        return await env.owner_journal.append(request)
     return env.store.append(request, role)
 
 
@@ -469,6 +485,163 @@ async def test_later_private_user_revision_hides_text_without_falling_back(env):
             "revision": 3,
             "content_scope": "public_synthetic",
         },
+        causes=[original.event_id],
+    )
+    await complete(env)
+    assert [m["role"] for m in env.provider.prompts[-1]] == ["system", "user"]
+
+
+@pytest.mark.parametrize("base_revision", [True, 1.0, 0])
+@pytest.mark.parametrize("later_public", [False, True])
+async def test_unprocessable_base_revision_cannot_restore_export_of_older_text(
+    env,
+    base_revision,
+    later_public,
+):
+    env.provider.info = ProviderInfo(
+        provider="meta", model="synthetic-contributor-fixture", local=False
+    )
+    original = await write(
+        env,
+        "conversation.user",
+        {
+            "text": "PUBLIC_DRAFT_SHOULD_BE_WITHDRAWN",
+            "final": True,
+            "revision": base_revision,
+            "content_scope": "public_synthetic",
+        },
+        role="owner",
+    )
+    source = await next_window(env, "current")
+    private = await write(
+        env,
+        "conversation.revision",
+        {
+            "target_event_id": original.event_id,
+            "text": "LOCAL_ONLY_SYNTHETIC_CORRECTION",
+            "revision": base_revision + 1,
+            "content_scope": "local_only",
+        },
+        role="owner",
+        causes=[original.event_id],
+    )
+    canonical = env.store.resolve(original.event_id)
+    assert private.sequence > source.sequence and canonical.payload["content_scope"] == "local_only"
+    if later_public:
+        await write(
+            env,
+            "conversation.revision",
+            {
+                "target_event_id": original.event_id,
+                "text": "LATER_PUBLIC_CANNOT_UNTAINT_CHAIN",
+                "revision": base_revision + 2,
+                "content_scope": "public_synthetic",
+            },
+            role="owner",
+            causes=[original.event_id],
+        )
+    await complete(env)
+    prompt = env.provider.prompts[-1]
+    assert [m["role"] for m in prompt] == ["system", "user"]
+    assert "PUBLIC_DRAFT_SHOULD_BE_WITHDRAWN" not in json.dumps(prompt)
+    assert "LOCAL_ONLY_SYNTHETIC_CORRECTION" not in json.dumps(prompt)
+    assert "LATER_PUBLIC_CANNOT_UNTAINT_CHAIN" not in json.dumps(prompt)
+
+
+@pytest.mark.parametrize("base_revision,next_revision", [(1, 2.0), (MAX_INTEGER, MAX_INTEGER + 1)])
+@pytest.mark.parametrize("later_public", [False, True])
+async def test_unprocessable_later_revision_taints_valid_base_without_fallback(
+    env,
+    base_revision,
+    next_revision,
+    later_public,
+):
+    env.provider.info = ProviderInfo(
+        provider="meta", model="synthetic-contributor-fixture", local=False
+    )
+    original = await write(
+        env,
+        "conversation.user",
+        {
+            "text": "PUBLIC_BASE_MUST_NOT_SURVIVE_BAD_CHAIN",
+            "final": True,
+            "revision": base_revision,
+            "content_scope": "public_synthetic",
+        },
+        role="owner",
+    )
+    await next_window(env, "current")
+    await write(
+        env,
+        "conversation.revision",
+        {
+            "target_event_id": original.event_id,
+            "text": "PRIVATE_CORRECTION_WITH_UNPROCESSABLE_REVISION",
+            "revision": next_revision,
+            "content_scope": "local_only",
+        },
+        role="owner",
+        causes=[original.event_id],
+    )
+    assert env.store.resolve(original.event_id).payload["content_scope"] == "local_only"
+    if later_public:
+        await write(
+            env,
+            "conversation.revision",
+            {
+                "target_event_id": original.event_id,
+                "text": "PUBLIC_AFTER_UNPROCESSABLE_CHAIN",
+                "revision": next_revision + 1,
+                "content_scope": "public_synthetic",
+            },
+            role="owner",
+            causes=[original.event_id],
+        )
+    await complete(env)
+    assert [m["role"] for m in env.provider.prompts[-1]] == ["system", "user"]
+
+
+@pytest.mark.parametrize("scope", [None, {}, [], 42, "owner_allows_everything", "local_only"])
+async def test_malformed_or_denied_intervening_scope_cannot_be_untainted_by_public_label(
+    env, scope
+):
+    env.provider.info = ProviderInfo(
+        provider="meta", model="synthetic-contributor-fixture", local=False
+    )
+    original = await write(
+        env,
+        "conversation.user",
+        {
+            "text": "PUBLIC_BASE_BEFORE_DENIED_SCOPE",
+            "final": True,
+            "revision": 1,
+            "content_scope": "public_synthetic",
+        },
+        role="owner",
+    )
+    await next_window(env, "current")
+    await write(
+        env,
+        "conversation.revision",
+        {
+            "target_event_id": original.event_id,
+            "text": "SYNTHETIC_DENIED_REVISION",
+            "revision": 2,
+            "content_scope": scope,
+        },
+        role="owner",
+        causes=[original.event_id],
+    )
+    await write(
+        env,
+        "conversation.revision",
+        {
+            "target_event_id": original.event_id,
+            "text": "PUBLIC_LABEL_CANNOT_UNTAINT_SCOPE",
+            "revision": 3,
+            "content_scope": "public_synthetic",
+        },
+        role="owner",
         causes=[original.event_id],
     )
     await complete(env)

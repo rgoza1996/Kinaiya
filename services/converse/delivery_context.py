@@ -201,7 +201,7 @@ def window_context(recent, source, info):
             e,
             e.payload.get("revision", 1),
             e.payload.get("text"),
-            _allowed(info, e.payload),
+            _integer(e.payload.get("revision", 1)) and _allowed(info, e.payload),
         )
         for e in snapshot
         if e.kind == "conversation.user" and e.origin == "authenticated-user"
@@ -216,16 +216,21 @@ def window_context(recent, source, info):
         }:
             target = p.get("target_event_id")
             original = users.get(target) if isinstance(target, str) else None
-            if original is not None and (
-                entry.sequence > original.entry.sequence
-                and _integer(original.revision)
-                and _integer(p.get("revision"))
-                and p["revision"] == original.revision + 1
-                and isinstance(p.get("text"), str)
-            ):
-                original.revision, original.text = p["revision"], p["text"]
-                if "content_scope" in p:
-                    original.permitted = original.permitted and _allowed(info, p)
+            if original is not None:
+                if not (
+                    entry.sequence > original.entry.sequence
+                    and _integer(original.revision)
+                    and _integer(p.get("revision"))
+                    and p["revision"] == original.revision + 1
+                    and isinstance(p.get("text"), str)
+                ):
+                    # A rejected correction must not restore export of an old
+                    # draft. Taint is sticky across later public corrections.
+                    original.permitted = False
+                else:
+                    original.revision, original.text = p["revision"], p["text"]
+                    if "content_scope" in p:
+                        original.permitted = original.permitted and _allowed(info, p)
         if entry.kind != "conversation.window" or entry.origin != "authenticated-user":
             continue
         try:
