@@ -3,6 +3,7 @@
 import asyncio
 import re
 from collections.abc import Callable
+from contextlib import aclosing, asynccontextmanager
 from dataclasses import dataclass, field
 from itertools import islice
 
@@ -10,6 +11,7 @@ from anyio import CancelScope
 
 from packages.contracts.models import AppendRequest, ConverseRequest, DeliveryRequest, new_id
 from packages.providers.disclosure import entry_allowed
+from packages.providers.text import ProviderCleanupError, owned_http_stream_cleanup
 from services.converse.intent import ConverseIntent
 
 
@@ -101,8 +103,58 @@ class SpeechOperation:
         self.queue.put_nowait(("cancelled", None))
 
 
+class TextGenerationTask(asyncio.Task):
+    """A terminal stop cannot repeatedly cancel a provider's finally block."""
+
+    def cancel(self, msg=None):
+        if self.cancelling():
+            return False
+        return super().cancel(msg)
+
+
+@dataclass(eq=False)
+class TextOperation:
+    session_id: str
+    thread_id: str
+    session_epoch: int
+    generation: int
+    admission: tuple
+    queue: asyncio.Queue = field(default_factory=lambda: asyncio.Queue(maxsize=32))
+    task: asyncio.Task | None = None
+    monitor: asyncio.Task | None = None
+    cleanup: asyncio.Task | None = None
+    iterator: object = None
+    cancelled: bool = False
+    stopped: asyncio.Event = field(default_factory=asyncio.Event)
+    cleanup_failed: bool = False
+
+    def cancel(self):
+        if self.cancelled:
+            return
+        self.cancelled = True
+        self.stopped.set()
+        if (
+            self.task is not None
+            and self.task is not asyncio.current_task()
+            and not self.task.done()
+        ):
+            self.task.cancel()
+        while not self.queue.empty():
+            self.queue.get_nowait()
+        self.queue.put_nowait(("interrupted", ""))
+
+
+@dataclass
+class TextTurn:
+    wait_remaining: float
+    operation: TextOperation | None = None
+    reserved: bool = False
+
+
 class ConverseRuntime:
     _speech_cleanup_timeout = 5.0
+    _text_cleanup_timeout = 1.0
+    _text_capacity = 32
 
     def __init__(
         self,
@@ -132,6 +184,9 @@ class ConverseRuntime:
         self._resource_enabled = not resources_managed
         self._availability_generation = 0
         self._active = {}
+        self._text = {}
+        self._text_admitting = set()
+        self._window_text_ready = None
         self._speech = {}
         self._dedupe_locks = {}
         self._epoch_locks = {}
@@ -164,6 +219,7 @@ class ConverseRuntime:
         if not value:
             self._availability_generation += 1
             self._cancel_speech()
+            self._cancel_text()
 
     def admission(self):
         state = self.availability()
@@ -184,6 +240,7 @@ class ConverseRuntime:
             self.intent.set(value)
             self._availability_generation += 1
             self._cancel_speech()
+            self._cancel_text()
         else:
             self.enabled = value
         if not self.enabled:
@@ -240,7 +297,7 @@ class ConverseRuntime:
                 generation = previous + 1 if previous else 0
                 playback = PlaybackEpoch(
                     generation,
-                    on_begin=lambda: self._cancel_speech(session_id),
+                    on_begin=lambda: self._cancel_generation(session_id),
                     scope=scope,
                 )
                 start = PlaybackStart(playback)
@@ -376,6 +433,147 @@ class ConverseRuntime:
                 playback.stop.desired_generation
             ):
                 yield session_id, playback
+
+    def _cancel_generation(self, session_id):
+        self._cancel_speech(session_id)
+        self._cancel_text(session_id)
+
+    def _cancel_text(self, session_id=None):
+        operations = (
+            list(self._text.values()) if session_id is None else [self._text.get(session_id)]
+        )
+        for operation in operations:
+            if operation is not None:
+                operation.cancel()
+
+    def typed_provider_ready(self, session_id):
+        """Read-only admission hook; stopping never waits for readiness."""
+        return session_id not in self._text and session_id not in self._text_admitting
+
+    def text_status(self):
+        operations = list(self._text.values())
+        failed = sum(operation.cleanup_failed for operation in operations)
+        pending = sum(
+            not operation.cleanup_failed
+            and (operation.cancelled or (operation.task is not None and operation.task.done()))
+            for operation in operations
+        )
+        return {
+            "active": len(operations) - pending - failed,
+            "cleanup_pending": pending,
+            "cleanup_failed": failed,
+            "admitting": len(self._text_admitting),
+            "capacity": self._text_capacity,
+        }
+
+    def _text_current(self, operation):
+        playback = self.playback.get(operation.session_id)
+        return (
+            not operation.cancelled
+            and self.admission_current(operation.admission)
+            and playback is not None
+            and playback.accepts(operation.generation)
+        )
+
+    async def _watch_text(self, operation):
+        while not operation.stopped.is_set() and self._text_current(operation):
+            try:
+                session = await asyncio.wait_for(self.journal.session(operation.session_id), 1)
+            except Exception:
+                break
+            if operation.stopped.is_set():
+                return
+            if (session.epoch, session.thread_id) != (operation.session_epoch, operation.thread_id):
+                break
+            await asyncio.sleep(0.25)
+        if not operation.stopped.is_set():
+            operation.cancel()
+
+    def _release_text(self, operation):
+        if self._text.get(operation.session_id) is operation:
+            self._text.pop(operation.session_id, None)
+        if self._active.get(operation.session_id) is operation.task:
+            self._active.pop(operation.session_id, None)
+
+    async def _finish_text_cleanup(self, operation):
+        try:
+            await asyncio.gather(operation.task, return_exceptions=True)
+            if operation.monitor is not None:
+                operation.stopped.set()
+                operation.monitor.cancel()
+                await asyncio.gather(operation.monitor, return_exceptions=True)
+            close = getattr(operation.iterator, "aclose", None)
+            if callable(close):
+                await close()
+        except (Exception, asyncio.CancelledError):
+            operation.cleanup_failed = True
+        if not operation.cleanup_failed:
+            self._release_text(operation)
+
+    async def _wait_text_cleanup(self, cleanups, timeout):
+        """Bound only this caller's wait; retain the actual close task untouched."""
+        deadline = asyncio.get_running_loop().time() + max(0, timeout)
+        interrupted = False
+        pending = set(cleanups)
+        with CancelScope(shield=True):
+            while pending:
+                remaining = deadline - asyncio.get_running_loop().time()
+                if remaining <= 0:
+                    break
+                try:
+                    _, pending = await asyncio.wait(pending, timeout=remaining)
+                except asyncio.CancelledError:
+                    interrupted = True
+        if interrupted:
+            raise asyncio.CancelledError
+
+    async def _wait_text_admission(self, session_id, turn):
+        started = asyncio.get_running_loop().time()
+        deadline = started + turn.wait_remaining
+        try:
+            while session_id in self._text or (
+                self._window_text_ready is not None and not self._window_text_ready(session_id)
+            ):
+                operation = self._text.get(session_id)
+                if operation is not None and operation.cleanup_failed:
+                    raise RuntimeError(
+                        "Previous text-provider cleanup failed; inspect Converse health"
+                    )
+                remaining = deadline - asyncio.get_running_loop().time()
+                if remaining <= 0:
+                    raise RuntimeError(
+                        "Previous text-provider cleanup is unconfirmed; try again later"
+                    )
+                await asyncio.sleep(min(0.01, remaining))
+        finally:
+            turn.wait_remaining = max(
+                0, turn.wait_remaining - (asyncio.get_running_loop().time() - started)
+            )
+
+    @asynccontextmanager
+    async def _text_admission_lock(self, session_id, turn):
+        lock = self._dedupe_locks.setdefault(session_id, asyncio.Lock())
+        started = asyncio.get_running_loop().time()
+        try:
+            async with asyncio.timeout(turn.wait_remaining):
+                await lock.acquire()
+        except TimeoutError as exc:
+            raise RuntimeError("Text-provider admission/cleanup is busy; try again later") from exc
+        finally:
+            turn.wait_remaining = max(
+                0, turn.wait_remaining - (asyncio.get_running_loop().time() - started)
+            )
+        try:
+            yield
+        finally:
+            lock.release()
+
+    async def close(self):
+        self._cancel_text()
+        cleanups = {operation.cleanup for operation in self._text.values() if operation.cleanup}
+        if cleanups:
+            # One shared deadline, rather than one second for every owner.
+            await self._wait_text_cleanup(cleanups, self._text_cleanup_timeout)
 
     def _cancel_speech(self, session_id=None):
         sessions = list(self._speech) if session_id is None else [session_id]
@@ -582,6 +780,23 @@ class ConverseRuntime:
         }
 
     async def events(self, request: ConverseRequest):
+        turn = TextTurn(self._text_cleanup_timeout)
+        try:
+            async with aclosing(self._events(request, turn)) as events:
+                async for event in events:
+                    yield event
+        finally:
+            if turn.reserved:
+                self._text_admitting.discard(request.session_id)
+            operation = turn.operation
+            if operation is not None:
+                operation.cancel()
+                if operation.task is None:
+                    self._release_text(operation)
+                else:
+                    await self._wait_text_cleanup((operation.cleanup,), turn.wait_remaining)
+
+    async def _events(self, request, turn):
         admission = self.admission()
         session = await self.journal.session(request.session_id)
         if session.channel != "converse" or (session.epoch, session.thread_id) != (
@@ -590,15 +805,23 @@ class ConverseRuntime:
         ):
             raise ValueError("Wrong conversation channel, thread or stale epoch")
         # Serialize only duplicate admission; ordinary turns can interrupt prior generation.
-        lock = self._dedupe_locks.setdefault(request.session_id, asyncio.Lock())
-        async with lock:
+        async with self._text_admission_lock(request.session_id, turn):
             existing = await self._recent(request.session_id)
+            session = await self.journal.session(request.session_id)
+            if (session.epoch, session.thread_id) != (request.epoch, request.thread_id):
+                raise ValueError("Session changed during turn admission")
             prior_user = next(
                 (e for e in existing if e.idempotency_key == request.idempotency_key), None
             )
             if prior_user:
-                if prior_user.payload.get("text") != request.text:
-                    raise ValueError("Idempotency key reused with different text")
+                if (
+                    prior_user.kind != "conversation.user"
+                    or (prior_user.epoch, prior_user.thread_id)
+                    != (request.epoch, request.thread_id)
+                    or prior_user.payload.get("text") != request.text
+                    or prior_user.payload.get("input_mode", "text") != request.input_mode
+                ):
+                    raise ValueError("Idempotency key reused with different content")
                 replies = [
                     e
                     for e in existing
@@ -606,31 +829,64 @@ class ConverseRuntime:
                 ]
                 if not self.admission_current(admission):
                     raise RuntimeError("Converse availability changed during turn admission")
-                for reply in replies:
-                    yield {"type": "text", "entry": reply.model_dump(mode="json"), "replay": True}
-                yield {"type": "done", "replay": True, "pending": not bool(replies)}
-                return
-            playback = await self._epoch(request.session_id)
-            old = self._active.get(request.session_id)
-            if old and not old.done():
-                old.cancel()
-            generation = playback.begin()
-            source = await self.journal.append(
-                AppendRequest(
-                    session_id=request.session_id,
-                    thread_id=request.thread_id,
-                    epoch=request.epoch,
-                    kind="conversation.user",
-                    payload={
-                        "text": request.text,
-                        "final": True,
-                        "revision": 1,
-                        "input_mode": request.input_mode,
-                        "generation_epoch": generation,
-                    },
-                    idempotency_key=request.idempotency_key,
+            else:
+                if not self.admission_current(admission):
+                    raise RuntimeError("Converse availability changed during turn admission")
+                slots = self._text.keys() | self._text_admitting
+                if request.session_id not in slots and len(slots) >= self._text_capacity:
+                    raise RuntimeError("Text-provider cleanup capacity is busy; try again later")
+                # Reserve before cancellation or any new user/provider side effect. A
+                # window cannot acquire this session while old real cleanup unwinds.
+                self._text_admitting.add(request.session_id)
+                turn.reserved = True
+                playback = await self._epoch(request.session_id)
+                session = await self.journal.session(request.session_id)
+                if (session.epoch, session.thread_id) != (request.epoch, request.thread_id):
+                    raise ValueError("Session changed during turn admission")
+                if not self.admission_current(admission):
+                    raise RuntimeError("Converse availability changed during turn admission")
+                old = self._active.get(request.session_id)
+                if old and not old.done():
+                    old.cancel()
+                generation = playback.begin()
+                await self._wait_text_admission(request.session_id, turn)
+                session = await self.journal.session(request.session_id)
+                if (session.epoch, session.thread_id) != (request.epoch, request.thread_id):
+                    raise ValueError("Session changed during turn admission")
+                if not self.admission_current(admission) or not playback.accepts(generation):
+                    raise RuntimeError(
+                        "Converse availability or generation changed during admission"
+                    )
+                operation = TextOperation(
+                    request.session_id, request.thread_id, request.epoch, generation, admission
                 )
-            )
+                turn.operation = operation
+                self._text[request.session_id] = operation
+                self._text_admitting.discard(request.session_id)
+                turn.reserved = False
+                source = await self.journal.append(
+                    AppendRequest(
+                        session_id=request.session_id,
+                        thread_id=request.thread_id,
+                        epoch=request.epoch,
+                        kind="conversation.user",
+                        payload={
+                            "text": request.text,
+                            "final": True,
+                            "revision": 1,
+                            "input_mode": request.input_mode,
+                            "generation_epoch": generation,
+                        },
+                        idempotency_key=request.idempotency_key,
+                    )
+                )
+        if prior_user:
+            for reply in replies:
+                if not self.admission_current(admission):
+                    raise RuntimeError("Converse availability changed during replay")
+                yield {"type": "text", "entry": reply.model_dump(mode="json"), "replay": True}
+            yield {"type": "done", "replay": True, "pending": not bool(replies)}
+            return
         history = [
             e
             for e in existing
@@ -670,103 +926,109 @@ class ConverseRuntime:
         ]
         messages.append({"role": "user", "content": request.text})
         chunker, index = SpeechChunker(), 0
-        queue = asyncio.Queue(maxsize=32)
+        queue = operation.queue
 
         async def produce():
             try:
-                async for delta in self.provider.stream(messages):
-                    await queue.put(("delta", delta))
-                await queue.put(("final", ""))
+                # Protect the transport before __anext__: EOF and provider error
+                # can enter HTTP close before our independent aclose owner runs.
+                with owned_http_stream_cleanup():
+                    operation.iterator = aiter(self.provider.stream(messages))
+                    async for delta in operation.iterator:
+                        if not self._text_current(operation):
+                            operation.cancel()
+                            return
+                        await queue.put(("delta", delta))
+                    await queue.put(("final", ""))
             except asyncio.CancelledError:
-                try:
-                    queue.put_nowait(("interrupted", ""))
-                except asyncio.QueueFull:
-                    pass
+                operation.cancel()
             except Exception as exc:
+                if isinstance(exc, ProviderCleanupError):
+                    operation.cleanup_failed = True
+                if operation.cancelled or asyncio.current_task().cancelling():
+                    operation.cancel()
+                    return
                 await queue.put(("error", type(exc).__name__))
 
-        if not self.admission_current(admission):
+        if not self._text_current(operation):
             raise RuntimeError("Converse availability changed during turn admission")
-        producer = asyncio.create_task(produce())
-        self._active[request.session_id] = producer
+        operation.task = TextGenerationTask(produce())
+        operation.monitor = asyncio.create_task(self._watch_text(operation))
+        operation.cleanup = asyncio.create_task(self._finish_text_cleanup(operation))
+        self._active[request.session_id] = operation.task
         yield {
             "type": "accepted",
             "source_event_id": source.event_id,
             "generation_epoch": generation,
         }
-        try:
-            while True:
-                kind, value = await queue.get()
-                if (
-                    not self.admission_current(admission)
-                    or not playback.accepts(generation)
-                    or kind == "interrupted"
-                ):
+        while True:
+            kind, value = await queue.get()
+            if not self._text_current(operation) or kind == "interrupted":
+                yield {"type": "interrupted", "generation_epoch": generation}
+                break
+            if kind == "error":
+                yield {"type": "error", "error": value}
+                break
+            chunks = chunker.feed(value, final=kind == "final")
+            for text in chunks:
+                if not self._text_current(operation):
                     yield {"type": "interrupted", "generation_epoch": generation}
-                    break
-                if kind == "error":
-                    yield {"type": "error", "error": value}
-                    break
-                chunks = chunker.feed(value, final=kind == "final")
-                for text in chunks:
-                    # Defense in depth for unsupported execution claims. This conservative
-                    # English guard is not claimed as a proof against every paraphrase.
-                    if re.search(
-                        r"\b(done|completed?|finished|sent|saved|created|deleted|verified)\b",
-                        text,
-                        re.I,
-                    ):
-                        await self.journal.append(
-                            AppendRequest(
-                                session_id=request.session_id,
-                                thread_id=request.thread_id,
-                                epoch=request.epoch,
-                                kind="converse.safety",
-                                payload={
-                                    "reason": "ungrounded_action_claim",
-                                    "generation_epoch": generation,
-                                },
-                                causes=[source.event_id],
-                                idempotency_key=f"guard:{source.event_id}:{index}",
-                            )
-                        )
-                        text = "The Agent has not provided a verified result for that claim."
-                    event = await self.journal.append(
+                    return
+                # Defense in depth for unsupported execution claims. This conservative
+                # English guard is not claimed as a proof against every paraphrase.
+                if re.search(
+                    r"\b(done|completed?|finished|sent|saved|created|deleted|verified)\b",
+                    text,
+                    re.I,
+                ):
+                    await self.journal.append(
                         AppendRequest(
                             session_id=request.session_id,
                             thread_id=request.thread_id,
                             epoch=request.epoch,
-                            kind="conversation.converse",
+                            kind="converse.safety",
                             payload={
-                                "text": text,
-                                "final": True,
-                                "revision": 1,
+                                "reason": "ungrounded_action_claim",
                                 "generation_epoch": generation,
-                                "runtime_id": self._runtime_id,
-                                "owner_intent_revision": admission[0],
-                                "availability_generation": admission[1],
-                                "chunk_id": new_id(),
-                                "delivery": "generated",
                             },
                             causes=[source.event_id],
-                            idempotency_key=f"reply:{source.event_id}:{index}",
+                            idempotency_key=f"guard:{source.event_id}:{index}",
                         )
                     )
-                    if not self.admission_current(admission) or not playback.accepts(generation):
-                        yield {"type": "interrupted", "generation_epoch": generation}
-                        return
-                    playback.chunks[event.event_id] = event
-                    yield {"type": "text", "entry": event.model_dump(mode="json")}
-                    index += 1
-                if kind == "final":
-                    yield {"type": "done", "generation_epoch": generation}
-                    break
-        finally:
-            if not producer.done():
-                producer.cancel()
-            await asyncio.gather(producer, return_exceptions=True)
-            if self._active.get(request.session_id) is producer:
-                self._active.pop(request.session_id, None)
+                    text = "The Agent has not provided a verified result for that claim."
+                if not self._text_current(operation):
+                    yield {"type": "interrupted", "generation_epoch": generation}
+                    return
+                event = await self.journal.append(
+                    AppendRequest(
+                        session_id=request.session_id,
+                        thread_id=request.thread_id,
+                        epoch=request.epoch,
+                        kind="conversation.converse",
+                        payload={
+                            "text": text,
+                            "final": True,
+                            "revision": 1,
+                            "generation_epoch": generation,
+                            "runtime_id": self._runtime_id,
+                            "owner_intent_revision": admission[0],
+                            "availability_generation": admission[1],
+                            "chunk_id": new_id(),
+                            "delivery": "generated",
+                        },
+                        causes=[source.event_id],
+                        idempotency_key=f"reply:{source.event_id}:{index}",
+                    )
+                )
+                if not self._text_current(operation):
+                    yield {"type": "interrupted", "generation_epoch": generation}
+                    return
+                playback.chunks[event.event_id] = event
+                yield {"type": "text", "entry": event.model_dump(mode="json")}
+                index += 1
+            if kind == "final":
+                yield {"type": "done", "generation_epoch": generation}
+                break
 
     async def turn(self, request):
         events = [event async for event in self.events(request)]
