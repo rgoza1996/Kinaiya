@@ -2,7 +2,8 @@
 
 from typing import Literal
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.responses import Response
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
@@ -39,7 +40,7 @@ class ResourceAction(BaseModel):
         return self
 
 
-def create_app(coordinator, auth):
+def create_app(coordinator, auth, whistle=None):
     app = FastAPI(title="Kinaiya local resources")
     owner = [Depends(auth.require("owner"))]
 
@@ -50,7 +51,10 @@ def create_app(coordinator, auth):
     @app.get("/v1/resources", dependencies=owner)
     async def status():
         try:
-            return coordinator.status()
+            result = coordinator.status()
+            if whistle is not None:
+                result["whistle"] = whistle.status()
+            return result
         except (OSError, ValueError) as exc:
             raise HTTPException(503, "Resource owner intent is unavailable") from exc
 
@@ -62,5 +66,14 @@ def create_app(coordinator, auth):
             return await coordinator.action(body.model_dump(exclude_unset=True))
         except ValueError as exc:
             raise HTTPException(409, str(exc)) from exc
+
+    @app.post("/v1/audio/transcriptions", dependencies=[Depends(auth.require("owner", "converse"))])
+    async def transcribe(request: Request):
+        if whistle is None:
+            raise HTTPException(503, "Managed Whistle STT is not selected")
+        from packages.providers.whistle_ipc import MAX_RESPONSE_BYTES, encode_json
+
+        result = await whistle.transcribe(request)
+        return Response(encode_json(result, MAX_RESPONSE_BYTES), media_type="application/json")
 
     return app

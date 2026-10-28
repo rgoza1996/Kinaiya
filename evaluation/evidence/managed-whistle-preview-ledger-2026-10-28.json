@@ -1,0 +1,232 @@
+{
+  "schema_version": "1.0",
+  "date": "2026-10-28",
+  "issue": 85,
+  "parent_worker_commit": "1985ef30337d1b8974cc1c4704b9167232ec2bef",
+  "reviewed_lead_equivalent_commit": "2adddcd6351649ccfe8561e4e3f8a7d8867b098e",
+  "status": "Post-preview ledger recheck implemented and affected local regressions passed; committed independent lifecycle review, lead smoke and exact-head CI remain gates.",
+  "defect": "The pre-preview key lookup could become stale while eligibility awaited health. Another same-key action could persist a rejection without advancing resource revision. A resumed preview then published cancellation before _action merely returned that cached rejection, aborting valid fresh Whistle recovery. Conflicting same-key input could publish the same improper barrier before authoritative conflict rejection.",
+  "independent_original_reproducer": {
+    "source": "/tmp/kinaiya-whistle-lifecycle-review.nlhkhm/test_preview_replay_race.py",
+    "retained_copy": "original-reviewer-reproducer.py",
+    "result_copy": "original-reviewer-red.json",
+    "originals_not_modified": true,
+    "recorded_result": "Resource revision unchanged, same cached rejected result, barrier1, transcription503, policyready/ownerenabled."
+  },
+  "repair": {
+    "scope": "Only ResourceCoordinator.action production source changed. Recheck key existence after eligible awaited handoff preview, immediately before barrier publication with no intervening await.",
+    "authority": "The existing _action still owns digest comparison and cached/uncertain results; no replay/conflict outcome is inferred by the preview.",
+    "preserved": "All other production method bytes match1985ef3, including constructor, read-only preview, admission/recovery, locked handoff and cleanup. All prior fifteen repair cases remain unchanged.",
+    "limitations": "This closes the demonstrated persisted-row race. It is not a new generic operation scheduler, database schema, transaction or external-owner synchronization mechanism."
+  },
+  "regressions": {
+    "new_cases": 2,
+    "cases": [
+      "Matching same-key rejection recorded while the first preview is held; replay emits no barrier and fresh actual HTTP/synthetic-child recovery returns200.",
+      "Conflicting same-key payload recorded while the first preview is held; no barrier, fresh recovery returns200, and _action raises its original idempotency conflict ValueError."
+    ],
+    "original_red": "Both added cases failed the barrier0 assertion against1985ef3; logs and exact regression source retained.",
+    "green": "Both cases explicitly require bounded transcript200, original cached rejection/conflict semantics, ready/enabled owner state and a fresh current owned identity.",
+    "fixture_limit": "Actual owned synthetic child/IPC/HTTP lifecycle with scripted health observations; no Whistle inference or external provider call."
+  },
+  "results": {
+    "python312_affected": {
+      "passed": 207,
+      "seconds": 38.54
+    },
+    "python311_nonprocess": {
+      "passed": 54,
+      "seconds": 0.58
+    },
+    "warnings": 0,
+    "skips": 0,
+    "python311_process_limit": "Unchanged local3.11.15 sealing capability limitation remains documented in initial evidence; exact-head GitHub3.11 process CI remains required.",
+    "imports": [
+      {
+        "python": "3.12.3",
+        "module": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/services/resources/coordinator.py",
+        "sha256": "4598741d5cb64af5a9c355302159f6fdcee639affed47e775b2c8e64c00181c0"
+      },
+      {
+        "python": "3.11.15",
+        "module": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/services/resources/coordinator.py",
+        "sha256": "4598741d5cb64af5a9c355302159f6fdcee639affed47e775b2c8e64c00181c0"
+      }
+    ],
+    "static": {
+      "ruff_check": "passed",
+      "ruff_format": "2 files already formatted",
+      "git_diff_check": "passed"
+    }
+  },
+  "source_preservation": {
+    "parent_commit": "1985ef30337d1b8974cc1c4704b9167232ec2bef",
+    "only_existing_changed_method": "action",
+    "all_other_method_source_byte_identical": true,
+    "source_sha256": "4598741d5cb64af5a9c355302159f6fdcee639affed47e775b2c8e64c00181c0",
+    "unchanged_methods": {
+      "__init__": "c16e50ef0aa2b4f925b119d6b388def7f42a6a7e3479a79e8ec92fb2a21a558d",
+      "status": "7d18c78d9d13f2b5b46ce4c0daeff886932671673bc427711d786bbc576e02c1",
+      "_publish": "130f5ac9784c2de1f3bf2789d6106e128080944e92e23c06c817289d7c5e2453",
+      "_save": "122582abab930aaeae4952647214261f244aff4e4d481e382ccb195b67a435fa",
+      "initialize": "a6eac0edad4a3dd542f6cbb1dd0bc6fc804787f42098620ca1e9f78de0cadbc8",
+      "_provider_locality": "7f05efe7e29904e5c54d3235e728b0bb6c416503d19fa71a31402dadd30bf43e",
+      "_handoff_may_preempt": "d1ef46b638aa9566298a70cc0eee4f604cf8fbf03d5caf206305077f1b03e1a9",
+      "whistle_policy": "76ecf41942aca3ab0ba7820367ddc3d4c4f106fa366c65093fb3eb220f2b0272",
+      "_whistle_stopped": "2fc8976ebc4155cfc9ad4707bdb00bcdfa9f5d00c6f6dd30a9776429a5fece7f",
+      "admit_whistle": "f12e67f7b1671b5ce00a4c65bc6c9c4d0928ae7fc6d11843c1c7a90e8a62049b",
+      "_action": "21abc0919f93e7a6936c3f18a7575a48666e6189ff44fe68fe27ef2e7007662c",
+      "reconcile_owner_intent": "f49f7b732c0563fed6e6c069eb47d5dfbd4405bcb425a61f17d71031b347a846",
+      "_off_locked": "638247ee558929e4e91f65c7e77ac3ef4905743164e55a4e6482cb3e54191128",
+      "_stop_workers": "8b3b17dc6c1e61c56463245d747bdc1a60ad81dc7b910ebe65aba08b5744b831",
+      "_handoff_locked": "a01851e52bd9d24645dbde4f223392ebd052ca98a65d9a5356791a079bae04d8",
+      "_restore_locked": "7c7c1b74737457ebb0ef547813bddcbd27851422015e032d386b3baece05e2a0",
+      "close": "4436a845dd362e0aa6d3f33220547188ffc2b08a0afa6dc3b6d12c87d6c820a7"
+    }
+  },
+  "source_sha256": {
+    "services/resources/coordinator.py": {
+      "bytes": 28628,
+      "sha256": "4598741d5cb64af5a9c355302159f6fdcee639affed47e775b2c8e64c00181c0"
+    },
+    "tests/integration/test_managed_whistle.py": {
+      "bytes": 37773,
+      "sha256": "75605c2107b5fac9b0b4faf1aa0a21e4906072ff62dbedb440a77a24687dc522"
+    },
+    "docs/adr/0034-managed-whistle-cpu-stt.md": {
+      "bytes": 11546,
+      "sha256": "74c39370e5ddf822b23bc5a451861ca6909733eb5a212d63cfcc808365c50b0c"
+    }
+  },
+  "not_performed": [
+    "No model inference, paid API, download or install",
+    "No lead/main/push/PR/live/reference changes",
+    "No fullstream49, quality, realtime, p95 or M2 acceptance claim"
+  ],
+  "commands": [
+    {
+      "name": "pre_fix_overlap_regression",
+      "argv": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/supertonic-ci-venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/integration/test_managed_whistle.py",
+        "-k",
+        "recorded_same_key"
+      ],
+      "log": "red.log",
+      "result": "2 failed, 45 deselected in 0.98 seconds",
+      "returncode": 1,
+      "cwd": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya",
+      "environment": {
+        "PYTHONPATH": "."
+      }
+    },
+    {
+      "name": "affected_python312",
+      "argv": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/supertonic-ci-venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/integration/test_managed_whistle.py",
+        "tests/integration/test_worker_identity.py",
+        "tests/integration/test_resource_handoff.py",
+        "tests/integration/test_resource_parent.py",
+        "tests/integration/test_voice_resource_config.py",
+        "tests/integration/test_managed_laya_launcher.py",
+        "tests/unit/test_resource_gpu.py"
+      ],
+      "log": "affected-py312.log",
+      "result": "207 passed in 38.54 seconds",
+      "returncode": 0,
+      "cwd": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya",
+      "environment": {
+        "PYTHONPATH": "."
+      }
+    },
+    {
+      "name": "python311_nonprocess_controls",
+      "argv": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/vibevoice-py311-venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/integration/test_managed_whistle.py::test_default_voice_coordinator_has_no_whistle_eligibility_preview",
+        "tests/unit/test_resource_gpu.py"
+      ],
+      "log": "nonprocess-py311.log",
+      "result": "54 passed in 0.58 seconds",
+      "returncode": 0,
+      "cwd": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya",
+      "environment": {
+        "PYTHONPATH": "."
+      }
+    }
+  ],
+  "raw_artifact_directory": "/tmp/kinaiya-85-preview-ledger-repair",
+  "durable_artifact_directory": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/.dev-run/managed-whistle-preview-ledger-repair-v1",
+  "artifacts": {
+    "affected-py312.log": {
+      "bytes": 261,
+      "sha256": "ea53edb4a02b60580996fce7dc4f0d6380fede603136ca114a825bc06598adf9"
+    },
+    "coordinator-before.py": {
+      "bytes": 28144,
+      "sha256": "726fcf857f5d88117d9c61510d74815d8b021191985ef8d9f4913a27c43f90eb"
+    },
+    "coordinator-final.py": {
+      "bytes": 28628,
+      "sha256": "4598741d5cb64af5a9c355302159f6fdcee639affed47e775b2c8e64c00181c0"
+    },
+    "diff-check.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "format.log": {
+      "bytes": 26,
+      "sha256": "3bc53bf3e981a98a34a852e175bf9b77af841edea74fca595d9aedcbaf9a4938"
+    },
+    "import-py311.json": {
+      "bytes": 210,
+      "sha256": "a756cf241fa26ed1c566b1b98ffad14ac3f040f4e660b62c2a19eef1deae1e7d"
+    },
+    "import-py312.json": {
+      "bytes": 209,
+      "sha256": "f89350bad2951f9000c7832fd46a831cd1695110c9fed1a70be81f0d97f25e0d"
+    },
+    "lint.log": {
+      "bytes": 19,
+      "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+    },
+    "nonprocess-py311.log": {
+      "bytes": 99,
+      "sha256": "5dae950acd58cd2151aadbf2ee6a018727254812f84157f46004678c71d1f868"
+    },
+    "original-reviewer-red.json": {
+      "bytes": 1355,
+      "sha256": "10b32be1209fe9e34a46b0ba373cd0dd4cd4f3d019e4a0f26f12fc0370ab3d80"
+    },
+    "original-reviewer-reproducer.py": {
+      "bytes": 2751,
+      "sha256": "d7026ca9abf60f71a77a997b1bd870783dd25d60f0ccdaca1f0c0c53430fdcce"
+    },
+    "preservation.json": {
+      "bytes": 1774,
+      "sha256": "5806c19d6bc596a3a85050e2e3e5190e683e1a852267dd2aa391d68496a01431"
+    },
+    "red.log": {
+      "bytes": 5501,
+      "sha256": "98672eaa577b9924a606d1a790fbe24589aaded129a175d13612ff17e1e54527"
+    },
+    "regression-tests.py": {
+      "bytes": 37773,
+      "sha256": "75605c2107b5fac9b0b4faf1aa0a21e4906072ff62dbedb440a77a24687dc522"
+    },
+    "test_managed_whistle-final.py": {
+      "bytes": 37773,
+      "sha256": "75605c2107b5fac9b0b4faf1aa0a21e4906072ff62dbedb440a77a24687dc522"
+    }
+  }
+}

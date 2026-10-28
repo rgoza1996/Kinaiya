@@ -317,6 +317,9 @@ def test_supertonic_dependencies_are_opt_in_and_pinned():
     assert set(project["tool"]["setuptools"]["package-data"]["packages.providers"]) == {
         "supertonic3_manifest.json",
         "vibevoice_manifest.json",
+        "whistle_manifest.json",
+        "whistle_LICENSE.txt",
+        "whistle_NOTICE.txt",
     }
     assert not any(
         name in item

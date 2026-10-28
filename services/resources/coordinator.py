@@ -13,6 +13,12 @@ from services.converse.intent import ConverseIntent
 from services.resources.state import PROFILES
 
 
+class WhistleAdmissionError(RuntimeError):
+    def __init__(self, *, cleanup_confirmed=False):
+        super().__init__("Whistle resource admission is unavailable")
+        self.cleanup_confirmed = cleanup_confirmed
+
+
 class ResourceCoordinator:
     def __init__(
         self,
@@ -27,6 +33,7 @@ class ResourceCoordinator:
         local_converse_unmanaged=False,
         before_start=None,
         restore_reserve_bytes=0,
+        whistle_restore_reserve_bytes=0,
         gpu_probe=None,
         gpu_restore_reserve_bytes=0,
     ):
@@ -41,11 +48,14 @@ class ResourceCoordinator:
         self.local_converse_unmanaged = local_converse_unmanaged
         self.before_start = before_start
         self.restore_reserve = restore_reserve_bytes
+        self.whistle_restore_reserve = whistle_restore_reserve_bytes
         self.gpu_probe = gpu_probe
         self.gpu_restore_reserve = gpu_restore_reserve_bytes
         self.gpu_release = None
         self.lock = asyncio.Lock()
         self.publication_pending = False
+        self._whistle_preemptions = 0
+        self._has_whistle = "whistle" in self.manager.status()["workers"]
         database = state.path.parent / "resource-actions.sqlite"
         fd = os.open(
             database, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC, 0o600
@@ -157,6 +167,161 @@ class ResourceCoordinator:
         self.local_converse_unmanaged = local
 
     async def action(self, payload):
+        # A new authenticated off/handoff request must beat a Whistle restart
+        # already awaiting readiness under the lifecycle lock. A replay/conflict
+        # must not revoke legitimate current work. This is only a Whistle gate;
+        # the existing durable action implementation remains the authority.
+        preempt = self._has_whistle and (
+            payload.get("operation") == "handoff"
+            or (payload.get("operation") == "converse" and payload.get("enabled") is False)
+        )
+        if preempt:
+            preempt = (
+                self.db.execute(
+                    "SELECT 1 FROM actions WHERE key=?", (payload["idempotency_key"],)
+                ).fetchone()
+                is None
+            )
+        if preempt and payload["operation"] == "handoff":
+            preempt = await self._handoff_may_preempt(payload)
+            if preempt:
+                # Another same-key action can finish while preview awaits,
+                # including a rejection that changes no resource revision.
+                # Replay/conflict remains exclusively _action's authority.
+                preempt = (
+                    self.db.execute(
+                        "SELECT 1 FROM actions WHERE key=?", (payload["idempotency_key"],)
+                    ).fetchone()
+                    is None
+                )
+        if preempt:
+            self._whistle_preemptions += 1
+        try:
+            return await self._action(payload)
+        finally:
+            if preempt:
+                self._whistle_preemptions -= 1
+
+    async def _handoff_may_preempt(self, payload):
+        """Read-only eligibility preview, never resource admission authority.
+
+        An already-ineligible handoff must not revoke recovery while waiting
+        for the lifecycle lock. Keep all authoritative under-lock checks in
+        _handoff_locked, including actual post-release memory measurements.
+        """
+        revision = self.state.record.revision
+        if self.state.record.profile == "conversation_priority" or self.state.record.lease_id:
+            return False
+        required, required_gpu = (
+            payload.get("required_bytes", 0),
+            payload.get("required_gpu_bytes", 0),
+        )
+        if (
+            type(required) is not int
+            or not self.minimum <= required <= 1 << 46
+            or type(required_gpu) is not int
+            or not 0 <= required_gpu <= 1 << 46
+            or (required_gpu and self.gpu_probe is None)
+        ):
+            return False
+        try:
+            # Do not mutate the cached locality observation outside the lock.
+            health = await self.converse.health()
+            if health.get("provider", {}).get("local") is not False:
+                return False
+            if self.gpu_probe is not None:
+                gpu = self.gpu_probe()
+                if (
+                    gpu is None
+                    or gpu["worker_resident_bytes"] <= 0
+                    or required_gpu > gpu["total_bytes"]
+                ):
+                    return False
+            task_id = payload.get("task_id")
+            if task_id and self.task_status:
+                task = await self.task_status(task_id)
+                if task.get("state") in {"succeeded", "failed", "cancelled", "paused"}:
+                    return False
+        except Exception:
+            # Uncertainty is not permission to disrupt. The existing action
+            # path records its authoritative result after acquiring the lock.
+            return False
+        return self.state.record.revision == revision
+
+    def whistle_policy(self):
+        record, choice = self.state.record, self.intent.read()
+        if (
+            self._whistle_preemptions
+            or record.phase != "ready"
+            or record.lease_id
+            or not record.desired_converse
+            or not choice.enabled
+            or record.owner_intent_revision != choice.revision
+        ):
+            raise WhistleAdmissionError(cleanup_confirmed=True)
+        return record.revision, choice.revision
+
+    @staticmethod
+    def _whistle_stopped(result):
+        evidence = result.get("stop_evidence", {})
+        return bool(
+            result.get("ok")
+            and (
+                result.get("superseded")
+                or result.get("release_confirmed")
+                or (evidence.get("reaped") and evidence.get("group_empty"))
+            )
+        )
+
+    async def admit_whistle(self, expected_policy):
+        """Fixed-worker new-request recovery, never uncertain-inference replay.
+
+        The broker retains this operation independently of HTTP cancellation.
+        Off/handoff barriers and durable owner revisions are rechecked after
+        startup; a newly ready but revoked incarnation is stopped before return.
+        """
+        async with self.lock:
+            if self.whistle_policy() != expected_policy:
+                raise WhistleAdmissionError(cleanup_confirmed=True)
+            identity = self.manager.owned_identity("whistle")
+            if identity is None:
+                if self.before_start:
+                    try:
+                        await self.before_start("whistle")
+                    except Exception as exc:
+                        # No start has been issued for this request. Existing
+                        # manager ownership, if any, remains separately retained.
+                        raise WhistleAdmissionError(cleanup_confirmed=True) from exc
+                if self.whistle_policy() != expected_policy:
+                    raise WhistleAdmissionError(cleanup_confirmed=True)
+                # Only the stopped fixed Whistle allocation is being restored.
+                # Voice/Laya may already be resident; do not double-credit their
+                # aggregate restore reserve or treat missing measurement as free.
+                available = self.memory_probe()
+                if available is None or available < max(self.minimum, self.whistle_restore_reserve):
+                    raise WhistleAdmissionError(cleanup_confirmed=True)
+                try:
+                    result = await self.manager.start("whistle")
+                except Exception as exc:
+                    stopped = await self.manager.stop("whistle")
+                    raise WhistleAdmissionError(
+                        cleanup_confirmed=self._whistle_stopped(stopped)
+                    ) from exc
+                identity = self.manager.owned_identity("whistle")
+                if not result.get("ok") or not result.get("ready") or identity is None:
+                    stopped = await self.manager.stop("whistle")
+                    raise WhistleAdmissionError(cleanup_confirmed=self._whistle_stopped(stopped))
+            try:
+                if self.whistle_policy() != expected_policy:
+                    raise WhistleAdmissionError()
+            except (OSError, ValueError, WhistleAdmissionError) as exc:
+                stopped = await self.manager.stop_if_current(identity)
+                raise WhistleAdmissionError(
+                    cleanup_confirmed=self._whistle_stopped(stopped)
+                ) from exc
+            return identity
+
+    async def _action(self, payload):
         encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
         key, operation = payload["idempotency_key"], payload["operation"]
         digest = hashlib.sha256(encoded.encode()).hexdigest()
@@ -297,6 +462,16 @@ class ResourceCoordinator:
                 not evidence.get("reaped") or not evidence.get("group_empty")
             ):
                 raise RuntimeError("Managed worker group release is unconfirmed")
+            if worker_id == "whistle" and result.get("already"):
+                row = self.manager.status()["workers"][worker_id]
+                retained = row.get("stop_evidence") or {}
+                if (
+                    row.get("state") == "stopped"
+                    and row.get("owned_pgid") is None
+                    and retained.get("reaped")
+                    and retained.get("group_empty")
+                ):
+                    result = {**result, "release_confirmed": True}
             results.append(result)
         return results
 
@@ -344,14 +519,38 @@ class ResourceCoordinator:
         )
         await self.converse.enabled(False)
         await self._save(phase="unloading")
-        measured = [row.get("group_rss_bytes") for row in self.manager.status()["workers"].values()]
+        workers = self.manager.status()["workers"]
+        whistle = workers.get("whistle", {})
+        whistle_stop = whistle.get("stop_evidence") or {}
+        whistle_released = (
+            whistle.get("state") == "stopped"
+            and not whistle.get("ready")
+            and whistle_stop.get("reaped")
+            and whistle_stop.get("group_empty")
+        )
+        # A canceled Whistle request can already have released its process.
+        # That is zero current residency, not an unknown running allocation.
+        # Still require fresh manager/group reconciliation below. Missing RSS
+        # for every other worker remains an admission refusal.
+        measured = [
+            0 if worker_id == "whistle" and whistle_released else row.get("group_rss_bytes")
+            for worker_id, row in workers.items()
+        ]
         if any(value is None for value in measured):
             raise RuntimeError("Worker resident memory is unavailable; admission refused")
         await self._save(
             restore_bytes=max(self.state.record.restore_bytes, sum(measured) + self.minimum)
         )
         stopped = await self._stop_workers()
-        if any(item.get("stop_evidence", {}).get("rss_before_bytes") is None for item in stopped):
+        if any(
+            item.get("stop_evidence", {}).get("rss_before_bytes") is None
+            and not (
+                item.get("worker_id") == "whistle"
+                and whistle_released
+                and item.get("release_confirmed")
+            )
+            for item in stopped
+        ):
             raise RuntimeError("Resident-memory release was not measurable; admission refused")
         available = self.memory_probe()
         if available is None or available < required:

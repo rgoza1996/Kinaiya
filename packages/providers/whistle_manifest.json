@@ -1,0 +1,32 @@
+{
+  "schema_version": "1.0",
+  "profile": "experimental_buffered_cpu",
+  "weights": {
+    "repository": "Cactus-Compute/whistle",
+    "revision": "741118687e1f008f06d1351a402a731274789790",
+    "path": "whistle.cact",
+    "bytes": 16919407,
+    "sha256": "b6e02f048568ac5d01a2042556c658061e699acbc0aa2a1439f52f3d461dffeb",
+    "license": "Apache-2.0"
+  },
+  "library": {
+    "repository": "Cactus-Compute/needle3",
+    "revision": "d6c7d6a2e9655505e0f8e23339356dd1705900eb",
+    "wheel": "python/cactus_needle-3.3.3-py3-none-manylinux2014_x86_64.whl",
+    "wheel_sha256": "b909897e11cf4da9566df6370f8a63564693fbd6edeaac0b8678b71865d4dc24",
+    "member": "needle/libneedle3.so",
+    "bytes": 1590584,
+    "sha256": "87476ff70e80334d7c766dbf236b72f42876072df22014c6ec8a9b087b82b260",
+    "version": "3.3.3",
+    "provenance_limit": "Pinned opaque binary; no source-build or complete ABI equivalence claim. Wheel has no LICENSE/NOTICE member."
+  },
+  "binding": {
+    "source": "https://github.com/cactus-compute/needle/blob/b4fc11b04f1852888d375c8c6dfbaca44572d014/needle/agent/whistle.py",
+    "revision": "b4fc11b04f1852888d375c8c6dfbaca44572d014",
+    "source_declared_version": "3.2.1",
+    "license": "Apache-2.0",
+    "header": "https://huggingface.co/Cactus-Compute/needle3/blob/d6c7d6a2e9655505e0f8e23339356dd1705900eb/linux-x86_64/needle.h",
+    "header_sha256": "a27dac4b3239eead91d124b7f7dbce5495c13019903fd817b68c16d39b055a99",
+    "changes": "Minimal explicit ctypes batch binding only; no upstream import, resolver, downloader or telemetry. Adds sealed local inputs, bounded PCM-WAV decoding, owned IPC and process cancellation."
+  }
+}

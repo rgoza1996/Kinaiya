@@ -1,0 +1,302 @@
+{
+  "schema_version": "1.0",
+  "date": "2026-10-28",
+  "issue": 85,
+  "parent_worker_commit": "f6e65445e52db7256c25a33cdd502e731f29febd",
+  "reviewed_lead_equivalent_commit": "7685e60af42a464c0cb66ac98a28a2d29a225910",
+  "status": "Refused-handoff preemption repair implemented and affected local regressions passed; committed independent review and lead exact-head CI remain gates.",
+  "defect": "A handoff already forbidden by conversation_priority could increment the Whistle cancellation barrier while valid new-request recovery awaited the lifecycle lock. Recovery returned503, the handoff then refused without changing the ready/enabled policy, and no worker remained ready. This violated ADR0013 refusal-before-disruption.",
+  "independent_original_reproducer": {
+    "source": "/tmp/kinaiya-whistle-lifecycle-review.nlhkhm/test_refused_handoff.py",
+    "retained_copy": "original-reviewer-reproducer.py",
+    "result_copy": "original-reviewer-red.json",
+    "originals_not_modified": true,
+    "result": "ready/enabled conversation_priority, refused handoff, transcription503, worker_readyfalse",
+    "note": "Original code waits for the erroneous barrier and writes its original red path; preserved rather than run unchanged against the fixed source. New native synthetic regressions exercise the corrected boundary."
+  },
+  "repair": {
+    "scope": "Only coordinator constructor/action and new read-only _handoff_may_preempt; managedWhistle regressions, ADR0034 and this evidence.",
+    "nonmutating_preview": [
+      "profile permits handoff",
+      "no existing lease",
+      "strict CPU/GPU declared bounds and GPU support",
+      "current provider locality",
+      "configured GPU residency/capacity",
+      "optional target task remains active"
+    ],
+    "revision_fence": "Capture resource revision before preview awaits and decline the barrier if it changed. There is no await between the final check and publishing the barrier.",
+    "uncertainty": "No preemption on unavailable/malformed preview information; the original locked action still records its authoritative outcome.",
+    "authority": "All authoritative _handoff_locked source bytes remain identical; actual stop/group/RSS/free-memory admission is not moved out of its lock. Preview is neither a reservation nor a future-state guarantee.",
+    "default_preservation": "No preview for a coordinator without the optional fixed Whistle worker, so default voice/Laya actions gain no additional health/task/GPU reads.",
+    "preserved": "Valid handoff and owner-off preemption, ledger replay/conflict lookup, repeated cancellation recovery, worker identity/cleanup, and native/audio/IPC source are unchanged.",
+    "headroom_distinction": "Current low or unknown MemAvailable does not predict post-release headroom; a legitimate eligible handoff can still preempt, attempt verified release, and then refuse local work on the original measured-memory check."
+  },
+  "new_regressions": {
+    "added_cases": 15,
+    "original_red_cases": 11,
+    "cases": [
+      "conversation_priority rejection",
+      "missing/bool/oversized CPU headroom",
+      "invalid/unsupported/unavailable/zero-residency/impossible-capacity GPU declarations",
+      "unmanaged text",
+      "inactive task",
+      "valid handoff while recovery is held",
+      "revision change during async preview",
+      "unknown RAM measured only after release",
+      "default no-Whistle control reads health once through authoritative path"
+    ],
+    "fixture_limit": "Boolean declaration and other malformed internal calls directly exercise the trusted coordinator boundary; actual HTTP ResourceAction validation rejects malformed types before action. GPU samples are synthetic, not hardware measurement. Children/IPC/seccomp/HTTP are real owned synthetic fixtures, not Whistle inference."
+  },
+  "results": {
+    "python312_affected": {
+      "passed": 200,
+      "seconds": 37.74
+    },
+    "python312_default_and_laya": {
+      "passed": 5,
+      "seconds": 0.8
+    },
+    "python311_nonprocess": {
+      "passed": 54,
+      "seconds": 0.62
+    },
+    "warnings": 0,
+    "skips": 0,
+    "python311_process_limit": "Unchanged local uv3.11.15 sealing limitation remains as recorded in initial evidence; process cases exercised on3.12 and require exact-head GitHub3.11 CI.",
+    "imports": [
+      {
+        "python": "3.12.3",
+        "module": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/services/resources/coordinator.py",
+        "sha256": "726fcf857f5d88117d9c61510d74815d8b021191985ef8d9f4913a27c43f90eb"
+      },
+      {
+        "python": "3.11.15",
+        "module": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/services/resources/coordinator.py",
+        "sha256": "726fcf857f5d88117d9c61510d74815d8b021191985ef8d9f4913a27c43f90eb"
+      }
+    ],
+    "static": {
+      "ruff_check": "passed",
+      "ruff_format": "2 files already formatted",
+      "git_diff_check": "passed"
+    }
+  },
+  "source_preservation": {
+    "parent_commit": "f6e65445e52db7256c25a33cdd502e731f29febd",
+    "coordinator_sha256": "726fcf857f5d88117d9c61510d74815d8b021191985ef8d9f4913a27c43f90eb",
+    "only_existing_changed_methods": [
+      "__init__",
+      "action"
+    ],
+    "only_new_method": "_handoff_may_preempt",
+    "all_other_method_ast_unchanged": true,
+    "handoff_locked_source_byte_identical": true,
+    "unchanged_methods": {
+      "status": "7d18c78d9d13f2b5b46ce4c0daeff886932671673bc427711d786bbc576e02c1",
+      "_publish": "130f5ac9784c2de1f3bf2789d6106e128080944e92e23c06c817289d7c5e2453",
+      "_save": "122582abab930aaeae4952647214261f244aff4e4d481e382ccb195b67a435fa",
+      "initialize": "a6eac0edad4a3dd542f6cbb1dd0bc6fc804787f42098620ca1e9f78de0cadbc8",
+      "_provider_locality": "7f05efe7e29904e5c54d3235e728b0bb6c416503d19fa71a31402dadd30bf43e",
+      "whistle_policy": "76ecf41942aca3ab0ba7820367ddc3d4c4f106fa366c65093fb3eb220f2b0272",
+      "_whistle_stopped": "2fc8976ebc4155cfc9ad4707bdb00bcdfa9f5d00c6f6dd30a9776429a5fece7f",
+      "admit_whistle": "f12e67f7b1671b5ce00a4c65bc6c9c4d0928ae7fc6d11843c1c7a90e8a62049b",
+      "_action": "21abc0919f93e7a6936c3f18a7575a48666e6189ff44fe68fe27ef2e7007662c",
+      "reconcile_owner_intent": "f49f7b732c0563fed6e6c069eb47d5dfbd4405bcb425a61f17d71031b347a846",
+      "_off_locked": "638247ee558929e4e91f65c7e77ac3ef4905743164e55a4e6482cb3e54191128",
+      "_stop_workers": "8b3b17dc6c1e61c56463245d747bdc1a60ad81dc7b910ebe65aba08b5744b831",
+      "_handoff_locked": "a01851e52bd9d24645dbde4f223392ebd052ca98a65d9a5356791a079bae04d8",
+      "_restore_locked": "7c7c1b74737457ebb0ef547813bddcbd27851422015e032d386b3baece05e2a0",
+      "close": "4436a845dd362e0aa6d3f33220547188ffc2b08a0afa6dc3b6d12c87d6c820a7"
+    }
+  },
+  "source_sha256": {
+    "services/resources/coordinator.py": {
+      "bytes": 28144,
+      "sha256": "726fcf857f5d88117d9c61510d74815d8b021191985ef8d9f4913a27c43f90eb"
+    },
+    "tests/integration/test_managed_whistle.py": {
+      "bytes": 35373,
+      "sha256": "e0d44e160e7e8cb0cbe4a767cc608a12787ff36977028256c2248c131c1b4285"
+    },
+    "docs/adr/0034-managed-whistle-cpu-stt.md": {
+      "bytes": 11175,
+      "sha256": "eb9a91683ec21fa238ef9feed68fd1fd83ad8ad93ca48bec72bfd2c7d9fdc926"
+    }
+  },
+  "not_performed": [
+    "No model/native Whistle inference",
+    "No package install, download or paid provider/Muse call",
+    "No lead/main/push/PR or live/reference change",
+    "No new claim of streaming #49, quality, real-time/p95, generic scheduling or M2 completion"
+  ],
+  "commands": [
+    {
+      "name": "pre_fix_regressions",
+      "argv": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/supertonic-ci-venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/integration/test_managed_whistle.py",
+        "-k",
+        "ineligible_handoff or eligible_handoff"
+      ],
+      "log": "red.log",
+      "result": "11 failed, 1 passed, 30 deselected in 4.03 seconds",
+      "returncode": 1,
+      "cwd": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya",
+      "environment": {
+        "PYTHONPATH": "."
+      }
+    },
+    {
+      "name": "first_fixed_regressions",
+      "argv": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/supertonic-ci-venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/integration/test_managed_whistle.py",
+        "-k",
+        "ineligible_handoff or eligible_handoff"
+      ],
+      "log": "green-initial.log",
+      "result": "12 passed, 30 deselected in 5.43 seconds",
+      "returncode": 0,
+      "cwd": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya",
+      "environment": {
+        "PYTHONPATH": "."
+      }
+    },
+    {
+      "name": "affected_python312",
+      "argv": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/supertonic-ci-venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/integration/test_managed_whistle.py",
+        "tests/integration/test_worker_identity.py",
+        "tests/integration/test_resource_handoff.py",
+        "tests/integration/test_resource_parent.py",
+        "tests/integration/test_voice_resource_config.py",
+        "tests/unit/test_resource_gpu.py"
+      ],
+      "log": "affected-py312.log",
+      "result": "200 passed in 37.74 seconds",
+      "returncode": 0,
+      "cwd": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya",
+      "environment": {
+        "PYTHONPATH": "."
+      }
+    },
+    {
+      "name": "default_voice_and_laya_controls",
+      "argv": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/supertonic-ci-venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/integration/test_managed_whistle.py::test_default_voice_coordinator_has_no_whistle_eligibility_preview",
+        "tests/integration/test_managed_laya_launcher.py"
+      ],
+      "log": "voice-laya-controls.log",
+      "result": "5 passed in 0.80 seconds",
+      "returncode": 0,
+      "cwd": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya",
+      "environment": {
+        "PYTHONPATH": "."
+      }
+    },
+    {
+      "name": "python311_nonprocess_controls",
+      "argv": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/vibevoice-py311-venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/integration/test_managed_whistle.py::test_default_voice_coordinator_has_no_whistle_eligibility_preview",
+        "tests/unit/test_resource_gpu.py"
+      ],
+      "log": "nonprocess-py311.log",
+      "result": "54 passed in 0.62 seconds",
+      "returncode": 0,
+      "cwd": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya",
+      "environment": {
+        "PYTHONPATH": "."
+      }
+    }
+  ],
+  "raw_artifact_directory": "/tmp/kinaiya-85-handoff-repair",
+  "durable_artifact_directory": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/.dev-run/managed-whistle-handoff-repair-v1",
+  "artifacts": {
+    "affected-py312.log": {
+      "bytes": 261,
+      "sha256": "d6d450c2b47c5709eca449811c50e6f508ce5dc204792e83771b87d181021a96"
+    },
+    "coordinator-before.py": {
+      "bytes": 25877,
+      "sha256": "b30198115922ad75c8767cc6c8f6877aabe4c957f074701a75c5f0daa59c69f6"
+    },
+    "coordinator-final.py": {
+      "bytes": 28144,
+      "sha256": "726fcf857f5d88117d9c61510d74815d8b021191985ef8d9f4913a27c43f90eb"
+    },
+    "diff-check.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "format.log": {
+      "bytes": 26,
+      "sha256": "3bc53bf3e981a98a34a852e175bf9b77af841edea74fca595d9aedcbaf9a4938"
+    },
+    "green-initial.log": {
+      "bytes": 114,
+      "sha256": "16cd0f4d6662d222dbd3a5304827168d8d77d019f38a4781151dbe4e9638b6f7"
+    },
+    "import-py311.json": {
+      "bytes": 210,
+      "sha256": "16f47b55f82e7d5575d745ece4f80219458c094fce2eb60a2ccbfbc5edc7aa52"
+    },
+    "import-py312.json": {
+      "bytes": 209,
+      "sha256": "897227059a6dcd03630669c3192d5b93bf6ebb94e2faeacd84d95772d3c8242d"
+    },
+    "lint.log": {
+      "bytes": 19,
+      "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+    },
+    "nonprocess-py311.log": {
+      "bytes": 99,
+      "sha256": "db6bc9f2e65a1e0c79cb016ca266268f7ba857cc2c094b1abfecd378d5c512e6"
+    },
+    "original-reviewer-red.json": {
+      "bytes": 759,
+      "sha256": "61d1620ce0746a18343c840941a492140ea1963d77a6357387675e8f1788448e"
+    },
+    "original-reviewer-reproducer.py": {
+      "bytes": 1974,
+      "sha256": "f8e861fff4e3dcc462d526c8dc793e0261602b40725e918fd278424bf85ba26c"
+    },
+    "preservation.json": {
+      "bytes": 1711,
+      "sha256": "0eda60eb0789affcf67d01e6dc646c6ac0a81f72d34dcec589e45cc60d41778d"
+    },
+    "red.log": {
+      "bytes": 39717,
+      "sha256": "96e371d0534570929637e347d315a2ef89ba2ef81b1e563d794ef499aa39bace"
+    },
+    "regression-tests.py": {
+      "bytes": 31498,
+      "sha256": "623a116eea932756d15155f95019d69f9267795ffae761d4e495aa99fa5e73ab"
+    },
+    "test_managed_whistle-final.py": {
+      "bytes": 35373,
+      "sha256": "e0d44e160e7e8cb0cbe4a767cc608a12787ff36977028256c2248c131c1b4285"
+    },
+    "voice-laya-controls.log": {
+      "bytes": 98,
+      "sha256": "77bdbb2617875ac1751b5d30255ac1d10d7922d9bedc1c6ade84bfe8ca13348e"
+    }
+  }
+}

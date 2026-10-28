@@ -1,0 +1,809 @@
+{
+  "schema_version": "1.0",
+  "date": "2026-10-28",
+  "issue": 85,
+  "branch": "feat/85-managed-whistle",
+  "base_commit": "811d6214cc6450457636473155d3d6c65f3cf8cc",
+  "status": "Implementation and bounded local verification complete; final lifecycle/Muse review, actual managed pinned-engine smoke and exact-head CI are separate pending gates.",
+  "profile": "experimental_buffered_cpu",
+  "stt_mode": "independent durable audio-window calls; persistent streaming #49 remains open",
+  "new_model_inference_performed": false,
+  "default_promoted": false,
+  "public_provenance": {
+    "schema_version": "1.0",
+    "profile": "experimental_buffered_cpu",
+    "weights": {
+      "repository": "Cactus-Compute/whistle",
+      "revision": "741118687e1f008f06d1351a402a731274789790",
+      "path": "whistle.cact",
+      "bytes": 16919407,
+      "sha256": "b6e02f048568ac5d01a2042556c658061e699acbc0aa2a1439f52f3d461dffeb",
+      "license": "Apache-2.0"
+    },
+    "library": {
+      "repository": "Cactus-Compute/needle3",
+      "revision": "d6c7d6a2e9655505e0f8e23339356dd1705900eb",
+      "wheel": "python/cactus_needle-3.3.3-py3-none-manylinux2014_x86_64.whl",
+      "wheel_sha256": "b909897e11cf4da9566df6370f8a63564693fbd6edeaac0b8678b71865d4dc24",
+      "member": "needle/libneedle3.so",
+      "bytes": 1590584,
+      "sha256": "87476ff70e80334d7c766dbf236b72f42876072df22014c6ec8a9b087b82b260",
+      "version": "3.3.3",
+      "provenance_limit": "Pinned opaque binary; no source-build or complete ABI equivalence claim. Wheel has no LICENSE/NOTICE member."
+    },
+    "binding": {
+      "source": "https://github.com/cactus-compute/needle/blob/b4fc11b04f1852888d375c8c6dfbaca44572d014/needle/agent/whistle.py",
+      "revision": "b4fc11b04f1852888d375c8c6dfbaca44572d014",
+      "source_declared_version": "3.2.1",
+      "license": "Apache-2.0",
+      "header": "https://huggingface.co/Cactus-Compute/needle3/blob/d6c7d6a2e9655505e0f8e23339356dd1705900eb/linux-x86_64/needle.h",
+      "header_sha256": "a27dac4b3239eead91d124b7f7dbce5495c13019903fd817b68c16d39b055a99",
+      "changes": "Minimal explicit ctypes batch binding only; no upstream import, resolver, downloader or telemetry. Adds sealed local inputs, bounded PCM-WAV decoding, owned IPC and process cancellation."
+    }
+  },
+  "limits": {
+    "max_audio_bytes": 10000000,
+    "supported_slice_seconds": 30,
+    "max_text_characters": 16000,
+    "max_response_bytes": 131072,
+    "max_native_inference_or_cleanup_owners": 1,
+    "max_converse_stt_transport_owners": 32,
+    "request_deadline_default_seconds": 300,
+    "request_deadline_configurable_seconds": [
+      30,
+      900
+    ],
+    "cpu_affinity_count_default": 2,
+    "native_thread_count_claim": false,
+    "cumulative_lifetime_cpu_cap": false
+  },
+  "implementation": {
+    "worker": "One direct resources-owned WorkerManager child; explicit pinned local memfd/CDLL batch binding. No worker HTTP credentials or new network channels.",
+    "ownership": "Exact issued in-process WorkerIdentity/Process/start binding, kernel peer PID+UID, random process incarnation and request nonce. Same-binding exited leader still uses manager group reconciliation; superseded cleanup signals nothing.",
+    "cancellation": "Discard output, stop exact old incarnation, retain unconfirmed cleanup; a fresh new request automatically recovers only after confirmed release under current ready/desired owner/revision/no-lease policy and fresh Whistle-only headroom. No inference replay or manager replacement.",
+    "preserved": "Default Whisper multipart/TTS endpoint and profile; standalone Agent controls; native source/hash/idempotency/window/epoch appends; existing resource behavior outside narrowly guarded Whistle hooks.",
+    "package_data_assertion": "Exact equality retained, extended by only whistle_manifest.json, whistle_LICENSE.txt and whistle_NOTICE.txt."
+  },
+  "verification": {
+    "python312": {
+      "python": "3.12.3",
+      "executable": "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/supertonic-ci-venv/bin/python",
+      "passed": 621,
+      "skipped": 6,
+      "elapsed_seconds": 163.37,
+      "warning": "One PytestAssertRewriteWarning: anyio was imported by the explicit import-verification launcher before pytest plugin rewriting.",
+      "imports_and_source_hashes": {
+        "packages.resources.processes": {
+          "path": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/packages/resources/processes.py",
+          "sha256": "86fd15bf472e99804678f9ecda8fa48e6b4342af53efa95777ab9601df286ec0"
+        },
+        "packages.providers.speech": {
+          "path": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/packages/providers/speech.py",
+          "sha256": "941b647a8dce7122c5f74553dce6c0464c415a6b05191c028f8925eec63b9622"
+        },
+        "packages.providers.whistle_audio": {
+          "path": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/packages/providers/whistle_audio.py",
+          "sha256": "10506b65c3fec87b9fc94c9085e16c91833879e060487a08fe1bf3f3a797f80e"
+        },
+        "packages.providers.whistle_assets": {
+          "path": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/packages/providers/whistle_assets.py",
+          "sha256": "3e2a185584497e83d26a86bab2127831b61ae86e82b685d5def489d019495de5"
+        },
+        "services.resources.coordinator": {
+          "path": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/services/resources/coordinator.py",
+          "sha256": "b30198115922ad75c8767cc6c8f6877aabe4c957f074701a75c5f0daa59c69f6"
+        },
+        "services.resources.whistle": {
+          "path": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/services/resources/whistle.py",
+          "sha256": "0ceca7c54cd2ff1a02d3a8d0dd6d769a8139170e828aaa1e779ae4a6ca0749a0"
+        },
+        "services.resources.launcher": {
+          "path": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/services/resources/launcher.py",
+          "sha256": "ee2e0e5091e904aa38ffa6b35317e54f4001f04be126723ba38a1b0e9576e49c"
+        },
+        "services.converse.api": {
+          "path": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/services/converse/api.py",
+          "sha256": "ff3347a6849430a8200f4282140e61c76838b10d00b755d636befabd267ee54c"
+        }
+      }
+    },
+    "python311_nonprocess": {
+      "python": "3.11.15",
+      "executable": "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/vibevoice-py311-venv/bin/python",
+      "passed": 441,
+      "skipped": 6,
+      "deselected": 1,
+      "elapsed_seconds": 114.65,
+      "warning": "Same explicit-launcher anyio assertion-rewrite warning.",
+      "imports_and_source_hashes": {
+        "packages.resources.processes": {
+          "path": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/packages/resources/processes.py",
+          "sha256": "86fd15bf472e99804678f9ecda8fa48e6b4342af53efa95777ab9601df286ec0"
+        },
+        "packages.providers.speech": {
+          "path": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/packages/providers/speech.py",
+          "sha256": "941b647a8dce7122c5f74553dce6c0464c415a6b05191c028f8925eec63b9622"
+        },
+        "packages.providers.whistle_audio": {
+          "path": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/packages/providers/whistle_audio.py",
+          "sha256": "10506b65c3fec87b9fc94c9085e16c91833879e060487a08fe1bf3f3a797f80e"
+        },
+        "packages.providers.whistle_assets": {
+          "path": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/packages/providers/whistle_assets.py",
+          "sha256": "3e2a185584497e83d26a86bab2127831b61ae86e82b685d5def489d019495de5"
+        },
+        "services.resources.coordinator": {
+          "path": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/services/resources/coordinator.py",
+          "sha256": "b30198115922ad75c8767cc6c8f6877aabe4c957f074701a75c5f0daa59c69f6"
+        },
+        "services.resources.whistle": {
+          "path": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/services/resources/whistle.py",
+          "sha256": "0ceca7c54cd2ff1a02d3a8d0dd6d769a8139170e828aaa1e779ae4a6ca0749a0"
+        },
+        "services.resources.launcher": {
+          "path": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/services/resources/launcher.py",
+          "sha256": "ee2e0e5091e904aa38ffa6b35317e54f4001f04be126723ba38a1b0e9576e49c"
+        },
+        "services.converse.api": {
+          "path": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/services/converse/api.py",
+          "sha256": "ff3347a6849430a8200f4282140e61c76838b10d00b755d636befabd267ee54c"
+        }
+      },
+      "excluded_scope": "Process/managed-resource files excluded after unchanged-baseline F_ADD_SEALS capability failure; the sealed-asset success case is explicitly deselected, not weakened."
+    },
+    "optional_decoder": {
+      "python": "3.12.3",
+      "environment": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/.dev-run/transformers521-env",
+      "av_version": "17.1.0",
+      "passed": 6,
+      "elapsed_seconds": 0.056,
+      "real_decoder_not_mocked": true,
+      "model_or_Whistle_C_API_load": false,
+      "cases": [
+        "mono PCM16 amplitude/count",
+        "opposite stereo channels downmix",
+        "correlated stereo arithmetic-average gain and full-scale polarities",
+        "8/48 kHz resampler step overshoot bounded to native PCM contract",
+        "low-tone preservation and above-Nyquist filtering",
+        "44.1 kHz duration conversion"
+      ],
+      "environment_metadata": "optional-decode-environment.json"
+    },
+    "optional_skip_disclosure": "Both base test environments lack optional PyAV. All six skipped real decoder cases ran successfully in the existing pinned decoder environment; no dependency was installed.",
+    "lifecycle_tier": "Actual owned synthetic direct children, actual Unix IPC/SO_PEERCRED/seccomp, actual resources HTTP and both actual browser ASGI disconnect paths. Synthetic engine replies are not real Whistle inference, quality or speed evidence.",
+    "scope_cases": [
+      "strict WAV/JSON/frame/nonce bounds",
+      "hash/path/sealed-byte validation before native binding",
+      "exact ABI mock calls and missing isolation tripwires",
+      "owner/Converse auth; Agent/resources refusal",
+      "independent STT/TTS transports and preserved default multipart",
+      "repeated cancel/deadline/new-request recovery",
+      "disconnect during startup/admission and inference",
+      "same-time disconnect/completion; repeated outer cancellation; 32-owner saturation",
+      "off/handoff/restore overlap, stale HTTP cleanup and old incarnation",
+      "unknown cleanup refuses replacement; numeric clone cannot signal sentinel",
+      "same-binding natural leader exit; failed stop cached ready rejected",
+      "already-reaped Whistle measured handoff and retained release label",
+      "fresh memory reserve refusal/recovery after awaited validation"
+    ],
+    "static": {
+      "ruff_check": "All checks passed",
+      "ruff_format": "233 files already formatted",
+      "contract_schema_equality": "unchanged",
+      "git_diff_check": "passed"
+    },
+    "optional_audit": {
+      "result": {
+        "dependencies": [
+          {
+            "name": "av",
+            "version": "17.1.0",
+            "vulns": []
+          }
+        ],
+        "fixes": []
+      },
+      "full_requirement_hashes_required": true,
+      "no_install": true,
+      "limit": "Known-vulnerability lookup for pinned av package only; not an audit of bundled FFmpeg or the opaque native engine and not a general security claim."
+    },
+    "wheel": {
+      "wheel": "/tmp/kinaiya-85-implementation-24zi3_ub/wheels/kinaiya-0.1.0.dev0-py3-none-any.whl",
+      "bytes": 326504,
+      "sha256": "d9e9f64fad20f1a190c1bc3922fbc84f1439ebbcef139235ed4fcb8e9fe7bbd3",
+      "verified_package_files": {
+        "packages/providers/whistle_LICENSE.txt": {
+          "bytes": 11358,
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        },
+        "packages/providers/whistle_NOTICE.txt": {
+          "bytes": 1185,
+          "sha256": "b0748e4e5d6dac103cf8d1bd1c500b03230b8c1acd77e88cfe4d0a484993032f"
+        },
+        "packages/providers/whistle_assets.py": {
+          "bytes": 2770,
+          "sha256": "3e2a185584497e83d26a86bab2127831b61ae86e82b685d5def489d019495de5"
+        },
+        "packages/providers/whistle_audio.py": {
+          "bytes": 4179,
+          "sha256": "10506b65c3fec87b9fc94c9085e16c91833879e060487a08fe1bf3f3a797f80e"
+        },
+        "packages/providers/whistle_backend.py": {
+          "bytes": 2602,
+          "sha256": "76eec279d7296631c7f1f800c95401005c925f65d6631b8e9ec815277bab618a"
+        },
+        "packages/providers/whistle_ipc.py": {
+          "bytes": 3619,
+          "sha256": "831b7916e533df28cffee4342975d57173cdb8e2699615f80547d8fbb8c6dafd"
+        },
+        "packages/providers/whistle_isolation.py": {
+          "bytes": 3419,
+          "sha256": "743978c5f1192eddc291168dbb649a5f7b9341a760d56bb072f3cfad1739bccb"
+        },
+        "packages/providers/whistle_manifest.json": {
+          "bytes": 1648,
+          "sha256": "6d66fc47e2658d99b83ae85c2e73e19b3607cf81057c49065566047d7519aa3c"
+        },
+        "packages/providers/whistle_worker.py": {
+          "bytes": 4650,
+          "sha256": "ea2e1a3c76cb271a1af3959ccec2bea27fc0b75b5845965ad27b6fd09a03a05b"
+        }
+      },
+      "record_digests_match": true,
+      "av_only_optional": true,
+      "no_weights_or_native_binary": true
+    }
+  },
+  "failure_history": [
+    {
+      "log": "managed-initial.log",
+      "result": "3 failed, 12 passed",
+      "disposition": "Two test assertions matched the generic word transcription rather than returned fixture text; replaced with absence of the text field and exact public fixture. One real canceled-already-reaped Whistle handoff RSS bug retained and fixed narrowly."
+    },
+    {
+      "log": "managed-second.log",
+      "result": "3 failed, 32 passed",
+      "disposition": "Two real retained-release/overlap cases fixed by explicit retained release_confirmed evidence and Whistle-only handoff handling. A separate test expected stop(false), but the unchanged public stop API raises on injected observation failure; fixture now expects that existing exception."
+    },
+    {
+      "log": "managed-third.log",
+      "result": "94 passed in 11.08 seconds",
+      "disposition": "Focused check after the two lifecycle repairs."
+    },
+    {
+      "log": "managed-fourth.log",
+      "result": "1 failed, 107 passed",
+      "disposition": "New isolation-refusal test incorrectly expected a fresh stop receipt from baseline early-exit cleanup. It now checks the injected exact exit code, no native-construction marker, no ready identity and no retained PGID; it does not invent a stop receipt."
+    },
+    {
+      "log": "managed-fifth.log",
+      "result": "108 passed in 13.94 seconds",
+      "disposition": "Green before four additional fresh-headroom cases; those four are included in final621 scope."
+    },
+    {
+      "log": "combined-py312.log",
+      "result": "1 failed, 616 passed, 4 skipped in 164.58 seconds",
+      "disposition": "Exact package-data allowlist had not yet included the three intentionally added data files. Equality and all original entries remain; final scope621 passes."
+    },
+    {
+      "log": "combined-py311.log",
+      "result": "50 failed, 537 passed, 4 skipped, 30 errors in 139.33 seconds",
+      "disposition": "Local uv CPython3.11.15 lacks fcntl.F_ADD_SEALS; unchanged WorkerManager sealing also fails before spawn. The old package-data equality failed too. Unchanged baseline process reproduction fails identically; no sealing fallback or interpreter install was introduced. Parent directed nonprocess3.11 verification and exact-head GitHub3.11 process CI."
+    },
+    {
+      "log": "decoder-pcm-range-red.log",
+      "result": "3 failing subcases across two new decoder methods",
+      "disposition": "Independent review found native [-1,1] violation from correlated stereo gain and resampling overshoot. Original source and tests retained; gain correction and saturation pass all six real decoder methods."
+    },
+    {
+      "log": "decoder-unsupported-options.log",
+      "result": "7 errors",
+      "disposition": "Interim AudioResampler options keyword is unsupported by pinned PyAV17.1.0; it was rejected and removed. Final implementation uses the actual API and explicit gain/saturation."
+    },
+    {
+      "log": "package-build.log",
+      "result": "failed before build",
+      "disposition": "The base test environment has no setuptools.build_meta. Used the existing readonly decoder environment setuptools backend to build a copy in private temporary output; installed nothing."
+    }
+  ],
+  "independent_native_review": {
+    "kind": "Automated independent Codex peer review, not human approval",
+    "scope": "Eight native/audio/asset/isolation/provenance files; excludes worker/broker/coordinator lifecycle.",
+    "report": "independent-native/review.md",
+    "report_sha256": "b25b9c4e3c5b3c732e19e92a6761d7a9b0e2e58298d38b4267c9ae4a73ef8e97",
+    "receipt": "independent-native/native-review-receipt.json",
+    "receipt_sha256": "cb3007fd6e26a0100ef8e881d2c20f2b3d2be0b30ec11c19699e159643ba63e0",
+    "result": "No unresolved actionable finding at recorded scoped hashes after PCM-range correction.",
+    "actual_checks": "36 selected unit cases, six real decoder methods, eight retained differential repro cases, isolated real main/pre-existing-thread/native-libc EPERM socket probes. No model inference.",
+    "limits": "No opaque source/build/complete ABI proof, full binary security audit, model quality/performance or generic hostile-code sandbox claim."
+  },
+  "frozen_preflight": {
+    "directory": "/home/roggoz/.cache/kinaiya-whistle-preflight-20261028",
+    "read_only_preserved": true,
+    "one_cold_public_phrase_seconds": 4.7,
+    "one_cold_elapsed_seconds": 28.87,
+    "cpu_affinity_count": 2,
+    "warm_attempt": "Failed the earlier shared cumulative CPU cap; not discarded. Production uses a finite per-request deadline and no cumulative CPU cap.",
+    "limit": "Historical single phrase only, not new integrated runtime evidence or real-time/quality/p95 proof."
+  },
+  "pending_gates": [
+    "Committed independent lifecycle/Muse review",
+    "Lead-owned actual managed pinned-engine HTTP smoke/cancel/recovery using separate state",
+    "Exact-head full CI, especially GitHub Python3.11 process/sealing support",
+    "Persistent streaming protocol #49 remains separate; no full M2/default/quality promotion"
+  ],
+  "commands": [
+    {
+      "name": "final_combined_py312",
+      "cwd": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya",
+      "argv": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/supertonic-ci-venv/bin/python",
+        "/tmp/kinaiya-85-implementation-24zi3_ub/run_suite.py",
+        "/tmp/kinaiya-85-implementation-24zi3_ub/final-combined-py312.json"
+      ],
+      "environment": {
+        "PYTHONPATH": "."
+      },
+      "stdout": "/tmp/kinaiya-85-implementation-24zi3_ub/final-combined-py312.log",
+      "returncode": 0,
+      "pytest_arguments": [
+        "-q",
+        "-rs",
+        "tests/unit/test_whistle_boundaries.py",
+        "tests/unit/test_whistle_native_boundary.py",
+        "tests/unit/test_whistle_speech_selection.py",
+        "tests/unit/test_whistle_config.py",
+        "tests/unit/test_whistle_transport.py",
+        "tests/integration/test_managed_whistle.py",
+        "tests/integration/test_worker_identity.py",
+        "tests/optional/test_whistle_decode.py",
+        "tests/integration/test_resource_processes.py",
+        "tests/integration/test_resource_boundaries.py",
+        "tests/integration/test_resource_handoff.py",
+        "tests/integration/test_resource_parent.py",
+        "tests/integration/test_voice_resource_config.py",
+        "tests/integration/test_speech_boundary.py",
+        "tests/integration/test_speech_windows.py",
+        "tests/integration/test_converse_speech_cancel.py",
+        "tests/integration/test_converse_text_cleanup.py",
+        "tests/integration/test_converse_window_recovery.py",
+        "tests/integration/test_window_http.py",
+        "tests/unit/test_providers.py",
+        "tests/unit/test_resource_gpu.py"
+      ]
+    },
+    {
+      "name": "final_nonprocess_py311",
+      "cwd": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya",
+      "argv": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/vibevoice-py311-venv/bin/python",
+        "/tmp/kinaiya-85-implementation-24zi3_ub/run_py311_nonprocess.py",
+        "/tmp/kinaiya-85-implementation-24zi3_ub/final-nonprocess-py311.json"
+      ],
+      "environment": {
+        "PYTHONPATH": "."
+      },
+      "stdout": "/tmp/kinaiya-85-implementation-24zi3_ub/final-nonprocess-py311.log",
+      "returncode": 0,
+      "pytest_arguments": [
+        "-q",
+        "-rs",
+        "--deselect=tests/unit/test_whistle_boundaries.py::test_asset_is_sealed_and_immune_to_later_owner_writes",
+        "tests/unit/test_whistle_boundaries.py",
+        "tests/unit/test_whistle_native_boundary.py",
+        "tests/unit/test_whistle_speech_selection.py",
+        "tests/unit/test_whistle_config.py",
+        "tests/unit/test_whistle_transport.py",
+        "tests/optional/test_whistle_decode.py",
+        "tests/integration/test_speech_boundary.py",
+        "tests/integration/test_speech_windows.py",
+        "tests/integration/test_converse_speech_cancel.py",
+        "tests/integration/test_converse_text_cleanup.py",
+        "tests/integration/test_converse_window_recovery.py",
+        "tests/integration/test_window_http.py",
+        "tests/unit/test_providers.py",
+        "tests/unit/test_resource_gpu.py"
+      ]
+    },
+    {
+      "name": "actual_optional_decoder",
+      "cwd": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya",
+      "argv": [
+        "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/.dev-run/transformers521-env/bin/python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests/optional",
+        "-p",
+        "test_whistle_decode.py",
+        "-v"
+      ],
+      "environment": {
+        "PYTHONPATH": "."
+      },
+      "stdout": "/tmp/kinaiya-85-implementation-24zi3_ub/decoder-pcm-range-final.log",
+      "returncode": 0
+    },
+    {
+      "name": "optional_dependency_audit",
+      "cwd": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya",
+      "argv": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/supertonic-ci-venv/bin/python",
+        "-m",
+        "pip_audit",
+        "-r",
+        "requirements-whistle.lock",
+        "--require-hashes",
+        "--disable-pip",
+        "--timeout",
+        "15",
+        "--cache-dir",
+        "/tmp/kinaiya-85-implementation-24zi3_ub/audit-cache",
+        "-f",
+        "json"
+      ],
+      "stdout": "/tmp/kinaiya-85-implementation-24zi3_ub/final-optional-audit.json",
+      "stderr": "/tmp/kinaiya-85-implementation-24zi3_ub/final-optional-audit.log",
+      "returncode": 0
+    },
+    {
+      "name": "wheel_build_existing_readonly_backend",
+      "cwd": "/tmp/kinaiya-85-implementation-24zi3_ub/package-source",
+      "argv": [
+        "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/.dev-run/transformers521-env/bin/python",
+        "-c",
+        "import setuptools; print(setuptools.__version__); import setuptools.build_meta as b; print(b.build_wheel(\"/tmp/kinaiya-85-implementation-24zi3_ub/wheels\"))"
+      ],
+      "stdout": "/tmp/kinaiya-85-implementation-24zi3_ub/final-package-build.log",
+      "returncode": 0
+    },
+    {
+      "name": "baseline_py311_process_reproduction",
+      "cwd": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya",
+      "argv": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/vibevoice-py311-venv/bin/python",
+        "/tmp/kinaiya-85-implementation-24zi3_ub/run_baseline_py311.py"
+      ],
+      "environment": {
+        "PYTHONPATH": "."
+      },
+      "stdout": "/tmp/kinaiya-85-implementation-24zi3_ub/baseline-py311.log",
+      "returncode": 1
+    }
+  ],
+  "source_sha256": {
+    "docs/adr/0034-managed-whistle-cpu-stt.md": {
+      "bytes": 10355,
+      "sha256": "22a71b8919f6b201d13ab6e4e19ea5c02c0974089ad1ffe5f006a413143d45b1"
+    },
+    "packages/providers/speech.py": {
+      "bytes": 5163,
+      "sha256": "941b647a8dce7122c5f74553dce6c0464c415a6b05191c028f8925eec63b9622"
+    },
+    "packages/providers/whistle_LICENSE.txt": {
+      "bytes": 11358,
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    },
+    "packages/providers/whistle_NOTICE.txt": {
+      "bytes": 1185,
+      "sha256": "b0748e4e5d6dac103cf8d1bd1c500b03230b8c1acd77e88cfe4d0a484993032f"
+    },
+    "packages/providers/whistle_assets.py": {
+      "bytes": 2770,
+      "sha256": "3e2a185584497e83d26a86bab2127831b61ae86e82b685d5def489d019495de5"
+    },
+    "packages/providers/whistle_audio.py": {
+      "bytes": 4179,
+      "sha256": "10506b65c3fec87b9fc94c9085e16c91833879e060487a08fe1bf3f3a797f80e"
+    },
+    "packages/providers/whistle_backend.py": {
+      "bytes": 2602,
+      "sha256": "76eec279d7296631c7f1f800c95401005c925f65d6631b8e9ec815277bab618a"
+    },
+    "packages/providers/whistle_ipc.py": {
+      "bytes": 3619,
+      "sha256": "831b7916e533df28cffee4342975d57173cdb8e2699615f80547d8fbb8c6dafd"
+    },
+    "packages/providers/whistle_isolation.py": {
+      "bytes": 3419,
+      "sha256": "743978c5f1192eddc291168dbb649a5f7b9341a760d56bb072f3cfad1739bccb"
+    },
+    "packages/providers/whistle_manifest.json": {
+      "bytes": 1648,
+      "sha256": "6d66fc47e2658d99b83ae85c2e73e19b3607cf81057c49065566047d7519aa3c"
+    },
+    "packages/providers/whistle_worker.py": {
+      "bytes": 4650,
+      "sha256": "ea2e1a3c76cb271a1af3959ccec2bea27fc0b75b5845965ad27b6fd09a03a05b"
+    },
+    "packages/resources/processes.py": {
+      "bytes": 56145,
+      "sha256": "86fd15bf472e99804678f9ecda8fa48e6b4342af53efa95777ab9601df286ec0"
+    },
+    "pyproject.toml": {
+      "bytes": 1485,
+      "sha256": "b92ba4063ce78102657e258a46dbd432558c5fa4c5ece6731b5651841ebb76be"
+    },
+    "requirements-whistle.lock": {
+      "bytes": 2730,
+      "sha256": "6d22464de9f0ff308deee728f9dee3ff7acb14c7f3bd36c1fb0c9304602de613"
+    },
+    "services/converse/api.py": {
+      "bytes": 11301,
+      "sha256": "ff3347a6849430a8200f4282140e61c76838b10d00b755d636befabd267ee54c"
+    },
+    "services/launcher.py": {
+      "bytes": 23710,
+      "sha256": "9df2d40889a14dcdf78792bdebdddf83c5b0da797c9a9ed2f4e48b6ccf1bab45"
+    },
+    "services/resources/api.py": {
+      "bytes": 3355,
+      "sha256": "befedbcf782a7b7af3d3b746d2ddbfcb456e28008b47ccd9fe7ee557bd525b7e"
+    },
+    "services/resources/coordinator.py": {
+      "bytes": 25877,
+      "sha256": "b30198115922ad75c8767cc6c8f6877aabe4c957f074701a75c5f0daa59c69f6"
+    },
+    "services/resources/launcher.py": {
+      "bytes": 13783,
+      "sha256": "ee2e0e5091e904aa38ffa6b35317e54f4001f04be126723ba38a1b0e9576e49c"
+    },
+    "services/resources/whistle.py": {
+      "bytes": 17057,
+      "sha256": "0ceca7c54cd2ff1a02d3a8d0dd6d769a8139170e828aaa1e779ae4a6ca0749a0"
+    },
+    "tests/integration/test_managed_whistle.py": {
+      "bytes": 27883,
+      "sha256": "0625e913166881dd4f29e43f8e17cd24413e5349cd814e40aab08efa4ef1201d"
+    },
+    "tests/integration/test_voice_resource_config.py": {
+      "bytes": 13548,
+      "sha256": "7dfb2c7d482d1c97917b24f405ebfefcaabcc46905febb1d8a441eeba5998852"
+    },
+    "tests/integration/test_worker_identity.py": {
+      "bytes": 3961,
+      "sha256": "4d070fd55951778351a3c30d72206301403a0eb851429b3296a349d00ff689d1"
+    },
+    "tests/optional/test_whistle_decode.py": {
+      "bytes": 2835,
+      "sha256": "364a4cecf6560a54a3168c2453099064b3a85e8e2262d406fe2dfdee3e7e37c4"
+    },
+    "tests/unit/test_whistle_boundaries.py": {
+      "bytes": 5867,
+      "sha256": "1aeb9924548f275fdf672f4af8d2f1aa6e8a8c5cf08c4b7d7a1f0e37a50bf384"
+    },
+    "tests/unit/test_whistle_config.py": {
+      "bytes": 3004,
+      "sha256": "88ca1801888b3039660e1915f6b2e0061e8c4b5f3ade91119dac495197cf54de"
+    },
+    "tests/unit/test_whistle_native_boundary.py": {
+      "bytes": 3985,
+      "sha256": "18f0d7121e7bcc1daf077bcae892824400b1ceccb25bc8f083e361b6d86652c7"
+    },
+    "tests/unit/test_whistle_speech_selection.py": {
+      "bytes": 5453,
+      "sha256": "293f3f99d6d05eed0e2ab8dcdafec29308cf57048acc5744435366d0855ce47a"
+    },
+    "tests/unit/test_whistle_transport.py": {
+      "bytes": 2758,
+      "sha256": "41bfec9ec41bde8ff2e7a338164c7a5ebe15f84dcc90aca4096ef184e8c6ddf6"
+    }
+  },
+  "raw_artifact_directory": "/tmp/kinaiya-85-implementation-24zi3_ub",
+  "durable_artifact_directory": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/.dev-run/managed-whistle-implementation-v1",
+  "artifacts": {
+    "baseline-py311.log": {
+      "bytes": 1481,
+      "sha256": "9ca09e1126fd051a9a44a3340151f10bf55e98450d931321aaa07e1dc7a958d4"
+    },
+    "baseline_processes.py": {
+      "bytes": 52810,
+      "sha256": "f5c789f7929d7e8531c2464f633dd17a122fc674c2abec75ef448579a744c66b"
+    },
+    "combined-py311.json": {
+      "bytes": 3185,
+      "sha256": "f3fee9cea70bc86e8f54bef6466928eaef986f14ba0e11fdf8dde0b349f62855"
+    },
+    "combined-py311.log": {
+      "bytes": 141684,
+      "sha256": "47b950d9f5b2a7ada6837af957284038a19b52636bf8688817013f986a093c6f"
+    },
+    "combined-py312.json": {
+      "bytes": 3182,
+      "sha256": "1fab0f4ad07dcddf66c239510101cd81d4ce40f1ddd63b259fd515a1d5cbd351"
+    },
+    "combined-py312.log": {
+      "bytes": 2837,
+      "sha256": "5c53f4a9badaa4936e77e00e423293e30cb36e67fbe528bf7b3bcfe77004dcb0"
+    },
+    "decoder-before-pcm-range.py": {
+      "bytes": 3608,
+      "sha256": "14c4591a6f4516e1393e2b76e1e41f471381877daeff6da9e80796fad3254fcd"
+    },
+    "decoder-pcm-range-final.log": {
+      "bytes": 948,
+      "sha256": "b661ed6df19b2f30a41ee438d8488b91b1ebc02a343ba5b60025761f6fe8b9eb"
+    },
+    "decoder-pcm-range-green.log": {
+      "bytes": 8845,
+      "sha256": "1be233b9e7962240928a284bac19fb1d20162d75b05001ad93d6029b7675a2a4"
+    },
+    "decoder-pcm-range-red.log": {
+      "bytes": 3259,
+      "sha256": "14b7c7268e5f51a2b2c43e6509ea483fd08db754fb04851fbbe2a2e551b0b4c6"
+    },
+    "decoder-range-tests.py": {
+      "bytes": 2835,
+      "sha256": "364a4cecf6560a54a3168c2453099064b3a85e8e2262d406fe2dfdee3e7e37c4"
+    },
+    "decoder-unsupported-options.log": {
+      "bytes": 8845,
+      "sha256": "1be233b9e7962240928a284bac19fb1d20162d75b05001ad93d6029b7675a2a4"
+    },
+    "final-combined-py312.json": {
+      "bytes": 3182,
+      "sha256": "cf5531b5c352edb2ffc5e4b322e77680ad38d8efad960fb70e2ea6f57c7f05e5"
+    },
+    "final-combined-py312.log": {
+      "bytes": 1948,
+      "sha256": "957cf9701633fc8e07827bd0a04eeb416954644abd55588446652d441c96b1d0"
+    },
+    "final-diff-check.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "final-nonprocess-py311.json": {
+      "bytes": 2939,
+      "sha256": "3ca4f49778f66187a9265c481ee1f6e49abcd351c4d6086deb2e0aba22b4b16c"
+    },
+    "final-nonprocess-py311.log": {
+      "bytes": 1806,
+      "sha256": "c34c74952d9072ff740b5203f98e483246d657c9bf451b431438834b5d90b2d9"
+    },
+    "final-optional-audit.json": {
+      "bytes": 82,
+      "sha256": "ef652918ba6d1655fb5fca443fc37fbb4c81224a6041af7d40ea91f755e9c245"
+    },
+    "final-optional-audit.log": {
+      "bytes": 31,
+      "sha256": "15950a68a7ed99c59779717acefdceb3f69cfd31bde67d2c954f2a3cea4d7955"
+    },
+    "final-package-build.log": {
+      "bytes": 18298,
+      "sha256": "2d2cf943e0c63aeb467ce5ff15e1813b46b94ac4a90de94157cbe7e301dc2371"
+    },
+    "final-package-inputs.json": {
+      "bytes": 19598,
+      "sha256": "ead948ccb96b7843ce626c6c2e7349aecb56aff2dc71b5b79124114f73ba75a0"
+    },
+    "final-ruff-check.log": {
+      "bytes": 19,
+      "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+    },
+    "final-ruff-format.log": {
+      "bytes": 28,
+      "sha256": "53411a86092ca04474b9009b0a532f432ee1aa67a2742aa458ff34288b38df73"
+    },
+    "final-schema-equality.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "independent-native/audio-before-fix.py": {
+      "bytes": 3608,
+      "sha256": "14c4591a6f4516e1393e2b76e1e41f471381877daeff6da9e80796fad3254fcd"
+    },
+    "independent-native/audio-fixed.py": {
+      "bytes": 4179,
+      "sha256": "10506b65c3fec87b9fc94c9085e16c91833879e060487a08fe1bf3f3a797f80e"
+    },
+    "independent-native/isolation-proof.json": {
+      "bytes": 298,
+      "sha256": "03b2adae6e651c26f966b84d79fbdb94d351b15564eed88f073157e85a1c4626"
+    },
+    "independent-native/native-review-receipt.json": {
+      "bytes": 2655,
+      "sha256": "cb3007fd6e26a0100ef8e881d2c20f2b3d2be0b30ec11c19699e159643ba63e0"
+    },
+    "independent-native/pcm-range-fixed-evidence.json": {
+      "bytes": 1505,
+      "sha256": "4738aa825b1e6c7a7c9a371c3855f5f554cf2939ca9bf2e407d125617aae6cd0"
+    },
+    "independent-native/pcm-range-red-evidence.json": {
+      "bytes": 1716,
+      "sha256": "e5f9fd3975704048191e9e904acc493f4aa6ab19caa8ce82ad4b624b78e105b0"
+    },
+    "independent-native/reproduce_pcm_range.py": {
+      "bytes": 1664,
+      "sha256": "5643238a2884d3a1a16dfa449a8b4d4f8de486dffc401d7a866c2f3cea16d7c3"
+    },
+    "independent-native/review.md": {
+      "bytes": 4642,
+      "sha256": "b25b9c4e3c5b3c732e19e92a6761d7a9b0e2e58298d38b4267c9ae4a73ef8e97"
+    },
+    "independent-native/source-digests.json": {
+      "bytes": 2168,
+      "sha256": "8b1bed136a2e7f7df4e661cc7ba7f4ef7d5d347952a9e2db1de899c0dfeb12cc"
+    },
+    "managed-fifth.log": {
+      "bytes": 181,
+      "sha256": "51fa346e868ba4108730b0b90546cb62386ccae5db2c17d66c863b4df91d289a"
+    },
+    "managed-fourth.log": {
+      "bytes": 3000,
+      "sha256": "67a937dd478034465343c2c4ff0cc47272e121b2e5a3ab3e650cc408dff03857"
+    },
+    "managed-initial-test.py": {
+      "bytes": 15816,
+      "sha256": "621649e529f5d610a882a80dc188ffbb82343e64f0e28f8e2e60c012dbe32aff"
+    },
+    "managed-initial.log": {
+      "bytes": 3911,
+      "sha256": "b56fbb798be3f98e73ade763850b90e41a41dc0d29af2bae58fd806a6aa35bc0"
+    },
+    "managed-second.log": {
+      "bytes": 7292,
+      "sha256": "bff2ac9902c197bb89376ab502e73be991c9ce6d6d3b6c666d156671faac171a"
+    },
+    "managed-third.log": {
+      "bytes": 180,
+      "sha256": "af45e35d93a50d2f51a23726084ac92434549d4ff20b5c51fc238bd7af1cd07d"
+    },
+    "optional-audit.json": {
+      "bytes": 82,
+      "sha256": "ef652918ba6d1655fb5fca443fc37fbb4c81224a6041af7d40ea91f755e9c245"
+    },
+    "optional-audit.log": {
+      "bytes": 265,
+      "sha256": "79d30422388543b2563e1dde76bb7e7857d7ef0c6fdf05c8c71598633ca07e1e"
+    },
+    "optional-decode-environment.json": {
+      "bytes": 737,
+      "sha256": "0bc7fee55972115889aed7971095ca5a2554a63d06e6dc84b063bc16d2e86c60"
+    },
+    "optional-decode.log": {
+      "bytes": 628,
+      "sha256": "c5a35f8f4f9a65c0303a0c13bdba066234f65d987826e6bc33d4eea97d143c6b"
+    },
+    "package-build-existing-backend.log": {
+      "bytes": 26508,
+      "sha256": "c713e903ccda3e3aab46c7a23c96ee3aaa0dd2424c132c4c1ad3167e90533f46"
+    },
+    "package-build.log": {
+      "bytes": 5735,
+      "sha256": "098984485abea10294344be875d509993e48a5d81e39e1ff83585d9c1a10e959"
+    },
+    "package-inputs.json": {
+      "bytes": 7562,
+      "sha256": "180d807349f822c1835a6c74b826ac253498b26da57f2c8f1e5f137733837bf9"
+    },
+    "package-verification.json": {
+      "bytes": 1753,
+      "sha256": "d8f473acdcfdb2a77ad4a43e0b82dbf181fa9a4a7223d704b30b0690e02d7ea5"
+    },
+    "py311-failure-isolation.log": {
+      "bytes": 3492,
+      "sha256": "af4f593846cd9fce9b163942d21ef5c18af3976edf5acc7d28d5b537c479b4e2"
+    },
+    "run_baseline_py311.py": {
+      "bytes": 452,
+      "sha256": "b29e891dac014850d89889efcf11185413eafc9439719e305deabbd6e4e9589d"
+    },
+    "run_py311_nonprocess.py": {
+      "bytes": 1839,
+      "sha256": "b62b1f7bfe48d6aafa83c62de3541058b65063f4a96e2a3fa3f905b9448fc676"
+    },
+    "run_suite.py": {
+      "bytes": 2042,
+      "sha256": "56c0c51421414fdc5a96c0169bcb10e433dba37ac1844492a0b585247b8366ad"
+    },
+    "unit-initial.log": {
+      "bytes": 99,
+      "sha256": "a1fd2a75a346447eaffc4dbe268a589ed7967deddaa4ce94f3fa15a66c37c783"
+    },
+    "wheels/kinaiya-0.1.0.dev0-py3-none-any.whl": {
+      "bytes": 326504,
+      "sha256": "d9e9f64fad20f1a190c1bc3922fbc84f1439ebbcef139235ed4fcb8e9fe7bbd3"
+    }
+  }
+}

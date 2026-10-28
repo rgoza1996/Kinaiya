@@ -1,0 +1,44 @@
+{
+  "issue": 85,
+  "scope": "Synchronize an existing typed-cleanup fixture before starting its admission-wait clock; no runtime change",
+  "CI_failure": {
+    "run": 40757092656,
+    "head": "7685e60af42a464c0cb66ac98a28a2d29a225910",
+    "Python3.12": "1failed2030passed6skipped1warning in241.67s",
+    "Python3.11": "Canceled by matrix fail-fast; not a pass",
+    "failed_test": "test_admission_and_new_close_share_one_request_wait_budget",
+    "failed_assertion": "done == {pending}",
+    "raw_log_sha256": "7b01cc7a8e46f8adb43c3d096e7fbcfca044a4506a0f5ca9ae216f52be472924"
+  },
+  "cause_and_change": "The fixture slept80ms from task creation before releasing old cleanup, assuming admission had begun. A controlled75ms delay before actual admission reproduces the assertion failure with unchanged runtime. The fixture now observes actual admission before starting that80ms; all original assertions and timeout values remain identical. This proves the synchronization defect, not exact unseen runner scheduling.",
+  "controls": {
+    "unchanged_original_with75ms_entry_delay": "1failed in0.87s",
+    "corrected_with_same75ms_entry_delay": "1passed in0.83s",
+    "other_test_functions_AST_identical": true,
+    "all_original_assertions_AST_identical": true,
+    "runtime_source_unchanged": true
+  },
+  "checks": [
+    {
+      "python": "3.12.3",
+      "passed": 75,
+      "seconds": 25.79
+    },
+    {
+      "python": "3.11.15",
+      "passed": 75,
+      "seconds": 25.89
+    }
+  ],
+  "artifact_sha256": {
+    "original.py": "789f714e11f0f3a341b8ec37406d664c0217ba020c292d192db9ee3410bd892a",
+    "original_delayed.py": "1c889a0d6cc2fb74ee13ef93ba7343af7cb8d34f7c9008b3523c3e4d372795c3",
+    "original_delayed.log": "5ea49fcc68a389cf21c6a6a39015d3aa4ef93866a94340b1528f4aa38b6d1f0d",
+    "corrected_delayed.py": "f0cd80d00133e0928dc78ab3f1bfd317f38aa3ee6f6ed0c19a4eb87ba6fb66e7",
+    "corrected_delayed.log": "1d4a11fc90a7086c182cc06bc43bebeb59a36928082944ef103c86041aa4cf49"
+  },
+  "test_source_before_sha256": "789f714e11f0f3a341b8ec37406d664c0217ba020c292d192db9ee3410bd892a",
+  "test_source_after_sha256": "16942c75cac2346516673d35e9ce6e5c770df13179a1b6545b6591116ce21fbb",
+  "runtime_sha256": "3d6b4c55b68fee9b5997e50d1f26ca73da8d86f8cd4304fa35b31df88df90ccd",
+  "exact_head_CI": "Required again after integration repair; prior red retained"
+}
