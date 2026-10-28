@@ -142,3 +142,5 @@ export and diff checks passed after the repair.
 Typed Converse scheduling, Decisions context/contracts, native stop ownership,
 canonical receipt schemas and #79 durable generation discovery remain separate.
 Existing recovery/interruption/provider regressions must continue to pass.
+
+Final independent review of `387aa9da` passed 168 cases (113 repository and 55 independent metadata cases) in 39.01 seconds. Its byte-identical original eight-case native prompt probe forwarded zero stale drafts after repair. One wrapper-induced pre-imported-anyio pytest warning is disclosed. Lead integration with the merged typed cleanup passed 336 cases in 127.47 seconds; the helper/tests match the reviewed worker and all nine typed/window readiness lines remain. Exact-head CI is required before merge. The [verification record](../../evaluation/evidence/converse-delivery-context-2026-10-28.json) preserves commands, hashes, failures and limits, including separate pre-existing typed-history issue #81.

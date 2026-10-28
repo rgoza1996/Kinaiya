@@ -1,0 +1,420 @@
+{
+  "schema_version": "1.0",
+  "recorded_date": "2026-10-28",
+  "issue": "https://github.com/rgoza1996/Kinaiya/issues/77",
+  "parents": [
+    4,
+    49
+  ],
+  "status": "Final independent review and integrated local checks passed. Exact-head CI receipt is recorded in the pull request before merge.",
+  "prototype_reference": {
+    "repository": "rgoza1996/Korina-Agent",
+    "ref": "master",
+    "commit": "9db02e6c39e4667f1b547d0aa5a9551d9c023708",
+    "observations": [
+      "Partial transcription continues during capture; endpoint/queue processing precedes ordinary replies.",
+      "Sustained acoustic barge-in stops TTS while capture continues; an interruption reply can itself be interrupted.",
+      "Generated text is retained with approximate delivery annotations; these are not exact heard words.",
+      "Agent reports arrive independently from dialogue."
+    ],
+    "scope": "Read-only reference; no private implementation/content copied or sent to Contributor. No semantic WAIT/IGNORE implementation was found in this prototype."
+  },
+  "baseline": {
+    "main_commit": "f7a195aeac34d987f445ec58983448692205bbe2",
+    "prior_pr": 80,
+    "prior_ci": {
+      "id": 40734005142,
+      "head": "65636f0f9c96d485d0c4869f8fbecbd35c6c948a",
+      "conclusion": "success",
+      "python311": {
+        "job_id": 122977537362,
+        "passed": 1479,
+        "warnings": 1,
+        "seconds": 193.46
+      },
+      "python312": {
+        "job_id": 122977537999,
+        "passed": 1479,
+        "warnings": 1,
+        "seconds": 195.76
+      },
+      "flutter": {
+        "job_id": 122977538298,
+        "tests": 341,
+        "javascript_tests": 25,
+        "analysis": "passed",
+        "release_build": "passed"
+      }
+    }
+  },
+  "revisions": {
+    "worker_initial": "79c9eff89c070ded66221af60db19bb6982fc136",
+    "worker_final": "387aa9da0a1c8805dc208a06ff3de5f5baa29415",
+    "integration_source_commit": "dad69559f49aad81f4008e53880bb8f1d6b98502",
+    "source_sha256": {
+      "services/converse/delivery_context.py": "18ea1d1e8c9c9a7d94a287e493016a8f6a084a081f9ac46d79358193733c739c",
+      "services/converse/windows.py": "fabdca4a45a3ac98bcd717c2488feebc38e89e6edf2f678f3450731195918f89",
+      "tests/integration/test_converse_delivery_context.py": "857db9e37fcdedef94745ad670f2d25b8496896dc912c598437933306447efab"
+    },
+    "integration_note": "Helper and delivery-context acceptance tests match the reviewed worker byte-for-byte. The integrated windows.py retains the nine already-reviewed #76 readiness lines in addition to the unchanged #77 preparation change. Runtime remains the merged #76 source. Lead subsequently adds only evidence/ADR notes.",
+    "retained_76_window_hook_diff_sha256": "90db436e25dcb121feccc2895163fdcb002a81fe842cf6d705cde7da45a984e1"
+  },
+  "bounds": {
+    "native_snapshot_entries": 100,
+    "history_messages": 8,
+    "characters_per_history_message": 2000,
+    "metadata_utf8_bytes_including_instructions": 8192,
+    "receipts_per_assistant": 3,
+    "integer_maximum": 9007199254740991,
+    "extra_journal_queries": 0
+  },
+  "behavior": [
+    "Generated assistant text is preserved; every included assistant receives native delivery qualification or delivery_unknown.",
+    "Per-chunk receipts are bound to exact native assistant/chunk/generation/scope; runtime binding comes from the immutable source event.",
+    "Server generation_stop is separately labelled stop_requested; it never erases an earlier played report or proves physical hearing.",
+    "User revisions fold before disclosure and history selection; malformed/denied chains are permanently omitted. Window hypotheses deduplicate before disclosure.",
+    "Original/intervening scope is a floor; no receipt/revision or model text can widen it or establish execution completion."
+  ],
+  "retained_initial_evidence": {
+    "missing_context_regression": {
+      "cases_failed": 2,
+      "baseline": "c1eaed35b1b01521d0aa195ba78928a1c5262ce7",
+      "record": "author tool-console only; no original filesystem log hash exists"
+    },
+    "initial_worker_checks": [
+      {
+        "python": "3.12.3",
+        "passed": 305,
+        "seconds": 130.06
+      },
+      {
+        "python": "3.11.15",
+        "passed": 305,
+        "seconds": 130.98
+      }
+    ],
+    "additional_initial_disclosure_cases": {
+      "each_python_passed": 2,
+      "seconds": [
+        1.22,
+        1.25
+      ],
+      "record": "Tool-console only; implementation unchanged. These checks did not expose the later independent finding."
+    },
+    "initial_lead": {
+      "passed": 304,
+      "seconds": 114.02,
+      "log": "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/delivery-context-initial-integration-py312.log",
+      "sha256": "423c0a8e6f30a23f9ad44824a361de9022508032f1d3d73c03dbcd8efe2ab1d8",
+      "disposition": "Superseded by independently reproduced disclosure regression; no PR/CI/merge was made from this draft."
+    }
+  },
+  "retained_disclosure_regression": {
+    "initial_commit": "79c9eff89c070ded66221af60db19bb6982fc136",
+    "original_probe_cases": 8,
+    "stale_drafts_forwarded": 6,
+    "safe_valid_integer_controls": 2,
+    "results_sha256": "77668d1d93a7bb199ed1160a9b8e42ef725a1c7ae6566e4ff3b92e4603578fa4",
+    "finding": "Skipping an unprocessable native revision left an older public draft exportable after a private correction.",
+    "added_matrix_red": {
+      "failed": 20,
+      "passed": 12,
+      "deselected": 81,
+      "seconds": 7.59,
+      "log": "red-py312.log"
+    },
+    "added_matrix_green": {
+      "passed": 32,
+      "deselected": 81,
+      "seconds": 7.07,
+      "log": "green-py312.log"
+    },
+    "disposition": "Strict invalid bases and unprocessable/denied correction chains permanently omit the user-history message. Counters are never coerced and later public labels cannot untaint it.",
+    "tracking_comment": "https://github.com/rgoza1996/Kinaiya/issues/77#issuecomment-6475880158"
+  },
+  "worker_final_checks": [
+    {
+      "python": "3.12.3",
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/supertonic-ci-venv/bin/python",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "tests/integration/test_converse_delivery_context.py",
+        "tests/integration/test_converse_window_recovery.py",
+        "tests/integration/test_speech_windows.py",
+        "tests/integration/test_converse_speech_cancel.py",
+        "tests/integration/test_window_http.py",
+        "tests/unit/test_providers.py"
+      ],
+      "environment": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONPATH": "."
+      },
+      "cwd": "/home/roggoz/.codex/worktrees/vibevoice-backend/Kinaiya",
+      "passed": 339,
+      "seconds": 137.58,
+      "warnings_summary": null,
+      "log": "combined-py312.log"
+    },
+    {
+      "python": "3.11.15",
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/vibevoice-py311-venv/bin/python",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "tests/integration/test_converse_delivery_context.py",
+        "tests/integration/test_converse_window_recovery.py",
+        "tests/integration/test_speech_windows.py",
+        "tests/integration/test_converse_speech_cancel.py",
+        "tests/integration/test_window_http.py",
+        "tests/unit/test_providers.py"
+      ],
+      "environment": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONPATH": "."
+      },
+      "cwd": "/home/roggoz/.codex/worktrees/vibevoice-backend/Kinaiya",
+      "passed": 339,
+      "seconds": 138.33,
+      "warnings_summary": null,
+      "log": "combined-py311.log"
+    }
+  ],
+  "independent_final_review": {
+    "kind": "automated independent peer review, not independent human approval",
+    "agent": "transformers_port",
+    "reviewed_commit": "387aa9da0a1c8805dc208a06ff3de5f5baa29415",
+    "result": "No remaining actionable finding in the reviewed #77 scope after the explicit sticky-taint repair.",
+    "focused_tests": {
+      "repository_context_cases": 113,
+      "independent_metadata_cases": 55,
+      "total_passed": 168,
+      "elapsed_seconds": 39.01,
+      "returncode": 0,
+      "warning": "One PytestAssertRewriteWarning for pre-imported anyio caused by the import-verifying wrapper; no test failure.",
+      "source_unchanged": true
+    },
+    "original_probe_rerun": {
+      "description": "An invalid base counter or unprocessable revision previously left an older public user draft eligible after a private canonical correction. Invalid/denied chains now permanently omit that history message from the provider prompt.",
+      "original_probe_cases": 8,
+      "original_stale_drafts_forwarded": 6,
+      "original_valid_controls_safe": 2,
+      "original_artifacts_unchanged": true,
+      "byte_identical_script_sha256": "65542f23e684f1bf5d251cd50c1eff64e9cd716c449e6baf168f129c9c4cc868",
+      "fixed_probe_cases": 8,
+      "fixed_stale_drafts_forwarded": 0,
+      "fixed_private_corrections_forwarded": 0,
+      "native_owner_writes_and_canonical_resolution": "LocalJournal and authenticated HTTP JournalClient; actual next-provider messages captured with synthetic Contributor-class CaptureProvider."
+    },
+    "commands": [
+      {
+        "name": "final_focused_context_and_independent_matrix",
+        "cwd": "/home/roggoz/.codex/worktrees/vibevoice-backend/Kinaiya",
+        "shell": "PYTHONPATH=/home/roggoz/.codex/worktrees/vibevoice-backend/Kinaiya /home/roggoz/Disks/SN750/Kinaiya/.dev-run/supertonic-ci-venv/bin/python /tmp/kinaiya-77-independent-QCcONK/run_review.py > /tmp/kinaiya-77-independent-QCcONK/final-focused.log 2>&1",
+        "returncode": 0
+      },
+      {
+        "name": "byte_identical_fixed_revision_probe",
+        "cwd": "/home/roggoz/.codex/worktrees/vibevoice-backend/Kinaiya",
+        "shell": "PYTHONPATH=/home/roggoz/.codex/worktrees/vibevoice-backend/Kinaiya /home/roggoz/Disks/SN750/Kinaiya/.dev-run/supertonic-ci-venv/bin/python /tmp/kinaiya-77-independent-QCcONK/fixed-revision/adversarial_revision.py > /tmp/kinaiya-77-independent-QCcONK/fixed-revision/revision-probe.log 2>&1",
+        "returncode": 0
+      },
+      {
+        "name": "read_only_check",
+        "cwd": "/home/roggoz/.codex/worktrees/vibevoice-backend/Kinaiya",
+        "argv": [
+          "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/supertonic-ci-venv/bin/ruff",
+          "check",
+          "services/converse/delivery_context.py",
+          "services/converse/windows.py",
+          "tests/integration/test_converse_delivery_context.py"
+        ],
+        "returncode": 0
+      },
+      {
+        "name": "read_only_check",
+        "cwd": "/home/roggoz/.codex/worktrees/vibevoice-backend/Kinaiya",
+        "argv": [
+          "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/supertonic-ci-venv/bin/ruff",
+          "format",
+          "--check",
+          "services/converse/delivery_context.py",
+          "services/converse/windows.py",
+          "tests/integration/test_converse_delivery_context.py"
+        ],
+        "returncode": 0
+      },
+      {
+        "name": "read_only_check",
+        "cwd": "/home/roggoz/.codex/worktrees/vibevoice-backend/Kinaiya",
+        "argv": [
+          "git",
+          "diff",
+          "c1eaed35b1b01521d0aa195ba78928a1c5262ce7..387aa9da0a1c8805dc208a06ff3de5f5baa29415",
+          "--check"
+        ],
+        "returncode": 0
+      }
+    ],
+    "manifest_sha256": "75b381a4efa5e7b65c66ed265151a9ef6d9df53b373bd4f2c89bf0a217245fc7",
+    "artifact_directory": "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/delivery-context-final-review-v1",
+    "artifacts": {
+      "adversarial_revision.py": {
+        "bytes": 4592,
+        "sha256": "65542f23e684f1bf5d251cd50c1eff64e9cd716c449e6baf168f129c9c4cc868"
+      },
+      "revision-results.json": {
+        "bytes": 10315,
+        "sha256": "77668d1d93a7bb199ed1160a9b8e42ef725a1c7ae6566e4ff3b92e4603578fa4"
+      },
+      "revision-probe.log": {
+        "bytes": 1504,
+        "sha256": "78a22d6e78882e65e914e0df766db694d44af529c8ba2f497170ad72675f32a2"
+      },
+      "baseline-manifest.json": {
+        "bytes": 1137,
+        "sha256": "ea8de0da82defb3bb006cebad4dd061849919fb085e3c886f791eb6bab11b714"
+      },
+      "fixed-revision/adversarial_revision.py": {
+        "bytes": 4592,
+        "sha256": "65542f23e684f1bf5d251cd50c1eff64e9cd716c449e6baf168f129c9c4cc868"
+      },
+      "fixed-revision/revision-results.json": {
+        "bytes": 9751,
+        "sha256": "4fb83c2b05cbf8c28b976763abd7004659e4821f0f7a426aff7dfc9a3b5ce757"
+      },
+      "fixed-revision/revision-probe.log": {
+        "bytes": 1510,
+        "sha256": "ce279c3f8adb33200903cf43ce381c7af3743183ac558c849c8c74b2285ba07f"
+      },
+      "test_adversarial_metadata.py": {
+        "bytes": 8786,
+        "sha256": "2c3c1b33308620378fae52c62b8f4e772d8036d18124b08856802c33ada77b06"
+      },
+      "metadata-matrix.log": {
+        "bytes": 99,
+        "sha256": "3137dcd9b3dbf3e5dbed7880cd9c01715b8d1cd39daa6239a59e464127d3b7f8"
+      },
+      "run_review.py": {
+        "bytes": 2036,
+        "sha256": "f0e70cd6bd42e483b05001c00392f0e88cd9f0fc7d0b18ad1436d4481eae40cc"
+      },
+      "final-focused.log": {
+        "bytes": 813,
+        "sha256": "67cfaf8fae937717b7e67fe07cfdac0739a5e56fe2e0b3e086977c6cdba0dcb2"
+      },
+      "test-run-metadata.json": {
+        "bytes": 2904,
+        "sha256": "f0e1c59592f467f3d869902a71790859808ae9279a0871f8ac02985bfc783915"
+      },
+      "read-only-checks.log": {
+        "bytes": 589,
+        "sha256": "9cb11898c479ef030965c8add861ae45c9b9e6574a5922c3526429b57d5ef977"
+      },
+      "reviewed-repair.diff": {
+        "bytes": 5323,
+        "sha256": "f990c64e4de35f08db9f83116b14155619326b7fa190cdf733adcedae919a0d1"
+      },
+      "commands.json": {
+        "bytes": 1965,
+        "sha256": "fe46e5d237024f6290154e7a9b5844190f477043f85ebb5bc4a2696680fce00f"
+      },
+      "typed_revision_probe.py": {
+        "bytes": 4207,
+        "sha256": "26cc035710b4c51744c68997b4d3700a3b823162c8c5ad8e7f392e3e044acd62"
+      },
+      "typed-worker/typed-results.json": {
+        "bytes": 3368,
+        "sha256": "b1f3bf0304af669b7c121b055764b43b3d694dcdd4483a15659839a12f382c8a"
+      },
+      "typed-worker.log": {
+        "bytes": 216,
+        "sha256": "7abdfb5f4d091ba929cbf8d944f08f3b4c9957f556e390309f2bf01fccdaac75"
+      },
+      "typed-lead/typed-results.json": {
+        "bytes": 3358,
+        "sha256": "ae2fb3dcb7f7f76e3728df1ce6e668645ebb16d3d2140ec168484313f30863cb"
+      },
+      "typed-lead.log": {
+        "bytes": 211,
+        "sha256": "f044eca77d77f4c9bcc8e8e96555b834b16b37a5503bca4ccce53c0b725f5d9e"
+      },
+      "final-review-manifest.json": {
+        "bytes": 11319,
+        "sha256": "75b381a4efa5e7b65c66ed265151a9ef6d9df53b373bd4f2c89bf0a217245fc7"
+      }
+    }
+  },
+  "lead_final_checks": {
+    "cwd": "/home/roggoz/.codex/worktrees/mcp-controls/Kinaiya",
+    "python": "3.12.3",
+    "command": [
+      "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/supertonic-ci-venv/bin/python",
+      "-m",
+      "pytest",
+      "-q",
+      "-p",
+      "no:cacheprovider",
+      "tests/integration/test_converse_delivery_context.py",
+      "tests/integration/test_converse_text_cleanup.py",
+      "tests/integration/test_converse_window_recovery.py"
+    ],
+    "environment": {
+      "PYTHONPATH": "unset"
+    },
+    "passed": 336,
+    "seconds": 127.47,
+    "log": "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/delivery-context-final-integration-py312.log",
+    "log_sha256": "7657d2915aa63c095b0f5fcfdafeefe32fda6c5594625d171a4af870fdcc8c17",
+    "imports_verified": true,
+    "ruff_check": "passed",
+    "ruff_format": "212 files already formatted",
+    "schema_export": "unchanged",
+    "git_diff_check": "passed"
+  },
+  "worker_artifacts": {
+    "directory": "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/delivery-context-revision-repair-v1",
+    "files": {
+      "combined-py312.log": {
+        "bytes": 432,
+        "sha256": "ed88504717e477cc46b048f601b78ef8cc1fde241096fcf6943d2f3c25a5ee2d"
+      },
+      "combined-py311.log": {
+        "bytes": 432,
+        "sha256": "7744197e224699159a10af06ff740bbd364fde48a70ff940c083415c0ee02c8d"
+      },
+      "green-py312.log": {
+        "bytes": 114,
+        "sha256": "e0b233a8a093a0466e695e24a1a3dc20d431fee7b7704bbeca5edeafb26e768b"
+      },
+      "red-py312.log": {
+        "bytes": 54913,
+        "sha256": "3498f0e7dade8cfbdefa710ced401ea17e1dda6271f6b0a0d948b8d15010cdf3"
+      }
+    }
+  },
+  "remaining_limits": [
+    "The one bounded native suffix is not an all-history projection or an atomic snapshot of later events.",
+    "Client played reports and estimates do not prove physical audibility, exact heard words or acoustic parity.",
+    "Typed-history revision disclosure is separately confirmed as pre-existing #81 and remains unrepaired by this scope.",
+    "Arbitrary-history playback generation recovery remains #79 until separately reviewed/integrated.",
+    "Decisions delivery-context contracts, full M2/M3, real-model quality, loaded latency and default promotion are not established."
+  ],
+  "controls": {
+    "external_inference_calls": 0,
+    "private_prototype_copied": false,
+    "heldout_data_used": false,
+    "models_downloaded": false,
+    "dependencies_changed": false,
+    "provider_defaults_changed": false,
+    "live_reference_restarted": false
+  }
+}
