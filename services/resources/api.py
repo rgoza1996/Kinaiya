@@ -49,7 +49,10 @@ def create_app(coordinator, auth):
 
     @app.get("/v1/resources", dependencies=owner)
     async def status():
-        return coordinator.status()
+        try:
+            return coordinator.status()
+        except (OSError, ValueError) as exc:
+            raise HTTPException(503, "Resource owner intent is unavailable") from exc
 
     @app.post("/v1/resources/actions", dependencies=owner)
     async def action(body: ResourceAction):

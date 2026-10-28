@@ -38,6 +38,7 @@ class PreparedReply:
     decision: object
     behavior: str
     base_generation: int
+    admission: tuple[int, int] | None = None
     chunks: list[str] = field(default_factory=list)
     published: int = 0
     generation: int | None = None
@@ -87,6 +88,8 @@ class WindowConverseController:
 
     async def current(self, prepared):
         source = prepared.source
+        if not self.runtime.admission_current(prepared.admission):
+            return None
         session = await self.journal.session(source.session_id)
         if not self.runtime.enabled or (session.epoch, session.thread_id) != (
             source.epoch,
@@ -107,6 +110,8 @@ class WindowConverseController:
         w = SpeechWindow.model_validate(source.payload)
         latest = await self.journal.latest_window(source.session_id, source.epoch, w.utterance_id)
         if latest is None or latest.payload["text"] != w.text:
+            return None
+        if not self.runtime.admission_current(prepared.admission):
             return None
         return SpeechWindow.model_validate(latest.payload)
 
@@ -177,6 +182,8 @@ class WindowConverseController:
                             "revision": 1,
                             "generation_epoch": prepared.generation,
                             "runtime_id": self.runtime._runtime_id,
+                            "owner_intent_revision": prepared.admission[0],
+                            "availability_generation": prepared.admission[1],
                             "chunk_id": hashlib.sha256(
                                 f"{source.event_id}:{index}".encode()
                             ).hexdigest()[:32],
@@ -189,6 +196,10 @@ class WindowConverseController:
                         idempotency_key=f"window-reply:{source.event_id}:{index}",
                     )
                 )
+                if not self.runtime.admission_current(prepared.admission) or not epoch.accepts(
+                    prepared.generation
+                ):
+                    return
                 epoch.chunks[entry.event_id] = entry
                 prepared.published += 1
 
@@ -230,7 +241,11 @@ class WindowConverseController:
             ]
             chunker = SpeechChunker()
             size = 0
+            if not self.runtime.admission_current(prepared.admission):
+                return
             async for delta in self.runtime.provider.stream(messages):
+                if not self.runtime.admission_current(prepared.admission):
+                    return
                 size += len(delta)
                 if size > 16000:
                     raise ValueError("Prepared reply exceeded its bound")
@@ -293,7 +308,13 @@ class WindowConverseController:
             return
         w = SpeechWindow.model_validate(source.payload)
         epoch = await self.runtime._epoch(source.session_id)
-        candidate = PreparedReply(source, entry, d.conversation, epoch.generation)
+        try:
+            admission = self.runtime.admission()
+        except (OSError, ValueError, RuntimeError):
+            return
+        candidate = PreparedReply(
+            source, entry, d.conversation, epoch.generation, admission=admission
+        )
         if await self.current(candidate) is None:
             return
         if d.conversation == "IGNORE":

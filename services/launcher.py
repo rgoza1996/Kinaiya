@@ -199,6 +199,7 @@ def serve(args):
             ROOT / "services/agent",
             ROOT / "services/session",
             ROOT / "services/decisions",
+            ROOT / "services/converse",
             ROOT / "packages/contracts",
             ROOT / "packages/resources",
             ROOT / "services/resources",
@@ -363,13 +364,25 @@ def serve(args):
     elif service == "converse":
         from packages.providers.speech import SpeechClient
         from services.converse.api import create_app
+        from services.converse.intent import ConverseIntent
         from services.converse.runtime import ConverseRuntime
         from services.converse.windows import WindowConverseController
         from services.decisions.runtime import OutcomeWorker
 
         journal = JournalClient(config["session_url"], tokens["converse"])
+        initial_enabled = True
+        if resource_state is not None and resource_state.exists():
+            from services.resources.state import read_record
+
+            initial_enabled = read_record(resource_state).desired_converse
+        intent = ConverseIntent(
+            args.data_dir.resolve() / "converse-intent.json", initial_enabled=initial_enabled
+        )
         runtime = ConverseRuntime(
-            journal, provider(config, "converse", resource_state=resource_state)
+            journal,
+            provider(config, "converse", resource_state=resource_state),
+            intent=intent,
+            resources_managed=resources_enabled,
         )
         voice = config.get("voice")
         speech = (

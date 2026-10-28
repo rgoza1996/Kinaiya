@@ -92,7 +92,9 @@ maximum previously observed resident footprint plus margin, starts a new
 verified voice process, enables Converse, then records `ready`. Retaining the
 observed high-water mark is deliberately conservative: a cold empty worker
 is not evidence that future loaded weights need less memory. It can refuse
-restoration under pressure. An explicit owner-off choice remains off.
+restoration under pressure. An explicit owner-off choice remains off through the
+[shared durable intent gate](0023-converse-owner-intent.md), including the legacy
+Converse owner endpoint and restoration races.
 
 Flutter polls current controller status, not historic resource events, and
 checks controller/revision identity. Pause or loss of a known controller's

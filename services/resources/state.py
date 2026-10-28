@@ -29,6 +29,7 @@ class ResourceRecord(BaseModel):
         "failed",
     ] = "initializing"
     desired_converse: bool = True
+    owner_intent_revision: int = Field(default=0, ge=0, le=(1 << 63) - 1)
     lease_id: str | None = None
     lease_task_id: str | None = Field(default=None, max_length=128)
     required_bytes: int = Field(default=0, ge=0, le=1 << 46)
