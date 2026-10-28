@@ -1,7 +1,7 @@
 # ADR 0035: opt-in managed Qwen3 dialogue
 
-Tracks [#91](https://github.com/rgoza1996/Kinaiya/issues/91). Status: shared
-implementation contract; the managed provider is not yet implemented or
+Tracks [#91](https://github.com/rgoza1996/Kinaiya/issues/91). Status:
+implementation in review; actual managed-runtime acceptance is not yet
 verified. Full M2 and persistent STT #49 remain open.
 
 Converse may select an explicit `qwen3` text kind alongside independently
@@ -118,6 +118,42 @@ unknown or changed local models still refuse handoff. Startup configuration
 identity is separate from a ready child; actual release/residency uses the
 manager's verified identity and retained cleanup evidence. Existing Whistle
 barrier/replay protections and default behavior remain acceptance constraints.
+
+## Owner selection
+
+The resources host remains opt-in and retains its existing managed voice
+configuration. With the pinned local runtime and seven assets already present,
+the relevant owner configuration is:
+
+```json
+{
+  "resources_url": "http://127.0.0.1:8764",
+  "providers": {
+    "converse": {"kind": "qwen3", "base_url": "http://127.0.0.1:8764"}
+  },
+  "voice": {"url": "http://127.0.0.1:8765", "profile": "Kokoro 82M"},
+  "resources": {
+    "enabled": true,
+    "voice_python": "/opt/kinaiya-voice/bin/python",
+    "qwen3": {
+      "python": "/opt/kinaiya-qwen3/bin/python",
+      "model_dir": "/opt/kinaiya-models/Qwen3-0.6B"
+    }
+  }
+}
+```
+
+These are example paths and a fragment of the normal owner configuration;
+existing Agent, Decisions, session and disclosure settings remain required.
+Run the resources host alongside Converse, for example through `serve all`.
+The Converse service token is supplied by trusted launcher code; the provider
+profile accepts no inline token, API key or alternate model. Input/output and
+request limits inherit `resources.qwen3`; an explicit provider override must
+match. Asset/runtime paths must be outside the Agent workspace. Startup fails
+closed on missing pins, unsupported runtime or unavailable isolation, with no
+model download or cloud fallback. An already verified resident text child is
+reused when reopening Converse; a released child requires fresh measured
+headroom before its replacement starts.
 
 ## Verification gates
 

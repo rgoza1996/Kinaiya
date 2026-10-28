@@ -105,6 +105,6 @@ def create_app(coordinator, auth, whistle=None, qwen3=None):
         if qwen3 is None:
             raise HTTPException(503, "Managed Qwen3 dialogue is not selected")
         body = await qwen3.stream(request)
-        return ManagedTextResponse(body, timeout_s=qwen3.request_timeout_s + 1)
+        return ManagedTextResponse(body, timeout_s=body.remaining_timeout_s + 1)
 
     return app

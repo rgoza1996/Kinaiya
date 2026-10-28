@@ -9,12 +9,19 @@ import httpx
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from packages.contracts.client import JournalClient
+from packages.providers.qwen3_ipc import MANIFEST_SHA256, MODEL, PROFILE
 from packages.providers.tts_backends import profile_settings, validate_voice
 from packages.resources.processes import WorkerManager, WorkerSpec
 from services.resources.api import create_app
 from services.resources.client import ConverseControl, local_base
 from services.resources.coordinator import ResourceCoordinator
 from services.resources.laya import ManagedLayaConfig, laya_gpu_sample, laya_ready, laya_worker
+from services.resources.qwen3 import (
+    ManagedQwen3Config,
+    Qwen3Broker,
+    qwen3_worker,
+    validate_qwen3_inputs,
+)
 from services.resources.state import ResourceRecord, ResourceState
 from services.resources.whistle import ManagedWhistleConfig, WhistleBroker, whistle_worker
 
@@ -39,6 +46,7 @@ class LocalResourceConfig(BaseModel):
     )
     laya: ManagedLayaConfig | None = None
     whistle: ManagedWhistleConfig | None = None
+    qwen3: ManagedQwen3Config | None = None
 
     @field_validator("tts_model_dir")
     @classmethod
@@ -119,10 +127,10 @@ def resource_app(args, config, auth, tokens, root):
         },
     )
     specs = [spec]
+    resources_url = f"http://127.0.0.1:{getattr(args, 'port', None) or 8764}"
     whistle_endpoint = None
     selected_stt = voice.get("stt")
     if selected_stt is not None or settings.whistle is not None:
-        resources_url = f"http://127.0.0.1:{getattr(args, 'port', None) or 8764}"
         if (
             not isinstance(selected_stt, dict)
             or set(selected_stt) != {"provider", "url"}
@@ -148,6 +156,37 @@ def resource_app(args, config, auth, tokens, root):
             service_tokens=tuple(tokens.values()),
         )
         specs.append(laya_spec)
+    qwen3_endpoint, managed_text_binding = None, None
+    selected_text = config.get("providers", {}).get("converse", {})
+    if selected_text.get("kind") == "qwen3" or settings.qwen3 is not None:
+        if (
+            settings.qwen3 is None
+            or selected_text.get("kind") != "qwen3"
+            or set(selected_text)
+            - {"kind", "base_url", "max_input_tokens", "max_new_tokens", "request_timeout_s"}
+            or local_base(selected_text.get("base_url", "")) != resources_url
+            or local_base(config.get("resources_url", "http://127.0.0.1:8764")) != resources_url
+        ):
+            raise ValueError("Select Qwen3 dialogue at the configured managed resources endpoint")
+        for name in ("max_input_tokens", "max_new_tokens", "request_timeout_s"):
+            expected = getattr(settings.qwen3, name)
+            value = selected_text.get(name, expected)
+            valid_type = (
+                type(value) in (int, float) if name == "request_timeout_s" else type(value) is int
+            )
+            if not valid_type or value != expected:
+                raise ValueError("Qwen3 provider limits must match its managed worker settings")
+        qwen3_spec, qwen3_endpoint = qwen3_worker(settings.qwen3, root, args.workspace.resolve())
+        specs.append(qwen3_spec)
+        managed_text_binding = {
+            "provider": "managed-qwen3",
+            "model": MODEL,
+            "profile": PROFILE,
+            "manifest_sha256": MANIFEST_SHA256,
+            "resources_url": resources_url,
+            "max_input_tokens": settings.qwen3.max_input_tokens,
+            "max_new_tokens": settings.qwen3.max_new_tokens,
+        }
     state = ResourceState(state_path, profile=settings.profile)
     if not state_path.exists():
         state.save()
@@ -164,6 +203,8 @@ def resource_app(args, config, auth, tokens, root):
     voice_health = {}
 
     async def readiness(worker_spec, process):
+        if worker_spec.id == "qwen3":
+            return await qwen3_endpoint.probe(worker_spec, process)
         if worker_spec.id == "whistle":
             return await whistle_endpoint.probe(worker_spec, process)
         if worker_spec.id == "laya":
@@ -231,6 +272,9 @@ def resource_app(args, config, auth, tokens, root):
         current = manager.status()["workers"][worker_id]
         if current["state"] == "running" and current["ready"]:
             return
+        if worker_id == "qwen3":
+            validate_qwen3_inputs(settings.qwen3, args.workspace.resolve())
+            return
         if worker_id == "whistle":
             from packages.providers.whistle_assets import validate_assets
 
@@ -269,7 +313,12 @@ def resource_app(args, config, auth, tokens, root):
         before_start=before_start,
         restore_reserve_bytes=settings.voice_memory_reserve_bytes
         + (settings.laya.host_memory_reserve_bytes if settings.laya else 0)
-        + (settings.whistle.host_memory_reserve_bytes if settings.whistle else 0),
+        + (settings.whistle.host_memory_reserve_bytes if settings.whistle else 0)
+        + (settings.qwen3.host_memory_reserve_bytes if settings.qwen3 else 0),
+        qwen3_restore_reserve_bytes=(
+            settings.qwen3.host_memory_reserve_bytes if settings.qwen3 else 0
+        ),
+        managed_text_binding=managed_text_binding,
         whistle_restore_reserve_bytes=(
             settings.whistle.host_memory_reserve_bytes if settings.whistle else 0
         ),
@@ -287,7 +336,12 @@ def resource_app(args, config, auth, tokens, root):
         if whistle_endpoint is not None
         else None
     )
-    app = create_app(coordinator, auth, whistle)
+    qwen3 = (
+        Qwen3Broker(coordinator, qwen3_endpoint, request_timeout_s=settings.qwen3.request_timeout_s)
+        if qwen3_endpoint is not None
+        else None
+    )
+    app = create_app(coordinator, auth, whistle, qwen3)
 
     @asynccontextmanager
     async def lifespan(app):
@@ -323,11 +377,23 @@ def resource_app(args, config, auth, tokens, root):
             publication.cancel()
             await asyncio.gather(publication, return_exceptions=True)
             try:
-                if whistle is not None:
-                    await whistle.close()
+                failures = []
+                for broker in (whistle, qwen3):
+                    if broker is not None:
+                        try:
+                            await broker.close()
+                        except Exception as exc:
+                            failures.append(exc)
+                # Always reconcile the actual owned processes, including when
+                # a transport close failed. Endpoint pruning follows only a
+                # successful manager close that confirmed group release.
                 await coordinator.close()
                 if whistle_endpoint is not None:
                     whistle_endpoint.close()
+                if qwen3_endpoint is not None:
+                    qwen3_endpoint.close()
+                if failures:
+                    raise failures[0]
             finally:
                 await health_http.aclose()
                 await agent_http.aclose()
@@ -338,4 +404,5 @@ def resource_app(args, config, auth, tokens, root):
     app.state.coordinator = coordinator
     app.state.voice_health = voice_health
     app.state.whistle = whistle
+    app.state.qwen3 = qwen3
     return app

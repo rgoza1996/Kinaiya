@@ -30,7 +30,7 @@ class ManagedQwen3Config(BaseModel):
     host_memory_reserve_bytes: int = Field(default=8 * 1024**3, ge=8 * 1024**3, le=32 * 1024**3)
     max_input_tokens: int = Field(default=2048, ge=64, le=4096)
     max_new_tokens: int = Field(default=128, ge=16, le=512)
-    startup_timeout_s: float = Field(default=120, ge=1, le=600)
+    startup_timeout_s: float = Field(default=120, ge=1, le=300)
     request_timeout_s: float = Field(default=120, ge=1, le=900)
 
 
