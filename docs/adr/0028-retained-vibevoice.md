@@ -1,6 +1,6 @@
 # ADR 0028: Retained VibeVoice Realtime 0.5B CPU synthesis
 
-Status: implementation draft for [#69](https://github.com/rgoza1996/Kinaiya/issues/69), under M2 and Roadmap §§7.5, 14 and 25.2. This adapter adds the retained VibeVoice candidate; it does not replace Kokoro 82M or Supertonic 3. Ming 3 Tiny and full M2 acceptance remain open. Integration and live screening results must be recorded separately from this adapter's deterministic checks.
+Status: experimental implementation for [#69](https://github.com/rgoza1996/Kinaiya/issues/69), under M2 and Roadmap §§7.5, 14 and 25.2. This adapter adds the retained VibeVoice candidate; it does not replace Kokoro 82M or Supertonic 3. Ming 3 Tiny, the dependency-security follow-up #70 and full M2 acceptance remain open. The original evaluation environment has known advisories; it is not a supported patched production runtime.
 
 ## Runtime and trust boundary
 
@@ -46,6 +46,29 @@ CPU loading exists in the official demo; its SDPA quality/performance remains an
 Dependency-free mocked tests cover absence of eager inference imports; source/artifact identity; tampering/symlink refusal; offline CPU/safetensors loading; restricted preset unpickling; prompt isolation; ordered callback output on the caller's thread; callback/native errors; cancellation; text/context/sample limits; and max-step truncation. These checks do not prove a successful model load or waveform generation.
 
 The separate authorized live screen must record exact environment, cold load, warm first decoded/non-silent waveform, actual PCM samples, full RTF, CPU/RSS, disconnect-to-producer-stop time, stale-output fencing, subsequent-request recovery and verified process release. Report native first waveform separately from transport latency and physical audible onset. A small synthetic screen does not establish p95, listening quality, streaming underflow, loaded Converse/Decisions contention or the full M2 gate.
+
+## Actual CPU screen and lifecycle proof
+
+[Recorded evidence](../../evaluation/evidence/vibevoice-cpu-2026-10-27.json) contains one new-process request and nine warm synthetic replies on the Ryzen 7 5800X. Filesystem/page caches were not flushed, host load was uncontrolled, and portions overlapped focused test work. This is a feasibility screen, not a controlled provider comparison or p95 qualification.
+
+| Measurement | Observed result |
+| --- | --- |
+| Warm first decoded PCM | 0.258 s median; 0.237–0.674 s range |
+| Warm first non-silent frame, 1% PCM amplitude threshold | 3.335 s median; 0.258–5.527 s range |
+| Warm full synthesis RTF including HTTP | 3.457 median; 3.089–4.105 range |
+| New-process first decoded/non-silent PCM | 7.798 s / 13.031 s |
+| Observed process-lifetime peak RSS | 7,840,325,632 bytes |
+| HTTP response close to observed producer-thread exit | 0.564 s, one cancellation observation |
+
+All nine warm requests delivered decoded PCM while the native producer was still running. Early decoded frames often contain silence. This CPU profile is slower than realtime and does not establish uninterrupted playback. No physical microphone, speaker, acoustic onset, actual client underflow or human listening acceptance was measured.
+
+Closing a long synthetic HTTP stream after its first chunk set the producer's cancellation event. Health subsequently confirmed zero live producers, completed cancellation and no quarantine; a fresh request succeeded. This observes native producer exit, not preemption of an in-flight Torch kernel or physical audio stop.
+
+The generic [voice probe](../../scripts/probe_retained_voice.py) reproduces the screen with `--exercise-cancellation`. The [resource probe](../../scripts/probe_retained_resources.py) separately demonstrated a loaded worker around 5.90 GB RSS, verified owned process-group reaping, a new restored PID, fresh 24 kHz synthesis, old-speech HTTP 409 and durable owner-off. Its text provider and authenticated control transport are synthetic/in-process; no real Agent task or cloud inference was performed. Both owned workers and private temporary data were removed. Use an explicit measured restoration reserve; this screen used 8 GiB rather than relying on the general 2 GiB default.
+
+Whisper tiny.en in the same optional environment transcribed one retained synthetic VibeVoice WAV as “I am here. What would you like to do?” through the actual transcription HTTP endpoint. This establishes a synthetic roundtrip, not microphone or human quality acceptance.
+
+The integrated Python suite passed 1,153 tests without a repository-wide `PYTHONPATH` override. An independent Codex review while that delegation was authorized ran 274 focused tests with no actionable findings. A genuine visible Muse Spark 1.3 Contributor/xhigh CLI static review of source `69d5322` also reported no findings and ran no tools/tests. Neither is human approval or a passed dependency audit. The later user instruction restricts all new subagent delegation to Muse CLI Contributor.
 
 ## Primary sources
 

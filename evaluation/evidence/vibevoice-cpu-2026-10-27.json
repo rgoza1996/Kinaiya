@@ -1,0 +1,3339 @@
+{
+  "schema": 1,
+  "scope": "Retained VibeVoice CPU synthesis and request-owned cancellation; full M2 remains open",
+  "issues": [
+    4,
+    69,
+    70
+  ],
+  "implementation_commit": "69d53228b454ba4af08e207775a5e2cfe30a77ab",
+  "specification": [
+    "Roadmap7.2-7.5",
+    "M2",
+    "25.2"
+  ],
+  "original_environment": {
+    "lock_sha256": "6f39e53c8cb7d138e588dbfb808cf0535b3f99b3a5de4e4dbf599c50a49d75ce",
+    "asset_manifest_sha256": "41534df44e03cb1e24bab901c3a0a038f67b1671f5a307bf64325b6533c144ea",
+    "known_advisory_records": [
+      {
+        "name": "pillow",
+        "version": "12.3.0",
+        "advisory_record_count": 38,
+        "unique_ids": [
+          "CVE-2026-112390",
+          "CVE-2026-112391",
+          "CVE-2026-112393",
+          "CVE-2026-112395",
+          "CVE-2026-112397",
+          "CVE-2026-112398",
+          "CVE-2026-112399",
+          "CVE-2026-112400",
+          "CVE-2026-112401",
+          "CVE-2026-112402",
+          "CVE-2026-112404",
+          "CVE-2026-112405",
+          "CVE-2026-112406",
+          "CVE-2026-112891",
+          "CVE-2026-112892",
+          "CVE-2026-112893",
+          "CVE-2026-112894",
+          "CVE-2026-112895",
+          "CVE-2026-112896",
+          "CVE-2026-112897",
+          "CVE-2026-112899",
+          "CVE-2026-112900",
+          "CVE-2026-112901",
+          "CVE-2026-114501",
+          "CVE-2026-96636",
+          "CVE-2026-96637",
+          "CVE-2026-96638",
+          "CVE-2026-96639",
+          "CVE-2026-96640",
+          "CVE-2026-96641",
+          "CVE-2026-96642",
+          "CVE-2026-96643",
+          "CVE-2026-96644",
+          "CVE-2026-96778",
+          "GHSA-78g4-xqwv-q3g8",
+          "PYSEC-2026-4326",
+          "PYSEC-2026-4327",
+          "PYSEC-2026-4328"
+        ],
+        "records": [
+          {
+            "id": "PYSEC-2026-4327",
+            "fix_versions": [
+              "13.0.0"
+            ],
+            "aliases": [
+              "CVE-2026-112394",
+              "GHSA-4558-3h8r-v8xp"
+            ]
+          },
+          {
+            "id": "PYSEC-2026-4328",
+            "fix_versions": [
+              "13.0.0"
+            ],
+            "aliases": [
+              "CVE-2026-112396",
+              "GHSA-4rr5-89j8-mwwm"
+            ]
+          },
+          {
+            "id": "PYSEC-2026-4326",
+            "fix_versions": [
+              "13.0.0"
+            ],
+            "aliases": [
+              "CVE-2026-112392",
+              "GHSA-27h8-gf7j-v5hc"
+            ]
+          },
+          {
+            "id": "CVE-2026-112895",
+            "fix_versions": [
+              "13.0.0"
+            ],
+            "aliases": [
+              "GHSA-p4wg-p73j-c528"
+            ]
+          },
+          {
+            "id": "CVE-2026-112400",
+            "fix_versions": [
+              "13.0.0"
+            ],
+            "aliases": [
+              "GHSA-65qm-jvmh-6pqg"
+            ]
+          },
+          {
+            "id": "CVE-2026-112397",
+            "fix_versions": [
+              "13.0.0"
+            ],
+            "aliases": [
+              "GHSA-58r4-6rv3-gfh8"
+            ]
+          },
+          {
+            "id": "CVE-2026-112896",
+            "fix_versions": [
+              "13.0.0"
+            ],
+            "aliases": [
+              "GHSA-pchr-8j38-3x4p"
+            ]
+          },
+          {
+            "id": "CVE-2026-112897",
+            "fix_versions": [
+              "13.0.0"
+            ],
+            "aliases": [
+              "GHSA-q45j-58j2-45rg"
+            ]
+          },
+          {
+            "id": "CVE-2026-112395",
+            "fix_versions": [
+              "13.0.0"
+            ],
+            "aliases": [
+              "GHSA-462x-pgg6-55fp"
+            ]
+          },
+          {
+            "id": "CVE-2026-112404",
+            "fix_versions": [
+              "13.0.0"
+            ],
+            "aliases": [
+              "GHSA-c6hw-5grf-ff96"
+            ]
+          },
+          {
+            "id": "CVE-2026-112899",
+            "fix_versions": [
+              "13.0.0"
+            ],
+            "aliases": [
+              "GHSA-vx6w-vv9f-6gvg"
+            ]
+          },
+          {
+            "id": "CVE-2026-112402",
+            "fix_versions": [
+              "13.0.0"
+            ],
+            "aliases": [
+              "GHSA-7mwm-ghpf-9vrm"
+            ]
+          },
+          {
+            "id": "CVE-2026-112900",
+            "fix_versions": [
+              "13.0.0"
+            ],
+            "aliases": [
+              "GHSA-w889-685w-c8fh"
+            ]
+          },
+          {
+            "id": "CVE-2026-112893",
+            "fix_versions": [
+              "13.0.0"
+            ],
+            "aliases": [
+              "GHSA-j4m9-6w36-pw47"
+            ]
+          },
+          {
+            "id": "CVE-2026-112891",
+            "fix_versions": [
+              "13.0.0"
+            ],
+            "aliases": [
+              "GHSA-fc9g-5qg7-mf45"
+            ]
+          },
+          {
+            "id": "CVE-2026-112405",
+            "fix_versions": [
+              "13.0.0"
+            ],
+            "aliases": [
+              "GHSA-cp9v-662q-vvx9"
+            ]
+          },
+          {
+            "id": "CVE-2026-112390",
+            "fix_versions": [
+              "13.0.0"
+            ],
+            "aliases": [
+              "GHSA-22hg-r758-rrw9"
+            ]
+          },
+          {
+            "id": "CVE-2026-112401",
+            "fix_versions": [
+              "13.0.0"
+            ],
+            "aliases": [
+              "GHSA-74r2-7ff9-mjj2"
+            ]
+          },
+          {
+            "id": "CVE-2026-112901",
+            "fix_versions": [
+              "13.0.0"
+            ],
+            "aliases": [
+              "GHSA-xgh8-jp6q-p5x8"
+            ]
+          },
+          {
+            "id": "CVE-2026-112391",
+            "fix_versions": [
+              "13.0.0"
+            ],
+            "aliases": [
+              "GHSA-254f-3936-288h"
+            ]
+          },
+          {
+            "id": "CVE-2026-112894",
+            "fix_versions": [
+              "13.0.0"
+            ],
+            "aliases": [
+              "GHSA-jg86-v3jv-hrpm"
+            ]
+          },
+          {
+            "id": "CVE-2026-112406",
+            "fix_versions": [
+              "13.0.0"
+            ],
+            "aliases": [
+              "GHSA-f2g6-542v-9j58"
+            ]
+          },
+          {
+            "id": "CVE-2026-112399",
+            "fix_versions": [
+              "13.0.0"
+            ],
+            "aliases": [
+              "GHSA-5xm2-6676-qcp9"
+            ]
+          },
+          {
+            "id": "CVE-2026-112892",
+            "fix_versions": [
+              "13.0.0"
+            ],
+            "aliases": [
+              "GHSA-gg2r-wvfm-q9rx"
+            ]
+          },
+          {
+            "id": "CVE-2026-112393",
+            "fix_versions": [
+              "13.0.0"
+            ],
+            "aliases": [
+              "GHSA-332p-7hrc-92wf"
+            ]
+          },
+          {
+            "id": "CVE-2026-96638",
+            "fix_versions": [
+              "13.0.0"
+            ],
+            "aliases": [
+              "GHSA-24rc-8hj2-v98c"
+            ]
+          },
+          {
+            "id": "CVE-2026-96641",
+            "fix_versions": [
+              "13.0.0"
+            ],
+            "aliases": [
+              "GHSA-4rm8-3hmm-39fg"
+            ]
+          },
+          {
+            "id": "CVE-2026-96640",
+            "fix_versions": [
+              "13.0.0"
+            ],
+            "aliases": [
+              "GHSA-mrfp-p49p-3hf2"
+            ]
+          },
+          {
+            "id": "CVE-2026-96642",
+            "fix_versions": [
+              "13.0.0"
+            ],
+            "aliases": [
+              "GHSA-3j72-p6qg-6xp7"
+            ]
+          },
+          {
+            "id": "CVE-2026-96639",
+            "fix_versions": [
+              "13.0.0"
+            ],
+            "aliases": [
+              "GHSA-v9pv-5gc8-w2m6"
+            ]
+          },
+          {
+            "id": "CVE-2026-96643",
+            "fix_versions": [
+              "13.0.0"
+            ],
+            "aliases": [
+              "GHSA-g4qv-2jxx-769h"
+            ]
+          },
+          {
+            "id": "CVE-2026-96637",
+            "fix_versions": [
+              "13.0.0"
+            ],
+            "aliases": [
+              "GHSA-g842-9rc4-69pw"
+            ]
+          },
+          {
+            "id": "CVE-2026-96644",
+            "fix_versions": [
+              "13.0.0"
+            ],
+            "aliases": [
+              "GHSA-9v9v-9qvf-h2hj"
+            ]
+          },
+          {
+            "id": "CVE-2026-96778",
+            "fix_versions": [
+              "13.0.0"
+            ],
+            "aliases": [
+              "GHSA-g7cr-3p24-7wf7"
+            ]
+          },
+          {
+            "id": "CVE-2026-96636",
+            "fix_versions": [
+              "13.0.0"
+            ],
+            "aliases": [
+              "GHSA-p8hx-v2p6-rp84"
+            ]
+          },
+          {
+            "id": "GHSA-78g4-xqwv-q3g8",
+            "fix_versions": [
+              "13.0.0"
+            ],
+            "aliases": []
+          },
+          {
+            "id": "CVE-2026-114501",
+            "fix_versions": [
+              "13.0.0"
+            ],
+            "aliases": [
+              "GHSA-654x-cwwv-5j9c"
+            ]
+          },
+          {
+            "id": "CVE-2026-112398",
+            "fix_versions": [
+              "13.0.0"
+            ],
+            "aliases": [
+              "GHSA-5x8w-8jj5-q52h"
+            ]
+          }
+        ]
+      },
+      {
+        "name": "setuptools",
+        "version": "80.9.0",
+        "advisory_record_count": 3,
+        "unique_ids": [
+          "GHSA-xmj3-9gf7-h52w",
+          "PYSEC-2026-3447"
+        ],
+        "records": [
+          {
+            "id": "PYSEC-2026-3447",
+            "fix_versions": [
+              "83.0.0"
+            ],
+            "aliases": [
+              "GHSA-h35f-9h28-mq5c",
+              "CVE-2026-59890",
+              "BIT-setuptools-2026-59890"
+            ]
+          },
+          {
+            "id": "PYSEC-2026-3447",
+            "fix_versions": [
+              "83.0.0"
+            ],
+            "aliases": [
+              "CVE-2026-59890",
+              "GHSA-h35f-9h28-mq5c",
+              "BIT-setuptools-2026-59890"
+            ]
+          },
+          {
+            "id": "GHSA-xmj3-9gf7-h52w",
+            "fix_versions": [
+              "84.1.0"
+            ],
+            "aliases": []
+          }
+        ]
+      },
+      {
+        "name": "transformers",
+        "version": "4.51.3",
+        "advisory_record_count": 28,
+        "unique_ids": [
+          "PYSEC-2025-211",
+          "PYSEC-2025-212",
+          "PYSEC-2025-213",
+          "PYSEC-2025-214",
+          "PYSEC-2025-215",
+          "PYSEC-2025-216",
+          "PYSEC-2025-217",
+          "PYSEC-2025-218",
+          "PYSEC-2026-1977",
+          "PYSEC-2026-1980",
+          "PYSEC-2026-1981",
+          "PYSEC-2026-1983",
+          "PYSEC-2026-1986",
+          "PYSEC-2026-1988",
+          "PYSEC-2026-2288",
+          "PYSEC-2026-2289",
+          "PYSEC-2026-2290",
+          "PYSEC-2026-3929",
+          "PYSEC-2026-4174"
+        ],
+        "records": [
+          {
+            "id": "PYSEC-2025-217",
+            "fix_versions": [],
+            "aliases": [
+              "CVE-2025-14929"
+            ]
+          },
+          {
+            "id": "PYSEC-2026-1986",
+            "fix_versions": [
+              "4.52.1"
+            ],
+            "aliases": [
+              "GHSA-phhr-52qp-3mj4",
+              "CVE-2025-3777"
+            ]
+          },
+          {
+            "id": "PYSEC-2026-1977",
+            "fix_versions": [
+              "4.52.1"
+            ],
+            "aliases": [
+              "GHSA-37mw-44qp-f5jm",
+              "CVE-2025-3933"
+            ]
+          },
+          {
+            "id": "PYSEC-2026-1983",
+            "fix_versions": [
+              "4.53.0"
+            ],
+            "aliases": [
+              "CVE-2025-5197",
+              "GHSA-9356-575x-2w9m"
+            ]
+          },
+          {
+            "id": "PYSEC-2026-1981",
+            "fix_versions": [
+              "4.53.0"
+            ],
+            "aliases": [
+              "GHSA-59p9-h35m-wg4g",
+              "CVE-2025-6638"
+            ]
+          },
+          {
+            "id": "PYSEC-2026-1988",
+            "fix_versions": [
+              "4.53.0"
+            ],
+            "aliases": [
+              "CVE-2025-6051",
+              "GHSA-rcv9-qm8p-9p6j"
+            ]
+          },
+          {
+            "id": "PYSEC-2026-1980",
+            "fix_versions": [
+              "4.53.0"
+            ],
+            "aliases": [
+              "CVE-2025-6921",
+              "GHSA-4w7r-h757-3r74"
+            ]
+          },
+          {
+            "id": "PYSEC-2026-2288",
+            "fix_versions": [
+              "5.0.0rc3"
+            ],
+            "aliases": [
+              "GHSA-69w3-r845-3855",
+              "CVE-2026-1839"
+            ]
+          },
+          {
+            "id": "PYSEC-2025-214",
+            "fix_versions": [],
+            "aliases": [
+              "CVE-2025-14926"
+            ]
+          },
+          {
+            "id": "PYSEC-2025-218",
+            "fix_versions": [],
+            "aliases": [
+              "CVE-2025-14930"
+            ]
+          },
+          {
+            "id": "PYSEC-2025-211",
+            "fix_versions": [],
+            "aliases": [
+              "CVE-2025-14920"
+            ]
+          },
+          {
+            "id": "PYSEC-2025-212",
+            "fix_versions": [],
+            "aliases": [
+              "CVE-2025-14921"
+            ]
+          },
+          {
+            "id": "PYSEC-2025-213",
+            "fix_versions": [],
+            "aliases": [
+              "CVE-2025-14924"
+            ]
+          },
+          {
+            "id": "PYSEC-2025-215",
+            "fix_versions": [],
+            "aliases": [
+              "CVE-2025-14927"
+            ]
+          },
+          {
+            "id": "PYSEC-2025-216",
+            "fix_versions": [],
+            "aliases": [
+              "CVE-2025-14928"
+            ]
+          },
+          {
+            "id": "PYSEC-2026-2289",
+            "fix_versions": [
+              "5.3.0"
+            ],
+            "aliases": [
+              "CVE-2026-4372",
+              "GHSA-29pf-2h5f-8g72"
+            ]
+          },
+          {
+            "id": "PYSEC-2026-1977",
+            "fix_versions": [
+              "4.52.1"
+            ],
+            "aliases": [
+              "GHSA-37mw-44qp-f5jm",
+              "CVE-2025-3933"
+            ]
+          },
+          {
+            "id": "PYSEC-2026-1981",
+            "fix_versions": [
+              "4.53.0"
+            ],
+            "aliases": [
+              "GHSA-59p9-h35m-wg4g",
+              "CVE-2025-6638"
+            ]
+          },
+          {
+            "id": "PYSEC-2026-1986",
+            "fix_versions": [
+              "4.52.1"
+            ],
+            "aliases": [
+              "GHSA-phhr-52qp-3mj4",
+              "CVE-2025-3777"
+            ]
+          },
+          {
+            "id": "PYSEC-2026-1988",
+            "fix_versions": [
+              "4.53.0"
+            ],
+            "aliases": [
+              "CVE-2025-6051",
+              "GHSA-rcv9-qm8p-9p6j"
+            ]
+          },
+          {
+            "id": "PYSEC-2026-1980",
+            "fix_versions": [
+              "4.53.0"
+            ],
+            "aliases": [
+              "CVE-2025-6921",
+              "GHSA-4w7r-h757-3r74"
+            ]
+          },
+          {
+            "id": "PYSEC-2026-1983",
+            "fix_versions": [
+              "4.53.0"
+            ],
+            "aliases": [
+              "CVE-2025-5197",
+              "GHSA-9356-575x-2w9m"
+            ]
+          },
+          {
+            "id": "PYSEC-2026-2290",
+            "fix_versions": [],
+            "aliases": [
+              "GHSA-fgcw-684q-jj6r",
+              "CVE-2026-5241"
+            ]
+          },
+          {
+            "id": "PYSEC-2026-2288",
+            "fix_versions": [
+              "5.0.0"
+            ],
+            "aliases": [
+              "GHSA-69w3-r845-3855",
+              "CVE-2026-1839"
+            ]
+          },
+          {
+            "id": "PYSEC-2026-2289",
+            "fix_versions": [
+              "5.3.0"
+            ],
+            "aliases": [
+              "CVE-2026-4372",
+              "GHSA-29pf-2h5f-8g72"
+            ]
+          },
+          {
+            "id": "PYSEC-2026-2290",
+            "fix_versions": [
+              "5.5.0"
+            ],
+            "aliases": [
+              "GHSA-fgcw-684q-jj6r",
+              "CVE-2026-5241"
+            ]
+          },
+          {
+            "id": "PYSEC-2026-3929",
+            "fix_versions": [
+              "5.10.0"
+            ],
+            "aliases": [
+              "GHSA-xrqw-3rrv-vx5w",
+              "CVE-2026-9856"
+            ]
+          },
+          {
+            "id": "PYSEC-2026-4174",
+            "fix_versions": [],
+            "aliases": [
+              "GHSA-x9r9-c232-4q39",
+              "CVE-2026-80047"
+            ]
+          }
+        ]
+      },
+      {
+        "name": "wheel",
+        "version": "0.45.1",
+        "advisory_record_count": 1,
+        "unique_ids": [
+          "CVE-2026-24049"
+        ],
+        "records": [
+          {
+            "id": "CVE-2026-24049",
+            "fix_versions": [
+              "0.46.2"
+            ],
+            "aliases": [
+              "GHSA-8rrh-rw8j-w5fx"
+            ]
+          }
+        ]
+      }
+    ],
+    "pip_audit_skipped": [
+      {
+        "name": "torch",
+        "skip_reason": "Dependency not found on PyPI and could not be audited: torch (2.9.1+cpu)"
+      },
+      {
+        "name": "vibevoice",
+        "skip_reason": "Dependency not found on PyPI and could not be audited: vibevoice (1.0.0)"
+      }
+    ],
+    "audit_green": false,
+    "base_torch2.9.1_advisories": [
+      "PYSEC-2026-139",
+      "GHSA-rrmf-rvhw-rf47",
+      "GHSA-qfhq-4f3w-5fph",
+      "PYSEC-2026-2286"
+    ],
+    "exact_cpu_binary_audited": false
+  },
+  "actual_tts_http_screen": {
+    "kind": "isolated_retained_tts_screen",
+    "profile": "VibeVoice Realtime 0.5B",
+    "source_commit": "70b40ae8f079bef04305c82e2127b80849804e60",
+    "source_dirty": false,
+    "host": {
+      "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",
+      "machine": "x86_64",
+      "cpu_model": "AMD Ryzen 7 5800X 8-Core Processor"
+    },
+    "probe_python": "3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]",
+    "worker_environment": {
+      "python": "3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]",
+      "packages": {
+        "ctranslate2": "4.8.4",
+        "numpy": "2.3.3",
+        "vibevoice": "1.0.0",
+        "fastapi": "0.162.0",
+        "soundfile": "0.14.0",
+        "httpx": "0.28.1",
+        "uvicorn": "0.54.0",
+        "diffusers": "0.39.0",
+        "accelerate": "1.15.0",
+        "transformers": "4.51.3",
+        "onnxruntime": "1.31.1",
+        "pydantic": "2.14.1",
+        "torch": "2.9.1+cpu",
+        "faster-whisper": "1.2.1"
+      }
+    },
+    "health_before": {
+      "service": "local-voice",
+      "device": "cpu",
+      "pid": 799529,
+      "loaded": [],
+      "tts_profile": "VibeVoice Realtime 0.5B",
+      "tts_voice": "en-Carter_man",
+      "synthesis_mode": "native_streaming",
+      "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+      "assets_state": "not_checked",
+      "retained_candidates": [
+        "Ming 3 Tiny",
+        "VibeVoice Realtime 0.5B",
+        "Kokoro 82M",
+        "Supertonic 3"
+      ],
+      "other_profiles": "not_configured",
+      "synthesis_active": false,
+      "active_producers": 0,
+      "producer_stopped": true,
+      "synthesis_quarantined": false,
+      "completed_producers": 0,
+      "last_producer_seconds": null,
+      "last_producer_cancelled": null
+    },
+    "health_after": {
+      "service": "local-voice",
+      "device": "cpu",
+      "pid": 799529,
+      "loaded": [
+        "tts"
+      ],
+      "tts_profile": "VibeVoice Realtime 0.5B",
+      "tts_voice": "en-Carter_man",
+      "synthesis_mode": "native_streaming",
+      "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+      "assets_state": "verified",
+      "retained_candidates": [
+        "Ming 3 Tiny",
+        "VibeVoice Realtime 0.5B",
+        "Kokoro 82M",
+        "Supertonic 3"
+      ],
+      "other_profiles": "not_configured",
+      "synthesis_active": false,
+      "active_producers": 0,
+      "producer_stopped": true,
+      "synthesis_quarantined": false,
+      "completed_producers": 12,
+      "last_producer_seconds": 9.877254590013763,
+      "last_producer_cancelled": false
+    },
+    "cold_process_first_request": {
+      "text": "I am here. What would you like to do?",
+      "request_to_first_decoded_pcm_seconds": 7.79815612101811,
+      "request_to_first_non_silent_frame_seconds": 13.0306237610057,
+      "request_to_complete_seconds": 21.118645285023376,
+      "audio_seconds": 3.466666666666667,
+      "rtf_including_http": 6.091916909141358,
+      "sample_rate": 24000,
+      "samples": 83200,
+      "chunks": 26,
+      "pcm_sha256": "681fef781b92997deadc62edc87373aa4a5ef8913bdf121f616497e7bec1f902",
+      "first_frame_metadata": {
+        "provider": "VibeVoice Realtime 0.5B",
+        "device": "cpu",
+        "synthesis_mode": "native_streaming",
+        "elapsed_seconds": 7.7964779309986625,
+        "load_seconds": 7.527167900989298,
+        "first_waveform_seconds": 0.26309360400773585
+      },
+      "chunk_arrivals": [
+        {
+          "elapsed_seconds": 7.79815612101811,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 8.547822450025706,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 9.265561300999252,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 10.000502032024087,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 10.733916654018685,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 11.473950594023336,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 12.297988806007197,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 13.0306237610057,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 13.772229198017158,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 14.502428348001558,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 14.828264587005833,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 15.142661799007328,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 15.540301859000465,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 15.854321459017228,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 16.167508484009886,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 16.497147425019648,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 16.81442544402671,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 17.130721197027015,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 17.454037020012038,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 17.77119886802393,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 18.0834136660269,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 18.389248117018724,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 18.703347336006118,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 19.020796324999537,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 19.339706742001,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 19.657927675027167,
+          "samples": 3200
+        }
+      ],
+      "producer_health_at_first_frame": {
+        "service": "local-voice",
+        "device": "cpu",
+        "pid": 799529,
+        "loaded": [
+          "tts"
+        ],
+        "tts_profile": "VibeVoice Realtime 0.5B",
+        "tts_voice": "en-Carter_man",
+        "synthesis_mode": "native_streaming",
+        "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+        "assets_state": "verified",
+        "retained_candidates": [
+          "Ming 3 Tiny",
+          "VibeVoice Realtime 0.5B",
+          "Kokoro 82M",
+          "Supertonic 3"
+        ],
+        "other_profiles": "not_configured",
+        "synthesis_active": true,
+        "active_producers": 1,
+        "producer_stopped": false,
+        "synthesis_quarantined": false,
+        "completed_producers": 0,
+        "last_producer_seconds": null,
+        "last_producer_cancelled": null
+      },
+      "decoded_before_producer_exit_observed": true,
+      "worker_rss_before_bytes": 60243968,
+      "worker_rss_after_bytes": 5903593472,
+      "worker_process_lifetime_peak_rss_bytes": 7840325632,
+      "worker_cpu_seconds": 57.260000000000005
+    },
+    "cold_definition": "New process and unloaded weights; filesystem/page caches were not flushed.",
+    "warm": [
+      {
+        "text": "I am here. What would you like to do?",
+        "request_to_first_decoded_pcm_seconds": 0.26943332701921463,
+        "request_to_first_non_silent_frame_seconds": 2.4884751299978234,
+        "request_to_complete_seconds": 11.972202803008258,
+        "audio_seconds": 3.2,
+        "rtf_including_http": 3.7413133759400807,
+        "sample_rate": 24000,
+        "samples": 76800,
+        "chunks": 24,
+        "pcm_sha256": "9661629cf7c565a5ba47221a56faa9e844eb0a72d31b98e6921abd4f75e8b6ce",
+        "first_frame_metadata": {
+          "provider": "VibeVoice Realtime 0.5B",
+          "device": "cpu",
+          "synthesis_mode": "native_streaming",
+          "elapsed_seconds": 0.26789527700748295,
+          "load_seconds": 0.0,
+          "first_waveform_seconds": 0.26092660799622536
+        },
+        "chunk_arrivals": [
+          {
+            "elapsed_seconds": 0.26943332701921463,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.005090401013149,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.7436095720040612,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.4884751299978234,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.2308836420124862,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.973115263012005,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.8293861800048035,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.570091310015414,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.3014789760054555,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.0284521550056525,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.355106374016032,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.661528144002659,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.025914304016624,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.34171617901302,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.65734999300912,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.981325055996422,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.297428212012164,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.632220797997434,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.98088762399857,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.39621872000862,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.787474925018614,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 11.109378015011316,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 11.447274058009498,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 11.817216277995612,
+            "samples": 3200
+          }
+        ],
+        "producer_health_at_first_frame": {
+          "service": "local-voice",
+          "device": "cpu",
+          "pid": 799529,
+          "loaded": [
+            "tts"
+          ],
+          "tts_profile": "VibeVoice Realtime 0.5B",
+          "tts_voice": "en-Carter_man",
+          "synthesis_mode": "native_streaming",
+          "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+          "assets_state": "verified",
+          "retained_candidates": [
+            "Ming 3 Tiny",
+            "VibeVoice Realtime 0.5B",
+            "Kokoro 82M",
+            "Supertonic 3"
+          ],
+          "other_profiles": "not_configured",
+          "synthesis_active": true,
+          "active_producers": 1,
+          "producer_stopped": false,
+          "synthesis_quarantined": false,
+          "completed_producers": 1,
+          "last_producer_seconds": 21.11283030101913,
+          "last_producer_cancelled": false
+        },
+        "decoded_before_producer_exit_observed": true,
+        "worker_rss_before_bytes": 5903593472,
+        "worker_rss_after_bytes": 5908459520,
+        "worker_process_lifetime_peak_rss_bytes": 7840325632,
+        "worker_cpu_seconds": 40.72999999999999
+      },
+      {
+        "text": "The synthetic report contains three items, and the next review is at ten thirty.",
+        "request_to_first_decoded_pcm_seconds": 0.6735162819968536,
+        "request_to_first_non_silent_frame_seconds": 5.229142744996352,
+        "request_to_complete_seconds": 20.741540824004915,
+        "audio_seconds": 6.0,
+        "rtf_including_http": 3.4569234706674856,
+        "sample_rate": 24000,
+        "samples": 144000,
+        "chunks": 45,
+        "pcm_sha256": "d9edeca5a192223d9786669803b0ba9540b2cfbc6d32f166087b80b0ad16c62f",
+        "first_frame_metadata": {
+          "provider": "VibeVoice Realtime 0.5B",
+          "device": "cpu",
+          "synthesis_mode": "native_streaming",
+          "elapsed_seconds": 0.672077644005185,
+          "load_seconds": 0.0,
+          "first_waveform_seconds": 0.6676798580156174
+        },
+        "chunk_arrivals": [
+          {
+            "elapsed_seconds": 0.6735162819968536,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.4768009410181548,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.200144253001781,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.92498322299798,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.658469703019364,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.391013556014514,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.229142744996352,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.0332535650231875,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.808219723025104,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.543156349012861,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.860843850008678,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.17446034902241,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.582457687007263,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.899998108012369,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.225754336017417,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.564293099014321,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.901394523010822,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.223247079004068,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.631442447018344,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.949712761008414,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 11.272170020005433,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 11.586347280011978,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 11.902953764016274,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 12.216752472013468,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 12.524265303014545,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 12.836873394000577,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 13.154752615024336,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 13.466105438012164,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 13.806782091996865,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 14.124093020014698,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 14.449921426014043,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 14.769700428005308,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 15.089535639999667,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 15.409979345015017,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 15.71609009700478,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 16.032500619010534,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 16.381827992008766,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 16.751778115023626,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 17.141851565014804,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 17.47732909701881,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 17.8313305269985,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 18.199327417998575,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 18.66591740201693,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 19.03319887901307,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 19.434238751011435,
+            "samples": 3200
+          }
+        ],
+        "producer_health_at_first_frame": {
+          "service": "local-voice",
+          "device": "cpu",
+          "pid": 799529,
+          "loaded": [
+            "tts"
+          ],
+          "tts_profile": "VibeVoice Realtime 0.5B",
+          "tts_voice": "en-Carter_man",
+          "synthesis_mode": "native_streaming",
+          "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+          "assets_state": "verified",
+          "retained_candidates": [
+            "Ming 3 Tiny",
+            "VibeVoice Realtime 0.5B",
+            "Kokoro 82M",
+            "Supertonic 3"
+          ],
+          "other_profiles": "not_configured",
+          "synthesis_active": true,
+          "active_producers": 1,
+          "producer_stopped": false,
+          "synthesis_quarantined": false,
+          "completed_producers": 2,
+          "last_producer_seconds": 11.968251451005926,
+          "last_producer_cancelled": false
+        },
+        "decoded_before_producer_exit_observed": true,
+        "worker_rss_before_bytes": 5908459520,
+        "worker_rss_after_bytes": 5924020224,
+        "worker_process_lifetime_peak_rss_bytes": 7840325632,
+        "worker_cpu_seconds": 73.71000000000001
+      },
+      {
+        "text": "Kinaiya can keep our conversation available while the independent agent works.",
+        "request_to_first_decoded_pcm_seconds": 0.2975431510130875,
+        "request_to_first_non_silent_frame_seconds": 3.334803515987005,
+        "request_to_complete_seconds": 15.742163168004481,
+        "audio_seconds": 4.4,
+        "rtf_including_http": 3.5777643563646544,
+        "sample_rate": 24000,
+        "samples": 105600,
+        "chunks": 33,
+        "pcm_sha256": "536b312447420f195855ec0412d699d55985723d0abc5816034f08629faa1197",
+        "first_frame_metadata": {
+          "provider": "VibeVoice Realtime 0.5B",
+          "device": "cpu",
+          "synthesis_mode": "native_streaming",
+          "elapsed_seconds": 0.2960407010104973,
+          "load_seconds": 0.0,
+          "first_waveform_seconds": 0.28875893898657523
+        },
+        "chunk_arrivals": [
+          {
+            "elapsed_seconds": 0.2975431510130875,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.0358274029858876,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.806692184007261,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.5575982989976183,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.334803515987005,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.128393116989173,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.946534385991981,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.675916835985845,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.406019974994706,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.127298461011378,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.453774394001812,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.769180948002031,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.170198881998658,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.494158505985979,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.805616881989408,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.130589578009676,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.45219284700579,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.778429992002202,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.095097902987618,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.41182643600041,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.757388880010694,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 11.092777949001174,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 11.447426863014698,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 11.761373785993783,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 12.077471719007008,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 12.383303167996928,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 12.719418627006235,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 13.03604142300901,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 13.372486875014147,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 13.703487213992048,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 14.041229322989238,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 14.359626746998401,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 14.67888696299633,
+            "samples": 3200
+          }
+        ],
+        "producer_health_at_first_frame": {
+          "service": "local-voice",
+          "device": "cpu",
+          "pid": 799529,
+          "loaded": [
+            "tts"
+          ],
+          "tts_profile": "VibeVoice Realtime 0.5B",
+          "tts_voice": "en-Carter_man",
+          "synthesis_mode": "native_streaming",
+          "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+          "assets_state": "verified",
+          "retained_candidates": [
+            "Ming 3 Tiny",
+            "VibeVoice Realtime 0.5B",
+            "Kokoro 82M",
+            "Supertonic 3"
+          ],
+          "other_profiles": "not_configured",
+          "synthesis_active": true,
+          "active_producers": 1,
+          "producer_stopped": false,
+          "synthesis_quarantined": false,
+          "completed_producers": 3,
+          "last_producer_seconds": 20.732636852015276,
+          "last_producer_cancelled": false
+        },
+        "decoded_before_producer_exit_observed": true,
+        "worker_rss_before_bytes": 5924020224,
+        "worker_rss_after_bytes": 5933842432,
+        "worker_process_lifetime_peak_rss_bytes": 7840325632,
+        "worker_cpu_seconds": 55.5
+      },
+      {
+        "text": "I am here. What would you like to do?",
+        "request_to_first_decoded_pcm_seconds": 0.2569643050082959,
+        "request_to_first_non_silent_frame_seconds": 4.753599822986871,
+        "request_to_complete_seconds": 13.682496969995555,
+        "audio_seconds": 3.3333333333333335,
+        "rtf_including_http": 4.104749090998666,
+        "sample_rate": 24000,
+        "samples": 80000,
+        "chunks": 25,
+        "pcm_sha256": "f233b93eee685b55a30db6d3f79f26824077435d1f055d421b60b914e337e27d",
+        "first_frame_metadata": {
+          "provider": "VibeVoice Realtime 0.5B",
+          "device": "cpu",
+          "synthesis_mode": "native_streaming",
+          "elapsed_seconds": 0.2556756579724606,
+          "load_seconds": 0.0,
+          "first_waveform_seconds": 0.24598371601314284
+        },
+        "chunk_arrivals": [
+          {
+            "elapsed_seconds": 0.2569643050082959,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 0.9862775859946851,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.7202069549821317,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.465361959999427,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.189496325008804,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.920453525002813,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.753599822986871,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.489649761002511,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.231507230986608,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.967766978981672,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.2817047809949145,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.596795446996111,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.996009497001069,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.314175464998698,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.640880102990195,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.958814841986168,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.27381916999002,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.591144573991187,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.910957643005531,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.22701433498878,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.534792763006408,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.868226652994053,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 11.197073657996953,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 11.519343742984347,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 11.86768069799291,
+            "samples": 3200
+          }
+        ],
+        "producer_health_at_first_frame": {
+          "service": "local-voice",
+          "device": "cpu",
+          "pid": 799529,
+          "loaded": [
+            "tts"
+          ],
+          "tts_profile": "VibeVoice Realtime 0.5B",
+          "tts_voice": "en-Carter_man",
+          "synthesis_mode": "native_streaming",
+          "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+          "assets_state": "verified",
+          "retained_candidates": [
+            "Ming 3 Tiny",
+            "VibeVoice Realtime 0.5B",
+            "Kokoro 82M",
+            "Supertonic 3"
+          ],
+          "other_profiles": "not_configured",
+          "synthesis_active": true,
+          "active_producers": 1,
+          "producer_stopped": false,
+          "synthesis_quarantined": false,
+          "completed_producers": 4,
+          "last_producer_seconds": 15.735930886003189,
+          "last_producer_cancelled": false
+        },
+        "decoded_before_producer_exit_observed": true,
+        "worker_rss_before_bytes": 5933842432,
+        "worker_rss_after_bytes": 5941526528,
+        "worker_process_lifetime_peak_rss_bytes": 7840325632,
+        "worker_cpu_seconds": 47.380000000000024
+      },
+      {
+        "text": "The synthetic report contains three items, and the next review is at ten thirty.",
+        "request_to_first_decoded_pcm_seconds": 0.26682914901175536,
+        "request_to_first_non_silent_frame_seconds": 5.526906426995993,
+        "request_to_complete_seconds": 15.427401944005396,
+        "audio_seconds": 4.8,
+        "rtf_including_http": 3.214042071667791,
+        "sample_rate": 24000,
+        "samples": 115200,
+        "chunks": 36,
+        "pcm_sha256": "d875d04b4f7f3b884efd435a8f0e1cd57edf041bfec15defaff3113cb0fa4494",
+        "first_frame_metadata": {
+          "provider": "VibeVoice Realtime 0.5B",
+          "device": "cpu",
+          "synthesis_mode": "native_streaming",
+          "elapsed_seconds": 0.26527232900843956,
+          "load_seconds": 0.0,
+          "first_waveform_seconds": 0.26027466100640595
+        },
+        "chunk_arrivals": [
+          {
+            "elapsed_seconds": 0.26682914901175536,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.0108335870027076,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.7551602740131784,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.506439485005103,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.2435522570158355,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.966874887002632,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.789234898024006,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.526906426995993,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.2557894450146705,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.967297282011714,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.285167916008504,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.60271738001029,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.02241201401921,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.340334289998282,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.677532557019731,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.003184970002621,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.326683585997671,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.652184328995645,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.069538937008474,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.441932037996594,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.748735532019055,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 11.055474904016592,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 11.425661123008467,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 11.774842027021805,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 12.08461906001321,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 12.372710138995899,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 12.660693055018783,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 12.956603894999716,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 13.24215048001497,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 13.547577054996509,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 13.842668211000273,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 14.135403741005575,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 14.431055041000945,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 14.725219453015598,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 15.019972565001808,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 15.3161101390142,
+            "samples": 3200
+          }
+        ],
+        "producer_health_at_first_frame": {
+          "service": "local-voice",
+          "device": "cpu",
+          "pid": 799529,
+          "loaded": [
+            "tts"
+          ],
+          "tts_profile": "VibeVoice Realtime 0.5B",
+          "tts_voice": "en-Carter_man",
+          "synthesis_mode": "native_streaming",
+          "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+          "assets_state": "verified",
+          "retained_candidates": [
+            "Ming 3 Tiny",
+            "VibeVoice Realtime 0.5B",
+            "Kokoro 82M",
+            "Supertonic 3"
+          ],
+          "other_profiles": "not_configured",
+          "synthesis_active": true,
+          "active_producers": 1,
+          "producer_stopped": false,
+          "synthesis_quarantined": false,
+          "completed_producers": 5,
+          "last_producer_seconds": 13.674700657022186,
+          "last_producer_cancelled": false
+        },
+        "decoded_before_producer_exit_observed": true,
+        "worker_rss_before_bytes": 5941526528,
+        "worker_rss_after_bytes": 5951246336,
+        "worker_process_lifetime_peak_rss_bytes": 7840325632,
+        "worker_cpu_seconds": 54.17999999999995
+      },
+      {
+        "text": "Kinaiya can keep our conversation available while the independent agent works.",
+        "request_to_first_decoded_pcm_seconds": 0.2370922789850738,
+        "request_to_first_non_silent_frame_seconds": 2.446782685990911,
+        "request_to_complete_seconds": 15.535451575997286,
+        "audio_seconds": 4.533333333333333,
+        "rtf_including_http": 3.4269378476464603,
+        "sample_rate": 24000,
+        "samples": 108800,
+        "chunks": 34,
+        "pcm_sha256": "f8034900b95e9e173fc8ecb01ad4c2d60e0e6f883757687e4bdf684dfa5942e2",
+        "first_frame_metadata": {
+          "provider": "VibeVoice Realtime 0.5B",
+          "device": "cpu",
+          "synthesis_mode": "native_streaming",
+          "elapsed_seconds": 0.2356171709834598,
+          "load_seconds": 0.0,
+          "first_waveform_seconds": 0.22548771699075587
+        },
+        "chunk_arrivals": [
+          {
+            "elapsed_seconds": 0.2370922789850738,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 0.9299629970046226,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.6518296510039363,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.446782685990911,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.1677803130005486,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.900063824985409,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.694642294984078,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.401974011998391,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.102656922012102,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.8120742379978765,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.09743786600302,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.392206472984981,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.756467328988947,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.059899373009102,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.356389975990169,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.642378418007866,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.936855045991251,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.230902104987763,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.524077576992568,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.849073719000444,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.19768395498977,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.543483127985382,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.873540397005854,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 11.223586322012125,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 11.679679574008333,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 12.034097913012374,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 12.390504351002164,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 12.816130411985796,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 13.153650313994149,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 13.482334369997261,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 13.797637048992328,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 14.12613949298975,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 14.448319968010765,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 14.773975515010534,
+            "samples": 3200
+          }
+        ],
+        "producer_health_at_first_frame": {
+          "service": "local-voice",
+          "device": "cpu",
+          "pid": 799529,
+          "loaded": [
+            "tts"
+          ],
+          "tts_profile": "VibeVoice Realtime 0.5B",
+          "tts_voice": "en-Carter_man",
+          "synthesis_mode": "native_streaming",
+          "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+          "assets_state": "verified",
+          "retained_candidates": [
+            "Ming 3 Tiny",
+            "VibeVoice Realtime 0.5B",
+            "Kokoro 82M",
+            "Supertonic 3"
+          ],
+          "other_profiles": "not_configured",
+          "synthesis_active": true,
+          "active_producers": 1,
+          "producer_stopped": false,
+          "synthesis_quarantined": false,
+          "completed_producers": 6,
+          "last_producer_seconds": 15.426176620007027,
+          "last_producer_cancelled": false
+        },
+        "decoded_before_producer_exit_observed": true,
+        "worker_rss_before_bytes": 5951246336,
+        "worker_rss_after_bytes": 5958684672,
+        "worker_process_lifetime_peak_rss_bytes": 7840325632,
+        "worker_cpu_seconds": 54.13000000000005
+      },
+      {
+        "text": "I am here. What would you like to do?",
+        "request_to_first_decoded_pcm_seconds": 0.25760086902300827,
+        "request_to_first_non_silent_frame_seconds": 0.25760086902300827,
+        "request_to_complete_seconds": 11.47525818302529,
+        "audio_seconds": 2.933333333333333,
+        "rtf_including_http": 3.912019835122258,
+        "sample_rate": 24000,
+        "samples": 70400,
+        "chunks": 22,
+        "pcm_sha256": "e97bfd98a38fda3c00f8f95f045d0940e6f9aa01a33e6df47c5f7952c312d964",
+        "first_frame_metadata": {
+          "provider": "VibeVoice Realtime 0.5B",
+          "device": "cpu",
+          "synthesis_mode": "native_streaming",
+          "elapsed_seconds": 0.2563070339965634,
+          "load_seconds": 0.0,
+          "first_waveform_seconds": 0.25361651298590004
+        },
+        "chunk_arrivals": [
+          {
+            "elapsed_seconds": 0.25760086902300827,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 0.9990381640091073,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.7420565160282422,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.5196661240188405,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.261135823006043,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.9835705020232126,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.7956547740031965,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.516664260008838,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.231065072002821,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.96139108701027,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.257663715019589,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.572338463010965,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.958857621008065,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.273568526026793,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.601128307025647,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.930597963015316,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.24622851802269,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.542303056019591,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.837326654000208,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.142010051000398,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.437649444007548,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.741596120002214,
+            "samples": 3200
+          }
+        ],
+        "producer_health_at_first_frame": {
+          "service": "local-voice",
+          "device": "cpu",
+          "pid": 799529,
+          "loaded": [
+            "tts"
+          ],
+          "tts_profile": "VibeVoice Realtime 0.5B",
+          "tts_voice": "en-Carter_man",
+          "synthesis_mode": "native_streaming",
+          "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+          "assets_state": "verified",
+          "retained_candidates": [
+            "Ming 3 Tiny",
+            "VibeVoice Realtime 0.5B",
+            "Kokoro 82M",
+            "Supertonic 3"
+          ],
+          "other_profiles": "not_configured",
+          "synthesis_active": true,
+          "active_producers": 1,
+          "producer_stopped": false,
+          "synthesis_quarantined": false,
+          "completed_producers": 7,
+          "last_producer_seconds": 15.52667704000487,
+          "last_producer_cancelled": false
+        },
+        "decoded_before_producer_exit_observed": true,
+        "worker_rss_before_bytes": 5958684672,
+        "worker_rss_after_bytes": 5966086144,
+        "worker_process_lifetime_peak_rss_bytes": 7840325632,
+        "worker_cpu_seconds": 38.94999999999999
+      },
+      {
+        "text": "The synthetic report contains three items, and the next review is at ten thirty.",
+        "request_to_first_decoded_pcm_seconds": 0.24533416202757508,
+        "request_to_first_non_silent_frame_seconds": 4.197138015006203,
+        "request_to_complete_seconds": 15.910979121021228,
+        "audio_seconds": 5.066666666666666,
+        "rtf_including_http": 3.1403248265173476,
+        "sample_rate": 24000,
+        "samples": 121600,
+        "chunks": 38,
+        "pcm_sha256": "84b55101ae8ab80914b5d294cfa2ce392a6ed2f8b4476abd362cc418defd076a",
+        "first_frame_metadata": {
+          "provider": "VibeVoice Realtime 0.5B",
+          "device": "cpu",
+          "synthesis_mode": "native_streaming",
+          "elapsed_seconds": 0.24405789899174124,
+          "load_seconds": 0.0,
+          "first_waveform_seconds": 0.24078225801349618
+        },
+        "chunk_arrivals": [
+          {
+            "elapsed_seconds": 0.24533416202757508,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 0.9548026100092102,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.6747550319996662,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.4167898280138616,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.0176257110142615,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.555082917009713,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.197138015006203,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.745854885026347,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.282346979016438,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.832609603006858,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.138341555022635,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.442277393012773,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.831358296010876,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.138057998003205,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.452243099018233,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.74605651202728,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.04860439102049,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.353114716010168,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.71907407901017,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.016076290019555,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.323019823001232,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.627060963015538,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.93377644600696,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.238619894022122,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.550966979004443,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.854185243020765,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 11.149821555009112,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 11.457147832028568,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 11.77087724301964,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 12.066335395007627,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 12.378619056020398,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 12.685145140014356,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 12.986293940019095,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 13.300597840017872,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 13.604990250023548,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 13.907619331002934,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 14.213403559027938,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 14.51737755400245,
+            "samples": 3200
+          }
+        ],
+        "producer_health_at_first_frame": {
+          "service": "local-voice",
+          "device": "cpu",
+          "pid": 799529,
+          "loaded": [
+            "tts"
+          ],
+          "tts_profile": "VibeVoice Realtime 0.5B",
+          "tts_voice": "en-Carter_man",
+          "synthesis_mode": "native_streaming",
+          "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+          "assets_state": "verified",
+          "retained_candidates": [
+            "Ming 3 Tiny",
+            "VibeVoice Realtime 0.5B",
+            "Kokoro 82M",
+            "Supertonic 3"
+          ],
+          "other_profiles": "not_configured",
+          "synthesis_active": true,
+          "active_producers": 1,
+          "producer_stopped": false,
+          "synthesis_quarantined": false,
+          "completed_producers": 8,
+          "last_producer_seconds": 11.470679227000801,
+          "last_producer_cancelled": false
+        },
+        "decoded_before_producer_exit_observed": true,
+        "worker_rss_before_bytes": 5966086144,
+        "worker_rss_after_bytes": 5975883776,
+        "worker_process_lifetime_peak_rss_bytes": 7840325632,
+        "worker_cpu_seconds": 57.43000000000001
+      },
+      {
+        "text": "Kinaiya can keep our conversation available while the independent agent works.",
+        "request_to_first_decoded_pcm_seconds": 0.25635432501439936,
+        "request_to_first_non_silent_frame_seconds": 1.9290024520014413,
+        "request_to_complete_seconds": 13.591839752014494,
+        "audio_seconds": 4.4,
+        "rtf_including_http": 3.089054489094203,
+        "sample_rate": 24000,
+        "samples": 105600,
+        "chunks": 33,
+        "pcm_sha256": "0004f2bdd64b6afb9b5c44da14a8e12aa2a997e17a1dcc1522a8b3a9e184b154",
+        "first_frame_metadata": {
+          "provider": "VibeVoice Realtime 0.5B",
+          "device": "cpu",
+          "synthesis_mode": "native_streaming",
+          "elapsed_seconds": 0.2548787879932206,
+          "load_seconds": 0.0,
+          "first_waveform_seconds": 0.24556912897969596
+        },
+        "chunk_arrivals": [
+          {
+            "elapsed_seconds": 0.25635432501439936,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 0.8147331149957608,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.378851476998534,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.9290024520014413,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.510625399998389,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.0780765539966524,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.7217341939976905,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.2841618490056135,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.829678166017402,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.377044777007541,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.681845600018278,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.987112246017205,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.372919604997151,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.677593669010093,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.981767699006014,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.287618508009473,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.591317098005675,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.898689140012721,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.20524510499672,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.520294182992075,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.826740493008401,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.130895778012928,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.425656184001127,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.731379506993107,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.036533653998049,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.339953688002424,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.67889211201691,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.999970208999002,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 11.313474529015366,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 11.629651846014895,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 11.945318570011295,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 12.261310367000988,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 12.568699480005307,
+            "samples": 3200
+          }
+        ],
+        "producer_health_at_first_frame": {
+          "service": "local-voice",
+          "device": "cpu",
+          "pid": 799529,
+          "loaded": [
+            "tts"
+          ],
+          "tts_profile": "VibeVoice Realtime 0.5B",
+          "tts_voice": "en-Carter_man",
+          "synthesis_mode": "native_streaming",
+          "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+          "assets_state": "verified",
+          "retained_candidates": [
+            "Ming 3 Tiny",
+            "VibeVoice Realtime 0.5B",
+            "Kokoro 82M",
+            "Supertonic 3"
+          ],
+          "other_profiles": "not_configured",
+          "synthesis_active": true,
+          "active_producers": 1,
+          "producer_stopped": false,
+          "synthesis_quarantined": false,
+          "completed_producers": 9,
+          "last_producer_seconds": 15.908373393991496,
+          "last_producer_cancelled": false
+        },
+        "decoded_before_producer_exit_observed": true,
+        "worker_rss_before_bytes": 5975883776,
+        "worker_rss_after_bytes": 5975916544,
+        "worker_process_lifetime_peak_rss_bytes": 7840325632,
+        "worker_cpu_seconds": 49.389999999999986
+      }
+    ],
+    "warm_summary": {
+      "samples": 9,
+      "statistics": {
+        "request_to_first_decoded_pcm_seconds": {
+          "minimum": 0.2370922789850738,
+          "median": 0.25760086902300827,
+          "maximum": 0.6735162819968536
+        },
+        "request_to_complete_seconds": {
+          "minimum": 11.47525818302529,
+          "median": 15.427401944005396,
+          "maximum": 20.741540824004915
+        },
+        "rtf_including_http": {
+          "minimum": 3.089054489094203,
+          "median": 3.4569234706674856,
+          "maximum": 4.104749090998666
+        }
+      },
+      "percentile_claim": null
+    },
+    "physical_audible_latency_seconds": null,
+    "client_playback_measured": false,
+    "native_inference_cancellation_measured": true,
+    "cancellation": {
+      "boundary": "HTTP response close to observed producer-thread exit; polled at 50ms",
+      "close_to_observed_producer_exit_seconds": 0.563887808995787,
+      "health_before": {
+        "service": "local-voice",
+        "device": "cpu",
+        "pid": 799529,
+        "loaded": [
+          "tts"
+        ],
+        "tts_profile": "VibeVoice Realtime 0.5B",
+        "tts_voice": "en-Carter_man",
+        "synthesis_mode": "native_streaming",
+        "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+        "assets_state": "verified",
+        "retained_candidates": [
+          "Ming 3 Tiny",
+          "VibeVoice Realtime 0.5B",
+          "Kokoro 82M",
+          "Supertonic 3"
+        ],
+        "other_profiles": "not_configured",
+        "synthesis_active": false,
+        "active_producers": 0,
+        "producer_stopped": true,
+        "synthesis_quarantined": false,
+        "completed_producers": 10,
+        "last_producer_seconds": 13.58486717697815,
+        "last_producer_cancelled": false
+      },
+      "health_after_first_frame": {
+        "service": "local-voice",
+        "device": "cpu",
+        "pid": 799529,
+        "loaded": [
+          "tts"
+        ],
+        "tts_profile": "VibeVoice Realtime 0.5B",
+        "tts_voice": "en-Carter_man",
+        "synthesis_mode": "native_streaming",
+        "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+        "assets_state": "verified",
+        "retained_candidates": [
+          "Ming 3 Tiny",
+          "VibeVoice Realtime 0.5B",
+          "Kokoro 82M",
+          "Supertonic 3"
+        ],
+        "other_profiles": "not_configured",
+        "synthesis_active": true,
+        "active_producers": 1,
+        "producer_stopped": false,
+        "synthesis_quarantined": false,
+        "completed_producers": 10,
+        "last_producer_seconds": 13.58486717697815,
+        "last_producer_cancelled": false
+      },
+      "health_after_exit": {
+        "service": "local-voice",
+        "device": "cpu",
+        "pid": 799529,
+        "loaded": [
+          "tts"
+        ],
+        "tts_profile": "VibeVoice Realtime 0.5B",
+        "tts_voice": "en-Carter_man",
+        "synthesis_mode": "native_streaming",
+        "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+        "assets_state": "verified",
+        "retained_candidates": [
+          "Ming 3 Tiny",
+          "VibeVoice Realtime 0.5B",
+          "Kokoro 82M",
+          "Supertonic 3"
+        ],
+        "other_profiles": "not_configured",
+        "synthesis_active": false,
+        "active_producers": 0,
+        "producer_stopped": true,
+        "synthesis_quarantined": false,
+        "completed_producers": 11,
+        "last_producer_seconds": 0.7773679319943767,
+        "last_producer_cancelled": true
+      },
+      "subsequent_synthesis": {
+        "text": "I am here. What would you like to do?",
+        "request_to_first_decoded_pcm_seconds": 0.24644834999344312,
+        "request_to_first_non_silent_frame_seconds": 2.4217143400164787,
+        "request_to_complete_seconds": 9.88568650902016,
+        "audio_seconds": 3.2,
+        "rtf_including_http": 3.0892770340688003,
+        "sample_rate": 24000,
+        "samples": 76800,
+        "chunks": 24,
+        "pcm_sha256": "8bd9b545600884dad7b1af216d4d94f77b43fc0dab6a3b0e8ba535624ad398ac",
+        "first_frame_metadata": {
+          "provider": "VibeVoice Realtime 0.5B",
+          "device": "cpu",
+          "synthesis_mode": "native_streaming",
+          "elapsed_seconds": 0.245270799001446,
+          "load_seconds": 0.0,
+          "first_waveform_seconds": 0.23688943800516427
+        },
+        "chunk_arrivals": [
+          {
+            "elapsed_seconds": 0.24644834999344312,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 0.7923521870106924,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.3295525569992606,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.870519432995934,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.4217143400164787,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.9784315650176723,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.618110883020563,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.164592104003532,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.714839933993062,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.2620900770125445,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.589222509996034,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.892862374021206,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.268783342005918,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.582132442999864,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.8898526830016635,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.1937667049933225,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.499675558996387,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.802974644000642,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.109159400017234,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.41326276800828,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.795727848017123,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.1540879610111,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.469934688997455,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.762847086996771,
+            "samples": 3200
+          }
+        ],
+        "producer_health_at_first_frame": {
+          "service": "local-voice",
+          "device": "cpu",
+          "pid": 799529,
+          "loaded": [
+            "tts"
+          ],
+          "tts_profile": "VibeVoice Realtime 0.5B",
+          "tts_voice": "en-Carter_man",
+          "synthesis_mode": "native_streaming",
+          "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+          "assets_state": "verified",
+          "retained_candidates": [
+            "Ming 3 Tiny",
+            "VibeVoice Realtime 0.5B",
+            "Kokoro 82M",
+            "Supertonic 3"
+          ],
+          "other_profiles": "not_configured",
+          "synthesis_active": true,
+          "active_producers": 1,
+          "producer_stopped": false,
+          "synthesis_quarantined": false,
+          "completed_producers": 11,
+          "last_producer_seconds": 0.7773679319943767,
+          "last_producer_cancelled": true
+        },
+        "decoded_before_producer_exit_observed": true,
+        "worker_rss_before_bytes": 5975916544,
+        "worker_rss_after_bytes": 5975916544,
+        "worker_process_lifetime_peak_rss_bytes": 7840325632,
+        "worker_cpu_seconds": 35.0
+      },
+      "physical_audio_stop_measured": false
+    },
+    "limitations": [
+      "Synthetic HTTP/PCM screen only; no physical microphone/speaker or hearing measurement.",
+      "Transport frame count alone is not native streaming; first-frame health records whether production was still active.",
+      "No loaded Decisions/Converse contention comparison or M2 performance acceptance.",
+      "A single cold process observation and disclosed warm repetitions; no p95 claim."
+    ]
+  },
+  "screen_summary": {
+    "warm_observations": 9,
+    "first_non_silent_frame_seconds": {
+      "minimum": 0.25760086902300827,
+      "median": 3.334803515987005,
+      "maximum": 5.526906426995993
+    },
+    "observed_first_pcm_before_producer_exit": 9,
+    "cpu_realtime_acceptance": false,
+    "physical_audibility_acceptance": false,
+    "p95_claim": null,
+    "peak_process_rss_bytes": 7840325632
+  },
+  "actual_owned_resource_proof": {
+    "schema": 1,
+    "profile": "VibeVoice Realtime 0.5B",
+    "scope": "Actual owned CPU voice worker and HTTP PCM; scripted text plus authenticated ASGI controls",
+    "started_utc": "2026-10-28T06:04:21.471459+00:00",
+    "passed": true,
+    "limits": [
+      "No physical playback or microphone",
+      "No real cloud inference or Agent task execution",
+      "No GPU release/reservation proof",
+      "No latency benchmark or percentile claim",
+      "Only disposable reserved ports; existing live ports are never contacted"
+    ],
+    "reserved_ports_initially_unoccupied": [
+      18960,
+      18961,
+      18962,
+      18966
+    ],
+    "source": {
+      "commit": "69d53228b454ba4af08e207775a5e2cfe30a77ab",
+      "files_sha256": {
+        "packages/providers/voice_worker.py": "f4a11b4ee6cb86f12775305c928d5f36220ed03566572c10f4d1e08f11b8d5c8",
+        "packages/providers/tts_backends.py": "96e19c069c8b294d20820f0804e4085830f2e3436456fb1de6f8077c2bb99e1f",
+        "packages/providers/supertonic3_manifest.json": "22ffec6f2416bdf6cb137c252adc2c8ae741efb4486a07c168c40060582c4c27",
+        "scripts/probe_retained_resources.py": "1d516beff97904289a7902056522ec5b1af4fded022cf5ebe546dccefe4deca4",
+        "packages/providers/vibevoice_backend.py": "cf3bd0fab2248d5c37d3e5ae623ae97d45b7d6da0bfc18ab6a4e5d4413ca8fc4",
+        "packages/providers/vibevoice_manifest.json": "41534df44e03cb1e24bab901c3a0a038f67b1671f5a307bf64325b6533c144ea",
+        "services/resources/launcher.py": "567fec78d207e2e440d646711eb276edaf487ff4697e104260b0ebd8ff298475",
+        "services/converse/api.py": "57716d45cefbcc55993c60b1ccdae2d40e1369e083aab51010de54fdbda0751a",
+        "services/converse/runtime.py": "1dde69c6afc2bfa529fd8c1b091a65efb1aae0d2274effc1aecb22edb2677146",
+        "packages/providers/speech.py": "49b8fd18fbe1667de91402826942f2a10c75421b0f3c70a512e0584a3a1accb4",
+        "services/resources/coordinator.py": "6aad3c3ff77aca3801c9f724b52ba9dedd94683fb5c91bc76e5f5799bf4b63f1",
+        "packages/resources/processes.py": "f5c789f7929d7e8531c2464f633dd17a122fc674c2abec75ef448579a744c66b"
+      },
+      "commit_after_probe": "69d53228b454ba4af08e207775a5e2cfe30a77ab"
+    },
+    "before_handoff": {
+      "identity": {
+        "pid": 801648,
+        "start_ticks": 14570017
+      },
+      "api_ready_health": {
+        "service": "local-voice",
+        "pid": 801648,
+        "device": "cpu",
+        "loaded": [],
+        "tts_profile": "VibeVoice Realtime 0.5B",
+        "tts_voice": "en-Carter_man",
+        "synthesis_mode": "native_streaming",
+        "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+        "assets_state": "not_checked"
+      },
+      "loaded_health": {
+        "service": "local-voice",
+        "pid": 801648,
+        "device": "cpu",
+        "loaded": [
+          "tts"
+        ],
+        "tts_profile": "VibeVoice Realtime 0.5B",
+        "tts_voice": "en-Carter_man",
+        "synthesis_mode": "native_streaming",
+        "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+        "assets_state": "verified"
+      },
+      "worker": {
+        "state": "running",
+        "ready": true,
+        "readiness": "verified",
+        "owned_pid": 801648,
+        "owned_pgid": 801648,
+        "rss_bytes": 5904191488,
+        "group_rss_bytes": 5904191488,
+        "stop_evidence": null
+      },
+      "audio": {
+        "frames": 26,
+        "samples": 83200,
+        "sample_rate": 24000,
+        "audio_seconds": 3.466666666666667,
+        "nonzero_samples": 64958,
+        "pcm_sha256": "d3295ea7f30879d2ccc856f6fffe9e7c5e8f05332f431498f973963f3011c033",
+        "synthesis_mode": "native_streaming",
+        "timing_measurement": false
+      },
+      "memory_available_bytes": 31417565184
+    },
+    "handoff": {
+      "phase": "local_work",
+      "worker": {
+        "state": "stopped",
+        "ready": false,
+        "readiness": "verified",
+        "owned_pid": 801648,
+        "owned_pgid": null,
+        "rss_bytes": null,
+        "group_rss_bytes": null,
+        "stop_evidence": {
+          "pid": 801648,
+          "pgid": 801648,
+          "rss_before_bytes": 5904191488,
+          "group_rss_before_bytes": 5904191488,
+          "mem_available_bytes": 31417729024,
+          "term_sent": true,
+          "kill_sent": false,
+          "reaped": true,
+          "group_empty": true,
+          "residual_pids": [],
+          "ownership_verified": true,
+          "duration_s": 0.6900633809855208,
+          "at": "2026-10-28T06:04:40.529542+00:00"
+        }
+      },
+      "required_bytes": 134217728,
+      "restore_high_water_bytes": 6038409216,
+      "memory_available_bytes": 36943884288,
+      "retained_pidfd_exited": true,
+      "old_identity_absent": true,
+      "old_speech_http": 409,
+      "bound_task_status": "scripted_running"
+    },
+    "restored": {
+      "identity": {
+        "pid": 801952,
+        "start_ticks": 14571893
+      },
+      "api_ready_health": {
+        "service": "local-voice",
+        "pid": 801952,
+        "device": "cpu",
+        "loaded": [],
+        "tts_profile": "VibeVoice Realtime 0.5B",
+        "tts_voice": "en-Carter_man",
+        "synthesis_mode": "native_streaming",
+        "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+        "assets_state": "not_checked"
+      },
+      "loaded_health": {
+        "service": "local-voice",
+        "pid": 801952,
+        "device": "cpu",
+        "loaded": [
+          "tts"
+        ],
+        "tts_profile": "VibeVoice Realtime 0.5B",
+        "tts_voice": "en-Carter_man",
+        "synthesis_mode": "native_streaming",
+        "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+        "assets_state": "verified"
+      },
+      "worker": {
+        "state": "running",
+        "ready": true,
+        "readiness": "verified",
+        "owned_pid": 801952,
+        "owned_pgid": 801952,
+        "rss_bytes": 5905702912,
+        "group_rss_bytes": 5905702912,
+        "stop_evidence": {
+          "pid": 801648,
+          "pgid": 801648,
+          "rss_before_bytes": 5904191488,
+          "group_rss_before_bytes": 5904191488,
+          "mem_available_bytes": 31417729024,
+          "term_sent": true,
+          "kill_sent": false,
+          "reaped": true,
+          "group_empty": true,
+          "residual_pids": [],
+          "ownership_verified": true,
+          "duration_s": 0.6900633809855208,
+          "at": "2026-10-28T06:04:40.529542+00:00"
+        }
+      },
+      "audio": {
+        "frames": 25,
+        "samples": 80000,
+        "sample_rate": 24000,
+        "audio_seconds": 3.3333333333333335,
+        "nonzero_samples": 62184,
+        "pcm_sha256": "bd273a81c9cac2c9eeb4c82bef5583f923ecce5a01069f6208c69d4adc257da3",
+        "synthesis_mode": "native_streaming",
+        "timing_measurement": false
+      },
+      "old_speech_http": 409
+    },
+    "owner_off_restore": {
+      "owner_enabled": false,
+      "phase": "off",
+      "worker": {
+        "state": "stopped",
+        "ready": false,
+        "readiness": "verified",
+        "owned_pid": 801952,
+        "owned_pgid": null,
+        "rss_bytes": null,
+        "group_rss_bytes": null,
+        "stop_evidence": {
+          "pid": 801952,
+          "pgid": 801952,
+          "rss_before_bytes": 5905702912,
+          "group_rss_before_bytes": 5905702912,
+          "mem_available_bytes": 31066644480,
+          "term_sent": true,
+          "kill_sent": false,
+          "reaped": true,
+          "group_empty": true,
+          "residual_pids": [],
+          "ownership_verified": true,
+          "duration_s": 0.6868571850063745,
+          "at": "2026-10-28T06:04:59.808589+00:00"
+        }
+      },
+      "retained_pidfd_exited": true
+    },
+    "synthetic_text_calls": 1,
+    "resource_journal_events": 10,
+    "cleanup": {
+      "manager_closed": true,
+      "all_owned_workers_stopped": true,
+      "reserved_voice_port_released": true,
+      "private_temporary_data_removed": true
+    },
+    "finished_utc": "2026-10-28T06:04:59.879572+00:00"
+  },
+  "actual_synthetic_tts_to_stt": {
+    "kind": "synthetic_http_stt_roundtrip",
+    "passed": true,
+    "physical_microphone": false,
+    "human_listening": false,
+    "wav_sha256": "87c9ae61f84fde2357daae1aa13013d4a17b6ce09d61cd462c55784bb2e0416a",
+    "source_commit": "69d53228b454ba4af08e207775a5e2cfe30a77ab",
+    "health_before": {
+      "service": "local-voice",
+      "device": "cpu",
+      "pid": 804870,
+      "loaded": [],
+      "tts_profile": "VibeVoice Realtime 0.5B",
+      "tts_voice": "en-Carter_man",
+      "synthesis_mode": "native_streaming",
+      "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+      "assets_state": "not_checked",
+      "retained_candidates": [
+        "Ming 3 Tiny",
+        "VibeVoice Realtime 0.5B",
+        "Kokoro 82M",
+        "Supertonic 3"
+      ],
+      "other_profiles": "not_configured",
+      "synthesis_active": false,
+      "active_producers": 0,
+      "producer_stopped": true,
+      "synthesis_quarantined": false,
+      "completed_producers": 0,
+      "last_producer_seconds": null,
+      "last_producer_cancelled": null
+    },
+    "transcription": {
+      "text": "I am here. What would you like to do?",
+      "language": "en",
+      "final": true,
+      "provider": "faster-whisper",
+      "model": "tiny.en",
+      "stt_seconds": 0.8659439590119291,
+      "retained_audio": false
+    },
+    "request_seconds": 0.8686597729974892,
+    "health_after": {
+      "service": "local-voice",
+      "device": "cpu",
+      "pid": 804870,
+      "loaded": [
+        "stt"
+      ],
+      "tts_profile": "VibeVoice Realtime 0.5B",
+      "tts_voice": "en-Carter_man",
+      "synthesis_mode": "native_streaming",
+      "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+      "assets_state": "not_checked",
+      "retained_candidates": [
+        "Ming 3 Tiny",
+        "VibeVoice Realtime 0.5B",
+        "Kokoro 82M",
+        "Supertonic 3"
+      ],
+      "other_profiles": "not_configured",
+      "synthesis_active": false,
+      "active_producers": 0,
+      "producer_stopped": true,
+      "synthesis_quarantined": false,
+      "completed_producers": 0,
+      "last_producer_seconds": null,
+      "last_producer_cancelled": null
+    },
+    "owned_process_reaped": true,
+    "private_temp_removed": true
+  },
+  "regression": {
+    "command": "env -u PYTHONPATH .../supertonic-ci-venv/bin/pytest -m 'not live' -q",
+    "passed": 1153,
+    "warnings": 1,
+    "seconds": 190.15,
+    "ci": null
+  },
+  "review": {
+    "codex": {
+      "tree": "afeb9d70531dc39fd78c75289bb3b092975a2a28",
+      "findings": [],
+      "focused_tests": 274,
+      "seconds": 21.35
+    },
+    "muse": {
+      "model": "muse-spark-1.3-contributor",
+      "contributor_mode": "on",
+      "reasoning_effort": "xhigh",
+      "cli_exit": 0,
+      "snapshot": {
+        "source_commit": "69d53228b454ba4af08e207775a5e2cfe30a77ab",
+        "tree": "afeb9d70531dc39fd78c75289bb3b092975a2a28",
+        "files_sha256": {
+          "packages/providers/tts_backends.py": "96e19c069c8b294d20820f0804e4085830f2e3436456fb1de6f8077c2bb99e1f",
+          "packages/providers/vibevoice_backend.py": "cf3bd0fab2248d5c37d3e5ae623ae97d45b7d6da0bfc18ab6a4e5d4413ca8fc4",
+          "packages/providers/voice_worker.py": "f4a11b4ee6cb86f12775305c928d5f36220ed03566572c10f4d1e08f11b8d5c8",
+          "packages/providers/speech.py": "49b8fd18fbe1667de91402826942f2a10c75421b0f3c70a512e0584a3a1accb4",
+          "services/converse/api.py": "57716d45cefbcc55993c60b1ccdae2d40e1369e083aab51010de54fdbda0751a",
+          "services/converse/runtime.py": "1dde69c6afc2bfa529fd8c1b091a65efb1aae0d2274effc1aecb22edb2677146",
+          "services/resources/launcher.py": "567fec78d207e2e440d646711eb276edaf487ff4697e104260b0ebd8ff298475",
+          "scripts/probe_retained_voice.py": "ad0a4ad47ec68f33c5619ff01702c6086a058288380ebc1fbb179245407dd83d",
+          "scripts/probe_retained_resources.py": "1d516beff97904289a7902056522ec5b1af4fded022cf5ebe546dccefe4deca4",
+          "tests/integration/test_voice_producer.py": "608cdecda0373fb5c4045ea53405bf35886fe69a90baf4cd0a1465fb24c58e92",
+          "tests/integration/test_converse_speech_cancel.py": "8df4590d06965f7f5d51262196c6cab23488a856fa618e05273a6ab7202da671",
+          "tests/unit/test_vibevoice_backend.py": "4e0db65308cd8c8119b8c1e15544a726ff7fa50706ae926d689bc3e25706f5f5",
+          "packages/providers/vibevoice_manifest.json": "41534df44e03cb1e24bab901c3a0a038f67b1671f5a307bf64325b6533c144ea",
+          "requirements-vibevoice.in": "23ce9b3104ebb54f08672fb5d0687a684ebfb98f8b03aabc511b9f88a8a6e3cc"
+        },
+        "prompt_bytes": 248993,
+        "prompt_sha256": "fe656a4134cf7f9e004bc3db7c2b474148fb7f16c5a33917b3a6c2ad6e807047"
+      },
+      "text": "No actionable production bugs found in this static snapshot.\n\nReviewed the provided sources only. No execution. Synthetic fixtures were read, not run. Known draft-doc gaps for audibility, p95, and README/ADR were excluded.\n\nChecked native streaming ownership, bounded queue and deadlines, cancel with no stale audio, quarantine, Converse upstream cancel with retained cleanup, loopback auth, pinned offline CPU checks, and no-adopt lifecycle in [voice worker](/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/packages/providers/voice_worker.py), [TTS backends](/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/packages/providers/tts_backends.py), [VibeVoice backend](/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/packages/providers/vibevoice_backend.py), [Converse runtime](/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/services/converse/runtime.py), and related probes and tests.\n\nfindings: []\n",
+      "tools_or_tests_run": false,
+      "human_approval": false
+    }
+  },
+  "limits": [
+    "Synthetic research screen, no physical microphone/speaker, human listening, acoustic onset or actual underflow measurement.",
+    "Initial focused/regression-review test work overlapped portions of screening; host load was uncontrolled. No controlled provider ranking.",
+    "First decoded PCM often contains silence; first non-silent frame uses a 1-percent PCM amplitude threshold and is not physical audibility.",
+    "The CPU profile synthesizes slower than realtime; native waveform callbacks do not establish uninterrupted audible streaming.",
+    "Source runtime retains generated chunks internally despite return_speech=False.",
+    "Native cancellation is cooperative; the HTTP-close-to-observed-thread-exit boundary is not acoustic stop or kernel preemption.",
+    "Known original-runtime dependency advisories and skipped package scans remain explicitly unresolved under#70.",
+    "The running reference application and default providers were not changed."
+  ],
+  "dependency_compatibility_investigation": {
+    "original_environment_preserved": true,
+    "production_pins_changed": false,
+    "runtime_source_hashes_changed": false,
+    "latest_candidate": {
+      "transformers": "5.21.0",
+      "pillow": "13.0.0",
+      "setuptools": "84.2.1",
+      "wheel": "0.48.0",
+      "load": "failed",
+      "failures": [
+        "AutoModel registration collision",
+        "Qwen2TokenizerFast module removed"
+      ],
+      "inference_run": false
+    },
+    "supported_4x_candidate": {
+      "transformers": "4.57.6",
+      "load": "passed",
+      "synthetic_callback": "passed",
+      "cooperative_cancel_after_one_chunk": "passed",
+      "remaining_transformers_advisory_records": 11,
+      "metadata_consistent": false
+    },
+    "torch_base_version_proxy": {
+      "queried_version": "2.9.1",
+      "advisory_records": 4,
+      "exact_cpu_binary_audited": false
+    },
+    "evidence_files": [
+      "runtime-audit.json",
+      "patched-runtime.lock",
+      "patched-compatibility.log",
+      "patched-registration-compatibility.log",
+      "patched-4x-runtime.lock",
+      "patched-4x-native-compatibility.log",
+      "patched-4x-pip-check.log"
+    ]
+  },
+  "orchestration_current": "New delegation: visible Muse CLI only, Muse Spark1.3Contributor; existing Codex tasks finished under prior authorization.",
+  "meta_budget": {
+    "catalogue_estimate_usd": 0.9946971160000002,
+    "conservative_spent_usd": 20.207360600000012,
+    "retained_uncertainty_reservations_usd": 1.5558100499999998,
+    "conservative_total_usd": 21.763170650000013,
+    "invoice_reported_usd": null,
+    "hard_limit_usd": 25
+  }
+}

@@ -284,8 +284,15 @@ are disabled by default; a clean-machine model installer is still a roadmap task
 An opt-in [Supertonic 3 CPU backend](docs/adr/0027-retained-supertonic.md) also
 synthesizes through the same speech bridge using pinned, verified local assets.
 Its output is buffered before transport; the small synthetic screen does not meet
-the roadmap's warm-onset target or establish physical audible latency. Ming 3 Tiny
-and VibeVoice Realtime 0.5B remain retained candidates with unconfigured backends.
+the roadmap's warm-onset target or establish physical audible latency. The experimental
+[VibeVoice Realtime 0.5B CPU adapter](docs/adr/0028-retained-vibevoice.md) emits native
+waveform chunks with request-owned cancellation. Its nine-reply screen observed
+median first PCM at 258 ms, first non-silent frame at 3.33 seconds, and RTF 3.46;
+it does not sustain realtime speech. Its original evaluation dependencies have
+[unresolved advisories](https://github.com/rgoza1996/Kinaiya/issues/70), and a
+supported patched runtime remains under investigation. This is a research profile,
+with no default promotion or physical audibility claim. Ming 3 Tiny remains a
+retained candidate with an unconfigured backend; full M2 acceptance remains open.
 
 An opt-in [CPU voice resource coordinator](docs/adr/0013-resource-handoff.md)
 can own that worker, verify process release for an explicit local-work handoff,
