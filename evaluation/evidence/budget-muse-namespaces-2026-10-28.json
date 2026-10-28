@@ -1,0 +1,48 @@
+{
+  "issue": 86,
+  "scope": "Compatibility correction for Muse local function namespace declarations; budget accounting unchanged",
+  "baseline": "0bb61f137117e27aed58ed85cb2b8210c4c39767",
+  "discovered_regression": "The first merged cache-aware guard rejected a genuine installed Muse CLI request because local functions were grouped inside a namespace. Discovered before live adoption; issue86 reopened.",
+  "genuine_cli_probe": {
+    "mode": "Fresh isolated loopback-only network namespace, empty HOME/XDG, dummy key, synthetic HTTP400; no provider call or real gateway/ledger access",
+    "outcome": "Both probes exited1 after explicit synthetic400; exact children/helpers reaped, groups empty",
+    "observed_shape": {
+      "top_namespaces": 1,
+      "function_leaves": 19,
+      "max_child_depth": 1,
+      "total_nodes": 20
+    },
+    "limits": "One installed native-basic preset sample; no inference or live Meta acceptance claim",
+    "report_sha256": "e501a6a5cac0dba11a78c9f14c32adcc27e86d60be605401825d5d4851272934",
+    "receipt_sha256": "5eb7cb3484874ec332611256f28a147e7968aee2387880c7c98e58efd2bfc7ae"
+  },
+  "behavior": {
+    "allowed": "Function declarations and bounded namespace containers containing only the same local declaration types",
+    "refused": "Hosted, custom, unknown, malformed or over-limit structural tool declarations",
+    "max_tool_nodes": 2048,
+    "max_tool_depth": 8,
+    "schemas": "Function parameter schemas remain data and are not traversed as tool declarations",
+    "deeper_namespaces": "Bounded defensive support tested synthetically; not observed in the installed CLI sample"
+  },
+  "checks": [
+    {
+      "command": "python -m pytest -q -p no:cacheprovider tests/unit/test_muse_budget.py",
+      "environment": "Python3.12",
+      "passed": 62,
+      "seconds": 16.73
+    },
+    {
+      "command": "python -m pytest -q -p no:cacheprovider tests/unit/test_muse_budget.py",
+      "environment": "Python3.11",
+      "passed": 62,
+      "seconds": 16.41
+    }
+  ],
+  "source_sha256": {
+    "scripts/muse_budget_proxy.py": "cf2fede95974f3d5885c23874da1c31e0c70e89fad8cf72988b6f3bc5253e590",
+    "tests/unit/test_muse_budget.py": "f93723b015e44183f5a10b79812e7ee069d11f97afec028c2e2c5113d45c07c8"
+  },
+  "independent_review": "Required against committed source before merge",
+  "CI": "Required before merge",
+  "live_adoption": "Not performed at this source checkpoint"
+}

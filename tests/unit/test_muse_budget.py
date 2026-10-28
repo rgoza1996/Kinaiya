@@ -377,3 +377,53 @@ def test_simultaneous_requests_reserve_before_dispatch(gateway):
         finally:
             result.release.set()
         assert first.result(timeout=3).status_code == 200
+
+
+def test_genuine_muse_namespace_shape_accepts_its_local_functions(gateway):
+    module, calls, _, client = gateway
+    # Structural shape observed from the installed CLI against an isolated
+    # synthetic400 endpoint. Names/descriptions/schemas here are fixtures.
+    functions = [
+        {"type": "function", "name": f"fixture_{i}", "parameters": {"type": "object"}}
+        for i in range(19)
+    ]
+    tools = [{"type": "namespace", "name": "local", "tools": functions}]
+    response = client.post("/v1/responses", json={"model": module.MODEL, "tools": tools})
+    assert response.status_code == 200 and len(calls) == 1
+    assert json.loads(calls[0].data)["tools"] == tools
+    assert module.STATE["calls"][0]["state"] == "usage_reported"
+
+
+@pytest.mark.parametrize("kind", ["web_search", "mcp", "custom", "unknown", None])
+@pytest.mark.parametrize("depth", [1, 3])
+def test_hosted_or_unknown_nested_tools_never_reach_upstream(gateway, kind, depth):
+    module, calls, _, client = gateway
+    tools = [{"type": kind}]
+    for _ in range(depth):
+        tools = [{"type": "namespace", "name": "local", "tools": tools}]
+    response = client.post("/v1/responses", json={"model": module.MODEL, "tools": tools})
+    assert response.status_code == 403
+    assert calls == [] and module.STATE["calls"] == []
+
+
+@pytest.mark.parametrize("children", [None, {}, "function", [None]])
+def test_malformed_namespace_is_not_a_local_function_group(gateway, children):
+    module, calls, _, client = gateway
+    response = client.post(
+        "/v1/responses",
+        json={"model": module.MODEL, "tools": [{"type": "namespace", "tools": children}]},
+    )
+    assert response.status_code == 403 and calls == []
+
+
+def test_nested_function_groups_are_bounded_without_reading_parameter_schemas(budget):
+    module, _, _ = budget
+    # An enum/schema value named web_search is data, not a hosted tool.
+    leaf = [{"type": "function", "parameters": {"enum": [{"type": "web_search"}]}}]
+    tools = leaf
+    for _ in range(module.MAX_TOOL_DEPTH):
+        tools = [{"type": "namespace", "tools": tools}]
+    assert module.local_function_tools(tools)
+    assert not module.local_function_tools([{"type": "namespace", "tools": tools}])
+    assert module.local_function_tools(leaf * module.MAX_TOOL_NODES)
+    assert not module.local_function_tools(leaf * (module.MAX_TOOL_NODES + 1))

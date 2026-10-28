@@ -27,6 +27,35 @@ OUTPUT_CAP = 65536
 LOCK = threading.Lock()
 STATE = {}
 LEDGER = Path(".dev-run/meta-budget.json")
+MAX_TOOL_NODES = 2048
+MAX_TOOL_DEPTH = 8
+
+
+def local_function_tools(tools):
+    """Accept bounded local function groups, never hosted billable tools.
+
+    Muse groups its ordinary functions in namespace.tools. Only structural
+    tool declarations are examined; function parameter schemas are data.
+    """
+    if not isinstance(tools, list):
+        return False
+    pending = [(tools, 0)]
+    seen = 0
+    while pending:
+        group, depth = pending.pop()
+        if depth > MAX_TOOL_DEPTH:
+            return False
+        for tool in group:
+            seen += 1
+            if seen > MAX_TOOL_NODES or not isinstance(tool, dict):
+                return False
+            kind = tool.get("type")
+            if kind == "function":
+                continue
+            if kind != "namespace" or not isinstance(tool.get("tools"), list):
+                return False
+            pending.append((tool["tools"], depth + 1))
+    return True
 
 
 def measured_usage(usage):
@@ -205,9 +234,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.local_json(403, {"error": "This run authorizes Contributor only"})
                 return
             tools = data.get("tools", [])
-            if not isinstance(tools, list) or any(
-                not isinstance(tool, dict) or tool.get("type") != "function" for tool in tools
-            ):
+            if not local_function_tools(tools):
                 # Hosted search has additional per-query fees outside token
                 # usage. Muse's local function tools do not incur those fees.
                 self.local_json(403, {"error": "Only local function tools are budgeted"})
