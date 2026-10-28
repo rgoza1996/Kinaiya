@@ -1,0 +1,60 @@
+{
+  "issue": 86,
+  "scope": "Exact read-only Muse catalog compatibility and rejected HTTP body framing",
+  "baseline": "c75bb17c3c65cecbc6d4e2cad4d0d60babf35991",
+  "genuine_fresh_CLI": {
+    "outcome": "Exited1 before inference: local405 on model discovery",
+    "review_model": "muse-spark-1.3-contributor",
+    "reasoning_effort": "xhigh",
+    "ledger_calls_unchanged": 1384,
+    "receipt_sha256": "64254144e4e5eac80ef972ab28dce476536fede57dc0e463415657d6824d56e3"
+  },
+  "isolated_probe": {
+    "mode": "New user/network namespace with lo only, dummy stdin credentials, fresh HOME/XDG, explicit synthetic400 for POST",
+    "observed_requests": [
+      {
+        "method": "GET",
+        "path": "/muse-code/models"
+      },
+      {
+        "method": "POST",
+        "path": "/v1/responses"
+      }
+    ],
+    "exit_code": 1,
+    "direct_child_reaped": true,
+    "forced": false,
+    "raw_headers_body_stdout_stderr_retained": false,
+    "provider_inference": false,
+    "receipt_sha256": "cdb2b32bdb28c80374432303897b5921ff8de018f6d9d5f500301347c3460ce0"
+  },
+  "behavior": {
+    "allowed_GET": [
+      "/v1/models",
+      "/muse-code/models"
+    ],
+    "other_GET_and_catalog_POST": "Refused before upstream; exact path whitelist only",
+    "local_JSON_responses": "Close HTTP connection explicitly because a rejection can precede request-body consumption",
+    "accounting": "Unchanged model restriction, prices, cache basis, all reserves and22/25USD limits"
+  },
+  "checks": [
+    {
+      "python": "3.12.3",
+      "passed": 69,
+      "seconds": 20.36
+    },
+    {
+      "python": "3.11.15",
+      "passed": 69,
+      "seconds": 20.01
+    }
+  ],
+  "retained_red": "First new route test run:64passed/4failed because an unread rejected POST body corrupted the next persistent request into501. Corrected local responses to close explicitly; no assertion weakened.",
+  "source_sha256": {
+    "scripts/muse_budget_proxy.py": "eb255c65a1b8c9738fc6ccaf541785e2550783412a7475d6ecbe760cdd0d40b4",
+    "tests/unit/test_muse_budget.py": "0bc2c234d1589767212d9c15b2069fb5f7dde8dee7d950881d8265178024a972"
+  },
+  "live_adoption": "Not performed at this source checkpoint",
+  "CI": "Required beforemerge",
+  "independent_review": "Required against committed source"
+}
