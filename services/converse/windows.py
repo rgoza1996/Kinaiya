@@ -18,7 +18,7 @@ class NativeJournalUnavailable(Exception):
 
 
 class ProviderCleanupPending(Exception):
-    """The previous window still owns unconfirmed provider cleanup."""
+    """Bounded window ownership does not permit another provider stream yet."""
 
 
 class WindowGenerationTask(asyncio.Task):
@@ -134,6 +134,11 @@ class WindowConverseController:
                 return False
         return True
 
+    def _reclaimable(self, prepared):
+        return self._released(prepared) and (
+            prepared.abandoned or prepared.published == len(prepared.chunks)
+        )
+
     async def _recover(self, operation, *, prepared=None):
         for attempt in range(self._journal_attempts):
             if prepared is not None and (
@@ -151,7 +156,7 @@ class WindowConverseController:
                 self.last_error = (
                     "journal_unavailable"
                     if isinstance(exc, NativeJournalUnavailable)
-                    else "provider_cleanup_unconfirmed"
+                    else str(exc) or "provider_cleanup_unconfirmed"
                 )
                 if attempt == self._journal_attempts - 1:
                     raise
@@ -244,6 +249,8 @@ class WindowConverseController:
     async def _native_failure(self, prepared):
         self.last_error = "journal_unavailable"
         self._abandon(prepared)
+        if asyncio.current_task().cancelling():
+            raise asyncio.CancelledError
         try:
             await self.state(
                 prepared.source,
@@ -433,6 +440,11 @@ class WindowConverseController:
                 prepared.cleanup_failed = True
                 self._abandon(prepared)
             self.last_error = type(exc).__name__
+            if asyncio.current_task().cancelling():
+                # A provider cleanup failure must not swallow terminal stop
+                # or start a diagnostic timeout under its cancellation count.
+                self._abandon(prepared)
+                raise asyncio.CancelledError from exc
             try:
                 await self.state(
                     source,
@@ -581,11 +593,11 @@ class WindowConverseController:
             if not self._released(old):
                 raise ProviderCleanupPending
         if source.session_id not in self.pending and len(self.pending) >= 32:
-            key = next(iter(self.pending))
-            dropped = self.pending[key]
-            self._abandon(dropped)
-            if not self._released(dropped):
-                raise ProviderCleanupPending
+            # A completed cache entry owns no outstanding provider work. Drop
+            # only its cache reference; its published audio remains current.
+            key = next((key for key, p in self.pending.items() if self._reclaimable(p)), None)
+            if key is None:
+                raise ProviderCleanupPending("window_capacity_busy")
             self.pending.pop(key, None)
         await self.yield_speech(source.session_id)
         candidate.base_generation = (

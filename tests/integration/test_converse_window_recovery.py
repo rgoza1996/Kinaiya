@@ -89,6 +89,8 @@ def append_target(body):
         return "reply"
     if body["kind"] == "converse.window_state":
         return body["payload"]["phase"]
+    if body["kind"] == "converse.safety":
+        return body["payload"].get("reason")
     return None
 
 
@@ -171,6 +173,7 @@ async def decision(
     route="IGNORE_FOR_IMMEDIATE_ROUTING",
     index=0,
     scope="public_synthetic",
+    user_speaking=False,
 ):
     s = env.session
     source = await env.controller.ingest(
@@ -183,8 +186,8 @@ async def decision(
             text=text,
             start_ms=0,
             end_ms=1000 + index,
-            user_speaking=False,
-            capture_ended=True,
+            user_speaking=user_speaking,
+            capture_ended=not user_speaking,
             content_scope=scope,
         )
     )
@@ -706,6 +709,87 @@ async def test_32_unconfirmed_provider_cleanups_hold_slots_and_33rd_durable_deci
         await env.controller.close()
 
 
+async def test_released_slots_are_reclaimed_while_oldest_cleanup_stays_owned(env):
+    provider = SlowCloseProvider(1)
+    env.runtime.provider = provider
+    env.controller._provider_cleanup_timeout_s = 0.03
+    original_session = env.session
+    try:
+        for index in range(32):
+            env.session = env.store.create_session(SessionRequest(channel="converse"))
+            await decision(env, name=f"request-{index}")
+            await env.controller.tick()
+            if index == 0:
+                while not provider.iterators:
+                    await asyncio.sleep(0)
+                await asyncio.wait_for(provider.iterators[0].holding.wait(), 1)
+                oldest = env.controller.pending[env.session.session_id]
+            else:
+                await asyncio.wait_for(env.controller.pending[env.session.session_id].task, 1)
+                if index == 1:
+                    completed = env.controller.pending[env.session.session_id]
+                    completed_reply = env.store.read(
+                        session_id=env.session.session_id, kinds=["conversation.converse"]
+                    )[0]
+        env.controller._abandon(oldest)
+        await asyncio.wait_for(provider.iterators[0].closing.wait(), 1)
+        await asyncio.wait_for(asyncio.gather(oldest.task, return_exceptions=True), 1)
+        assert len(env.controller.pending) == 32 and not oldest.cleanup.done()
+        env.session = original_session
+        source, event = await decision(env, name="request-33")
+        await settle(env)
+        assert provider.calls == 33 and env.controller.after >= event.sequence
+        assert env.controller.pending[oldest.source.session_id] is oldest
+        assert completed.source.session_id not in env.controller.pending
+        await env.runtime.validate_speech(
+            completed_reply.event_id, completed_reply.payload["generation_epoch"]
+        )
+        assert not oldest.cleanup.done() and not provider.iterators[0].cleanup_cancelled
+        assert len(env.controller.pending) <= 32
+        assert any(
+            e.payload["window_source_id"] == source.event_id
+            for e in env.store.read(kinds=["conversation.converse"])
+        )
+    finally:
+        env.session = original_session
+        provider.release.set()
+        await env.controller.close()
+
+
+async def test_full_prepared_cache_waits_for_user_opening_without_dropping_reply_or_audio(env):
+    original_session = env.session
+    held_sessions = []
+    try:
+        for index in range(32):
+            env.session = env.store.create_session(SessionRequest(channel="converse"))
+            held_sessions.append(env.session)
+            await decision(env, name=f"held-{index}", user_speaking=True)
+            await env.controller.tick()
+            await asyncio.wait_for(env.controller.pending[env.session.session_id].task, 1)
+        assert len(env.controller.pending) == 32
+        assert all(
+            p.generation is None and p.published == 0 for p in env.controller.pending.values()
+        )
+        assert not env.store.read(kinds=["conversation.converse"])
+        env.session = original_session
+        _, event = await decision(env, name="request-33")
+        await env.controller.tick()
+        assert env.controller.after < event.sequence and env.provider.calls == 32
+        assert env.controller.last_error == "window_capacity_busy"
+        assert len(env.controller.pending) == 32
+        env.session = held_sessions[0]
+        await decision(env, name="held-0", index=1, user_speaking=False)
+        await settle(env)
+        assert env.provider.calls == 33 and env.controller.after >= event.sequence
+        replies = env.store.read(session_id=env.session.session_id, kinds=["conversation.converse"])
+        assert len(replies) == 2 and env.session.session_id not in env.controller.pending
+        for entry in replies:
+            await env.runtime.validate_speech(entry.event_id, entry.payload["generation_epoch"])
+    finally:
+        env.session = original_session
+        await env.controller.close()
+
+
 async def test_hung_native_read_is_bounded_and_retains_pre_generation_decision(env):
     env.controller._journal_timeout_s = 0.02
     env.faults.target, env.faults.remaining = "resolve", 100
@@ -719,6 +803,71 @@ async def test_hung_native_read_is_bounded_and_retains_pre_generation_decision(e
     env.faults.release.set()
     await settle(env)
     assert env.provider.calls == 1 and len(env.store.read(kinds=["conversation.converse"])) == 2
+
+
+async def seed_previous_generation(env):
+    s = env.session
+    await env.journal.append(
+        AppendRequest(
+            session_id=s.session_id,
+            thread_id=s.thread_id,
+            epoch=s.epoch,
+            kind="converse.safety",
+            payload={"reason": "public_synthetic_history", "generation_epoch": 5},
+            idempotency_key="public-synthetic-generation-history",
+        )
+    )
+
+
+@pytest.mark.parametrize("failure", ["before_timeout", "after_timeout", "after_lost_ack"])
+async def test_playback_restart_barrier_reuses_exact_generation_after_uncertain_append(
+    env, failure
+):
+    await seed_previous_generation(env)
+    env.faults.target, env.faults.remaining = "playback_restart_barrier", 1
+    env.faults.when = "before" if failure == "before_timeout" else "after"
+    if failure.endswith("timeout"):
+        env.controller._journal_timeout_s = 0.02
+        env.faults.release = asyncio.Event()
+    await decision(env)
+    await settle(env)
+    assert env.provider.calls == 1 and env.provider.deltas == 2
+    assert len(env.faults.requests) == 2
+    assert env.faults.requests[0] == env.faults.requests[1]
+    barriers = [
+        e
+        for e in env.store.read(kinds=["converse.safety"])
+        if e.payload["reason"] == "playback_restart_barrier"
+    ]
+    assert len(barriers) == 1 and barriers[0].payload["generation_epoch"] == 6
+    replies = env.store.read(kinds=["conversation.converse"])
+    assert len(replies) == 2 and {e.payload["generation_epoch"] for e in replies} == {7}
+
+
+@pytest.mark.parametrize("when", ["before", "after"])
+async def test_reset_during_uncertain_restart_barrier_discards_old_admission(env, when):
+    await seed_previous_generation(env)
+    env.faults.target, env.faults.when, env.faults.remaining = "playback_restart_barrier", when, 1
+    env.faults.release = asyncio.Event()
+    await decision(env)
+    tick = asyncio.create_task(env.controller.tick())
+    try:
+        await asyncio.wait_for(env.faults.entered.wait(), 1)
+        assert env.session.session_id not in env.runtime.playback
+        env.session = env.store.reset(env.session.session_id)
+        env.faults.release.set()
+        await asyncio.wait_for(tick, 2)
+        assert not env.provider.calls and not env.store.read(kinds=["conversation.converse"])
+        source, _ = await decision(env)
+        await settle(env)
+        replies = env.store.read(kinds=["conversation.converse"])
+        assert env.provider.calls == 1 and len(replies) == 2
+        assert {e.epoch for e in replies} == {env.session.epoch}
+        assert {e.payload["window_source_id"] for e in replies} == {source.event_id}
+        assert {e.payload["generation_epoch"] for e in replies} == {1}
+    finally:
+        env.faults.release.set()
+        await asyncio.gather(tick, return_exceptions=True)
 
 
 async def test_owner_off_cancels_provider_before_first_delta_during_native_read_outage(env):
@@ -801,7 +950,9 @@ async def test_repeated_generation_native_timeouts_exhaust_with_no_inference_rep
     assert not env.provider.calls and not env.store.read(kinds=["conversation.converse"])
 
 
-@pytest.mark.parametrize("ending", ["blocked", "eof", "error", "close_error", "close_cancel"])
+@pytest.mark.parametrize(
+    "ending", ["blocked", "eof", "error", "close_error", "close_cancel", "close_error_diagnostic"]
+)
 @pytest.mark.parametrize("adapter", ["compatible", "meta"])
 async def test_owner_controls_cannot_cancel_http_cleanup_inside_provider_next(env, ending, adapter):
     class TransportStream(httpx.AsyncByteStream):
@@ -834,7 +985,7 @@ async def test_owner_controls_cannot_cancel_http_cleanup_inside_provider_next(en
             self.closing.set()
             try:
                 await self.release.wait()
-                if ending == "close_error":
+                if ending in {"close_error", "close_error_diagnostic"}:
                     raise OSError("Synthetic HTTP response close failure")
                 if ending == "close_cancel":
                     asyncio.current_task().cancel()
@@ -863,6 +1014,10 @@ async def test_owner_controls_cannot_cancel_http_cleanup_inside_provider_next(en
     )
     env.runtime.provider = provider
     env.controller._provider_cleanup_timeout_s = 0.03
+    if ending == "close_error_diagnostic":
+        env.controller._journal_timeout_s = 0.02
+        env.faults.target, env.faults.remaining = "error", 100
+        env.faults.release = asyncio.Event()
     try:
         await decision(env)
         await env.controller.tick()
@@ -881,9 +1036,11 @@ async def test_owner_controls_cannot_cancel_http_cleanup_inside_provider_next(en
             await env.controller.tick()
         assert not stream.cleanup_cancelled
         stream.release.set()
-        await asyncio.wait_for(asyncio.gather(old.task, return_exceptions=True), 1)
+        done, _ = await asyncio.wait({old.task}, timeout=0.1)
+        assert done == {old.task}
+        assert old.task.cancelled()
         await env.controller.close()
-        if ending in {"close_error", "close_cancel"}:
+        if ending in {"close_error", "close_cancel", "close_error_diagnostic"}:
             assert not stream.closed
             assert old.cleanup_failed and env.controller.pending[env.session.session_id] is old
             assert env.controller.last_error == "ProviderCleanupError"
@@ -893,7 +1050,11 @@ async def test_owner_controls_cannot_cancel_http_cleanup_inside_provider_next(en
         else:
             assert stream.closed and not stream.cleanup_cancelled
             assert not env.controller.pending
+        if ending == "close_error_diagnostic":
+            assert not env.faults.requests
     finally:
+        if env.faults.release is not None:
+            env.faults.release.set()
         stream.release.set()
         await env.controller.close()
         await provider.close()

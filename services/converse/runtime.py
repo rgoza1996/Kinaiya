@@ -112,6 +112,7 @@ class ConverseRuntime:
         self._speech = {}
         self._dedupe_locks = {}
         self._epoch_locks = {}
+        self._playback_start = {}
         self._runtime_id = new_id()
 
     def availability(self):
@@ -189,23 +190,30 @@ class ConverseRuntime:
         async with lock:
             if session_id in self.playback:
                 return self.playback[session_id]
-            existing = await self._recent(session_id)
             session = await self.journal.session(session_id)
-            generations = [
-                value
-                for event in existing
-                if event.epoch == session.epoch
-                for key in ("generation_epoch", "next_generation_epoch")
-                if type(value := event.payload.get(key)) is int and value >= 0
-            ]
-            previous = max(generations, default=0)
-            generation = previous + 1 if previous else 0
-            if previous:
-                # Persist the recovered boundary before exposing it. Runtime
-                # identity additionally prevents reuse when bounded history
-                # omits an old counter or two runtimes observe the same value.
-                await self.journal.append(
-                    AppendRequest(
+            request = self._playback_start.get(session_id)
+            if request is not None and (request.epoch, request.thread_id) != (
+                session.epoch,
+                session.thread_id,
+            ):
+                self._playback_start.pop(session_id, None)
+                request = None
+            if request is None:
+                existing = await self._recent(session_id)
+                generations = [
+                    value
+                    for event in existing
+                    if event.epoch == session.epoch
+                    for key in ("generation_epoch", "next_generation_epoch")
+                    if type(value := event.payload.get(key)) is int and value >= 0
+                ]
+                previous = max(generations, default=0)
+                generation = previous + 1 if previous else 0
+                if previous:
+                    # A lost acknowledgment may already retain this boundary.
+                    # Reusing its exact request avoids deriving a new counter
+                    # under the same runtime/epoch idempotency key on retry.
+                    request = AppendRequest(
                         session_id=session_id,
                         thread_id=session.thread_id,
                         epoch=session.epoch,
@@ -217,10 +225,19 @@ class ConverseRuntime:
                         },
                         idempotency_key=f"playback-start:{self._runtime_id}:{session.epoch}",
                     )
-                )
+                    self._playback_start[session_id] = request
+            else:
+                generation = request.payload["generation_epoch"]
+            if request is not None:
+                await self.journal.append(request)
+            current = await self.journal.session(session_id)
+            if (current.epoch, current.thread_id) != (session.epoch, session.thread_id):
+                self._playback_start.pop(session_id, None)
+                raise ValueError("Session changed during playback initialization")
             self.playback[session_id] = PlaybackEpoch(
                 generation, on_begin=lambda: self._cancel_speech(session_id)
             )
+            self._playback_start.pop(session_id, None)
         return self.playback[session_id]
 
     def _cancel_speech(self, session_id=None):

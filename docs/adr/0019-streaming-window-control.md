@@ -107,6 +107,14 @@ admission and playback generation; backoff releases the per-session lock. An adm
 healthy explanation has no new universal 60-second reply deadline; the existing
 source age bound still governs admission.
 
+The existing runtime's restart barrier also retains its exact request until
+acknowledged. With prior generation 5, a committed but unacknowledged boundary
+remains generation 6 on retry, rather than conflicting with generation 7 under
+the same idempotency key. This adds one pending request per existing session
+initialization, clears it on confirmation, and discards it on epoch/thread
+change. Playback is exposed only after journal confirmation and a final current
+session check; a reset cannot admit the older source through the cached barrier.
+
 A brief native outage pauses the same provider iterator. Exhaustion fences its
 generation, records a best-effort journal error with confirmed partial state and
 unknown delivery, and never replays inference or resumes its buffered text after
@@ -120,6 +128,11 @@ present; a conforming iterator without it remains supported. A hard process
 restart cannot resume an in-memory model stream; this repair makes no
 exactly-once inference or audible-delivery claim.
 
+At capacity, a scan of at most 32 entries reclaims confirmed completed or
+abandoned-and-released cache entries without interrupting published audio.
+Replies buffered for a real user opening remain useful work and are retained;
+admission reports `window_capacity_busy` while all slots remain owned.
+
 Review extended #75 narrowly into the two in-repository HTTP text adapters:
 HTTPX may close a response inside its iterator at natural EOF, before the
 provider context exits. Within an explicit task-local ownership scope, one
@@ -130,6 +143,8 @@ concurrent reuse of one provider instance does not transfer window ownership.
 Failed or self-cancelled HTTP
 cleanup reports `ProviderCleanupError` and keeps its original bounded slot;
 an exhausted generator's later no-op `aclose` cannot prove resource release.
+If stop is already cancelling that producer, cleanup failure preserves the
+terminal cancellation and local error state without starting diagnostic I/O.
 Request bodies, authentication, proxy/budget handling, disclosure and provider
 deadlines are unchanged. An opaque third-party iterator's hidden transport
 cleanup cannot be introspected or universally guaranteed by this controller.
@@ -168,7 +183,7 @@ owner-off/reset fences and duplicate dispatch. The fixed 2,000-source query
 fixture requires indexed point lookups and a generous SQLite VM-operation
 budget; it is a deterministic regression, not a loaded latency benchmark.
 
-#75 focused verification passed 174 Python 3.12 tests: the new local/authenticated
+#75 initial verification at `ce4795f` passed 174 Python 3.12 tests: the new local/authenticated
 HTTP recovery matrix, existing speech-window/cancellation/window-HTTP integration
 checks and provider unit tests. The 107 recovery/provider tests also passed on
 Python 3.11. Imports explicitly resolved to the isolated worker checkout on both
@@ -199,6 +214,28 @@ review exposed HTTP EOF/error cleanup cancellation: the targeted reproduction
 had two passes and four failures. The response-close guard then passed all 12
 blocked/EOF/error adapter cases; final checks additionally cover failed and
 self-cancelled HTTP cleanup without releasing the original slot.
+
+The scoped ownership follow-up passed 22 targeted adapter/ownership tests. The
+restart-barrier regression initially had six passes and four failures: the local
+and HTTP committed-but-lost acknowledgments permanently conflicted while the
+journal was otherwise healthy. Retaining the immutable request then passed all
+ten barrier cases, including pre-commit timeout and reset during uncertainty.
+Both versions then passed the 186-test combined scope. The mixed-capacity
+reproduction subsequently failed both local and HTTP cases: one oldest
+unfinished close blocked admission despite 31 reclaimable entries. The bounded
+scan passed all six capacity cases, including 32 unfinished cleanups and 32
+buffered replies waiting for an opening, with completed audio still valid after
+its cache entry was reclaimed.
+Both versions next passed 190 tests before review exposed a pending stop being
+swallowed by cleanup-error diagnostics. All four local/HTTP adapter reproductions
+failed: a 20 ms diagnostic timeout could not cancel an already-cancelling task.
+The producer now preserves terminal cancellation without starting that diagnostic
+append; the bounded slot and explicit local cleanup failure remain retained.
+The related 28 cleanup/timeout cases passed after that correction. The final
+combined scope passed 194 tests on Python 3.12.3 and 194 on Python 3.11.15;
+imports again resolved to this worktree's runtime, window controller and text
+providers. Ruff lint/format passed for all 207 Python files and the diff check
+passed. Full-project and PR CI are separate lead integration evidence.
 
 Deterministic checks exercise the real journal, authenticated HTTP, browser PCM
 encoding/bounds, independent timing, correction/replay, held/interrupting replies,
