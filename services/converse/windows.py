@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from packages.contracts.models import AppendRequest, SpeechWindow, WindowDecision
 from packages.providers.disclosure import scope_allowed
 from packages.providers.text import ProviderCleanupError, owned_http_stream_cleanup
+from services.converse.delivery_context import window_context
 from services.converse.runtime import SpeechChunker
 
 
@@ -428,35 +429,14 @@ class WindowConverseController:
         await self._native("append", prepared.prepare_request)
         recent = await self._native("recent", session_id=source.session_id, limit=100)
         w = SpeechWindow.model_validate(source.payload)
-        context = []
-        seen = set()
-        for entry in reversed(recent):
-            if entry.epoch != source.epoch or entry.sequence >= source.sequence:
-                continue
-            scope = entry.payload.get("content_scope", "local_only")
-            if not allowed_scope(self.runtime.provider, scope):
-                continue
-            if entry.kind == "conversation.window":
-                old = SpeechWindow.model_validate(entry.payload)
-                if old.utterance_id == w.utterance_id or old.utterance_id in seen:
-                    continue
-                seen.add(old.utterance_id)
-                context.append({"role": "user", "content": old.text[:2000]})
-            elif entry.kind in {"conversation.user", "conversation.converse"}:
-                context.append(
-                    {
-                        "role": "user" if entry.kind == "conversation.user" else "assistant",
-                        "content": entry.payload["text"][:2000],
-                    }
-                )
-            if len(context) >= 8:
-                break
+        context, delivery = window_context(recent, source, self.runtime.provider.info)
         if await self.current(prepared) is None:
             self._abandon(prepared)
             return None
         return [
             {"role": "system", "content": self.runtime.personality},
-            *reversed(context),
+            *([{"role": "system", "content": delivery}] if delivery is not None else []),
+            *context,
             {"role": "user", "content": w.text},
         ]
 
