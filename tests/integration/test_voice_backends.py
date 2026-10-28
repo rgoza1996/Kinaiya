@@ -110,7 +110,7 @@ async def test_health_reports_selected_profile_without_constructing_backend(prof
     assert factory.calls == []
 
 
-@pytest.mark.parametrize("profile", ["Ming 3 Tiny", "VibeVoice Realtime 0.5B", "unknown"])
+@pytest.mark.parametrize("profile", ["Ming 3 Tiny", "unknown"])
 def test_unimplemented_or_unknown_configured_profile_fails_without_factory(profile):
     factory = SyntheticFactory()
     with pytest.raises(ValueError):
@@ -191,6 +191,9 @@ async def test_injected_backend_stays_lazy_and_loads_once_without_optional_impor
             "onnxruntime",
             "supertonic",
             "faster_whisper",
+            "vibevoice",
+            "transformers",
+            "diffusers",
         }:
             raise AssertionError(f"Optional runtime imported: {name}")
         return original_import(name, *args, **kwargs)
@@ -607,6 +610,11 @@ async def test_cancelled_waiting_request_never_enters_backend_after_lock_release
 async def test_cancelled_stream_emits_no_late_audio_or_further_waveform_request():
     waiting, release = threading.Event(), threading.Event()
     messages, resumed_after_second, closed = [], [], []
+    first_frame_sent = asyncio.Event()
+
+    def sent(message):
+        if message["type"] == "http.response.body" and message.get("body"):
+            first_frame_sent.set()
 
     class BlockedBackend(SyntheticBackend):
         def synthesize(self, text):
@@ -623,10 +631,13 @@ async def test_cancelled_stream_emits_no_late_audio_or_further_waveform_request(
                 closed.append(text)
 
     backend = BlockedBackend()
-    async with client_for(SyntheticFactory(backend), messages=messages) as client:
+    async with client_for(SyntheticFactory(backend), messages=messages, on_send=sent) as client:
         task = asyncio.create_task(synthesize(client, "Cancelled streaming fixture."))
         try:
             await entered(waiting)
+            # The owned producer may start its next waveform before the async
+            # response sender forwards its first queued frame. Observe send.
+            await asyncio.wait_for(first_frame_sent.wait(), 1)
             bodies = [message for message in messages if message["type"] == "http.response.body"]
             assert len(bodies) == 1 and json.loads(bodies[0]["body"])["chunk_index"] == 0
             task.cancel()

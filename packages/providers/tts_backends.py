@@ -19,7 +19,9 @@ from pathlib import Path
 SUPERTONIC_REVISION = "aafc6e32416a594460b32413efc49d7fe4ce6d46"
 SUPERTONIC_SDK_VERSION = "1.3.1"
 SUPERTONIC_ORT_VERSION = "1.23.1"
-SUPPORTED_TTS_PROFILES = ("Kokoro 82M", "Supertonic 3")
+VIBEVOICE_REVISION = "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4"
+VIBEVOICE_VOICE = "en-Carter_man"
+SUPPORTED_TTS_PROFILES = ("Kokoro 82M", "Supertonic 3", "VibeVoice Realtime 0.5B")
 SUPERTONIC_VOICES = frozenset(f"{gender}{index}" for gender in ("F", "M") for index in range(1, 6))
 KOKORO_VOICES = frozenset({"af_heart"})
 MAX_AUDIO_SECONDS = 120
@@ -31,36 +33,94 @@ class TTSBackendError(RuntimeError):
     """A safe boundary error: never expose model paths, text or runtime output."""
 
 
+@dataclass(frozen=True)
+class TTSProfile:
+    voice: str
+    voices: frozenset[str]
+    mode: str
+    input_limit: int
+    artifact_revision: str | None = None
+    requires_model_directory: bool = False
+
+
+_PROFILES = {
+    "Kokoro 82M": TTSProfile("af_heart", KOKORO_VOICES, "sentence_buffered", 16000),
+    "Supertonic 3": TTSProfile(
+        "F1", SUPERTONIC_VOICES, "buffered", 1200, SUPERTONIC_REVISION, True
+    ),
+    "VibeVoice Realtime 0.5B": TTSProfile(
+        VIBEVOICE_VOICE,
+        frozenset({VIBEVOICE_VOICE}),
+        "native_streaming",
+        1200,
+        VIBEVOICE_REVISION,
+        True,
+    ),
+}
+
+
+def profile_settings(profile):
+    if not isinstance(profile, str) or profile not in _PROFILES:
+        raise ValueError("Unsupported configured TTS profile")
+    return _PROFILES[profile]
+
+
 def default_voice(profile):
-    if profile == "Kokoro 82M":
-        return "af_heart"
-    if profile == "Supertonic 3":
-        return "F1"
-    raise ValueError("Unsupported configured TTS profile")
+    return profile_settings(profile).voice
 
 
 def validate_voice(profile, voice=None):
-    resolved = default_voice(profile) if voice is None else voice
-    allowed = KOKORO_VOICES if profile == "Kokoro 82M" else SUPERTONIC_VOICES
-    if (
-        not isinstance(profile, str)
-        or not isinstance(resolved, str)
-        or profile not in SUPPORTED_TTS_PROFILES
-        or resolved not in allowed
-    ):
+    settings = profile_settings(profile)
+    resolved = settings.voice if voice is None else voice
+    if not isinstance(resolved, str) or resolved not in settings.voices:
         raise ValueError("Unsupported configured TTS voice")
     return resolved
 
 
 def synthesis_mode(profile):
-    default_voice(profile)
-    return "buffered" if profile == "Supertonic 3" else "sentence_buffered"
+    return profile_settings(profile).mode
+
+
+def artifact_revision(profile):
+    return profile_settings(profile).artifact_revision
+
+
+def input_limit(profile):
+    return profile_settings(profile).input_limit
 
 
 @dataclass(frozen=True)
 class AudioWaveform:
     samples: object
     sample_rate: int
+
+
+def produce_synthesis(backend, text, emit, cancelled):
+    """Run one producer to completion while its caller owns model execution.
+
+    Native streaming adapters implement blocking ``produce(text, emit, cancelled)``.
+    ``emit`` is synchronous and may block for bounded consumer backpressure; it
+    must stop when cancellation is set. Adapters return only after native work
+    has ended. Existing synchronous generators stop at waveform boundaries;
+    cancelling a request cannot preempt their current native kernel.
+    """
+    if cancelled.is_set():
+        return
+    producer = getattr(backend, "produce", None)
+    if producer is not None:
+        producer(text, emit, cancelled)
+        return
+    iterator = iter(backend.synthesize(text))
+    try:
+        while not cancelled.is_set():
+            waveform = next(iterator, None)
+            if waveform is None or cancelled.is_set():
+                return
+            emit(waveform)
+    finally:
+        close = getattr(iterator, "close", None)
+        if close is not None:
+            close()
 
 
 def pcm_frames(waveform, *, remaining_seconds=MAX_AUDIO_SECONDS):
@@ -244,4 +304,8 @@ def create_tts_backend(profile, model_dir=None, voice=None):
     voice = validate_voice(profile, voice)
     if profile == "Kokoro 82M":
         return _KokoroBackend(voice)
+    if profile == "VibeVoice Realtime 0.5B":
+        from packages.providers.vibevoice_backend import VibeVoiceBackend
+
+        return VibeVoiceBackend(Path(model_dir) if model_dir is not None else None, voice)
     return _SupertonicBackend(Path(model_dir) if model_dir is not None else None, voice)

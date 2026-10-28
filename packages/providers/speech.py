@@ -1,6 +1,7 @@
 """First-party local STT/TTS bridge; no voice dependencies in Agent installs."""
 
 import json
+from contextlib import aclosing
 from urllib.parse import urlsplit
 
 import httpx
@@ -51,9 +52,10 @@ class SpeechClient:
             "POST", "/v1/audio/speech", json={"input": text, "profile": self.profile}
         ) as response:
             response.raise_for_status()
-            async for line in response.aiter_lines():
-                if line:
-                    yield json.loads(line)
+            async with aclosing(response.aiter_lines()) as lines:
+                async for line in lines:
+                    if line:
+                        yield json.loads(line)
 
     async def close(self):
         await self.http.aclose()

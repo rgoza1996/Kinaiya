@@ -72,7 +72,9 @@ def measure(client, text, profile, pid, *, wav_path=None):
     first_pcm = first_non_silent = None
     sample_rate = None
     frames = []
+    arrivals = []
     metadata = None
+    producer_at_first_frame = None
     with client.stream(
         "POST", "/v1/audio/speech", json={"input": text, "profile": profile}
     ) as response:
@@ -98,11 +100,15 @@ def measure(client, text, profile, pid, *, wav_path=None):
                         "first_waveform_seconds",
                     )
                 }
+                producer_at_first_frame = client.get("/health").json()
+                if producer_at_first_frame.get("pid") != pid:
+                    raise ValueError("Voice worker identity changed during synthesis")
             if first_non_silent is None and any(
                 abs(value[0]) >= 328 for value in struct.iter_unpack("<h", pcm)
             ):
                 first_non_silent = now
             frames.append(pcm)
+            arrivals.append({"elapsed_seconds": now, "samples": row["samples"]})
             if sum(map(len, frames)) > 120 * sample_rate * 2:
                 raise ValueError("Audio exceeds the 120-second screen limit")
     finished = time.perf_counter() - start
@@ -132,11 +138,66 @@ def measure(client, text, profile, pid, *, wav_path=None):
         "chunks": len(frames),
         "pcm_sha256": hashlib.sha256(pcm).hexdigest(),
         "first_frame_metadata": metadata,
+        "chunk_arrivals": arrivals,
+        "producer_health_at_first_frame": producer_at_first_frame,
+        "decoded_before_producer_exit_observed": (
+            metadata.get("synthesis_mode") == "native_streaming"
+            and producer_at_first_frame.get("active_producers") == 1
+            and producer_at_first_frame.get("producer_stopped") is False
+        ),
         "worker_rss_before_bytes": start_memory.get("VmRSS"),
         "worker_rss_after_bytes": after_memory.get("VmRSS"),
         "worker_process_lifetime_peak_rss_bytes": after_memory.get("VmHWM"),
         "worker_cpu_seconds": after_memory["cpu_seconds"] - start_memory["cpu_seconds"],
     }
+
+
+def measure_cancellation(client, profile, pid, *, timeout=10):
+    """Close actual HTTP playback and observe owned producer termination.
+
+    This times close-to-observed-thread-exit, not acoustic barge-in or native
+    kernel preemption. The isolated worker has no other synthesis clients.
+    """
+    text = (
+        "This public synthetic cancellation fixture describes a long report. "
+        "The first section has three items, the second has five, and the next review is tomorrow. "
+    ) * 4
+    before = client.get("/health").json()
+    with client.stream(
+        "POST", "/v1/audio/speech", json={"input": text, "profile": profile}
+    ) as response:
+        response.raise_for_status()
+        first = next(line for line in response.iter_lines() if line)
+        frame = json.loads(first)
+        decode_frame(frame, 0, None)
+        during = client.get("/health").json()
+        if during.get("pid") != pid or during.get("active_producers") != 1:
+            raise ValueError("No live owned producer observed before cancellation")
+    closed_at = time.perf_counter()
+    while time.perf_counter() - closed_at < timeout:
+        after = client.get("/health").json()
+        if after.get("pid") != pid:
+            raise ValueError("Voice worker identity changed during cancellation")
+        if after.get("synthesis_quarantined") is True:
+            raise ValueError("Native synthesis cleanup could not confirm producer exit")
+        if after.get("producer_stopped") is True and after.get("active_producers") == 0:
+            if after.get("last_producer_cancelled") is not True or after.get(
+                "completed_producers", 0
+            ) <= before.get("completed_producers", 0):
+                raise ValueError("Native cancellation was not observed by the producer")
+            elapsed = time.perf_counter() - closed_at
+            restored = measure(client, SYNTHETIC_TEXTS[0], profile, pid)
+            return {
+                "boundary": "HTTP response close to observed producer-thread exit; polled at 50ms",
+                "close_to_observed_producer_exit_seconds": elapsed,
+                "health_before": before,
+                "health_after_first_frame": during,
+                "health_after_exit": after,
+                "subsequent_synthesis": restored,
+                "physical_audio_stop_measured": False,
+            }
+        time.sleep(0.05)
+    raise TimeoutError("Native producer did not stop within cancellation observation deadline")
 
 
 def summarize(rows):
@@ -169,6 +230,7 @@ def main():
     parser.add_argument("--warm-repeats", type=int, choices=range(1, 11), default=3)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--retain-synthetic-audio", type=Path)
+    parser.add_argument("--exercise-cancellation", action="store_true")
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     args.output.parent.mkdir(parents=True, exist_ok=True)
@@ -215,7 +277,7 @@ def main():
             try:
                 with httpx.Client(
                     base_url=f"http://127.0.0.1:{args.port}",
-                    timeout=180,
+                    timeout=300,
                     trust_env=False,
                     follow_redirects=False,
                     headers={"Authorization": "Bearer " + tokens["converse"]},
@@ -250,6 +312,11 @@ def main():
                             warm.append(
                                 measure(client, text, args.profile, worker.pid, wav_path=wav)
                             )
+                    cancellation = (
+                        measure_cancellation(client, args.profile, worker.pid)
+                        if args.exercise_cancellation
+                        else None
+                    )
                     report = {
                         "kind": "isolated_retained_tts_screen",
                         "profile": args.profile,
@@ -282,7 +349,9 @@ def main():
                                     "import importlib.metadata,json,sys; "
                                     "names={'fastapi','httpx','uvicorn','pydantic','numpy',"
                                     "'supertonic','onnxruntime','kokoro','torch','faster-whisper',"
-                                    "'soundfile','ctranslate2','huggingface-hub'}; "
+                                    "'soundfile','ctranslate2','huggingface-hub',"
+                                    "'vibevoice','kinaiya-vibevoice-runtime',"
+                                    "'transformers','diffusers','accelerate'}; "
                                     "print(json.dumps({'python':sys.version,'packages':"
                                     "{d.metadata['Name']:d.version for d in "
                                     "importlib.metadata.distributions() "
@@ -299,10 +368,11 @@ def main():
                         "warm_summary": summarize(warm),
                         "physical_audible_latency_seconds": None,
                         "client_playback_measured": False,
-                        "native_inference_cancellation_measured": False,
+                        "native_inference_cancellation_measured": cancellation is not None,
+                        "cancellation": cancellation,
                         "limitations": [
                             "Synthetic HTTP/PCM screen only; no physical microphone/speaker or hearing measurement.",
-                            "Model output buffered before transport frames; frame count is not native streaming.",
+                            "Transport frame count alone is not native streaming; first-frame health records whether production was still active.",
                             "No loaded Decisions/Converse contention comparison or M2 performance acceptance.",
                             "A single cold process observation and disclosed warm repetitions; no p95 claim.",
                         ],

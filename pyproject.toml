@@ -31,7 +31,7 @@ include = ["services*", "packages*", "core*", "harnesses*", "evaluation*"]
 
 [tool.setuptools.package-data]
 "evaluation.harness" = ["*.json"]
-"packages.providers" = ["supertonic3_manifest.json"]
+"packages.providers" = ["supertonic3_manifest.json", "vibevoice_manifest.json"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

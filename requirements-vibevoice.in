@@ -1,0 +1,22 @@
+# Isolated CPython3.12 / Linux x86_64 CPU compatibility derivative.
+# Locally verified patched runtime wheel is installed separately with --no-deps.
+torch @ https://download-r2.pytorch.org/whl/cpu/torch-2.14.1%2Bcpu-cp312-cp312-manylinux_2_28_x86_64.whl#sha256=5a6363570c753812540a05eb82380e329469cbe668643e88111414c12627711f
+transformers==5.21.0
+# Diffusers0.39 supports Hub<2; resolve all packages together.
+huggingface-hub==1.33.0
+accelerate==1.15.0
+diffusers==0.39.0
+Pillow==13.0.0
+setuptools==84.2.1
+numpy==2.3.3
+scipy>=1.17,<2
+librosa>=0.11,<1
+tqdm>=4.67,<5
+ml-collections>=1.1,<2
+absl-py>=2.5,<3
+faster-whisper==1.2.1
+fastapi>=0.115,<1
+uvicorn>=0.34,<1
+httpx>=0.28,<1
+pydantic>=2.10,<3
+python-multipart>=0.0.20,<1

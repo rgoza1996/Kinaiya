@@ -16,6 +16,7 @@ from services.common.auth import Auth
 from services.resources import launcher
 
 REVISION = "aafc6e32416a594460b32413efc49d7fe4ce6d46"
+VIBEVOICE_REVISION = "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4"
 MISSING = object()
 
 
@@ -83,13 +84,15 @@ async def voice_host(tmp_path, monkeypatch):
         ("Kokoro 82M", "af_heart", "af_heart", "sentence_buffered", None),
         ("Supertonic 3", None, "F1", "buffered", REVISION),
         ("Supertonic 3", "M3", "M3", "buffered", REVISION),
+        ("VibeVoice Realtime 0.5B", None, "en-Carter_man", "native_streaming", VIBEVOICE_REVISION),
     ],
 )
 async def test_managed_voice_cli_and_health_match_owner_selection(
     voice_host, tmp_path, profile, voice, expected_voice, mode, revision
 ):
     build, health = voice_host
-    model_dir = str(tmp_path / "checkpoint") if profile == "Supertonic 3" else None
+    pinned = profile in ("Supertonic 3", "VibeVoice Realtime 0.5B")
+    model_dir = str(tmp_path / "checkpoint") if pinned else None
     app, manager = build(profile, tts_model_dir=model_dir, tts_voice=voice)
     assert len(manager.specs) == 1
     spec = manager.specs[0]
@@ -122,7 +125,7 @@ async def test_managed_voice_cli_and_health_match_owner_selection(
         key: value for key, value in health.items() if key != "service"
     }
     health["loaded"] = ["stt", "tts"]
-    if profile == "Supertonic 3":
+    if pinned:
         health["assets_state"] = "verified"
     assert await manager.readiness(spec, SimpleNamespace(pid=42))
 
@@ -235,6 +238,8 @@ async def test_managed_voice_requires_complete_health_metadata(voice_host, field
         ("Kokoro 82M", {"tts_model_dir": "/owned/checkpoint"}),
         ("Kokoro 82M", {"tts_voice": "F1"}),
         ("Supertonic 3", {"tts_model_dir": "/owned/checkpoint", "tts_voice": "af_heart"}),
+        ("VibeVoice Realtime 0.5B", {"tts_model_dir": "/owned/checkpoint", "tts_voice": "F1"}),
+        ("Kokoro 82M", {"tts_voice": "en-Carter_man"}),
         ("Ming 3 Tiny", {}),
         ("VibeVoice Realtime 0.5B", {}),
         ("unconfigured", {}),
@@ -251,7 +256,10 @@ async def test_invalid_or_unconfigured_profile_fails_before_worker_construction(
 
 
 @pytest.mark.parametrize("placement", ["same", "inside", "ancestor", "symlink_into", "symlink_out"])
-async def test_managed_models_cannot_overlap_agent_writable_inputs(voice_host, tmp_path, placement):
+@pytest.mark.parametrize("profile", ["Supertonic 3", "VibeVoice Realtime 0.5B"])
+async def test_managed_models_cannot_overlap_agent_writable_inputs(
+    voice_host, tmp_path, placement, profile
+):
     build, _ = voice_host
     workspace = tmp_path / "agent"
     if placement == "same":
@@ -272,7 +280,7 @@ async def test_managed_models_cannot_overlap_agent_writable_inputs(voice_host, t
         model_dir = workspace / "cache-link"
         model_dir.symlink_to(target, target_is_directory=True)
     with pytest.raises(ValueError, match="outside the Agent workspace"):
-        build("Supertonic 3", tts_model_dir=str(model_dir))
+        build(profile, tts_model_dir=str(model_dir))
 
 
 @pytest.mark.parametrize(
@@ -306,9 +314,10 @@ def test_supertonic_dependencies_are_opt_in_and_pinned():
         "numpy==2.3.3",
         "soundfile==0.13.1",
     ]
-    assert project["tool"]["setuptools"]["package-data"]["packages.providers"] == [
+    assert set(project["tool"]["setuptools"]["package-data"]["packages.providers"]) == {
         "supertonic3_manifest.json",
-    ]
+        "vibevoice_manifest.json",
+    }
     assert not any(
         name in item
         for item in project["project"]["dependencies"]
@@ -326,7 +335,7 @@ def test_independent_agent_starts_with_optional_voice_imports_blocked(tmp_path):
         from pathlib import Path
         from types import SimpleNamespace
 
-        forbidden = {'supertonic', 'onnxruntime', 'kokoro', 'torch', 'numpy',
+        forbidden = {'vibevoice', 'diffusers', 'accelerate', 'supertonic', 'onnxruntime', 'kokoro', 'torch', 'numpy',
                      'soundfile', 'faster_whisper', 'transformers', 'huggingface_hub'}
         class NoVoice(importlib.abc.MetaPathFinder):
             def find_spec(self, fullname, path=None, target=None):

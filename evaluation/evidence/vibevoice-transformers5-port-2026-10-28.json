@@ -1,0 +1,3950 @@
+{
+  "schema_version": 1,
+  "recorded_date": "2026-10-28",
+  "status": "Implemented experimental CPU derivative with independent review, actual HTTP/resource/STT checks and local regressions. Updated GitHub CI remains pending; full M2 and default promotion remain open.",
+  "upstream": {
+    "repository": "microsoft/VibeVoice",
+    "revision": "16fb2cb1217c9934a886e1948ffb06120caa2df5",
+    "python_files": 22,
+    "modified_files": 4
+  },
+  "manifest_sha256": "450988ff318cb01f9fc64f5c53ede9d23d61ee2f5297b64dca444734573afccb",
+  "requirements_lock_sha256": "dc68011eac9f046e02a8281c0408cf86b84b829d4ca63188a7f2cda096ca9407",
+  "wheel_provenance": {
+    "distribution": "kinaiya-vibevoice-runtime",
+    "license_sha256": "98a96c38494df4963951e32b81ec4effebe4c8a812ab8d9e7d185d59e86fe2fc",
+    "license_size": 1066,
+    "requires_dist": [
+      "torch>=2.14,<2.15",
+      "transformers>=5.21,<5.22",
+      "huggingface-hub>=1.10,<2",
+      "accelerate>=1.15,<2",
+      "diffusers>=0.39,<1",
+      "numpy>=2.3.3,<3",
+      "scipy>=1.17,<2",
+      "librosa>=0.11,<1",
+      "tqdm>=4.67,<5",
+      "ml-collections>=1.1,<2",
+      "absl-py>=2.5,<3"
+    ],
+    "requires_python": ">=3.11",
+    "source_patch_sha256": "7ba36f7d03cc04d8a4520efa761dbb5ccbcd8f1a63999e0697633ab5af5905da",
+    "source_revision": "16fb2cb1217c9934a886e1948ffb06120caa2df5",
+    "sources": {
+      "vibevoice/__init__.py": "d2545b8b4f70348514a367a04ae38d0da3de98174a88745cdb5e64bb0e4b6839",
+      "vibevoice/modular/__init__.py": "a5453c864eedead47a9d52a03d78e8893bb9983dc3e93ca9ef1205e6803d7448",
+      "vibevoice/modular/configuration_vibevoice.py": "bcf59d8749405d5d25436923444436f6719cb9b2b403941a8a5e46f5b94873d0",
+      "vibevoice/modular/configuration_vibevoice_streaming.py": "1b4417ea2ffe5b42a58d1ee6b3c9508bc253930c2d55f8ec1f10916e36b8029e",
+      "vibevoice/modular/modeling_vibevoice.py": "6a7fbe0f967f09cd05c2cbbd270276bac8e90a6061510a82029cbf8bc680caf2",
+      "vibevoice/modular/modeling_vibevoice_asr.py": "847f1613ad836d8f2176ce90c27b4405af27b4f236320637cc693237b09facbb",
+      "vibevoice/modular/modeling_vibevoice_streaming.py": "100807a71b4493ea58a9a8cd9f592fae342fa31bca90bd6513df83660285b66b",
+      "vibevoice/modular/modeling_vibevoice_streaming_inference.py": "fd78fbf2257711f3237e7e2e031fb4d46e7ed1d620bb93722bc69bd88db33f18",
+      "vibevoice/modular/modular_vibevoice_diffusion_head.py": "8a90ac685b9e32793749e2c58b48906758486d8b0bc0d92c8dfd141aa053852e",
+      "vibevoice/modular/modular_vibevoice_text_tokenizer.py": "3ab07dc9bc085ae6aaef95b5b9b231de61e79ac633f1cad66f5d38d0dc85daf4",
+      "vibevoice/modular/modular_vibevoice_tokenizer.py": "8d951fc519673e80d1fe7d1ffe184a9e24f2d47c09ced11b32b01b3a8772cb60",
+      "vibevoice/modular/streamer.py": "e6129f46e2c61466ca96ce479c04adfaad32f483230f4d3531c96717bd16f603",
+      "vibevoice/processor/__init__.py": "957a1c1b18310691647cc0adaece1d8f940785deaa4d8d17ece2059bee0b9dc8",
+      "vibevoice/processor/audio_utils.py": "e15f184c18f754862e38082836b9c19c0f97c03c939412ab856838dc30788bcf",
+      "vibevoice/processor/vibevoice_asr_processor.py": "9fac3c57cf2f40e2d383f684fcff484a0ff2267668a8491bfeb54034763afa59",
+      "vibevoice/processor/vibevoice_processor.py": "5b28fa5247a83cb65385e06428fb112369f50723e343d7b38c7a6e7e1dfddab5",
+      "vibevoice/processor/vibevoice_streaming_processor.py": "41ff57a7da668db9099c395ab7bbee9b2cd7aa0c2f8f0b0c214768c051aa5a53",
+      "vibevoice/processor/vibevoice_tokenizer_processor.py": "3b18571d3b5cac91211412f03c3a8477bb0242173a4a53a633498cac470f1068",
+      "vibevoice/schedule/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "vibevoice/schedule/dpm_solver.py": "be10eae978afda40a6bc082806fa1e8f0f4b4e451fd1d21cec97347116ffba73",
+      "vibevoice/schedule/timestep_sampler.py": "70b003bdfdc716d09942ecfcd0e2f438bac27ea16da9527e105e008a0069dd83",
+      "vibevoice/scripts/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "upstream_sources": {
+      "vibevoice/__init__.py": "d2545b8b4f70348514a367a04ae38d0da3de98174a88745cdb5e64bb0e4b6839",
+      "vibevoice/modular/__init__.py": "a5453c864eedead47a9d52a03d78e8893bb9983dc3e93ca9ef1205e6803d7448",
+      "vibevoice/modular/configuration_vibevoice.py": "bcf59d8749405d5d25436923444436f6719cb9b2b403941a8a5e46f5b94873d0",
+      "vibevoice/modular/configuration_vibevoice_streaming.py": "1b4417ea2ffe5b42a58d1ee6b3c9508bc253930c2d55f8ec1f10916e36b8029e",
+      "vibevoice/modular/modeling_vibevoice.py": "6a7fbe0f967f09cd05c2cbbd270276bac8e90a6061510a82029cbf8bc680caf2",
+      "vibevoice/modular/modeling_vibevoice_asr.py": "847f1613ad836d8f2176ce90c27b4405af27b4f236320637cc693237b09facbb",
+      "vibevoice/modular/modeling_vibevoice_streaming.py": "96d402716fe2cc6284c4ad7f8b2309dd8d06d2133681e266387466116e908afb",
+      "vibevoice/modular/modeling_vibevoice_streaming_inference.py": "cb5360a62dbf3a836cea763348bc6330c4d7a422fbe572f4abf7b3c7a15bce8b",
+      "vibevoice/modular/modular_vibevoice_diffusion_head.py": "8a90ac685b9e32793749e2c58b48906758486d8b0bc0d92c8dfd141aa053852e",
+      "vibevoice/modular/modular_vibevoice_text_tokenizer.py": "03df076a9d7da769de4243e09c880d5787b2db360b568e9efecb77932b13f8e5",
+      "vibevoice/modular/modular_vibevoice_tokenizer.py": "f2fdcdaff26a685510c982634cad3be8258b299f89566a87188c932fd85f816d",
+      "vibevoice/modular/streamer.py": "e6129f46e2c61466ca96ce479c04adfaad32f483230f4d3531c96717bd16f603",
+      "vibevoice/processor/__init__.py": "957a1c1b18310691647cc0adaece1d8f940785deaa4d8d17ece2059bee0b9dc8",
+      "vibevoice/processor/audio_utils.py": "e15f184c18f754862e38082836b9c19c0f97c03c939412ab856838dc30788bcf",
+      "vibevoice/processor/vibevoice_asr_processor.py": "9fac3c57cf2f40e2d383f684fcff484a0ff2267668a8491bfeb54034763afa59",
+      "vibevoice/processor/vibevoice_processor.py": "5b28fa5247a83cb65385e06428fb112369f50723e343d7b38c7a6e7e1dfddab5",
+      "vibevoice/processor/vibevoice_streaming_processor.py": "41ff57a7da668db9099c395ab7bbee9b2cd7aa0c2f8f0b0c214768c051aa5a53",
+      "vibevoice/processor/vibevoice_tokenizer_processor.py": "3b18571d3b5cac91211412f03c3a8477bb0242173a4a53a633498cac470f1068",
+      "vibevoice/schedule/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "vibevoice/schedule/dpm_solver.py": "be10eae978afda40a6bc082806fa1e8f0f4b4e451fd1d21cec97347116ffba73",
+      "vibevoice/schedule/timestep_sampler.py": "70b003bdfdc716d09942ecfcd0e2f438bac27ea16da9527e105e008a0069dd83",
+      "vibevoice/scripts/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "version": "1.0.0+kinaiya.2",
+    "wheel_filename": "kinaiya_vibevoice_runtime-1.0.0+kinaiya.2-py3-none-any.whl",
+    "wheel_sha256": "b7936a32d5df6b6856ef55395dc225402576b802182761a7d16836bd3381b352",
+    "wheel_size": 83453
+  },
+  "installed_dependency_consistency": {
+    "tool": "uv pip check --python .dev-run/transformers521-env/bin/python",
+    "packages": 80,
+    "result": "All installed packages are compatible"
+  },
+  "installed_dependency_audit": {
+    "command": "pip-audit --path .dev-run/transformers521-env/lib/python3.12/site-packages --format json --desc off",
+    "tool_exit_code": 0,
+    "packages": 80,
+    "reported_advisory_records": 0,
+    "skipped_dependencies": [
+      {
+        "name": "kinaiya-vibevoice-runtime",
+        "skip_reason": "Dependency not found on PyPI and could not be audited: kinaiya-vibevoice-runtime (1.0.0+kinaiya.2)"
+      },
+      {
+        "name": "torch",
+        "skip_reason": "Dependency not found on PyPI and could not be audited: torch (2.14.1+cpu)"
+      }
+    ],
+    "scope": "Zero reported records among dependencies the service could check. The local derivative and exact CPU Torch binary were skipped; this is not complete security coverage.",
+    "dependency_results": [
+      {
+        "name": "absl-py",
+        "version": "2.5.1",
+        "vulns": []
+      },
+      {
+        "name": "accelerate",
+        "version": "1.15.0",
+        "vulns": []
+      },
+      {
+        "name": "annotated-doc",
+        "version": "0.0.5",
+        "vulns": []
+      },
+      {
+        "name": "annotated-types",
+        "version": "0.8.0",
+        "vulns": []
+      },
+      {
+        "name": "anyio",
+        "version": "4.15.1",
+        "vulns": []
+      },
+      {
+        "name": "audioread",
+        "version": "3.1.0",
+        "vulns": []
+      },
+      {
+        "name": "av",
+        "version": "17.1.0",
+        "vulns": []
+      },
+      {
+        "name": "certifi",
+        "version": "2026.10.23",
+        "vulns": []
+      },
+      {
+        "name": "cffi",
+        "version": "2.1.1",
+        "vulns": []
+      },
+      {
+        "name": "charset-normalizer",
+        "version": "3.5.2",
+        "vulns": []
+      },
+      {
+        "name": "click",
+        "version": "8.5.0",
+        "vulns": []
+      },
+      {
+        "name": "cloudpickle",
+        "version": "3.1.2",
+        "vulns": []
+      },
+      {
+        "name": "ctranslate2",
+        "version": "4.8.4",
+        "vulns": []
+      },
+      {
+        "name": "decorator",
+        "version": "5.3.1",
+        "vulns": []
+      },
+      {
+        "name": "diffusers",
+        "version": "0.39.0",
+        "vulns": []
+      },
+      {
+        "name": "fastapi",
+        "version": "0.162.0",
+        "vulns": []
+      },
+      {
+        "name": "faster-whisper",
+        "version": "1.2.1",
+        "vulns": []
+      },
+      {
+        "name": "filelock",
+        "version": "4.2.4",
+        "vulns": []
+      },
+      {
+        "name": "flatbuffers",
+        "version": "25.12.19",
+        "vulns": []
+      },
+      {
+        "name": "fsspec",
+        "version": "2026.9.0",
+        "vulns": []
+      },
+      {
+        "name": "h11",
+        "version": "0.16.0",
+        "vulns": []
+      },
+      {
+        "name": "hf-xet",
+        "version": "1.7.0",
+        "vulns": []
+      },
+      {
+        "name": "httpcore",
+        "version": "1.0.9",
+        "vulns": []
+      },
+      {
+        "name": "httpx",
+        "version": "0.28.1",
+        "vulns": []
+      },
+      {
+        "name": "huggingface-hub",
+        "version": "1.33.0",
+        "vulns": []
+      },
+      {
+        "name": "idna",
+        "version": "3.20",
+        "vulns": []
+      },
+      {
+        "name": "importlib-metadata",
+        "version": "10.1.0",
+        "vulns": []
+      },
+      {
+        "name": "jinja2",
+        "version": "3.1.6",
+        "vulns": []
+      },
+      {
+        "name": "joblib",
+        "version": "1.6.0",
+        "vulns": []
+      },
+      {
+        "name": "kinaiya-vibevoice-runtime",
+        "skip_reason": "Dependency not found on PyPI and could not be audited: kinaiya-vibevoice-runtime (1.0.0+kinaiya.2)"
+      },
+      {
+        "name": "lazy-loader",
+        "version": "0.6",
+        "vulns": []
+      },
+      {
+        "name": "librosa",
+        "version": "0.11.0",
+        "vulns": []
+      },
+      {
+        "name": "llvmlite",
+        "version": "0.50.0",
+        "vulns": []
+      },
+      {
+        "name": "markdown-it-py",
+        "version": "4.2.0",
+        "vulns": []
+      },
+      {
+        "name": "markupsafe",
+        "version": "3.0.4",
+        "vulns": []
+      },
+      {
+        "name": "mdurl",
+        "version": "0.1.2",
+        "vulns": []
+      },
+      {
+        "name": "ml-collections",
+        "version": "1.1.0",
+        "vulns": []
+      },
+      {
+        "name": "mpmath",
+        "version": "1.3.0",
+        "vulns": []
+      },
+      {
+        "name": "msgpack",
+        "version": "1.2.4",
+        "vulns": []
+      },
+      {
+        "name": "narwhals",
+        "version": "2.28.0",
+        "vulns": []
+      },
+      {
+        "name": "networkx",
+        "version": "3.7",
+        "vulns": []
+      },
+      {
+        "name": "numba",
+        "version": "0.68.1",
+        "vulns": []
+      },
+      {
+        "name": "numpy",
+        "version": "2.3.3",
+        "vulns": []
+      },
+      {
+        "name": "onnxruntime",
+        "version": "1.31.1",
+        "vulns": []
+      },
+      {
+        "name": "opentelemetry-api",
+        "version": "1.45.1",
+        "vulns": []
+      },
+      {
+        "name": "packaging",
+        "version": "26.3",
+        "vulns": []
+      },
+      {
+        "name": "pillow",
+        "version": "13.0.0",
+        "vulns": []
+      },
+      {
+        "name": "platformdirs",
+        "version": "4.13.7",
+        "vulns": []
+      },
+      {
+        "name": "pooch",
+        "version": "1.9.0",
+        "vulns": []
+      },
+      {
+        "name": "protobuf",
+        "version": "7.36.2",
+        "vulns": []
+      },
+      {
+        "name": "psutil",
+        "version": "7.2.2",
+        "vulns": []
+      },
+      {
+        "name": "pycparser",
+        "version": "3.12",
+        "vulns": []
+      },
+      {
+        "name": "pydantic",
+        "version": "2.14.1",
+        "vulns": []
+      },
+      {
+        "name": "pydantic-core",
+        "version": "2.50.1",
+        "vulns": []
+      },
+      {
+        "name": "pygments",
+        "version": "2.21.0",
+        "vulns": []
+      },
+      {
+        "name": "python-multipart",
+        "version": "0.0.32",
+        "vulns": []
+      },
+      {
+        "name": "pyyaml",
+        "version": "6.0.3",
+        "vulns": []
+      },
+      {
+        "name": "regex",
+        "version": "2026.9.29",
+        "vulns": []
+      },
+      {
+        "name": "requests",
+        "version": "2.34.2",
+        "vulns": []
+      },
+      {
+        "name": "rich",
+        "version": "15.0.0",
+        "vulns": []
+      },
+      {
+        "name": "safetensors",
+        "version": "0.8.0",
+        "vulns": []
+      },
+      {
+        "name": "scikit-learn",
+        "version": "1.9.1",
+        "vulns": []
+      },
+      {
+        "name": "scipy",
+        "version": "1.18.1",
+        "vulns": []
+      },
+      {
+        "name": "setuptools",
+        "version": "84.2.1",
+        "vulns": []
+      },
+      {
+        "name": "shellingham",
+        "version": "1.5.4",
+        "vulns": []
+      },
+      {
+        "name": "soundfile",
+        "version": "0.14.0",
+        "vulns": []
+      },
+      {
+        "name": "soxr",
+        "version": "1.1.0",
+        "vulns": []
+      },
+      {
+        "name": "starlette",
+        "version": "1.10.0",
+        "vulns": []
+      },
+      {
+        "name": "sympy",
+        "version": "1.14.0",
+        "vulns": []
+      },
+      {
+        "name": "threadpoolctl",
+        "version": "3.7.0",
+        "vulns": []
+      },
+      {
+        "name": "tokenizers",
+        "version": "0.23.3",
+        "vulns": []
+      },
+      {
+        "name": "torch",
+        "skip_reason": "Dependency not found on PyPI and could not be audited: torch (2.14.1+cpu)"
+      },
+      {
+        "name": "tqdm",
+        "version": "4.70.1",
+        "vulns": []
+      },
+      {
+        "name": "transformers",
+        "version": "5.21.0",
+        "vulns": []
+      },
+      {
+        "name": "typer",
+        "version": "0.27.3",
+        "vulns": []
+      },
+      {
+        "name": "typing-extensions",
+        "version": "4.16.0",
+        "vulns": []
+      },
+      {
+        "name": "typing-inspection",
+        "version": "0.4.4",
+        "vulns": []
+      },
+      {
+        "name": "urllib3",
+        "version": "2.8.0",
+        "vulns": []
+      },
+      {
+        "name": "uvicorn",
+        "version": "0.54.0",
+        "vulns": []
+      },
+      {
+        "name": "zipp",
+        "version": "4.1.2",
+        "vulns": []
+      }
+    ]
+  },
+  "torch_base_version_metadata": {
+    "source": "https://pypi.org/pypi/torch/2.14.1/json",
+    "version": "2.14.1",
+    "vulnerabilities": [],
+    "scope": "Base-version official PyPI metadata. Not an audit or reachability proof for exact CPU wheel torch2.14.1+cpu."
+  },
+  "tokenizer_parity": {
+    "original_transformers": "4.51.3",
+    "derived_transformers": "5.21.0",
+    "result": "Identical complete token-to-ID vocabulary, special token IDs, and all30 synthetic sample token sequences",
+    "vocabulary_count": 151665,
+    "vocabulary_sha256": "3b15706f4d44a6e9298fb9659de247fc7a1afb59c6989b184fbb354e8332dd60",
+    "special_ids": {
+      "eos": 151643,
+      "speech_start": 151652,
+      "speech_end": 151653,
+      "speech_diffusion": 151654,
+      "pad": 151655
+    },
+    "synthetic_samples": [
+      {
+        "text": "",
+        "ids": []
+      },
+      {
+        "text": "Hello, world!",
+        "ids": [
+          9707,
+          11,
+          1879,
+          0
+        ]
+      },
+      {
+        "text": "I am here. What would you like to do?",
+        "ids": [
+          40,
+          1079,
+          1588,
+          13,
+          3555,
+          1035,
+          498,
+          1075,
+          311,
+          653,
+          30
+        ]
+      },
+      {
+        "text": "Wait\u2014stop. Now?",
+        "ids": [
+          14190,
+          2293,
+          9495,
+          13,
+          4695,
+          30
+        ]
+      },
+      {
+        "text": "Use apostrophes: don't, isn\u2019t, \"quoted\".",
+        "ids": [
+          10253,
+          38471,
+          21990,
+          288,
+          25,
+          1513,
+          944,
+          11,
+          4436,
+          1405,
+          11,
+          330,
+          63725,
+          3263
+        ]
+      },
+      {
+        "text": "One\nTwo\tThree",
+        "ids": [
+          3966,
+          198,
+          11613,
+          197,
+          19641
+        ]
+      },
+      {
+        "text": "Numbers: 0 -12 1.25 1e6 50% $10.50",
+        "ids": [
+          27237,
+          25,
+          220,
+          15,
+          481,
+          16,
+          17,
+          220,
+          16,
+          13,
+          17,
+          20,
+          220,
+          16,
+          68,
+          21,
+          220,
+          20,
+          15,
+          4,
+          400,
+          16,
+          15,
+          13,
+          20,
+          15
+        ]
+      },
+      {
+        "text": "Caf\u00e9 d\u00e9j\u00e0 vu; na\u00efve fa\u00e7ade.",
+        "ids": [
+          34,
+          2577,
+          963,
+          45839,
+          32514,
+          26,
+          94880,
+          586,
+          94872,
+          1021,
+          13
+        ]
+      },
+      {
+        "text": "Cafe\u0301 de\u0301ja\u0300 vu.",
+        "ids": [
+          34,
+          2577,
+          963,
+          45839,
+          32514,
+          13
+        ]
+      },
+      {
+        "text": "Espa\u00f1ol: \u00bfc\u00f3mo est\u00e1? \u00a1Bien!",
+        "ids": [
+          76954,
+          32369,
+          337,
+          25,
+          28286,
+          66,
+          71461,
+          15466,
+          30,
+          48813,
+          81506,
+          0
+        ]
+      },
+      {
+        "text": "Deutsch: Stra\u00dfe, Gr\u00f6\u00dfe, Fu\u00df.",
+        "ids": [
+          1912,
+          23747,
+          25,
+          26647,
+          23455,
+          11,
+          137208,
+          11,
+          91062,
+          13
+        ]
+      },
+      {
+        "text": "\u4e2d\u6587\uff1a\u4f60\u597d\uff0c\u4e16\u754c\u3002",
+        "ids": [
+          104811,
+          5122,
+          108386,
+          3837,
+          99489,
+          1773
+        ]
+      },
+      {
+        "text": "\u65e5\u672c\u8a9e\uff1a\u3053\u3093\u306b\u3061\u306f\u4e16\u754c\u3002",
+        "ids": [
+          101059,
+          102819,
+          5122,
+          89015,
+          99489,
+          1773
+        ]
+      },
+      {
+        "text": "\ud55c\uad6d\uc5b4: \uc548\ub155\ud558\uc138\uc694 \uc138\uacc4.",
+        "ids": [
+          23573,
+          124785,
+          31079,
+          25,
+          95170,
+          144370,
+          91145,
+          133196,
+          13
+        ]
+      },
+      {
+        "text": "\u0627\u0644\u0639\u0631\u0628\u064a\u0629: \u0645\u0631\u062d\u0628\u0627 \u0628\u0627\u0644\u0639\u0627\u0644\u0645",
+        "ids": [
+          31382,
+          23224,
+          125600,
+          25,
+          23364,
+          126860,
+          124671,
+          124476,
+          129634
+        ]
+      },
+      {
+        "text": "\u05e2\u05d1\u05e8\u05d9\u05ea: \u05e9\u05dc\u05d5\u05dd \u05e2\u05d5\u05dc\u05dd",
+        "ids": [
+          133584,
+          25,
+          124756,
+          123881,
+          123855,
+          124907
+        ]
+      },
+      {
+        "text": "\u0420\u0443\u0441\u0441\u043a\u0438\u0439: \u041f\u0440\u0438\u0432\u0435\u0442, \u043c\u0438\u0440!",
+        "ids": [
+          33504,
+          43055,
+          126302,
+          25,
+          79484,
+          26991,
+          8178,
+          11,
+          137144,
+          0
+        ]
+      },
+      {
+        "text": "\u0395\u03bb\u03bb\u03b7\u03bd\u03b9\u03ba\u03ac: \u0393\u03b5\u03b9\u03b1 \u03c3\u03bf\u03c5 \u03ba\u03cc\u03c3\u03bc\u03b5!",
+        "ids": [
+          144674,
+          33486,
+          33486,
+          41424,
+          33269,
+          29762,
+          67337,
+          74134,
+          25,
+          84216,
+          30143,
+          29762,
+          18945,
+          47723,
+          72886,
+          71638,
+          75195,
+          43928,
+          43123,
+          30143,
+          0
+        ]
+      },
+      {
+        "text": "\u0939\u093f\u0928\u094d\u0926\u0940: \u0928\u092e\u0938\u094d\u0924\u0947 \u0926\u0941\u0928\u093f\u092f\u093e",
+        "ids": [
+          93948,
+          42311,
+          101,
+          30484,
+          99,
+          43647,
+          25,
+          14925,
+          101,
+          87244,
+          78368,
+          30484,
+          97,
+          34370,
+          14925,
+          99,
+          72653,
+          60096,
+          42311,
+          107,
+          23868
+        ]
+      },
+      {
+        "text": "\u0e44\u0e17\u0e22: \u0e2a\u0e27\u0e31\u0e2a\u0e14\u0e35\u0e42\u0e25\u0e01",
+        "ids": [
+          125451,
+          25,
+          129328,
+          37213,
+          23271,
+          125136,
+          28319,
+          126397
+        ]
+      },
+      {
+        "text": "\ud83d\ude42 \ud83d\ude80 \ud83c\udf19 \u2728",
+        "ids": [
+          145080,
+          11162,
+          248,
+          222,
+          11162,
+          234,
+          247,
+          25521,
+          101
+        ]
+      },
+      {
+        "text": "\ud83d\udc69\u200d\ud83d\udcbb \ud83d\udc68\u200d\ud83d\udc69\u200d\ud83d\udc67\u200d\ud83d\udc66 \ud83d\udc4d\ud83c\udffd",
+        "ids": [
+          145233,
+          378,
+          235,
+          145851,
+          61804,
+          101,
+          378,
+          235,
+          145233,
+          378,
+          235,
+          145665,
+          378,
+          235,
+          145988,
+          61804,
+          235,
+          145375
+        ]
+      },
+      {
+        "text": "a\u00a0b a b a\u2009b",
+        "ids": [
+          64,
+          4102,
+          65,
+          264,
+          293,
+          264,
+          378,
+          231,
+          65
+        ]
+      },
+      {
+        "text": "line\r\nending\rtest",
+        "ids": [
+          1056,
+          319,
+          2459,
+          201,
+          1944
+        ]
+      },
+      {
+        "text": "<|vision_start|> <|vision_end|> <|vision_pad|>",
+        "ids": [
+          151652,
+          220,
+          151653,
+          220,
+          151654
+        ]
+      },
+      {
+        "text": "<|endoftext|> <|image_pad|>",
+        "ids": [
+          151643,
+          220,
+          151655
+        ]
+      },
+      {
+        "text": "  leading and trailing  ",
+        "ids": [
+          220,
+          6388,
+          323,
+          27748,
+          256
+        ]
+      },
+      {
+        "text": "foo/bar_baz.py:123 -> value != null",
+        "ids": [
+          7975,
+          49513,
+          880,
+          1370,
+          7197,
+          25,
+          16,
+          17,
+          18,
+          1464,
+          897,
+          961,
+          845
+        ]
+      },
+      {
+        "text": "Math: \u2211 \u03b1 \u03b2 \u221e \u2264 \u2265 \u00b1 \u00d7 \u00f7",
+        "ids": [
+          8815,
+          25,
+          11995,
+          239,
+          19043,
+          33218,
+          11995,
+          252,
+          37294,
+          62147,
+          20287,
+          24768,
+          1683,
+          115
+        ]
+      },
+      {
+        "text": "Unicode replacement: \ufffd and zero width\u200bspace",
+        "ids": [
+          33920,
+          13723,
+          25,
+          29333,
+          323,
+          7168,
+          2374,
+          15692,
+          8746
+        ]
+      }
+    ]
+  },
+  "actual_installed_probe": {
+    "mode": "Actual guarded installed wheel; no monkeypatch, version override or source-path override",
+    "environment": {
+      "kinaiya-vibevoice-runtime": "1.0.0+kinaiya.2",
+      "torch": "2.14.1+cpu",
+      "transformers": "5.21.0",
+      "huggingface-hub": "1.33.0"
+    },
+    "manifest_sha256": "450988ff318cb01f9fc64f5c53ede9d23d61ee2f5297b64dca444734573afccb",
+    "requests": [
+      {
+        "cancel": false,
+        "elapsed_seconds": 9.49142386901076,
+        "error": null,
+        "chunks": [
+          {
+            "elapsed_seconds": 0.226523890014505,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 7.578677468700334e-05
+          },
+          {
+            "elapsed_seconds": 0.6411509829922579,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 4.975325964551303e-07
+          },
+          {
+            "elapsed_seconds": 1.0528030580026098,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 4.5060099296279077e-07
+          },
+          {
+            "elapsed_seconds": 1.4649047070124652,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 4.427845681220788e-07
+          },
+          {
+            "elapsed_seconds": 1.8833007359935436,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 4.3337615807104157e-07
+          },
+          {
+            "elapsed_seconds": 2.29832140301005,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 0.16987548768520355
+          },
+          {
+            "elapsed_seconds": 2.792273972998373,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 0.19695639610290527
+          },
+          {
+            "elapsed_seconds": 3.21512733399868,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 0.11870946735143661
+          },
+          {
+            "elapsed_seconds": 3.634851765993517,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 0.06730757653713226
+          },
+          {
+            "elapsed_seconds": 4.049110435997136,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 0.03980627655982971
+          },
+          {
+            "elapsed_seconds": 4.30987109200214,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 0.0703829973936081
+          },
+          {
+            "elapsed_seconds": 4.588569459010614,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 0.061382126063108444
+          },
+          {
+            "elapsed_seconds": 4.912169954011915,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 0.007587691303342581
+          },
+          {
+            "elapsed_seconds": 5.176374413014855,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 2.4438622858724557e-05
+          },
+          {
+            "elapsed_seconds": 5.452345933998004,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 2.290025946649621e-07
+          },
+          {
+            "elapsed_seconds": 5.719500731007429,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 1.7348635083180852e-05
+          },
+          {
+            "elapsed_seconds": 5.980456279008649,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 3.50594632436696e-07
+          },
+          {
+            "elapsed_seconds": 6.236519030004274,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 0.1449795663356781
+          },
+          {
+            "elapsed_seconds": 6.49455522999051,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 0.1861678510904312
+          },
+          {
+            "elapsed_seconds": 6.752380327990977,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 0.19109025597572327
+          },
+          {
+            "elapsed_seconds": 7.017330033995677,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 0.26684388518333435
+          },
+          {
+            "elapsed_seconds": 7.284632322000107,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 0.22508808970451355
+          },
+          {
+            "elapsed_seconds": 7.5494626669969875,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 0.12496715784072876
+          },
+          {
+            "elapsed_seconds": 7.807070712995483,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 0.17068584263324738
+          },
+          {
+            "elapsed_seconds": 8.063841069990303,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 0.0703892856836319
+          },
+          {
+            "elapsed_seconds": 8.333406029996695,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 0.0004997669602744281
+          }
+        ],
+        "samples": 83200
+      },
+      {
+        "cancel": true,
+        "elapsed_seconds": 0.6360674529860262,
+        "error": "Voice request cancelled",
+        "chunks": [
+          {
+            "elapsed_seconds": 0.21477420697920024,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 0.00012727091962005943
+          }
+        ],
+        "samples": 3200,
+        "cancel_callback_to_produce_return_seconds": 0.4212629949906841
+      },
+      {
+        "cancel": false,
+        "elapsed_seconds": 9.568768269004067,
+        "error": null,
+        "chunks": [
+          {
+            "elapsed_seconds": 0.21185649899416603,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 7.892640132922679e-05
+          },
+          {
+            "elapsed_seconds": 0.636887870990904,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 4.883748943029786e-07
+          },
+          {
+            "elapsed_seconds": 1.0548519649892114,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 4.6633059014311584e-07
+          },
+          {
+            "elapsed_seconds": 1.4823662809794769,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 4.871909595749457e-07
+          },
+          {
+            "elapsed_seconds": 1.9080069579940755,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 4.388631111851282e-07
+          },
+          {
+            "elapsed_seconds": 2.337666164006805,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 0.16357126832008362
+          },
+          {
+            "elapsed_seconds": 2.8367777619860135,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 0.3413473069667816
+          },
+          {
+            "elapsed_seconds": 3.2535011239815503,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 0.33637961745262146
+          },
+          {
+            "elapsed_seconds": 3.67355911800405,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 0.23018847405910492
+          },
+          {
+            "elapsed_seconds": 4.099638248997508,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 0.2257830798625946
+          },
+          {
+            "elapsed_seconds": 4.362279822991695,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 0.0429081991314888
+          },
+          {
+            "elapsed_seconds": 4.637608036980964,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 0.0005105105810798705
+          },
+          {
+            "elapsed_seconds": 4.962792076985352,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 2.0680960233221413e-07
+          },
+          {
+            "elapsed_seconds": 5.225564441003371,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 1.7869955115656921e-07
+          },
+          {
+            "elapsed_seconds": 5.490193253994221,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 1.8179154892550287e-07
+          },
+          {
+            "elapsed_seconds": 5.755165769980522,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 2.1135781935299747e-05
+          },
+          {
+            "elapsed_seconds": 6.022968022007262,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 3.5854975521942833e-07
+          },
+          {
+            "elapsed_seconds": 6.289820036006859,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 3.2583815823272744e-07
+          },
+          {
+            "elapsed_seconds": 6.549661451979773,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 3.1309045311900263e-07
+          },
+          {
+            "elapsed_seconds": 6.822087748994818,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 0.025009851902723312
+          },
+          {
+            "elapsed_seconds": 7.091338875994552,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 0.2984875738620758
+          },
+          {
+            "elapsed_seconds": 7.360161297983723,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 0.31140393018722534
+          },
+          {
+            "elapsed_seconds": 7.622935691993916,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 0.23822495341300964
+          },
+          {
+            "elapsed_seconds": 7.887674305995461,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 0.361680805683136
+          },
+          {
+            "elapsed_seconds": 8.150697632983793,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 0.2516377866268158
+          },
+          {
+            "elapsed_seconds": 8.416105031996267,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 0.22127993404865265
+          },
+          {
+            "elapsed_seconds": 8.681897815986304,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 0.20486168563365936
+          },
+          {
+            "elapsed_seconds": 8.94645196700003,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 0.07097822427749634
+          },
+          {
+            "elapsed_seconds": 9.207395663979696,
+            "samples": 3200,
+            "sample_rate": 24000,
+            "peak_amplitude": 0.0005846358253620565
+          }
+        ],
+        "samples": 92800
+      }
+    ],
+    "load_seconds": 6.99927746100002,
+    "assets_state": "verified"
+  },
+  "verification": {
+    "unit_command": "python -m pytest tests/unit/test_vibevoice_backend.py tests/unit/test_vibevoice_runtime_build.py -q",
+    "unit_passed": 97,
+    "unit_seconds": 0.24,
+    "ruff": "check and format --check passed on four changed Python files",
+    "runtime_class_identity": "Independent final reviewer verified native acoustic AutoConfig/AutoModel identities and native cache reconstruction; no actionable findings at 5d5bfbb.",
+    "hardware": "Same evaluation host as retained CPU screens; host load uncontrolled; filesystem caches not flushed",
+    "paid_Meta_calls": 0,
+    "python": "3.12.3"
+  },
+  "limits": [
+    "No physical audio, client underflow, listening acceptance, statistical p95 or quality comparison was measured.",
+    "The direct callback cancellation measurement runs on the caller thread and observes return from native production, not HTTP close or kernel preemption.",
+    "These few public synthetic requests establish compatibility, not sustained realtime or full production readiness.",
+    "Lead HTTP/resource/STT checks and independent final review completed; latest GitHub CI remains pending.",
+    "Nine warm observations and one cold/cancel observation do not establish p95 or physical audible latency. CPU synthesis remains slower than realtime.",
+    "Original 4.51 profiles, audits and measurements remain separately preserved; this is not a controlled performance comparison.",
+    "Ming 3 Tiny is separately tracked in #72 with no established CPU/AMD profile; full M2 remains open.",
+    "Running reference providers, services and defaults remain unchanged."
+  ],
+  "integration_implementation_commit": "93490500163f8dbee78f00a3d72e2eea9fe2dc09",
+  "requirements_input_sha256": "3e6584e6c9aabbfd765480bdb2d03f2566d66a13d9dbd9bbdc58f5bda20f04a1",
+  "actual_tts_http_screen": {
+    "kind": "isolated_retained_tts_screen",
+    "profile": "VibeVoice Realtime 0.5B",
+    "source_commit": "93490500163f8dbee78f00a3d72e2eea9fe2dc09",
+    "source_dirty": false,
+    "host": {
+      "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",
+      "machine": "x86_64",
+      "cpu_model": "AMD Ryzen 7 5800X 8-Core Processor"
+    },
+    "probe_python": "3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]",
+    "worker_environment": {
+      "python": "3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]",
+      "packages": {
+        "ctranslate2": "4.8.4",
+        "diffusers": "0.39.0",
+        "fastapi": "0.162.0",
+        "uvicorn": "0.54.0",
+        "torch": "2.14.1+cpu",
+        "numpy": "2.3.3",
+        "httpx": "0.28.1",
+        "faster-whisper": "1.2.1",
+        "transformers": "5.21.0",
+        "pydantic": "2.14.1",
+        "soundfile": "0.14.0",
+        "accelerate": "1.15.0",
+        "onnxruntime": "1.31.1"
+      }
+    },
+    "health_before": {
+      "service": "local-voice",
+      "device": "cpu",
+      "pid": 951026,
+      "loaded": [],
+      "tts_profile": "VibeVoice Realtime 0.5B",
+      "tts_voice": "en-Carter_man",
+      "synthesis_mode": "native_streaming",
+      "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+      "assets_state": "not_checked",
+      "retained_candidates": [
+        "Ming 3 Tiny",
+        "VibeVoice Realtime 0.5B",
+        "Kokoro 82M",
+        "Supertonic 3"
+      ],
+      "other_profiles": "not_configured",
+      "synthesis_active": false,
+      "active_producers": 0,
+      "producer_stopped": true,
+      "synthesis_quarantined": false,
+      "completed_producers": 0,
+      "last_producer_seconds": null,
+      "last_producer_cancelled": null
+    },
+    "health_after": {
+      "service": "local-voice",
+      "device": "cpu",
+      "pid": 951026,
+      "loaded": [
+        "tts"
+      ],
+      "tts_profile": "VibeVoice Realtime 0.5B",
+      "tts_voice": "en-Carter_man",
+      "synthesis_mode": "native_streaming",
+      "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+      "assets_state": "verified",
+      "retained_candidates": [
+        "Ming 3 Tiny",
+        "VibeVoice Realtime 0.5B",
+        "Kokoro 82M",
+        "Supertonic 3"
+      ],
+      "other_profiles": "not_configured",
+      "synthesis_active": false,
+      "active_producers": 0,
+      "producer_stopped": true,
+      "synthesis_quarantined": false,
+      "completed_producers": 12,
+      "last_producer_seconds": 9.738985873991624,
+      "last_producer_cancelled": false
+    },
+    "cold_process_first_request": {
+      "text": "I am here. What would you like to do?",
+      "request_to_first_decoded_pcm_seconds": 7.499862980999751,
+      "request_to_first_non_silent_frame_seconds": 10.111170851014322,
+      "request_to_complete_seconds": 15.35837368000648,
+      "audio_seconds": 3.2,
+      "rtf_including_http": 4.799491775002025,
+      "sample_rate": 24000,
+      "samples": 76800,
+      "chunks": 24,
+      "pcm_sha256": "7535929a152b43e5711f3af010dc7195e8f4b5daba9454394f919ffc1bd03849",
+      "first_frame_metadata": {
+        "provider": "VibeVoice Realtime 0.5B",
+        "device": "cpu",
+        "synthesis_mode": "native_streaming",
+        "elapsed_seconds": 7.498024614003953,
+        "load_seconds": 7.261655319976853,
+        "first_waveform_seconds": 0.22746296899276786
+      },
+      "chunk_arrivals": [
+        {
+          "elapsed_seconds": 7.499862980999751,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 7.910098196007311,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 8.33750501301256,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 8.754983176011592,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 9.173407177993795,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 9.601760744990315,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 10.111170851014322,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 10.539932740008226,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 10.957913708989508,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 11.38622822400066,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 11.651568483008305,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 11.918022463010857,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 12.243715054006316,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 12.519042988016736,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 12.794285420997767,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 13.08018898399314,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 13.35588362198905,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 13.621189389989013,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 13.88763018901227,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 14.173359562002588,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 14.439216775004752,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 14.70389837800758,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 14.970558778994018,
+          "samples": 3200
+        },
+        {
+          "elapsed_seconds": 15.256411912007025,
+          "samples": 3200
+        }
+      ],
+      "producer_health_at_first_frame": {
+        "service": "local-voice",
+        "device": "cpu",
+        "pid": 951026,
+        "loaded": [
+          "tts"
+        ],
+        "tts_profile": "VibeVoice Realtime 0.5B",
+        "tts_voice": "en-Carter_man",
+        "synthesis_mode": "native_streaming",
+        "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+        "assets_state": "verified",
+        "retained_candidates": [
+          "Ming 3 Tiny",
+          "VibeVoice Realtime 0.5B",
+          "Kokoro 82M",
+          "Supertonic 3"
+        ],
+        "other_profiles": "not_configured",
+        "synthesis_active": true,
+        "active_producers": 1,
+        "producer_stopped": false,
+        "synthesis_quarantined": false,
+        "completed_producers": 0,
+        "last_producer_seconds": null,
+        "last_producer_cancelled": null
+      },
+      "decoded_before_producer_exit_observed": true,
+      "worker_rss_before_bytes": 55934976,
+      "worker_rss_after_bytes": 6063824896,
+      "worker_process_lifetime_peak_rss_bytes": 6662955008,
+      "worker_cpu_seconds": 41.879999999999995
+    },
+    "cold_definition": "New process and unloaded weights; filesystem/page caches were not flushed.",
+    "warm": [
+      {
+        "text": "I am here. What would you like to do?",
+        "request_to_first_decoded_pcm_seconds": 0.22614925701054744,
+        "request_to_first_non_silent_frame_seconds": 1.482215449999785,
+        "request_to_complete_seconds": 7.999464201013325,
+        "audio_seconds": 3.2,
+        "rtf_including_http": 2.499832562816664,
+        "sample_rate": 24000,
+        "samples": 76800,
+        "chunks": 24,
+        "pcm_sha256": "1bee0500d6694c4554de7a0ad9ef37649ea3a729aed0441d2de39552309268b5",
+        "first_frame_metadata": {
+          "provider": "VibeVoice Realtime 0.5B",
+          "device": "cpu",
+          "synthesis_mode": "native_streaming",
+          "elapsed_seconds": 0.22456654199049808,
+          "load_seconds": 0.0,
+          "first_waveform_seconds": 0.21464441801072098
+        },
+        "chunk_arrivals": [
+          {
+            "elapsed_seconds": 0.22614925701054744,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 0.6441541550157126,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.0545749910234008,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.482215449999785,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.900405259017134,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.317608059995109,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.8158193890121765,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.2427328909980133,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.6596384180011228,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.076710367022315,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.3422844580200035,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.6088227379950695,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.935500688996399,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.200256861018715,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.466505988006247,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.7417462410230655,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.008678394020535,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.2750095530063845,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.550570278021041,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.816430192004191,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.091575672995532,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.366814666020218,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.642066797998268,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.900710803020047,
+            "samples": 3200
+          }
+        ],
+        "producer_health_at_first_frame": {
+          "service": "local-voice",
+          "device": "cpu",
+          "pid": 951026,
+          "loaded": [
+            "tts"
+          ],
+          "tts_profile": "VibeVoice Realtime 0.5B",
+          "tts_voice": "en-Carter_man",
+          "synthesis_mode": "native_streaming",
+          "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+          "assets_state": "verified",
+          "retained_candidates": [
+            "Ming 3 Tiny",
+            "VibeVoice Realtime 0.5B",
+            "Kokoro 82M",
+            "Supertonic 3"
+          ],
+          "other_profiles": "not_configured",
+          "synthesis_active": true,
+          "active_producers": 1,
+          "producer_stopped": false,
+          "synthesis_quarantined": false,
+          "completed_producers": 1,
+          "last_producer_seconds": 15.35134157302673,
+          "last_producer_cancelled": false
+        },
+        "decoded_before_producer_exit_observed": true,
+        "worker_rss_before_bytes": 6063824896,
+        "worker_rss_after_bytes": 6065303552,
+        "worker_process_lifetime_peak_rss_bytes": 6662955008,
+        "worker_cpu_seconds": 29.1
+      },
+      {
+        "text": "The synthetic report contains three items, and the next review is at ten thirty.",
+        "request_to_first_decoded_pcm_seconds": 0.21612298101535998,
+        "request_to_first_non_silent_frame_seconds": 3.2931940560229123,
+        "request_to_complete_seconds": 13.130631260020891,
+        "audio_seconds": 5.066666666666666,
+        "rtf_including_http": 2.5915719592146496,
+        "sample_rate": 24000,
+        "samples": 121600,
+        "chunks": 38,
+        "pcm_sha256": "3c09df3fdaa4e750fcca917a51cdc119f28afaf7889a603a6231b4f80cdb69c5",
+        "first_frame_metadata": {
+          "provider": "VibeVoice Realtime 0.5B",
+          "device": "cpu",
+          "synthesis_mode": "native_streaming",
+          "elapsed_seconds": 0.2147889280167874,
+          "load_seconds": 0.0,
+          "first_waveform_seconds": 0.21165151899913326
+        },
+        "chunk_arrivals": [
+          {
+            "elapsed_seconds": 0.21612298101535998,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 0.6362909090239555,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.065606584015768,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.4862555460131261,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.9144851000164635,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.3533221460238565,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.863599239004543,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.2931940560229123,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.7322002130094916,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.1603372860117815,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.4256830050144345,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.702059048024239,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.051194931002101,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.327886228013085,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.603181550017325,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.86782124202,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.143036034016404,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.408450713002821,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.740154741011793,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.005478809005581,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.263329067005543,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.528827966016252,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.795589938003104,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.060852076014271,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.359676182008116,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.635283587005688,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.901029079017462,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.165919063001638,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.440772972011473,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.72629441099707,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.012317286018515,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.298878416011576,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.57418099802453,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.849698153004283,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 11.126358698005788,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 11.401835583004868,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 11.667546105018118,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 11.943901097023627,
+            "samples": 3200
+          }
+        ],
+        "producer_health_at_first_frame": {
+          "service": "local-voice",
+          "device": "cpu",
+          "pid": 951026,
+          "loaded": [
+            "tts"
+          ],
+          "tts_profile": "VibeVoice Realtime 0.5B",
+          "tts_voice": "en-Carter_man",
+          "synthesis_mode": "native_streaming",
+          "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+          "assets_state": "verified",
+          "retained_candidates": [
+            "Ming 3 Tiny",
+            "VibeVoice Realtime 0.5B",
+            "Kokoro 82M",
+            "Supertonic 3"
+          ],
+          "other_profiles": "not_configured",
+          "synthesis_active": true,
+          "active_producers": 1,
+          "producer_stopped": false,
+          "synthesis_quarantined": false,
+          "completed_producers": 2,
+          "last_producer_seconds": 7.994566884008236,
+          "last_producer_cancelled": false
+        },
+        "decoded_before_producer_exit_observed": true,
+        "worker_rss_before_bytes": 6065303552,
+        "worker_rss_after_bytes": 6065471488,
+        "worker_process_lifetime_peak_rss_bytes": 6662955008,
+        "worker_cpu_seconds": 48.82000000000001
+      },
+      {
+        "text": "Kinaiya can keep our conversation available while the independent agent works.",
+        "request_to_first_decoded_pcm_seconds": 0.22663824100163765,
+        "request_to_first_non_silent_frame_seconds": 1.9316812309843954,
+        "request_to_complete_seconds": 11.491896351973992,
+        "audio_seconds": 4.8,
+        "rtf_including_http": 2.3941450733279153,
+        "sample_rate": 24000,
+        "samples": 115200,
+        "chunks": 36,
+        "pcm_sha256": "be4c6185920f72bae747ce101832c0e1e4d012d6edf151171f6417ee1e195a9e",
+        "first_frame_metadata": {
+          "provider": "VibeVoice Realtime 0.5B",
+          "device": "cpu",
+          "synthesis_mode": "native_streaming",
+          "elapsed_seconds": 0.2251197159930598,
+          "load_seconds": 0.0,
+          "first_waveform_seconds": 0.21561797597678378
+        },
+        "chunk_arrivals": [
+          {
+            "elapsed_seconds": 0.22663824100163765,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 0.6451227119832765,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.0748283799912315,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.5022077359899413,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.9316812309843954,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.3485801679780707,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.8687905139813665,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.2967500159866177,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.7134828599810135,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.1412368299788795,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.416212188982172,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.681266464001965,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.027890643978026,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.294544784002937,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.579906401981134,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.855179913982283,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.131803028983995,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.41738135900232,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.683568254986312,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.959573633997934,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.2451068539812695,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.511135467997519,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.786541141977068,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.061490360996686,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.337098505988251,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.612348127993755,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.887321846996201,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.162068793986691,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.438455416995566,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.713954181002919,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.989704327977961,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.276478378975298,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.55219288499211,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.838677893974818,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 11.113796903984621,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 11.390193567000097,
+            "samples": 3200
+          }
+        ],
+        "producer_health_at_first_frame": {
+          "service": "local-voice",
+          "device": "cpu",
+          "pid": 951026,
+          "loaded": [
+            "tts"
+          ],
+          "tts_profile": "VibeVoice Realtime 0.5B",
+          "tts_voice": "en-Carter_man",
+          "synthesis_mode": "native_streaming",
+          "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+          "assets_state": "verified",
+          "retained_candidates": [
+            "Ming 3 Tiny",
+            "VibeVoice Realtime 0.5B",
+            "Kokoro 82M",
+            "Supertonic 3"
+          ],
+          "other_profiles": "not_configured",
+          "synthesis_active": true,
+          "active_producers": 1,
+          "producer_stopped": false,
+          "synthesis_quarantined": false,
+          "completed_producers": 3,
+          "last_producer_seconds": 13.12426571000833,
+          "last_producer_cancelled": false
+        },
+        "decoded_before_producer_exit_observed": true,
+        "worker_rss_before_bytes": 6065471488,
+        "worker_rss_after_bytes": 6065586176,
+        "worker_process_lifetime_peak_rss_bytes": 6662955008,
+        "worker_cpu_seconds": 42.47999999999999
+      },
+      {
+        "text": "I am here. What would you like to do?",
+        "request_to_first_decoded_pcm_seconds": 0.21675925599993207,
+        "request_to_first_non_silent_frame_seconds": 2.8766532750159968,
+        "request_to_complete_seconds": 9.857329550024588,
+        "audio_seconds": 3.466666666666667,
+        "rtf_including_http": 2.843460447122477,
+        "sample_rate": 24000,
+        "samples": 83200,
+        "chunks": 26,
+        "pcm_sha256": "ae887a4a10cf4dc77a4548fcd0e6bc118417a7d53e9037d14dbc9e6f4d21c39f",
+        "first_frame_metadata": {
+          "provider": "VibeVoice Realtime 0.5B",
+          "device": "cpu",
+          "synthesis_mode": "native_streaming",
+          "elapsed_seconds": 0.21494759898632765,
+          "load_seconds": 0.0,
+          "first_waveform_seconds": 0.2115398870082572
+        },
+        "chunk_arrivals": [
+          {
+            "elapsed_seconds": 0.21675925599993207,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 0.6445150750223547,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.0714609760034364,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.4984308280108962,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.9150747310195584,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.345232143008616,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.8766532750159968,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.2955643800087273,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.72294517501723,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.14996702701319,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.414786580018699,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.70029773900751,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.039008983003441,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.314926221006317,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.5797713640204165,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.855645181,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.132131465012208,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.41841537100845,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.685092752013588,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.960576525016222,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.227592979004839,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.5028318700206,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.782082010002341,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.08823641500203,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.36738447402604,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.643067799013807,
+            "samples": 3200
+          }
+        ],
+        "producer_health_at_first_frame": {
+          "service": "local-voice",
+          "device": "cpu",
+          "pid": 951026,
+          "loaded": [
+            "tts"
+          ],
+          "tts_profile": "VibeVoice Realtime 0.5B",
+          "tts_voice": "en-Carter_man",
+          "synthesis_mode": "native_streaming",
+          "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+          "assets_state": "verified",
+          "retained_candidates": [
+            "Ming 3 Tiny",
+            "VibeVoice Realtime 0.5B",
+            "Kokoro 82M",
+            "Supertonic 3"
+          ],
+          "other_profiles": "not_configured",
+          "synthesis_active": true,
+          "active_producers": 1,
+          "producer_stopped": false,
+          "synthesis_quarantined": false,
+          "completed_producers": 4,
+          "last_producer_seconds": 11.482239841017872,
+          "last_producer_cancelled": false
+        },
+        "decoded_before_producer_exit_observed": true,
+        "worker_rss_before_bytes": 6065586176,
+        "worker_rss_after_bytes": 6065651712,
+        "worker_process_lifetime_peak_rss_bytes": 6662955008,
+        "worker_cpu_seconds": 36.24000000000001
+      },
+      {
+        "text": "The synthetic report contains three items, and the next review is at ten thirty.",
+        "request_to_first_decoded_pcm_seconds": 0.2261917360010557,
+        "request_to_first_non_silent_frame_seconds": 3.2827377849898767,
+        "request_to_complete_seconds": 13.226804345991695,
+        "audio_seconds": 5.066666666666666,
+        "rtf_including_http": 2.6105534893404663,
+        "sample_rate": 24000,
+        "samples": 121600,
+        "chunks": 38,
+        "pcm_sha256": "e233307e43f6b5aee1155ed05de56b236bcb9a5f6c7922eed70dd184f0f96ca1",
+        "first_frame_metadata": {
+          "provider": "VibeVoice Realtime 0.5B",
+          "device": "cpu",
+          "synthesis_mode": "native_streaming",
+          "elapsed_seconds": 0.22470597201026976,
+          "load_seconds": 0.0,
+          "first_waveform_seconds": 0.22099038699525408
+        },
+        "chunk_arrivals": [
+          {
+            "elapsed_seconds": 0.2261917360010557,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 0.6560445740178693,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.08497092401376,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.5118442740058526,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.9287394589919131,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.3561555139895063,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.865360255003907,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.2827377849898767,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.7106931660091504,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.139176341006532,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.4165865129907615,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.702866609004559,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.059601512999507,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.324667948007118,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.599808849015972,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.87510102998931,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.151232100004563,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.416629528015619,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.754429752996657,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.029914735991042,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.30686219400377,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.5818343330174685,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.856656810006825,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.132023382000625,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.408728167996742,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.685797935992014,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.961161298007937,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.236257137992652,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.5113436980173,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.78634368701023,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.08229885500623,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.34716820801259,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.62252490001265,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.897924943012185,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 11.184592252015136,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 11.46013245600625,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 11.746503892994951,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 12.023182737990282,
+            "samples": 3200
+          }
+        ],
+        "producer_health_at_first_frame": {
+          "service": "local-voice",
+          "device": "cpu",
+          "pid": 951026,
+          "loaded": [
+            "tts"
+          ],
+          "tts_profile": "VibeVoice Realtime 0.5B",
+          "tts_voice": "en-Carter_man",
+          "synthesis_mode": "native_streaming",
+          "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+          "assets_state": "verified",
+          "retained_candidates": [
+            "Ming 3 Tiny",
+            "VibeVoice Realtime 0.5B",
+            "Kokoro 82M",
+            "Supertonic 3"
+          ],
+          "other_profiles": "not_configured",
+          "synthesis_active": true,
+          "active_producers": 1,
+          "producer_stopped": false,
+          "synthesis_quarantined": false,
+          "completed_producers": 5,
+          "last_producer_seconds": 9.846918981987983,
+          "last_producer_cancelled": false
+        },
+        "decoded_before_producer_exit_observed": true,
+        "worker_rss_before_bytes": 6065651712,
+        "worker_rss_after_bytes": 6075883520,
+        "worker_process_lifetime_peak_rss_bytes": 6662955008,
+        "worker_cpu_seconds": 49.139999999999986
+      },
+      {
+        "text": "Kinaiya can keep our conversation available while the independent agent works.",
+        "request_to_first_decoded_pcm_seconds": 0.2370034980122,
+        "request_to_first_non_silent_frame_seconds": 1.9480836500006262,
+        "request_to_complete_seconds": 11.534217714011902,
+        "audio_seconds": 4.266666666666667,
+        "rtf_including_http": 2.7033322767215395,
+        "sample_rate": 24000,
+        "samples": 102400,
+        "chunks": 32,
+        "pcm_sha256": "b2484c9e016e30ce9b67afb640848d956a6b4ba460aeddc46636455a1e9a4afb",
+        "first_frame_metadata": {
+          "provider": "VibeVoice Realtime 0.5B",
+          "device": "cpu",
+          "synthesis_mode": "native_streaming",
+          "elapsed_seconds": 0.23555229499470443,
+          "load_seconds": 0.0,
+          "first_waveform_seconds": 0.230561527016107
+        },
+        "chunk_arrivals": [
+          {
+            "elapsed_seconds": 0.2370034980122,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 0.6559133520058822,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.0830599339969922,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.5209390480013099,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.9480836500006262,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.387039535009535,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.898355854995316,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.337284939014353,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.7647737840015907,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.191684583987808,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.47684786899481,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.761994192987913,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.109220226993784,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.387621138012037,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.664675856009126,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.9398582270077895,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.214897875994211,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.490507320006145,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.755607655009953,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.03105863800738,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.329209785995772,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.607262484001694,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.883035550010391,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.159306159999687,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.434181797987549,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.70896323400666,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.983777991001261,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.258993952011224,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.524785673012957,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.800184415013064,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.07515913399402,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.350439175002975,
+            "samples": 3200
+          }
+        ],
+        "producer_health_at_first_frame": {
+          "service": "local-voice",
+          "device": "cpu",
+          "pid": 951026,
+          "loaded": [
+            "tts"
+          ],
+          "tts_profile": "VibeVoice Realtime 0.5B",
+          "tts_voice": "en-Carter_man",
+          "synthesis_mode": "native_streaming",
+          "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+          "assets_state": "verified",
+          "retained_candidates": [
+            "Ming 3 Tiny",
+            "VibeVoice Realtime 0.5B",
+            "Kokoro 82M",
+            "Supertonic 3"
+          ],
+          "other_profiles": "not_configured",
+          "synthesis_active": true,
+          "active_producers": 1,
+          "producer_stopped": false,
+          "synthesis_quarantined": false,
+          "completed_producers": 6,
+          "last_producer_seconds": 13.219419606000884,
+          "last_producer_cancelled": false
+        },
+        "decoded_before_producer_exit_observed": true,
+        "worker_rss_before_bytes": 6075883520,
+        "worker_rss_after_bytes": 6065741824,
+        "worker_process_lifetime_peak_rss_bytes": 6662955008,
+        "worker_cpu_seconds": 42.629999999999995
+      },
+      {
+        "text": "I am here. What would you like to do?",
+        "request_to_first_decoded_pcm_seconds": 0.22667845999239944,
+        "request_to_first_non_silent_frame_seconds": 3.2756450209999457,
+        "request_to_complete_seconds": 9.790694975992665,
+        "audio_seconds": 3.6,
+        "rtf_including_http": 2.719637493331296,
+        "sample_rate": 24000,
+        "samples": 86400,
+        "chunks": 27,
+        "pcm_sha256": "b8d2c22aad7e484f11dc2772be0284fd969ce1d5a257aefc9a2150c1ce2d8402",
+        "first_frame_metadata": {
+          "provider": "VibeVoice Realtime 0.5B",
+          "device": "cpu",
+          "synthesis_mode": "native_streaming",
+          "elapsed_seconds": 0.22519754598033614,
+          "load_seconds": 0.0,
+          "first_waveform_seconds": 0.21737941200262867
+        },
+        "chunk_arrivals": [
+          {
+            "elapsed_seconds": 0.22667845999239944,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 0.6464666620013304,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.0839715320034884,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.5037267539883032,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.931599642004585,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.3488895900081843,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.8482176270044874,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.2756450209999457,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.6937406869838014,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.111103834991809,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.377112877991749,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.643085130985128,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.97961284298799,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.25534617897938,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.530344886996318,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.805765478988178,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.081206031987676,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.357259979995433,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.62192871098523,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.917485883983318,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.202631477994146,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.468074165983126,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.754967736982508,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.020031580992509,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.296459982986562,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.562061501987046,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.837368873995729,
+            "samples": 3200
+          }
+        ],
+        "producer_health_at_first_frame": {
+          "service": "local-voice",
+          "device": "cpu",
+          "pid": 951026,
+          "loaded": [
+            "tts"
+          ],
+          "tts_profile": "VibeVoice Realtime 0.5B",
+          "tts_voice": "en-Carter_man",
+          "synthesis_mode": "native_streaming",
+          "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+          "assets_state": "verified",
+          "retained_candidates": [
+            "Ming 3 Tiny",
+            "VibeVoice Realtime 0.5B",
+            "Kokoro 82M",
+            "Supertonic 3"
+          ],
+          "other_profiles": "not_configured",
+          "synthesis_active": true,
+          "active_producers": 1,
+          "producer_stopped": false,
+          "synthesis_quarantined": false,
+          "completed_producers": 7,
+          "last_producer_seconds": 11.528285487991525,
+          "last_producer_cancelled": false
+        },
+        "decoded_before_producer_exit_observed": true,
+        "worker_rss_before_bytes": 6065741824,
+        "worker_rss_after_bytes": 6065762304,
+        "worker_process_lifetime_peak_rss_bytes": 6662955008,
+        "worker_cpu_seconds": 36.0
+      },
+      {
+        "text": "The synthetic report contains three items, and the next review is at ten thirty.",
+        "request_to_first_decoded_pcm_seconds": 0.2784185310010798,
+        "request_to_first_non_silent_frame_seconds": 3.3601705489854794,
+        "request_to_complete_seconds": 13.217142290988704,
+        "audio_seconds": 5.2,
+        "rtf_including_http": 2.541758132882443,
+        "sample_rate": 24000,
+        "samples": 124800,
+        "chunks": 39,
+        "pcm_sha256": "7fd5d9063070bb434376777f7efa603eabf1dbdb5f751210cf5a56add73f6966",
+        "first_frame_metadata": {
+          "provider": "VibeVoice Realtime 0.5B",
+          "device": "cpu",
+          "synthesis_mode": "native_streaming",
+          "elapsed_seconds": 0.2768479160149582,
+          "load_seconds": 0.0,
+          "first_waveform_seconds": 0.2736867459898349
+        },
+        "chunk_arrivals": [
+          {
+            "elapsed_seconds": 0.2784185310010798,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 0.6957482690049801,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.124692067009164,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.5627154909889214,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.9910646239877678,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.4117290540016256,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.9326940150058363,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.3601705489854794,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.7782566339883488,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.207537056005094,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.485412220994476,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.76059270100086,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.1182884339941666,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.404121825005859,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.6796633480116725,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.965834442002233,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.230782995000482,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.506898143008584,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.833467571006622,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.10879730200395,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.394620742008556,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.661645804997534,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.938898093998432,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.215402016998269,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.49015873199096,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.756101965002017,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.041469710995443,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.307214041007683,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.582742113998393,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.85861706000287,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.13536732501234,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.410714066005312,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.675417346996255,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.941793153004255,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 11.207110288989497,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 11.482869113999186,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 11.759283466002671,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 12.026441099005751,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 12.301215794985183,
+            "samples": 3200
+          }
+        ],
+        "producer_health_at_first_frame": {
+          "service": "local-voice",
+          "device": "cpu",
+          "pid": 951026,
+          "loaded": [
+            "tts"
+          ],
+          "tts_profile": "VibeVoice Realtime 0.5B",
+          "tts_voice": "en-Carter_man",
+          "synthesis_mode": "native_streaming",
+          "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+          "assets_state": "verified",
+          "retained_candidates": [
+            "Ming 3 Tiny",
+            "VibeVoice Realtime 0.5B",
+            "Kokoro 82M",
+            "Supertonic 3"
+          ],
+          "other_profiles": "not_configured",
+          "synthesis_active": true,
+          "active_producers": 1,
+          "producer_stopped": false,
+          "synthesis_quarantined": false,
+          "completed_producers": 8,
+          "last_producer_seconds": 9.78420009399997,
+          "last_producer_cancelled": false
+        },
+        "decoded_before_producer_exit_observed": true,
+        "worker_rss_before_bytes": 6065762304,
+        "worker_rss_after_bytes": 6065766400,
+        "worker_process_lifetime_peak_rss_bytes": 6662955008,
+        "worker_cpu_seconds": 49.129999999999995
+      },
+      {
+        "text": "Kinaiya can keep our conversation available while the independent agent works.",
+        "request_to_first_decoded_pcm_seconds": 0.21803650798392482,
+        "request_to_first_non_silent_frame_seconds": 2.3196902479976416,
+        "request_to_complete_seconds": 11.458837672980735,
+        "audio_seconds": 4.4,
+        "rtf_including_http": 2.6042812893138034,
+        "sample_rate": 24000,
+        "samples": 105600,
+        "chunks": 33,
+        "pcm_sha256": "8002b1a90896d1d7fea971eed02fbb5e158424d270f17f40a02cb1a245056842",
+        "first_frame_metadata": {
+          "provider": "VibeVoice Realtime 0.5B",
+          "device": "cpu",
+          "synthesis_mode": "native_streaming",
+          "elapsed_seconds": 0.21672715598833747,
+          "load_seconds": 0.0,
+          "first_waveform_seconds": 0.21373674701317213
+        },
+        "chunk_arrivals": [
+          {
+            "elapsed_seconds": 0.21803650798392482,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 0.6360774519853294,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.0564708189922385,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.4840362039976753,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.902027576987166,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.3196902479976416,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.8291786600020714,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.2568095349997748,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.688485168997431,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.116840311005944,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.391977819992462,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.667137138982071,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.013347181986319,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.299122422002256,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.57420266099507,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.839105922990711,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.1255601389857475,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.390368499996839,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.665220066992333,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.940214804984862,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.216322113003116,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.502021711989073,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.777296091982862,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.041915042005712,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.317524224985391,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.592873246001545,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.861758865998127,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.138400538999122,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.41377559999819,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.690217801980907,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.968788113998016,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.243753460992593,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 10.519993110006908,
+            "samples": 3200
+          }
+        ],
+        "producer_health_at_first_frame": {
+          "service": "local-voice",
+          "device": "cpu",
+          "pid": 951026,
+          "loaded": [
+            "tts"
+          ],
+          "tts_profile": "VibeVoice Realtime 0.5B",
+          "tts_voice": "en-Carter_man",
+          "synthesis_mode": "native_streaming",
+          "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+          "assets_state": "verified",
+          "retained_candidates": [
+            "Ming 3 Tiny",
+            "VibeVoice Realtime 0.5B",
+            "Kokoro 82M",
+            "Supertonic 3"
+          ],
+          "other_profiles": "not_configured",
+          "synthesis_active": true,
+          "active_producers": 1,
+          "producer_stopped": false,
+          "synthesis_quarantined": false,
+          "completed_producers": 9,
+          "last_producer_seconds": 13.208122296986403,
+          "last_producer_cancelled": false
+        },
+        "decoded_before_producer_exit_observed": true,
+        "worker_rss_before_bytes": 6065766400,
+        "worker_rss_after_bytes": 6065766400,
+        "worker_process_lifetime_peak_rss_bytes": 6662955008,
+        "worker_cpu_seconds": 42.370000000000005
+      }
+    ],
+    "warm_summary": {
+      "samples": 9,
+      "statistics": {
+        "request_to_first_decoded_pcm_seconds": {
+          "minimum": 0.21612298101535998,
+          "median": 0.2261917360010557,
+          "maximum": 0.2784185310010798
+        },
+        "request_to_complete_seconds": {
+          "minimum": 7.999464201013325,
+          "median": 11.491896351973992,
+          "maximum": 13.226804345991695
+        },
+        "rtf_including_http": {
+          "minimum": 2.3941450733279153,
+          "median": 2.6042812893138034,
+          "maximum": 2.843460447122477
+        }
+      },
+      "percentile_claim": null
+    },
+    "physical_audible_latency_seconds": null,
+    "client_playback_measured": false,
+    "native_inference_cancellation_measured": true,
+    "cancellation": {
+      "boundary": "HTTP response close to observed producer-thread exit; polled at 50ms",
+      "close_to_observed_producer_exit_seconds": 0.4641239600023255,
+      "health_before": {
+        "service": "local-voice",
+        "device": "cpu",
+        "pid": 951026,
+        "loaded": [
+          "tts"
+        ],
+        "tts_profile": "VibeVoice Realtime 0.5B",
+        "tts_voice": "en-Carter_man",
+        "synthesis_mode": "native_streaming",
+        "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+        "assets_state": "verified",
+        "retained_candidates": [
+          "Ming 3 Tiny",
+          "VibeVoice Realtime 0.5B",
+          "Kokoro 82M",
+          "Supertonic 3"
+        ],
+        "other_profiles": "not_configured",
+        "synthesis_active": false,
+        "active_producers": 0,
+        "producer_stopped": true,
+        "synthesis_quarantined": false,
+        "completed_producers": 10,
+        "last_producer_seconds": 11.454304370010504,
+        "last_producer_cancelled": false
+      },
+      "health_after_first_frame": {
+        "service": "local-voice",
+        "device": "cpu",
+        "pid": 951026,
+        "loaded": [
+          "tts"
+        ],
+        "tts_profile": "VibeVoice Realtime 0.5B",
+        "tts_voice": "en-Carter_man",
+        "synthesis_mode": "native_streaming",
+        "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+        "assets_state": "verified",
+        "retained_candidates": [
+          "Ming 3 Tiny",
+          "VibeVoice Realtime 0.5B",
+          "Kokoro 82M",
+          "Supertonic 3"
+        ],
+        "other_profiles": "not_configured",
+        "synthesis_active": true,
+        "active_producers": 1,
+        "producer_stopped": false,
+        "synthesis_quarantined": false,
+        "completed_producers": 10,
+        "last_producer_seconds": 11.454304370010504,
+        "last_producer_cancelled": false
+      },
+      "health_after_exit": {
+        "service": "local-voice",
+        "device": "cpu",
+        "pid": 951026,
+        "loaded": [
+          "tts"
+        ],
+        "tts_profile": "VibeVoice Realtime 0.5B",
+        "tts_voice": "en-Carter_man",
+        "synthesis_mode": "native_streaming",
+        "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+        "assets_state": "verified",
+        "retained_candidates": [
+          "Ming 3 Tiny",
+          "VibeVoice Realtime 0.5B",
+          "Kokoro 82M",
+          "Supertonic 3"
+        ],
+        "other_profiles": "not_configured",
+        "synthesis_active": false,
+        "active_producers": 0,
+        "producer_stopped": true,
+        "synthesis_quarantined": false,
+        "completed_producers": 11,
+        "last_producer_seconds": 0.6466375220043119,
+        "last_producer_cancelled": true
+      },
+      "subsequent_synthesis": {
+        "text": "I am here. What would you like to do?",
+        "request_to_first_decoded_pcm_seconds": 0.21761050398345105,
+        "request_to_first_non_silent_frame_seconds": 2.8395661049871705,
+        "request_to_complete_seconds": 9.74601761100348,
+        "audio_seconds": 3.7333333333333334,
+        "rtf_including_http": 2.6105404315187895,
+        "sample_rate": 24000,
+        "samples": 89600,
+        "chunks": 28,
+        "pcm_sha256": "26a1c8ba8a0ddf06a5b392e43469106d314d8695186d7ea00525df0b9bff6227",
+        "first_frame_metadata": {
+          "provider": "VibeVoice Realtime 0.5B",
+          "device": "cpu",
+          "synthesis_mode": "native_streaming",
+          "elapsed_seconds": 0.21628520099329762,
+          "load_seconds": 0.0,
+          "first_waveform_seconds": 0.21365178600535728
+        },
+        "chunk_arrivals": [
+          {
+            "elapsed_seconds": 0.21761050398345105,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 0.6466492920008022,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.064223740977468,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.481715259986231,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 1.9084198759810533,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.3280657650029752,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 2.8395661049871705,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.277566137985559,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 3.7064814750046935,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.134512803982943,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.420292603987036,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 4.685303106991341,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.024224759981735,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.300777251977706,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.566694203997031,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 5.831368372979341,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.09621195399086,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.371138171001803,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.646297839994077,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 6.931708486983553,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.207120687991846,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.472404622996692,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 7.750103055994259,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.026535696990322,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.293269657006022,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.570104480982991,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 8.83717246298329,
+            "samples": 3200
+          },
+          {
+            "elapsed_seconds": 9.112502984004095,
+            "samples": 3200
+          }
+        ],
+        "producer_health_at_first_frame": {
+          "service": "local-voice",
+          "device": "cpu",
+          "pid": 951026,
+          "loaded": [
+            "tts"
+          ],
+          "tts_profile": "VibeVoice Realtime 0.5B",
+          "tts_voice": "en-Carter_man",
+          "synthesis_mode": "native_streaming",
+          "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+          "assets_state": "verified",
+          "retained_candidates": [
+            "Ming 3 Tiny",
+            "VibeVoice Realtime 0.5B",
+            "Kokoro 82M",
+            "Supertonic 3"
+          ],
+          "other_profiles": "not_configured",
+          "synthesis_active": true,
+          "active_producers": 1,
+          "producer_stopped": false,
+          "synthesis_quarantined": false,
+          "completed_producers": 11,
+          "last_producer_seconds": 0.6466375220043119,
+          "last_producer_cancelled": true
+        },
+        "decoded_before_producer_exit_observed": true,
+        "worker_rss_before_bytes": 6065766400,
+        "worker_rss_after_bytes": 6065766400,
+        "worker_process_lifetime_peak_rss_bytes": 6662955008,
+        "worker_cpu_seconds": 35.77999999999997
+      },
+      "physical_audio_stop_measured": false
+    },
+    "limitations": [
+      "Synthetic HTTP/PCM screen only; no physical microphone/speaker or hearing measurement.",
+      "Transport frame count alone is not native streaming; first-frame health records whether production was still active.",
+      "No loaded Decisions/Converse contention comparison or M2 performance acceptance.",
+      "A single cold process observation and disclosed warm repetitions; no p95 claim."
+    ]
+  },
+  "actual_owned_resource_proof": {
+    "schema": 1,
+    "profile": "VibeVoice Realtime 0.5B",
+    "scope": "Actual owned CPU voice worker and HTTP PCM; scripted text plus authenticated ASGI controls",
+    "started_utc": "2026-10-28T13:43:38.557459+00:00",
+    "passed": true,
+    "limits": [
+      "No physical playback or microphone",
+      "No real cloud inference or Agent task execution",
+      "No GPU release/reservation proof",
+      "No latency benchmark or percentile claim",
+      "Only disposable reserved ports; existing live ports are never contacted"
+    ],
+    "reserved_ports_initially_unoccupied": [
+      18960,
+      18961,
+      18962,
+      18966
+    ],
+    "source": {
+      "commit": "93490500163f8dbee78f00a3d72e2eea9fe2dc09",
+      "files_sha256": {
+        "packages/providers/voice_worker.py": "f4a11b4ee6cb86f12775305c928d5f36220ed03566572c10f4d1e08f11b8d5c8",
+        "packages/providers/tts_backends.py": "96e19c069c8b294d20820f0804e4085830f2e3436456fb1de6f8077c2bb99e1f",
+        "packages/providers/supertonic3_manifest.json": "22ffec6f2416bdf6cb137c252adc2c8ae741efb4486a07c168c40060582c4c27",
+        "scripts/probe_retained_resources.py": "1d516beff97904289a7902056522ec5b1af4fded022cf5ebe546dccefe4deca4",
+        "packages/providers/vibevoice_backend.py": "6ee9dc3daa5b753dc2eaaf065d93db85df0e17ac534fdb268cd51dfc607d3582",
+        "packages/providers/vibevoice_manifest.json": "450988ff318cb01f9fc64f5c53ede9d23d61ee2f5297b64dca444734573afccb",
+        "services/resources/launcher.py": "567fec78d207e2e440d646711eb276edaf487ff4697e104260b0ebd8ff298475",
+        "services/converse/api.py": "57716d45cefbcc55993c60b1ccdae2d40e1369e083aab51010de54fdbda0751a",
+        "services/converse/runtime.py": "f7ab35fd1e43511c95d149486684bfa1fde86875bf50a1663218696ef3d1634c",
+        "packages/providers/speech.py": "49b8fd18fbe1667de91402826942f2a10c75421b0f3c70a512e0584a3a1accb4",
+        "services/resources/coordinator.py": "6aad3c3ff77aca3801c9f724b52ba9dedd94683fb5c91bc76e5f5799bf4b63f1",
+        "packages/resources/processes.py": "f5c789f7929d7e8531c2464f633dd17a122fc674c2abec75ef448579a744c66b"
+      },
+      "commit_after_probe": "93490500163f8dbee78f00a3d72e2eea9fe2dc09"
+    },
+    "before_handoff": {
+      "identity": {
+        "pid": 952323,
+        "start_ticks": 17325733
+      },
+      "api_ready_health": {
+        "service": "local-voice",
+        "pid": 952323,
+        "device": "cpu",
+        "loaded": [],
+        "tts_profile": "VibeVoice Realtime 0.5B",
+        "tts_voice": "en-Carter_man",
+        "synthesis_mode": "native_streaming",
+        "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+        "assets_state": "not_checked"
+      },
+      "loaded_health": {
+        "service": "local-voice",
+        "pid": 952323,
+        "device": "cpu",
+        "loaded": [
+          "tts"
+        ],
+        "tts_profile": "VibeVoice Realtime 0.5B",
+        "tts_voice": "en-Carter_man",
+        "synthesis_mode": "native_streaming",
+        "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+        "assets_state": "verified"
+      },
+      "worker": {
+        "state": "running",
+        "ready": true,
+        "readiness": "verified",
+        "owned_pid": 952323,
+        "owned_pgid": 952323,
+        "rss_bytes": 6073577472,
+        "group_rss_bytes": 6073577472,
+        "stop_evidence": null
+      },
+      "audio": {
+        "frames": 31,
+        "samples": 99200,
+        "sample_rate": 24000,
+        "audio_seconds": 4.133333333333334,
+        "nonzero_samples": 73712,
+        "pcm_sha256": "ba65cb282d2e6cddbf5e67950a2087ef84cb33724e562005a01560d517f2a668",
+        "synthesis_mode": "native_streaming",
+        "timing_measurement": false
+      },
+      "memory_available_bytes": 43011674112
+    },
+    "handoff": {
+      "phase": "local_work",
+      "worker": {
+        "state": "stopped",
+        "ready": false,
+        "readiness": "verified",
+        "owned_pid": 952323,
+        "owned_pgid": null,
+        "rss_bytes": null,
+        "group_rss_bytes": null,
+        "stop_evidence": {
+          "pid": 952323,
+          "pgid": 952323,
+          "rss_before_bytes": 6073577472,
+          "group_rss_before_bytes": 6073577472,
+          "mem_available_bytes": 43011469312,
+          "term_sent": true,
+          "kill_sent": false,
+          "reaped": true,
+          "group_empty": true,
+          "residual_pids": [],
+          "ownership_verified": true,
+          "duration_s": 0.5788448030070867,
+          "at": "2026-10-28T13:43:58.958153+00:00"
+        }
+      },
+      "required_bytes": 134217728,
+      "restore_high_water_bytes": 6207795200,
+      "memory_available_bytes": 48832561152,
+      "retained_pidfd_exited": true,
+      "old_identity_absent": true,
+      "old_speech_http": 409,
+      "bound_task_status": "scripted_running"
+    },
+    "restored": {
+      "identity": {
+        "pid": 952455,
+        "start_ticks": 17327738
+      },
+      "api_ready_health": {
+        "service": "local-voice",
+        "pid": 952455,
+        "device": "cpu",
+        "loaded": [],
+        "tts_profile": "VibeVoice Realtime 0.5B",
+        "tts_voice": "en-Carter_man",
+        "synthesis_mode": "native_streaming",
+        "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+        "assets_state": "not_checked"
+      },
+      "loaded_health": {
+        "service": "local-voice",
+        "pid": 952455,
+        "device": "cpu",
+        "loaded": [
+          "tts"
+        ],
+        "tts_profile": "VibeVoice Realtime 0.5B",
+        "tts_voice": "en-Carter_man",
+        "synthesis_mode": "native_streaming",
+        "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+        "assets_state": "verified"
+      },
+      "worker": {
+        "state": "running",
+        "ready": true,
+        "readiness": "verified",
+        "owned_pid": 952455,
+        "owned_pgid": 952455,
+        "rss_bytes": 6061854720,
+        "group_rss_bytes": 6061854720,
+        "stop_evidence": {
+          "pid": 952323,
+          "pgid": 952323,
+          "rss_before_bytes": 6073577472,
+          "group_rss_before_bytes": 6073577472,
+          "mem_available_bytes": 43011469312,
+          "term_sent": true,
+          "kill_sent": false,
+          "reaped": true,
+          "group_empty": true,
+          "residual_pids": [],
+          "ownership_verified": true,
+          "duration_s": 0.5788448030070867,
+          "at": "2026-10-28T13:43:58.958153+00:00"
+        }
+      },
+      "audio": {
+        "frames": 27,
+        "samples": 86400,
+        "sample_rate": 24000,
+        "audio_seconds": 3.6,
+        "nonzero_samples": 67057,
+        "pcm_sha256": "a9428bcf8286d81e9644bf31f475f93b65c00c93ea3589aa59b3150cd8a7953c",
+        "synthesis_mode": "native_streaming",
+        "timing_measurement": false
+      },
+      "old_speech_http": 409
+    },
+    "owner_off_restore": {
+      "owner_enabled": false,
+      "phase": "off",
+      "worker": {
+        "state": "stopped",
+        "ready": false,
+        "readiness": "verified",
+        "owned_pid": 952455,
+        "owned_pgid": null,
+        "rss_bytes": null,
+        "group_rss_bytes": null,
+        "stop_evidence": {
+          "pid": 952455,
+          "pgid": 952455,
+          "rss_before_bytes": 6061854720,
+          "group_rss_before_bytes": 6061854720,
+          "mem_available_bytes": 42903228416,
+          "term_sent": true,
+          "kill_sent": false,
+          "reaped": true,
+          "group_empty": true,
+          "residual_pids": [],
+          "ownership_verified": true,
+          "duration_s": 0.6783448439964559,
+          "at": "2026-10-28T13:44:17.261936+00:00"
+        }
+      },
+      "retained_pidfd_exited": true
+    },
+    "synthetic_text_calls": 1,
+    "resource_journal_events": 10,
+    "cleanup": {
+      "manager_closed": true,
+      "all_owned_workers_stopped": true,
+      "reserved_voice_port_released": true,
+      "private_temporary_data_removed": true
+    },
+    "finished_utc": "2026-10-28T13:44:17.345746+00:00"
+  },
+  "actual_synthetic_tts_to_stt": {
+    "kind": "synthetic_http_stt_roundtrip",
+    "passed": true,
+    "physical_microphone": false,
+    "human_listening": false,
+    "wav_sha256": "b6a3d969660de252c170f6cc49a3e937b10458ddac56258c5f36ac0e853086ef",
+    "source_commit": "93490500163f8dbee78f00a3d72e2eea9fe2dc09",
+    "health_before": {
+      "service": "local-voice",
+      "device": "cpu",
+      "pid": 952334,
+      "loaded": [],
+      "tts_profile": "VibeVoice Realtime 0.5B",
+      "tts_voice": "en-Carter_man",
+      "synthesis_mode": "native_streaming",
+      "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+      "assets_state": "not_checked",
+      "retained_candidates": [
+        "Ming 3 Tiny",
+        "VibeVoice Realtime 0.5B",
+        "Kokoro 82M",
+        "Supertonic 3"
+      ],
+      "other_profiles": "not_configured",
+      "synthesis_active": false,
+      "active_producers": 0,
+      "producer_stopped": true,
+      "synthesis_quarantined": false,
+      "completed_producers": 0,
+      "last_producer_seconds": null,
+      "last_producer_cancelled": null
+    },
+    "transcription": {
+      "text": "I am here. What would you like to do?",
+      "language": "en",
+      "final": true,
+      "provider": "faster-whisper",
+      "model": "tiny.en",
+      "stt_seconds": 0.9350277080084197,
+      "retained_audio": false
+    },
+    "request_seconds": 0.9372445190092549,
+    "health_after": {
+      "service": "local-voice",
+      "device": "cpu",
+      "pid": 952334,
+      "loaded": [
+        "stt"
+      ],
+      "tts_profile": "VibeVoice Realtime 0.5B",
+      "tts_voice": "en-Carter_man",
+      "synthesis_mode": "native_streaming",
+      "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+      "assets_state": "not_checked",
+      "retained_candidates": [
+        "Ming 3 Tiny",
+        "VibeVoice Realtime 0.5B",
+        "Kokoro 82M",
+        "Supertonic 3"
+      ],
+      "other_profiles": "not_configured",
+      "synthesis_active": false,
+      "active_producers": 0,
+      "producer_stopped": true,
+      "synthesis_quarantined": false,
+      "completed_producers": 0,
+      "last_producer_seconds": null,
+      "last_producer_cancelled": null
+    },
+    "owned_process_reaped": true,
+    "private_temp_removed": true
+  },
+  "warm_summary": {
+    "request_to_first_decoded_pcm_seconds": {
+      "observations": 9,
+      "minimum": 0.21612298101535998,
+      "median": 0.2261917360010557,
+      "maximum": 0.2784185310010798
+    },
+    "request_to_first_non_silent_frame_seconds": {
+      "observations": 9,
+      "minimum": 1.482215449999785,
+      "median": 2.8766532750159968,
+      "maximum": 3.3601705489854794
+    },
+    "request_to_complete_seconds": {
+      "observations": 9,
+      "minimum": 7.999464201013325,
+      "median": 11.491896351973992,
+      "maximum": 13.226804345991695
+    },
+    "rtf_including_http": {
+      "observations": 9,
+      "minimum": 2.3941450733279153,
+      "median": 2.6042812893138034,
+      "maximum": 2.843460447122477
+    }
+  },
+  "lead_installed_audit": {
+    "command": ".../supertonic-ci-venv/bin/python -m pip_audit --path .../transformers521-env/lib/python3.12/site-packages --format json --output .../transformers5-lead-runtime-audit.json --progress-spinner off",
+    "dependency_entries": 80,
+    "covered_packages": 78,
+    "listed_advisory_records": 0,
+    "skipped": [
+      {
+        "name": "kinaiya-vibevoice-runtime",
+        "reason": "Dependency not found on PyPI and could not be audited: kinaiya-vibevoice-runtime (1.0.0+kinaiya.2)"
+      },
+      {
+        "name": "torch",
+        "reason": "Dependency not found on PyPI and could not be audited: torch (2.14.1+cpu)"
+      }
+    ],
+    "raw_sha256": "3fc4aa957cb454daf3c98546374620d1a75dcd75c91f9ab284972b1d6895e0d9",
+    "interpretation": "Zero reported vulnerabilities for covered packages; skipped local source and direct CPU binary are not audited by PyPI. Exact source/patch/wheel provenance, independent review and actual compatibility/lifecycle checks are additional evidence, not general safety proof."
+  },
+  "lead_regression": {
+    "python3.12": {
+      "command": "env -u PYTHONPATH .../supertonic-ci-venv/bin/pytest -m 'not live' -q",
+      "passed": 1217,
+      "warnings": 1,
+      "seconds": 185.73,
+      "log_sha256": "f7d8f535f6278e3bb430b7c33bf18c4b9c0bdb911964c6f11ed2b7b7aafbdeac"
+    },
+    "python3.11_focused": {
+      "command": "PYTHONPATH=. .../vibevoice-py311-venv/bin/python -m pytest -q tests/unit/test_vibevoice_backend.py tests/unit/test_vibevoice_runtime_build.py tests/unit/test_tts_backends.py tests/integration/test_converse_speech_cancel.py tests/integration/test_voice_producer.py tests/integration/test_voice_backends.py",
+      "passed": 264,
+      "seconds": 20.38,
+      "log_sha256": "68f82b1cf75e7f2145c9dc3e6508e1090bbc87c3f3439e2e5feb9ee819e6d1e4"
+    },
+    "ruff": "Lint passed; 205 files already formatted",
+    "contracts": "Contract export and schema consistency passed before commit",
+    "github_ci": "Pending updated source push. Prior 23d0169 CI run 40696389336 passed 1,193 tests on both Python versions plus Flutter, but predates this port.",
+    "patch_whitespace": "Exact upstream context carries trailing whitespace inside the checked patch artifact. Whitespace checks pass outside that data file; trimming it would change exact context/digest.",
+    "post_measurement_metadata_fix": "The probe package-name list now includes kinaiya-vibevoice-runtime for future reports. The recorded screen predates that metadata-only change; its implementation guard and separate installed probe verify .2."
+  },
+  "independent_final_review": {
+    "reviewer": "Codex minimal_runtime_review after explicit user reauthorization",
+    "reviewed_source_commit": "5d5bfbbd879637be65b46303f91b883a1e756e43",
+    "integrated_source_commit": "93490500163f8dbee78f00a3d72e2eea9fe2dc09",
+    "integration_difference": "Cherry-pick into lead; only requirements-input explanatory comment was resolved during integration. Runtime/builder/patch/manifest/test content matches the reviewed source.",
+    "finding_count": 0,
+    "focused_tests": {
+      "passed": 188,
+      "seconds": 17.0,
+      "invocation": "python -m pytest"
+    },
+    "verified": [
+      "Native acoustic AutoConfig and AutoModel identities remain unchanged",
+      "All 100 Carter tensors and cache sequence lengths match the original canonical digest 180f85e218172350c1aa92205afa84e9ebc5e04bf953c1830659d4c28adaee0b",
+      "All 22 upstream files, the exact four-file patch, derived hashes, wheel bytes, MIT license, RECORD and provenance match",
+      "All 151,665 vocabulary entries, special IDs and 30 public fixture encodings match",
+      "Covered package advisory metadata and explicit CPU/custom distribution skips were inspected"
+    ],
+    "corrected_test_attempt": "Initial console pytest imported the lead checkout through the shared editable environment and produced 15 version-fixture mismatches. Verified module invocation resolved the correct checkout and passed 188 tests. No assertions were weakened.",
+    "limits": [
+      "No heavy inference rerun by reviewer",
+      "No full HTTP/resource/STT rerun by reviewer",
+      "No exploit or binary audit",
+      "Neither human approval nor full M2 acceptance"
+    ]
+  },
+  "receipt_inputs_sha256": {
+    "transformers5-worker-screen.json": "867ac7644df9b74ff90f640cbb7be00bf3dc89065abb35c39ebb0e1c7ade3e3a",
+    "transformers5-resource-proof.json": "0462400d2375bf8757e339e03f093314993c9202a2b0fc2c8b1d05bf0873dd0c",
+    "transformers5-stt-roundtrip.json": "fb4324b16e6b87f26e992495f278db3c05e47b19b359c68bc861937815627e79"
+  },
+  "orchestration": {
+    "current_user_instruction": "Codex subagents plus actual visible Muse CLI subagents: Muse Spark 1.3 Contributor at max/xhigh",
+    "port_implementation_and_review": "Codex agents; zero paid Meta calls for the port or lead probes",
+    "historical_Muse_contribution": "A real visible Muse Spark 1.3 Contributor/xhigh CLI proposed the original minimal-wheel patch; the lead applied, hardened and tested it. Its historical static review of 69d5322 predates the later port.",
+    "new_Muse_calls": "The full-context budget reservation cannot fit the remaining $22 admission ceiling. No bypass or date reset."
+  },
+  "meta_budget": {
+    "limit_usd": 25,
+    "admission_limit_usd": 22,
+    "billing_reported_usd": null,
+    "contributor_estimated_usd": 1.0084956160000003,
+    "admission_estimated_usd": 20.234957600000012,
+    "reserved_usd": 1.5558100499999998,
+    "admission_policy": "2x Contributor catalog rates; uncached input; full-context reservations; $3 buffer"
+  }
+}

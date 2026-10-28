@@ -2,7 +2,10 @@
 
 import asyncio
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
+
+from anyio import CancelScope
 
 from packages.contracts.models import AppendRequest, ConverseRequest, DeliveryRequest, new_id
 from packages.providers.disclosure import entry_allowed
@@ -34,8 +37,11 @@ class SpeechChunker:
 class PlaybackEpoch:
     generation: int = 0
     chunks: dict = field(default_factory=dict)
+    on_begin: Callable | None = field(default=None, repr=False, compare=False)
 
     def begin(self):
+        if self.on_begin is not None:
+            self.on_begin()
         self.generation += 1
         self.chunks.clear()
         return self.generation
@@ -44,7 +50,37 @@ class PlaybackEpoch:
         return generation == self.generation
 
 
+@dataclass(eq=False)
+class SpeechOperation:
+    session_id: str
+    thread_id: str
+    session_epoch: int
+    event_id: str
+    generation: int
+    admission: tuple
+    task: asyncio.Task
+    queue: asyncio.Queue
+    cancelled: bool = False
+    stopped: asyncio.Event = field(default_factory=asyncio.Event)
+    cleanup: asyncio.Task | None = None
+    cleanup_failed: bool = False
+
+    def cancel(self):
+        if self.cancelled:
+            return
+        self.cancelled = True
+        self.stopped.set()
+        if not self.task.done():
+            self.task.cancel()
+        # Wake a reader even when the provider has never produced its first frame.
+        while not self.queue.empty():
+            self.queue.get_nowait()
+        self.queue.put_nowait(("cancelled", None))
+
+
 class ConverseRuntime:
+    _speech_cleanup_timeout = 5.0
+
     def __init__(
         self,
         journal,
@@ -73,6 +109,7 @@ class ConverseRuntime:
         self._resource_enabled = not resources_managed
         self._availability_generation = 0
         self._active = {}
+        self._speech = {}
         self._dedupe_locks = {}
         self._epoch_locks = {}
         self._runtime_id = new_id()
@@ -102,6 +139,7 @@ class ConverseRuntime:
         self._resource_enabled = value
         if not value:
             self._availability_generation += 1
+            self._cancel_speech()
 
     def admission(self):
         state = self.availability()
@@ -121,6 +159,7 @@ class ConverseRuntime:
             # loss and is visible to a restoring controller immediately.
             self.intent.set(value)
             self._availability_generation += 1
+            self._cancel_speech()
         else:
             self.enabled = value
         if not self.enabled:
@@ -179,8 +218,202 @@ class ConverseRuntime:
                         idempotency_key=f"playback-start:{self._runtime_id}:{session.epoch}",
                     )
                 )
-            self.playback[session_id] = PlaybackEpoch(generation)
+            self.playback[session_id] = PlaybackEpoch(
+                generation, on_begin=lambda: self._cancel_speech(session_id)
+            )
         return self.playback[session_id]
+
+    def _cancel_speech(self, session_id=None):
+        sessions = list(self._speech) if session_id is None else [session_id]
+        for key in sessions:
+            for operation in list(self._speech.get(key, ())):
+                operation.cancel()
+
+    def speech_status(self):
+        operations = [operation for group in self._speech.values() for operation in group]
+        return {
+            "active": sum(not operation.cancelled for operation in operations),
+            "cancellation_pending": sum(operation.cancelled for operation in operations),
+            "cleanup_failed": sum(operation.cleanup_failed for operation in operations),
+        }
+
+    def check_speech_ready(self):
+        if self.speech_status()["cancellation_pending"]:
+            raise ValueError("Previous speech cleanup is unconfirmed; inspect Converse health")
+
+    async def _watch_speech(self, operation):
+        # Native control hooks cancel synchronously. This bounded monitor also
+        # observes owner-file changes and session resets made by another service;
+        # it never scans transcript history or blocks an interrupt on journal I/O.
+        while not operation.cancelled:
+            if not self.admission_current(operation.admission):
+                operation.cancel()
+                return
+            try:
+                session = await asyncio.wait_for(
+                    self.journal.session(operation.session_id), timeout=1
+                )
+            except Exception:
+                operation.cancel()
+                return
+            # On Python 3.11 a simultaneous wait_for completion can consume
+            # task cancellation. The operation token remains authoritative.
+            if operation.cancelled:
+                return
+            if (session.epoch, session.thread_id) != (
+                operation.session_epoch,
+                operation.thread_id,
+            ):
+                operation.cancel()
+                return
+            await asyncio.sleep(0.25)
+
+    async def _speech_valid(self, operation):
+        validation = asyncio.create_task(
+            self.validate_speech(operation.event_id, operation.generation)
+        )
+        stopped = asyncio.create_task(operation.stopped.wait())
+        try:
+            await asyncio.wait((validation, stopped), return_when=asyncio.FIRST_COMPLETED)
+            if operation.cancelled:
+                return False
+            try:
+                await validation
+            except ValueError:
+                return False
+            return True
+        finally:
+            for task in (validation, stopped):
+                if not task.done():
+                    task.cancel()
+            await asyncio.gather(validation, stopped, return_exceptions=True)
+
+    async def speech_frames(self, event, generation, synthesize):
+        """Own one cancellable upstream stream, independent of the response reader.
+
+        Cancelling its task closes the HTTP iterator; it is not confirmation that
+        a model kernel or a physical playback device has stopped.
+        """
+        queue = asyncio.Queue(maxsize=1)
+        iterator = None
+        close_failed = False
+
+        async def produce():
+            nonlocal iterator, close_failed
+            try:
+                try:
+                    await self.validate_speech(event.event_id, generation)
+                    iterator = synthesize(event.payload["text"])
+                    async for chunk in iterator:
+                        if operation is None or operation.cancelled:
+                            return
+                        await queue.put(("frame", chunk))
+                finally:
+                    if iterator is not None:
+                        try:
+                            await iterator.aclose()
+                        except Exception:
+                            close_failed = True
+                            raise
+            except asyncio.CancelledError:
+                return
+            except Exception as exc:
+                if operation is not None and operation.cancelled:
+                    close_failed = True
+                else:
+                    await queue.put(("error", exc))
+            else:
+                await queue.put(("done", None))
+
+        producer = asyncio.create_task(produce())
+        monitor = None
+        operation = None
+        try:
+            # No await between the local admission check and registration. A
+            # generation/off transition cannot miss this operation while the
+            # producer's authoritative asynchronous validation is suspended.
+            try:
+                admission = self.admission()
+                self.check_speech_ready()
+            except (OSError, ValueError, RuntimeError):
+                return
+            playback = self.playback.get(event.session_id)
+            if (
+                playback is None
+                or not playback.accepts(generation)
+                or event.payload.get("runtime_id") != self._runtime_id
+                or event.payload.get("generation_epoch") != generation
+                or event.payload.get("owner_intent_revision", admission[0]) != admission[0]
+                or event.payload.get("availability_generation", admission[1]) != admission[1]
+            ):
+                return
+            operation = SpeechOperation(
+                event.session_id,
+                event.thread_id,
+                event.epoch,
+                event.event_id,
+                generation,
+                admission,
+                producer,
+                queue,
+            )
+            self._speech.setdefault(event.session_id, set()).add(operation)
+            monitor = asyncio.create_task(self._watch_speech(operation))
+            while True:
+                kind, value = await queue.get()
+                if operation.cancelled or kind in {"done", "cancelled"}:
+                    return
+                if kind == "error":
+                    raise value
+                if (
+                    not await self._speech_valid(operation)
+                    or operation.cancelled
+                    or not self.admission_current(admission)
+                    or not playback.accepts(generation)
+                ):
+                    return
+                yield value
+        finally:
+            # Starlette disconnect uses a level-triggered cancellation scope.
+            # Shield cleanup so its repeated cancellation cannot interrupt the
+            # upstream iterator's finally block and orphan the response socket.
+            with CancelScope(shield=True):
+                if operation is not None:
+                    operation.cancel()
+                elif not producer.done():
+                    producer.cancel()
+                if monitor is not None:
+                    monitor.cancel()
+
+                async def finish_cleanup():
+                    try:
+                        await asyncio.gather(
+                            producer,
+                            *([monitor] if monitor is not None else []),
+                            return_exceptions=True,
+                        )
+                        if iterator is not None:
+                            await iterator.aclose()
+                        if close_failed:
+                            raise RuntimeError("Upstream speech iterator cleanup failed")
+                    except Exception:
+                        if operation is not None:
+                            operation.cleanup_failed = True
+                    else:
+                        if operation is not None:
+                            operations = self._speech.get(event.session_id)
+                            if operations is not None:
+                                operations.discard(operation)
+                                if not operations:
+                                    self._speech.pop(event.session_id, None)
+
+                cleanup = asyncio.create_task(finish_cleanup())
+                if operation is not None:
+                    operation.cleanup = cleanup
+                # Wait at most five seconds without cancelling a finally block
+                # that may own an HTTP socket. A timed-out operation stays in
+                # the registry/health and refuses new speech until confirmed.
+                await asyncio.wait((cleanup,), timeout=self._speech_cleanup_timeout)
 
     async def interrupt(self, session_id, expected_generation=None):
         epoch = await self._epoch(session_id)
