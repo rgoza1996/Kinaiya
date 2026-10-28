@@ -96,6 +96,40 @@ one utterance. Browser ownership prevents historical window replies from playing
 after reconnect/disarm; first actual scheduled reply audio starts a new capture
 utterance without closing the explicitly armed microphone.
 
+Issue [#75](https://github.com/rgoza1996/Kinaiya/issues/75) repairs native journal
+recovery in this consumer. The cursor advances only after decision admission is
+confirmed; an unavailable source lookup leaves the retained decision recoverable.
+Prepare, start and reply appends retain the exact request across an uncertain
+acknowledgment. A native start receipt reconciles an allocated generation before
+publication. Native I/O has a one-second operation deadline and at most three
+attempts with 100 ms backoff. Each attempt rechecks source, current intent, owner
+admission and playback generation; backoff releases the per-session lock. An admitted
+healthy explanation has no new universal 60-second reply deadline; the existing
+source age bound still governs admission.
+
+A brief native outage pauses the same provider iterator. Exhaustion fences its
+generation, records a best-effort journal error with confirmed partial state and
+unknown delivery, and never replays inference or resumes its buffered text after
+healing. Provider errors remain distinct. Owner-off and interruption own the
+stream before its first delta. Cancellation and provider cleanup are separate:
+unconfirmed cleanup retains its original slot in the existing 32-entry bound,
+and a decision deferred solely for cleanup keeps its cursor position. Shutdown
+waits at most one second, retaining unfinished ownership rather than asserting
+that cancellation closed a resource. An optional iterator `aclose` is used when
+present; a conforming iterator without it remains supported. A hard process
+restart cannot resume an in-memory model stream; this repair makes no
+exactly-once inference or audible-delivery claim.
+
+Review extended #75 narrowly into the two in-repository HTTP text adapters:
+HTTPX may close a response inside its iterator at natural EOF, before the
+provider context exits. One shielded task now owns the actual response-stream
+close at EOF, provider error or cancellation. Failed or self-cancelled HTTP
+cleanup reports `ProviderCleanupError` and keeps its original bounded slot;
+an exhausted generator's later no-op `aclose` cannot prove resource release.
+Request bodies, authentication, proxy/budget handling, disclosure and provider
+deadlines are unchanged. An opaque third-party iterator's hidden transport
+cleanup cannot be introspected or universally guaranteed by this controller.
+
 Agent routing uses native submit/steer/interrupt with exact authenticated source
 text and current task revision. Queue receipts wait for task completion and
 release work in order while Agent is idle. Cancelled targets, newer interrupts,
@@ -129,6 +163,38 @@ expiry during inference, source-bound status receipts, session fairness,
 owner-off/reset fences and duplicate dispatch. The fixed 2,000-source query
 fixture requires indexed point lookups and a generous SQLite VM-operation
 budget; it is a deterministic regression, not a loaded latency benchmark.
+
+#75 focused verification passed 174 Python 3.12 tests: the new local/authenticated
+HTTP recovery matrix, existing speech-window/cancellation/window-HTTP integration
+checks and provider unit tests. The 107 recovery/provider tests also passed on
+Python 3.11. Imports explicitly resolved to the isolated worker checkout on both
+versions. Ruff lint and format checks passed for all 207 Python files.
+These fixtures use native journals and deterministic text or mocked HTTP bytes;
+they perform no paid inference, reference-service requests or physical audio.
+Full-project and PR CI remain lead integration checks.
+
+The original #75 reproduction on main `6336484` lost a retained decision after
+one transient source read: Converse made no provider call while independent
+native Agent dispatch still submitted its fixture task. Prepare append failures
+lost admission; a failed start could strand an allocated generation; uncertain
+start/reply acknowledgments closed the provider after its first delta. The
+blocked `IGNORE` backchannel control preserved both chunks and refuted the
+separate truncation hypothesis. Tests now cover the actual failures, exact
+append identity, stale intent/owner/epoch changes during uncertain appends,
+timeout recovery/exhaustion, long healthy replies, and 32 cleanup owners holding
+the 33rd durable decision until cleanup confirms.
+
+Draft checks are retained rather than relabelled as passes: the first combined
+run had 129 passes and four fixture failures. A committed native start receipt
+correctly reconciles a permanently lost acknowledgment, so it is now a positive
+case; the final-read interrupt fixture now enters through `tick` so its decision
+cursor is actually consumed. A later run had 139 passes and four fixture failures:
+the capacity test now awaits its bounded parent completion, and the mocked
+remote provider URL uses required HTTPS. A subsequent 147-test run passed before
+review exposed HTTP EOF/error cleanup cancellation: the targeted reproduction
+had two passes and four failures. The response-close guard then passed all 12
+blocked/EOF/error adapter cases; final checks additionally cover failed and
+self-cancelled HTTP cleanup without releasing the original slot.
 
 Deterministic checks exercise the real journal, authenticated HTTP, browser PCM
 encoding/bounds, independent timing, correction/replay, held/interrupting replies,

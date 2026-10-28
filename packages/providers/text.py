@@ -21,6 +21,42 @@ class ProviderRefusal(ProviderError):
     """A rejected input/result must be surfaced rather than retried as a decision."""
 
 
+class ProviderCleanupError(ProviderError):
+    """The provider's HTTP response did not confirm resource cleanup."""
+
+
+class _OwnedHTTPStream(httpx.AsyncByteStream):
+    """Keep HTTP response cleanup owned through cancellation at EOF or error."""
+
+    def __init__(self, stream):
+        self.stream = stream
+        self.cleanup = None
+
+    async def __aiter__(self):
+        async for chunk in self.stream:
+            yield chunk
+
+    async def aclose(self):
+        if self.cleanup is None:
+            self.cleanup = asyncio.create_task(self.stream.aclose())
+        interrupted = False
+        while not self.cleanup.done():
+            try:
+                await asyncio.shield(self.cleanup)
+            except asyncio.CancelledError:
+                interrupted = True
+            except Exception:
+                break
+        # This owner remains pending until real close succeeds or fails. The
+        # caller's bounded cancellation policy must retain that ownership.
+        try:
+            self.cleanup.result()
+        except (Exception, asyncio.CancelledError) as exc:
+            raise ProviderCleanupError("HTTP response cleanup is unconfirmed") from exc
+        if interrupted:
+            raise asyncio.CancelledError
+
+
 class ScriptedProvider:
     info = ProviderInfo(provider="deterministic-fixture", model="scripted", local=True)
 
@@ -110,6 +146,9 @@ class CompatibleTextProvider:
                 "stream": True,
             },
         ) as response:
+            # httpx also closes from aiter_raw at natural EOF, before context
+            # exit. Protect the actual stream close at both boundaries.
+            response.stream = _OwnedHTTPStream(response.stream)
             if response.is_error:
                 raise ProviderError(f"Provider HTTP {response.status_code}")
             async for line in response.aiter_lines():
@@ -340,6 +379,7 @@ class MetaResponsesProvider:
         async with self.http.stream(
             "POST", "responses", json=self.body(messages, True)
         ) as response:
+            response.stream = _OwnedHTTPStream(response.stream)
             if response.is_error:
                 raise ProviderError(f"Meta HTTP {response.status_code}")
             async for line in response.aiter_lines():
