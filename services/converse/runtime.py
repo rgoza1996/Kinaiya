@@ -17,8 +17,8 @@ from packages.contracts.models import (
     PlaybackGeneration,
     new_id,
 )
-from packages.providers.disclosure import entry_allowed
 from packages.providers.text import ProviderCleanupError, owned_http_stream_cleanup
+from services.converse.history import typed_history
 from services.converse.intent import ConverseIntent
 
 
@@ -934,13 +934,6 @@ class ConverseRuntime:
                 yield {"type": "text", "entry": reply.model_dump(mode="json"), "replay": True}
             yield {"type": "done", "replay": True, "pending": not bool(replies)}
             return
-        history = [
-            e
-            for e in existing
-            if e.epoch == request.epoch
-            and e.kind in {"conversation.user", "conversation.converse"}
-            and entry_allowed(self.provider.info, e)
-        ][-self.context_turns :]
         messages = [{"role": "system", "content": self.personality}]
         delivery = [
             e for e in existing if e.kind == "delivery.updated" and e.epoch == request.epoch
@@ -964,13 +957,7 @@ class ConverseRuntime:
                     + json.dumps(notes),
                 }
             )
-        messages += [
-            {
-                "role": "user" if e.kind == "conversation.user" else "assistant",
-                "content": e.payload["text"],
-            }
-            for e in history
-        ]
+        messages += typed_history(existing, request, self.provider.info, self.context_turns)
         messages.append({"role": "user", "content": request.text})
         chunker, index = SpeechChunker(), 0
         queue = operation.queue

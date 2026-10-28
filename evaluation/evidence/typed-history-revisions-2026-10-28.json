@@ -1,0 +1,138 @@
+{
+  "issue": "https://github.com/rgoza1996/Kinaiya/issues/81",
+  "baseline_commit": "dad69559f49aad81f4008e53880bb8f1d6b98502",
+  "branch": "feat/81-typed-history",
+  "source_sha256": {
+    "services/converse/history.py": "f089cd5d0049a0ac9f241975b6738c22f6b3944dd1318bdb2dd517eece5e1d61",
+    "services/converse/delivery_context.py": "5a244a1e8ca05db1e48fbdd851d7c785c5b1e1485d328e184b5503b26f2b670f",
+    "services/converse/runtime.py": "addbbb58677fefc0deb17fbadef5fc923ce019c8284464443754c401e775a6fd",
+    "tests/unit/test_converse_history.py": "e58d64ef1512a98cecd18cba71aed266becf7dd73d4241b5eca2062351fbb8b6",
+    "tests/integration/test_converse_typed_history.py": "d2053cdce538542745c5c7ecbea446e350d3746c4ee24b9934a03e31ceaf4bc9"
+  },
+  "synthetic_only": true,
+  "external_model_calls": 0,
+  "live_service_requests": 0,
+  "journal_transports": [
+    "native LocalJournal with owner and Converse roles",
+    "native owner/Converse-authenticated HTTP via JournalClient and ASGITransport"
+  ],
+  "provider_evidence": "Actual ConverseRuntime.turn calls a recording provider.stream; local, Contributor-class and ordinary cloud ProviderInfo fixtures do not make external inference calls.",
+  "projection": {
+    "snapshot_limit": 100,
+    "slice_before_filter": true,
+    "scope": [
+      "session_id",
+      "thread_id",
+      "epoch"
+    ],
+    "order": "native sequence; corrections retain original user position; truncate turns after projection",
+    "revision_range": [
+      1,
+      9007199254740991
+    ],
+    "malformed_or_denied_chain": "sticky omission without falling back to stale text or allowing later public widening",
+    "typed_legacy_unscoped_consent": "unchanged entry_allowed path",
+    "typed_text_and_turn_limits": "full text and existing context_turns; default12",
+    "window_limits": "unchanged last8rows,2000characters per message,8192UTF8bytes delivery block",
+    "extra_history_rpc_calls": 0,
+    "history_read_test": "Warm unrelated playback discovery; actual typed turn makes exactly its existing recent(session_id,limit=100), forbids read/resolve."
+  },
+  "original_regression": {
+    "probe_sha256": "26cc035710b4c51744c68997b4d3700a3b823162c8c5ad8e7f392e3e044acd62",
+    "command": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=. /home/roggoz/Disks/SN750/Kinaiya/.dev-run/supertonic-ci-venv/bin/python -B /tmp/kinaiya-81-implementation-cdltg8tp/typed_revision_probe.py <fresh-output-directory>",
+    "baseline_cases": 2,
+    "baseline_exit_code": 1,
+    "baseline_stale_drafts_forwarded": 2,
+    "post_change_cases": 2,
+    "post_change_exit_code": 0,
+    "post_change_stale_drafts_forwarded": 0,
+    "post_change_denied_corrections_forwarded": 0,
+    "post_change_runtime_sha256": "addbbb58677fefc0deb17fbadef5fc923ce019c8284464443754c401e775a6fd",
+    "source_identity": "Original probe recorded baseline gitHEAD for both runs; post-change run used the uncommitted implementation identified by runtimeSHA256 above. Final committed review/probe is a separate gate."
+  },
+  "verification": [
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=. /home/roggoz/Disks/SN750/Kinaiya/.dev-run/supertonic-ci-venv/bin/python -B -m pytest -q -p no:cacheprovider tests/unit/test_converse_history.py tests/integration/test_converse_typed_history.py tests/integration/test_converse_delivery_context.py",
+      "passed": 301,
+      "seconds": 49.58,
+      "warnings": 0,
+      "log": "focused-py312.log"
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=. /home/roggoz/Disks/SN750/Kinaiya/.dev-run/supertonic-ci-venv/bin/python -B -m pytest -q -p no:cacheprovider tests/unit/test_converse_history.py tests/integration/test_converse_typed_history.py tests/integration/test_converse_delivery_context.py tests/integration/test_converse_window_recovery.py tests/integration/test_converse_text_cleanup.py tests/integration/test_speech_windows.py tests/integration/test_converse_speech_cancel.py tests/integration/test_window_http.py tests/integration/test_converse_owner_controls.py tests/integration/test_session.py tests/unit/test_providers.py",
+      "passed": 618,
+      "seconds": 201.8,
+      "warnings": 1,
+      "warning": "existing Starlette/httpx deprecation",
+      "log": "combined-py312.log"
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=. /home/roggoz/Disks/SN750/Kinaiya/.dev-run/vibevoice-py311-venv/bin/python -B -m pytest -q -p no:cacheprovider tests/unit/test_converse_history.py tests/integration/test_converse_typed_history.py tests/integration/test_converse_delivery_context.py tests/integration/test_converse_window_recovery.py tests/integration/test_converse_text_cleanup.py tests/integration/test_speech_windows.py tests/integration/test_converse_speech_cancel.py tests/integration/test_window_http.py tests/integration/test_converse_owner_controls.py tests/integration/test_session.py tests/unit/test_providers.py",
+      "passed": 618,
+      "seconds": 203.57,
+      "warnings": 1,
+      "warning": "existing Starlette/httpx deprecation",
+      "log": "combined-py311.log"
+    }
+  ],
+  "imports": {
+    "py312": {
+      "interpreter": "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/supertonic-ci-venv/bin/python",
+      "version": "3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]",
+      "root": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya",
+      "modules": {
+        "services.converse.history": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/services/converse/history.py",
+        "services.converse.runtime": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/services/converse/runtime.py",
+        "services.converse.delivery_context": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/services/converse/delivery_context.py"
+      }
+    },
+    "py311": {
+      "interpreter": "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/vibevoice-py311-venv/bin/python",
+      "version": "3.11.15 (main, Jul 18 2026, 17:02:49) [Clang 22.1.3 ]",
+      "root": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya",
+      "modules": {
+        "services.converse.history": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/services/converse/history.py",
+        "services.converse.runtime": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/services/converse/runtime.py",
+        "services.converse.delivery_context": "/home/roggoz/.codex/worktrees/vibevoice-review/Kinaiya/services/converse/delivery_context.py"
+      }
+    }
+  },
+  "static_checks": [
+    "ruff check .: passed",
+    "ruff format --check .:174files unchanged",
+    "All exported WireModel schemas match checked-in JSON: passed",
+    "git diff --check: passed"
+  ],
+  "unchanged_from_baseline": [
+    "packages/providers/disclosure.py",
+    "tests/integration/test_converse_delivery_context.py",
+    "tests/integration/test_converse_window_recovery.py",
+    "tests/integration/test_converse_text_cleanup.py"
+  ],
+  "raw_artifacts": {
+    "directory": "/tmp/kinaiya-81-implementation-cdltg8tp",
+    "sha256": {
+      "before.log": "380e7d2d83c9d4bbc21c27349ca5eb403b28af23adcd5880884febcc1faaae94",
+      "after/typed-results.json": "d35bf2c73fbd8504b6c2fe0b0cda82f784bbd6d1b7697d78ae71253afd468966",
+      "before/typed-results.json": "217b54876cd8df5524351e0ef320e5e7c346d98714c2411dc91a7e4888ab5124",
+      "focused-py312.log": "3368a3a54b26bebd2dadf8ae2e3242320ffcd9d7a897269acb5fa3a645de7508",
+      "combined-py312.log": "e05d209b68e9f99d5c5ea4b61244909221ad31d73c4e921968b713750de73a30",
+      "combined-py311.log": "932f8025604d12223d3f5996fcff9cdc16db561edb9e9fb76439202e5e0a5320",
+      "imports-py312.json": "615623e230214df37a71d1a8169b58c6a6ad75198d1bfe814a8384cc757f02b5",
+      "imports-py311.json": "e9fe8c7271007fb035818d0a9bd717a71aa9276fe89ff119e2ff4dc07c151ba2",
+      "static-checks.log": "528b3bdaedd2acfc8e70022345698ba50137e91cf8cee4f2ecb4756a7d5f8b00",
+      "typed_revision_probe.py": "26cc035710b4c51744c68997b4d3700a3b823162c8c5ad8e7f392e3e044acd62"
+    }
+  },
+  "remaining_gates": [
+    "Final committed independent review",
+    "Exact-head full integration CI"
+  ],
+  "limitations": [
+    "Bounded snapshot only; corrections outside or committed after capture are not an all-history/atomic future guarantee.",
+    "No older-history refill, per-message resolve or consent rewrite; legacy unscoped typed consent remains.",
+    "Typed delivery-note representation is unchanged; this is not a typed playback-context redesign.",
+    "Pure malformed native-shaped fixtures include data current native append validation rejects; they are parser/projection evidence, not proof of native writer acceptance.",
+    "No external provider behavior, physical audio, full M2/M3 acceptance, independent human approval or broad security audit is established."
+  ]
+}
