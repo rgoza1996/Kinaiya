@@ -1,0 +1,1249 @@
+{
+  "schema_version": "1.0",
+  "issue": "https://github.com/rgoza1996/Kinaiya/issues/67",
+  "local_date": "2026-10-27",
+  "assembled_utc": "2026-10-28T05:13:22.551922+00:00",
+  "scope": "Retained Supertonic 3 offline CPU backend integration and synthetic screening; full M2 remains open.",
+  "implementation_source_commit": "54a2ab457f1cf826600ef6164cb83ba7011dd85d",
+  "model": {
+    "repository": "supertone-oss-archive/supertonic-3",
+    "revision": "aafc6e32416a594460b32413efc49d7fe4ce6d46",
+    "manifest": "packages/providers/supertonic3_manifest.json",
+    "manifest_sha256": "22ffec6f2416bdf6cb137c252adc2c8ae741efb4486a07c168c40060582c4c27",
+    "acquisition_verification": "All acquired graphs matched pinned upstream LFS SHA256; small files matched pinned Git blob identifiers before SHA256 recording. Runtime hashes required inference files and selected style.",
+    "license": "BigScience Open RAIL-M (2022-08-18)"
+  },
+  "sdk": {
+    "package": "supertonic",
+    "version": "1.3.1",
+    "source_revision": "df0f9686dac7fbbde391b759e2ee5286a3737622",
+    "license": "MIT",
+    "installed_core_files_match_pinned_upstream": true,
+    "source_files_sha256": {
+      "pipeline.py": "13b16fb8556632b5985f8ba1e961096ca1ad921d01aed171972dd106df51a7cd",
+      "loader.py": "9478b085ccae88fd44849a87d8a55d0ddada03e4fbb7f47f1707f04ac06e621f",
+      "core.py": "26664d490509edc1cc1feca2fc0f72b1ae067fd5c5b11d39c1daeba9c3e81ff4",
+      "__init__.py": "98bc280f4cb2c475d3f8a9c790cadddc0f5b6d6b04411180e867d3a7e6f3bc18"
+    }
+  },
+  "runtime_lock": {
+    "path": "requirements-supertonic.lock",
+    "sha256": "8ecf40ae6a1e9d755f303a7ac74e78d629c6c0d9e894cdefde5c90531c54b1ae",
+    "hash_required_sync_passed": true,
+    "dependency_audit": "pip_audit --disable-pip: no known vulnerabilities found"
+  },
+  "direct_sdk_synthesis": {
+    "sample_rate": 44100,
+    "samples": 236544,
+    "actual_audio_seconds": 5.363809523809524,
+    "predicted_duration_seconds": 5.353518962860107,
+    "load_seconds": 0.5481843010056764,
+    "synthesis_seconds": 1.0123521680070553,
+    "execution_providers": {
+      "dp_ort": [
+        "CPUExecutionProvider"
+      ],
+      "text_enc_ort": [
+        "CPUExecutionProvider"
+      ],
+      "vector_est_ort": [
+        "CPUExecutionProvider"
+      ],
+      "vocoder_ort": [
+        "CPUExecutionProvider"
+      ]
+    },
+    "peak_rss_bytes": 520159232,
+    "physical_audible_latency": null
+  },
+  "supertonic_worker_screen": {
+    "kind": "isolated_retained_tts_screen",
+    "profile": "Supertonic 3",
+    "source_commit": "54a2ab457f1cf826600ef6164cb83ba7011dd85d",
+    "source_dirty": false,
+    "host": {
+      "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",
+      "machine": "x86_64",
+      "cpu_model": "AMD Ryzen 7 5800X 8-Core Processor"
+    },
+    "probe_python": "3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]",
+    "worker_environment": {
+      "python": "3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]",
+      "packages": {
+        "numpy": "2.3.3",
+        "fastapi": "0.162.0",
+        "supertonic": "1.3.1",
+        "onnxruntime": "1.23.1",
+        "httpx": "0.28.1",
+        "uvicorn": "0.54.0",
+        "pydantic": "2.14.1",
+        "soundfile": "0.13.1"
+      }
+    },
+    "health_before": {
+      "service": "local-voice",
+      "device": "cpu",
+      "pid": 771486,
+      "loaded": [],
+      "tts_profile": "Supertonic 3",
+      "tts_voice": "F1",
+      "synthesis_mode": "buffered",
+      "tts_artifact_revision": "aafc6e32416a594460b32413efc49d7fe4ce6d46",
+      "assets_state": "not_checked",
+      "retained_candidates": [
+        "Ming 3 Tiny",
+        "VibeVoice Realtime 0.5B",
+        "Kokoro 82M",
+        "Supertonic 3"
+      ],
+      "other_profiles": "not_configured"
+    },
+    "health_after": {
+      "service": "local-voice",
+      "device": "cpu",
+      "pid": 771486,
+      "loaded": [
+        "tts"
+      ],
+      "tts_profile": "Supertonic 3",
+      "tts_voice": "F1",
+      "synthesis_mode": "buffered",
+      "tts_artifact_revision": "aafc6e32416a594460b32413efc49d7fe4ce6d46",
+      "assets_state": "verified",
+      "retained_candidates": [
+        "Ming 3 Tiny",
+        "VibeVoice Realtime 0.5B",
+        "Kokoro 82M",
+        "Supertonic 3"
+      ],
+      "other_profiles": "not_configured"
+    },
+    "cold_process_first_request": {
+      "text": "I am here. What would you like to do?",
+      "request_to_first_decoded_pcm_seconds": 1.5728741959901527,
+      "request_to_first_non_silent_frame_seconds": 1.5728741959901527,
+      "request_to_complete_seconds": 1.5748937739990652,
+      "audio_seconds": 2.9257142857142857,
+      "rtf_including_http": 0.5382937704098367,
+      "sample_rate": 44100,
+      "samples": 129024,
+      "chunks": 3,
+      "pcm_sha256": "7a5bdd338430c94e30ec1fa1a1a47295ceca98eb300cc4eb8b6c7c6e43dc551c",
+      "first_frame_metadata": {
+        "provider": "Supertonic 3",
+        "device": "cpu",
+        "synthesis_mode": "buffered",
+        "elapsed_seconds": 1.5611314779962413,
+        "load_seconds": 0.8428336560027674,
+        "first_waveform_seconds": 0.6207456909760367
+      },
+      "worker_rss_before_bytes": 49573888,
+      "worker_rss_after_bytes": 538374144,
+      "worker_process_lifetime_peak_rss_bytes": 539521024,
+      "worker_cpu_seconds": 4.18
+    },
+    "cold_definition": "New process and unloaded weights; filesystem/page caches were not flushed.",
+    "warm": [
+      {
+        "text": "I am here. What would you like to do?",
+        "request_to_first_decoded_pcm_seconds": 0.713960307999514,
+        "request_to_first_non_silent_frame_seconds": 0.713960307999514,
+        "request_to_complete_seconds": 0.7160848559869919,
+        "audio_seconds": 2.9257142857142857,
+        "rtf_including_http": 0.24475556601117887,
+        "sample_rate": 44100,
+        "samples": 129024,
+        "chunks": 3,
+        "pcm_sha256": "f0ff18658f2ab265d271503aaa658db379f4af2e58ef8d92d26e153d60a1a258",
+        "first_frame_metadata": {
+          "provider": "Supertonic 3",
+          "device": "cpu",
+          "synthesis_mode": "buffered",
+          "elapsed_seconds": 0.7116599429864436,
+          "load_seconds": 0.0,
+          "first_waveform_seconds": 0.6182551849924494
+        },
+        "worker_rss_before_bytes": 538374144,
+        "worker_rss_after_bytes": 544169984,
+        "worker_process_lifetime_peak_rss_bytes": 544169984,
+        "worker_cpu_seconds": 2.8200000000000003
+      },
+      {
+        "text": "The synthetic report contains three items, and the next review is at ten thirty.",
+        "request_to_first_decoded_pcm_seconds": 1.1432778279995546,
+        "request_to_first_non_silent_frame_seconds": 1.1432778279995546,
+        "request_to_complete_seconds": 1.1463353669969365,
+        "audio_seconds": 5.50312925170068,
+        "rtf_including_http": 0.2083060954170165,
+        "sample_rate": 44100,
+        "samples": 242688,
+        "chunks": 6,
+        "pcm_sha256": "33de232a45b7784534407048dff49f9a2f95af373567271ce374861987804dbd",
+        "first_frame_metadata": {
+          "provider": "Supertonic 3",
+          "device": "cpu",
+          "synthesis_mode": "buffered",
+          "elapsed_seconds": 1.1414156270038802,
+          "load_seconds": 0.0,
+          "first_waveform_seconds": 0.9772518230020069
+        },
+        "worker_rss_before_bytes": 544169984,
+        "worker_rss_after_bytes": 548958208,
+        "worker_process_lifetime_peak_rss_bytes": 548958208,
+        "worker_cpu_seconds": 4.359999999999999
+      },
+      {
+        "text": "Kinaiya can keep our conversation available while the independent agent works.",
+        "request_to_first_decoded_pcm_seconds": 1.2408928659860976,
+        "request_to_first_non_silent_frame_seconds": 1.2408928659860976,
+        "request_to_complete_seconds": 1.244045733998064,
+        "audio_seconds": 5.433469387755102,
+        "rtf_including_http": 0.22895973920487203,
+        "sample_rate": 44100,
+        "samples": 239616,
+        "chunks": 6,
+        "pcm_sha256": "076c5bc3fee72868acf80b97fe16789b687a7867ce1c09c2e5109cf46447a080",
+        "first_frame_metadata": {
+          "provider": "Supertonic 3",
+          "device": "cpu",
+          "synthesis_mode": "buffered",
+          "elapsed_seconds": 1.2389767759887036,
+          "load_seconds": 0.0,
+          "first_waveform_seconds": 1.0550208729982842
+        },
+        "worker_rss_before_bytes": 548958208,
+        "worker_rss_after_bytes": 548966400,
+        "worker_process_lifetime_peak_rss_bytes": 548966400,
+        "worker_cpu_seconds": 4.6899999999999995
+      },
+      {
+        "text": "I am here. What would you like to do?",
+        "request_to_first_decoded_pcm_seconds": 0.7155647740000859,
+        "request_to_first_non_silent_frame_seconds": 0.7155647740000859,
+        "request_to_complete_seconds": 0.7176162930263672,
+        "audio_seconds": 2.9257142857142857,
+        "rtf_including_http": 0.2452790064054966,
+        "sample_rate": 44100,
+        "samples": 129024,
+        "chunks": 3,
+        "pcm_sha256": "5127d0ec7162c336b37690bdb39b068912d42891c942b962a3200330305142ac",
+        "first_frame_metadata": {
+          "provider": "Supertonic 3",
+          "device": "cpu",
+          "synthesis_mode": "buffered",
+          "elapsed_seconds": 0.7137143229774665,
+          "load_seconds": 0.0,
+          "first_waveform_seconds": 0.6164972179976758
+        },
+        "worker_rss_before_bytes": 548966400,
+        "worker_rss_after_bytes": 548966400,
+        "worker_process_lifetime_peak_rss_bytes": 548966400,
+        "worker_cpu_seconds": 2.84
+      },
+      {
+        "text": "The synthetic report contains three items, and the next review is at ten thirty.",
+        "request_to_first_decoded_pcm_seconds": 1.1573009749990888,
+        "request_to_first_non_silent_frame_seconds": 1.1573009749990888,
+        "request_to_complete_seconds": 1.1607767189852893,
+        "audio_seconds": 5.50312925170068,
+        "rtf_including_http": 0.21093030272304877,
+        "sample_rate": 44100,
+        "samples": 242688,
+        "chunks": 6,
+        "pcm_sha256": "cd11324831642a7c8503ed02708c9667c98135f72088e0e5f11cb919fe35a0ee",
+        "first_frame_metadata": {
+          "provider": "Supertonic 3",
+          "device": "cpu",
+          "synthesis_mode": "buffered",
+          "elapsed_seconds": 1.1553200950147584,
+          "load_seconds": 0.0,
+          "first_waveform_seconds": 0.9816428479971364
+        },
+        "worker_rss_before_bytes": 548966400,
+        "worker_rss_after_bytes": 559697920,
+        "worker_process_lifetime_peak_rss_bytes": 559697920,
+        "worker_cpu_seconds": 4.380000000000003
+      },
+      {
+        "text": "Kinaiya can keep our conversation available while the independent agent works.",
+        "request_to_first_decoded_pcm_seconds": 1.1622746440116316,
+        "request_to_first_non_silent_frame_seconds": 1.1622746440116316,
+        "request_to_complete_seconds": 1.1659371359855868,
+        "audio_seconds": 5.433469387755102,
+        "rtf_including_http": 0.21458428359109732,
+        "sample_rate": 44100,
+        "samples": 239616,
+        "chunks": 6,
+        "pcm_sha256": "991dd867c4c692296057b5a08e5db93cd2b4f3db0e723b976810c124d5eb6884",
+        "first_frame_metadata": {
+          "provider": "Supertonic 3",
+          "device": "cpu",
+          "synthesis_mode": "buffered",
+          "elapsed_seconds": 1.1600665260048117,
+          "load_seconds": 0.0,
+          "first_waveform_seconds": 0.9905851719959173
+        },
+        "worker_rss_before_bytes": 559697920,
+        "worker_rss_after_bytes": 559706112,
+        "worker_process_lifetime_peak_rss_bytes": 559706112,
+        "worker_cpu_seconds": 4.399999999999999
+      },
+      {
+        "text": "I am here. What would you like to do?",
+        "request_to_first_decoded_pcm_seconds": 0.7176962919766083,
+        "request_to_first_non_silent_frame_seconds": 0.7176962919766083,
+        "request_to_complete_seconds": 0.7198060809751041,
+        "audio_seconds": 2.9257142857142857,
+        "rtf_including_http": 0.24602746908328754,
+        "sample_rate": 44100,
+        "samples": 129024,
+        "chunks": 3,
+        "pcm_sha256": "15588a31e6219b84f6b21c79dad2a63858f2305bcb48d95cca8277d8787fbf8b",
+        "first_frame_metadata": {
+          "provider": "Supertonic 3",
+          "device": "cpu",
+          "synthesis_mode": "buffered",
+          "elapsed_seconds": 0.7154552150168456,
+          "load_seconds": 0.0,
+          "first_waveform_seconds": 0.6151696560264099
+        },
+        "worker_rss_before_bytes": 559706112,
+        "worker_rss_after_bytes": 559706112,
+        "worker_process_lifetime_peak_rss_bytes": 559706112,
+        "worker_cpu_seconds": 2.8599999999999994
+      },
+      {
+        "text": "The synthetic report contains three items, and the next review is at ten thirty.",
+        "request_to_first_decoded_pcm_seconds": 1.2043583729828242,
+        "request_to_first_non_silent_frame_seconds": 1.2043583729828242,
+        "request_to_complete_seconds": 1.2073646819917485,
+        "audio_seconds": 5.50312925170068,
+        "rtf_including_http": 0.21939602483780044,
+        "sample_rate": 44100,
+        "samples": 242688,
+        "chunks": 6,
+        "pcm_sha256": "db48b45cf327913a2ee3a37ef6a25a579f665f013500e0f1c2f9be802e30605b",
+        "first_frame_metadata": {
+          "provider": "Supertonic 3",
+          "device": "cpu",
+          "synthesis_mode": "buffered",
+          "elapsed_seconds": 1.2024452130135614,
+          "load_seconds": 0.0,
+          "first_waveform_seconds": 1.0313723760191351
+        },
+        "worker_rss_before_bytes": 559706112,
+        "worker_rss_after_bytes": 559706112,
+        "worker_process_lifetime_peak_rss_bytes": 559706112,
+        "worker_cpu_seconds": 4.580000000000002
+      },
+      {
+        "text": "Kinaiya can keep our conversation available while the independent agent works.",
+        "request_to_first_decoded_pcm_seconds": 1.1648515190172475,
+        "request_to_first_non_silent_frame_seconds": 1.1648515190172475,
+        "request_to_complete_seconds": 1.167643141001463,
+        "audio_seconds": 5.433469387755102,
+        "rtf_including_http": 0.21489826438203005,
+        "sample_rate": 44100,
+        "samples": 239616,
+        "chunks": 6,
+        "pcm_sha256": "8e18005eb4193dfaca5aa5ed19f6786d849fa9bc616606d530d378976a6c0758",
+        "first_frame_metadata": {
+          "provider": "Supertonic 3",
+          "device": "cpu",
+          "synthesis_mode": "buffered",
+          "elapsed_seconds": 1.162898848997429,
+          "load_seconds": 0.0,
+          "first_waveform_seconds": 0.9989467260020319
+        },
+        "worker_rss_before_bytes": 559706112,
+        "worker_rss_after_bytes": 559706112,
+        "worker_process_lifetime_peak_rss_bytes": 559706112,
+        "worker_cpu_seconds": 4.43
+      }
+    ],
+    "warm_summary": {
+      "samples": 9,
+      "statistics": {
+        "request_to_first_decoded_pcm_seconds": {
+          "minimum": 0.713960307999514,
+          "median": 1.1573009749990888,
+          "maximum": 1.2408928659860976
+        },
+        "request_to_complete_seconds": {
+          "minimum": 0.7160848559869919,
+          "median": 1.1607767189852893,
+          "maximum": 1.244045733998064
+        },
+        "rtf_including_http": {
+          "minimum": 0.2083060954170165,
+          "median": 0.21939602483780044,
+          "maximum": 0.24602746908328754
+        }
+      },
+      "percentile_claim": null
+    },
+    "physical_audible_latency_seconds": null,
+    "client_playback_measured": false,
+    "native_inference_cancellation_measured": false,
+    "limitations": [
+      "Synthetic HTTP/PCM screen only; no physical microphone/speaker or hearing measurement.",
+      "Model output buffered before transport frames; frame count is not native streaming.",
+      "No loaded Decisions/Converse contention comparison or M2 performance acceptance.",
+      "A single cold process observation and disclosed warm repetitions; no p95 claim."
+    ]
+  },
+  "kokoro_comparison_screen": {
+    "kind": "isolated_retained_tts_screen",
+    "profile": "Kokoro 82M",
+    "source_commit": "54a2ab457f1cf826600ef6164cb83ba7011dd85d",
+    "source_dirty": false,
+    "host": {
+      "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",
+      "machine": "x86_64",
+      "cpu_model": "AMD Ryzen 7 5800X 8-Core Processor"
+    },
+    "probe_python": "3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]",
+    "worker_environment": {
+      "python": "3.13.11 | packaged by Anaconda, Inc. | (main, Dec 10 2025, 21:28:48) [GCC 14.3.0]",
+      "packages": {
+        "kokoro": "0.9.4",
+        "uvicorn": "0.45.0",
+        "fastapi": "0.136.0",
+        "ctranslate2": "4.7.1",
+        "pydantic": "2.12.5",
+        "httpx": "0.28.1",
+        "faster-whisper": "1.2.1",
+        "onnxruntime": "1.24.4",
+        "numpy": "2.2.6",
+        "torch": "2.9.1+rocm6.3",
+        "soundfile": "0.13.1"
+      }
+    },
+    "health_before": {
+      "service": "local-voice",
+      "device": "cpu",
+      "pid": 771825,
+      "loaded": [],
+      "tts_profile": "Kokoro 82M",
+      "tts_voice": "af_heart",
+      "synthesis_mode": "sentence_buffered",
+      "tts_artifact_revision": null,
+      "assets_state": "not_checked",
+      "retained_candidates": [
+        "Ming 3 Tiny",
+        "VibeVoice Realtime 0.5B",
+        "Kokoro 82M",
+        "Supertonic 3"
+      ],
+      "other_profiles": "not_configured"
+    },
+    "health_after": {
+      "service": "local-voice",
+      "device": "cpu",
+      "pid": 771825,
+      "loaded": [
+        "tts"
+      ],
+      "tts_profile": "Kokoro 82M",
+      "tts_voice": "af_heart",
+      "synthesis_mode": "sentence_buffered",
+      "tts_artifact_revision": null,
+      "assets_state": "not_checked",
+      "retained_candidates": [
+        "Ming 3 Tiny",
+        "VibeVoice Realtime 0.5B",
+        "Kokoro 82M",
+        "Supertonic 3"
+      ],
+      "other_profiles": "not_configured"
+    },
+    "cold_process_first_request": {
+      "text": "I am here. What would you like to do?",
+      "request_to_first_decoded_pcm_seconds": 18.901034317008452,
+      "request_to_first_non_silent_frame_seconds": 18.901034317008452,
+      "request_to_complete_seconds": 18.902029378019506,
+      "audio_seconds": 2.525,
+      "rtf_including_http": 7.485952228918617,
+      "sample_rate": 24000,
+      "samples": 60600,
+      "chunks": 3,
+      "pcm_sha256": "2b4ca790fa47114fac904b614b29781ff39f6ce13c48ff26e7fecb2fb42d35e4",
+      "first_frame_metadata": {
+        "provider": "Kokoro 82M",
+        "device": "cpu",
+        "synthesis_mode": "sentence_buffered",
+        "elapsed_seconds": 18.89662644697819,
+        "load_seconds": 18.227328073990066,
+        "first_waveform_seconds": 0.6396621489839163
+      },
+      "worker_rss_before_bytes": 60469248,
+      "worker_rss_after_bytes": 2840842240,
+      "worker_process_lifetime_peak_rss_bytes": 2840842240,
+      "worker_cpu_seconds": 22.09
+    },
+    "cold_definition": "New process and unloaded weights; filesystem/page caches were not flushed.",
+    "warm": [
+      {
+        "text": "I am here. What would you like to do?",
+        "request_to_first_decoded_pcm_seconds": 0.6378408820019104,
+        "request_to_first_non_silent_frame_seconds": 0.6378408820019104,
+        "request_to_complete_seconds": 0.6394471269741189,
+        "audio_seconds": 2.525,
+        "rtf_including_http": 0.2532463869204431,
+        "sample_rate": 24000,
+        "samples": 60600,
+        "chunks": 3,
+        "pcm_sha256": "8beb0a90b84f9399d7f09c165864f5c8c62bfe4ad81fa295df49f6f5bc305199",
+        "first_frame_metadata": {
+          "provider": "Kokoro 82M",
+          "device": "cpu",
+          "synthesis_mode": "sentence_buffered",
+          "elapsed_seconds": 0.6358754579850938,
+          "load_seconds": 0.0,
+          "first_waveform_seconds": 0.6006997840013355
+        },
+        "worker_rss_before_bytes": 2840842240,
+        "worker_rss_after_bytes": 2840883200,
+        "worker_process_lifetime_peak_rss_bytes": 2840883200,
+        "worker_cpu_seconds": 2.3999999999999986
+      },
+      {
+        "text": "The synthetic report contains three items, and the next review is at ten thirty.",
+        "request_to_first_decoded_pcm_seconds": 1.3718432520108763,
+        "request_to_first_non_silent_frame_seconds": 1.3718432520108763,
+        "request_to_complete_seconds": 1.3737638749880716,
+        "audio_seconds": 5.3,
+        "rtf_including_http": 0.25920073112982484,
+        "sample_rate": 24000,
+        "samples": 127200,
+        "chunks": 6,
+        "pcm_sha256": "37d05d16f03e9bbe8940fe1f0bf8affc7d4520e69db2df68d2b2abe2a61c4870",
+        "first_frame_metadata": {
+          "provider": "Kokoro 82M",
+          "device": "cpu",
+          "synthesis_mode": "sentence_buffered",
+          "elapsed_seconds": 1.3701687970024068,
+          "load_seconds": 0.0,
+          "first_waveform_seconds": 1.3098007469961885
+        },
+        "worker_rss_before_bytes": 2840883200,
+        "worker_rss_after_bytes": 2882215936,
+        "worker_process_lifetime_peak_rss_bytes": 2882215936,
+        "worker_cpu_seconds": 5.170000000000002
+      },
+      {
+        "text": "Kinaiya can keep our conversation available while the independent agent works.",
+        "request_to_first_decoded_pcm_seconds": 1.2799403280077968,
+        "request_to_first_non_silent_frame_seconds": 1.2799403280077968,
+        "request_to_complete_seconds": 1.2814707340148743,
+        "audio_seconds": 5.225,
+        "rtf_including_http": 0.24525755674925825,
+        "sample_rate": 24000,
+        "samples": 125400,
+        "chunks": 6,
+        "pcm_sha256": "255abb04e4b9ff835cd6b27beafae1cded1264cb61b4f41bdb7f8e88d1999eb8",
+        "first_frame_metadata": {
+          "provider": "Kokoro 82M",
+          "device": "cpu",
+          "synthesis_mode": "sentence_buffered",
+          "elapsed_seconds": 1.278181552013848,
+          "load_seconds": 0.0,
+          "first_waveform_seconds": 1.2124964889953844
+        },
+        "worker_rss_before_bytes": 2882215936,
+        "worker_rss_after_bytes": 2883158016,
+        "worker_process_lifetime_peak_rss_bytes": 2883158016,
+        "worker_cpu_seconds": 4.799999999999997
+      },
+      {
+        "text": "I am here. What would you like to do?",
+        "request_to_first_decoded_pcm_seconds": 0.6904767069790978,
+        "request_to_first_non_silent_frame_seconds": 0.6904767069790978,
+        "request_to_complete_seconds": 0.6915313779900316,
+        "audio_seconds": 2.525,
+        "rtf_including_http": 0.2738738130653591,
+        "sample_rate": 24000,
+        "samples": 60600,
+        "chunks": 3,
+        "pcm_sha256": "3d94485457183d69fdc8380170ebc9edb6b8393bc3e184c7abafff18815cc0d0",
+        "first_frame_metadata": {
+          "provider": "Kokoro 82M",
+          "device": "cpu",
+          "synthesis_mode": "sentence_buffered",
+          "elapsed_seconds": 0.6887588429963216,
+          "load_seconds": 0.0,
+          "first_waveform_seconds": 0.6562749219883699
+        },
+        "worker_rss_before_bytes": 2883158016,
+        "worker_rss_after_bytes": 2883162112,
+        "worker_process_lifetime_peak_rss_bytes": 2883162112,
+        "worker_cpu_seconds": 2.6200000000000045
+      },
+      {
+        "text": "The synthetic report contains three items, and the next review is at ten thirty.",
+        "request_to_first_decoded_pcm_seconds": 1.3808666730183177,
+        "request_to_first_non_silent_frame_seconds": 1.3808666730183177,
+        "request_to_complete_seconds": 1.3836079180182423,
+        "audio_seconds": 5.3,
+        "rtf_including_http": 0.261058097739291,
+        "sample_rate": 24000,
+        "samples": 127200,
+        "chunks": 6,
+        "pcm_sha256": "fca66a76875f2213b884f055ccc7f96f433384fe5e611c2b9432a50f32e34b81",
+        "first_frame_metadata": {
+          "provider": "Kokoro 82M",
+          "device": "cpu",
+          "synthesis_mode": "sentence_buffered",
+          "elapsed_seconds": 1.378985969000496,
+          "load_seconds": 0.0,
+          "first_waveform_seconds": 1.3164255739829969
+        },
+        "worker_rss_before_bytes": 2883162112,
+        "worker_rss_after_bytes": 2884349952,
+        "worker_process_lifetime_peak_rss_bytes": 2884349952,
+        "worker_cpu_seconds": 5.169999999999995
+      },
+      {
+        "text": "Kinaiya can keep our conversation available while the independent agent works.",
+        "request_to_first_decoded_pcm_seconds": 1.276643724006135,
+        "request_to_first_non_silent_frame_seconds": 1.276643724006135,
+        "request_to_complete_seconds": 1.2781494299997576,
+        "audio_seconds": 5.225,
+        "rtf_including_http": 0.24462190047842253,
+        "sample_rate": 24000,
+        "samples": 125400,
+        "chunks": 6,
+        "pcm_sha256": "961f611ac747aade631ec294e089a948278a3ca7aa6ea15cd52605eb97d2b1ab",
+        "first_frame_metadata": {
+          "provider": "Kokoro 82M",
+          "device": "cpu",
+          "synthesis_mode": "sentence_buffered",
+          "elapsed_seconds": 1.2750127680192236,
+          "load_seconds": 0.0,
+          "first_waveform_seconds": 1.21400970700779
+        },
+        "worker_rss_before_bytes": 2884349952,
+        "worker_rss_after_bytes": 2884358144,
+        "worker_process_lifetime_peak_rss_bytes": 2884358144,
+        "worker_cpu_seconds": 4.810000000000002
+      },
+      {
+        "text": "I am here. What would you like to do?",
+        "request_to_first_decoded_pcm_seconds": 0.6138767020020168,
+        "request_to_first_non_silent_frame_seconds": 0.6138767020020168,
+        "request_to_complete_seconds": 0.6148718630138319,
+        "audio_seconds": 2.525,
+        "rtf_including_http": 0.24351360911438888,
+        "sample_rate": 24000,
+        "samples": 60600,
+        "chunks": 3,
+        "pcm_sha256": "227dce366ee82cf01fbfb51a9f057705ec1a829dc0f715615b7a9e21ca7dceec",
+        "first_frame_metadata": {
+          "provider": "Kokoro 82M",
+          "device": "cpu",
+          "synthesis_mode": "sentence_buffered",
+          "elapsed_seconds": 0.6123906050052028,
+          "load_seconds": 0.0,
+          "first_waveform_seconds": 0.5811449710163288
+        },
+        "worker_rss_before_bytes": 2884358144,
+        "worker_rss_after_bytes": 2884358144,
+        "worker_process_lifetime_peak_rss_bytes": 2884358144,
+        "worker_cpu_seconds": 2.3200000000000003
+      },
+      {
+        "text": "The synthetic report contains three items, and the next review is at ten thirty.",
+        "request_to_first_decoded_pcm_seconds": 1.2584509000007529,
+        "request_to_first_non_silent_frame_seconds": 1.2584509000007529,
+        "request_to_complete_seconds": 1.2599070570140611,
+        "audio_seconds": 5.3,
+        "rtf_including_http": 0.2377183126441625,
+        "sample_rate": 24000,
+        "samples": 127200,
+        "chunks": 6,
+        "pcm_sha256": "cc8f87cb2e1724f7e1f7fd53f3a2bdbf969e1fd4d1eb1a60234eaa6abde02ebd",
+        "first_frame_metadata": {
+          "provider": "Kokoro 82M",
+          "device": "cpu",
+          "synthesis_mode": "sentence_buffered",
+          "elapsed_seconds": 1.2570224140072241,
+          "load_seconds": 0.0,
+          "first_waveform_seconds": 1.1953918170183897
+        },
+        "worker_rss_before_bytes": 2884358144,
+        "worker_rss_after_bytes": 2884362240,
+        "worker_process_lifetime_peak_rss_bytes": 2884362240,
+        "worker_cpu_seconds": 4.729999999999997
+      },
+      {
+        "text": "Kinaiya can keep our conversation available while the independent agent works.",
+        "request_to_first_decoded_pcm_seconds": 1.248116367001785,
+        "request_to_first_non_silent_frame_seconds": 1.248116367001785,
+        "request_to_complete_seconds": 1.2498674119997304,
+        "audio_seconds": 5.225,
+        "rtf_including_http": 0.23920907406693406,
+        "sample_rate": 24000,
+        "samples": 125400,
+        "chunks": 6,
+        "pcm_sha256": "51dab968ca584de8ee10dd66b93741fb0128f4744789baf94f8edfd8fe431f34",
+        "first_frame_metadata": {
+          "provider": "Kokoro 82M",
+          "device": "cpu",
+          "synthesis_mode": "sentence_buffered",
+          "elapsed_seconds": 1.2464228619937785,
+          "load_seconds": 0.0,
+          "first_waveform_seconds": 1.186319550004555
+        },
+        "worker_rss_before_bytes": 2884362240,
+        "worker_rss_after_bytes": 2884370432,
+        "worker_process_lifetime_peak_rss_bytes": 2884370432,
+        "worker_cpu_seconds": 4.700000000000003
+      }
+    ],
+    "warm_summary": {
+      "samples": 9,
+      "statistics": {
+        "request_to_first_decoded_pcm_seconds": {
+          "minimum": 0.6138767020020168,
+          "median": 1.2584509000007529,
+          "maximum": 1.3808666730183177
+        },
+        "request_to_complete_seconds": {
+          "minimum": 0.6148718630138319,
+          "median": 1.2599070570140611,
+          "maximum": 1.3836079180182423
+        },
+        "rtf_including_http": {
+          "minimum": 0.2377183126441625,
+          "median": 0.24525755674925825,
+          "maximum": 0.2738738130653591
+        }
+      },
+      "percentile_claim": null
+    },
+    "physical_audible_latency_seconds": null,
+    "client_playback_measured": false,
+    "native_inference_cancellation_measured": false,
+    "limitations": [
+      "Synthetic HTTP/PCM screen only; no physical microphone/speaker or hearing measurement.",
+      "Model output buffered before transport frames; frame count is not native streaming.",
+      "No loaded Decisions/Converse contention comparison or M2 performance acceptance.",
+      "A single cold process observation and disclosed warm repetitions; no p95 claim."
+    ]
+  },
+  "comparison_limits": [
+    "Identical three synthetic utterances, three repetitions per backend; one new-process first request each.",
+    "Different documented Python/runtime environments; no controlled quality or universal performance ranking.",
+    "Filesystem/page caches not flushed; host workload not controlled.",
+    "First decoded PCM is not acoustic audible onset. No p95 claim."
+  ],
+  "automatic_roundtrip_screen": {
+    "kind": "synthetic_tts_stt_roundtrip_screen",
+    "source_text": "This is a synthetic test. Kinaiya can speak with an independent local voice.",
+    "recognized_text": "This is a synthetic test. Canaya can speak with an independent local voice.",
+    "recognizer": "faster-whisper",
+    "version": "1.2.1",
+    "model": "tiny.en",
+    "compute_type": "int8",
+    "device": "cpu",
+    "limitation": "An automatic recognizer screen is not a human listening or voice-quality acceptance test."
+  },
+  "resource_proof_original": {
+    "schema": 1,
+    "scope": "actual owned Supertonic CPU worker and HTTP PCM; scripted text plus authenticated ASGI controls",
+    "started_utc": "2026-10-28T05:11:28.057921+00:00",
+    "passed": false,
+    "limits": [
+      "No physical playback or microphone",
+      "No real cloud inference or Agent task execution",
+      "No GPU release/reservation proof",
+      "No latency benchmark or percentile claim",
+      "Only disposable reserved port 18966; existing live ports are never contacted"
+    ],
+    "reserved_ports_initially_unoccupied": [
+      18960,
+      18961,
+      18962,
+      18966
+    ],
+    "source": {
+      "commit": "54a2ab457f1cf826600ef6164cb83ba7011dd85d",
+      "files_sha256": {
+        "packages/providers/voice_worker.py": "3006ce6726a68ce00574dd01e3b2f62dec47bab925a5e8e0ce56e63981770937",
+        "packages/providers/tts_backends.py": "4304df1fc2c3e80a2fe22e737da4795ac37e338e70f992e3b4bb5c362eec72b7",
+        "packages/providers/supertonic3_manifest.json": "22ffec6f2416bdf6cb137c252adc2c8ae741efb4486a07c168c40060582c4c27",
+        "services/resources/launcher.py": "a65ca0fb9e2d51abd02ecd04dc192146dccc6251b7577eae2fea846588c52a7a",
+        "services/resources/coordinator.py": "6aad3c3ff77aca3801c9f724b52ba9dedd94683fb5c91bc76e5f5799bf4b63f1",
+        "packages/resources/processes.py": "f5c789f7929d7e8531c2464f633dd17a122fc674c2abec75ef448579a744c66b"
+      }
+    },
+    "before_handoff": {
+      "identity": {
+        "pid": 773500,
+        "start_ticks": 14252669
+      },
+      "api_ready_health": {
+        "service": "local-voice",
+        "pid": 773500,
+        "device": "cpu",
+        "loaded": [],
+        "tts_profile": "Supertonic 3",
+        "tts_voice": "F1",
+        "synthesis_mode": "buffered",
+        "tts_artifact_revision": "aafc6e32416a594460b32413efc49d7fe4ce6d46",
+        "assets_state": "not_checked"
+      },
+      "loaded_health": {
+        "service": "local-voice",
+        "pid": 773500,
+        "device": "cpu",
+        "loaded": [
+          "tts"
+        ],
+        "tts_profile": "Supertonic 3",
+        "tts_voice": "F1",
+        "synthesis_mode": "buffered",
+        "tts_artifact_revision": "aafc6e32416a594460b32413efc49d7fe4ce6d46",
+        "assets_state": "verified"
+      },
+      "worker": {
+        "state": "running",
+        "ready": true,
+        "readiness": "verified",
+        "owned_pid": 773500,
+        "owned_pgid": 773500,
+        "rss_bytes": 544186368,
+        "group_rss_bytes": 544186368,
+        "stop_evidence": null
+      },
+      "audio": {
+        "frames": 4,
+        "samples": 156672,
+        "sample_rate": 44100,
+        "audio_seconds": 3.5526530612244898,
+        "nonzero_samples": 118069,
+        "pcm_sha256": "5e3565c4db1771f8afeb11caa7cdfb42a43529422dd4ddfe5e3f9a91b6200272",
+        "synthesis_mode": "buffered",
+        "timing_measurement": false
+      },
+      "memory_available_bytes": 36702515200
+    },
+    "handoff": {
+      "phase": "local_work",
+      "worker": {
+        "state": "stopped",
+        "ready": false,
+        "readiness": "verified",
+        "owned_pid": 773500,
+        "owned_pgid": null,
+        "rss_bytes": null,
+        "group_rss_bytes": null,
+        "stop_evidence": {
+          "pid": 773500,
+          "pgid": 773500,
+          "rss_before_bytes": 544186368,
+          "group_rss_before_bytes": 544186368,
+          "mem_available_bytes": 36700643328,
+          "term_sent": true,
+          "kill_sent": false,
+          "reaped": true,
+          "group_empty": true,
+          "residual_pids": [],
+          "ownership_verified": true,
+          "duration_s": 0.2803022950247396,
+          "at": "2026-10-28T05:11:30.803884+00:00"
+        }
+      },
+      "required_bytes": 134217728,
+      "restore_high_water_bytes": 678404096,
+      "memory_available_bytes": 37207625728,
+      "retained_pidfd_exited": true,
+      "old_identity_absent": true,
+      "old_speech_http": 409,
+      "bound_task_status": "scripted_running"
+    },
+    "restored": {
+      "identity": {
+        "pid": 773530,
+        "start_ticks": 14252920
+      },
+      "api_ready_health": {
+        "service": "local-voice",
+        "pid": 773530,
+        "device": "cpu",
+        "loaded": [],
+        "tts_profile": "Supertonic 3",
+        "tts_voice": "F1",
+        "synthesis_mode": "buffered",
+        "tts_artifact_revision": "aafc6e32416a594460b32413efc49d7fe4ce6d46",
+        "assets_state": "not_checked"
+      },
+      "loaded_health": {
+        "service": "local-voice",
+        "pid": 773530,
+        "device": "cpu",
+        "loaded": [
+          "tts"
+        ],
+        "tts_profile": "Supertonic 3",
+        "tts_voice": "F1",
+        "synthesis_mode": "buffered",
+        "tts_artifact_revision": "aafc6e32416a594460b32413efc49d7fe4ce6d46",
+        "assets_state": "verified"
+      },
+      "worker": {
+        "state": "running",
+        "ready": true,
+        "readiness": "verified",
+        "owned_pid": 773530,
+        "owned_pgid": 773530,
+        "rss_bytes": 544718848,
+        "group_rss_bytes": 544718848,
+        "stop_evidence": {
+          "pid": 773500,
+          "pgid": 773500,
+          "rss_before_bytes": 544186368,
+          "group_rss_before_bytes": 544186368,
+          "mem_available_bytes": 36700643328,
+          "term_sent": true,
+          "kill_sent": false,
+          "reaped": true,
+          "group_empty": true,
+          "residual_pids": [],
+          "ownership_verified": true,
+          "duration_s": 0.2803022950247396,
+          "at": "2026-10-28T05:11:30.803884+00:00"
+        }
+      },
+      "audio": {
+        "frames": 4,
+        "samples": 156672,
+        "sample_rate": 44100,
+        "audio_seconds": 3.5526530612244898,
+        "nonzero_samples": 126178,
+        "pcm_sha256": "39ac33224f0a83293940f00107aeac421105241337e3b0d263037998cb88881a",
+        "synthesis_mode": "buffered",
+        "timing_measurement": false
+      },
+      "old_speech_http": 409
+    },
+    "owner_off_restore": {
+      "owner_enabled": false,
+      "phase": "off",
+      "worker": {
+        "state": "stopped",
+        "ready": false,
+        "readiness": "verified",
+        "owned_pid": 773530,
+        "owned_pgid": null,
+        "rss_bytes": null,
+        "group_rss_bytes": null,
+        "stop_evidence": {
+          "pid": 773530,
+          "pgid": 773530,
+          "rss_before_bytes": 544718848,
+          "group_rss_before_bytes": 544718848,
+          "mem_available_bytes": 36705574912,
+          "term_sent": true,
+          "kill_sent": false,
+          "reaped": true,
+          "group_empty": true,
+          "residual_pids": [],
+          "ownership_verified": true,
+          "duration_s": 0.28228772402508184,
+          "at": "2026-10-28T05:11:33.228960+00:00"
+        }
+      },
+      "retained_pidfd_exited": true
+    },
+    "synthetic_text_calls": 1,
+    "resource_journal_events": 10,
+    "cleanup": {
+      "manager_closed": true,
+      "all_owned_workers_stopped": true
+    },
+    "failure_type": "OSError",
+    "finished_utc": "2026-10-28T05:11:33.295824+00:00"
+  },
+  "resource_proof_followup": {
+    "schema": 1,
+    "scope": "actual owned Supertonic CPU worker and HTTP PCM; scripted text plus authenticated ASGI controls",
+    "started_utc": "2026-10-28T05:11:28.057921+00:00",
+    "passed": true,
+    "limits": [
+      "No physical playback or microphone",
+      "No real cloud inference or Agent task execution",
+      "No GPU release/reservation proof",
+      "No latency benchmark or percentile claim",
+      "Only disposable reserved port 18966; existing live ports are never contacted"
+    ],
+    "reserved_ports_initially_unoccupied": [
+      18960,
+      18961,
+      18962,
+      18966
+    ],
+    "source": {
+      "commit": "54a2ab457f1cf826600ef6164cb83ba7011dd85d",
+      "files_sha256": {
+        "packages/providers/voice_worker.py": "3006ce6726a68ce00574dd01e3b2f62dec47bab925a5e8e0ce56e63981770937",
+        "packages/providers/tts_backends.py": "4304df1fc2c3e80a2fe22e737da4795ac37e338e70f992e3b4bb5c362eec72b7",
+        "packages/providers/supertonic3_manifest.json": "22ffec6f2416bdf6cb137c252adc2c8ae741efb4486a07c168c40060582c4c27",
+        "services/resources/launcher.py": "a65ca0fb9e2d51abd02ecd04dc192146dccc6251b7577eae2fea846588c52a7a",
+        "services/resources/coordinator.py": "6aad3c3ff77aca3801c9f724b52ba9dedd94683fb5c91bc76e5f5799bf4b63f1",
+        "packages/resources/processes.py": "f5c789f7929d7e8531c2464f633dd17a122fc674c2abec75ef448579a744c66b"
+      },
+      "commit_after_probe": "54a2ab457f1cf826600ef6164cb83ba7011dd85d"
+    },
+    "before_handoff": {
+      "identity": {
+        "pid": 773500,
+        "start_ticks": 14252669
+      },
+      "api_ready_health": {
+        "service": "local-voice",
+        "pid": 773500,
+        "device": "cpu",
+        "loaded": [],
+        "tts_profile": "Supertonic 3",
+        "tts_voice": "F1",
+        "synthesis_mode": "buffered",
+        "tts_artifact_revision": "aafc6e32416a594460b32413efc49d7fe4ce6d46",
+        "assets_state": "not_checked"
+      },
+      "loaded_health": {
+        "service": "local-voice",
+        "pid": 773500,
+        "device": "cpu",
+        "loaded": [
+          "tts"
+        ],
+        "tts_profile": "Supertonic 3",
+        "tts_voice": "F1",
+        "synthesis_mode": "buffered",
+        "tts_artifact_revision": "aafc6e32416a594460b32413efc49d7fe4ce6d46",
+        "assets_state": "verified"
+      },
+      "worker": {
+        "state": "running",
+        "ready": true,
+        "readiness": "verified",
+        "owned_pid": 773500,
+        "owned_pgid": 773500,
+        "rss_bytes": 544186368,
+        "group_rss_bytes": 544186368,
+        "stop_evidence": null
+      },
+      "audio": {
+        "frames": 4,
+        "samples": 156672,
+        "sample_rate": 44100,
+        "audio_seconds": 3.5526530612244898,
+        "nonzero_samples": 118069,
+        "pcm_sha256": "5e3565c4db1771f8afeb11caa7cdfb42a43529422dd4ddfe5e3f9a91b6200272",
+        "synthesis_mode": "buffered",
+        "timing_measurement": false
+      },
+      "memory_available_bytes": 36702515200
+    },
+    "handoff": {
+      "phase": "local_work",
+      "worker": {
+        "state": "stopped",
+        "ready": false,
+        "readiness": "verified",
+        "owned_pid": 773500,
+        "owned_pgid": null,
+        "rss_bytes": null,
+        "group_rss_bytes": null,
+        "stop_evidence": {
+          "pid": 773500,
+          "pgid": 773500,
+          "rss_before_bytes": 544186368,
+          "group_rss_before_bytes": 544186368,
+          "mem_available_bytes": 36700643328,
+          "term_sent": true,
+          "kill_sent": false,
+          "reaped": true,
+          "group_empty": true,
+          "residual_pids": [],
+          "ownership_verified": true,
+          "duration_s": 0.2803022950247396,
+          "at": "2026-10-28T05:11:30.803884+00:00"
+        }
+      },
+      "required_bytes": 134217728,
+      "restore_high_water_bytes": 678404096,
+      "memory_available_bytes": 37207625728,
+      "retained_pidfd_exited": true,
+      "old_identity_absent": true,
+      "old_speech_http": 409,
+      "bound_task_status": "scripted_running"
+    },
+    "restored": {
+      "identity": {
+        "pid": 773530,
+        "start_ticks": 14252920
+      },
+      "api_ready_health": {
+        "service": "local-voice",
+        "pid": 773530,
+        "device": "cpu",
+        "loaded": [],
+        "tts_profile": "Supertonic 3",
+        "tts_voice": "F1",
+        "synthesis_mode": "buffered",
+        "tts_artifact_revision": "aafc6e32416a594460b32413efc49d7fe4ce6d46",
+        "assets_state": "not_checked"
+      },
+      "loaded_health": {
+        "service": "local-voice",
+        "pid": 773530,
+        "device": "cpu",
+        "loaded": [
+          "tts"
+        ],
+        "tts_profile": "Supertonic 3",
+        "tts_voice": "F1",
+        "synthesis_mode": "buffered",
+        "tts_artifact_revision": "aafc6e32416a594460b32413efc49d7fe4ce6d46",
+        "assets_state": "verified"
+      },
+      "worker": {
+        "state": "running",
+        "ready": true,
+        "readiness": "verified",
+        "owned_pid": 773530,
+        "owned_pgid": 773530,
+        "rss_bytes": 544718848,
+        "group_rss_bytes": 544718848,
+        "stop_evidence": {
+          "pid": 773500,
+          "pgid": 773500,
+          "rss_before_bytes": 544186368,
+          "group_rss_before_bytes": 544186368,
+          "mem_available_bytes": 36700643328,
+          "term_sent": true,
+          "kill_sent": false,
+          "reaped": true,
+          "group_empty": true,
+          "residual_pids": [],
+          "ownership_verified": true,
+          "duration_s": 0.2803022950247396,
+          "at": "2026-10-28T05:11:30.803884+00:00"
+        }
+      },
+      "audio": {
+        "frames": 4,
+        "samples": 156672,
+        "sample_rate": 44100,
+        "audio_seconds": 3.5526530612244898,
+        "nonzero_samples": 126178,
+        "pcm_sha256": "39ac33224f0a83293940f00107aeac421105241337e3b0d263037998cb88881a",
+        "synthesis_mode": "buffered",
+        "timing_measurement": false
+      },
+      "old_speech_http": 409
+    },
+    "owner_off_restore": {
+      "owner_enabled": false,
+      "phase": "off",
+      "worker": {
+        "state": "stopped",
+        "ready": false,
+        "readiness": "verified",
+        "owned_pid": 773530,
+        "owned_pgid": null,
+        "rss_bytes": null,
+        "group_rss_bytes": null,
+        "stop_evidence": {
+          "pid": 773530,
+          "pgid": 773530,
+          "rss_before_bytes": 544718848,
+          "group_rss_before_bytes": 544718848,
+          "mem_available_bytes": 36705574912,
+          "term_sent": true,
+          "kill_sent": false,
+          "reaped": true,
+          "group_empty": true,
+          "residual_pids": [],
+          "ownership_verified": true,
+          "duration_s": 0.28228772402508184,
+          "at": "2026-10-28T05:11:33.228960+00:00"
+        }
+      },
+      "retained_pidfd_exited": true
+    },
+    "synthetic_text_calls": 1,
+    "resource_journal_events": 10,
+    "cleanup": {
+      "manager_closed": true,
+      "all_owned_workers_stopped": true,
+      "reserved_voice_port_released": true,
+      "private_temporary_data_removed": true,
+      "both_original_kernel_identities_absent": true
+    },
+    "finished_utc": "2026-10-28T05:11:33.295824+00:00",
+    "harness_correction": {
+      "original_report": "resource-proof.json",
+      "original_report_sha256": "db989d16b13310c5227439f5679e546cafe738662bc00e3f0e36a3e8d72dd1cd",
+      "original_passed": false,
+      "original_failure_type": "OSError",
+      "correction": "Use refused TCP connection after stop; immediate rebinding can fail during TCP cleanup.",
+      "fresh_connect_errno": 111,
+      "verification_mode": "Retained functional observations plus fresh kernel identity, source and endpoint cleanup checks; no repeated synthesis"
+    },
+    "cleanup_verified_utc": "2026-10-28T05:12:21.530622+00:00"
+  },
+  "packaged_wheel_check": {
+    "wheel_sha256": "4b226e0502bfa4405665766b4602bb2285a35719fd1276963a57b12633bcc4d8",
+    "wheel_size_bytes": 277573,
+    "installed_manifest_sha256": "22ffec6f2416bdf6cb137c252adc2c8ae741efb4486a07c168c40060582c4c27",
+    "manifest_present": true,
+    "wheel_integrity": "passed",
+    "source_commit": "54a2ab457f1cf826600ef6164cb83ba7011dd85d"
+  },
+  "independent_static_review": {
+    "provider": "Meta",
+    "model": "muse-spark-1.3-contributor",
+    "contributor_mode": "on",
+    "reasoning_effort": "xhigh",
+    "cli_exit": 0,
+    "source_commit": "54a2ab457f1cf826600ef6164cb83ba7011dd85d",
+    "prompt_sha256": "0d4f3930eafd98be20617bacec48923ef50a7a70b87a7f5c0117c34ab58c81a1",
+    "files_sha256": {
+      "packages/providers/tts_backends.py": "4304df1fc2c3e80a2fe22e737da4795ac37e338e70f992e3b4bb5c362eec72b7",
+      "packages/providers/voice_worker.py": "3006ce6726a68ce00574dd01e3b2f62dec47bab925a5e8e0ce56e63981770937",
+      "packages/providers/speech.py": "a4c7696db4eaac61b970041d687246fdd46dcc5f34e6dd16bffb2af5fda1920e",
+      "services/resources/launcher.py": "a65ca0fb9e2d51abd02ecd04dc192146dccc6251b7577eae2fea846588c52a7a",
+      "services/converse/api.py": "0683b3da95d05169bfe0829c9defcc87590a172ffc9d87c9ffbbe64760be79e4",
+      "tests/unit/test_tts_backends.py": "7512e52f39b41a4be8cee3503dbae9e7eaa31170223419a314bf8cee6712c621",
+      "tests/integration/test_voice_backends.py": "e8932c285e723841b2c982f152015c26e8d2cc4d4733755f52543b4a327e3cd5",
+      "tests/integration/test_voice_resource_config.py": "b9677f6d4840a57792ccf285db6ed339b7eefe4d7d60052edfe4de9da1496908",
+      "scripts/probe_retained_voice.py": "4ac842b49cee3d7039105ea3b1a6eb7d1a687be5bb4580e8766793bf488c08c6"
+    },
+    "terminal_text": "findings: []\n\nStatic-only review. No tools or tests were run. No human approval is claimed.\n\nProduction code satisfies the stated contracts. Loopback-only credentials, per-chunk epoch and resource checks, explicit owner policy, lazy optional imports, pinned CPU-only runtime with offline flags, buffered honesty, cancel fencing, and workspace isolation are present. Test files describe synthetic mocks only, not model quality or physical audio.",
+    "limits": "Actual visible Muse CLI, static source only; no reviewer tests or human approval."
+  },
+  "open_gates": [
+    "Ming 3 Tiny and VibeVoice retained implementations/comparison.",
+    "Warm onset target is not met by either screened CPU profile.",
+    "Physical audible onset, microphone/speaker quality, echo, human listening and expression consistency.",
+    "Client playback timing, native inference preemption and loaded Converse/Decisions contention.",
+    "Full M2/M6 and remaining roadmap acceptance."
+  ],
+  "local_deterministic_verification": {
+    "source_commit": "54a2ab457f1cf826600ef6164cb83ba7011dd85d",
+    "python": "3.12.3",
+    "command": "PYTHONPATH=. python -m pytest -m \"not live\" -q",
+    "result": "passed",
+    "tests_passed": 1031,
+    "seconds": 169.83,
+    "warnings": 1,
+    "warning_detail": "Starlette TestClient/httpx deprecation; no test failure.",
+    "ruff_check": "passed",
+    "ruff_format_check": "passed (196 files)",
+    "contract_export_diff": "clean",
+    "git_diff_check": "passed"
+  }
+}

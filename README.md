@@ -281,8 +281,11 @@ capability acquisition remain open.
 Optional voice runs in a separate Python with the `voice` extra and preinstalled
 Kokoro/Whisper weights: `python -m packages.providers.voice_worker`. Model downloads
 are disabled by default; a clean-machine model installer is still a roadmap task.
-Ming 3 Tiny, VibeVoice Realtime 0.5B and Supertonic 3 remain selected candidates with
-unconfigured backends; they are not represented as verified integrations.
+An opt-in [Supertonic 3 CPU backend](docs/adr/0027-retained-supertonic.md) also
+synthesizes through the same speech bridge using pinned, verified local assets.
+Its output is buffered before transport; the small synthetic screen does not meet
+the roadmap's warm-onset target or establish physical audible latency. Ming 3 Tiny
+and VibeVoice Realtime 0.5B remain retained candidates with unconfigured backends.
 
 An opt-in [CPU voice resource coordinator](docs/adr/0013-resource-handoff.md)
 can own that worker, verify process release for an explicit local-work handoff,
