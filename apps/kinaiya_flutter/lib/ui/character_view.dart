@@ -11,7 +11,25 @@ import '../character/pack.dart';
 import '../config/connection.dart';
 import '../state/app_state.dart';
 import 'book_sheet.dart';
+import 'moonlit_scene.dart';
+import 'visual_theme.dart';
 import 'widgets.dart';
+
+/// Local adapter activity, independent of Agent work and inference readiness.
+class VoiceActivity {
+  const VoiceActivity({
+    this.listening = false,
+    this.recording = false,
+    this.speaking = false,
+    this.stopUnconfirmed = false,
+    this.stopPending = false,
+    this.stopMicrophone,
+    this.stopSpeech,
+  });
+  final bool listening, recording, speaking, stopUnconfirmed, stopPending;
+  final VoidCallback? stopMicrophone, stopSpeech;
+  bool get active => listening || recording || speaking || stopUnconfirmed;
+}
 
 /// Distinct Character View: ordinary conversation only. Slash-like text is
 /// sent verbatim and never parsed, completed or dispatched.
@@ -28,9 +46,15 @@ import 'widgets.dart';
 /// - The mic is never enabled automatically: one-shot recording and the
 ///   Live (armed) mode both start only from explicit user gestures.
 class CharacterView extends StatefulWidget {
-  const CharacterView({super.key, required this.state, this.audio});
+  const CharacterView({
+    super.key,
+    required this.state,
+    this.audio,
+    this.onActivityChanged,
+  });
   final AppState state;
   final SpeechAudio? audio;
+  final ValueChanged<VoiceActivity>? onActivityChanged;
 
   @override
   State<CharacterView> createState() => _CharacterViewState();
@@ -47,6 +71,36 @@ class _CharacterViewState extends State<CharacterView> {
   bool _recording = false;
   bool _speaking = false;
   bool _voiceReady = false;
+  bool _voiceReportScheduled = false;
+  bool _micStopUnconfirmed = false;
+  bool _micStopPending = false;
+  bool _windowSpeechStopUnconfirmed = false;
+
+  void _publishVoiceActivity() {
+    if (_voiceReportScheduled || widget.onActivityChanged == null) return;
+    _voiceReportScheduled = true;
+    // Reconnect can update this widget during its parent's build. Activity is
+    // presentation only; publish after the frame without delaying local audio.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _voiceReportScheduled = false;
+      if (!mounted) return;
+      widget.onActivityChanged?.call(
+        VoiceActivity(
+          listening: _armed,
+          recording: _recording,
+          speaking: _speaking,
+          stopUnconfirmed: _micStopUnconfirmed,
+          stopPending: _micStopPending,
+          stopMicrophone: () {
+            if (mounted) unawaited(_stopMicrophone());
+          },
+          stopSpeech: () {
+            if (mounted) unawaited(_stopSpeech());
+          },
+        ),
+      );
+    });
+  }
 
   /// Serializes speech entries: independently produced sentences from one
   /// turn play strictly in order and never interleave.
@@ -123,7 +177,9 @@ class _CharacterViewState extends State<CharacterView> {
       setState(() {
         _armed = _recording = _speaking = _voiceBusy = _transcribing =
             _clipOpen = false;
+        _micStopPending = false;
       });
+      _publishVoiceActivity();
       unawaited(_audio.stopArmed());
       unawaited(_audio.cancelRecording());
       unawaited(_audio.stopPlayback());
@@ -145,11 +201,13 @@ class _CharacterViewState extends State<CharacterView> {
       _pendingClip = null;
       _clearWindows();
       _armed = false;
+      _micStopPending = false;
       _recording = false;
       _speaking = false;
       _clipOpen = false;
       _pollTimer?.cancel();
       _speechQueue = SpeechQueue();
+      _publishVoiceActivity();
       unawaited(_audio.stopArmed());
       unawaited(_audio.cancelRecording());
       unawaited(_audio.stopPlayback());
@@ -257,6 +315,7 @@ class _CharacterViewState extends State<CharacterView> {
       await _audio.stopPlayback();
       if (!mounted || !_armed) return;
       setState(() => _speaking = false);
+      _publishVoiceActivity();
     }
     final utterance = entry.payload['window_utterance_id'];
     if (entry.kind == 'conversation.converse' &&
@@ -356,6 +415,7 @@ class _CharacterViewState extends State<CharacterView> {
         _mood = 'thinking';
         _speaking = false;
       });
+      _publishVoiceActivity();
     }
     try {
       final session =
@@ -554,6 +614,7 @@ class _CharacterViewState extends State<CharacterView> {
           if (_s.audioIsLive(nonce, epoch) && await _audio.isPlaying) {
             if (mounted && _s.audioIsLive(nonce, epoch)) {
               setState(() => _speaking = true);
+              _publishVoiceActivity();
             }
             try {
               await api.reportDelivery(
@@ -605,12 +666,14 @@ class _CharacterViewState extends State<CharacterView> {
       } catch (_) {}
       if (mounted && _s.audioIsLive(nonce, epoch)) {
         setState(() => _speaking = false);
+        _publishVoiceActivity();
       }
     } catch (_) {
       // Stale epochs (409) and transport cuts end quietly; only the live
       // turn may reset the speaking indicator.
       if (mounted && _s.audioIsLive(nonce, epoch)) {
         setState(() => _speaking = false);
+        _publishVoiceActivity();
       }
     }
   }
@@ -669,6 +732,7 @@ class _CharacterViewState extends State<CharacterView> {
         _speaking = false;
         _mood = _armed ? 'listening' : 'idle';
       });
+      _publishVoiceActivity();
     }
     _s.touch();
     final previous = _interruptBarrier;
@@ -701,31 +765,61 @@ class _CharacterViewState extends State<CharacterView> {
     _clipOpen = status == 'clip-recording' || status == 'busy';
   }
 
-  /// User-armed continuous listening toggle. The mic starts ONLY here.
-  Future<void> _setArmed(bool on) async {
+  /// Cancel capture locally without submitting the unfinished message or
+  /// cancelling Agent work. Invalidate ownership before issuing adapter stops.
+  Future<void> _stopMicrophone() async {
+    // Clearing _armed does not acknowledge a failed playback stop. Retain
+    // that obligation so a retry must stop the same window speech as well.
+    final stopWindowSpeech =
+        _windowSpeechStopUnconfirmed || (_armed && _windowMode);
+    _windowSpeechStopUnconfirmed = stopWindowSpeech;
     final owner = ++_armOwner;
-    if (!on) {
-      _armed = false;
-      if (_windowMode) {
-        _s.turnNonce++;
-        _speechQueue = SpeechQueue();
-        await _audio.stopPlayback();
-      }
-      _clearWindows();
-      _voiceRequest++;
-      _pendingClip = null;
-      _s.voiceNonce++;
-      _pollTimer?.cancel();
-      _pollTimer = null;
-      await _audio.stopArmed();
-      _clipOpen = false;
+    _voiceRequest++;
+    _pendingClip = null;
+    _s.voiceNonce++;
+    _pollTimer?.cancel();
+    _pollTimer = null;
+    _clearWindows();
+    if (stopWindowSpeech) {
+      _s.turnNonce++;
+      _speechQueue = SpeechQueue();
+    }
+    setState(() {
+      _armed = _recording = _clipOpen = false;
+      _micStopUnconfirmed = _micStopPending = true;
+      if (stopWindowSpeech) _speaking = false;
+      _mood = _speaking ? 'speaking' : 'idle';
+    });
+    _publishVoiceActivity();
+    try {
+      await Future.wait([
+        _audio.stopArmed(),
+        _audio.cancelRecording(),
+        if (stopWindowSpeech) _audio.stopPlayback(),
+      ]).timeout(const Duration(seconds: 3));
       if (mounted && owner == _armOwner) {
         setState(() {
-          _mood = _speaking ? 'speaking' : 'idle';
+          _micStopUnconfirmed = _micStopPending = false;
+          _windowSpeechStopUnconfirmed = false;
         });
+        _publishVoiceActivity();
       }
-      return;
+    } catch (_) {
+      if (mounted && owner == _armOwner) {
+        setState(() {
+          _micStopUnconfirmed = true;
+          _micStopPending = false;
+        });
+        _publishVoiceActivity();
+      }
     }
+  }
+
+  /// User-armed continuous listening toggle. The mic starts ONLY here.
+  Future<void> _setArmed(bool on) async {
+    if (!on) return _stopMicrophone();
+    if (_micStopUnconfirmed) return;
+    final owner = ++_armOwner;
     if (!_converseAvailable || !_s.converseCanInfer || _s.client == null) {
       return;
     }
@@ -750,6 +844,7 @@ class _CharacterViewState extends State<CharacterView> {
       _armed = true;
       _mood = 'listening';
     });
+    _publishVoiceActivity();
     if (_windowMode) {
       try {
         await _s.ensureSession('converse', name: 'Converse');
@@ -1017,6 +1112,7 @@ class _CharacterViewState extends State<CharacterView> {
         return;
       }
       setState(() => _recording = false);
+      _publishVoiceActivity();
       if (rec == null || rec.bytes.isEmpty) {
         _s.appendHistory(
           AppView.character,
@@ -1073,6 +1169,7 @@ class _CharacterViewState extends State<CharacterView> {
         _recording = true;
         _mood = 'listening';
       });
+      _publishVoiceActivity();
     } else {
       _s.appendHistory(
         AppView.character,
@@ -1096,190 +1193,365 @@ class _CharacterViewState extends State<CharacterView> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<CharacterPack>(
-      future: _pack,
-      builder: (context, snap) {
-        final pack = snap.data;
-        return Column(
-          children: [
-            if (_s.resourceStatusStale || !_s.converseEnabled)
-              MaterialBanner(
-                content: Text(
-                  _s.resourceStatusStale
-                      ? 'Resource status is unavailable. Voice availability is unconfirmed; Agent Chat remains available.'
-                      : _s.resourcePhase == 'local_work'
-                      ? 'Voice is paused for local work. Agent Chat and approvals remain available.'
-                      : 'Converse is off. Direct Agent Chat remains available.',
+  String get _status {
+    if (_micStopPending) return 'Stopping microphone…';
+    if (_micStopUnconfirmed) return 'Microphone stop unconfirmed';
+    if (_s.resourceStatusStale) return 'Voice availability unconfirmed';
+    if (!_s.converseEnabled) {
+      return _s.resourcePhase == 'local_work'
+          ? 'Paused for local work'
+          : 'Converse is off';
+    }
+    if (!_s.sessionAuthenticated) return 'Connect to start a conversation';
+    if (!_s.converseInferenceAllowed) return 'Review inference settings';
+    if (_recording) return 'Recording a voice message';
+    if (_armed) return 'Live microphone on';
+    if (_speaking) return 'Speaking';
+    if (_s.busyConverse) return 'Preparing a reply';
+    return 'Ready to talk';
+  }
+
+  Widget _mascot(CharacterPack? pack, double size) => Semantics(
+    button: true,
+    label: 'Open Agent Chat',
+    child: InkWell(
+      onTap: _openAgent,
+      borderRadius: BorderRadius.circular(24),
+      child: pack == null
+          ? SizedBox(width: size, height: size)
+          : MascotWidget(
+              pack: pack,
+              size: size,
+              mood: _recording || _armed
+                  ? 'listening'
+                  : (_speaking ? 'speaking' : _mood),
+            ),
+    ),
+  );
+
+  Widget _stage(CharacterPack? pack, BoxConstraints box) {
+    final size = (box.maxHeight - 76).clamp(100.0, 320.0);
+    return Center(
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _mascot(pack, size),
+              const SizedBox(height: 12),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: kinaiyaNavy.withValues(alpha: .8),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: kinaiyaWhite.withValues(alpha: .24),
+                  ),
                 ),
-                actions: [
-                  TextButton(
-                    onPressed: () => _s.setView(AppView.agent),
-                    child: const Text('OPEN AGENT CHAT'),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
                   ),
-                ],
+                  child: Text(
+                    _status,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: kinaiyaWhite),
+                  ),
+                ),
               ),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                children: [
-                  Center(
-                    child: Semantics(
-                      button: true,
-                      label: 'Open Agent Chat',
-                      child: InkWell(
-                        onTap: _openAgent,
-                        borderRadius: BorderRadius.circular(16),
-                        child: pack == null
-                            ? const SizedBox(height: 160)
-                            : MascotWidget(
-                                pack: pack,
-                                mood: _recording || _armed
-                                    ? 'listening'
-                                    : (_speaking ? 'speaking' : _mood),
-                              ),
-                      ),
-                    ),
+              if (pack != null && pack.fallback && pack.note.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: Text(
+                    pack.note,
+                    style: const TextStyle(color: kinaiyaWhite),
                   ),
-                  if (pack != null && pack.fallback && pack.note.isNotEmpty)
-                    Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(4),
-                        child: Text(
-                          pack.note,
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      ),
-                    ),
-                  for (final m in _s.converseHistory)
-                    MessageBubble(role: m.role, text: m.text, note: m.note),
-                  if (_s.busyConverse && !_speaking)
-                    const Padding(
-                      padding: EdgeInsets.all(12),
-                      child: Center(child: CircularProgressIndicator()),
-                    ),
-                ],
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _transcript() => ListView(
+    padding: const EdgeInsets.symmetric(vertical: 12),
+    children: [
+      for (final m in _s.converseHistory)
+        MessageBubble(role: m.role, text: m.text, note: m.note),
+      if (_s.busyConverse && !_speaking)
+        const Padding(
+          padding: EdgeInsets.all(12),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+    ],
+  );
+
+  Widget _conversation(CharacterPack? pack) => LayoutBuilder(
+    builder: (context, box) {
+      if (_s.converseHistory.isEmpty) return _stage(pack, box);
+      final scale = MediaQuery.textScalerOf(context).scale(1).clamp(1, 2);
+      if (box.maxWidth / scale >= 1040) {
+        return Row(
+          children: [
+            Expanded(
+              child: _stage(
+                pack,
+                BoxConstraints.tightFor(
+                  width: box.maxWidth * .55,
+                  height: box.maxHeight,
+                ),
               ),
             ),
-            SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.all(8),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      children: [
-                        Tooltip(
-                          message: _armed
-                              ? 'Stop Live listen'
-                              : 'Start Live listen (armed mic)',
-                          child: IconButton(
-                            icon: Icon(
-                              _armed ? Icons.graphic_eq : Icons.hearing,
-                              color: _armed
-                                  ? Theme.of(context).colorScheme.primary
-                                  : null,
-                            ),
-                            onPressed: _converseAvailable
-                                ? () => _setArmed(!_armed)
-                                : null,
-                          ),
-                        ),
-                        const Text('Live'),
-                        const SizedBox(width: 8),
-                        if (_windowMode)
-                          const Text('Conversation timing')
-                        else ...[
-                          const Tooltip(
-                            message: 'Silence that ends a voice clip',
-                            child: Text('Silence'),
-                          ),
-                          const SizedBox(width: 4),
-                          DropdownButton<int>(
-                            value: _endSilenceMs,
-                            items: [
-                              for (final v in endSilenceOptionsMs)
-                                DropdownMenuItem(
-                                  value: v,
-                                  child: Text(
-                                    '${(v / 1000).toStringAsFixed(1)}s',
-                                  ),
-                                ),
-                            ],
-                            onChanged: (v) async {
-                              if (v == null) return;
-                              setState(() => _endSilenceMs = v);
-                              await _audio.configureVad(endSilenceMs: v);
-                            },
-                          ),
-                        ],
-                        if (_armed)
-                          Padding(
-                            padding: EdgeInsets.only(left: 8),
-                            child: Text(
-                              _windowMode ? _liveStatus : 'Listening (live)',
-                            ),
-                          ),
-                      ],
-                    ),
-                    Row(
-                      children: [
-                        if (_voiceReady && !_armed)
-                          IconButton(
-                            tooltip: 'Use audio recording',
-                            icon: const Icon(Icons.audio_file),
-                            onPressed: _converseAvailable
-                                ? _importRecording
-                                : null,
-                          ),
-                        if (_voiceReady && !_armed)
-                          IconButton(
-                            tooltip: _recording
-                                ? 'Stop recording'
-                                : 'Record voice',
-                            icon: Icon(_recording ? Icons.stop : Icons.mic),
-                            onPressed: _converseAvailable ? _toggleMic : null,
-                          ),
-                        Expanded(
-                          child: TextField(
-                            controller: _input,
-                            decoration: const InputDecoration(
-                              labelText: 'Talk with Kinaiya',
-                              border: OutlineInputBorder(),
-                            ),
-                            minLines: 1,
-                            maxLines: 4,
-                            textInputAction: TextInputAction.send,
-                            onChanged: (v) => _s.setDraft(AppView.character, v),
-                            onSubmitted: (_) => _send(),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        if (_speaking || _s.busyConverse)
-                          IconButton(
-                            tooltip: 'Stop speech',
-                            icon: const Icon(Icons.stop_circle),
-                            onPressed: _stopSpeech,
-                          ),
-                        FilledButton(
-                          onPressed:
-                              _converseAvailable &&
-                                  !_s.busyConverse &&
-                                  _s.converseDraft.trim().isNotEmpty
-                              ? () => _send()
-                              : null,
-                          child: const Text('Send'),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+            SizedBox(
+              width: (box.maxWidth * .4).clamp(360.0, 560.0),
+              child: Card(
+                margin: const EdgeInsets.fromLTRB(0, 24, 24, 24),
+                child: _transcript(),
               ),
             ),
           ],
         );
-      },
-    );
-  }
+      }
+      return Column(
+        children: [
+          SizedBox(
+            height: 84,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _mascot(pack, 72),
+                const SizedBox(width: 12),
+                Flexible(
+                  child: Text(
+                    _status,
+                    style: const TextStyle(color: kinaiyaWhite),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(child: _transcript()),
+        ],
+      );
+    },
+  );
+
+  Widget _voiceActions() => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Expanded(
+        child: Tooltip(
+          message: _armed || _micStopUnconfirmed
+              ? 'Stop Live listen'
+              : 'Start Live listen (armed mic)',
+          child: FilledButton.icon(
+            key: const ValueKey('call-kinaiya'),
+            onPressed: _micStopPending
+                ? null
+                : _micStopUnconfirmed
+                ? _stopMicrophone
+                : _converseAvailable
+                ? () => _setArmed(!_armed)
+                : null,
+            icon: Icon(
+              _armed ? Icons.call_end_rounded : Icons.mic_none_rounded,
+            ),
+            label: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Text(
+                _micStopPending
+                    ? 'Stopping microphone…'
+                    : _armed
+                    ? 'End conversation'
+                    : _micStopUnconfirmed
+                    ? 'Stop microphone'
+                    : 'Call Kinaiya',
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+        ),
+      ),
+      const SizedBox(width: 12),
+      Expanded(
+        child: Tooltip(
+          message: _recording ? 'Stop recording' : 'Record voice',
+          child: OutlinedButton.icon(
+            key: const ValueKey('tell-kinaiya'),
+            onPressed:
+                _voiceReady &&
+                    _converseAvailable &&
+                    !_armed &&
+                    !_micStopUnconfirmed
+                ? _toggleMic
+                : null,
+            icon: Icon(
+              _recording ? Icons.send_rounded : Icons.graphic_eq_rounded,
+            ),
+            label: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Text(
+                _recording ? 'Send voice message' : 'Tell Kinaiya',
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+        ),
+      ),
+    ],
+  );
+
+  Widget _composer() => SafeArea(
+    top: false,
+    child: Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1120),
+        child: Container(
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: kinaiyaWhite,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: const Color(0xFFD4DBF5)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _voiceActions(),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    const Text('Live'),
+                    if (_windowMode)
+                      const Text('Conversation timing')
+                    else ...[
+                      const Tooltip(
+                        message: 'Silence that ends a voice clip',
+                        child: Text('Silence'),
+                      ),
+                      DropdownButton<int>(
+                        value: _endSilenceMs,
+                        isDense: true,
+                        items: [
+                          for (final v in endSilenceOptionsMs)
+                            DropdownMenuItem(
+                              value: v,
+                              child: Text('${(v / 1000).toStringAsFixed(1)}s'),
+                            ),
+                        ],
+                        onChanged: (v) async {
+                          if (v == null) return;
+                          setState(() => _endSilenceMs = v);
+                          await _audio.configureVad(endSilenceMs: v);
+                        },
+                      ),
+                    ],
+                    if (_armed)
+                      Text(_windowMode ? _liveStatus : 'Listening (live)'),
+                    const Text(
+                      'Call for live listening · Tell for one message',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              Row(
+                children: [
+                  if (_voiceReady && !_armed)
+                    IconButton(
+                      tooltip: 'Use audio recording',
+                      icon: const Icon(Icons.audio_file_outlined),
+                      onPressed: _converseAvailable ? _importRecording : null,
+                    ),
+                  Expanded(
+                    child: TextField(
+                      controller: _input,
+                      key: const ValueKey('converse-input'),
+                      decoration: const InputDecoration(
+                        labelText: 'Talk with Kinaiya',
+                      ),
+                      minLines: 1,
+                      maxLines: 4,
+                      textInputAction: TextInputAction.send,
+                      onChanged: (v) => _s.setDraft(AppView.character, v),
+                      onSubmitted: (_) => _send(),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  if (_speaking || _s.busyConverse)
+                    IconButton(
+                      tooltip: 'Stop speech',
+                      icon: const Icon(Icons.stop_circle_outlined),
+                      onPressed: _stopSpeech,
+                    ),
+                  FilledButton(
+                    onPressed:
+                        _converseAvailable &&
+                            !_s.busyConverse &&
+                            _s.converseDraft.trim().isNotEmpty
+                        ? () => _send()
+                        : null,
+                    child: const Text('Send'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<CharacterPack>(
+    future: _pack,
+    builder: (context, snap) => MoonlitScene(
+      child: LayoutBuilder(
+        builder: (context, box) {
+          final resourceNote = _s.resourceStatusStale
+              ? 'Resource status is unavailable. Voice availability is unconfirmed; Agent Chat remains available.'
+              : _s.resourcePhase == 'local_work'
+              ? 'Voice is paused for local work. Agent Chat and approvals remain available.'
+              : 'Converse is off. Direct Agent Chat remains available.';
+          final banner = _s.resourceStatusStale || !_s.converseEnabled
+              ? MaterialBanner(
+                  content: Text(resourceNote),
+                  actions: [
+                    TextButton(
+                      onPressed: () => _s.setView(AppView.agent),
+                      child: const Text('OPEN AGENT CHAT'),
+                    ),
+                  ],
+                )
+              : const SizedBox.shrink();
+          final scale = MediaQuery.textScalerOf(context).scale(1);
+          // Natural composer height can grow with accessibility text or the
+          // keyboard. Keep it scrollable without replacing the focused input.
+          return SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: box.maxHeight),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  banner,
+                  SizedBox(
+                    height: (box.maxHeight - 240 * scale).clamp(120.0, 700.0),
+                    child: _conversation(snap.data),
+                  ),
+                  _composer(),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    ),
+  );
 }

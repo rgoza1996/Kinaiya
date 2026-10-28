@@ -282,19 +282,22 @@ class SendMascotButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(24),
           child: Opacity(
             opacity: enabled ? 1 : 0.4,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Image.asset(
-                  'assets/mascot/kinaiya-mascot.png',
-                  width: 36,
-                  height: 36,
-                  semanticLabel: 'Kinaiya mascot',
-                  errorBuilder: (_, _, _) => const Icon(Icons.send),
-                ),
-                const SizedBox(width: 6),
-                Text(label),
-              ],
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Image.asset(
+                    'assets/mascot/kinaiya-mascot.png',
+                    width: 36,
+                    height: 36,
+                    semanticLabel: 'Kinaiya mascot',
+                    errorBuilder: (_, _, _) => const Icon(Icons.send),
+                  ),
+                  const SizedBox(width: 6),
+                  Flexible(child: Text(label)),
+                ],
+              ),
             ),
           ),
         ),
@@ -327,32 +330,39 @@ class MessageBubble extends StatelessWidget {
     required this.role,
     required this.text,
     this.note,
+    this.speaker = 'Kinaiya',
   });
 
   final String role;
   final String text;
   final String? note;
+  final String speaker;
 
   @override
   Widget build(BuildContext context) {
     final mine = role == 'user';
+    final colors = Theme.of(context).colorScheme;
     return Align(
       alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
       child: Semantics(
-        label: mine ? 'You said: $text' : 'Kinaiya said: $text',
+        label: mine ? 'You said: $text' : '$speaker said: $text',
         child: Container(
           margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: mine ? const Color(0xFF141091) : Colors.grey.shade100,
-            borderRadius: BorderRadius.circular(12),
+            color: mine ? const Color(0xFF141091) : colors.surfaceContainerHigh,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: colors.outlineVariant),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 text,
-                style: TextStyle(color: mine ? Colors.white : Colors.black87),
+                style: TextStyle(
+                  color: mine ? Colors.white : colors.onSurface,
+                  height: 1.5,
+                ),
               ),
               if (note != null && note!.isNotEmpty)
                 Padding(
@@ -361,7 +371,7 @@ class MessageBubble extends StatelessWidget {
                     note!,
                     style: TextStyle(
                       fontSize: 12,
-                      color: mine ? Colors.white70 : Colors.black54,
+                      color: mine ? Colors.white70 : colors.onSurfaceVariant,
                     ),
                   ),
                 ),
