@@ -1,0 +1,205 @@
+{
+  "schema": 1,
+  "date": "2026-10-28",
+  "status": "local integration verified; PR CI and release receipts are recorded separately",
+  "issue": 75,
+  "issue_url": "https://github.com/rgoza1996/Kinaiya/issues/75",
+  "parent_issues": [
+    49,
+    5
+  ],
+  "scope": "Converse recovery over native retained windows and authenticated local/HTTP journals, with scripted text and mocked HTTP streams; no new model-quality, physical-audio or full M3 acceptance",
+  "baseline": "6336484b041a377a8549d80f950cc9fc3991c928",
+  "agent_commits": [
+    "ce4795fc0c2c039b4c406a335d915c2d1d96db84",
+    "134613033f5bf60f9c144828d3b5bc8170b7b1b1",
+    "ad179818025fff2a712b3a2fe84aa248bcb4c1c8"
+  ],
+  "integrated_tested_commit": "baee9c5e70a320687ce96c2cc8d7a4f64afc0375",
+  "integrated_tested_tree": "8ba27ed633283e45149eafe7f6a618419b8b1fbb",
+  "source_sha256": {
+    "services/converse/windows.py": "059c79a4988bb90eb216ad10167362d416f69a79415fabce63d05bba863eccab",
+    "services/converse/runtime.py": "2d170e7c312d75ec75c0358343989f1ba340fb45ff608f557ff05bf545f8607c",
+    "packages/providers/text.py": "410cec4adcd15c5d6ec73dcfd10aad279b6dadac0ea717205a6367d6da598663",
+    "tests/integration/test_converse_window_recovery.py": "910fcf2d425d207f96eac004df74ec4eacacf162dbcc4c4d4c1cf46f2058fed1",
+    "tests/unit/test_providers.py": "1e860dd5d9edb1d38208df516d1dcefd4645352afb2589afb648eeaf0e863cfc",
+    "docs/adr/0019-streaming-window-control.md": "4b1373b07e514a05b6c5c3cd7070d0ba6c2f4c0a4369642e97d27eb65b8af848"
+  },
+  "source_equivalence": {
+    "method": "Direct SHA-256 comparison of all six implementation/test/ADR files in worker and lead checkouts",
+    "equal": true,
+    "other_worker_to_lead_differences": [
+      "clarification.md",
+      "evaluation/evidence/decisions-window-backlog-2026-10-28.json"
+    ]
+  },
+  "requirements": {
+    "Roadmap.md_sha256": "6a95af2b69c7f7f12d0ab0f7883b6226887141d234967514f3e647d9bd6108b0",
+    "clarification.md_sha256": "3d9db15ba6aa3bae3b570aa29385cbfb0988d1f5451d044f71aaf40afd9b228f",
+    "main_documentation_commit": "9f0c626381719ca20f5cabeec57a6942dce0b6aa",
+    "main_documentation_change": "Adds clarification section 11 only; this documentation commit does not implement the complete Converse-to-Agent provenance/voice-context/task-traceability requirements",
+    "full_roadmap_complete": false
+  },
+  "implementation": {
+    "cursor": "Advance after confirmed admission; transient source lookup failure retains the durable decision for a later healthy tick",
+    "uncertain_appends": "Retain exact prepare/start/reply requests, reconcile native start receipts, and pause the same admitted provider iterator without replaying inference",
+    "restart_barrier": "Retain one immutable initialization request; generation 5 history reconciles barrier 6 rather than conflicting under the same key; recheck session epoch/thread before exposing playback",
+    "native_retry": {
+      "attempts_per_recovery": 3,
+      "operation_timeout_s": 1.0,
+      "backoff_s": 0.1
+    },
+    "cleanup": "Retain original ownership until confirmed; failed/self-cancelled HTTP close keeps its slot; terminal cancellation starts no diagnostic I/O",
+    "http_cleanup_scope": "Explicit task-local window ownership only; defaults off for ordinary typed Converse/Agent calls and stays isolated during shared-provider reuse",
+    "capacity": "At most 32 retained replies; bounded scan reclaims completed cache references without invalidating published audio; held replies and unconfirmed cleanup defer admission without consuming its cursor",
+    "authority": "Preserve source/owner/epoch/generation/disclosure checks, non-authoritative Decisions, Converse-only personality, independent Agent dispatch and receipt-based completion"
+  },
+  "lead_full_python3.12": {
+    "cwd": "/home/roggoz/.codex/worktrees/mcp-controls/Kinaiya",
+    "same_source_between_runs": true,
+    "initial": {
+      "status": "failed; preserved",
+      "command": null,
+      "command_provenance": "Exact initial invocation is not embedded in the retained log and was not recovered",
+      "passed": 1371,
+      "failed": 1,
+      "warnings": 1,
+      "seconds": 270.38,
+      "log_path": "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/converse-window-recovery-full-py312.log",
+      "log_sha256": "450ccfaf820b39379e6caa7a05b32175373652a340041d8fe91342491c3da1a5",
+      "failed_test": "tests/integration/test_resource_boundaries.py::test_identity_loss_refuses_and_spares_sentinel",
+      "failure": "Initial started['ok'] assertion at line 134, before the test injects identity loss or creates its sentinel; captured processes.py:801 ownership-unverified category"
+    },
+    "unchanged_repeat": {
+      "status": "passed; does not explain the initial failure",
+      "command": "env -u PYTHONPATH /home/roggoz/Disks/SN750/Kinaiya/.dev-run/supertonic-ci-venv/bin/pytest -m 'not live' -q",
+      "command_provenance": "Lead orchestration record, session 45579; command is not embedded in the log header",
+      "exit_code": 0,
+      "passed": 1372,
+      "failed": 0,
+      "warnings": 1,
+      "seconds": 256.27,
+      "log_path": "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/converse-window-recovery-full-py312-repeat.log",
+      "log_sha256": "42c899cf4ba4fd4ce1ca5a54cf8325068ec9ace823118ea9d5b4819f71853dd4"
+    },
+    "warning": "Existing Starlette/httpx TestClient deprecation warning in both logs"
+  },
+  "unexplained_resource_refusal": {
+    "status": "cause unestablished; initial failure not discarded",
+    "source": "packages/resources/processes.py:335-378 and 742-752; rejection before execution grant, reported by _fail_unverified at line 801",
+    "what_log_proves": "The pre-grant verifier returned no verified pidfd; no individual failed predicate, errno or bootstrap return code was printed by the failing assertion",
+    "what_is_not_established": "No causal link to Qwen, host pressure, #75, PID reuse or a leaked fixture has been established",
+    "sealed_fd_distinction": "Sealed-config construction failure uses spawn-failed; config parsing and configured exec occur after grant, so those are not identified by the captured pre-grant log",
+    "unchanged_from_baseline": true,
+    "source_sha256": {
+      "packages/resources/processes.py": "f5c789f7929d7e8531c2464f633dd17a122fc674c2abec75ef448579a744c66b",
+      "packages/resources/_bootstrap.py": "0689a68ed813fd11e336f4a96a1fc4c60e908cf627c9dece6037f2d88b0da9f2",
+      "tests/integration/test_resource_boundaries.py": "8830eddbbcf67016399dfd843d98dbceace61be8b36d4bdb1b9432593dbd103e"
+    },
+    "tracking": {
+      "url": "https://github.com/rgoza1996/Kinaiya/issues/9#issuecomment-6474148301",
+      "provenance": "Lead reports transparent tracking of the unexplained event on issue 9; no causal claim"
+    },
+    "independent_bounded_investigation": {
+      "source_commit": "ad179818025fff2a712b3a2fe84aa248bcb4c1c8",
+      "python": "3.12.3",
+      "cwd": "/home/roggoz/.codex/worktrees/vibevoice-backend/Kinaiya",
+      "exact_case": {
+        "passed": 1,
+        "seconds": 0.47
+      },
+      "resource_boundaries_file": {
+        "passed": 13,
+        "seconds": 2.8
+      },
+      "resource_parent_and_processes_files": {
+        "passed": 35,
+        "seconds": 13.9
+      },
+      "fixed_disposable_start_batch": {
+        "attempts": 16,
+        "verified": 16,
+        "cleanup_successes": 16,
+        "retries": 0,
+        "method": "Process-local observational wrappers recorded the original live-state/starttime, parent/session/group, nonce/path, pidfd-open and bind-back checks without bypassing a predicate"
+      },
+      "interpretation": "No reproduction or concrete startup/ownership race found; these successes do not explain or erase the original failure",
+      "evidence_storage": "Observed tool-console completions and traces; no separate filesystem log retained",
+      "guard_changes": false
+    },
+    "next_diagnostic_evidence": "If it recurs, retain the exact failed verification predicate/errno and bootstrap return code during one ordered run while preserving every guard"
+  },
+  "implementation_agent_checks": {
+    "python3.12": {
+      "python": "3.12.3",
+      "cwd": "/home/roggoz/.codex/worktrees/vibevoice-backend/Kinaiya",
+      "command": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=. /home/roggoz/Disks/SN750/Kinaiya/.dev-run/supertonic-ci-venv/bin/python -B -m pytest -q tests/integration/test_converse_window_recovery.py tests/integration/test_speech_windows.py tests/integration/test_converse_speech_cancel.py tests/integration/test_window_http.py tests/unit/test_providers.py",
+      "passed": 194,
+      "failed": 0,
+      "seconds": 76.86,
+      "imports_verified": "runtime, windows and text provider modules resolved to the worker checkout",
+      "evidence_storage": "Observed tool-console completion; no separate filesystem log retained"
+    },
+    "python3.11": {
+      "python": "3.11.15",
+      "cwd": "/home/roggoz/.codex/worktrees/vibevoice-backend/Kinaiya",
+      "command": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=. /home/roggoz/Disks/SN750/Kinaiya/.dev-run/vibevoice-py311-venv/bin/python -B -m pytest -q tests/integration/test_converse_window_recovery.py tests/integration/test_speech_windows.py tests/integration/test_converse_speech_cancel.py tests/integration/test_window_http.py tests/unit/test_providers.py",
+      "passed": 194,
+      "failed": 0,
+      "seconds": 77.87,
+      "imports_verified": "runtime, windows and text provider modules resolved to the worker checkout",
+      "evidence_storage": "Observed tool-console completion; no separate filesystem log retained"
+    },
+    "ruff": "Full check and format check passed for 207 Python files",
+    "diff_check": "passed",
+    "draft_failures": "Original reproductions and intermediate fixture/code failures remain documented in docs/adr/0019-streaming-window-control.md at the recorded hash; final passing counts do not replace them"
+  },
+  "independent_review": {
+    "reviewer": "Codex minimal_runtime_review",
+    "source_commit": "ad179818025fff2a712b3a2fe84aa248bcb4c1c8",
+    "python": "3.12.3",
+    "cwd": "/home/roggoz/.codex/worktrees/vibevoice-backend/Kinaiya",
+    "command": "PYTHONDONTWRITEBYTECODE=1 /home/roggoz/Disks/SN750/Kinaiya/.dev-run/supertonic-ci-venv/bin/python -m pytest -q -p no:cacheprovider tests/integration/test_converse_window_recovery.py tests/integration/test_speech_windows.py tests/integration/test_window_http.py tests/unit/test_providers.py",
+    "passed": 160,
+    "seconds": 64.79,
+    "warnings_summary": "none reported",
+    "imports_verified": "runtime, windows and text provider modules resolved to worker checkout",
+    "other_checks": "Five changed Python files passed Ruff lint/format; diff check against 6336484 passed",
+    "additional_native_probes": [
+      "Lost barrier acknowledgment reused generations [6,6], one fixture provider call, no pending initialization",
+      "One held cleanup plus 31 reclaimable entries admitted the 33rd fixture call with 32 slots, original owner retained and published audio still valid",
+      "Cancelled HTTP-close failure preserved cancelled producer, zero diagnostic requests and original failed-cleanup slot"
+    ],
+    "provenance": "Anchored results supplied directly by the reviewer; observed console output only, no retained filesystem log/hash",
+    "human_acceptance": false
+  },
+  "limits": [
+    "Scripted providers and mocked HTTP bytes are not actual model inference or provider-quality evaluation",
+    "Native journal and independent Agent-submit fixture do not prove real Agent execution or complete delegation",
+    "No physical microphone/speaker, echo robustness, audible completion, end-to-end latency or p95 measurement",
+    "A hard process restart cannot resume an in-memory provider stream; no exactly-once inference claim",
+    "Opaque third-party iterator hidden transport cleanup cannot be universally introspected or guaranteed",
+    "A failed or indefinitely unconfirmed window cleanup retains its bounded slot and can require operator reconciliation",
+    "The broader #49/#53/M3 gates and full authoritative Roadmap remain open"
+  ],
+  "orchestration": {
+    "implementation_and_review": "Codex subagents within user-authorized orchestration",
+    "new_paid_Meta_calls": 0,
+    "held_out_reuse_or_tuning": false,
+    "private_prototype_access": false,
+    "reference_or_provider_default_changes": false,
+    "reference_promoted": false,
+    "new_tests_or_inference_for_this_draft": false
+  },
+  "uncertainties": [
+    "Exact initial full-suite command was not recovered; the successful repeat command comes from lead orchestration records",
+    "The original pre-grant resource rejection remains unexplained despite an unchanged successful full repeat and bounded diagnostic checks",
+    "Focused implementation, peer review and resource-investigation results are console evidence without independently retained filesystem logs",
+    "This file records local evidence; PR CI and release receipts are separate verification evidence."
+  ],
+  "related_issues": [
+    53,
+    76
+  ],
+  "source_hash_provenance": "Hashes identify integrated_tested_commit, before this evidence-only commit."
+}
