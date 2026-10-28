@@ -92,7 +92,7 @@ $$
 \max(\widehat C_{\mathrm{settled}},C_{\mathrm{billing}})+C_{\mathrm{reserved}}+C_{\mathrm{next}}\le 22.
 $$
 
-The [Meta pricing page](https://dev.meta.ai/docs/pricing-rate-limits) was verified on October 28, 2026. These token calculations remain estimates, **not provider invoices**. Hosted tools with additional fees are refused; Muse's local function tools remain available. No cache discount is assumed before a response reports it.
+The [Meta pricing page](https://dev.meta.ai/docs/pricing-rate-limits) was verified on October 28, 2026. These token calculations remain estimates, **not provider invoices**. Hosted tools with additional fees are refused; Muse's local function tools remain available, including bounded namespace groups emitted by the CLI. The validator examines tool declarations without interpreting function parameter schemas as tools. No cache discount is assumed before a response reports it.
 
 [Budget proxy](scripts/muse_budget_proxy.py)
 
