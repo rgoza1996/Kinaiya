@@ -472,6 +472,7 @@ class ConverseRuntime:
             not operation.cancelled
             and self.admission_current(operation.admission)
             and playback is not None
+            and playback.scope == (operation.session_epoch, operation.thread_id)
             and playback.accepts(operation.generation)
         )
 
@@ -567,6 +568,21 @@ class ConverseRuntime:
             yield
         finally:
             lock.release()
+
+    async def _text_control(self, operation, turn):
+        """Stop reconciliation and provider release share this turn's deadline."""
+        started = asyncio.get_running_loop().time()
+        try:
+            async with asyncio.timeout(turn.wait_remaining):
+                return await operation
+        except (ValueError, RuntimeError):
+            raise
+        except Exception as exc:
+            raise RuntimeError("Playback cleanup is unconfirmed; try again later") from exc
+        finally:
+            turn.wait_remaining = max(
+                0, turn.wait_remaining - (asyncio.get_running_loop().time() - started)
+            )
 
     async def close(self):
         self._cancel_text()
@@ -839,21 +855,29 @@ class ConverseRuntime:
                 # window cannot acquire this session while old real cleanup unwinds.
                 self._text_admitting.add(request.session_id)
                 turn.reserved = True
-                playback = await self._epoch(request.session_id)
+                playback = await self._text_control(self._epoch(request.session_id), turn)
                 session = await self.journal.session(request.session_id)
                 if (session.epoch, session.thread_id) != (request.epoch, request.thread_id):
                     raise ValueError("Session changed during turn admission")
                 if not self.admission_current(admission):
                     raise RuntimeError("Converse availability changed during turn admission")
-                old = self._active.get(request.session_id)
-                if old and not old.done():
-                    old.cancel()
+                if self._active.get(request.session_id) is not None or playback.chunks:
+                    self.fence_playback(request.session_id, expected_generation=playback.generation)
+                # The admission must differ from the old speech stop target.
+                # Force-WAIT can then revoke this new inference, while retries
+                # of that WAIT still recognize their own already-fenced target.
                 generation = playback.begin()
+                await self._text_control(self.reconcile_stop(request.session_id, playback), turn)
                 await self._wait_text_admission(request.session_id, turn)
                 session = await self.journal.session(request.session_id)
                 if (session.epoch, session.thread_id) != (request.epoch, request.thread_id):
                     raise ValueError("Session changed during turn admission")
-                if not self.admission_current(admission) or not playback.accepts(generation):
+                if (
+                    not self.admission_current(admission)
+                    or self.playback.get(request.session_id) is not playback
+                    or playback.scope != (request.epoch, request.thread_id)
+                    or not playback.accepts(generation)
+                ):
                     raise RuntimeError(
                         "Converse availability or generation changed during admission"
                     )

@@ -25,20 +25,27 @@ Request identity, current session/thread/epoch, owner/resource admission and
 idempotent replay are validated before legitimate old work is cancelled.
 Replay does not cancel or invoke inference, and its output does not retain the
 admission lock. A new request reserves capacity before any new user append or
-provider creation. Same-session replacement fences the old generation and
-cancels its producer once, then waits for actual release. Saturation and
-unconfirmed cleanup return explicit refusal before the new user entry or
+provider creation. Same-session replacement uses the shared synchronous
+playback fence and retained durable stop request for the old generation, then
+reserves a distinct new inference generation before any await. A later forced
+WAIT can revoke that admission; repeated WAIT remains idempotent. The old
+producer is cancelled once, and new provider admission waits for actual
+release. Saturation and unconfirmed cleanup return explicit refusal before the
+new user entry or
 provider side effect. Other sessions may proceed within the same bound.
 
-The admission-lock wait, wait for old provider release and terminal cleanup
-wait share at most one second per request. This bounds waiting for ownership;
-it is not a deadline for ordinary model inference or native journal I/O.
+The admission-lock wait, playback initialization/stop reconciliation, wait for
+old provider release and terminal cleanup wait share at most one second per
+request. Unknown stop receipts retain their exact immutable request for native
+idempotent reconciliation, including an append that committed before its
+acknowledgment was lost. Ordinary model inference and unrelated native journal
+I/O keep their existing request timeouts.
 Interrupt, owner-off, resource pause and response disconnect set the operation
 stop token immediately. Cancellation performs no diagnostic journal I/O. An
 independent session monitor also observes external owner changes and native
 session resets while a provider has not emitted its first delta. Availability,
-generation and stop tokens fence publication before and after asynchronous
-journal work; the native journal rejects stale epoch/thread writes.
+native scope, generation and stop tokens fence publication before and after
+asynchronous journal work; the native journal rejects stale epoch/thread writes.
 
 The typed producer opts into the existing task-local HTTP close protection
 before calling `__anext__`, covering normal EOF and provider error as well as
@@ -80,6 +87,25 @@ The focused integration tests use public synthetic input and actual
 provider error, failed and self-cancelled close; repeated controls; paused SSE
 send; no-close iterators; late output; replay and invalid scope; global
 saturation; reservation and lock contention; and both directions of window
-reuse. No model, paid service, frozen reference process or private conversation
-is used. These are deterministic ownership checks rather than live provider,
+reuse. The integrated stop tests resume a typed user append after WAIT, repeat
+WAIT without refencing, exercise equal generation numbers in different native
+epochs, and refuse typed replacement after the speech route emitted synthetic
+PCM while retaining the old window's actual HTTP close. No model, paid service,
+frozen reference process or private conversation is used. These are
+deterministic ownership checks rather than live provider,
 network socket, audio latency or sustained load evidence.
+
+The integrated implementation passed 388 affected tests on Python 3.12.3 in
+153.53 seconds and 387 on Python 3.11.15 in 156.26 seconds. The selected scope
+was `test_converse_{text_cleanup,speech_cancel,window_recovery,owner_controls}`,
+`test_{window_http,window_backlog,speech_windows,speech_boundary,window_agent_routing}`
+under `tests/integration`, plus `tests/unit/test_providers.py`. The 3.12 run
+also included `test_converse_owner_processes.py`. That unchanged fixture fails
+closed on the installed 3.11 interpreter because its `fcntl` has no
+`F_ADD_SEALS`/`F_SEAL_*` constants; it was explicitly omitted from the final
+3.11 command. Worker seals and the test were not changed. The same fixture
+passed on 3.12. After those broad runs, the external-owner fixture was
+strengthened to use a separate on-disk intent writer; all three scope-change
+cases passed again on both interpreters. Production source was unchanged.
+Ruff lint, formatting and `git diff --check` passed for the affected files.
+Independent final review and integrated CI remain the lead's release gate.

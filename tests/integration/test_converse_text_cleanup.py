@@ -21,7 +21,8 @@ from packages.providers.text import (
 )
 from services.common.auth import Auth
 from services.converse.api import create_app
-from services.converse.runtime import ConverseRuntime
+from services.converse.intent import ConverseIntent
+from services.converse.runtime import ConverseRuntime, PlaybackEpoch, TextOperation
 from services.converse.windows import WindowConverseController
 from services.session.store import LocalJournal, Store
 
@@ -317,7 +318,7 @@ async def test_invalid_or_replayed_request_does_not_cancel_legitimate_work(state
 
 @pytest.mark.parametrize("transition", ["reset", "owner_file", "resource_setter"])
 async def test_external_scope_change_stops_before_first_delta_and_discards_late_text(
-    state, transition
+    state, transition, tmp_path
 ):
     store, session = state
     entered, late = asyncio.Event(), asyncio.Event()
@@ -333,14 +334,18 @@ async def test_external_scope_change_stops_before_first_delta_and_discards_late_
                 late.set()
                 yield "Public synthetic late sentence."
 
-    runtime = ConverseRuntime(LocalJournal(store, "converse"), Provider())
+    runtime = ConverseRuntime(
+        LocalJournal(store, "converse"),
+        Provider(),
+        intent=ConverseIntent(tmp_path / "owner-intent.json"),
+    )
     pending = asyncio.create_task(runtime.turn(request_for(session)))
     try:
         await asyncio.wait_for(entered.wait(), 1)
         if transition == "reset":
             store.reset(session.session_id)
         elif transition == "owner_file":
-            runtime.intent.set(False)
+            ConverseIntent(runtime.intent.path).set(False)
         else:
             runtime.enabled = False
         result = await asyncio.wait_for(pending, 1)
@@ -735,7 +740,7 @@ async def test_typed_reservation_blocks_window_during_native_scope_revalidation(
     original = journal.session
 
     async def held(session_id):
-        if session_id in runtime._text_admitting:
+        if session_id in runtime._text_admitting and not runtime._epoch_locks[session_id].locked():
             entered.set()
             await release.wait()
         return await original(session_id)
@@ -849,7 +854,8 @@ async def test_reset_while_reply_append_is_suspended_rejects_late_old_epoch_writ
         await runtime.close()
 
 
-async def test_wait_resuming_held_typed_user_append_never_starts_provider(state):
+@pytest.mark.parametrize("prior_reply", [False, True])
+async def test_wait_resuming_held_typed_user_append_never_starts_provider(state, prior_reply):
     store, session = state
     entered, release = asyncio.Event(), asyncio.Event()
     journal = LocalJournal(store, "converse")
@@ -861,24 +867,36 @@ async def test_wait_resuming_held_typed_user_append_never_starts_provider(state)
             await release.wait()
         return await original(request)
 
-    journal.append = held
-    provider = ScriptedProvider(["Public old admission must stay silent."])
+    provider = ScriptedProvider(["Public prior reply.", "Public old admission must stay silent."])
     runtime = ConverseRuntime(journal, provider)
     controller = WindowConverseController(runtime)
+    if prior_reply:
+        await runtime.turn(request_for(session, "prior"))
+    before_calls = len(provider.calls)
+    before_text = len(store.read(kinds=["conversation.converse"]))
+    journal.append = held
     pending = asyncio.create_task(runtime.turn(request_for(session)))
     try:
         await asyncio.wait_for(entered.wait(), 1)
         before = runtime.playback[session.session_id].generation
+        if prior_reply:
+            assert runtime.playback[session.session_id].stop.desired_generation < before
         decision = await window_decision(
             store, session, controller, behavior="WAIT_FOR_NEXT_WINDOW"
         )
         await controller.tick()
         assert controller.after >= decision.sequence
         assert runtime.playback[session.session_id].generation > before
+        fenced = runtime.playback[session.session_id].generation
+        assert runtime.playback[session.session_id].stop.desired_generation == fenced
+        for _ in range(3):
+            await controller.process(decision)
+        assert runtime.playback[session.session_id].generation == fenced
         release.set()
         with pytest.raises(RuntimeError):
             await asyncio.wait_for(pending, 1)
-        assert not provider.calls and not store.read(kinds=["conversation.converse"])
+        assert len(provider.calls) == before_calls
+        assert len(store.read(kinds=["conversation.converse"])) == before_text
         assert not runtime._text and not runtime._text_admitting
     finally:
         release.set()
@@ -936,3 +954,70 @@ async def test_refused_typed_replacement_still_stops_emitted_window_pcm(state):
         await controller.close()
         await runtime.close()
         await provider.close()
+
+
+async def test_text_scope_cannot_alias_equal_generation_after_native_reset(state):
+    store, session = state
+    runtime = ConverseRuntime(LocalJournal(store, "converse"), ScriptedProvider([]))
+    old = TextOperation(
+        session.session_id, session.thread_id, session.epoch, 8, runtime.admission()
+    )
+    current = store.reset(session.session_id)
+    runtime.playback[session.session_id] = PlaybackEpoch(
+        generation=8, scope=(current.epoch, current.thread_id)
+    )
+    assert not old.cancelled and runtime.playback[session.session_id].accepts(old.generation)
+    assert not runtime._text_current(old)
+    await runtime.close()
+
+
+@pytest.mark.parametrize("when", ["before", "after"])
+async def test_uncertain_stop_refuses_new_input_and_retains_exact_native_request(state, when):
+    store, session = state
+    provider = ScriptedProvider(["First public reply.", "Fresh public reply."])
+    journal = LocalJournal(store, "converse")
+    runtime = ConverseRuntime(journal, provider)
+    runtime._text_cleanup_timeout = 0.025
+    await runtime.turn(request_for(session))
+    original = journal.append
+    attempts = []
+
+    async def uncertain(request):
+        if (
+            request.kind == "delivery.updated"
+            and request.payload.get("control") == "generation_stop"
+        ):
+            attempts.append(request)
+            if when == "after":
+                await original(request)
+            await asyncio.Event().wait()
+        return await original(request)
+
+    journal.append = uncertain
+    pending = asyncio.create_task(runtime.turn(request_for(session, "next")))
+    try:
+        done, _ = await asyncio.wait({pending}, timeout=0.2)
+        assert done == {pending}
+        with pytest.raises(RuntimeError, match="cleanup"):
+            await pending
+        # No new user/provider work is admitted on an uncertain stop receipt.
+        assert len(provider.calls) == 1 and len(store.read(kinds=["conversation.user"])) == 1
+        playback = runtime.playback[session.session_id]
+        stop = playback.stop
+        assert len(attempts) == 1 and stop.request is attempts[0]
+        assert stop.desired_generation < playback.generation
+        assert not stop.covers(stop.desired_generation)
+        assert not runtime._text_admitting and not runtime._text
+        journal.append = original
+        await runtime.reconcile_stop(session.session_id)
+        assert stop.covers(stop.desired_generation) and stop.request is None
+        events = [
+            event
+            for event in store.read(kinds=["delivery.updated"])
+            if event.idempotency_key == attempts[0].idempotency_key
+        ]
+        assert len(events) == 1 and events[0].payload == attempts[0].payload
+    finally:
+        journal.append = original
+        await asyncio.gather(pending, return_exceptions=True)
+        await runtime.close()
