@@ -136,7 +136,7 @@
     "No external provider behavior, physical audio, full M2/M3 acceptance, independent human approval or broad security audit is established."
   ],
   "worker_final_commit": "ea313330eea415746655ea49ca8d683ad34104ac",
-  "status": "Final independent review and combined local integration passed; corrected dependency PR83 and this change require exact-head full CI before merge.",
+  "status": "Final independent review and combined local integration passed; dependency PR83 passed full CI and merged. This change requires its own exact-head CI before merge.",
   "durable_worker_artifacts": {
     "directory": "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/typed-history-implementation-v1",
     "files": {
@@ -460,5 +460,34 @@
     "Only one captured native suffix is projected; this does not promise an atomic view of corrections committed afterward or refill bases outside it.",
     "Pure malformed-native-shaped cases are not native writer/auth proof. Actual prompt fixtures use synthetic providers and native local/authenticated ASGI journals.",
     "No actual external model inference, physical audibility, full M2/M3, default/provider promotion or sustained-load result follows."
-  ]
+  ],
+  "dependency_79_verified_later": {
+    "pr": 83,
+    "main_commit": "86b88b3ccb937c31d06ee9281352cdf74d0b0cd0",
+    "ci_run": 40741559469,
+    "ci_head": "a45a164e5570959a63a5d08e527cce27531fb91d",
+    "conclusion": "success",
+    "python311": {
+      "job_id": 123004210103,
+      "passed": 1694,
+      "warnings": 1,
+      "seconds": 205.37
+    },
+    "python312": {
+      "job_id": 123004209869,
+      "passed": 1694,
+      "warnings": 1,
+      "seconds": 218.12
+    },
+    "flutter": {
+      "job_id": 123004210086,
+      "tests": 341,
+      "javascript_tests": 25,
+      "analysis": "passed",
+      "release_build": "passed"
+    },
+    "post_merge_integration_commit": "ee5b9895137c19e961987e36d4c7b6348b71d4f3",
+    "post_merge_tree_unchanged_from": "1eee5c8e5582ce3c1a89661866d829be42ffe015",
+    "runtime_import_resolution": "Preserved exact tested runtime3d6b4c55 bytes; native PlaybackGeneration/MAX imports retained, obsolete direct entry_allowed import absent."
+  }
 }
