@@ -88,6 +88,12 @@ queue holds public bytes and a private end marker; no protocol's terminal
 dictionary is used as the common lifecycle contract. Failure after headers
 emits a trusted-host error that compatible clients refuse.
 
+The resource-policy provider wrapper also awaits the selected iterator's
+optional close in `finally`. Closing that wrapper early must retain actual
+HTTP cleanup and propagate an unconfirmed close; asynchronous-generator
+finalization is not a replacement for that owner. Plain async iterators
+without a close method remain supported.
+
 ## Off, handoff and recovery
 
 The action/replay ledger remains serialized under the action lock. A separate

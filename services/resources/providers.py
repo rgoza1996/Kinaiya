@@ -131,5 +131,13 @@ class ResourceBoundProvider:
 
     async def stream(self, messages):
         self._check()
-        async for chunk in self.provider.stream(messages):
-            yield chunk
+        source = self.provider.stream(messages)
+        try:
+            async for chunk in source:
+                yield chunk
+        finally:
+            # Keep the selected provider's real cleanup in this caller's owner;
+            # early wrapper close must not defer it to asyncgen finalization.
+            close = getattr(source, "aclose", None)
+            if close is not None:
+                await close()
