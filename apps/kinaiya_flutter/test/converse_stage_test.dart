@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'dart:convert';
+
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:kinaiya_flutter/api/client.dart';
+import 'package:kinaiya_flutter/api/models.dart';
 import 'package:kinaiya_flutter/audio/speech_audio.dart';
 import 'package:kinaiya_flutter/character/package.dart';
 import 'package:kinaiya_flutter/config/connection.dart';
@@ -90,13 +95,16 @@ class StageAudio implements SpeechAudio {
 }
 
 class StageApi extends KinaiyaClient {
-  StageApi()
+  StageApi({http.Client Function()? memoryFactory})
     : super(
         sessionBase: 'http://fixture',
         agentBase: 'http://fixture',
         converseBase: 'http://fixture',
         ownerToken: 'synthetic',
         httpClient: mockTransport(commandsMissing: false),
+        memoryClientFactory:
+            memoryFactory ??
+            (() => MockClient((_) async => http.Response('unexpected', 500))),
       );
   @override
   Future<Map<String, Object?>> converseHealth() async => {'enabled': true};
@@ -123,6 +131,7 @@ Future<AppState> pumpStage(
   ThemeData? theme,
   List<ChatMsg> history = const [],
   StageAudio? audio,
+  http.Client Function()? memoryFactory,
 }) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = Size(width, height);
@@ -130,7 +139,7 @@ Future<AppState> pumpStage(
   addTearDown(tester.view.resetDevicePixelRatio);
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
-  final api = StageApi();
+  final api = StageApi(memoryFactory: memoryFactory);
   final state = AppState()
     ..connect(ConnectionProfile.defaults(), injected: api);
   for (final m in history) {
@@ -523,6 +532,97 @@ void main() {
       isNotNull,
     );
     expect(find.byKey(const ValueKey('conversation-history')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('memory entry stays available and preserves draft and capture', (
+    tester,
+  ) async {
+    final memoryLog = <String>[];
+    http.Client memoryFixture() => MockClient((http.Request req) async {
+      memoryLog.add(req.url.path);
+      return http.Response(jsonEncode({'unexpected': true}), 500);
+    });
+    final audio = StageAudio();
+    final state = await pumpStage(
+      tester,
+      width: 320,
+      height: 568,
+      textScale: 2,
+      memoryFactory: memoryFixture,
+    );
+    state.converseSession = SessionInfo(
+      sessionId: 's-stage',
+      threadId: 't-stage',
+      channel: 'converse',
+      epoch: 1,
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('converse-input')),
+      'Keep this draft',
+    );
+    await tester.tap(find.byTooltip('Start Live listen (armed mic)'));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(audio.arms, 1);
+    expect(find.byKey(const ValueKey('voice-options')), findsOneWidget);
+    expect(find.byKey(const ValueKey('converse-memory')), findsOneWidget);
+    await tester.ensureVisible(find.byKey(const ValueKey('converse-memory')));
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.tap(find.byKey(const ValueKey('converse-memory')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(find.text('Converse memory'), findsOneWidget);
+    // Opening the dialog sends no session/configure/capture requests and
+    // leaves the stage, draft, and armed capture untouched.
+    expect(
+      memoryLog.where((p) => p.endsWith('/configure') || p.endsWith('/use')),
+      isEmpty,
+    );
+    expect(find.text('End conversation'), findsOneWidget);
+    expect(audio.armStops, 0);
+    expect(audio.cancels, 0);
+    await tester.tap(find.text('CLOSE'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(find.text('Converse memory'), findsNothing);
+    expect(find.text('End conversation'), findsOneWidget);
+    final field = tester.widget<TextField>(
+      find.byKey(const ValueKey('converse-input')),
+    );
+    expect(field.controller!.text, 'Keep this draft');
+    expect(state.converseDraft, 'Keep this draft');
+    expect(audio.armStops, 0);
+    await tester.tap(find.text('End conversation'));
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(audio.armStops, 1);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('memory entry is present without history or character stage', (
+    tester,
+  ) async {
+    http.Client memoryFixture() => MockClient(
+      (_) async => http.Response(jsonEncode({'unexpected': true}), 500),
+    );
+    await pumpStage(
+      tester,
+      width: 360,
+      height: 800,
+      showCharacter: false,
+      memoryFactory: memoryFixture,
+    );
+    expect(find.byType(MascotWidget), findsNothing);
+    expect(find.byKey(const ValueKey('converse-memory')), findsOneWidget);
+    expect(find.byKey(const ValueKey('voice-options')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('converse-memory')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    // No session exists in this stage, so the dialog explains why instead
+    // of creating one.
+    expect(find.textContaining('no current Converse session'), findsOneWidget);
+    await tester.tap(find.text('CLOSE'));
+    await tester.pump();
+    expect(find.text('Converse memory'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 }
