@@ -59,6 +59,9 @@ void main() {
 
     await tester.enterText(find.byType(TextField), '/status do stuff');
     await tester.pump(const Duration(milliseconds: 100));
+    await tester.ensureVisible(find.text('Send'));
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(find.text('Send').hitTestable(), findsOneWidget);
     await tester.tap(find.text('Send'));
     await tester.pump(const Duration(milliseconds: 300));
 
