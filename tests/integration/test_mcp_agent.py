@@ -996,7 +996,13 @@ async def test_private_metadata_is_not_in_contributor_messages(tmp_path):
     provider.info = ProviderInfo(provider="meta", model="alias", local=False)
     runtime = AgentRuntime(InMemoryJournal(), provider, tmp_path, policy, mcp_host=host)
     try:
-        task = await runtime.submit(req("list available servers", "scope"))
+        # The objective is public; the MCP server metadata deliberately remains
+        # private so this test reaches and exercises its independent boundary.
+        task = await runtime.submit(
+            req("list available servers", "scope").model_copy(
+                update={"content_scope": "public_synthetic"}
+            )
+        )
         final = await runtime.wait(task.task_id)
         assert final.state == TaskState.SUCCEEDED
         assert "synthetic-private-name" not in json.dumps(provider.messages)

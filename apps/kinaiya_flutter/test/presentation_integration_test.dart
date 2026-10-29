@@ -83,6 +83,7 @@ class PresentationApi extends LayoutApi {
     required int epoch,
     required String input,
     required String idempotencyKey,
+    ContentScope contentScope = ContentScope.localOnly,
   }) async {
     commands++;
     throw StateError('Settings cannot execute commands');

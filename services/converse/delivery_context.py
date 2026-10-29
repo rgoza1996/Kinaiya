@@ -176,6 +176,11 @@ def _block(rows):
 
 
 def window_context(recent, source, info):
+    messages, delivery, _ = window_context_scoped(recent, source, info)
+    return messages, delivery
+
+
+def window_context_scoped(recent, source, info):
     """Use one contiguous native suffix; later corrections/receipts qualify earlier text."""
     snapshot = native_snapshot(recent, source)
     current = SpeechWindow.model_validate(source.payload)
@@ -204,19 +209,19 @@ def window_context(recent, source, info):
             windows[window.utterance_id] = rank, entry, window
 
     candidates = [
-        (user.entry, user.text)
+        (user.entry, user.text, user.floor)
         for user in users.values()
         if user.entry.sequence < source.sequence and user.permitted and isinstance(user.text, str)
     ]
     candidates.extend(
-        (entry, window.text)
+        (entry, window.text, window.content_scope)
         for _, entry, window in windows.values()
         if window.utterance_id in prior_utterances
         and window.utterance_id != current.utterance_id
         and _allowed(info, entry.payload)
     )
     candidates.extend(
-        (e, e.payload["text"])
+        (e, e.payload["text"], e.payload.get("content_scope", "local_only"))
         for e in snapshot
         if e.kind == "conversation.converse"
         and e.origin == "converse"
@@ -225,10 +230,11 @@ def window_context(recent, source, info):
         and _allowed(info, e.payload)
     )
     candidates = sorted(candidates, key=lambda pair: pair[0].sequence)[-8:]
-    messages, rows = [], []
-    for index, (entry, text) in enumerate(candidates):
+    messages, rows, scopes = [], [], []
+    for index, (entry, text, scope) in enumerate(candidates):
         assistant = entry.kind == "conversation.converse"
         messages.append({"role": "assistant" if assistant else "user", "content": text[:2000]})
+        scopes.append(scope)
         if assistant:
             rows.append(_delivery_row(entry, index, snapshot, info))
-    return messages, _block(rows) if rows else None
+    return messages, _block(rows) if rows else None, scopes

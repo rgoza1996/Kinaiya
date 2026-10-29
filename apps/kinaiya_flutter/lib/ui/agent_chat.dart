@@ -26,6 +26,7 @@ class _AgentChatState extends State<AgentChat> {
   final TextEditingController _search = TextEditingController();
   String? _selectedTaskId;
   final Map<String, TextEditingController> _steer = {};
+  final Map<String, ContentScope> _steerScopes = {};
   Timer? _poll;
   KinaiyaClient? _lastClient;
   int _lastGeneration = 0;
@@ -87,6 +88,7 @@ class _AgentChatState extends State<AgentChat> {
   }
 
   void _syncConnectionDraft() {
+    _steerScopes.clear();
     _search.clear();
     _selectedTaskId = null;
     if (_input.text != _s.agentDraft) _input.text = _s.agentDraft;
@@ -227,14 +229,16 @@ class _AgentChatState extends State<AgentChat> {
     final text = _input.text.trim();
     final api = _s.client;
     final generation = _s.connectionGeneration;
+    final scope = _s.draftScope(AppView.agent);
     if (text.isEmpty || api == null || _s.busyAgent) return;
     if (!_s.ownsConnection(generation, api)) return;
     if (!_s.sessionAuthenticated) return;
     final slash = _isSlash(text);
-    if (!slash && !_s.agentCanInfer) {
+    if (!slash && !_s.agentCanDisclose(scope)) {
       if (!_s.ownsConnection(generation, api)) return;
-      _s.agentNotice =
-          'Agent inference is not available for the current provider and disclosure consent. Deterministic controls (/status, /stop, /help) still work.';
+      _s.agentNotice = _s.agentCanInfer
+          ? 'This draft retains its original disclosure scope and cannot be sent to this provider. Clear and re-enter it to choose a new scope.'
+          : 'Agent inference is not available for the current provider and disclosure consent. Deterministic controls (/status, /stop, /help) still work.';
       _s.touch();
       return;
     }
@@ -243,7 +247,7 @@ class _AgentChatState extends State<AgentChat> {
     _s.touch();
     try {
       if (slash) {
-        await _dispatchSlash(api, generation, text);
+        await _dispatchSlash(api, generation, text, scope);
         return;
       }
       SessionInfo? session = _s.agentSession;
@@ -262,7 +266,7 @@ class _AgentChatState extends State<AgentChat> {
       // also have been revoked (for example by a /model switch).
       if (!mounted ||
           !_s.ownsConnection(generation, api) ||
-          !_s.agentCanInfer) {
+          !_s.agentCanDisclose(scope)) {
         return;
       }
       final liveApi = _s.client;
@@ -272,6 +276,7 @@ class _AgentChatState extends State<AgentChat> {
         threadId: session.threadId,
         epoch: session.epoch,
         objective: text.startsWith(r'\/') ? text.substring(1) : text,
+        contentScope: scope,
         idempotencyKey: newIdempotencyKey(),
       );
       // Already-sent requests cannot be recalled, but a stale completion
@@ -313,6 +318,7 @@ class _AgentChatState extends State<AgentChat> {
     KinaiyaClient api,
     int generation,
     String text,
+    ContentScope scope,
   ) async {
     final name = text.split(RegExp(r'\s+')).first.substring(1);
     if (!_s.sessionAuthenticated) return;
@@ -335,10 +341,11 @@ class _AgentChatState extends State<AgentChat> {
     // Skill invocations and unknown classes start inference; deterministic
     // runtime controls run without inference. Never invoke a skill just to
     // discover it was forbidden.
-    if (match.first.requiresInference && !_s.agentCanInfer) {
+    if (match.first.requiresInference && !_s.agentCanDisclose(scope)) {
       if (!_s.ownsConnection(generation, api)) return;
-      _s.agentNotice =
-          'Agent inference is not available for the current provider and disclosure consent. Deterministic controls (/status, /stop, /help) still work.';
+      _s.agentNotice = _s.agentCanInfer
+          ? 'This draft retains its original disclosure scope and cannot be sent to this provider. Clear and re-enter it to choose a new scope.'
+          : 'Agent inference is not available for the current provider and disclosure consent. Deterministic controls (/status, /stop, /help) still work.';
       _s.touch();
       return;
     }
@@ -369,7 +376,7 @@ class _AgentChatState extends State<AgentChat> {
         _s.touch();
         return;
       }
-      if (liveMatch.first.requiresInference && !_s.agentCanInfer) {
+      if (liveMatch.first.requiresInference && !_s.agentCanDisclose(scope)) {
         _s.agentNotice =
             'Agent inference is not available for the current provider and disclosure consent. Deterministic controls (/status, /stop, /help) still work.';
         _s.touch();
@@ -387,6 +394,7 @@ class _AgentChatState extends State<AgentChat> {
         threadId: session.threadId,
         epoch: session.epoch,
         input: text,
+        contentScope: scope,
         idempotencyKey: newIdempotencyKey(),
       );
       // Already-sent commands cannot be recalled, but the stale result
@@ -465,13 +473,15 @@ class _AgentChatState extends State<AgentChat> {
     final api = _s.client;
     final generation = _s.connectionGeneration;
     final instruction = _steer[task.taskId]?.text.trim() ?? '';
+    final scope = _steerScopes[task.taskId] ?? ContentScope.localOnly;
     if (api == null || instruction.isEmpty) return;
     if (!_s.ownsConnection(generation, api)) return;
     // Steering text starts inference; deterministic stop/approval controls
     // below deliberately do not require it.
-    if (!_s.agentCanInfer) {
-      _s.agentNotice =
-          'Agent inference is not available for the current provider and disclosure consent. Steering is blocked; /status and /stop still work.';
+    if (!_s.agentCanDisclose(scope)) {
+      _s.agentNotice = _s.agentCanInfer
+          ? 'This steering input retains its original disclosure scope. Clear and re-enter it to choose a new scope.'
+          : 'Agent inference is not available for the current provider and disclosure consent. Steering is blocked; /status and /stop still work.';
       _s.touch();
       return;
     }
@@ -479,6 +489,7 @@ class _AgentChatState extends State<AgentChat> {
       await api.steerTask(
         taskId: task.taskId,
         instruction: instruction,
+        contentScope: scope,
         expectedObjectiveRevision: task.objectiveRevision,
         idempotencyKey: newIdempotencyKey(),
       );
@@ -486,6 +497,7 @@ class _AgentChatState extends State<AgentChat> {
       // connection may consume the result.
       if (!mounted || !_s.ownsConnection(generation, api)) return;
       _steer[task.taskId]?.clear();
+      _steerScopes.remove(task.taskId);
       await _refreshTasks();
     } on ApiException catch (e) {
       if (!_s.ownsConnection(generation, api)) return;
@@ -1032,6 +1044,17 @@ class _AgentChatState extends State<AgentChat> {
                   children: [
                     TextField(
                       controller: _steer[task.taskId],
+                      onChanged: (text) {
+                        if (text.trim().isEmpty) {
+                          _steerScopes.remove(task.taskId);
+                        } else {
+                          _steerScopes.update(
+                            task.taskId,
+                            (scope) => scope.combine(_s.selectedContentScope),
+                            ifAbsent: () => _s.selectedContentScope,
+                          );
+                        }
+                      },
                       decoration: const InputDecoration(
                         labelText: 'Steer this task',
                         border: OutlineInputBorder(),

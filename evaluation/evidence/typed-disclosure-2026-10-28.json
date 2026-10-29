@@ -1,0 +1,125 @@
+{
+  "kind": "synthetic_native_disclosure_regression",
+  "issue": "https://github.com/rgoza1996/Kinaiya/issues/95",
+  "source_commit": "5649b62e4be8253edbe9cc756b5e15487791fd86",
+  "baseline_commit": "661e347126e2a98422ae4910c54d3de1a7658439",
+  "source_sha256": {
+    "packages/contracts/models.py": "fa0b20723232ce540256cef3224a25d42fa5f99d03daa1fdc280c4395b0b7d93",
+    "packages/providers/disclosure.py": "21815d445e9244ffdc08a71b7b846085aed0211fa84879ad58bac1f2caada30d",
+    "services/agent/runtime.py": "87722a288edc20ef67a879104d9ea0ca99382c6d3c0a3fe1e6585503d5180319",
+    "packages/commands/__init__.py": "527deaa24cda836170a3bf6051bd80f7d566743973d7306f2043d2dc6c99af15",
+    "services/converse/api.py": "a9227588d59130c14eab8b0b8f87ec2ad82e3bfa661d28e3ff6150398cf276c9",
+    "services/converse/history.py": "9281ea335da16a99a644b7a3d5b140d34d7d95103fb3a6725f83a3ac4ed62ed0",
+    "services/converse/delivery_context.py": "7e419d0c49e6751eca1647e36b5273cf602eee4643e3ea92413da45daab911a4",
+    "services/converse/runtime.py": "65a7f4f2e88931958f837fa703361ec5a870cbf0a2d813cd13ce19eb120d6883",
+    "services/converse/windows.py": "17f7158bc8669af26e1514b3004c5fad945000bc8c40d981d9708f3dc4a03ac7",
+    "services/decisions/runtime.py": "701c02c31fd11d686296ca2831b1a9160f5ea597cea5effc01ac1e9f768d936e",
+    "services/decisions/window_routing.py": "d43abc0d81cf18526a0df2e82b977fe110ffd071cbc0e6eb3c2d9bab4900b876",
+    "services/launcher.py": "b8cd96438f8c3bf13b62b470584c13efe0720bd27973e59dd22d7909686185af"
+  },
+  "native_behavior": [
+    "Missing input/task/history scope remains local_only",
+    "Contributor receives only explicitly public_synthetic input",
+    "Ordinary cloud requires public or private_cloud_authorized input",
+    "Original and every native typed revision impose sticky floors",
+    "Derived replies include actually consumed history and persona floors",
+    "Actual transport pinned for projection and inference; compiled scope checked before streaming",
+    "Task controls, recovery, transcript revision lookup and outcome notices cannot elevate scope",
+    "Client drafts/captures pin consent across async work and reconnects; CLI and multipart transport carry it explicitly"
+  ],
+  "independent_regressions": [
+    {
+      "cases": 6,
+      "baseline": "6 intended failures in 1.08s",
+      "repair": "6 passed in 1.54s",
+      "probe_sha256": "9290bfe903611d3ebb647bcf0469d4633dc83f846fb2ef4c7e1e4ee69e8ed443",
+      "receipt_sha256": "a1956deb67f92e81943d0816e10391eb9d9c99c6c4cb92b50b8c6264507bda78",
+      "unchanged_probe": true
+    },
+    {
+      "cases": 10,
+      "original_muse_delivery": "8 intended failures, 2 controls passed in 1.54s",
+      "repair": "10 passed in 2.08s",
+      "probe_sha256": "4a149a5b19d5cd9d4c70432bfff876a7a66dc195ccecdad45edc03905c0c61f5",
+      "unchanged_probe": true,
+      "import_limit": "Historical ten-case JSON did not capture imports; fresh current binding verified separately"
+    },
+    {
+      "cases": 6,
+      "original": "4 failed, 2 public controls passed",
+      "repair": "6 passed in 1.29s",
+      "probe_sha256": "792f46ac0d6f4fb7a1391d5af9d999ca7c04744e97a9d52fe51eb38298de1fdb",
+      "unchanged_probe": true
+    },
+    {
+      "cases": 2,
+      "original": "2 intended revision-bound failures in 0.33s",
+      "repair": "2 passed in 0.55s",
+      "unchanged_probe": true
+    }
+  ],
+  "local_checks": {
+    "python": "3.12.3 pinned existing deterministic environment",
+    "muse_original_focused": "121 failed, 440 passed in 172.09s; mostly current public fixtures missing new explicit grant; original log retained",
+    "integration_focused_v1": "2 failed, 606 passed in 148.60s; overbroad window floor conflicted with settled stale-window ordering; implementation repaired without changing those assertions",
+    "integration_focused_v2": "168 passed in 34.66s",
+    "agent_worker": "174 passed in 34.83s",
+    "routing_coordination_laya_windows": "56 passed in 10.74s",
+    "cli_and_multipart_transport": "22 passed, 1 existing TestClient warning in 1.67s",
+    "full_backend_initial": "1 failed, 2498 passed, 6 skipped, 1 existing TestClient warning in 436.01s",
+    "full_backend_failure": "Existing public MCP objective defaulted local_only, so native input gate correctly refused it before its private-MCP-metadata assertions. Only that synthetic task was explicitly granted public scope; private metadata and every assertion retained.",
+    "corrected_mcp_suite": "24 passed in 24.54s",
+    "skips": "Six optional Whistle decode/resampling tests: pinned PyAV not installed in this deterministic environment. No incidental dependency installation.",
+    "ruff": "All checks passed; 265 files formatted on final local check",
+    "schemas": "Exported schemas equal committed schemas",
+    "diff_check": "Passed",
+    "flutter": "356 passed including 15 new disclosure tests; analyze clean; format61files0changed; integrated Flutter tree exactly equals reviewed client commit6aefe92",
+    "remote_ci": "Full final-head Python3.11/3.12, Flutter/JS/web build, schema and dependency checks required separately before merge; use PR record"
+  },
+  "muse": {
+    "actual_cli": true,
+    "version": "1.4.14-R7309.1",
+    "requested_and_resolved_model": "muse-spark-1.3-contributor",
+    "requested_effort": "xhigh",
+    "backend_effort": "unreported",
+    "exit_code": 0,
+    "elapsed_seconds": 211.20270948900725,
+    "cli_calls": 15,
+    "terminal": "kinaiya-muse-monitor:muse-95-converse",
+    "original_delivery_preserved": true,
+    "receipt_sha256": "596b7f29e7e756d43b5150d47bee588da28f4a0a714b3a4269614f961920a085",
+    "events_sha256": "1c4258962174f431787d4e5a2a37fcc59a247e4149424b8e18a962c67d1ac78e",
+    "limits": "Fresh HOME/XDG and public workspace limit configured context; not OS filesystem confinement. Coding run, not Converse inference."
+  },
+  "meta_budget": {
+    "authorization_usd": 25,
+    "new_usage": {
+      "input_tokens": 348675,
+      "output_tokens": 17739,
+      "cached_input_tokens": 286766,
+      "contributor_estimated_usd": 0.010312232000000001
+    },
+    "total_contributor_estimated_usd": 1.0552723300000004,
+    "guard_including_retained_uncertainty_reserves_usd": 3.666354710000001,
+    "billing_reported_usd": null,
+    "limit_note": "Usage-based estimate and conservative guard, not an invoice. Ordinary Spark comparison counter is not active admission or billing."
+  },
+  "raw_proof": {
+    "manifest_sha256": "f0a2405b24b8c0edd3da4ce31a40c5cf5b91146ea4656435ea9e9df7e8c6223a",
+    "files": 96,
+    "retained_locally": true
+  },
+  "independent_review": {
+    "kind": "Automated independent reviewers, not human approval",
+    "converse_receipt_sha256": "1c00dbaad395c1c3dd5c8e722bec9268d6569dc9d30656cbdb05106c64fa1505",
+    "committed_native_source_binding": "5f402194ec290ce40c2868a2ce06674eb59e013f; unchanged native code in source_commit"
+  },
+  "limits": [
+    "Synthetic fixtures and recording providers only; no real model, cloud endpoint or network socket in disclosure probes",
+    "Not universal DLP, private-file classification or automatic tool-output redaction",
+    "Shared native source floor bounds returned revision metadata, not SQL execution work",
+    "No real mixed local-model voice rehearsal performed for this change",
+    "No full49/M2, realtime, physical audibility, roadmap completion or reference-demo promotion claim",
+    "No native Agent subagent facility added"
+  ]
+}

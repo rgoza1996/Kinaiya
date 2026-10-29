@@ -95,6 +95,7 @@ async def task(runtime, store, objective, key):
             thread_id=session.thread_id,
             epoch=session.epoch,
             objective=objective,
+            content_scope="public_synthetic",
             idempotency_key=key,
         )
     )

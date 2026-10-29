@@ -38,8 +38,9 @@ class LayoutApi extends KinaiyaClient {
   @override
   Future<Map<String, Object?>> transcribe(
     List<int> bytes,
-    String filename,
-  ) async {
+    String filename, {
+    ContentScope contentScope = ContentScope.localOnly,
+  }) async {
     transcriptions++;
     return {'text': ''};
   }

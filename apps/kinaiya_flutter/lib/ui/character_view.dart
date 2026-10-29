@@ -9,7 +9,6 @@ import '../audio/speech_audio.dart';
 import '../audio/turn_audio.dart';
 import '../character/pack.dart';
 import '../character/playback.dart';
-import '../config/connection.dart';
 import '../presentation/controller.dart';
 import '../state/app_state.dart';
 import 'book_sheet.dart';
@@ -136,6 +135,9 @@ class _CharacterViewState extends State<CharacterView> {
   int _voiceRequest = 0;
   bool _transcribing = false;
   RecordedAudio? _pendingClip;
+  ContentScope _pendingClipScope = ContentScope.localOnly;
+  ContentScope _captureScope = ContentScope.localOnly;
+  ContentScope _recordingScope = ContentScope.localOnly;
 
   /// User-armed continuous listening. Never true unless the user toggled it.
   bool _armed = false;
@@ -358,8 +360,17 @@ class _CharacterViewState extends State<CharacterView> {
   /// the new utterance invalidates the old nonce first, so the old loop
   /// breaks on its next event and its `finally` (nonce-owned) cannot clear
   /// the new turn's `busyConverse`.
-  Future<void> _send({String? overrideText, String inputMode = 'text'}) async {
+  Future<void> _send({
+    String? overrideText,
+    String inputMode = 'text',
+    ContentScope? contentScope,
+  }) async {
     final text = (overrideText ?? _input.text).trim();
+    final scope =
+        contentScope ??
+        (overrideText == null
+            ? _s.draftScope(AppView.character)
+            : ContentScope.localOnly);
     final api = _s.client;
     final generation = _s.connectionGeneration;
     if (text.isEmpty || api == null || !_converseAvailable) {
@@ -376,10 +387,24 @@ class _CharacterViewState extends State<CharacterView> {
       return;
     }
     if (!_s.converseCanInfer) return;
+    if (!_s.converseCanDisclose(scope)) {
+      _s.appendHistory(
+        AppView.character,
+        ChatMsg(
+          role: 'system',
+          text: inputMode == 'voice'
+              ? 'This recording retains its original disclosure scope and cannot be sent to this provider. Start a new recording under the chosen disclosure setting.'
+              : 'This input retains its original disclosure scope and cannot be sent to this provider. Clear and re-enter text to choose a new scope.',
+        ),
+      );
+      return;
+    }
     final nonce = ++_s.turnNonce;
     bool stillAuthorized() {
       if (!mounted || !turnOwnsCleanup(nonce, _s.turnNonce)) return false;
-      if (!_s.ownsConnection(generation, api) || !_converseAvailable) {
+      if (!_s.ownsConnection(generation, api) ||
+          !_converseAvailable ||
+          !_s.converseCanDisclose(scope)) {
         _s.busyConverse = false;
         _s.touch();
         return false;
@@ -450,6 +475,7 @@ class _CharacterViewState extends State<CharacterView> {
         text: text,
         idempotencyKey: key,
         inputMode: inputMode,
+        contentScope: scope,
       )) {
         if (!mounted) return;
         // Stale turn (interrupted by a newer send): stop consuming.
@@ -841,6 +867,7 @@ class _CharacterViewState extends State<CharacterView> {
     if (!_converseAvailable || !_s.converseCanInfer || _s.client == null) {
       return;
     }
+    _captureScope = _s.selectedContentScope;
     await _windowAudio?.configureWindows(_windowMode);
     await _audio.configureVad(endSilenceMs: _endSilenceMs);
     if (!mounted || owner != _armOwner || !_converseAvailable) return;
@@ -939,9 +966,7 @@ class _CharacterViewState extends State<CharacterView> {
       'end_ms': snapshot['end_ms'],
       'user_speaking': snapshot['user_speaking'],
       'capture_ended': false,
-      'content_scope': _s.connection?.backendProfile == BackendProfile.clean
-          ? 'local_only'
-          : 'public_synthetic',
+      'content_scope': _captureScope.wireValue,
       'audio_base64': snapshot['base64'],
     };
     unawaited(_drainWindows(owner));
@@ -1006,6 +1031,7 @@ class _CharacterViewState extends State<CharacterView> {
       if (recording == null || recording.bytes.isEmpty) return;
       _pendingClip =
           recording; // One latest pending clip, never an unbounded queue.
+      _pendingClipScope = _captureScope;
       _voiceRequest++;
       unawaited(_drainVoiceClips(owner));
     } finally {
@@ -1019,9 +1045,11 @@ class _CharacterViewState extends State<CharacterView> {
     try {
       while (_armed && mounted && _pendingClip != null && owner == _armOwner) {
         final recording = _pendingClip!;
+        final scope = _pendingClipScope;
         _pendingClip = null;
         final request = _voiceRequest;
         final api = _s.client;
+        final generation = _s.connectionGeneration;
         if (api == null || !_s.converseCanInfer) return;
         try {
           final extension = recording.mime.contains('ogg')
@@ -1032,16 +1060,24 @@ class _CharacterViewState extends State<CharacterView> {
           final out = await api.transcribe(
             recording.bytes,
             'recording.$extension',
+            contentScope: scope,
           );
           if (!mounted ||
               !_armed ||
+              !_s.ownsConnection(generation, api) ||
               request != _voiceRequest ||
               owner != _armOwner) {
             continue;
           }
           final text = (out['text'] as String? ?? '').trim();
           if (text.isNotEmpty) {
-            unawaited(_send(overrideText: text, inputMode: 'voice'));
+            unawaited(
+              _send(
+                overrideText: text,
+                inputMode: 'voice',
+                contentScope: _transcriptScope(scope, out),
+              ),
+            );
           }
         } catch (_) {
           if (mounted && _armed && owner == _armOwner) {
@@ -1067,6 +1103,7 @@ class _CharacterViewState extends State<CharacterView> {
     if (!_converseAvailable || !_s.converseCanInfer) return;
     final api = _s.client;
     final generation = _s.connectionGeneration;
+    final scope = _s.selectedContentScope;
     if (api == null) return;
     final request = ++_voiceRequest;
     final recording = await _audio.chooseRecording();
@@ -1085,7 +1122,11 @@ class _CharacterViewState extends State<CharacterView> {
     }
     setState(() => _mood = 'listening');
     try {
-      final output = await api.transcribe(recording.bytes, recording.filename);
+      final output = await api.transcribe(
+        recording.bytes,
+        recording.filename,
+        contentScope: scope,
+      );
       if (!mounted ||
           !_s.ownsConnection(generation, api) ||
           !_converseAvailable) {
@@ -1093,7 +1134,11 @@ class _CharacterViewState extends State<CharacterView> {
       }
       final text = (output['text'] as String? ?? '').trim();
       if (text.isNotEmpty && mounted) {
-        await _send(overrideText: text, inputMode: 'voice');
+        await _send(
+          overrideText: text,
+          inputMode: 'voice',
+          contentScope: _transcriptScope(scope, output),
+        );
       }
     } catch (_) {
       if (mounted) {
@@ -1121,6 +1166,7 @@ class _CharacterViewState extends State<CharacterView> {
       return;
     }
     if (_recording) {
+      final scope = _recordingScope;
       final request = ++_voiceRequest;
       final rec = await _audio.stopRecording();
       if (!mounted ||
@@ -1146,6 +1192,7 @@ class _CharacterViewState extends State<CharacterView> {
         final out = await api.transcribe(
           rec.bytes,
           rec.mime.contains('ogg') ? 'recording.ogg' : 'recording.webm',
+          contentScope: scope,
         );
         if (!mounted ||
             request != _voiceRequest ||
@@ -1155,7 +1202,11 @@ class _CharacterViewState extends State<CharacterView> {
         }
         final text = (out['text'] as String? ?? '').trim();
         if (text.isNotEmpty) {
-          await _send(overrideText: text, inputMode: 'voice');
+          await _send(
+            overrideText: text,
+            inputMode: 'voice',
+            contentScope: _transcriptScope(scope, out),
+          );
         } else {
           _s.appendHistory(
             AppView.character,
@@ -1174,11 +1225,12 @@ class _CharacterViewState extends State<CharacterView> {
       return;
     }
     final request = ++_voiceRequest;
+    _recordingScope = _s.selectedContentScope;
     final status = await _audio.startRecording();
     // Pause/disposal already cancel the adapter's pending mic generation.
     // An older completion must never cancel a newer user-owned recording.
     if (!mounted || request != _voiceRequest) return;
-    if (!_converseAvailable) {
+    if (!_converseAvailable || !_s.ownsConnection(generation, api)) {
       await _audio.cancelRecording();
       return;
     }
@@ -1198,6 +1250,13 @@ class _CharacterViewState extends State<CharacterView> {
       );
     }
   }
+
+  ContentScope _transcriptScope(
+    ContentScope captured,
+    Map<String, Object?> output,
+  ) => output.containsKey('content_scope')
+      ? captured.combine(ContentScope.fromWire(output['content_scope']))
+      : captured;
 
   void _openAgent() {
     showDialog<void>(

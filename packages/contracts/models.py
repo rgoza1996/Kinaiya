@@ -8,6 +8,7 @@ from uuid import uuid4
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 SCHEMA_VERSION = "1.0"
+ContentScope = Literal["local_only", "public_synthetic", "private_cloud_authorized"]
 # Flutter web/JSON numbers represent every integer only through this value.
 MAX_PLAYBACK_GENERATION = 9_007_199_254_740_991
 
@@ -81,6 +82,7 @@ class TaskRequest(WireModel):
     thread_id: str
     epoch: int = Field(ge=1)
     objective: str = Field(min_length=1, max_length=16000)
+    content_scope: ContentScope = "local_only"
     idempotency_key: str = Field(min_length=1, max_length=256)
     source_event_ids: list[str] = Field(default_factory=list, max_length=32)
     source_revision: int = Field(default=1, ge=1)
@@ -106,6 +108,7 @@ class Task(WireModel):
     thread_id: str
     epoch: int = Field(ge=1)
     objective: str
+    content_scope: ContentScope = "local_only"
     objective_revision: int = Field(default=1, ge=1)
     state: TaskState = TaskState.ACCEPTED
     summary: str = ""
@@ -119,6 +122,7 @@ class Task(WireModel):
 
 class SteerRequest(WireModel):
     instruction: str = Field(min_length=1, max_length=16000)
+    content_scope: ContentScope = "local_only"
     expected_objective_revision: int = Field(ge=1)
     idempotency_key: str = Field(min_length=1, max_length=256)
     source_event_ids: list[str] = Field(default_factory=list, max_length=32)
@@ -174,6 +178,7 @@ class ConverseRequest(WireModel):
     thread_id: str
     epoch: int = Field(ge=1)
     text: str = Field(min_length=1, max_length=16000)
+    content_scope: ContentScope = "local_only"
     idempotency_key: str = Field(min_length=1, max_length=256)
     input_mode: Literal["text", "voice"] = "text"
 
@@ -289,6 +294,7 @@ class CommandRequest(WireModel):
     thread_id: str
     epoch: int = Field(ge=1)
     input: str = Field(min_length=1, max_length=16000)
+    content_scope: ContentScope = "local_only"
     idempotency_key: str = Field(min_length=1, max_length=256)
 
 

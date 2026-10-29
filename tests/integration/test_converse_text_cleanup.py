@@ -87,6 +87,7 @@ def request_for(session, key="first"):
         thread_id=session.thread_id,
         epoch=session.epoch,
         text="Public synthetic input " + key,
+        content_scope="public_synthetic",
         idempotency_key=key,
     )
 

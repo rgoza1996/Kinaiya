@@ -96,7 +96,10 @@ class Probe:
         transcript = await speech.transcribe(fixture.read_bytes())
         request = {key: session[key] for key in ("session_id", "thread_id", "epoch")}
         request.update(
-            text=transcript["text"], input_mode="voice", idempotency_key=f"voice-{iteration}"
+            text=transcript["text"],
+            input_mode="voice",
+            idempotency_key=f"voice-{iteration}",
+            content_scope="public_synthetic",
         )
         started, first_text, state_at_first, events = time.perf_counter(), None, [], []
         async with self.client.stream(
@@ -181,13 +184,18 @@ class Probe:
     async def steer_case(self):
         session = await self.session("agent")
         body = {key: session[key] for key in ("session_id", "thread_id", "epoch")}
-        body.update(objective="Write stale.txt containing steered.", idempotency_key="steer-task")
+        body.update(
+            objective="Write stale.txt containing steered.",
+            idempotency_key="steer-task",
+            content_scope="public_synthetic",
+        )
         task = await self.post(8761, "/v1/agent/tasks", body)
         await self.post(
             8761,
             f"/v1/agent/tasks/{task['task_id']}/steer",
             {
                 "instruction": "Use steered.txt instead of stale.txt. Do not create stale.txt.",
+                "content_scope": "public_synthetic",
                 "expected_objective_revision": 1,
                 "idempotency_key": "steer-revision",
             },
@@ -202,6 +210,7 @@ class Probe:
         body = {key: session[key] for key in ("session_id", "thread_id", "epoch")}
         body.update(
             objective="Run the shell command false exactly once. Do not retry. Report its failure.",
+            content_scope="public_synthetic",
             idempotency_key="failure-task",
         )
         await self.post(8761, "/v1/agent/tasks", body)
@@ -238,6 +247,8 @@ class Probe:
                 "services.launcher",
                 "--data-dir",
                 str(self.args.data_dir),
+                "--content-scope",
+                "public_synthetic",
                 "agent",
                 "Write direct.txt containing exactly independent.",
                 stdout=asyncio.subprocess.PIPE,

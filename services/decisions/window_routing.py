@@ -21,7 +21,7 @@ from packages.contracts.models import (
     WindowDecision,
     new_id,
 )
-from packages.providers.disclosure import scope_allowed
+from packages.providers.disclosure import combine_scopes, scope_allowed
 
 CONVERSATION_LABELS = (
     "IGNORE",
@@ -470,6 +470,7 @@ class WindowAgentDispatcher:
         text = payload.get("text", "")
         request = SteerRequest(
             instruction=text,
+            content_scope=combine_scopes(payload.get("content_scope", "local_only")),
             expected_objective_revision=decision.expected_objective_revision,
             idempotency_key=_stable_key(decision.decision_id, decision.agent_route),
             source_event_ids=[source.event_id],
@@ -560,6 +561,7 @@ class WindowAgentDispatcher:
             thread_id=entry.thread_id,
             epoch=entry.epoch,
             objective=payload.get("text", ""),
+            content_scope=combine_scopes(payload.get("content_scope", "local_only")),
             idempotency_key=_stable_key(decision.decision_id, decision.agent_route),
             source_event_ids=[source.event_id],
             source_revision=payload.get("revision", 1),

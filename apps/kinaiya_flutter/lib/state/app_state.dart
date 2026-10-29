@@ -11,6 +11,7 @@
 library;
 
 import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../api/client.dart';
@@ -67,6 +68,7 @@ class AppState extends ChangeNotifier {
   Map<String, Object?>? agentProvider;
   Map<String, Object?>? converseProvider;
   bool streamingWindows = false;
+  bool _trustedInjection = false;
   int _connectionGeneration = 0;
 
   /// Live connection epoch. Views capture this before an await and drop
@@ -108,8 +110,24 @@ class AppState extends ChangeNotifier {
 
   final List<ChatMsg> converseHistory = [];
   final List<ChatMsg> agentHistory = [];
-  String converseDraft = '';
-  String agentDraft = '';
+  String _converseDraft = '';
+  String _agentDraft = '';
+  ContentScope _converseDraftScope = ContentScope.localOnly;
+  ContentScope _agentDraftScope = ContentScope.localOnly;
+  String get converseDraft => _converseDraft;
+  String get agentDraft => _agentDraft;
+
+  // Restored/externally assigned drafts have no disclosure provenance.
+  set converseDraft(String value) {
+    _converseDraft = value;
+    _converseDraftScope = ContentScope.localOnly;
+  }
+
+  set agentDraft(String value) {
+    _agentDraft = value;
+    _agentDraftScope = ContentScope.localOnly;
+  }
+
   int converseCursor = 0;
   String? converseHistorySeededFor;
   int agentCursor = 0;
@@ -148,12 +166,54 @@ class AppState extends ChangeNotifier {
 
   void setDraft(AppView which, String value) {
     if (which == AppView.character) {
-      converseDraft = value;
+      _converseDraftScope = value.trim().isEmpty
+          ? ContentScope.localOnly
+          : _converseDraft.trim().isEmpty
+          ? selectedContentScope
+          : _converseDraftScope.combine(selectedContentScope);
+      _converseDraft = value;
     } else {
-      agentDraft = value;
+      _agentDraftScope = value.trim().isEmpty
+          ? ContentScope.localOnly
+          : _agentDraft.trim().isEmpty
+          ? selectedContentScope
+          : _agentDraftScope.combine(selectedContentScope);
+      _agentDraft = value;
     }
     notifyListeners();
   }
+
+  ContentScope get selectedContentScope =>
+      connection?.backendProfile.contentScope ?? ContentScope.localOnly;
+
+  ContentScope draftScope(AppView which) =>
+      which == AppView.character ? _converseDraftScope : _agentDraftScope;
+
+  static bool providerAllowsScope(Object? info, ContentScope scope) {
+    if (info is! Map || info['local'] is! bool) return false;
+    final provider = info['provider'];
+    final model = info['model'];
+    if (provider is! String ||
+        provider.trim().isEmpty ||
+        model is! String ||
+        model.trim().isEmpty) {
+      return false;
+    }
+    if (info['local'] == true) return true;
+    if (provider == 'meta' || model.toLowerCase().contains('contributor')) {
+      return scope == ContentScope.publicSynthetic;
+    }
+    return scope != ContentScope.localOnly;
+  }
+
+  bool agentCanDisclose(ContentScope scope) =>
+      agentCanInfer &&
+      ((_trustedInjection && agentProvider == null) ||
+          providerAllowsScope(agentProvider, scope));
+  bool converseCanDisclose(ContentScope scope) =>
+      converseCanInfer &&
+      ((_trustedInjection && converseProvider == null) ||
+          providerAllowsScope(converseProvider, scope));
 
   /// Compares service endpoints and the owner credential in memory only.
   /// Never logs, serializes or exposes the token; equality only.
@@ -166,9 +226,10 @@ class AppState extends ChangeNotifier {
   /// Positive per-role provider verification plus disclosure consent.
   /// Local metadata (local == true with nonempty provider/model) allows
   /// local inference under any profile. Cloud metadata (local == false)
-  /// requires cloudDevelopment, or metaContributor with exactly
+  /// requires a matching disclosure profile, or metaContributor with exactly
   /// provider `meta` and model `muse-spark-1.3-contributor` (never
-  /// substring matches). Clean permits only local. Missing, malformed,
+  /// substring matches). Private-cloud consent excludes Contributor targets;
+  /// the pinned input scope is checked separately. Clean permits only local. Missing, malformed,
   /// or unconsented metadata fails closed.
   static bool providerAllows(Object? info, BackendProfile consent) {
     if (info is! Map) return false;
@@ -186,6 +247,9 @@ class AppState extends ChangeNotifier {
         return true;
       case BackendProfile.metaContributor:
         return provider == 'meta' && model == 'muse-spark-1.3-contributor';
+      case BackendProfile.privateCloudAuthorized:
+        return provider != 'meta' &&
+            !model.toLowerCase().contains('contributor');
     }
   }
 
@@ -245,6 +309,7 @@ class AppState extends ChangeNotifier {
     }
     final generation = ++_connectionGeneration;
     connection = profile;
+    _trustedInjection = injected != null;
     client = injected ?? clientFactory?.call(profile);
     // Per-role consent resets on every (re)connect until verified.
     sessionAuthenticated = false;

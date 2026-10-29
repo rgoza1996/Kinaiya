@@ -76,6 +76,7 @@ class FakeAgentClient extends KinaiyaClient {
     required int epoch,
     required String objective,
     required String idempotencyKey,
+    ContentScope contentScope = ContentScope.localOnly,
   }) =>
       createTaskHook?.call() ??
       Future.value(

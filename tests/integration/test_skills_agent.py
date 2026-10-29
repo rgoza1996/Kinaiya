@@ -214,7 +214,10 @@ async def test_contributor_cannot_explicitly_load_local_only_skill(env):
     skill_id = await activate(
         service, package(root / "source", body="PRIVATE INSTRUCTIONS"), scope="local_only"
     )
-    task = await runtime.submit(request(session), explicit_skill=skill_id)
+    task = await runtime.submit(
+        request(session).model_copy(update={"content_scope": "public_synthetic"}),
+        explicit_skill=skill_id,
+    )
     result = await runtime.wait(task.task_id, timeout=3)
     assert result.state == "failed" and provider.calls == []
 
@@ -235,7 +238,10 @@ async def test_revocation_blocks_next_model_request_and_cancellation_releases_pi
             return json.dumps({"tool": "skills_list", "arguments": {}})
 
     runtime.provider = provider = Hung()
-    task = await runtime.submit(request(session), explicit_skill=skill_id)
+    task = await runtime.submit(
+        request(session).model_copy(update={"content_scope": "public_synthetic"}),
+        explicit_skill=skill_id,
+    )
     await asyncio.wait_for(entered.wait(), timeout=2)
     await service.mutate("scope", authority="owner", skill_id=skill_id, content_scope="local_only")
     release.set()

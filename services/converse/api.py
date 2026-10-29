@@ -4,14 +4,15 @@ import hashlib
 import json
 import time
 from contextlib import aclosing
+from typing import Annotated
 
 from anyio import CancelScope
-from fastapi import Depends, FastAPI, HTTPException, Request, UploadFile
+from fastapi import Depends, FastAPI, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
-from packages.contracts.models import ConverseRequest, DeliveryRequest, SpeechWindow
+from packages.contracts.models import ContentScope, ConverseRequest, DeliveryRequest, SpeechWindow
 from packages.providers.speech import SpeechProviderError
 
 _STT_CLOSE_OWNERS = set()
@@ -175,7 +176,11 @@ def create_app(runtime, auth, speech=None, window_controller=None):
             raise HTTPException(409, str(exc)) from exc
 
     @app.post("/v1/converse/transcribe", dependencies=owner)
-    async def transcribe(request: Request, file: UploadFile):
+    async def transcribe(
+        request: Request,
+        file: UploadFile,
+        content_scope: Annotated[ContentScope, Form()] = "local_only",
+    ):
         if not runtime.enabled:
             raise HTTPException(409, "Converse is off; direct Agent Chat remains available")
         if speech is None:
@@ -185,9 +190,10 @@ def create_app(runtime, auth, speech=None, window_controller=None):
             raise HTTPException(413, "Recording exceeds 10 MB temporary limit")
         if not runtime.enabled:
             raise HTTPException(409, "Converse is off; direct Agent Chat remains available")
-        return await _transcribe_connected(
+        transcript = await _transcribe_connected(
             request, lambda: speech.transcribe(data, file.filename or "recording.wav")
         )
+        return {**transcript, "content_scope": content_scope}
 
     @app.post("/v1/converse/windows", dependencies=owner)
     async def window(request: SpeechWindow):
