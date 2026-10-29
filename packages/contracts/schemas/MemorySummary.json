@@ -1,0 +1,68 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "node_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.:-]+$",
+      "title": "Node Id",
+      "type": "string"
+    },
+    "ordinal": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Ordinal",
+      "type": "integer"
+    },
+    "kind": {
+      "enum": [
+        "assertion",
+        "observation",
+        "inference"
+      ],
+      "title": "Kind",
+      "type": "string"
+    },
+    "state": {
+      "enum": [
+        "active",
+        "invalidated",
+        "tainted",
+        "forgotten"
+      ],
+      "title": "State",
+      "type": "string"
+    },
+    "preview": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Preview"
+    },
+    "preview_truncated": {
+      "title": "Preview Truncated",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "node_id",
+    "ordinal",
+    "kind",
+    "state",
+    "preview",
+    "preview_truncated"
+  ],
+  "title": "MemorySummary",
+  "type": "object"
+}

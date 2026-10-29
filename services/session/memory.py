@@ -24,6 +24,7 @@ from packages.contracts.memory import (
     MemoryQueryResult,
     MemoryState,
 )
+from packages.contracts.memory_catalog import MemoryCatalogResult, MemorySummary
 from packages.contracts.memory_context import (
     MemoryContextValidate,
     MemoryContextValidation,
@@ -692,6 +693,47 @@ class MemoryStore:
                 except _Corrupt:
                     raise MemoryError(503, "Memory inspection unavailable") from None
             return MemoryCaptureResult(state=self._state(binding), node=node)
+
+    @_storage
+    def catalog(self, binding):
+        request = self._request(MemoryBinding, binding)
+        with self.store.lock:
+            binding = self._binding(request)
+            namespace = self._namespace(binding)
+            if type(namespace["enabled"]) is not int or namespace["enabled"] not in (0, 1):
+                raise MemoryError(503, "Memory state unavailable")
+            enabled = namespace["enabled"] == 1
+            if namespace["status"] == "quarantined":
+                raise MemoryError(409, "Memory namespace quarantined")
+            try:
+                # Owner inspection while off validates stored structure only;
+                # it must not refresh sources, reconcile or persist quarantine.
+                graph = self._reconcile(binding) if enabled else self._load(binding)
+                entries = []
+                for node in graph[0].values():
+                    body = node["body"]
+                    raw = body.encode("utf-8") if body is not None else b""
+                    entries.append(
+                        MemorySummary(
+                            node_id=node["node_id"],
+                            ordinal=node["ordinal"],
+                            kind=node["kind"],
+                            state=node["state"],
+                            # _load validated strict UTF-8. Only an incomplete
+                            # final code point can be omitted from this prefix.
+                            preview=raw[:128].decode("utf-8", errors="ignore")
+                            if body is not None
+                            else None,
+                            preview_truncated=len(raw) > 128,
+                        )
+                    )
+                return MemoryCatalogResult(state=self._state(binding), entries=entries)
+            except MemoryError:
+                raise
+            except (ValueError, TypeError):
+                if enabled:
+                    self._quarantine(binding)
+                raise MemoryError(409, "Memory catalog unavailable") from None
 
     @_storage
     def query(self, request):

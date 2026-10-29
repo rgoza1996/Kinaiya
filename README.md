@@ -269,8 +269,16 @@ unavailable memory or insufficient context omits recall. Provenance checks exclu
 old memory-derived assistant history after off, replacement or invalidation while
 keeping the authoritative transcript inspectable. In-flight work may remain
 pending after off; cancellation does not prove a journal write failed.
-Flutter memory controls, note creation/browsing UX, extraction, relevance ranking
-and improved human recall remain unverified or unimplemented.
+The experimental owner [Memory dialog](docs/adr/0052-converse-memory-owner-ui.md)
+in Character View browses and inspects existing notes, controls saved access,
+and explicitly selects up to eight active notes for use or stops using them.
+Opening it only reads the current scope. The owner-only Session catalog is
+complete and bounded; disabled listing does not reconcile sources or write data.
+Unconfirmed changes retain bounded RAM latches across dialog close/reopen and
+same-endpoint reconnect; unchanged refresh values cannot settle an old write.
+Namespace access and runtime use remain separate. Note creation still uses the
+owner API; a creation/editor UI, extraction, relevance ranking and improved
+human recall are not provided by this slice.
 
 Optional local skill controls are enabled with `"skills": {"enabled": true}` in
 the owner configuration. `/skills list`, `/skills install <local-path>`, and

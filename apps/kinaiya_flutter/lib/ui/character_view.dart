@@ -12,6 +12,7 @@ import '../character/playback.dart';
 import '../presentation/controller.dart';
 import '../state/app_state.dart';
 import 'book_sheet.dart';
+import 'converse_memory.dart';
 import 'voice_options.dart';
 import 'moonlit_scene.dart';
 import 'visual_theme.dart';
@@ -1726,34 +1727,37 @@ class _CharacterViewState extends State<CharacterView> {
             mainAxisSize: MainAxisSize.min,
             children: [
               _voiceActions(),
-              Row(
+              // Voice options keep their key, handler, and stop state; the
+              // Memory entry beside them opens an owner-only read dialog and
+              // never touches capture, drafts, sessions, or audio. A Wrap
+              // keeps both reachable at 320px and 2x text.
+              Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  Expanded(
-                    child: Tooltip(
-                      message: 'Voice options (silence and timing)',
-                      child: TextButton.icon(
-                        key: const ValueKey('voice-options'),
-                        style: TextButton.styleFrom(
-                          alignment: Alignment.centerLeft,
-                        ),
-                        icon: const Icon(Icons.tune_rounded),
-                        label: const Text(
-                          'Voice options',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        onPressed: _openVoiceOptions,
+                  Tooltip(
+                    message: 'Voice options (silence and timing)',
+                    child: TextButton.icon(
+                      key: const ValueKey('voice-options'),
+                      style: TextButton.styleFrom(
+                        alignment: Alignment.centerLeft,
                       ),
-                    ),
-                  ),
-                  if (_armed)
-                    Expanded(
-                      child: Text(
-                        _windowMode ? _liveStatus : 'Listening (live)',
+                      icon: const Icon(Icons.tune_rounded),
+                      label: const Text(
+                        'Voice options',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.end,
                       ),
+                      onPressed: _openVoiceOptions,
+                    ),
+                  ),
+                  ConverseMemoryButton(state: _s),
+                  if (_armed)
+                    Text(
+                      _windowMode ? _liveStatus : 'Listening (live)',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                 ],
               ),

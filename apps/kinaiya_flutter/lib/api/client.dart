@@ -11,6 +11,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
 
+import 'memory_client.dart';
 import 'models.dart';
 
 const _uuid = Uuid();
@@ -65,14 +66,25 @@ class KinaiyaClient {
     required this.converseBase,
     required String ownerToken,
     http.Client? httpClient,
+    http.Client Function()? memoryClientFactory,
   }) : _token = ownerToken,
-       _http = _NoRedirectClient(httpClient ?? http.Client());
+       _http = _NoRedirectClient(httpClient ?? http.Client()),
+       _memoryClientFactory = memoryClientFactory ?? http.Client.new;
 
   final String sessionBase;
   final String agentBase;
   final String converseBase;
   final String _token;
   final http.Client _http;
+  final http.Client Function() _memoryClientFactory;
+
+  /// Independent per-request transport; never shares generation/voice ownership.
+  late final MemoryApi memory = MemoryApi(
+    sessionBase: sessionBase,
+    converseBase: converseBase,
+    ownerToken: _token,
+    clientFactory: _memoryClientFactory,
+  );
 
   /// Test constructor wrapping a mock transport; always labeled.
   KinaiyaClient.mock({
@@ -81,8 +93,10 @@ class KinaiyaClient {
     required this.converseBase,
     required http.Client mockTransport,
     String label = 'mock',
+    http.Client Function()? memoryClientFactory,
   }) : _token = 'mock-token-not-a-credential',
-       _http = _NoRedirectClient(mockTransport) {
+       _http = _NoRedirectClient(mockTransport),
+       _memoryClientFactory = memoryClientFactory ?? http.Client.new {
     _mockLabel = label;
   }
 
@@ -543,5 +557,11 @@ class KinaiyaClient {
     return null;
   }
 
-  void close() => _http.close();
+  void close() {
+    try {
+      _http.close();
+    } finally {
+      unawaited(memory.close());
+    }
+  }
 }
