@@ -50,6 +50,7 @@ async def test_owner_roundtrip_and_cas_without_dag_backend(control):
             "/v1/memory/use",
             json={
                 **binding,
+                "expected_runtime_id": initial.json()["runtime_id"],
                 "expected_generation": 0,
                 "enabled": True,
                 "implementation_id": "unavailable-v1",
@@ -59,13 +60,20 @@ async def test_owner_roundtrip_and_cas_without_dag_backend(control):
         assert enabled.status_code == 200 and enabled.json()["notice"] == "unavailable"
         assert enabled.json()["enabled"] and not enabled.json()["pending"]
         stale = await client.post(
-            "/v1/memory/use", json={**binding, "expected_generation": 0, "enabled": False}
+            "/v1/memory/use",
+            json={
+                **binding,
+                "expected_runtime_id": initial.json()["runtime_id"],
+                "expected_generation": 0,
+                "enabled": False,
+            },
         )
         assert stale.status_code == 409
         disabled = await client.post(
             "/v1/memory/use",
             json={
                 **binding,
+                "expected_runtime_id": initial.json()["runtime_id"],
                 "expected_generation": enabled.json()["use_generation"],
                 "enabled": False,
             },

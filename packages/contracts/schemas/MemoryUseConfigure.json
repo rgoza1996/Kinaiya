@@ -27,6 +27,13 @@
       "title": "Epoch",
       "type": "integer"
     },
+    "expected_runtime_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.:-]+$",
+      "title": "Expected Runtime Id",
+      "type": "string"
+    },
     "expected_generation": {
       "maximum": 9007199254740991,
       "minimum": 0,
@@ -68,6 +75,7 @@
     "session_id",
     "thread_id",
     "epoch",
+    "expected_runtime_id",
     "expected_generation",
     "enabled"
   ],

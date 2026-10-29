@@ -196,6 +196,8 @@ class MemoryUse:
         )
 
     def configure(self, request):
+        if request.expected_runtime_id != self.runtime_id:
+            raise ValueError("Memory runtime changed")
         binding = MemoryBinding(
             session_id=request.session_id, thread_id=request.thread_id, epoch=request.epoch
         )

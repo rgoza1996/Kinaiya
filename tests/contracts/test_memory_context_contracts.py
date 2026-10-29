@@ -114,9 +114,12 @@ def test_snapshot_checks_native_depth_and_immutable_digest():
 
 
 def test_use_control_distinguishes_off_from_replacement_and_requires_selection_name():
-    assert MemoryUseConfigure(**SCOPE, expected_generation=0, enabled=False)
+    assert MemoryUseConfigure(
+        **SCOPE, expected_runtime_id="runtime", expected_generation=0, enabled=False
+    )
     assert MemoryUseConfigure(
         **SCOPE,
+        expected_runtime_id="runtime",
         expected_generation=0,
         enabled=True,
         implementation_id="compatible-replacement",
@@ -128,6 +131,10 @@ def test_use_control_distinguishes_off_from_replacement_and_requires_selection_n
         dict(enabled=False, selector_ids=["node-1"]),
     ]:
         with pytest.raises(ValidationError):
-            MemoryUseConfigure(**SCOPE, expected_generation=0, **change)
+            MemoryUseConfigure(
+                **SCOPE, expected_runtime_id="runtime", expected_generation=0, **change
+            )
+    with pytest.raises(ValidationError):
+        MemoryUseConfigure(**SCOPE, expected_generation=0, enabled=False)
     with pytest.raises(ValidationError):
         MemoryRecallRequest(**SCOPE, seed_ids=["node-1"] * 2)

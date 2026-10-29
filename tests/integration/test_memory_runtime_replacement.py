@@ -111,6 +111,7 @@ async def enable(runtime, binding):
     return await runtime.memory_use(
         MemoryUseConfigure(
             **binding.model_dump(),
+            expected_runtime_id=runtime.memory.runtime_id,
             expected_generation=runtime.memory.state(binding).use_generation,
             enabled=True,
             implementation_id="compatible-v1",
@@ -214,6 +215,7 @@ async def test_finished_window_reacquires_publication_owner_at_later_opening(run
         off = await runtime.memory_use(
             MemoryUseConfigure(
                 **binding.model_dump(),
+                expected_runtime_id=runtime.memory.runtime_id,
                 expected_generation=runtime.memory.state(binding).use_generation,
                 enabled=False,
             )

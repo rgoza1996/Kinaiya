@@ -106,6 +106,7 @@ class MemoryContextValidation(MemoryWire):
 
 
 class MemoryUseConfigure(MemoryBinding):
+    expected_runtime_id: Identifier
     expected_generation: SafeNonNeg
     enabled: StrictBool
     implementation_id: Identifier | None = None

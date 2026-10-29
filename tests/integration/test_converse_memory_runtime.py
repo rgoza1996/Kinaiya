@@ -134,6 +134,7 @@ async def use(host, enabled=True):
     return await host.runtime.memory_use(
         MemoryUseConfigure(
             **host.binding.model_dump(),
+            expected_runtime_id=state.runtime_id,
             expected_generation=state.use_generation,
             enabled=enabled,
             implementation_id="korina-dag-v1" if enabled else None,

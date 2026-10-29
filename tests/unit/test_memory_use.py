@@ -68,6 +68,7 @@ def configure(use, *, enabled=True, binding=BINDING, expected=None, selectors=("
     return use.configure(
         MemoryUseConfigure(
             **binding.model_dump(),
+            expected_runtime_id=use.runtime_id,
             expected_generation=(
                 use.state(binding).use_generation if expected is None else expected
             ),

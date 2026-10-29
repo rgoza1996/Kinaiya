@@ -94,7 +94,10 @@ close; no hidden network/model/provider fallback. Failed cleanup stays retained.
 
 POST `/v1/memory/state` on Converse accepts MemoryBinding. POST `/v1/memory/use`
 accepts MemoryUseConfigure; both are owner-only, manually bounded/authenticated
-before body parsing. Controls use expected_generation CAS and return MemoryUseState.
+before body parsing. Controls require expected_runtime_id and expected_generation
+CAS and return MemoryUseState. Check the runtime identity before any await or
+mutation, including off: generation zero/one can recur after a process restart,
+so a generation alone cannot authorize a late control from the old runtime.
 Configuration is process-local and starts off at every runtime creation. It is
 separate from the persisted DAG enabled/retention controls. Disabled memory does
 not delete notes. At most32 configured scopes; evict only disabled settled scopes.
@@ -149,7 +152,7 @@ silence or rollback of already dispatched journal/audio effects.
 
 Enable the Session namespace and curate notes through the existing owner-only
 administration API first. Runtime `use` requires that namespace binding, the
-current expected use_generation, implementation_id and selected node IDs; `state`
+current expected_runtime_id and use_generation, implementation_id and selected node IDs; `state`
 requires only the binding. The owner credential terminates at these controls.
 The scoped Converse credential serves the local Session recall link. A remote
 Session origin leaves this initial adapter unavailable and ordinary journaling
