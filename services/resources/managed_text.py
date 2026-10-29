@@ -46,6 +46,7 @@ class Generation:
     cancel_sent: bool = False
     cleanup_confirmed: bool = False
     cleanup_failed: bool = False
+    resident_only: bool = False
 
 
 class ManagedTextBody:
@@ -138,11 +139,12 @@ class ManagedTextBroker:
             raise HTTPException(409, "Managed text is paused by owner/resource policy") from exc
 
     def current(self, op):
-        if (
-            op.closed.is_set()
-            or self.policy() != op.policy
-            or not self.manager.is_current(op.identity)
-        ):
+        if op.closed.is_set():
+            raise HTTPException(409, "Managed text resource revision or worker changed")
+        self.selection_current(op)
+
+    def selection_current(self, op):
+        if self.policy() != op.policy or not self.manager.is_current(op.identity):
             raise HTTPException(409, "Managed text resource revision or worker changed")
         try:
             self.protocol.current(op.lease, op.identity)
@@ -174,6 +176,9 @@ class ManagedTextBroker:
                             raise RuntimeError(
                                 "Managed text admission release is unconfirmed"
                             ) from exc
+                    except asyncio.CancelledError:
+                        if not (op.resident_only and op.admission.cancelled()):
+                            raise
                 if op.identity is not None:
                     stop = getattr(self.coordinator, "stop_text", None)
                     if stop is not None:
@@ -204,6 +209,11 @@ class ManagedTextBroker:
         if not op.failure.done():
             op.failure.set_result(code)
         op.closed.set()
+        # A resident-only lookup may wait for the allocation lock but has no
+        # side effects. Cancelling that lookup cannot abandon a new process.
+        # Generation admission still retains its existing shielded owner.
+        if op.resident_only and op.admission is not None and not op.admission.done():
+            op.admission.cancel()
         if op.work is not None and not op.work.done() and not op.cancel_sent:
             op.cancel_sent = True
             op.work.cancel()
@@ -283,39 +293,112 @@ class ManagedTextBroker:
         while (await request.receive())["type"] != "http.disconnect":
             pass
 
-    async def stream(self, request):
-        policy = self.policy()
+    def reserve(self, policy, timeout):
         if self.operation is not None:
             old = self.operation
             if old.cleanup_failed and old.cleanup is not None and old.cleanup.done():
                 self.abort(old, "unavailable")
             raise HTTPException(409, "Managed text generation or retained cleanup is busy")
-        op = Generation(policy, asyncio.get_running_loop().time() + self.timeout)
+        op = Generation(policy, asyncio.get_running_loop().time() + timeout)
         op.failure = asyncio.get_running_loop().create_future()
         self.operation = op
+        return op
+
+    async def read_messages(self, request):
+        if request.headers.get("content-type", "").split(";", 1)[0].lower() != "application/json":
+            raise HTTPException(400, "Managed text requires bounded JSON messages")
+        length = request.headers.get("content-length")
+        if length is not None:
+            if not length.isascii() or not length.isdecimal():
+                raise HTTPException(400, "Invalid managed text body length")
+            if len(length) > 9 or int(length) > self.protocol.max_request_bytes:
+                raise HTTPException(413, "Managed text request exceeds its byte bound")
+        raw = bytearray()
+        async for chunk in request.stream():
+            if len(raw) + len(chunk) > self.protocol.max_request_bytes:
+                raise HTTPException(413, "Managed text request exceeds its byte bound")
+            raw.extend(chunk)
+        try:
+            return self.protocol.parse(bytes(raw))
+        except (ValueError, UnicodeError) as exc:
+            raise HTTPException(400, "Invalid bounded managed dialogue") from exc
+
+    async def measure_prompt(self, request):
+        """Optional count-only operation sharing the real generation owner."""
+        policy = self.policy()
+        timeout = min(self.timeout, 10)
+        op = self.reserve(policy, timeout)
+        op.resident_only = True
+        started = False
+        try:
+            async with asyncio.timeout(timeout):
+                messages = await self.read_messages(request)
+                if self.policy() != policy:
+                    raise HTTPException(409, "Managed text admission revision changed")
+                resident = getattr(self.protocol, "resident", None)
+                measure = getattr(self.protocol, "measure_prompt", None)
+                if resident is None or measure is None:
+                    raise HTTPException(503, "Prompt measurement is unavailable")
+                started = True
+                op.disconnect = asyncio.create_task(self.disconnected(request))
+                op.admission = asyncio.create_task(resident(self.coordinator, policy))
+                done, _ = await asyncio.wait(
+                    (op.admission, op.disconnect), return_when=asyncio.FIRST_COMPLETED
+                )
+                if op.disconnect in done:
+                    raise HTTPException(503, "Prompt measurement is unavailable")
+                op.identity = op.admission.result()
+                op.lease = self.protocol.ready_for(op.identity)
+                self.current(op)
+                op.work = asyncio.create_task(measure(messages, op.identity, op.lease))
+                op.monitor = asyncio.create_task(self.monitor(op))
+                await asyncio.wait((op.work, op.failure), return_when=asyncio.FIRST_COMPLETED)
+                if op.failure.done():
+                    raise HTTPException(503, "Prompt measurement is unavailable")
+                result = op.work.result()
+                from packages.providers.prompt_budget import PromptTokenCount
+
+                if result is not None and type(result) is not PromptTokenCount:
+                    raise ValueError("Invalid prompt measurement result")
+                self.current(op)
+                self.finish(op)
+                await asyncio.shield(op.cleanup)
+                if not op.cleanup_confirmed:
+                    raise HTTPException(503, "Prompt measurement cleanup is unconfirmed")
+                # Joining monitor/disconnect retirement is an await boundary.
+                # A closed operation cannot use current(), but its captured
+                # policy and worker must still be selected before publication.
+                self.selection_current(op)
+        except BaseException as exc:
+            if started:
+                self.abort(op, "deadline" if isinstance(exc, TimeoutError) else "unavailable")
+                with CancelScope(shield=True):
+                    await asyncio.wait((op.cleanup,), timeout=1)
+            else:
+                op.cleanup_confirmed = True
+                self.release(op)
+            if isinstance(exc, asyncio.CancelledError):
+                raise
+            if (
+                not started
+                and isinstance(exc, HTTPException)
+                and exc.status_code in {400, 409, 413}
+            ):
+                raise
+            raise HTTPException(503, "Prompt measurement is unavailable") from exc
+        # Unsupported means a fully closed exchange, not an abort. Keep the
+        # healthy resident worker for ordinary dialogue and never retry here.
+        if result is None:
+            raise HTTPException(503, "Prompt measurement is unavailable")
+        return result.to_wire()
+
+    async def stream(self, request):
+        policy = self.policy()
+        op = self.reserve(policy, self.timeout)
         started = False
         try:
             async with asyncio.timeout(self.timeout):
-                if (
-                    request.headers.get("content-type", "").split(";", 1)[0].lower()
-                    != "application/json"
-                ):
-                    raise HTTPException(400, "Managed text requires bounded JSON messages")
-                length = request.headers.get("content-length")
-                if length is not None:
-                    if not length.isascii() or not length.isdecimal():
-                        raise HTTPException(400, "Invalid managed text body length")
-                    if len(length) > 9 or int(length) > self.protocol.max_request_bytes:
-                        raise HTTPException(413, "Managed text request exceeds its byte bound")
-                raw = bytearray()
-                async for chunk in request.stream():
-                    if len(raw) + len(chunk) > self.protocol.max_request_bytes:
-                        raise HTTPException(413, "Managed text request exceeds its byte bound")
-                    raw.extend(chunk)
-                try:
-                    messages = self.protocol.parse(bytes(raw))
-                except (ValueError, UnicodeError) as exc:
-                    raise HTTPException(400, "Invalid bounded managed dialogue") from exc
+                messages = await self.read_messages(request)
                 if self.policy() != policy:
                     raise HTTPException(409, "Managed text admission revision changed")
                 started = True

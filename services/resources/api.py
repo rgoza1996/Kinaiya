@@ -116,4 +116,21 @@ def create_app(coordinator, auth, whistle=None, qwen3=None, gguf=None):
             body, timeout_s=body.remaining_timeout_s + 1, media_type="text/event-stream"
         )
 
+    @app.post(
+        "/v1/chat/completions/input_tokens",
+        dependencies=[Depends(auth.require("owner", "converse"))],
+    )
+    async def native_measure(request: Request):
+        if gguf is None:
+            raise HTTPException(503, "Prompt measurement is unavailable")
+        from packages.providers.prompt_budget import MAX_COUNT_BYTES
+        from packages.providers.qwen3_ipc import encode_json
+
+        result = await gguf.measure_prompt(request)
+        return Response(
+            encode_json(result, MAX_COUNT_BYTES),
+            media_type="application/json",
+            headers={"Cache-Control": "no-store"},
+        )
+
     return app
