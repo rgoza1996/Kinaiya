@@ -317,6 +317,14 @@ is paused. General GPU scheduling, other local text-model unloading and complete
 M6 reliability remain open. [Durable owner intent](docs/adr/0023-converse-owner-intent.md)
 keeps acknowledged Converse-off choices effective through restoration and restarts.
 
+Experimental [managed native text](docs/adr/0040-managed-native-text.md) adds an
+opt-in GGUF Converse worker with pinned offline inputs, native SSE streaming and
+owned cancellation/release barriers. It shares lifecycle ownership with the
+existing Qwen profile while preserving each protocol. Initial implementation
+and synthetic verification are CPU-only; actual runtime/model acceptance,
+GPU policy, dialogue quality and the combined 8 GB voice-profile target remain
+separate gates. It is not a reference default.
+
 Provider keys belong in secret references/environment variables. Development Meta
 Contributor profiles are for public code and synthetic inputs only. The live test
 requires an explicit paid-inference flag and a budget proxy; ordinary CI is offline

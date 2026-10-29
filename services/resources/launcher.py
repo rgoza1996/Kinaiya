@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Literal
 
 import httpx
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from packages.contracts.client import JournalClient
 from packages.providers.qwen3_ipc import MANIFEST_SHA256, MODEL, PROFILE
@@ -15,7 +15,15 @@ from packages.resources.processes import WorkerManager, WorkerSpec
 from services.resources.api import create_app
 from services.resources.client import ConverseControl, local_base
 from services.resources.coordinator import ResourceCoordinator
+from services.resources.gguf import (
+    GGUFProtocol,
+    ManagedGGUFConfig,
+    configured_binding,
+    configured_manifest,
+    gguf_worker,
+)
 from services.resources.laya import ManagedLayaConfig, laya_gpu_sample, laya_ready, laya_worker
+from services.resources.managed_text import ManagedTextBroker
 from services.resources.qwen3 import (
     ManagedQwen3Config,
     Qwen3Broker,
@@ -47,6 +55,13 @@ class LocalResourceConfig(BaseModel):
     laya: ManagedLayaConfig | None = None
     whistle: ManagedWhistleConfig | None = None
     qwen3: ManagedQwen3Config | None = None
+    gguf: ManagedGGUFConfig | None = None
+
+    @model_validator(mode="after")
+    def one_text_worker(self):
+        if self.qwen3 is not None and self.gguf is not None:
+            raise ValueError("Select one managed Converse text worker")
+        return self
 
     @field_validator("tts_model_dir")
     @classmethod
@@ -156,7 +171,7 @@ def resource_app(args, config, auth, tokens, root):
             service_tokens=tuple(tokens.values()),
         )
         specs.append(laya_spec)
-    qwen3_endpoint, managed_text_binding = None, None
+    qwen3_endpoint, gguf_endpoint, managed_text_binding = None, None, None
     selected_text = config.get("providers", {}).get("converse", {})
     if selected_text.get("kind") == "qwen3" or settings.qwen3 is not None:
         if (
@@ -187,6 +202,20 @@ def resource_app(args, config, auth, tokens, root):
             "max_input_tokens": settings.qwen3.max_input_tokens,
             "max_new_tokens": settings.qwen3.max_new_tokens,
         }
+    if selected_text.get("kind") == "gguf" or settings.gguf is not None:
+        if (
+            settings.gguf is None
+            or selected_text.get("kind") != "gguf"
+            or set(selected_text) != {"kind", "base_url"}
+            or local_base(selected_text.get("base_url", "")) != resources_url
+            or local_base(config.get("resources_url", "http://127.0.0.1:8764")) != resources_url
+        ):
+            raise ValueError("Select GGUF dialogue at the configured managed resources endpoint")
+        gguf_spec, gguf_endpoint = gguf_worker(settings.gguf, root, args.workspace.resolve())
+        specs.append(gguf_spec)
+        managed_text_binding = configured_binding(
+            settings.gguf, gguf_endpoint.manifest, resources_url
+        )
     state = ResourceState(state_path, profile=settings.profile)
     if not state_path.exists():
         state.save()
@@ -203,6 +232,8 @@ def resource_app(args, config, auth, tokens, root):
     voice_health = {}
 
     async def readiness(worker_spec, process):
+        if worker_spec.id == "gguf":
+            return await gguf_endpoint.probe(worker_spec, process)
         if worker_spec.id == "qwen3":
             return await qwen3_endpoint.probe(worker_spec, process)
         if worker_spec.id == "whistle":
@@ -275,6 +306,9 @@ def resource_app(args, config, auth, tokens, root):
         if worker_id == "qwen3":
             validate_qwen3_inputs(settings.qwen3, args.workspace.resolve())
             return
+        if worker_id == "gguf":
+            configured_manifest(settings.gguf, args.workspace.resolve())
+            return
         if worker_id == "whistle":
             from packages.providers.whistle_assets import validate_assets
 
@@ -314,7 +348,12 @@ def resource_app(args, config, auth, tokens, root):
         restore_reserve_bytes=settings.voice_memory_reserve_bytes
         + (settings.laya.host_memory_reserve_bytes if settings.laya else 0)
         + (settings.whistle.host_memory_reserve_bytes if settings.whistle else 0)
-        + (settings.qwen3.host_memory_reserve_bytes if settings.qwen3 else 0),
+        + (settings.qwen3.host_memory_reserve_bytes if settings.qwen3 else 0)
+        + (settings.gguf.host_memory_reserve_bytes if settings.gguf else 0),
+        text_worker_id="gguf" if settings.gguf else "qwen3",
+        text_restore_reserve_bytes=(
+            settings.gguf.host_memory_reserve_bytes if settings.gguf else None
+        ),
         qwen3_restore_reserve_bytes=(
             settings.qwen3.host_memory_reserve_bytes if settings.qwen3 else 0
         ),
@@ -341,7 +380,27 @@ def resource_app(args, config, auth, tokens, root):
         if qwen3_endpoint is not None
         else None
     )
-    app = create_app(coordinator, auth, whistle, qwen3)
+    gguf = (
+        ManagedTextBroker(
+            coordinator,
+            gguf_endpoint,
+            GGUFProtocol(gguf_endpoint, settings.gguf.manifest_sha256),
+            request_timeout_s=settings.gguf.request_timeout_s,
+        )
+        if gguf_endpoint is not None
+        else None
+    )
+    selected_broker = gguf or qwen3
+    selected_endpoint = gguf_endpoint or qwen3_endpoint
+    if selected_broker is not None and callable(
+        getattr(selected_endpoint, "release_after_stop", None)
+    ):
+        coordinator.register_text_lifecycle(
+            abort=selected_broker.abort_active,
+            drain=selected_broker.drain,
+            release=selected_endpoint.release_after_stop,
+        )
+    app = create_app(coordinator, auth, whistle, qwen3, gguf)
 
     @asynccontextmanager
     async def lifespan(app):
@@ -378,7 +437,7 @@ def resource_app(args, config, auth, tokens, root):
             await asyncio.gather(publication, return_exceptions=True)
             try:
                 failures = []
-                for broker in (whistle, qwen3):
+                for broker in (whistle, qwen3, gguf):
                     if broker is not None:
                         try:
                             await broker.close()
@@ -392,6 +451,8 @@ def resource_app(args, config, auth, tokens, root):
                     whistle_endpoint.close()
                 if qwen3_endpoint is not None:
                     qwen3_endpoint.close()
+                if gguf_endpoint is not None:
+                    gguf_endpoint.close()
                 if failures:
                     raise failures[0]
             finally:
@@ -405,4 +466,5 @@ def resource_app(args, config, auth, tokens, root):
     app.state.voice_health = voice_health
     app.state.whistle = whistle
     app.state.qwen3 = qwen3
+    app.state.gguf = gguf
     return app

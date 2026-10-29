@@ -1,5 +1,6 @@
 """Resource policy constrains provider calls; it never chooses a fallback."""
 
+import re
 from collections.abc import Mapping
 from pathlib import Path
 
@@ -19,6 +20,42 @@ def managed_text_binding(provider):
         if not isinstance(value, Mapping):
             raise ValueError("Invalid managed text binding shape")
         value = dict(value)
+        if value.get("provider") == "managed-gguf":
+            if set(value) != {
+                "provider",
+                "model",
+                "profile",
+                "manifest_sha256",
+                "resources_url",
+                "context_tokens",
+                "max_new_tokens",
+            }:
+                raise ValueError("Invalid managed GGUF binding shape")
+            info = provider.info
+            if (
+                any(
+                    type(value[key]) is not str
+                    for key in ("provider", "model", "profile", "manifest_sha256", "resources_url")
+                )
+                or any(
+                    not 0 < len(value[key].encode("utf-8")) <= 128
+                    or any(char in value[key] for char in "\0\r\n")
+                    for key in ("model", "profile")
+                )
+                or re.fullmatch(r"[0-9a-f]{64}", value["manifest_sha256"]) is None
+                or local_base(value["resources_url"]) != value["resources_url"]
+                or type(value["context_tokens"]) is not int
+                or not 64 <= value["context_tokens"] <= 32768
+                or type(value["max_new_tokens"]) is not int
+                or not 16 <= value["max_new_tokens"] < value["context_tokens"]
+                or value["max_new_tokens"] > 2048
+                or info.provider != value["provider"]
+                or info.model != value["model"]
+                or info.local is not True
+                or info.streaming is not True
+            ):
+                raise ValueError("Invalid managed GGUF binding identity")
+            return value
         if set(value) != {
             "provider",
             "model",
@@ -94,5 +131,13 @@ class ResourceBoundProvider:
 
     async def stream(self, messages):
         self._check()
-        async for chunk in self.provider.stream(messages):
-            yield chunk
+        source = self.provider.stream(messages)
+        try:
+            async for chunk in source:
+                yield chunk
+        finally:
+            # Keep the selected provider's real cleanup in this caller's owner;
+            # early wrapper close must not defer it to asyncgen finalization.
+            close = getattr(source, "aclose", None)
+            if close is not None:
+                await close()
