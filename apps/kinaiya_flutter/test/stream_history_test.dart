@@ -77,6 +77,9 @@ void main() {
     for (var i = 0; i < 2; i++) {
       await tester.enterText(find.byType(TextField), 'turn $i');
       await tester.pump();
+      await tester.ensureVisible(find.text('Send'));
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(find.text('Send').hitTestable(), findsOneWidget);
       await tester.tap(find.text('Send'));
       await tester.pump(const Duration(milliseconds: 200));
     }

@@ -12,6 +12,7 @@ import '../character/playback.dart';
 import '../presentation/controller.dart';
 import '../state/app_state.dart';
 import 'book_sheet.dart';
+import 'voice_options.dart';
 import 'moonlit_scene.dart';
 import 'visual_theme.dart';
 import 'widgets.dart';
@@ -80,6 +81,7 @@ class _CharacterViewState extends State<CharacterView> {
   bool _recording = false;
   bool _speaking = false;
   bool _voiceReady = false;
+  bool _micReady = false;
   bool _voiceReportScheduled = false;
   bool _micStopUnconfirmed = false;
   bool _micStopPending = false;
@@ -259,7 +261,13 @@ class _CharacterViewState extends State<CharacterView> {
     final mic = await _audio.availableMic;
     final play = await _audio.availablePlayback;
     if (!mounted) return;
-    setState(() => _voiceReady = mic || play);
+    // Capture buttons use the actual microphone capability so they never
+    // look usable where only playback (or nothing) exists. Import and
+    // text paths keep the combined signal and are unaffected.
+    setState(() {
+      _micReady = mic;
+      _voiceReady = mic || play;
+    });
     final api = widget.state.client;
     final connectionGeneration = _s.connectionGeneration;
     if (api != null) {
@@ -1151,10 +1159,8 @@ class _CharacterViewState extends State<CharacterView> {
   }
 
   Future<void> _toggleMic() async {
-    if (!_converseAvailable || !_s.converseCanInfer) return;
     final api = _s.client;
     final generation = _s.connectionGeneration;
-    if (api == null) return;
     if (_armed) {
       _s.appendHistory(
         AppView.character,
@@ -1169,14 +1175,17 @@ class _CharacterViewState extends State<CharacterView> {
       final scope = _recordingScope;
       final request = ++_voiceRequest;
       final rec = await _audio.stopRecording();
-      if (!mounted ||
-          request != _voiceRequest ||
+      if (!mounted || request != _voiceRequest) return;
+      // The stop itself always lands locally so capture can end even when
+      // readiness changed mid-recording. Transcription and sending still
+      // require a live, permitted connection below.
+      setState(() => _recording = false);
+      _publishVoiceActivity();
+      if (api == null ||
           !_s.ownsConnection(generation, api) ||
           !_converseAvailable) {
         return;
       }
-      setState(() => _recording = false);
-      _publishVoiceActivity();
       if (rec == null || rec.bytes.isEmpty) {
         _s.appendHistory(
           AppView.character,
@@ -1224,6 +1233,7 @@ class _CharacterViewState extends State<CharacterView> {
       }
       return;
     }
+    if (api == null || !_converseAvailable || !_s.converseCanInfer) return;
     final request = ++_voiceRequest;
     _recordingScope = _s.selectedContentScope;
     final status = await _audio.startRecording();
@@ -1345,6 +1355,73 @@ class _CharacterViewState extends State<CharacterView> {
     );
   }
 
+  /// Readable status caption shared by the wide and narrow stages.
+  Widget _statusPill() => DecoratedBox(
+    decoration: BoxDecoration(
+      color: kinaiyaNavy.withValues(alpha: .8),
+      borderRadius: BorderRadius.circular(24),
+      border: Border.all(color: kinaiyaWhite.withValues(alpha: .24)),
+    ),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Text(
+        _status,
+        textAlign: TextAlign.center,
+        style: const TextStyle(color: kinaiyaWhite),
+      ),
+    ),
+  );
+
+  /// Pack fallback note; drawn on the moonlit scenery when the character is
+  /// shown, otherwise on the surrounding theme surface.
+  Widget _packNote(CharacterPack? pack) {
+    if (pack == null || !pack.fallback || pack.note.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return Padding(
+      padding: const EdgeInsets.all(8),
+      child: Text(
+        pack.note,
+        style: TextStyle(
+          color: widget.showCharacter
+              ? kinaiyaWhite
+              : Theme.of(context).colorScheme.onSurface,
+        ),
+      ),
+    );
+  }
+
+  /// Readable caption of the latest message. The inline transcript and the
+  /// full-history dialog always carry the complete text; this stays short
+  /// with an ellipsis so narrow and enlarged-text layouts cannot overflow.
+  Widget _currentCaption() {
+    if (!widget.showCaptions || _s.converseHistory.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final latest = _s.converseHistory.last;
+    final speaker = switch (latest.role) {
+      'user' => 'You',
+      'kinaiya' => 'Kinaiya',
+      _ => 'Status',
+    };
+    return Padding(
+      key: const ValueKey('current-caption'),
+      padding: const EdgeInsets.only(top: 8),
+      child: Text(
+        '$speaker: ${latest.text}',
+        key: const ValueKey('current-caption-text'),
+        maxLines: 3,
+        overflow: TextOverflow.ellipsis,
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          color: widget.showCharacter
+              ? kinaiyaWhite
+              : Theme.of(context).colorScheme.onSurface,
+        ),
+      ),
+    );
+  }
+
   Widget _stage(CharacterPack? pack, BoxConstraints box) {
     final size = (box.maxHeight - 76).clamp(100.0, 320.0);
     return Center(
@@ -1356,44 +1433,41 @@ class _CharacterViewState extends State<CharacterView> {
             children: [
               _mascot(pack, size),
               const SizedBox(height: 12),
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  color: kinaiyaNavy.withValues(alpha: .8),
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(
-                    color: kinaiyaWhite.withValues(alpha: .24),
-                  ),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  child: Text(
-                    _status,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: kinaiyaWhite),
-                  ),
-                ),
-              ),
-              if (pack != null && pack.fallback && pack.note.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: Text(
-                    pack.note,
-                    style: TextStyle(
-                      color: widget.showCharacter
-                          ? kinaiyaWhite
-                          : Theme.of(context).colorScheme.onSurface,
-                    ),
-                  ),
-                ),
+              _statusPill(),
+              _currentCaption(),
+              _packNote(pack),
             ],
           ),
         ),
       ),
     );
   }
+
+  /// Narrow stage: keeps the real animated character prominent after history
+  /// arrives. Height-bounded by the caller; internally scrollable so short
+  /// landscape heights and 2x text cannot overflow.
+  Widget _narrowStage(CharacterPack? pack) => LayoutBuilder(
+    builder: (context, box) {
+      final size = (box.maxHeight - 116).clamp(96.0, 240.0);
+      return Center(
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _mascot(pack, size),
+                const SizedBox(height: 8),
+                _statusPill(),
+                _currentCaption(),
+                _packNote(pack),
+              ],
+            ),
+          ),
+        ),
+      );
+    },
+  );
 
   Widget _transcript() => ListView(
     padding: const EdgeInsets.symmetric(vertical: 12),
@@ -1408,11 +1482,109 @@ class _CharacterViewState extends State<CharacterView> {
     ],
   );
 
+  /// Explicit, accessible entry to the complete transcript. The inline
+  /// transcript never drops earlier messages or delivery notes; this
+  /// affordance keeps full history one tap away on narrow layouts and where
+  /// captions are hidden.
+  Widget _historyBar() => Padding(
+    padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+    child: Material(
+      color: Theme.of(context).colorScheme.surface,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              '${_s.converseHistory.length} message${_s.converseHistory.length == 1 ? '' : 's'}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Tooltip(
+                message: 'Open full conversation history',
+                child: TextButton.icon(
+                  key: const ValueKey('conversation-history'),
+                  icon: const Icon(Icons.history_rounded),
+                  label: const Text('Conversation history', maxLines: 2),
+                  onPressed: _openHistory,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+
+  /// Full transcript dialog: every history entry with its delivery note, in
+  /// the same order as the inline transcript. Presentation only; opening or
+  /// closing it never touches capture, drafts, or sessions.
+  void _openHistory() {
+    final count = _s.converseHistory.length;
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        final size = MediaQuery.sizeOf(dialogContext);
+        return AlertDialog(
+          title: Text('Conversation history ($count)'),
+          content: SizedBox(
+            width: (size.width - 80).clamp(200.0, 560.0),
+            height: (size.height * 0.6).clamp(200.0, 520.0),
+            child: _transcript(),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('CLOSE'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Narrow conversation: a flexible, height-bounded animated stage stays
+  /// prominent, a readable current caption sits beneath it, and the complete
+  /// transcript remains available inline plus behind [_historyBar].
+  Widget _narrowConversation(CharacterPack? pack, BoxConstraints box) {
+    return Column(
+      children: [
+        Flexible(flex: 5, fit: FlexFit.tight, child: _narrowStage(pack)),
+        _historyBar(),
+        Expanded(flex: 6, child: _transcript()),
+      ],
+    );
+  }
+
   Widget _conversation(CharacterPack? pack) => LayoutBuilder(
     builder: (context, box) {
+      if (!widget.showCharacter) {
+        return Column(
+          children: [
+            _historyBar(),
+            Expanded(child: _transcript()),
+          ],
+        );
+      }
       if (_s.converseHistory.isEmpty ||
           (!widget.showCaptions && widget.showCharacter)) {
-        return _stage(pack, box);
+        if (_s.converseHistory.isEmpty) return _stage(pack, box);
+        // Captions hidden by choice: the stage keeps its presence while the
+        // history affordance preserves access to the full text.
+        return Column(
+          children: [
+            Expanded(child: _stage(pack, box)),
+            _historyBar(),
+          ],
+        );
       }
       final scale = MediaQuery.textScalerOf(context).scale(1).clamp(1, 2);
       if (box.maxWidth / scale >= 1040) {
@@ -1431,42 +1603,18 @@ class _CharacterViewState extends State<CharacterView> {
               width: (box.maxWidth * .4).clamp(360.0, 560.0),
               child: Card(
                 margin: const EdgeInsets.fromLTRB(0, 24, 24, 24),
-                child: _transcript(),
+                child: Column(
+                  children: [
+                    _historyBar(),
+                    Expanded(child: _transcript()),
+                  ],
+                ),
               ),
             ),
           ],
         );
       }
-      return Column(
-        children: [
-          SizedBox(
-            height: 84,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _mascot(pack, 72),
-                const SizedBox(width: 12),
-                Flexible(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: kinaiyaNavy,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Text(
-                        _status,
-                        style: const TextStyle(color: kinaiyaWhite),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Expanded(child: _transcript()),
-        ],
-      );
+      return _narrowConversation(pack, box);
     },
   );
 
@@ -1477,15 +1625,19 @@ class _CharacterViewState extends State<CharacterView> {
         child: Tooltip(
           message: _armed || _micStopUnconfirmed
               ? 'Stop Live listen'
-              : 'Start Live listen (armed mic)',
+              : _micReady
+              ? 'Start Live listen (armed mic)'
+              : 'Microphone unavailable here',
           child: FilledButton.icon(
             key: const ValueKey('call-kinaiya'),
             onPressed: _micStopPending
                 ? null
                 : _micStopUnconfirmed
                 ? _stopMicrophone
-                : _converseAvailable
-                ? () => _setArmed(!_armed)
+                : _armed
+                ? () => _setArmed(false)
+                : _micReady && _converseAvailable
+                ? () => _setArmed(true)
                 : null,
             icon: Icon(
               _armed ? Icons.call_end_rounded : Icons.mic_none_rounded,
@@ -1509,14 +1661,19 @@ class _CharacterViewState extends State<CharacterView> {
       const SizedBox(width: 12),
       Expanded(
         child: Tooltip(
-          message: _recording ? 'Stop recording' : 'Record voice',
+          message: _recording
+              ? 'Stop recording'
+              : _micReady
+              ? 'Record voice'
+              : 'Microphone unavailable here',
           child: OutlinedButton.icon(
             key: const ValueKey('tell-kinaiya'),
-            onPressed:
-                _voiceReady &&
-                    _converseAvailable &&
-                    !_armed &&
-                    !_micStopUnconfirmed
+            onPressed: _recording
+                ? _toggleMic
+                : _micReady &&
+                      _converseAvailable &&
+                      !_armed &&
+                      !_micStopUnconfirmed
                 ? _toggleMic
                 : null,
             icon: Icon(
@@ -1535,6 +1692,21 @@ class _CharacterViewState extends State<CharacterView> {
     ],
   );
 
+  /// Opens the Voice options surface. Presentation only: opening, changing
+  /// the silence value, or dismissing it never starts, stops, or rearms
+  /// capture. Ownership of the value, handler, draft, session, and audio
+  /// stays in this state object.
+  Future<void> _openVoiceOptions() => showVoiceOptions(
+    context: context,
+    endSilenceMs: _endSilenceMs,
+    silenceChoices: endSilenceOptionsMs,
+    windowMode: _windowMode,
+    onSilenceChanged: (v) async {
+      setState(() => _endSilenceMs = v);
+      await _audio.configureVad(endSilenceMs: v);
+    },
+  );
+
   Widget _composer() => SafeArea(
     top: false,
     child: Center(
@@ -1544,54 +1716,46 @@ class _CharacterViewState extends State<CharacterView> {
           margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: kinaiyaWhite,
+            color: Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: const Color(0xFFD4DBF5)),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.outlineVariant,
+            ),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               _voiceActions(),
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 4,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    const Text('Live'),
-                    if (_windowMode)
-                      const Text('Conversation timing')
-                    else ...[
-                      const Tooltip(
-                        message: 'Silence that ends a voice clip',
-                        child: Text('Silence'),
+              Row(
+                children: [
+                  Expanded(
+                    child: Tooltip(
+                      message: 'Voice options (silence and timing)',
+                      child: TextButton.icon(
+                        key: const ValueKey('voice-options'),
+                        style: TextButton.styleFrom(
+                          alignment: Alignment.centerLeft,
+                        ),
+                        icon: const Icon(Icons.tune_rounded),
+                        label: const Text(
+                          'Voice options',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        onPressed: _openVoiceOptions,
                       ),
-                      DropdownButton<int>(
-                        value: _endSilenceMs,
-                        isDense: true,
-                        items: [
-                          for (final v in endSilenceOptionsMs)
-                            DropdownMenuItem(
-                              value: v,
-                              child: Text('${(v / 1000).toStringAsFixed(1)}s'),
-                            ),
-                        ],
-                        onChanged: (v) async {
-                          if (v == null) return;
-                          setState(() => _endSilenceMs = v);
-                          await _audio.configureVad(endSilenceMs: v);
-                        },
-                      ),
-                    ],
-                    if (_armed)
-                      Text(_windowMode ? _liveStatus : 'Listening (live)'),
-                    const Text(
-                      'Call for live listening · Tell for one message',
-                      style: TextStyle(fontSize: 12),
                     ),
-                  ],
-                ),
+                  ),
+                  if (_armed)
+                    Expanded(
+                      child: Text(
+                        _windowMode ? _liveStatus : 'Listening (live)',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.end,
+                      ),
+                    ),
+                ],
               ),
               Row(
                 children: [
@@ -1685,7 +1849,14 @@ class _CharacterViewState extends State<CharacterView> {
                 children: [
                   banner,
                   SizedBox(
-                    height: (box.maxHeight - 240 * scale).clamp(120.0, 700.0),
+                    // The outer surface scrolls when a keyboard/large text
+                    // leaves little height. Preserve room for the stage and
+                    // wrapped history button instead of overfilling a tiny flex.
+                    height: (box.maxHeight - 240 * scale).clamp(
+                      (widget.showCharacter ? 320.0 : 200.0) *
+                          scale.clamp(1.0, 2.0),
+                      700.0,
+                    ),
                     child: _conversation(
                       widget.character?.pack ??
                           (snap.connectionState == ConnectionState.done

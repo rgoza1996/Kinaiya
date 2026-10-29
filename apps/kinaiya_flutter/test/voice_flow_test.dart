@@ -1,5 +1,7 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kinaiya_flutter/app.dart';
+import 'package:kinaiya_flutter/audio/speech_audio.dart';
 import 'package:kinaiya_flutter/audio/turn_audio.dart';
 import 'package:kinaiya_flutter/config/connection.dart';
 import 'package:kinaiya_flutter/state/app_state.dart';
@@ -105,14 +107,55 @@ void main() {
     expect(state.voiceIsLive(v, state.voiceEpoch), isFalse);
   });
 
-  testWidgets('live toggle degrades honestly where voice is unavailable', (
+  testWidgets('capture looks unavailable on the microphone-less stub', (
     tester,
   ) async {
     final state = wiredState();
     await tester.pumpWidget(KinaiyaApp(state: state));
     await tester.pump(const Duration(milliseconds: 200));
-    expect(find.text('Live'), findsOneWidget);
+    // Silence/timing live behind Voice options; opening and closing the
+    // sheet touches nothing.
+    expect(find.text('Silence'), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('voice-options')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('Silence'), findsOneWidget);
+    expect(
+      find.text('Call for live listening · Tell for one message'),
+      findsOneWidget,
+    );
+    await tester.tap(find.byTooltip('Close voice options'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('Silence'), findsNothing);
+    // Capture must not look usable; text still works.
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(const ValueKey('call-kinaiya')))
+          .onPressed,
+      isNull,
+    );
+    expect(
+      tester
+          .widget<OutlinedButton>(find.byKey(const ValueKey('tell-kinaiya')))
+          .onPressed,
+      isNull,
+    );
+    expect(find.byTooltip('Microphone unavailable here'), findsNWidgets(2));
+    expect(find.byKey(const ValueKey('converse-input')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    state.dispose();
+  });
+
+  testWidgets('live toggle degrades honestly when arming fails', (
+    tester,
+  ) async {
+    final state = wiredState();
+    await tester.pumpWidget(
+      KinaiyaApp(state: state, audio: UnavailableArmAudio()),
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(find.byTooltip('Start Live listen (armed mic)'), findsOneWidget);
     await tester.tap(find.byTooltip('Start Live listen (armed mic)'));
     await tester.pump(const Duration(milliseconds: 300));
     expect(
@@ -120,5 +163,47 @@ void main() {
       findsOneWidget,
     );
     expect(state.converseHistory, isNotEmpty);
+    state.dispose();
   });
+}
+
+/// Microphone-capable adapter whose arming still fails, preserving the honest
+/// degradation path once the mic capability check passes.
+class UnavailableArmAudio implements SpeechAudio {
+  @override
+  Future<bool> get availableMic async => true;
+  @override
+  Future<bool> get availablePlayback async => true;
+  @override
+  Future<String> startArmed() async => 'unavailable';
+  @override
+  Future<void> stopArmed() async {}
+  @override
+  Future<String> beginClip() async => 'not-armed';
+  @override
+  Future<int> get captureEpoch async => 0;
+  @override
+  Future<RecordedAudio?> finishClip() async => null;
+  @override
+  Future<void> configureVad({required int endSilenceMs}) async {}
+  @override
+  Future<List<Map<String, Object?>>> pollBridgeEvents() async => const [];
+  @override
+  Future<void> stopPlayback() async {}
+  @override
+  Future<bool> queuePcm(String value, int rate) async => false;
+  @override
+  Future<void> awaitPlayback() async {}
+  @override
+  Future<bool> get isPlaying async => false;
+  @override
+  Future<RecordedAudio?> chooseRecording() async => null;
+  @override
+  Future<String> startRecording() async => 'unavailable';
+  @override
+  Future<RecordedAudio?> stopRecording() async => null;
+  @override
+  Future<void> cancelRecording() async {}
+  @override
+  Future<void> dispose() async {}
 }
