@@ -1,0 +1,40 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "action": {
+      "enum": [
+        "answer",
+        "decline",
+        "end"
+      ],
+      "title": "Action",
+      "type": "string"
+    },
+    "expected_revision": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Expected Revision",
+      "type": "integer"
+    },
+    "idempotency_key": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[!-~]+$",
+      "title": "Idempotency Key",
+      "type": "string"
+    }
+  },
+  "required": [
+    "action",
+    "expected_revision",
+    "idempotency_key"
+  ],
+  "title": "CallAction",
+  "type": "object"
+}
