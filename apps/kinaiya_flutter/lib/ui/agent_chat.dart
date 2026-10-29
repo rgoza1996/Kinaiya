@@ -7,6 +7,7 @@ import '../api/client.dart';
 import '../api/models.dart';
 import '../state/app_state.dart';
 import 'mcp_settings.dart';
+import 'settings_controls.dart';
 import 'widgets.dart';
 import 'visual_theme.dart';
 
@@ -14,14 +15,49 @@ import 'visual_theme.dart';
 /// and cancel. Slash commands are Agent-only and registry-driven; Converse
 /// text is never routed here.
 class AgentChat extends StatefulWidget {
-  const AgentChat({super.key, required this.state});
+  const AgentChat({super.key, required this.state, this.controls});
   final AppState state;
+  final AgentViewControls? controls;
 
   @override
   State<AgentChat> createState() => _AgentChatState();
 }
 
 class _AgentChatState extends State<AgentChat> {
+  AgentViewControls? _registeredControls;
+  void Function()? _registeredCommands;
+
+  void _detachSettingsControls() {
+    final controls = _registeredControls;
+    if (controls != null &&
+        identical(controls.openCommands, _registeredCommands)) {
+      controls.openCommands = null;
+    }
+    _registeredControls = null;
+    _registeredCommands = null;
+  }
+
+  void _bindSettingsControls() {
+    _detachSettingsControls();
+    final controls = widget.controls;
+    if (controls == null) return;
+    final owner = widget.state;
+    late final void Function() open;
+    open = () {
+      if (!mounted ||
+          !identical(widget.state, owner) ||
+          !identical(widget.controls, controls) ||
+          !identical(controls.openCommands, open) ||
+          !owner.commandsAvailable) {
+        return;
+      }
+      _showCommands();
+    };
+    _registeredControls = controls;
+    _registeredCommands = open;
+    controls.openCommands = open;
+  }
+
   late final TextEditingController _input;
   final TextEditingController _search = TextEditingController();
   String? _selectedTaskId;
@@ -35,6 +71,7 @@ class _AgentChatState extends State<AgentChat> {
   @override
   void initState() {
     super.initState();
+    _bindSettingsControls();
     _input = TextEditingController(text: widget.state.agentDraft);
     _lastClient = _s.client;
     _lastGeneration = _s.connectionGeneration;
@@ -47,6 +84,10 @@ class _AgentChatState extends State<AgentChat> {
   @override
   void didUpdateWidget(covariant AgentChat oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.controls, widget.controls) ||
+        !identical(oldWidget.state, widget.state)) {
+      _bindSettingsControls();
+    }
     if (!identical(oldWidget.state, widget.state)) {
       oldWidget.state.removeListener(_handleStateChange);
       _lastClient = _s.client;
@@ -59,6 +100,7 @@ class _AgentChatState extends State<AgentChat> {
 
   @override
   void dispose() {
+    _detachSettingsControls();
     _poll?.cancel();
     _s.removeListener(_handleStateChange);
     _input.dispose();
@@ -443,6 +485,9 @@ class _AgentChatState extends State<AgentChat> {
   }
 
   void _showCommands() {
+    final owner = widget.state;
+    final generation = owner.connectionGeneration;
+    if (!owner.commandsAvailable) return;
     showModalBottomSheet<void>(
       context: context,
       builder: (context) => SafeArea(
@@ -457,6 +502,12 @@ class _AgentChatState extends State<AgentChat> {
                 subtitle: Text('${command.description}\n${command.origin}'),
                 enabled: command.available,
                 onTap: () {
+                  if (!mounted ||
+                      !identical(widget.state, owner) ||
+                      owner.connectionGeneration != generation ||
+                      !owner.commandsAvailable) {
+                    return;
+                  }
                   final text = '/${command.name} ';
                   _input.text = text;
                   _s.setDraft(AppView.agent, text);
