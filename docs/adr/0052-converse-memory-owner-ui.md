@@ -94,9 +94,33 @@ mounted state. Scope/reconnect invalidation discards old state/selection; no
 write is replayed. Read refresh does not start use. A runtime ID change discards
 local selection and requires a new explicit action. CAS conflict and uncertain
 write acknowledgment clear actionable snapshots and require manual refresh.
-An explicit refresh reads current state; it cannot establish that a timed-out
-old request will never arrive. Runtime identity/CAS fence later stale writes.
-No blind retries or automatic configure on refresh are allowed.
+An explicit refresh reads current state; an unchanged revision/generation cannot
+establish that a timed-out old request will never arrive. Keep separate write
+latches in owner UI RAM beyond the dialog lifetime, keyed by canonical service
+endpoint and binding (bounded at 32 unresolved scopes, refuse new writes at the
+bound). Closing/reopening or reconnecting to the same host cannot erase a latch.
+No note content, credentials or selections belong in those latch records.
+
+A namespace latch settles only on known request completion or an observed
+revision strictly greater than that request's expected revision. A runtime
+latch settles on known completion, a confirmed different runtime identity, or
+the same runtime's generation strictly greater than that request's expected
+generation. When a dispatched request remains owned/in flight, do not declare
+its absence from an equal snapshot. Record the latch before dispatch and settle
+it independently of widget mounted state; UI updates still require ownership.
+For uncertain failures, equal state keeps the notice and blocks replacement
+enables, even after manual refresh. Reads remain available. A new scope hides
+old controls without resending old requests; its old latch remains retained.
+
+Explicit Stop using notes may use the freshest runtime state while runtime use
+is uncertain. A successful Stop fences an earlier uncertain enable only if its
+generation strictly advances or runtime identity changes. A no-op off with no
+previous choice can return generation zero; exhaustion can also prevent advance.
+Equal-generation off does not clear uncertainty or permit a replacement enable.
+Namespace no-op off likewise cannot fence a delayed enable; its writes stay
+blocked until the namespace latch settles. No blind retries or automatic
+configure on refresh are allowed. These RAM fences cover the running owner app;
+this slice adds no persisted recovery across an owner application restart.
 
 The dialog distinguishes unavailable feature, unauthenticated owner access,
 offline/error and a genuine empty catalog. It shows literal, selectable note
