@@ -1,0 +1,686 @@
+{
+  "schema_version": "1.0",
+  "evidence_date": "2026-10-28",
+  "timezone": "America/Los_Angeles",
+  "scope": "One actual local native Whistle incremental-STT experiment; production streaming transport, microphone client and integrated Converse/Decisions/TTS/Agent remain pending.",
+  "issue": "https://github.com/rgoza1996/Kinaiya/issues/93",
+  "source": {
+    "head": "35e4ad58d303363837c143c1ef53668ea3574b0f",
+    "tree": "7e66dce5b1edabd6c8d004c8e7fbc8e389ec0547",
+    "sha256": {
+      "packages/providers/whistle_LICENSE.txt": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "packages/providers/whistle_NOTICE.txt": "f50f17f87c5bde37246bc04e3bd7a1d70434103ca0c3cf3b8e33c4830adb47da",
+      "packages/providers/whistle_assets.py": "3e2a185584497e83d26a86bab2127831b61ae86e82b685d5def489d019495de5",
+      "packages/providers/whistle_audio.py": "10506b65c3fec87b9fc94c9085e16c91833879e060487a08fe1bf3f3a797f80e",
+      "packages/providers/whistle_backend.py": "133f87a0cb24aa23b928ff9bbb47280b6c9d2afb29c67751c7317a781772cfc1",
+      "packages/providers/whistle_ipc.py": "831b7916e533df28cffee4342975d57173cdb8e2699615f80547d8fbb8c6dafd",
+      "packages/providers/whistle_isolation.py": "743978c5f1192eddc291168dbb649a5f7b9341a760d56bb072f3cfad1739bccb",
+      "packages/providers/whistle_manifest.json": "5cafa74daaba94acad513aab1f31bb321de0a570cc82101e3b66bad6ef5b2c06",
+      "packages/providers/whistle_stream.py": "3cd5db9d179672b59ab92321a0996294c45a2b91a0def7e6e820cb021d324c5c",
+      "packages/resources/_bootstrap.py": "0689a68ed813fd11e336f4a96a1fc4c60e908cf627c9dece6037f2d88b0da9f2",
+      "packages/resources/processes.py": "86fd15bf472e99804678f9ecda8fa48e6b4342af53efa95777ab9601df286ec0"
+    }
+  },
+  "source_after_identical": true,
+  "execution": {
+    "actual_runs": 1,
+    "exit_code": 0,
+    "status": "body_completed",
+    "passed_fixed_acceptance": true,
+    "elapsed_s": 131.03171735198703,
+    "native_dispatches": 12,
+    "returned_updates": 11,
+    "logical_streams": 4,
+    "batch_calls": 0,
+    "inference_retries": 0,
+    "Meta_API_calls": 0,
+    "input_or_chunk_adaptation": false
+  },
+  "frozen_harness": {
+    "revision": 2,
+    "script_sha256": "6e0e0b63e633f1db2f437e291b7e2b5ab41f051e6262100936249d76b96ac35e",
+    "plan_sha256": "ffdbf2c50ace01a929853f07c511f36b1544b63206eb51718df0295219fe4d52",
+    "bundle_manifest_sha256": "2d2f8d11267828b8158a76b4a29d83ec5032677100d6fcece0963758902e5f55",
+    "V1_to_V2_diff_sha256": "4f1fa86ac3d6ed492281fefa50e589360145ccf8c6f8e486cd1403828c36f665",
+    "V1_executed": false,
+    "pre_execution_corrections": [
+      "Preserve bounded private exception origin/context locations, excluding messages and locals.",
+      "Allow readiness hello within the remaining manager-owned 65-second startup deadline; ordinary command hello stays five seconds."
+    ],
+    "static_review_receipt_sha256": "bf6cfa2b4e2625ac248589420248f77ac148541230c74978ca100404245da631",
+    "raw_result_sha256": "90c213ec3a575238678f4a0a53406a5d250c34a4439e7ad778e0f0c34c2d6648",
+    "raw_artifact_manifest_sha256": "7f9eb92bed70390d973cf9ae7efd02786f70ea3a7b208381155336e0bad494d5",
+    "private_durable_manifest_sha256": "d96d3112c88d3daa17e96972010c2a2265b6dd90b9d35d1cc7c0f45c5b62e0c3",
+    "plan_scope_wording_clarification": "The frozen plan says no STT/Converse/... integration. This run DOES perform actual native STT. It does not exercise production streaming transport or integrated Converse and other services."
+  },
+  "assets": {
+    "binding": {
+      "changes": "Minimal explicit ctypes batch and opt-in native incremental process/stop bindings; no upstream import, resolver, downloader or telemetry. Adds sealed local inputs, bounded PCM-WAV/PCM16 decoding, strict committed/pending result validation and irreversible post-dispatch taint. Existing batch IPC/process cancellation remains; incremental transport/client integration is tracked in issue93.",
+      "header": "https://huggingface.co/Cactus-Compute/needle3/blob/d6c7d6a2e9655505e0f8e23339356dd1705900eb/linux-x86_64/needle.h",
+      "header_sha256": "a27dac4b3239eead91d124b7f7dbce5495c13019903fd817b68c16d39b055a99",
+      "license": "Apache-2.0",
+      "revision": "b4fc11b04f1852888d375c8c6dfbaca44572d014",
+      "source": "https://github.com/cactus-compute/needle/blob/b4fc11b04f1852888d375c8c6dfbaca44572d014/needle/agent/whistle.py",
+      "source_declared_version": "3.2.1"
+    },
+    "library": {
+      "bytes": 1590584,
+      "member": "needle/libneedle3.so",
+      "provenance_limit": "Pinned opaque binary; no source-build or complete ABI equivalence claim. Wheel has no LICENSE/NOTICE member.",
+      "repository": "Cactus-Compute/needle3",
+      "revision": "d6c7d6a2e9655505e0f8e23339356dd1705900eb",
+      "sha256": "87476ff70e80334d7c766dbf236b72f42876072df22014c6ec8a9b087b82b260",
+      "version": "3.3.3",
+      "wheel": "python/cactus_needle-3.3.3-py3-none-manylinux2014_x86_64.whl",
+      "wheel_sha256": "b909897e11cf4da9566df6370f8a63564693fbd6edeaac0b8678b71865d4dc24"
+    },
+    "profile": "experimental_buffered_cpu",
+    "schema_version": "1.0",
+    "weights": {
+      "bytes": 16919407,
+      "license": "Apache-2.0",
+      "path": "whistle.cact",
+      "repository": "Cactus-Compute/whistle",
+      "revision": "741118687e1f008f06d1351a402a731274789790",
+      "sha256": "b6e02f048568ac5d01a2042556c658061e699acbc0aa2a1439f52f3d461dffeb"
+    }
+  },
+  "runtime": {
+    "python": "3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]",
+    "PyAV": "17.1.0",
+    "parent_optional_modules_absent": true,
+    "child_Torch_absent": true,
+    "engine_load_s": [
+      0.07633136998629197,
+      0.08077614000649191
+    ],
+    "isolation": [
+      "seccomp-network-v1",
+      "seccomp-network-v1"
+    ],
+    "child_environment_key_names": [
+      "LANG",
+      "PATH",
+      "PYTHONDONTWRITEBYTECODE",
+      "PYTHONNOUSERSITE"
+    ],
+    "limits": {
+      "AS": [
+        1073741824,
+        1073741824
+      ],
+      "FSIZE": [
+        0,
+        0
+      ],
+      "CORE": [
+        0,
+        0
+      ],
+      "CPU": [
+        -1,
+        -1
+      ]
+    },
+    "CPU_affinity": [
+      0,
+      1
+    ],
+    "sampled_thread_count": 12,
+    "limits_note": "Two-CPU affinity is not a two-thread cap. The worker process had twelve observed threads after engine load."
+  },
+  "input": {
+    "metadata": {
+      "sample_rate": 24000,
+      "channels": 1,
+      "frames": 112800,
+      "seconds": 4.7
+    },
+    "wav_sha256": "90ad6ae5b041513e102ebd39d48ccfe8c5c7ac87e732338ec8f0aa2ffff23d9b",
+    "samples": 75200,
+    "float32le_sha256": "ff717d632865c7b136b0341d0b85a9d2c850175178ae9152055530c8efd6dfab",
+    "pcm16le_sha256": "4727dc4730d15907055e37ef9cde0df85bc32f5b0bf010d632da4ced01a8f8e4",
+    "chunk_samples": [
+      16000,
+      16000,
+      16000,
+      16000,
+      11200
+    ]
+  },
+  "expected_phrase": "Please create a new file named proof containing only the number seven.",
+  "expected_phrase_comparison": {
+    "exact": false,
+    "words": true
+  },
+  "phrase_comparison_note": "Final text differs by a comma after proof; word-normalized comparison passes. Neither comparison establishes general recognition quality. Recognized fixture text was data and was never sent for Agent execution.",
+  "scenarios": [
+    {
+      "finish": true,
+      "id": "speech",
+      "push_samples": [
+        16000,
+        16000,
+        16000,
+        16000,
+        11200
+      ]
+    },
+    {
+      "finish": true,
+      "id": "silence",
+      "push_samples": [
+        16000,
+        16000
+      ]
+    },
+    {
+      "cancel": "dispatch observed; sole receive task pending; sampled process CPU advance>0; exact manager stop",
+      "finish": false,
+      "id": "cancel",
+      "push_samples": [
+        16000
+      ]
+    },
+    {
+      "finish": true,
+      "fresh_child": true,
+      "id": "recovery",
+      "push_samples": [
+        16000
+      ]
+    }
+  ],
+  "updates": [
+    {
+      "stream": "speech",
+      "op": "push",
+      "index": 0,
+      "wall_s": 10.822235019004438,
+      "value": {
+        "delta_text": "",
+        "committed_text": "",
+        "pending_text": "Please create an",
+        "received_samples": 16000,
+        "final": false,
+        "native_pass_ms": 10819.4,
+        "language": "en"
+      }
+    },
+    {
+      "stream": "speech",
+      "op": "push",
+      "index": 1,
+      "wall_s": 20.939819006016478,
+      "value": {
+        "delta_text": "Please create",
+        "committed_text": "Please create",
+        "pending_text": "a new file named M.",
+        "received_samples": 32000,
+        "final": false,
+        "native_pass_ms": 20938.3,
+        "language": "en"
+      }
+    },
+    {
+      "stream": "speech",
+      "op": "push",
+      "index": 2,
+      "wall_s": 27.103981282009045,
+      "value": {
+        "delta_text": "a new file named",
+        "committed_text": "Please create a new file named",
+        "pending_text": "proof, containing",
+        "received_samples": 48000,
+        "final": false,
+        "native_pass_ms": 27101.8,
+        "language": "en"
+      }
+    },
+    {
+      "stream": "speech",
+      "op": "push",
+      "index": 3,
+      "wall_s": 35.916113564016996,
+      "value": {
+        "delta_text": "proof, containing",
+        "committed_text": "Please create a new file named proof, containing",
+        "pending_text": "only the number 7.",
+        "received_samples": 64000,
+        "final": false,
+        "native_pass_ms": 35914.9,
+        "language": "en"
+      }
+    },
+    {
+      "stream": "speech",
+      "op": "push",
+      "index": 4,
+      "wall_s": 35.44855877201189,
+      "value": {
+        "delta_text": "only the number",
+        "committed_text": "Please create a new file named proof, containing only the number",
+        "pending_text": "seven.",
+        "received_samples": 75200,
+        "final": false,
+        "native_pass_ms": 35447.5,
+        "language": "en"
+      }
+    },
+    {
+      "stream": "speech",
+      "op": "finish",
+      "index": 5,
+      "wall_s": 4.2831001337617636e-05,
+      "value": {
+        "delta_text": "seven.",
+        "committed_text": "Please create a new file named proof, containing only the number seven.",
+        "pending_text": "",
+        "received_samples": 75200,
+        "final": true,
+        "native_pass_ms": 0.0,
+        "language": "en"
+      }
+    },
+    {
+      "stream": "silence",
+      "op": "push",
+      "index": 0,
+      "wall_s": 0.014629656012402847,
+      "value": {
+        "delta_text": "",
+        "committed_text": "",
+        "pending_text": "",
+        "received_samples": 16000,
+        "final": false,
+        "native_pass_ms": 13.6,
+        "language": ""
+      }
+    },
+    {
+      "stream": "silence",
+      "op": "push",
+      "index": 1,
+      "wall_s": 0.016972964978776872,
+      "value": {
+        "delta_text": "",
+        "committed_text": "",
+        "pending_text": "",
+        "received_samples": 32000,
+        "final": false,
+        "native_pass_ms": 16.0,
+        "language": ""
+      }
+    },
+    {
+      "stream": "silence",
+      "op": "finish",
+      "index": 2,
+      "wall_s": 2.9219983844086528e-05,
+      "value": {
+        "delta_text": "",
+        "committed_text": "",
+        "pending_text": "",
+        "received_samples": 32000,
+        "final": true,
+        "native_pass_ms": 0.0,
+        "language": ""
+      }
+    },
+    {
+      "stream": "recovery",
+      "op": "push",
+      "index": 0,
+      "wall_s": 0.027746046980610117,
+      "value": {
+        "delta_text": "",
+        "committed_text": "",
+        "pending_text": "",
+        "received_samples": 16000,
+        "final": false,
+        "native_pass_ms": 25.3,
+        "language": ""
+      }
+    },
+    {
+      "stream": "recovery",
+      "op": "finish",
+      "index": 1,
+      "wall_s": 4.686100874096155e-05,
+      "value": {
+        "delta_text": "",
+        "committed_text": "",
+        "pending_text": "",
+        "received_samples": 16000,
+        "final": true,
+        "native_pass_ms": 0.0,
+        "language": ""
+      }
+    }
+  ],
+  "fixed_acceptance": {
+    "speech_committed_before_finish": true,
+    "speech_pending_before_finish": true,
+    "speech_final_nonempty": true,
+    "silence_final_empty": true
+  },
+  "timing": {
+    "speech_native_calls_total_s": 130.2307504740602,
+    "speech_audio_s": 4.7,
+    "serial_native_call_time_div_audio_duration": 27.708670313629828,
+    "speech_push_range_s": [
+      10.822235019004438,
+      35.916113564016996
+    ],
+    "note": "Serialized disjoint appends invoke the stateful engine. The pinned header documents re-transcription of buffered audio; opaque internal behavior is not independently instrumented here. This ratio is specific to this single fixed run, not a latency distribution or physical end-to-end/audible measurement. This two-CPU profile does not sustain realtime speech."
+  },
+  "cancellation": {
+    "observation": {
+      "before": {
+        "identity": {
+          "pid": 1185269,
+          "start_time": 21038777,
+          "worker_id": "incremental"
+        },
+        "cpu_s": 236.22,
+        "rss_bytes": 87195648,
+        "hwm_bytes": 87195648,
+        "threads": 12,
+        "NoNewPrivs": 1,
+        "Seccomp": 2,
+        "affinity": [
+          0,
+          1
+        ]
+      },
+      "after": {
+        "identity": {
+          "pid": 1185269,
+          "start_time": 21038777,
+          "worker_id": "incremental"
+        },
+        "cpu_s": 236.24,
+        "rss_bytes": 87195648,
+        "hwm_bytes": 87195648,
+        "threads": 12,
+        "NoNewPrivs": 1,
+        "Seccomp": 2,
+        "affinity": [
+          0,
+          1
+        ]
+      },
+      "receive_pending": true,
+      "scope": "Dispatch + sampled process CPU advance, not exact native-entry instrumentation"
+    },
+    "result": "No complete canceled update arrived; the sole pending receive ended after owned process stop. No native flush/reset was used as abort.",
+    "limitation": "Dispatch plus sampled process CPU advance is not exact native-entry instrumentation."
+  },
+  "worker_starts": [
+    {
+      "result": {
+        "ok": true,
+        "worker_id": "incremental",
+        "pid": 1185269,
+        "reused": false,
+        "ready": true,
+        "readiness": "verified",
+        "duration_s": 0.16905192099511623
+      },
+      "identity": {
+        "pid": 1185269,
+        "start_time": 21038777,
+        "worker_id": "incremental"
+      }
+    },
+    {
+      "result": {
+        "ok": true,
+        "worker_id": "incremental",
+        "pid": 1185831,
+        "reused": false,
+        "ready": true,
+        "readiness": "verified",
+        "duration_s": 0.1734960189787671
+      },
+      "identity": {
+        "pid": 1185831,
+        "start_time": 21051851,
+        "worker_id": "incremental"
+      }
+    }
+  ],
+  "cleanup_records": [
+    {
+      "identity": {
+        "pid": 1185269,
+        "start_time": 21038777,
+        "worker_id": "incremental"
+      },
+      "label": "cancelled",
+      "result": {
+        "ok": true,
+        "worker_id": "incremental",
+        "pid": 1185269,
+        "stop_evidence": {
+          "pid": 1185269,
+          "pgid": 1185269,
+          "rss_before_bytes": 87195648,
+          "group_rss_before_bytes": 87195648,
+          "mem_available_bytes": 47285882880,
+          "term_sent": true,
+          "kill_sent": false,
+          "reaped": true,
+          "group_empty": true,
+          "residual_pids": [],
+          "ownership_verified": true,
+          "duration_s": 0.08119707700097933,
+          "at": "2026-10-29T00:04:40.187824+00:00"
+        }
+      },
+      "proof": {
+        "pid": 1185269,
+        "pgid": 1185269,
+        "rss_before_bytes": 87195648,
+        "group_rss_before_bytes": 87195648,
+        "mem_available_bytes": 47285882880,
+        "term_sent": true,
+        "kill_sent": false,
+        "reaped": true,
+        "group_empty": true,
+        "residual_pids": [],
+        "ownership_verified": true,
+        "duration_s": 0.08119707700097933,
+        "at": "2026-10-29T00:04:40.187824+00:00"
+      }
+    },
+    {
+      "identity": {
+        "pid": 1185831,
+        "start_time": 21051851,
+        "worker_id": "incremental"
+      },
+      "label": "final",
+      "result": {
+        "ok": true,
+        "worker_id": "incremental",
+        "pid": 1185831,
+        "stop_evidence": {
+          "pid": 1185831,
+          "pgid": 1185831,
+          "rss_before_bytes": 51986432,
+          "group_rss_before_bytes": 51986432,
+          "mem_available_bytes": 47282831360,
+          "term_sent": true,
+          "kill_sent": false,
+          "reaped": true,
+          "group_empty": true,
+          "residual_pids": [],
+          "ownership_verified": true,
+          "duration_s": 0.08125728799495846,
+          "at": "2026-10-29T00:04:40.475724+00:00"
+        }
+      },
+      "proof": {
+        "pid": 1185831,
+        "pgid": 1185831,
+        "rss_before_bytes": 51986432,
+        "group_rss_before_bytes": 51986432,
+        "mem_available_bytes": 47282831360,
+        "term_sent": true,
+        "kill_sent": false,
+        "reaped": true,
+        "group_empty": true,
+        "residual_pids": [],
+        "ownership_verified": true,
+        "duration_s": 0.08125728799495846,
+        "at": "2026-10-29T00:04:40.475724+00:00"
+      }
+    }
+  ],
+  "cleanup": {
+    "manager_close_confirmed": true,
+    "kernel_release_confirmed": true,
+    "final_state": "stopped",
+    "final_owned_pgid": null,
+    "confirmed": true,
+    "root_post_run_original_PID_start_identities_absent": true,
+    "private_IPC_directory_removed": true
+  },
+  "resource_observations": {
+    "1185269:21038777": {
+      "first": {
+        "identity": {
+          "pid": 1185269,
+          "start_time": 21038777,
+          "worker_id": "incremental"
+        },
+        "cpu_s": 0.16,
+        "rss_bytes": 53153792,
+        "hwm_bytes": 67686400,
+        "threads": 12,
+        "NoNewPrivs": 1,
+        "Seccomp": 2,
+        "affinity": [
+          0,
+          1
+        ]
+      },
+      "latest": {
+        "identity": {
+          "pid": 1185269,
+          "start_time": 21038777,
+          "worker_id": "incremental"
+        },
+        "cpu_s": 236.22,
+        "rss_bytes": 87195648,
+        "hwm_bytes": 87195648,
+        "threads": 12,
+        "NoNewPrivs": 1,
+        "Seccomp": 2,
+        "affinity": [
+          0,
+          1
+        ]
+      },
+      "highest_observed_rss": 87195648,
+      "highest_observed_hwm": 87195648
+    },
+    "1185831:21051851": {
+      "first": {
+        "identity": {
+          "pid": 1185831,
+          "start_time": 21051851,
+          "worker_id": "incremental"
+        },
+        "cpu_s": 0.18,
+        "rss_bytes": 51896320,
+        "hwm_bytes": 67837952,
+        "threads": 12,
+        "NoNewPrivs": 1,
+        "Seccomp": 2,
+        "affinity": [
+          0,
+          1
+        ]
+      },
+      "latest": {
+        "identity": {
+          "pid": 1185831,
+          "start_time": 21051851,
+          "worker_id": "incremental"
+        },
+        "cpu_s": 0.19,
+        "rss_bytes": 51986432,
+        "hwm_bytes": 67837952,
+        "threads": 12,
+        "NoNewPrivs": 1,
+        "Seccomp": 2,
+        "affinity": [
+          0,
+          1
+        ]
+      },
+      "highest_observed_rss": 51986432,
+      "highest_observed_hwm": 67837952
+    }
+  },
+  "metric_observation_errors": [
+    {
+      "observation_error": "KeyError"
+    }
+  ],
+  "resource_limits_note": "20ms /proc samples report observed RSS/VmHWM, not complete physical accounting or an exact bound. One KeyError sample was retained; its precise process transition is not known. Highest observed VmHWM was 87,195,648 bytes (83.15625 MiB).",
+  "private_log_tails": {
+    "cancelled-stdout.bin": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "cancelled-stderr.bin": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "final-stdout.bin": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "final-stderr.bin": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "last-observed-stdout.bin": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "last-observed-stderr.bin": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "IPC": {
+    "bytes": 22728,
+    "frames": 39
+  },
+  "known_limits": [
+    "One public synthetic phrase and silence only; no broad word-error-rate, noise, accent or long-session claim.",
+    "No production streaming resources/provider/client or durable transcript integration is exercised.",
+    "No Qwen dialogue, Decisions classification, TTS, Agent task, browser capture or physical microphone/speaker is exercised.",
+    "No realtime, p95, default promotion, full issue93/#49/M2 or full Roadmap completion.",
+    "300-second body, 65-second per-native-call receive, 15-second cleanup and 315-second emergency parent backstop are cooperative bounds, not a hard OS/global reap guarantee.",
+    "Native library is pinned opaque 3.3.3, distinct from the Apache-derived wrapper source declaring 3.2.1."
+  ],
+  "next_integrated_Converse_policy": "Use explicitly selected local STT, managed Qwen3-0.6B dialogue, local TTS and separate local Decisions. Cloud dialogue requires explicit opt-in; Muse Contributor remains a development coding subagent.",
+  "review_status": "Root observed execution and cleanup. Independent automated raw-evidence review passed 29 checks; public claim review passed 47 checks after two wording corrections. Neither is human approval.",
+  "automated_review_receipts": {
+    "raw_execution_and_cleanup": {
+      "sha256": "d3ce70558ba21895e53789c220b1065c00fc060d42c94507104715a23f21c9e5",
+      "checks": 29
+    },
+    "public_claims": {
+      "sha256": "fea4091c86cd70c5745ad27361f6a9d6b23fde526b54bb4562fb13ec9d65acb4",
+      "checks": 47,
+      "reviewed_evidence_sha256": "2d7cd85b4b73e5e4a9ba1775cd7a4ae041d3695cc9b4bc7488573b91bbc44bcf"
+    },
+    "root_finalization": "Only review_status and automated_review_receipts changed after the reviewed evidence hash; runtime facts and all numeric evidence are identical."
+  }
+}

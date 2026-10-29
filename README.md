@@ -286,6 +286,10 @@ selects transcription independently of TTS, using pinned local artifacts and a
 separate owned native process. It supports bounded PCM WAV slices with process
 cancellation and recovery. Persistent incremental STT and real-time acceptance
 remain open.
+The optional [native incremental Whistle binding](docs/adr/0036-incremental-whistle-stt.md)
+has separately passed a local engine append/flush/cancel/recovery experiment.
+Its measured two-CPU profile is too slow for realtime speech; production
+streaming transport and client integration remain unfinished.
 An opt-in [Supertonic 3 CPU backend](docs/adr/0027-retained-supertonic.md) also
 synthesizes through the same speech bridge using pinned, verified local assets.
 Its output is buffered before transport; the small synthetic screen does not meet
