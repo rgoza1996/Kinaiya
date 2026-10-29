@@ -67,8 +67,15 @@ jobs:
       - run: flutter test
       - run: node --test web/audio_bridge.test.js
       - run: flutter build web --release --no-web-resources-cdn
+      - name: Build foreground companion
+        run: flutter build web --release --no-web-resources-cdn -t lib/companion_main.dart --output build/companion-web
       - uses: actions/upload-artifact@v4
         with:
           name: kinaiya-flutter-web
           path: apps/kinaiya_flutter/build/web
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kinaiya-companion-web
+          path: apps/kinaiya_flutter/build/companion-web
           if-no-files-found: error
