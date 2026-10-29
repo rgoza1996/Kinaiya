@@ -106,6 +106,198 @@ def _authorize_endpoint(base_url: str, allow_cloud: bool) -> bool:
     return local
 
 
+# Inclusive entity-body, SSE framing and UTF-8 text limits. Comments and metadata
+# consume the wire/line bounds; every data event, including DONE, consumes a slot.
+_COMPAT_MAX_RAW_BYTES = 1024 * 1024
+_COMPAT_MAX_LINE_BYTES = 64 * 1024
+_COMPAT_MAX_EVENT_BYTES = 64 * 1024
+_COMPAT_MAX_TEXT_BYTES = 256 * 1024
+_COMPAT_MAX_DATA_EVENTS = 8192
+
+
+def _refusal(reason):
+    return ProviderRefusal("Compatible provider response refused: " + reason)
+
+
+def _reject_compressed_response(response):
+    if response.headers.get("content-encoding", "identity").strip().lower() not in {"", "identity"}:
+        raise _refusal("unsupported encoding")
+
+
+def _compatible_json(raw):
+    def invalid_constant(value):
+        raise ValueError("Non-finite JSON number")
+
+    def unique_object(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("Duplicate JSON field")
+            result[key] = value
+        return result
+
+    try:
+        if isinstance(raw, bytes):
+            raw = raw.decode("utf-8")
+        value = json.loads(raw, parse_constant=invalid_constant, object_pairs_hook=unique_object)
+    except (ValueError, RecursionError) as exc:
+        raise _refusal("malformed UTF-8 JSON") from exc
+    if not isinstance(value, dict):
+        raise _refusal("malformed payload")
+    if value.get("error") is not None:
+        raise _refusal("provider error payload")
+    return value
+
+
+def _text_size(text):
+    try:
+        return len(text.encode("utf-8"))
+    except UnicodeError as exc:
+        raise _refusal("invalid UTF-8 text") from exc
+
+
+def _compatible_choice(payload):
+    choices = payload.get("choices")
+    if not isinstance(choices, list) or len(choices) != 1:
+        raise _refusal("unsupported choices")
+    choice = choices[0]
+    if not isinstance(choice, dict):
+        raise _refusal("malformed choice")
+    if "index" in choice and (type(choice["index"]) is not int or choice["index"] != 0):
+        raise _refusal("unsupported choice index")
+    return choice
+
+
+def _compatible_content(value):
+    if not isinstance(value, dict):
+        raise _refusal("malformed text message")
+    role = value.get("role")
+    if role is not None and role != "assistant":
+        raise _refusal("malformed text message")
+    if any(value.get(key) is not None for key in ("tool_calls", "function_call", "refusal")):
+        raise _refusal("unsupported tool output or refusal")
+    content = value.get("content")
+    if content is not None and not isinstance(content, str):
+        raise _refusal("non-string content")
+    return content
+
+
+def _validate_complete_payload(raw):
+    payload = _compatible_json(raw)
+    choice = _compatible_choice(payload)
+    if any(choice.get(key) is not None for key in ("tool_calls", "function_call", "refusal")):
+        raise _refusal("unsupported tool output or refusal")
+    if choice.get("finish_reason") != "stop":
+        raise _refusal("incomplete or unsupported finish")
+    content = _compatible_content(choice.get("message"))
+    if content is None:
+        raise _refusal("non-string content")
+    if _text_size(content) > _COMPAT_MAX_TEXT_BYTES:
+        raise _refusal("text bound")
+    return content
+
+
+async def _iter_compatible_stream(response):
+    total = events = out_bytes = data_bytes = 0
+    line_buf, data_lines = bytearray(), []
+    seen_stop = seen_done = False
+
+    def dispatch():
+        nonlocal events, out_bytes, seen_stop, seen_done
+        events += 1
+        if events > _COMPAT_MAX_DATA_EVENTS:
+            raise _refusal("event count bound")
+        assembled = "\n".join(data_lines)
+        if assembled == "[DONE]":
+            if seen_done or not seen_stop:
+                raise _refusal("out-of-order terminal")
+            seen_done = True
+            return None
+        if seen_done:
+            raise _refusal("data after DONE")
+        payload = _compatible_json(assembled)
+        if payload.get("choices") == [] and isinstance(payload.get("usage"), dict):
+            return None
+        choice = _compatible_choice(payload)
+        if seen_stop:
+            raise _refusal("choice after stop")
+        if any(choice.get(key) is not None for key in ("tool_calls", "function_call", "refusal")):
+            raise _refusal("unsupported tool output or refusal")
+        content = _compatible_content(choice.get("delta"))
+        finish = choice.get("finish_reason")
+        # Validate the entire event before yielding, including a final delta
+        # carrying both text and a finish reason.
+        if finish is not None:
+            if finish != "stop":
+                raise _refusal("incomplete or unsupported finish")
+            seen_stop = True
+        if content:
+            size = _text_size(content)
+            if out_bytes + size > _COMPAT_MAX_TEXT_BYTES:
+                raise _refusal("text bound")
+            out_bytes += size
+        return content
+
+    def feed_line(raw_line):
+        nonlocal data_bytes
+        try:
+            line = raw_line.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise _refusal("invalid UTF-8") from exc
+        if not line:
+            text = dispatch() if data_lines else None
+            data_lines.clear()
+            data_bytes = 0
+            return text
+        if line.startswith(":"):
+            return None
+        field, _, value = line.partition(":")
+        if value.startswith(" "):
+            value = value[1:]
+        if field == "data":
+            size = _text_size(value) + int(bool(data_lines))
+            if data_bytes + size > _COMPAT_MAX_EVENT_BYTES:
+                raise _refusal("event bound")
+            data_bytes += size
+            data_lines.append(value)
+        return None
+
+    # Encoding is checked before this iterator. With identity encoding these
+    # are entity-body bytes; aiter_bytes also supports prebuffered transports.
+    async for chunk in response.aiter_bytes():
+        if total + len(chunk) > _COMPAT_MAX_RAW_BYTES:
+            raise _refusal("wire bound")
+        total += len(chunk)
+        start = 0
+        while start < len(chunk):
+            index = chunk.find(b"\n", start)
+            end = len(chunk) if index < 0 else index
+            size = len(line_buf) + end - start
+            last_cr = (chunk[end - 1] == 13) if end > start else line_buf[-1:] == b"\r"
+            # Keep at most one extra trailing CR until its LF arrives. CRLF
+            # delimiters do not count toward the raw line's inclusive bound.
+            if size - int(last_cr) > _COMPAT_MAX_LINE_BYTES:
+                raise _refusal("line bound")
+            line_buf.extend(chunk[start:end])
+            if index < 0:
+                break
+            if line_buf[-1:] == b"\r":
+                line_buf.pop()
+            text = feed_line(bytes(line_buf))
+            line_buf.clear()
+            if text:
+                yield text
+            start = index + 1
+    if line_buf:
+        # An EOF comment is harmless; an unfinished data event is not a
+        # dispatched terminal. Never turn EOF into an implicit blank line.
+        if len(line_buf) > _COMPAT_MAX_LINE_BYTES:
+            raise _refusal("line bound")
+        feed_line(bytes(line_buf))
+    if data_lines or not (seen_stop and seen_done):
+        raise _refusal("incomplete stream")
+
+
 class CompatibleTextProvider:
     def __init__(
         self,
@@ -123,58 +315,59 @@ class CompatibleTextProvider:
             provider="openai-compatible", model=model, local=local, streaming=True
         )
         self.model, self.max_tokens = model, max_tokens
-        headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+        headers = {"Accept-Encoding": "identity"}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
         self.http = httpx.AsyncClient(
             base_url=base_url.rstrip("/") + "/",
             headers=headers,
             timeout=timeout,
             transport=transport,
+            trust_env=False,
+            follow_redirects=False,
         )
+
+    def _body(self, messages, stream):
+        return {
+            "model": self.model,
+            "messages": messages,
+            "max_tokens": self.max_tokens,
+            "stream": stream,
+        }
 
     async def complete(self, messages):
-        response = await self.http.post(
-            "chat/completions",
-            json={
-                "model": self.model,
-                "messages": messages,
-                "max_tokens": self.max_tokens,
-                "stream": False,
-            },
-        )
-        if response.is_error:
-            raise ProviderError(
-                f"Provider HTTP {response.status_code}; inspect provider diagnostics locally"
-            )
         try:
-            return response.json()["choices"][0]["message"]["content"]
-        except (KeyError, IndexError, TypeError) as exc:
-            raise ProviderError("Provider returned no text") from exc
+            async with self.http.stream(
+                "POST", "chat/completions", json=self._body(messages, False)
+            ) as response:
+                if _http_cleanup_owned.get():
+                    response.stream = _OwnedHTTPStream(response.stream)
+                if not response.is_success:
+                    raise ProviderError(f"Provider HTTP {response.status_code}")
+                _reject_compressed_response(response)
+                raw = bytearray()
+                async for chunk in response.aiter_bytes():
+                    if len(raw) + len(chunk) > _COMPAT_MAX_RAW_BYTES:
+                        raise _refusal("wire bound")
+                    raw.extend(chunk)
+                return _validate_complete_payload(bytes(raw))
+        except httpx.HTTPError as exc:
+            raise ProviderError("Compatible provider transport failure") from exc
 
     async def stream(self, messages) -> AsyncIterator[str]:
-        async with self.http.stream(
-            "POST",
-            "chat/completions",
-            json={
-                "model": self.model,
-                "messages": messages,
-                "max_tokens": self.max_tokens,
-                "stream": True,
-            },
-        ) as response:
-            # httpx also closes from aiter_raw at natural EOF, before context
-            # exit. Protect the actual stream close at both boundaries.
-            if _http_cleanup_owned.get():
-                response.stream = _OwnedHTTPStream(response.stream)
-            if response.is_error:
-                raise ProviderError(f"Provider HTTP {response.status_code}")
-            async for line in response.aiter_lines():
-                if line.startswith("data: ") and line[6:] != "[DONE]":
-                    event = json.loads(line[6:])
-                    choices = event.get("choices", [])
-                    if choices:
-                        text = choices[0].get("delta", {}).get("content")
-                        if text:
-                            yield text
+        try:
+            async with self.http.stream(
+                "POST", "chat/completions", json=self._body(messages, True)
+            ) as response:
+                if _http_cleanup_owned.get():
+                    response.stream = _OwnedHTTPStream(response.stream)
+                if not response.is_success:
+                    raise ProviderError(f"Provider HTTP {response.status_code}")
+                _reject_compressed_response(response)
+                async for text in _iter_compatible_stream(response):
+                    yield text
+        except httpx.HTTPError as exc:
+            raise ProviderError("Compatible provider transport failure") from exc
 
     async def close(self):
         await self.http.aclose()
