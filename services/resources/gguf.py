@@ -24,6 +24,40 @@ from packages.providers.whistle_assets import outside_workspace
 from packages.resources.processes import WorkerSpec, _proc_stat_full, _scan_group
 from services.resources.gguf_peer import NativeLease
 
+_MAX_COUNT_BYTES = 4096
+_MAX_SAFE_COUNT = 2**53 - 1
+
+
+def _parse_prompt_count(raw):
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError("Native prompt count is invalid") from exc
+
+    def _invalid(value):
+        raise ValueError("Native prompt count is invalid")
+
+    def _unique(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("Native prompt count is invalid")
+            result[key] = value
+        return result
+
+    try:
+        value = json.loads(text, parse_constant=_invalid, object_pairs_hook=_unique)
+    except (ValueError, RecursionError) as exc:
+        raise ValueError("Native prompt count is invalid") from exc
+    if type(value) is not dict or set(value) != {"input_tokens", "object"}:
+        raise ValueError("Native prompt count is invalid")
+    if value["object"] != "response.input_tokens":
+        raise ValueError("Native prompt count is invalid")
+    count = value["input_tokens"]
+    if type(count) is not int or not 1 <= count <= _MAX_SAFE_COUNT:
+        raise ValueError("Native prompt count is invalid")
+    return count
+
 
 class ManagedGGUFConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
@@ -257,6 +291,14 @@ class GGUFEndpoint:
             raise ValueError("Native ready lease changed")
         lease.current(identity)
 
+    def _body(self, messages):
+        return {
+            "model": self.manifest["alias"],
+            "messages": messages,
+            "max_tokens": self.limits["max_new_tokens"],
+            "stream": True,
+        }
+
     async def stream(self, messages, lease):
         self.current(lease, lease.identity)
         terminal, forwarded = None, 0
@@ -264,12 +306,7 @@ class GGUFEndpoint:
             async with client.stream(
                 "POST",
                 "/v1/chat/completions",
-                json={
-                    "model": self.manifest["alias"],
-                    "messages": messages,
-                    "max_tokens": self.limits["max_new_tokens"],
-                    "stream": True,
-                },
+                json=self._body(messages),
             ) as response:
                 response.stream = _OwnedHTTPStream(response.stream)
                 if response.status_code != 200:
@@ -297,6 +334,31 @@ class GGUFEndpoint:
         if terminal is None:
             raise ValueError("Native generation ended without DONE")
         yield terminal
+
+    async def measure_prompt(self, messages, lease):
+        self.current(lease, lease.identity)
+        body = self._body(messages)
+        status = None
+        raw = bytearray()
+        async with self.connection(lease) as client:
+            async with client.stream(
+                "POST",
+                "/v1/chat/completions/input_tokens",
+                json=body,
+            ) as response:
+                response.stream = _OwnedHTTPStream(response.stream)
+                _reject_compressed_response(response)
+                status = response.status_code
+                async for chunk in response.aiter_bytes():
+                    if len(raw) + len(chunk) > _MAX_COUNT_BYTES:
+                        raise ValueError("Native prompt count exceeds its bound")
+                    raw.extend(chunk)
+        self.current(lease, lease.identity)
+        if status in (404, 405, 501):
+            return None
+        if status != 200:
+            raise ValueError("Native prompt count request was refused")
+        return _parse_prompt_count(bytes(raw))
 
     async def release_after_stop(self, identity, result):
         async with self.release_lock:
@@ -499,6 +561,36 @@ class GGUFProtocol:
 
     async def stop_legacy(self, manager, identity, lease):
         raise RuntimeError("GGUF requires its registered resource lifecycle")
+
+    def resident(self, coordinator, policy):
+        return coordinator.resident_text(policy)
+
+    async def measure_prompt(self, messages, identity, lease):
+        from packages.providers.prompt_budget import (
+            PromptTokenCount,
+            binding_digest,
+            request_digest,
+        )
+
+        count = await self.endpoint.measure_prompt(messages, lease)
+        if count is None:
+            return None
+        body = self.endpoint._body(messages)
+        binding = {
+            "provider": "managed-gguf",
+            "model": self.endpoint.manifest["model"],
+            "profile": self.endpoint.manifest["profile"],
+            "manifest_sha256": self.manifest_sha256,
+            "context_tokens": self.endpoint.limits["context_tokens"],
+            "max_new_tokens": self.endpoint.limits["max_new_tokens"],
+        }
+        return PromptTokenCount(
+            input_tokens=count,
+            context_tokens=binding["context_tokens"],
+            reserved_output_tokens=binding["max_new_tokens"],
+            request_sha256=request_digest(body),
+            binding_sha256=binding_digest(binding),
+        )
 
     async def stream(self, messages, identity, lease):
         from contextlib import aclosing
