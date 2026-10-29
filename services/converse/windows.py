@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from packages.contracts.models import AppendRequest, SpeechWindow, WindowDecision
 from packages.providers.disclosure import combine_scopes, scope_allowed
 from packages.providers.text import ProviderCleanupError, owned_http_stream_cleanup
+from services.converse.context import dialogue_system_message
 from services.converse.delivery_context import window_context_scoped
 from services.converse.runtime import SpeechChunker
 
@@ -445,7 +446,7 @@ class WindowConverseController:
             self._abandon(prepared)
             return None
         return [
-            {"role": "system", "content": self.runtime.personality},
+            dialogue_system_message(self.runtime.personality),
             *([{"role": "system", "content": delivery}] if delivery is not None else []),
             *context,
             {"role": "user", "content": w.text},

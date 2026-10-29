@@ -19,6 +19,7 @@ from packages.contracts.models import (
 )
 from packages.providers.disclosure import combine_scopes, scope_allowed, source_scope
 from packages.providers.text import ProviderCleanupError, owned_http_stream_cleanup
+from services.converse.context import dialogue_system_message
 from services.converse.history import typed_history_scoped
 from services.converse.intent import ConverseIntent
 
@@ -975,7 +976,7 @@ class ConverseRuntime:
         # must use the same target even if owner configuration changes meanwhile.
         provider = self.provider
         self._check_typed_disclosure(request, provider)
-        messages = [{"role": "system", "content": self.personality}]
+        messages = [dialogue_system_message(self.personality)]
         delivery = [
             e for e in existing if e.kind == "delivery.updated" and e.epoch == request.epoch
         ]
