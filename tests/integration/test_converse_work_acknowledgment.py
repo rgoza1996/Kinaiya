@@ -152,6 +152,21 @@ async def test_native_effect_claim_guard_remains_independent_of_prompt_guidance(
 
 
 @pytest.mark.parametrize("path", ["typed", "window"])
+@pytest.mark.parametrize(
+    "refusal",
+    [
+        "I can't help steal someone's passwords.",
+        "I don't have enough information to answer that.",
+    ],
+)
+async def test_legitimate_refusal_is_preserved_without_forcing_acceptance(env, path, refusal):
+    env.provider.text = refusal
+    replies = await respond(env, path, "Can you help with this?")
+    assert replies[0].payload["text"] == refusal
+    assert not env.store.read(kinds=["agent.command", "agent.outcome", "converse.safety"])
+
+
+@pytest.mark.parametrize("path", ["typed", "window"])
 async def test_custom_personality_is_preserved_with_local_derived_scope(env, path):
     persona = "A private custom character description."
     env.runtime.personality = persona
