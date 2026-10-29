@@ -372,7 +372,10 @@ void main() {
       find.byKey(const ValueKey('converse-input')),
       'Keep this draft',
     );
-    await tester.tap(find.byTooltip('Start Live listen (armed mic)'));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.ensureVisible(find.byKey(const ValueKey('call-kinaiya')));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.byKey(const ValueKey('call-kinaiya')));
     await tester.pump(const Duration(milliseconds: 100));
     expect(audio.arms, 1);
     expect(find.text('End conversation'), findsOneWidget);
@@ -549,6 +552,7 @@ void main() {
       width: 320,
       height: 568,
       textScale: 2,
+      audio: audio,
       memoryFactory: memoryFixture,
     );
     state.converseSession = SessionInfo(
@@ -561,7 +565,10 @@ void main() {
       find.byKey(const ValueKey('converse-input')),
       'Keep this draft',
     );
-    await tester.tap(find.byTooltip('Start Live listen (armed mic)'));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.ensureVisible(find.byKey(const ValueKey('call-kinaiya')));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.byKey(const ValueKey('call-kinaiya')));
     await tester.pump(const Duration(milliseconds: 100));
     expect(audio.arms, 1);
     expect(find.byKey(const ValueKey('voice-options')), findsOneWidget);
@@ -592,6 +599,8 @@ void main() {
     expect(field.controller!.text, 'Keep this draft');
     expect(state.converseDraft, 'Keep this draft');
     expect(audio.armStops, 0);
+    await tester.ensureVisible(find.byKey(const ValueKey('call-kinaiya')));
+    await tester.pump(const Duration(milliseconds: 300));
     await tester.tap(find.text('End conversation'));
     await tester.pump(const Duration(milliseconds: 200));
     expect(audio.armStops, 1);
@@ -622,6 +631,7 @@ void main() {
     expect(find.textContaining('no current Converse session'), findsOneWidget);
     await tester.tap(find.text('CLOSE'));
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('Converse memory'), findsNothing);
     expect(tester.takeException(), isNull);
   });

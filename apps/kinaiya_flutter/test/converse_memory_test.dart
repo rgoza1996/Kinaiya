@@ -52,8 +52,8 @@ Map<String, Object?> _summaryJson({
   'ordinal': ordinal,
   'kind': kind,
   'state': state,
-  'preview': preview,
-  'preview_truncated': truncated,
+  'preview': state == 'forgotten' ? null : preview,
+  'preview_truncated': state == 'forgotten' ? false : truncated,
 };
 
 Map<String, Object?> _nodeJson(
@@ -74,9 +74,11 @@ Map<String, Object?> _nodeJson(
   'source_event_id': 'e-1',
   'source_revision': 1,
   'source_sequence': 1,
-  'prerequisite_ids': const <String>[],
-  'body': body,
-  'fact': null,
+  'prerequisite_ids': kind == 'inference' ? const ['parent'] : const <String>[],
+  'body': state == 'forgotten' ? null : body,
+  'fact': state == 'forgotten' || kind == 'inference'
+      ? null
+      : {'schema_version': '1.0', 'key': 'synthetic:note', 'value': true},
   'state': state,
   'content_scope': 'local_only',
   'provenance': 'owner_curated',
@@ -257,6 +259,7 @@ AppState _memoryState(KinaiyaClient api, MemoryBinding binding) {
     threadId: binding.threadId,
     channel: 'converse',
     epoch: binding.epoch,
+    name: 'Conversation ${binding.sessionId}',
   );
   addTearDown(state.dispose);
   return state;
@@ -279,22 +282,21 @@ Future<void> _openMemory(WidgetTester tester, AppState state) async {
   );
   await tester.tap(find.byKey(const ValueKey('open-memory')));
   await tester.pump();
-  await tester.pump(const Duration(milliseconds: 100));
+  await tester.pumpAndSettle();
 }
 
 Future<void> _settle(WidgetTester tester) async {
-  await tester.pump(const Duration(milliseconds: 100));
+  await tester.pumpAndSettle();
 }
 
 /// Scrolls the dialog content to [finder] before tapping: the dialog body
 /// scrolls at small sizes and large text, so off-screen controls must be
 /// brought into view first.
 Future<void> _tapScroll(WidgetTester tester, Finder finder) async {
-  await tester.scrollUntilVisible(
-    finder,
-    80,
-    scrollable: find.byType(Scrollable).first,
-  );
+  // All bounded rows are built eagerly; ensureVisible follows the target's
+  // actual scroll ancestors, including nested selectable note text.
+  await tester.ensureVisible(finder);
+  await tester.pumpAndSettle();
   await tester.tap(finder);
   await _settle(tester);
 }
@@ -352,7 +354,7 @@ void main() {
     );
     expect(use.onPressed, isNull);
     expect(
-      find.textContaining('Turning saved access off keeps your saved notes'),
+      find.text('Turning access off keeps your notes and prevents their use.'),
       findsWidgets,
     );
     expect(tester.takeException(), isNull);
@@ -367,7 +369,10 @@ void main() {
       ..nsStatus = 'quarantined';
     final state = _memoryState(_memoryClient(script), binding);
     await _openMemory(tester, state);
-    expect(find.textContaining('status quarantined'), findsOneWidget);
+    expect(
+      find.text('Saved notes are quarantined and unavailable for use.'),
+      findsOneWidget,
+    );
     final use = tester.widget<FilledButton>(
       find.byKey(const ValueKey('converse-memory-use')),
     );
@@ -407,16 +412,26 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('signed-out owner sends no requests', (tester) async {
-    final binding = MemoryBinding('s-signedout', 't-signedout', 1);
-    final script = MemoryScript(binding)..seedTwoActive();
-    final state = _memoryState(_memoryClient(script), binding);
-    state.sessionAuthenticated = false;
-    await _openMemory(tester, state);
-    expect(script.paths, isEmpty);
-    expect(find.textContaining('Owner access is needed'), findsOneWidget);
-    expect(tester.takeException(), isNull);
-  });
+  testWidgets(
+    'Session authentication flag does not gate Converse owner reads',
+    (tester) async {
+      final binding = MemoryBinding('s-signedout', 't-signedout', 1);
+      final script = MemoryScript(binding)..seedTwoActive();
+      final state = _memoryState(_memoryClient(script), binding);
+      state.sessionAuthenticated = false;
+      await _openMemory(tester, state);
+      expect(script.paths, contains('/v1/memory/state'));
+      expect(
+        tester
+            .widget<OutlinedButton>(
+              find.byKey(const ValueKey('converse-memory-stop')),
+            )
+            .onPressed,
+        isNotNull,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('inference flags do not gate owner controls', (tester) async {
     final binding = MemoryBinding('s-flags', 't-flags', 1);
@@ -500,11 +515,7 @@ void main() {
     final state = _memoryState(_memoryClient(script), binding);
     await _openMemory(tester, state);
     for (var i = 1; i <= 8; i++) {
-      await tester.scrollUntilVisible(
-        find.byKey(ValueKey('memory-select-a-$i')),
-        80,
-        scrollable: find.byType(Scrollable).first,
-      );
+      await tester.ensureVisible(find.byKey(ValueKey('memory-select-a-$i')));
       await _tapScroll(tester, find.byKey(ValueKey('memory-select-a-$i')));
     }
     expect(find.text('8 of 8 notes selected.'), findsOneWidget);
@@ -523,50 +534,79 @@ void main() {
       find.text('Only active notes can be ticked for use.'),
       findsNWidgets(2),
     );
+    expect(
+      find.byKey(const ValueKey('converse-memory-stop')).hitTestable(),
+      findsOneWidget,
+      reason: 'Stop stays visible while the note list scrolls',
+    );
+    expect(
+      find.byKey(const ValueKey('converse-memory-refresh')).hitTestable(),
+      findsOneWidget,
+      reason: 'Refresh stays visible while the note list scrolls',
+    );
     expect(tester.takeException(), isNull);
   });
 
   testWidgets('inspect shows selectable detail and fences late responses', (
     tester,
   ) async {
-    final binding = MemoryBinding('s-inspect', 't-inspect', 1);
-    final script = MemoryScript(binding)..seedTwoActive();
-    final held = Completer<http.Response>();
-    var inspectCalls = 0;
-    script.behavior['/v1/converse-memory/inspect'] = (body) async {
-      inspectCalls += 1;
-      if (inspectCalls == 1) return held.future;
-      return _ok({
-        'schema_version': '1.0',
-        'state': _nsJson(binding, count: 2),
-        'node': _nodeJson(
-          binding,
-          id: body['node_id']! as String,
-          ordinal: 2,
-          body: 'fresh literal body',
-        ),
-      });
-    };
-    final state = _memoryState(_memoryClient(script), binding);
-    await _openMemory(tester, state);
-    await _tapScroll(tester, find.byKey(const ValueKey('memory-inspect-n-1')));
-    expect(find.text('Loading note detail…'), findsOneWidget);
-    await _tapScroll(tester, find.byKey(const ValueKey('memory-inspect-n-2')));
-    expect(find.textContaining('fresh literal body'), findsOneWidget);
-    expect(find.byType(SelectableText), findsWidgets);
-    expect(find.textContaining('Kind: assertion'), findsWidgets);
-    // The superseded first inspection must not own the detail pane.
-    held.complete(
-      _ok({
-        'schema_version': '1.0',
-        'state': _nsJson(binding, count: 2),
-        'node': _nodeJson(binding, id: 'n-1', ordinal: 1, body: 'stale body'),
-      }),
-    );
-    await _settle(tester);
-    expect(find.textContaining('stale body'), findsNothing);
-    expect(find.textContaining('fresh literal body'), findsOneWidget);
-    expect(tester.takeException(), isNull);
+    final semantics = tester.ensureSemantics();
+    try {
+      final binding = MemoryBinding('s-inspect', 't-inspect', 1);
+      final script = MemoryScript(binding)..seedTwoActive();
+      final held = Completer<http.Response>();
+      var inspectCalls = 0;
+      script.behavior['/v1/converse-memory/inspect'] = (body) async {
+        inspectCalls += 1;
+        if (inspectCalls == 1) return held.future;
+        return _ok({
+          'schema_version': '1.0',
+          'state': _nsJson(binding, count: 2),
+          'node': _nodeJson(
+            binding,
+            id: body['node_id']! as String,
+            ordinal: 2,
+            body: 'fresh literal body',
+          ),
+        });
+      };
+      final state = _memoryState(_memoryClient(script), binding);
+      await _openMemory(tester, state);
+      await _tapScroll(
+        tester,
+        find.byKey(const ValueKey('memory-inspect-n-1')),
+      );
+      expect(find.text('Loading note detail…'), findsOneWidget);
+      await _tapScroll(
+        tester,
+        find.byKey(const ValueKey('memory-inspect-n-2')),
+      );
+      expect(find.textContaining('fresh literal body'), findsOneWidget);
+      expect(find.byType(SelectableText), findsWidgets);
+      expect(
+        tester
+            .getSemantics(
+              find.byKey(const ValueKey('converse-memory-detail-text')),
+            )
+            .label,
+        contains('Text: fresh literal body'),
+      );
+      expect(find.textContaining('Kind: assertion'), findsWidgets);
+      // The superseded first inspection must not own the detail pane.
+      held.complete(
+        _ok({
+          'schema_version': '1.0',
+          'state': _nsJson(binding, count: 2),
+          'node': _nodeJson(binding, id: 'n-1', ordinal: 1, body: 'stale body'),
+        }),
+      );
+      await _settle(tester);
+      expect(find.textContaining('stale body'), findsNothing);
+      expect(find.textContaining('fresh literal body'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    } finally {
+      semantics.dispose();
+    }
   });
 
   testWidgets('explicit use sends observed runtime identity and selection', (
@@ -645,7 +685,7 @@ void main() {
       tester,
       find.byKey(const ValueKey('converse-memory-stop')),
     );
-    expect(find.text('Current use is unknown.'), findsOneWidget);
+    expect(find.textContaining('Current use is unknown.'), findsOneWidget);
     expect(find.textContaining('Another change landed first'), findsWidgets);
     final stop = tester.widget<OutlinedButton>(
       find.byKey(const ValueKey('converse-memory-stop')),
@@ -659,7 +699,10 @@ void main() {
       tester,
       find.byKey(const ValueKey('converse-memory-refresh')),
     );
-    expect(find.textContaining('Use: Off'), findsOneWidget);
+    // A refused Stop did not change the synthetic server. Refresh shows its
+    // actual current On state and never silently resubmits the action.
+    expect(find.textContaining('Use: On'), findsOneWidget);
+    expect(script.paths.where((p) => p == '/v1/memory/use').length, 1);
     expect(tester.takeException(), isNull);
   });
 
@@ -766,10 +809,10 @@ void main() {
     };
     final state = _memoryState(_memoryClient(script), binding);
     await _openMemory(tester, state);
-    await tester.tap(
+    await _tapScroll(
+      tester,
       find.byKey(const ValueKey('converse-memory-namespace-off')),
     );
-    await _settle(tester);
     expect(find.textContaining('may still arrive'), findsWidgets);
     final on = tester.widget<FilledButton>(
       find.byKey(const ValueKey('converse-memory-namespace-on')),
@@ -796,10 +839,10 @@ void main() {
         http.Response('broken', 500);
     final state = _memoryState(_memoryClient(script), binding);
     await _openMemory(tester, state);
-    await tester.tap(
+    await _tapScroll(
+      tester,
       find.byKey(const ValueKey('converse-memory-namespace-off')),
     );
-    await _settle(tester);
     expect(find.textContaining('refused the request'), findsWidgets);
     // The confirmed namespace failure never hides the runtime snapshot.
     expect(find.textContaining('Use: On'), findsOneWidget);
@@ -889,7 +932,13 @@ void main() {
     );
     expect(find.text('0 of 8 notes selected.'), findsOneWidget);
     expect(find.textContaining('restarted'), findsWidgets);
-    expect(find.textContaining('rt-2'), findsOneWidget);
+    expect(find.textContaining('Use: Off'), findsOneWidget);
+    expect(script.paths.where((p) => p == '/v1/memory/use'), isEmpty);
+    await _tapScroll(tester, find.byKey(const ValueKey('memory-select-n-1')));
+    await _tapScroll(tester, find.byKey(const ValueKey('converse-memory-use')));
+    final useIndex = script.paths.indexOf('/v1/memory/use');
+    expect(script.payloads[useIndex]['expected_runtime_id'], 'rt-2');
+    expect(script.payloads[useIndex]['expected_generation'], 0);
     expect(tester.takeException(), isNull);
   });
 
@@ -944,15 +993,12 @@ void main() {
       'converse-memory-namespace-on',
       'converse-memory-namespace-off',
     ]) {
-      await tester.scrollUntilVisible(
-        find.byKey(ValueKey(key)),
-        60,
-        scrollable: find.byType(Scrollable).first,
-      );
+      await tester.ensureVisible(find.byKey(ValueKey(key)));
+      await tester.pumpAndSettle();
     }
     expect(tester.takeException(), isNull);
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-    await tester.pump();
+    await tester.pumpAndSettle();
     expect(find.text('Converse memory'), findsNothing);
     expect(tester.takeException(), isNull);
   });
@@ -965,7 +1011,7 @@ void main() {
       ..useNotice = 'ready';
     final state = _memoryState(_memoryClient(script), binding);
     await _openMemory(tester, state);
-    expect(find.textContaining('Still applying'), findsOneWidget);
+    expect(find.text('Memory work is still pending.'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

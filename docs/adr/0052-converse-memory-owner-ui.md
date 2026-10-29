@@ -111,6 +111,9 @@ latches in owner UI RAM beyond the dialog lifetime, keyed by canonical service
 endpoint and binding (bounded at 32 unresolved scopes, refuse new writes at the
 bound). Closing/reopening or reconnecting to the same host cannot erase a latch.
 No note content, credentials or selections belong in those latch records.
+Each scope also retains at most eight operations; further attempts are refused
+without evicting unresolved work. Operation identity uses object tokens, with no
+unbounded history of counters for already settled scopes.
 
 A namespace latch settles only on known request completion or an observed
 revision strictly greater than that request's expected revision. A runtime
@@ -132,6 +135,9 @@ Namespace no-op off likewise cannot fence a delayed enable; its writes stay
 blocked until the namespace latch settles. No blind retries or automatic
 configure on refresh are allowed. These RAM fences cover the running owner app;
 this slice adds no persisted recovery across an owner application restart.
+Only an accepted current state read establishes a different runtime identity.
+A delayed action acknowledgment can settle its own operation and strictly older
+generations on that same runtime, but cannot retire a newer runtime's latch.
 
 The dialog distinguishes unavailable feature, unauthenticated owner access,
 offline/error and a genuine empty catalog. It shows literal, selectable note

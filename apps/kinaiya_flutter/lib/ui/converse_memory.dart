@@ -4,7 +4,7 @@
 /// controls for the current Converse session/thread/epoch. Opening this
 /// dialog never creates a session, captures a note, configures a service,
 /// recalls context, measures a prompt or invokes inference. Inference flags
-/// never gate these owner controls; owner session authentication is required.
+/// never gate these owner controls; each service enforces owner authentication.
 ///
 /// Lifetime rules enforced here:
 /// - Every asynchronous response and action rechecks the captured client
@@ -43,13 +43,12 @@ const int memoryMaxSelection = 8;
 /// dispatch or late-send cleanup that cannot confirm the outcome).
 class _WriteOp {
   _WriteOp({
-    required this.token,
     required this.expectedRevision,
     required this.expectedRuntimeId,
     required this.expectedGeneration,
   });
 
-  final int token;
+  final Object token = Object();
   bool uncertain = false;
   final int? expectedRevision;
   final String? expectedRuntimeId;
@@ -60,15 +59,17 @@ class _WriteOp {
 /// RAM for the running owner app only; nothing here is persisted.
 final Map<String, List<_WriteOp>> _unresolvedOps = {};
 
-/// Per-scope dispatch counters so old completions cannot clear newer work.
-final Map<String, int> _opTokens = {};
-
 String _canonicalEndpoint(String raw) {
   final uri = Uri.tryParse(raw.trim());
   if (uri == null || !uri.hasScheme || !uri.hasAuthority) return raw.trim();
-  final port = uri.hasPort ? ':${uri.port}' : '';
-  final path = uri.path.replaceAll(RegExp(r'/+$'), '');
-  return '${uri.scheme.toLowerCase()}://${uri.host.toLowerCase()}$port$path';
+  final scheme = uri.scheme.toLowerCase();
+  final defaultPort = scheme == 'https' ? 443 : 80;
+  final port = uri.port == defaultPort ? '' : ':${uri.port}';
+  final host = uri.host.contains(':')
+      ? '[${uri.host.toLowerCase()}]'
+      : uri.host.toLowerCase();
+  final path = uri.normalizePath().path.replaceAll(RegExp(r'/+$'), '');
+  return '$scheme://$host$port$path';
 }
 
 String _scopeKey(String endpoint, MemoryBinding binding) =>
@@ -102,10 +103,8 @@ _WriteOp? _recordOp(
       _unresolvedScopeCount() >= memoryUnresolvedScopeBound) {
     return null;
   }
-  final token = (_opTokens[key] ?? 0) + 1;
-  _opTokens[key] = token;
+  if ((_unresolvedOps[key]?.length ?? 0) >= 8) return null;
   final op = _WriteOp(
-    token: token,
     expectedRevision: expectedRevision,
     expectedRuntimeId: expectedRuntimeId,
     expectedGeneration: expectedGeneration,
@@ -114,7 +113,7 @@ _WriteOp? _recordOp(
   return op;
 }
 
-void _removeOp(String key, int token) {
+void _removeOp(String key, Object token) {
   final ops = _unresolvedOps[key];
   if (ops == null) return;
   ops.removeWhere((op) => op.token == token);
@@ -133,21 +132,24 @@ void _settleNamespaceOps(String key, int observedRevision) {
   if (ops.isEmpty) _unresolvedOps.remove(key);
 }
 
-/// Settles runtime latches on a confirmed different runtime identity or a
-/// strictly advanced generation on the same runtime. Equal refreshes never
-/// settle an uncertain write.
+/// Settles runtime latches on a strictly advanced generation on the same
+/// runtime. Only a current accepted read may establish runtime replacement:
+/// a late acknowledgment from a retired runtime cannot fence newer work.
 void _settleRuntimeOps(
   String key,
   String observedRuntimeId,
-  int observedGeneration,
-) {
+  int observedGeneration, {
+  bool observeRuntimeReplacement = false,
+}) {
   final ops = _unresolvedOps[key];
   if (ops == null) return;
   ops.removeWhere((op) {
     if (op.expectedRuntimeId == null || op.expectedGeneration == null) {
       return false;
     }
-    if (observedRuntimeId != op.expectedRuntimeId) return true;
+    if (observedRuntimeId != op.expectedRuntimeId) {
+      return observeRuntimeReplacement;
+    }
     return observedGeneration > op.expectedGeneration!;
   });
   if (ops.isEmpty) _unresolvedOps.remove(key);
@@ -196,13 +198,13 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
   KinaiyaClient? _client;
   int _generation = 0;
   MemoryBinding? _binding;
-  bool _authed = false;
 
   MemoryNamespaceState? _ns;
   String? _nsError;
   MemoryCatalog? _catalog;
   String? _catalogError;
   MemoryUseState? _use;
+  MemoryUseState? _lastUseForStop;
   String? _useError;
 
   int _readToken = 0;
@@ -242,7 +244,6 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
     final live = widget.state;
     _client = live.client;
     _generation = live.connectionGeneration;
-    _authed = live.sessionAuthenticated;
     final session = live.converseSession;
     MemoryBinding? binding;
     if (session != null) {
@@ -263,7 +264,6 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
     final live = widget.state;
     if (!identical(_client, live.client)) return false;
     if (_generation != live.connectionGeneration) return false;
-    if (_authed != live.sessionAuthenticated) return false;
     final session = live.converseSession;
     if (session == null) return _binding == null;
     if (_binding == null) return false;
@@ -295,11 +295,15 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
 
   void _captureStale() {
     setState(() {
+      _invalidateReads();
+      _nsAction++;
+      _useAction++;
       _ns = null;
       _nsError = null;
       _catalog = null;
       _catalogError = null;
       _use = null;
+      _lastUseForStop = null;
       _useError = null;
       _selected.clear();
       _detail = null;
@@ -317,20 +321,28 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
   }
 
   bool get _ownsScope =>
-      mounted &&
-      _scopeMatches() &&
-      _client != null &&
-      _binding != null &&
-      _authed;
+      mounted && _scopeMatches() && _client != null && _binding != null;
+
+  void _invalidateReads() {
+    _readToken++;
+    _detailToken++;
+    _pendingReads = 0;
+    _detailBusy = false;
+  }
 
   void _refresh() {
+    final lastUse = _ownsScope ? (_use ?? _lastUseForStop) : null;
     _captureScope();
     setState(() {
+      _invalidateReads();
+      _nsAction++;
+      _useAction++;
       _ns = null;
       _nsError = null;
       _catalog = null;
       _catalogError = null;
       _use = null;
+      _lastUseForStop = lastUse;
       _useError = null;
       _selected.clear();
       _detail = null;
@@ -349,8 +361,8 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
   void _loadAll() {
     final client = _client;
     final binding = _binding;
-    if (client == null || binding == null || !_authed) {
-      // No request is sent without an owner-authenticated live scope.
+    if (client == null || binding == null) {
+      // No request is sent without a configured owner client and scope.
       setState(() {
         _pendingReads = 0;
         _refreshRequired = false;
@@ -371,7 +383,7 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
   }
 
   bool _ownsRead(int token) =>
-      mounted && token == _readToken && _scopeMatches() && _authed;
+      mounted && token == _readToken && _scopeMatches();
 
   void _finishRead() {
     _pendingReads = _pendingReads > 0 ? _pendingReads - 1 : 0;
@@ -399,6 +411,7 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
     setState(() {
       _finishRead();
       if (result != null) {
+        if (_ns != null && result.revision < _ns!.revision) return;
         _ns = result;
         _nsError = null;
         _settleNamespaceOps(_namespaceKey, result.revision);
@@ -430,6 +443,11 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
     setState(() {
       _finishRead();
       if (result != null) {
+        if (_ns != null && result.state.revision < _ns!.revision) {
+          _catalogError =
+              'Saved notes changed. Refresh before selecting notes.';
+          return;
+        }
         // A failed catalog never hides a positive runtime snapshot: the two
         // reads apply independently, and Stop stays available from [_use].
         _catalog = result;
@@ -472,16 +490,22 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
     setState(() {
       _finishRead();
       if (result != null) {
-        final previous = _use;
+        final previous = _use ?? _lastUseForStop;
         _use = result;
+        _lastUseForStop = result;
         _useError = null;
-        _settleRuntimeOps(_runtimeKey, result.runtimeId, result.useGeneration);
+        _settleRuntimeOps(
+          _runtimeKey,
+          result.runtimeId,
+          result.useGeneration,
+          observeRuntimeReplacement: true,
+        );
         if (previous != null && previous.runtimeId != result.runtimeId) {
           // A runtime restart clears local selection and starts use off.
           _selected.clear();
           _notice =
-              'The conversation service restarted. Use is off. '
-              'Tick notes again to use them.';
+              'The conversation service restarted or changed. '
+              'Check its current use, then tick notes again to use them.';
         }
       } else {
         _useError = _readProblem(failure!);
@@ -518,7 +542,7 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
   void _inspect(String nodeId) {
     final client = _client;
     final binding = _binding;
-    if (client == null || binding == null || !_authed || !_scopeMatches()) {
+    if (client == null || binding == null || !_scopeMatches()) {
       return;
     }
     final token = ++_detailToken;
@@ -584,14 +608,15 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
     if (op == null) {
       setState(() {
         _notice =
-            'Too many unresolved saved-access scopes. '
-            'Restart the app to clear them, then try again.';
+            'Earlier saved-access requests are still unresolved. '
+            'Refresh to check their current state before changing access.';
       });
       return;
     }
     final revision = snapshot.revision;
     final token = ++_nsAction;
     setState(() {
+      _invalidateReads();
       _nsBusy = true;
       _notice = null;
       _refreshRequired = false;
@@ -623,10 +648,12 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
         _nsBusy = false;
         if (result != null) {
           _ns = result;
+          _catalog = null;
+          _selected.clear();
           _nsError = null;
           _notice = enabled
-              ? 'Saved access is on. This means configured, not ready.'
-              : 'Saved access is off. Your saved notes are kept.';
+              ? 'Saved access is on. Refresh to load the current notes.'
+              : 'Saved access is off. Your saved notes are kept. Refresh to inspect them.';
         } else if (failure!.status == 409) {
           // CAS conflict clears the actionable snapshot: manual refresh
           // is required before any further change.
@@ -652,18 +679,19 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
   void _configureUse({required bool enable}) {
     final client = _client;
     final binding = _binding;
-    final snapshot = _use;
+    final snapshot = enable ? _use : (_use ?? _lastUseForStop);
     if (client == null ||
         binding == null ||
         snapshot == null ||
         !_ownsScope ||
         _useBusy ||
-        _refreshRequired) {
+        (enable && _refreshRequired)) {
       return;
     }
     final runtimeKey = _runtimeKey;
     final namespaceKey = _namespaceKey;
     if (enable) {
+      if (!_canUseSelected) return;
       // A replacement enable stays blocked while either scope is uncertain.
       // Explicit Stop below may still run while runtime use is uncertain.
       if (_scopeHasUnresolved(runtimeKey) ||
@@ -702,8 +730,8 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
     if (op == null) {
       setState(() {
         _notice =
-            'Too many unresolved use scopes. '
-            'Restart the app to clear them, then try again.';
+            'Earlier use requests are still unresolved. '
+            'Refresh to check their current state before changing use.';
       });
       return;
     }
@@ -711,6 +739,7 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
     final generation = snapshot.useGeneration;
     final token = ++_useAction;
     setState(() {
+      _invalidateReads();
       _useBusy = true;
       _notice = null;
       _refreshRequired = false;
@@ -734,8 +763,9 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
       // Settle independently of widget state; an equal-generation off never
       // fences an earlier uncertain enable, and a namespace no-op off never
       // fences a delayed enable either: only a known completion, a
-      // confirmed different runtime, or a strictly advanced generation on
-      // the same runtime settles a runtime latch.
+      // strictly advanced generation on the same runtime settles another
+      // runtime latch. This acknowledgment cannot establish replacement:
+      // it may arrive after a newer runtime's write was already admitted.
       if (failure != null && failure.unconfirmed) {
         op.uncertain = true;
       } else {
@@ -750,6 +780,7 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
         if (result != null) {
           final previous = _use;
           _use = result;
+          _lastUseForStop = result;
           _useError = null;
           if (previous != null && previous.runtimeId != result.runtimeId) {
             _selected.clear();
@@ -761,6 +792,7 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
               : 'Use is off for this conversation.';
         } else if (failure!.status == 409) {
           _use = null;
+          _lastUseForStop = null;
           _useError =
               'Another change landed first. Choose Refresh to see the '
               'current values, then try again if still needed.';
@@ -783,6 +815,11 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
     if (namespace == null ||
         catalog == null ||
         use == null ||
+        _pendingReads > 0 ||
+        namespace.revision != catalog.state.revision ||
+        namespace.enabled != catalog.state.enabled ||
+        namespace.status != catalog.state.status ||
+        namespace.nodeCount != catalog.state.nodeCount ||
         !namespace.enabled ||
         namespace.status != 'ready' ||
         _nsBusy ||
@@ -806,7 +843,7 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
   }
 
   bool get _canStop =>
-      _use != null && !_useBusy && !_refreshRequired && _ownsScope;
+      (_use ?? _lastUseForStop) != null && !_useBusy && _ownsScope;
 
   void _toggleSelected(String nodeId, bool add) {
     if (!_ownsScope) return;
@@ -830,13 +867,34 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
       child: Focus(
         autofocus: true,
         child: AlertDialog(
-          title: const Text('Converse memory'),
+          insetPadding: const EdgeInsets.all(16),
+          title: Row(
+            children: [
+              const Expanded(child: Text('Converse memory')),
+              Tooltip(
+                message: 'Refresh memory',
+                child: TextButton(
+                  key: const ValueKey('converse-memory-refresh'),
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(48, 48),
+                    padding: EdgeInsets.zero,
+                  ),
+                  onPressed: _pendingReads > 0 ? null : _refresh,
+                  child: const Icon(
+                    Icons.refresh_rounded,
+                    semanticLabel: 'Refresh memory',
+                  ),
+                ),
+              ),
+            ],
+          ),
           content: SizedBox(
             width: (size.width - 80).clamp(200.0, 460.0),
             height: (size.height * 0.6).clamp(200.0, 520.0),
             child: SingleChildScrollView(child: _body(context)),
           ),
           actions: <Widget>[
+            _useActions(),
             TextButton(
               key: const ValueKey('converse-memory-close'),
               onPressed: () => Navigator.of(context).pop(),
@@ -851,37 +909,17 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
   Widget _body(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final children = <Widget>[
-      const Text(
-        'Saved notes belong to this Converse conversation only. Opening '
-        'this screen never creates sessions, writes notes, or starts voice.',
-      ),
+      const Text('Choose saved notes to use in this conversation.'),
       const SizedBox(height: 8),
       ..._scopeSection(scheme),
+      if (_pendingReads > 0) const Text('Loading saved notes…'),
       if (_ownsScope) ...[
         ..._namespaceSection(scheme),
-        ..._notesSection(scheme),
         ..._useSection(scheme),
+        ..._notesSection(scheme),
         ..._footerSection(),
       ],
       if (_notice != null) ...[const SizedBox(height: 8), Text(_notice!)],
-      const SizedBox(height: 8),
-      Wrap(
-        spacing: 8,
-        runSpacing: 4,
-        children: [
-          OutlinedButton.icon(
-            key: const ValueKey('converse-memory-refresh'),
-            icon: const Icon(Icons.refresh_rounded),
-            label: const Text('Refresh memory'),
-            onPressed: _pendingReads > 0 ? null : _refresh,
-          ),
-          if (_pendingReads > 0)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 12),
-              child: Text('Loading saved notes…'),
-            ),
-        ],
-      ),
     ];
     return FocusTraversalGroup(
       policy: OrderedTraversalPolicy(),
@@ -904,15 +942,6 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
         ),
       ];
     }
-    if (!_authed) {
-      return const [
-        Text(
-          'Owner access is needed to manage saved notes. Sign in as the '
-          'owner, then choose Refresh memory. Voice and text chat are '
-          'unaffected by this screen.',
-        ),
-      ];
-    }
     if (session == null || binding == null) {
       return const [
         Text(
@@ -924,13 +953,7 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
     }
     return [
       Text(
-        'Conversation ${binding.sessionId}, thread ${binding.threadId}, '
-        'round ${binding.epoch}.',
-      ),
-      const SizedBox(height: 4),
-      Text(
-        'Text-only use and missing inference permission never block this '
-        'screen; only owner sign-in and a current Converse session matter.',
+        session.name.isEmpty ? 'This conversation' : session.name,
         style: TextStyle(color: scheme.onSurfaceVariant),
       ),
     ];
@@ -943,11 +966,7 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
         'Saved note access',
         style: TextStyle(fontWeight: FontWeight.bold, color: scheme.onSurface),
       ),
-      const Text(
-        'Saved access keeps your notes stored for this conversation. '
-        'Turning it off keeps the notes but hides them from use. '
-        'This screen never creates, edits, or deletes notes.',
-      ),
+      const Text('Turning access off keeps your notes and prevents their use.'),
     ];
     if (_nsError != null && _ns == null) {
       return [...header, Text(_nsError!)];
@@ -964,11 +983,11 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
     return [
       ...header,
       Text(
-        'Saved access: ${snapshot.enabled ? 'On' : 'Off'} '
-        '(observed revision ${snapshot.revision}, '
-        'status ${snapshot.status}, '
-        '${snapshot.nodeCount} note${snapshot.nodeCount == 1 ? '' : 's'}).',
+        'Saved access: ${snapshot.enabled ? 'On' : 'Off'} · '
+        '${snapshot.nodeCount} note${snapshot.nodeCount == 1 ? '' : 's'} retained',
       ),
+      if (snapshot.status == 'quarantined')
+        const Text('Saved notes are quarantined and unavailable for use.'),
       if (_nsError != null) Text(_nsError!),
       if (uncertain)
         const Text(
@@ -1020,9 +1039,7 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
         style: TextStyle(fontWeight: FontWeight.bold, color: scheme.onSurface),
       ),
       Text(
-        'Tick up to $memoryMaxSelection active notes to use them. '
-        'Tainted, invalidated, and forgotten notes stay visible but cannot '
-        'be ticked.',
+        'Select up to $memoryMaxSelection active notes.',
         style: TextStyle(color: scheme.onSurfaceVariant),
       ),
     ];
@@ -1111,7 +1128,9 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
                   alignment: Alignment.centerRight,
                   child: TextButton(
                     key: ValueKey('memory-inspect-${entry.nodeId}'),
-                    onPressed: _detailBusy || !_ownsScope
+                    onPressed:
+                        (_detailBusy && _detailFor == entry.nodeId) ||
+                            !_ownsScope
                         ? null
                         : () => _inspect(entry.nodeId),
                     child: const Text('Details'),
@@ -1154,7 +1173,12 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SelectableText(lines.join('\n')),
+          Semantics(
+            key: const ValueKey('converse-memory-detail-text'),
+            label: lines.join('\n'),
+            excludeSemantics: true,
+            child: SelectableText(lines.join('\n')),
+          ),
           Align(
             alignment: Alignment.centerRight,
             child: TextButton(
@@ -1180,15 +1204,10 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
         style: TextStyle(fontWeight: FontWeight.bold, color: scheme.onSurface),
       ),
       const Text(
-        'Use applies the ticked notes to this conversation only. '
-        'Restarting the conversation service turns use off; saved access '
-        'stays as you set it and saved notes are kept.',
+        'Use turns off when Converse restarts. Saved access and notes are kept.',
       ),
     ];
-    if (_useError != null && _use == null) {
-      return [...header, Text(_useError!)];
-    }
-    final snapshot = _use;
+    final snapshot = _use ?? _lastUseForStop;
     if (snapshot == null) {
       return [
         ...header,
@@ -1199,57 +1218,81 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
     final uncertain = _scopeHasUncertain(_runtimeKey);
     return [
       ...header,
+      if (_use == null)
+        const Text(
+          'Current use is unknown. Last observed state is shown; Stop may be refused if it changed.',
+        ),
       Text(
-        'Use: ${snapshot.enabled ? 'On' : 'Off'} '
-        '(runtime ${snapshot.runtimeId}, '
-        'observed change ${snapshot.useGeneration}).',
+        'Use: ${snapshot.enabled ? 'On' : 'Off'} · '
+        '${snapshot.selectorIds.length} '
+        '${snapshot.selectorIds.length == 1 ? 'note' : 'notes'} selected for use',
       ),
-      Text(
-        'Notes in use: ${snapshot.selectorIds.length}'
-        '${snapshot.enabled && snapshot.implementationId != null ? ' · How: ${snapshot.implementationId}' : ''} '
-        '· Service note: ${snapshot.notice}'
-        '${snapshot.pending ? ' · Still applying' : ''}.',
-      ),
-      if (snapshot.pending)
-        const Text('The service is still applying a recent change.'),
+      if (snapshot.notice == 'unavailable')
+        const Text('Memory is currently unavailable.'),
+      if (snapshot.notice == 'context_omitted')
+        const Text('Notes were omitted from the latest response context.'),
+      if (snapshot.pending) const Text('Memory work is still pending.'),
       if (_useError != null) Text(_useError!),
       if (uncertain)
         const Text(
           'A use change may still arrive. Refresh to check what the '
           'service has now. Unchanged values do not prove it failed.',
         ),
-      Wrap(
-        spacing: 8,
-        runSpacing: 4,
-        children: [
-          FilledButton(
-            key: const ValueKey('converse-memory-use'),
-            onPressed: _canUseSelected
-                ? () => _configureUse(enable: true)
-                : null,
+    ];
+  }
+
+  Widget _useActions() {
+    final compact =
+        MediaQuery.sizeOf(context).width <= 400 ||
+        MediaQuery.textScalerOf(context).scale(14) > 21;
+    return Wrap(
+      spacing: 8,
+      runSpacing: 4,
+      children: [
+        FilledButton(
+          key: const ValueKey('converse-memory-use'),
+          style: FilledButton.styleFrom(minimumSize: const Size(48, 48)),
+          onPressed: _canUseSelected ? () => _configureUse(enable: true) : null,
+          child: Semantics(
+            label: 'Use selected notes (${_selected.length})',
+            excludeSemantics: true,
             child: Text(
-              _useBusy ? 'Saving…' : 'Use selected notes (${_selected.length})',
+              _useBusy
+                  ? 'Saving…'
+                  : compact
+                  ? 'Use (${_selected.length})'
+                  : 'Use selected notes (${_selected.length})',
             ),
           ),
-          OutlinedButton(
-            key: const ValueKey('converse-memory-stop'),
-            // Stop needs no selection and stays available while the
-            // namespace catalog is unavailable or use is uncertain, as
-            // long as a current runtime snapshot is known.
-            onPressed: _canStop ? () => _configureUse(enable: false) : null,
-            child: Text(_useBusy ? 'Saving…' : 'Stop using notes'),
+        ),
+        OutlinedButton(
+          key: const ValueKey('converse-memory-stop'),
+          style: OutlinedButton.styleFrom(minimumSize: const Size(48, 48)),
+          // Stop needs no selection and stays available while the
+          // namespace catalog is unavailable or use is uncertain, as
+          // long as a current runtime snapshot is known.
+          onPressed: _canStop ? () => _configureUse(enable: false) : null,
+          child: Semantics(
+            label: 'Stop using notes',
+            excludeSemantics: true,
+            child: Text(
+              _useBusy
+                  ? 'Saving…'
+                  : compact
+                  ? 'Stop'
+                  : 'Stop using notes',
+            ),
           ),
-        ],
-      ),
-    ];
+        ),
+      ],
+    );
   }
 
   List<Widget> _footerSection() => const [
     SizedBox(height: 12),
     Text(
-      '“On” means configured. It is not a promise that notes are ready, '
-      'good, or actually used. Turning saved access off keeps your saved '
-      'notes. Turning use off (or restarting) simply stops using them.',
+      '“On” means configured; a response may still omit notes when they '
+      'cannot be used.',
     ),
   ];
 }

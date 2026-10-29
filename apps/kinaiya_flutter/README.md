@@ -30,6 +30,25 @@ Sentences play in order. Synthesis completion is distinct from the browser's aud
 
 The character stage stays visible after messages arrive, with a current caption and **Conversation history** for complete retained text and delivery notes. **Voice options** contains the existing silence/timing controls; opening it leaves microphone capture and drafts alone. Idle Call/Tell capture is disabled when the adapter reports no microphone, while an active local stop stays reachable when backend readiness changes. The composer follows the selected light/dark surface colors. [Presentation rationale](../../docs/adr/0044-converse-stage-and-voice-options.md) records this focused pass.
 
+## Saved Converse notes (experimental)
+
+**Memory**, beside Voice options, opens the owner dialog for the current
+Converse conversation. It lists existing notes, shows their full text on request,
+and lets the owner select up to eight active notes with **Use selected notes**.
+**Stop using notes** does not stop the conversation or Agent work. Saved access
+and runtime use have separate controls; turning saved access off retains notes,
+and restarting Converse starts runtime use off. Opening the dialog creates no
+session or note and starts no voice or inference request.
+
+This requires the Session host's optional Converse memory feature. An unavailable
+feature or refused owner access is shown separately from an empty note list.
+Configured use does not establish that a local model can count or consume a note
+closure. Failed acknowledgments may remain unconfirmed; refreshing equal values
+does not prove the old request failed, and the app does not replay changes.
+Those uncertainty records stay in RAM beyond the dialog lifetime, with no note
+or use settings saved in appearance storage. Note creation/editing and deletion
+UI, automatic extraction and human recall/latency qualification remain later work.
+
 ## Foreground companion (experimental)
 
 The separate `lib/companion_main.dart` target uses the scoped host protocol from
