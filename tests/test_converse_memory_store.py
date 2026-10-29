@@ -705,3 +705,123 @@ def test_unrelated_forget_receipt_write_failure_rolls_back(host):
         ).fetchone()[0]
         == 0
     )
+
+
+def test_corrupt_fanout_edge_reads_have_cardinality_independent_vm_bound(host):
+    store, memory, first_binding = host
+    configure(memory, first_binding)
+    first = capture(memory, first_binding, source(store, first_binding)).node
+    foreign = store.create_session(SessionRequest())
+    other = dict(session_id=foreign.session_id, thread_id=foreign.thread_id, epoch=foreign.epoch)
+    configure(memory, other)
+    # Direct corruption supplies a foreign namespace with more nodes than any
+    # valid server admission. Only the one-node target namespace is traversed.
+    with store.lock, store.db:
+        store.db.executemany(
+            """INSERT INTO memory_nodes SELECT ?,?,?,?, ?,kind,source_event_id,
+            source_revision,source_sequence,body,fact_key,value_json,state
+            FROM memory_nodes WHERE node_id=?""",
+            [
+                (
+                    f"foreign-{i}",
+                    *[other[k] for k in ("session_id", "thread_id", "epoch")],
+                    i + 1,
+                    first.node_id,
+                )
+                for i in range(16384)
+            ],
+        )
+    observations = []
+    for i, fanout in enumerate((2048, 8192, 16384)):
+        if i == 0:
+            binding, target = first_binding, first
+        else:
+            session = store.create_session(SessionRequest())
+            binding = dict(
+                session_id=session.session_id, thread_id=session.thread_id, epoch=session.epoch
+            )
+            configure(memory, binding)
+            target = capture(memory, binding, source(store, binding)).node
+        with store.lock, store.db:
+            store.db.executemany(
+                "INSERT INTO memory_edges VALUES(?,?)",
+                [(f"foreign-{j}", target.node_id) for j in range(fanout)]
+                + [(target.node_id, f"foreign-{j}") for j in range(fanout)],
+            )
+        queries = []
+        steps = [0]
+
+        def progress(steps=steps):
+            steps[0] += 100
+            return 0
+
+        store.db.set_trace_callback(
+            lambda sql, queries=queries: (
+                queries.append(sql)
+                if sql.lstrip().startswith("SELECT") and "memory_edges e" in sql
+                else None
+            )
+        )
+        store.db.set_progress_handler(progress, 100)
+        try:
+            refused(409, query, memory, binding, seeds=[target.node_id])
+        finally:
+            store.db.set_progress_handler(None, 0)
+            store.db.set_trace_callback(None)
+        reads = [len(store.db.execute(sql).fetchall()) for sql in queries]
+        plans = [[r[3] for r in store.db.execute("EXPLAIN QUERY PLAN " + sql)] for sql in queries]
+        observations.append(dict(fanout=fanout, steps=steps[0], reads=reads, plans=plans))
+        assert state(memory, binding).status == "quarantined"
+    print(json.dumps(observations))
+    costs = [o["steps"] for o in observations]
+    # An outer LIMIT after UNION DISTINCT fails this: all corrupt matches are
+    # materialized before limiting. Two independently bounded index reads do not.
+    assert max(costs) - min(costs) < 5000
+    for observation in observations:
+        assert len(observation["reads"]) == 2
+        assert all(count <= 2049 for count in observation["reads"])
+        for plan in observation["plans"]:
+            assert any("SEARCH n USING INDEX memory_node_namespace" in row for row in plan)
+            assert any("SEARCH e USING COVERING INDEX" in row for row in plan)
+            assert not any("TEMP B-TREE" in row or "SCAN " in row for row in plan)
+
+
+@pytest.mark.parametrize("incoming", [False, True])
+def test_corrupt_edge_identifier_is_bounded_before_fetch(host, incoming):
+    store, memory, binding = host
+    configure(memory, binding)
+    target = capture(memory, binding, source(store, binding)).node
+    foreign = store.create_session(SessionRequest())
+    other = dict(session_id=foreign.session_id, thread_id=foreign.thread_id, epoch=foreign.epoch)
+    configure(memory, other)
+    long_id = "🙂" * 33  # 132UTF8bytes, even though only33characters.
+    with store.lock, store.db:
+        store.db.execute(
+            """INSERT INTO memory_nodes SELECT ?,?,?,?,1,kind,source_event_id,
+        source_revision,source_sequence,body,fact_key,value_json,state FROM memory_nodes
+        WHERE node_id=?""",
+            (long_id, *[other[k] for k in ("session_id", "thread_id", "epoch")], target.node_id),
+        )
+        store.db.execute(
+            "INSERT INTO memory_edges VALUES(?,?)",
+            (long_id, target.node_id) if incoming else (target.node_id, long_id),
+        )
+    queries = []
+    store.db.set_trace_callback(
+        lambda sql: (
+            queries.append(sql)
+            if sql.lstrip().startswith("SELECT") and "memory_edges e" in sql
+            else None
+        )
+    )
+    try:
+        refused(409, query, memory, binding, seeds=[target.node_id])
+    finally:
+        store.db.set_trace_callback(None)
+    returned = [tuple(row) for sql in queries for row in store.db.execute(sql)]
+    assert returned and any(None in row for row in returned)
+    assert all(
+        value is None or (type(value) is str and len(value.encode("utf-8")) <= 128)
+        for row in returned
+        for value in row
+    )

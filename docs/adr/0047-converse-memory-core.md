@@ -98,6 +98,9 @@ corrupt/over-budget graphs with a persisted quarantined state. Disable and forge
 remain available in quarantine; forgetting must erase a conservatively complete
 closure (all namespace content if structure cannot be trusted). Never serve stale
 current claims after discovering a reconciliation failure.
+Each indexed incoming/outgoing edge read has its own 2049-row detection bound
+before a bounded in-memory union. An outer SQL UNION/DISTINCT limit is insufficient:
+it may materialize an unbounded corrupt fanout before limiting returned rows.
 
 Queries select either 1..8 seed IDs or 1..8 exact fact keys, not both. Key selection
 uses eligible nodes. Return the complete eligible ancestor closure, sorted by

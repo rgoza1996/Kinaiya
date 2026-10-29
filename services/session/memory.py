@@ -286,15 +286,36 @@ class MemoryStore:
         nodes = {r["node_id"]: dict(r) for r in rows}
         parents = {key: [] for key in nodes}
         children = {key: [] for key in nodes}
-        edges = self.db.execute(
-            """SELECT e.parent_id,e.child_id FROM memory_edges e
-                JOIN memory_nodes n ON n.node_id=e.child_id
+        # Keep the bounded namespace outermost and limit each indexed direction
+        # before deduplication. UNION DISTINCT would materialize all corrupt
+        # cross-namespace fanout before its result LIMIT took effect.
+        incoming = self.db.execute(
+            """SELECT
+                CASE WHEN typeof(e.parent_id)='text' AND length(CAST(e.parent_id AS BLOB))<=128
+                    THEN e.parent_id END AS parent_id,
+                CASE WHEN typeof(e.child_id)='text' AND length(CAST(e.child_id AS BLOB))<=128
+                    THEN e.child_id END AS child_id
+                FROM memory_nodes n INDEXED BY memory_node_namespace
+                CROSS JOIN memory_edges e INDEXED BY memory_edge_child
                 WHERE n.session_id=? AND n.thread_id=? AND n.epoch=?
-                UNION SELECT e.parent_id,e.child_id FROM memory_edges e
-                JOIN memory_nodes n ON n.node_id=e.parent_id
-                WHERE n.session_id=? AND n.thread_id=? AND n.epoch=? LIMIT 2049""",
-            (*self._where(binding), *self._where(binding)),
+                AND e.child_id=n.node_id LIMIT 2049""",
+            self._where(binding),
         ).fetchall()
+        outgoing = self.db.execute(
+            """SELECT
+                CASE WHEN typeof(e.parent_id)='text' AND length(CAST(e.parent_id AS BLOB))<=128
+                    THEN e.parent_id END AS parent_id,
+                CASE WHEN typeof(e.child_id)='text' AND length(CAST(e.child_id AS BLOB))<=128
+                    THEN e.child_id END AS child_id
+                FROM memory_nodes n INDEXED BY memory_node_namespace
+                CROSS JOIN memory_edges e INDEXED BY sqlite_autoindex_memory_edges_1
+                WHERE n.session_id=? AND n.thread_id=? AND n.epoch=?
+                AND e.parent_id=n.node_id LIMIT 2049""",
+            self._where(binding),
+        ).fetchall()
+        if len(incoming) > 2048 or len(outgoing) > 2048:
+            raise _Corrupt
+        edges = {tuple(row) for row in incoming} | {tuple(row) for row in outgoing}
         if len(edges) > 2048 or [n["ordinal"] for n in nodes.values()] != list(
             range(1, len(nodes) + 1)
         ):
