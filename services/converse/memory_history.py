@@ -38,7 +38,11 @@ def validate_pin(value):
     """Strictly validate a pin value, or return None when it is not usable."""
     try:
         if isinstance(value, MemoryContextPin):
-            pin = value
+            # Models are mutable. Pydantic's instance fast path would trust a
+            # subsequently changed bool/float/tuple as an already validated pin.
+            pin = MemoryContextPin.model_validate(
+                value.model_dump(mode="python", round_trip=True, warnings=False)
+            )
         elif isinstance(value, dict):
             if "schema_version" not in value:
                 return None

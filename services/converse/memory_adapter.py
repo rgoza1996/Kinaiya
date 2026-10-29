@@ -45,8 +45,12 @@ class RecallSnapshot:
     def __init__(
         self, binding: MemoryBinding, pin: MemoryContextPin, message: dict[str, str]
     ) -> None:
-        bound = MemoryBinding.model_validate(binding.model_dump(mode="json"))
-        stamp = MemoryContextPin.model_validate(pin.model_dump(mode="json"))
+        bound = MemoryBinding.model_validate(
+            binding.model_dump(mode="python", round_trip=True, warnings=False)
+        )
+        stamp = MemoryContextPin.model_validate(
+            pin.model_dump(mode="python", round_trip=True, warnings=False)
+        )
         if (
             type(message) is not dict
             or set(message) != {"role", "content"}
@@ -142,17 +146,23 @@ class SessionMemoryAdapter:
             follow_redirects=False,
         )
         self._timeout_s = REQUEST_TIMEOUT_S
+        self._origin = str(self._http.base_url)
+        self._client = self._http
         self._closed = False
         self._close_task = None
 
     async def _post(self, path, payload, limit):
-        if self._closed:
+        if (
+            self._closed
+            or self._http is not self._client
+            or str(self._http.base_url) != self._origin
+        ):
             return None
         raw_request = encode_json(payload, REQUEST_BYTES)
-        http, origin = self._http, str(self._http.base_url)
+        http, origin = self._client, self._origin
         async with asyncio.timeout(self._timeout_s):
             async with http.stream(
-                "POST", path, content=raw_request, timeout=self._timeout_s
+                "POST", origin.rstrip("/") + path, content=raw_request, timeout=self._timeout_s
             ) as response:
                 # Unlike optional generation ownership, this adapter always
                 # retains its response close. The runtime retains this caller.
@@ -180,7 +190,9 @@ class SessionMemoryAdapter:
             ):
                 return None
             implementation_id = self.implementation_id
-            bound = MemoryBinding.model_validate(binding.model_dump(mode="json"))
+            bound = MemoryBinding.model_validate(
+                binding.model_dump(mode="python", round_trip=True, warnings=False)
+            )
             request = MemoryRecallRequest(**bound.model_dump(), seed_ids=list(selector_ids))
             value = await self._post(
                 "/v1/converse-memory/recall", request.model_dump(mode="json"), RECALL_BYTES
@@ -212,6 +224,12 @@ class SessionMemoryAdapter:
     async def validate(self, snapshot: RecallSnapshot) -> bool:
         try:
             binding, pin = snapshot.binding, snapshot.pin
+            binding = MemoryBinding.model_validate(
+                binding.model_dump(mode="python", round_trip=True, warnings=False)
+            )
+            pin = MemoryContextPin.model_validate(
+                pin.model_dump(mode="python", round_trip=True, warnings=False)
+            )
             if pin.implementation_id != self.implementation_id:
                 return False
             implementation_id = self.implementation_id
@@ -238,7 +256,7 @@ class SessionMemoryAdapter:
     async def close(self) -> None:
         self._closed = True
         if self._close_task is None:
-            self._close_task = asyncio.create_task(self._http.aclose())
+            self._close_task = asyncio.create_task(self._client.aclose())
         interrupted = False
         while not self._close_task.done():
             try:

@@ -144,3 +144,32 @@ forget/source correction, reset/replacement, stale counts, held/failed close and
 late append. Preserve original failures; do not claim installed tokenizer support,
 improved human recall/latency, semantic erasure of repeated human facts, physical
 silence or rollback of already dispatched journal/audio effects.
+
+## First-slice operational limits
+
+Enable the Session namespace and curate notes through the existing owner-only
+administration API first. Runtime `use` requires that namespace binding, the
+current expected use_generation, implementation_id and selected node IDs; `state`
+requires only the binding. The owner credential terminates at these controls.
+The scoped Converse credential serves the local Session recall link. A remote
+Session origin leaves this initial adapter unavailable and ordinary journaling
+independent. A compatible injected adapter and trusted Session publication
+validator can implement the same contracts without changing dialogue logic.
+
+The optional count operation requires an already resident compatible local
+provider. This change does not qualify the installed tokenizer or load a model.
+The Session adapter has a five-second logical request deadline. Actual response
+close can outlast that deadline and remains owned; provider count retains its
+existing separate ownership/deadline. A failed or unknown publication remains
+pending and inhibits fresh memory use in that scope until it can be settled or
+Converse restarts. Restart gives a new runtime identity and starts use off; it
+does not establish whether an earlier journal write committed. No automatic
+extraction, background update, cloud disclosure or note selection is introduced.
+
+State describes runtime configuration and retained ownership, not a backend or
+model readiness probe. A configured adapter can still omit a later recall when
+the optional Session backend or native counter is unavailable. Trusted in-process
+adapter replacement disables its selected uses and retains at most32 retired
+clients for owned shutdown; it cannot import an implementation from a request.
+Provider pins include inner provider identity, disclosure metadata and configured
+model/context limits, with checks before counting and after snapshot validation.
