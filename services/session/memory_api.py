@@ -19,6 +19,7 @@ from packages.contracts.memory import (
     MemoryQueryResult,
     MemoryState,
 )
+from packages.contracts.memory_catalog import MemoryCatalogResult
 from packages.contracts.memory_context import (
     MemoryContextValidate,
     MemoryContextValidation,
@@ -158,6 +159,20 @@ def install_memory(app, store, auth):
     @router.post("/forget", response_model=MemoryForgetResult)
     def forget(request: MemoryForget):
         return backend().forget(request)
+
+    class CatalogRoute(MemoryRoute):
+        bridge = True
+
+    def catalog(request: MemoryBinding):
+        return backend().catalog(request)
+
+    router.add_api_route(
+        "/catalog",
+        catalog,
+        methods=["POST"],
+        response_model=MemoryCatalogResult,
+        route_class_override=CatalogRoute,
+    )
 
     app.include_router(router)
 
