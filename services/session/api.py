@@ -9,7 +9,7 @@ from services.common.auth import Auth
 from services.session.store import JournalError, Store
 
 
-def create_app(store: Store, auth: Auth) -> FastAPI:
+def create_app(store: Store, auth: Auth, *, companion_clock=None) -> FastAPI:
     app = FastAPI(title="Kinaiya shared session journal", version="1.0")
     authenticated = Depends(auth.require())
     app.add_middleware(
@@ -204,4 +204,7 @@ def create_app(store: Store, auth: Auth) -> FastAPI:
         except (WebSocketDisconnect, TimeoutError, HTTPException, ValueError):
             await ws.close(code=1008)
 
+    from services.session.companion_api import install_companion
+
+    install_companion(app, store, auth, clock=companion_clock)
     return app

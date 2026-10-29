@@ -1,0 +1,143 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "session_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.:-]+$",
+      "title": "Session Id",
+      "type": "string"
+    },
+    "thread_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.:-]+$",
+      "title": "Thread Id",
+      "type": "string"
+    },
+    "epoch": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Epoch",
+      "type": "integer"
+    },
+    "call_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.:-]+$",
+      "title": "Call Id",
+      "type": "string"
+    },
+    "sequence": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Sequence",
+      "type": "integer"
+    },
+    "device_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.:-]+$",
+      "title": "Device Id",
+      "type": "string"
+    },
+    "title": {
+      "maxLength": 120,
+      "minLength": 1,
+      "title": "Title",
+      "type": "string"
+    },
+    "state": {
+      "enum": [
+        "ringing",
+        "accepted_waiting_media",
+        "declined",
+        "missed",
+        "ended"
+      ],
+      "title": "State",
+      "type": "string"
+    },
+    "revision": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Revision",
+      "type": "integer"
+    },
+    "created_at": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "title": "Created At",
+      "type": "integer"
+    },
+    "ringing_deadline": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "title": "Ringing Deadline",
+      "type": "integer"
+    },
+    "media_deadline": {
+      "anyOf": [
+        {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Media Deadline"
+    },
+    "end_reason": {
+      "anyOf": [
+        {
+          "enum": [
+            "declined",
+            "unanswered",
+            "owner_ended",
+            "device_ended",
+            "media_unavailable",
+            "device_revoked",
+            "device_expired",
+            "session_invalidated"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "End Reason"
+    },
+    "note": {
+      "default": "",
+      "maxLength": 4096,
+      "title": "Note",
+      "type": "string"
+    }
+  },
+  "required": [
+    "session_id",
+    "thread_id",
+    "epoch",
+    "call_id",
+    "sequence",
+    "device_id",
+    "title",
+    "state",
+    "revision",
+    "created_at",
+    "ringing_deadline"
+  ],
+  "title": "CompanionCall",
+  "type": "object"
+}
