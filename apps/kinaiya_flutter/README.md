@@ -28,6 +28,30 @@ Live starts only after a user gesture. Capture continues while transcription and
 
 Sentences play in order. Synthesis completion is distinct from the browser's audio `onended`; delivery records mark playback only after that local event. Interrupted elapsed time is an estimate, not word alignment or proof of physical audibility. Speech controls do not cancel Agent work. Background evidenced Agent results arrive through the authenticated journal and join the speech queue.
 
+## Foreground companion (experimental)
+
+The separate `lib/companion_main.dart` target uses the scoped host protocol from
+#108. Enter the Session host's HTTPS address and an owner-issued one-time pairing
+code. It never requests an owner credential. The device grant stays in memory;
+disconnecting or closing requires a new invitation. Host revocation invalidates
+the old grant independently of this local disconnect.
+
+```sh
+flutter build web --release --no-web-resources-cdn -t lib/companion_main.dart --output build/companion-web
+```
+
+While foregrounded, the companion polls bounded call pages and supports answer,
+decline, end, and literal host notes retained after hangup. `accepted_waiting_media`
+is shown as waiting for voice connection. This target supplies no voice media,
+native projects, push handling or background/locked-screen calling. The host must
+allow the companion's browser origin when testing the web target. Remote HTTP is
+rejected; loopback HTTP is for a client and host on the same machine.
+
+An uncertain action keeps its original revision and idempotency key for retry.
+A superseded receipt triggers a refresh. Revocation clears displayed call data;
+late responses from a prior pairing cannot repopulate the view. Notes are plain
+text, including any markup or URLs they contain, and never become actions.
+
 ## Agent interface
 
 The wide workspace searches and inspects actual tasks. Selecting a task changes the details panel, while new instructions retain the current Agent session. Task state, evidence, revision and approvals come from the backend; the concept's illustrative weather, harness versions and voice-context timeline are not fabricated. [Layout and lifecycle rationale](../../docs/adr/0024-concept-layout.md) records the tested scope.
