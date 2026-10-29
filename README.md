@@ -251,6 +251,13 @@ voice recording/playback and independent Agent Chat. Its [design and browser evi
 describe the tested synthetic voice-to-file flow and Agent operation while Converse
 was unloaded. Native voice and the remaining M5 gates are unfinished.
 
+The owner app's [Settings hub](docs/adr/0053-options-catalog-and-settings-hub.md)
+groups existing connection/privacy, appearance, voice, memory, Agent and MCP
+controls without starting tasks or inference. The [options catalog](docs/options.md)
+separates working controls, host configuration and planned editors. Its stable
+semantics are independent of a future Penpot layout; full provider/settings
+management remains unfinished.
+
 An experimental [Converse memory core](docs/adr/0047-converse-memory-core.md)
 is installed only with `kinaiya serve session --converse-memory` (or the same
 switch on `serve all`). Its owner-only API starts each current Converse namespace

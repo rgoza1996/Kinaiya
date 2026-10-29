@@ -18,6 +18,27 @@ python -m http.server 8780 --bind 127.0.0.1 --directory build/web
 
 Start the configured Python services separately. Export an owner-only credential with `kinaiya --data-dir data owner-login`; Connection setup can load that private file without copying other service credentials into the browser. Credentials remain in memory and never enter URLs, chat, logs or browser storage. Select an inference-disclosure policy matching the actual backend. A local-only selection blocks sending text/audio when the backend reports cloud inference; pressing Enter follows the same rule as Send. Contributor development profiles accept public or synthetic content only.
 
+## Settings and design handoff
+
+**Settings** opens a searchable hub for service connection/privacy, appearance,
+voice options, saved Converse notes, Agent controls and MCP connections. It
+reuses the existing editors and preserves both mounted conversation panes.
+Opening, searching or closing the hub starts no connection, capture, task or
+inference request. Unavailable destinations explain what is missing. Agent
+controls fill a command draft; selection does not send it.
+
+The [full options catalog](../../docs/options.md) records working, host-only and
+planned controls separately, including their scope, defaults and native owner.
+It is independent of screen composition so the later Penpot design can supply
+the visual style, with additional matching sections for omitted advanced options.
+Provider choice, disclosure consent, permissions, isolation and cost limits
+remain separate controls.
+
+Build information in Settings uses optional
+`--dart-define=KINAIYA_BUILD_LABEL=...` and
+`--dart-define=KINAIYA_BUILD_REVISION=...` values. Without them it says
+**Development build**; a label alone does not establish verification.
+
 ## Voice behavior
 
 Converse uses the moonlit concept in `assets/UIUX Concept`; Agent Chat uses the navy workspace concept. The desktop rail becomes bottom navigation on narrow or enlarged-text layouts. Both views remain mounted, preserving their independent drafts, sessions and active voice capture while navigating. A global activity strip keeps microphone/speech controls reachable from Agent Chat. Changing views never starts capture.
