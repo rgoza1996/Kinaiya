@@ -557,5 +557,11 @@ class KinaiyaClient {
     return null;
   }
 
-  void close() => _http.close();
+  void close() {
+    try {
+      _http.close();
+    } finally {
+      unawaited(memory.close());
+    }
+  }
 }

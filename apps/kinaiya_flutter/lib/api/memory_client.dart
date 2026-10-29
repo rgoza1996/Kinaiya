@@ -32,6 +32,21 @@ class MemoryApi {
   final http.Client Function() _factory;
   final Duration requestTimeout;
   final Duration cleanupTimeout;
+  final Set<_OwnedRequest> _owners = {};
+  bool _closed = false;
+  Future<void>? _closing;
+
+  /// Abort only this API's transports. Every client is closed synchronously
+  /// before the bounded asynchronous drains; uncertain owners remain retained.
+  Future<void> close() {
+    _closed = true;
+    return _closing ??= Future.wait(
+      List<_OwnedRequest>.of(_owners).map((owner) async {
+        await owner.close();
+        if (owner.settled) _owners.remove(owner);
+      }),
+    ).then((_) {});
+  }
 
   Future<MemoryNamespaceState> state(MemoryBinding binding) => _request(
     sessionBase,
@@ -59,6 +74,7 @@ class MemoryApi {
       MemoryNamespaceState.fromJson,
       (v) => v.binding,
       write: true,
+      valid: (v) => v.enabled == enabled && v.revision >= expectedRevision,
     );
   }
 
@@ -127,7 +143,19 @@ class MemoryApi {
       MemoryUseState.fromJson,
       (v) => v.binding,
       write: true,
-      valid: (v) => v.runtimeId == expectedRuntimeId,
+      valid: (v) =>
+          v.runtimeId == expectedRuntimeId &&
+          v.enabled == enabled &&
+          (enabled
+              ? v.useGeneration > expectedGeneration
+              : v.useGeneration >= expectedGeneration) &&
+          (!enabled ||
+              (v.implementationId == 'korina-dag-v1' &&
+                  v.selectorIds.length == selected.length &&
+                  List.generate(
+                    selected.length,
+                    (i) => v.selectorIds[i] == selected[i],
+                  ).every((v) => v))),
     );
   }
 
@@ -155,6 +183,9 @@ class MemoryApi {
     bool write = false,
     bool Function(T)? valid,
   }) async {
+    if (_closed || _owners.length >= 8) {
+      throw const MemoryFailure('Memory transport is unavailable');
+    }
     final trimmed = base.trim();
     if (trimmed.length > 4096 ||
         ConnectionProfile.validateServiceUrl(trimmed) != null ||
@@ -183,7 +214,12 @@ class MemoryApi {
     T? result;
     MemoryFailure? failure;
     try {
-      owner = _OwnedRequest(_factory(), cleanupTimeout);
+      final owned = _OwnedRequest(_factory(), cleanupTimeout);
+      owner = owned;
+      _owners.add(owned);
+      owned.onSettled = () {
+        if (owned.settled) _owners.remove(owned);
+      };
       final raw = await owner.read(request).timeout(requestTimeout);
       final decoded = decode(_JsonReader(raw).read());
       result = decoded;
@@ -194,8 +230,7 @@ class MemoryApi {
       failure = MemoryFailure(
         'Memory request was refused',
         status: e.status,
-        unconfirmed:
-            write && (e.status >= 500 || (e.status >= 300 && e.status < 400)),
+        unconfirmed: write && (e.status < 400 || e.status >= 500),
       );
     } on TimeoutException {
       failure = MemoryFailure(
@@ -213,11 +248,14 @@ class MemoryApi {
         unconfirmed: write && (owner?.dispatched ?? false),
       );
     } finally {
-      if (owner != null && !await owner.close()) {
-        failure = MemoryFailure(
-          'Memory transport cleanup is unconfirmed',
-          unconfirmed: write && owner.dispatched,
-        );
+      if (owner != null) {
+        if (!await owner.close()) {
+          failure = MemoryFailure(
+            'Memory transport cleanup is unconfirmed',
+            unconfirmed: write && owner.dispatched,
+          );
+        }
+        if (owner.settled) _owners.remove(owner);
       }
     }
     if (failure != null) throw failure;
@@ -236,52 +274,81 @@ class _OwnedRequest {
   final Duration cleanupTimeout;
   StreamIterator<List<int>>? _reader;
   Future<void>? _cancel;
+  Future<bool>? _closing;
+  void Function()? onSettled;
   bool _closed = false;
+  bool _finished = false;
+  bool _cleanupOk = false;
   bool dispatched = false;
+  bool get settled => _finished && _cleanupOk;
+
   Future<List<int>> read(http.Request request) async {
-    dispatched = true; // Transport admission, not proof of native effects.
-    final response = await client.send(request);
-    _reader = StreamIterator(response.stream);
-    if (_closed) {
-      await _cancelReader().timeout(cleanupTimeout);
-      throw const MemoryFailure('Memory request ended');
-    }
-    if (response.statusCode != 200) throw _StatusFailure(response.statusCode);
-    if (response.headers['content-type']
-                ?.split(';')
-                .first
-                .trim()
-                .toLowerCase() !=
-            'application/json' ||
-        !{'', 'identity'}.contains(
-          (response.headers['content-encoding'] ?? '').trim().toLowerCase(),
-        ) ||
-        (response.contentLength != null &&
-            response.contentLength! > 256 * 1024)) {
-      throw const FormatException('Invalid memory response');
-    }
-    final bytes = <int>[];
-    while (await _reader!.moveNext()) {
-      if (_closed) throw const MemoryFailure('Memory request ended');
-      final chunk = _reader!.current;
-      if (bytes.length + chunk.length > 256 * 1024) {
+    try {
+      dispatched = true; // Transport admission, not proof of native effects.
+      final response = await client.send(request);
+      _reader = StreamIterator(response.stream);
+      // StreamIterator is lazy. Begin its sole subscription BEFORE any early
+      // refusal so cancellation owns the actual response, including late sends.
+      final first = _reader!.moveNext();
+      unawaited(
+        first.then<void>((_) {}, onError: (Object _, StackTrace __) {}),
+      );
+      if (_closed) {
+        try {
+          await _cancelReader().timeout(cleanupTimeout);
+        } catch (_) {
+          _cleanupOk = false;
+          rethrow;
+        }
+        throw const MemoryFailure('Memory request ended');
+      }
+      if (response.statusCode != 200) throw _StatusFailure(response.statusCode);
+      if (response.headers['content-type']
+                  ?.split(';')
+                  .first
+                  .trim()
+                  .toLowerCase() !=
+              'application/json' ||
+          !{'', 'identity'}.contains(
+            (response.headers['content-encoding'] ?? '').trim().toLowerCase(),
+          ) ||
+          (response.contentLength != null &&
+              response.contentLength! > 256 * 1024)) {
         throw const FormatException('Invalid memory response');
       }
-      bytes.addAll(chunk);
+      final bytes = <int>[];
+      var more = await first;
+      while (more) {
+        if (_closed) throw const MemoryFailure('Memory request ended');
+        final chunk = _reader!.current;
+        if (bytes.length + chunk.length > 256 * 1024) {
+          throw const FormatException('Invalid memory response');
+        }
+        bytes.addAll(chunk);
+        more = await _reader!.moveNext();
+      }
+      if (response.contentLength != null &&
+          response.contentLength != bytes.length) {
+        throw const FormatException('Invalid memory response');
+      }
+      return bytes;
+    } finally {
+      _finished = true;
+      onSettled?.call();
     }
-    if (response.contentLength != null &&
-        response.contentLength != bytes.length) {
-      throw const FormatException('Invalid memory response');
-    }
-    return bytes;
   }
 
-  Future<void> _cancelReader() =>
-      _cancel ??= _reader?.cancel() ?? Future<void>.value();
-  Future<bool> close() async {
+  Future<void> _cancelReader() {
+    final reader = _reader;
+    // No empty memoized future: a timed-out send can still deliver a response.
+    if (reader == null) return Future<void>.value();
+    return _cancel ??= reader.cancel();
+  }
+
+  Future<bool> close() => _closing ??= _close();
+  Future<bool> _close() async {
     _closed = true;
     var ok = true;
-    // Close real HTTP first even if a custom stream cancellation stalls.
     try {
       client.close();
     } catch (_) {
@@ -292,6 +359,8 @@ class _OwnedRequest {
     } catch (_) {
       ok = false;
     }
+    _cleanupOk = ok;
+    onSettled?.call();
     return ok;
   }
 }
