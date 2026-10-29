@@ -294,7 +294,7 @@ class GGUFEndpoint:
     def _body(self, messages):
         return {
             "model": self.manifest["alias"],
-            "messages": messages,
+            "messages": [dict(row) for row in messages],
             "max_tokens": self.limits["max_new_tokens"],
             "stream": True,
         }
@@ -565,18 +565,8 @@ class GGUFProtocol:
     def resident(self, coordinator, policy):
         return coordinator.resident_text(policy)
 
-    async def measure_prompt(self, messages, identity, lease):
-        from packages.providers.prompt_budget import (
-            PromptTokenCount,
-            binding_digest,
-            request_digest,
-        )
-
-        count = await self.endpoint.measure_prompt(messages, lease)
-        if count is None:
-            return None
-        body = self.endpoint._body(messages)
-        binding = {
+    def _measurement_binding(self):
+        return {
             "provider": "managed-gguf",
             "model": self.endpoint.manifest["model"],
             "profile": self.endpoint.manifest["profile"],
@@ -584,12 +574,35 @@ class GGUFProtocol:
             "context_tokens": self.endpoint.limits["context_tokens"],
             "max_new_tokens": self.endpoint.limits["max_new_tokens"],
         }
+
+    async def measure_prompt(self, messages, identity, lease):
+        from packages.providers.prompt_budget import (
+            PromptTokenCount,
+            binding_digest,
+            request_digest,
+        )
+
+        endpoint = self.endpoint
+        body, binding = endpoint._body(messages), self._measurement_binding()
+        request_sha256, binding_sha256 = request_digest(body), binding_digest(binding)
+        # Preserve the exact request before dispatch. HTTP close may await long
+        # enough for the caller or a replacement configuration to change.
+        count = await endpoint.measure_prompt(body["messages"], lease)
+        if (
+            self.endpoint is not endpoint
+            or endpoint._body(messages) != body
+            or self._measurement_binding() != binding
+        ):
+            raise ValueError("Native prompt measurement binding changed")
+        self.current(lease, identity)
+        if count is None:
+            return None
         return PromptTokenCount(
             input_tokens=count,
             context_tokens=binding["context_tokens"],
             reserved_output_tokens=binding["max_new_tokens"],
-            request_sha256=request_digest(body),
-            binding_sha256=binding_digest(binding),
+            request_sha256=request_sha256,
+            binding_sha256=binding_sha256,
         )
 
     async def stream(self, messages, identity, lease):

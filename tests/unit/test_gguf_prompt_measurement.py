@@ -480,6 +480,37 @@ async def test_protocol_overbudget_count_reports_unfit(protocol, endpoint, monke
     assert result.fits is False
 
 
+@pytest.mark.parametrize("mutation", ["messages", "limits", "alias", "manifest_pin"])
+async def test_protocol_refuses_changed_snapshot_after_native_close(
+    protocol, endpoint, monkeypatch, mutation
+):
+    lease = retain(endpoint)
+    messages = [{"role": "user", "content": "Original public request"}]
+    body = Body(count_body(17), hold_close=True)
+    transports, requests = install_http(monkeypatch, body)
+    task = asyncio.create_task(protocol.measure_prompt(messages, lease.identity, lease))
+    try:
+        await body.closing.wait()
+        sent = json.loads(requests[0].content)
+        assert sent["messages"] == messages
+        if mutation == "messages":
+            messages[0]["content"] = "Different public request, not measured"
+        elif mutation == "limits":
+            endpoint.limits.update(context_tokens=4096, max_new_tokens=256)
+        elif mutation == "alias":
+            endpoint.manifest["alias"] = "replacement"
+        else:
+            protocol.manifest_sha256 = "c" * 64
+        body.release_close.set()
+        with pytest.raises(ValueError, match="binding changed"):
+            await task
+        assert body.closed and transports[0].closed and not endpoint.exchanges
+        assert len(requests) == 1
+    finally:
+        body.release_close.set()
+        await asyncio.gather(task, return_exceptions=True)
+
+
 async def test_protocol_unsupported_stays_none(protocol, endpoint, monkeypatch):
     lease = retain(endpoint)
     body = Body(b"gone", hold_close=False)

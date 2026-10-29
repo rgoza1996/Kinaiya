@@ -36,6 +36,9 @@ the alias is already in the request digest. The provider validates both hashes
 and both limits against its captured request/configuration after actual close.
 Wire JSON is bounded to 4096 bytes, strict UTF-8, no duplicate/nonfinite fields,
 exact keys and types. Errors expose no input, raw backend errors or paths.
+Capture a detached request, protected binding and both digests before native
+dispatch. Recheck the caller's input and selected configuration after real close;
+refuse changes instead of relabelling an old count with a reconstructed request.
 
 The client uses a logical timeout of min(configured native deadline, 10 seconds)
 plus five seconds of transport grace. Normal responses close before validation

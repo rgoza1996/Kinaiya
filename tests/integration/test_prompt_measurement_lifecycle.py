@@ -344,3 +344,133 @@ async def test_authenticated_http_result_is_bounded_versioned_and_no_store(host,
     assert result["request_sha256"] == request_digest(BODY)
     assert result["binding_sha256"] == binding_digest(BINDING)
     assert host.manager.starts == host.manager.stops == []
+
+
+async def test_production_provider_wrapper_and_asgi_broker_share_exact_count_binding(host):
+    from packages.providers.gguf import ManagedGGUFProvider
+    from services.resources.providers import ResourceBoundProvider
+
+    app = create_app(host.coordinator, Auth(TOKENS), gguf=host.broker)
+    provider = ManagedGGUFProvider(
+        BINDING["resources_url"],
+        TOKENS["converse"],
+        model=BINDING["model"],
+        alias=BODY["model"],
+        profile=BINDING["profile"],
+        manifest_sha256=BINDING["manifest_sha256"],
+        context_tokens=BINDING["context_tokens"],
+        max_new_tokens=BINDING["max_new_tokens"],
+        transport=httpx.ASGITransport(app),
+    )
+    selected = ResourceBoundProvider(provider, host.coordinator.state.path, "converse")
+    try:
+        result = await selected.measure_prompt(MESSAGES)
+        assert result.fits and result.input_tokens == 1920
+        assert result.request_sha256 == request_digest(BODY)
+        assert result.binding_sha256 == binding_digest(BINDING)
+        assert host.protocol.calls == [MESSAGES]
+        assert host.broker.operation is None
+        assert host.manager.starts == host.manager.stops == []
+    finally:
+        await provider.close()
+
+
+@pytest.mark.parametrize("count", [1920, 1921, None])
+async def test_complete_managed_count_path_with_synthetic_native_http(
+    host, tmp_path, monkeypatch, count
+):
+    from packages.providers.gguf import ManagedGGUFProvider
+    from packages.providers.prompt_budget import PromptCountUnavailable
+    from services.resources import gguf
+    from services.resources.providers import ResourceBoundProvider
+
+    identity = host.manager.owned_identity("gguf")
+    directory = tmp_path / "native"
+    directory.mkdir(mode=0o700)
+    (directory / "ipc").mkdir(mode=0o700)
+    native = gguf.GGUFEndpoint(
+        directory,
+        {
+            "alias": BODY["model"],
+            "model": BINDING["model"],
+            "profile": BINDING["profile"],
+            "assets": [{"guest": "/runtime/llama-server", "bytes": 12, "sha256": "a" * 64}],
+        },
+    )
+
+    class BorrowedLease:
+        # Synthetic identity only: no descriptor, socket or process is acquired.
+        socket_path = native.ipc / "model.sock"
+
+        def bind(self, selected):
+            self.current(selected)
+            return self
+
+        def current(self, selected):
+            assert selected is identity and host.manager.is_current(identity)
+
+    lease = BorrowedLease()
+    lease.identity = identity
+    native.ready = lease
+    requests, streams, transports = [], [], []
+
+    class Body(httpx.AsyncByteStream):
+        closed = False
+
+        async def __aiter__(self):
+            yield json.dumps({"input_tokens": count, "object": "response.input_tokens"}).encode()
+
+        async def aclose(self):
+            self.closed = True
+
+    class Transport(httpx.AsyncBaseTransport):
+        cleanup_pending = False
+        closed = False
+
+        def __init__(self, *args):
+            transports.append(self)
+
+        async def handle_async_request(self, request):
+            requests.append(request)
+            stream = Body()
+            streams.append(stream)
+            return httpx.Response(404 if count is None else 200, stream=stream)
+
+        async def aclose(self):
+            self.closed = True
+
+    monkeypatch.setattr(gguf, "OwnedUnixTransport", Transport)
+    old_protocol, old_endpoint = host.broker.protocol, host.broker.endpoint
+    host.broker.protocol = gguf.GGUFProtocol(native, BINDING["manifest_sha256"])
+    host.broker.endpoint = native
+    app = create_app(host.coordinator, Auth(TOKENS), gguf=host.broker)
+    provider = ManagedGGUFProvider(
+        BINDING["resources_url"],
+        TOKENS["converse"],
+        model=BINDING["model"],
+        alias=BODY["model"],
+        profile=BINDING["profile"],
+        manifest_sha256=BINDING["manifest_sha256"],
+        transport=httpx.ASGITransport(app),
+    )
+    selected = ResourceBoundProvider(provider, host.coordinator.state.path, "converse")
+    try:
+        if count is None:
+            with pytest.raises(PromptCountUnavailable):
+                await selected.measure_prompt(MESSAGES)
+        else:
+            result = await selected.measure_prompt(MESSAGES)
+            assert result.input_tokens == count and result.fits is (count == 1920)
+            assert result.request_sha256 == request_digest(BODY)
+            assert result.binding_sha256 == binding_digest(BINDING)
+        assert len(requests) == 1 and requests[0].url.path == PATH
+        assert json.loads(requests[0].content) == BODY
+        assert streams[0].closed and transports[0].closed and not native.exchanges
+        assert host.broker.operation is None
+        assert host.manager.owned_identity("gguf") is identity
+        assert host.manager.starts == host.manager.stops == []
+    finally:
+        await provider.close()
+        host.broker.protocol, host.broker.endpoint = old_protocol, old_endpoint
+        native.ready = None  # Borrowed fixture identity owns no real handles.
+        native.close()
