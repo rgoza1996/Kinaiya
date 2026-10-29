@@ -12,7 +12,7 @@ from packages.contracts.models import (
     SteerRequest,
     TaskRequest,
 )
-from packages.providers.disclosure import entry_allowed
+from packages.providers.disclosure import combine_scopes, entry_allowed, source_scope
 from packages.providers.text import ProviderRefusal
 
 
@@ -23,7 +23,7 @@ class ModelClassifier:
 
     async def classify(self, source, context, tasks):
         if not entry_allowed(self.provider.info, source):
-            raise ValueError("Source disclosure does not permit this classifier")
+            raise ProviderRefusal("Source disclosure does not permit this classifier")
         instructions = (
             "Classify the latest conversation entry for an independent worker. Return ONLY JSON: "
             '{"route":"ignore|queue|steer|interrupt","target_task_id":null, '
@@ -98,6 +98,30 @@ class DecisionsWorker:
         self.last_error = None
         self.running = False
 
+    async def _scoped_source(self, entry):
+        if entry.kind not in {"conversation.user", "conversation.revision"}:
+            return entry
+        source_id = (
+            entry.payload.get("target_event_id")
+            if entry.kind == "conversation.revision"
+            else entry.event_id
+        )
+        floor = (
+            await source_scope(self.journal, source_id)
+            if isinstance(source_id, str)
+            else "local_only"
+        )
+        return entry.model_copy(
+            update={
+                "payload": {
+                    **entry.payload,
+                    "content_scope": combine_scopes(
+                        entry.payload.get("content_scope", "local_only"), floor
+                    ),
+                }
+            }
+        )
+
     async def process(self, source):
         session = await self.journal.session(source.session_id)
         if source.epoch != session.epoch or session.channel != "converse":
@@ -139,6 +163,7 @@ class DecisionsWorker:
                 for e in recent
                 if e.sequence < source.sequence
                 and e.epoch == source.epoch
+                and e.thread_id == source.thread_id
                 and e.kind in {"conversation.user", "conversation.converse"}
             ]
             context = context[-self.window_turns :]
@@ -156,7 +181,11 @@ class DecisionsWorker:
                 result = {"route": "ignore", "reason_code": "assistant_has_no_user_authority"}
             else:
                 try:
-                    result = await self.classifier.classify(source, context, tasks)
+                    result = await self.classifier.classify(
+                        await self._scoped_source(source),
+                        [await self._scoped_source(entry) for entry in context],
+                        tasks,
+                    )
                 except ProviderRefusal as exc:
                     # A truncated or invalid result is not an ignore decision.
                     # Persist the refusal before advancing this consumer so an
@@ -248,6 +277,7 @@ class DecisionsWorker:
                     thread_id=source.thread_id,
                     epoch=source.epoch,
                     objective=decision.instruction,
+                    content_scope=combine_scopes(source.payload.get("content_scope", "local_only")),
                     idempotency_key=decision.idempotency_key,
                     source_event_ids=decision.source_event_ids,
                     source_revision=decision.source_revision,
@@ -259,6 +289,7 @@ class DecisionsWorker:
                 decision.target_task_id,
                 SteerRequest(
                     instruction=decision.instruction,
+                    content_scope=combine_scopes(source.payload.get("content_scope", "local_only")),
                     expected_objective_revision=decision.expected_objective_revision,
                     idempotency_key=decision.idempotency_key,
                     source_event_ids=decision.source_event_ids,

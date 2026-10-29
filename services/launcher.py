@@ -585,6 +585,7 @@ async def direct_agent(args):
                     "schema_version": "1.0",
                     **{k: session[k] for k in ("session_id", "thread_id", "epoch")},
                     "input": args.objective,
+                    "content_scope": getattr(args, "content_scope", "local_only"),
                     "idempotency_key": new_id(),
                 },
             )
@@ -598,6 +599,7 @@ async def direct_agent(args):
             thread_id=session["thread_id"],
             epoch=session["epoch"],
             objective=objective,
+            content_scope=getattr(args, "content_scope", "local_only"),
             idempotency_key=new_id(),
         )
         response = await http.post(
@@ -627,6 +629,12 @@ def main():
     parser.add_argument("--data-dir", type=Path, default=Path("data"))
     parser.add_argument("--config", type=Path)
     parser.add_argument("--workspace", type=Path, default=Path("workspace"))
+    parser.add_argument(
+        "--content-scope",
+        choices=("local_only", "public_synthetic", "private_cloud_authorized"),
+        default="local_only",
+        help="Disclosure grant for this Agent input; defaults to local-only",
+    )
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("init")
     login = commands.add_parser("owner-login", help="Export an owner-only browser credential file")
