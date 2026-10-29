@@ -252,32 +252,27 @@ void main() {
   testWidgets('about shows literal build info with odd punctuation', (
     tester,
   ) async {
-    const label = 'v "1.0" <beta> & \'quoted\' \u2014 \u2713 synthetic';
-    const revision = 'rev#1/extra:;{}[]\\!@\$%^&*()';
-    await _openHub(
-      tester,
-      buildInfo: const SettingsBuildInfo(label: label, revision: revision),
-    );
-    addTearDown(() => _closeHarness(tester));
-    await tester.ensureVisible(find.text(label));
-    await tester.pumpAndSettle();
-    expect(find.text(label), findsOneWidget);
-    expect(find.text(revision), findsOneWidget);
-    expect(find.widgetWithText(SelectableText, label), findsOneWidget);
-    expect(find.widgetWithText(SelectableText, revision), findsOneWidget);
-    expect(
-      tester
-          .widget<SelectableText>(find.widgetWithText(SelectableText, label))
-          .semanticsLabel,
-      label,
-    );
-    expect(
-      tester
-          .widget<SelectableText>(find.widgetWithText(SelectableText, revision))
-          .semanticsLabel,
-      revision,
-    );
-    expect(find.text('About'), findsOneWidget);
+    final semantics = tester.ensureSemantics();
+    try {
+      const label = 'v "1.0" <beta> & \'quoted\' \u2014 \u2713 synthetic';
+      const revision = 'rev#1/extra:;{}[]\\!@\$%^&*()';
+      await _openHub(
+        tester,
+        buildInfo: const SettingsBuildInfo(label: label, revision: revision),
+      );
+      addTearDown(() => _closeHarness(tester));
+      await tester.ensureVisible(find.text(label));
+      await tester.pumpAndSettle();
+      expect(find.text(label), findsOneWidget);
+      expect(find.text(revision), findsOneWidget);
+      expect(find.widgetWithText(SelectableText, label), findsOneWidget);
+      expect(find.widgetWithText(SelectableText, revision), findsOneWidget);
+      expect(find.bySemanticsLabel(label), findsOneWidget);
+      expect(find.bySemanticsLabel(revision), findsOneWidget);
+      expect(find.text('About'), findsOneWidget);
+    } finally {
+      semantics.dispose();
+    }
   });
 
   testWidgets('default build info says Development build', (tester) async {
