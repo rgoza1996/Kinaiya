@@ -195,7 +195,12 @@ class Registry:
                 (request.session_id, request.idempotency_key),
             ).fetchone()
             if row:
-                if row[0] != digest:
+                legacy_digest = hashlib.sha256(
+                    request.model_dump_json(exclude={"content_scope"}).encode()
+                ).hexdigest()
+                if row[0] != digest and not (
+                    request.content_scope == "local_only" and row[0] == legacy_digest
+                ):
                     raise ValueError("Command idempotency key conflicts with earlier input")
                 return (
                     json.loads(row[1])
@@ -277,6 +282,9 @@ class Registry:
                         "actor": "owner",
                         "input": request.input,
                         "response": journal_response,
+                        # Controls can inspect older/private task state. A new
+                        # grant for the command text cannot relabel that state.
+                        "content_scope": "local_only",
                     },
                 )
             )
@@ -422,6 +430,7 @@ class Registry:
                 epoch=request.epoch,
                 objective=" ".join(args)
                 or "Follow the selected skill's procedure within current permissions.",
+                content_scope=request.content_scope,
                 idempotency_key="skill-command:"
                 + hashlib.sha256(request.idempotency_key.encode()).hexdigest(),
             ),

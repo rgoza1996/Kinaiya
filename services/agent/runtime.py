@@ -48,7 +48,7 @@ from packages.contracts.models import (
     TaskRetirement,
     TaskState,
 )
-from packages.providers.disclosure import entry_allowed, scope_allowed
+from packages.providers.disclosure import combine_scopes, entry_allowed, scope_allowed
 from services.agent.mcp_tools import ModelScopedMCP, run_mcp_call, run_mcp_list
 from services.agent.tools import (
     RunningProc,
@@ -160,6 +160,7 @@ class _Record:
     explicit_skill: str | None = None
     used_skills: set[str] = field(default_factory=set)
     plugin_versions: dict[str, str] = field(default_factory=dict)
+    legacy_submit_scope: bool = False
 
 
 class AgentRuntime:
@@ -215,6 +216,9 @@ class AgentRuntime:
             "state": rec.task.state.value,
             **payload,
             "plugin_versions": dict(rec.plugin_versions),
+            "content_scope": combine_scopes(
+                rec.task.content_scope, payload.get("content_scope", "public_synthetic")
+            ),
         }
         await self.journal.append(
             AppendRequest(
@@ -239,6 +243,7 @@ class AgentRuntime:
             "objective_revision": rec.task.objective_revision,
             "idempotency_key": rec.task.idempotency_key,
             "source_event_ids": list(rec.task.source_event_ids),
+            "content_scope": rec.task.content_scope,
             "evidence": [e.model_dump(mode="json") for e in rec.task.evidence],
             "task": rec.task.model_dump(mode="json"),
             **extra,
@@ -304,7 +309,7 @@ class AgentRuntime:
         epoch: int,
         source_revision: int | None,
         op: str,
-    ) -> list[str]:
+    ) -> tuple[list[str], str]:
         """Resolve decisions-carried sources to exact authenticated user text.
 
         Sources are finalized user messages or retained semantic speech windows,
@@ -315,6 +320,7 @@ class AgentRuntime:
         if resolve is None:
             raise PolicyDenied(f"decisions-routed {op} cannot be validated: journal has no resolve")
         texts: list[str] = []
+        scopes: list[str] = []
         for source_id in source_event_ids:
             try:
                 resolved = await resolve(source_id)
@@ -354,10 +360,9 @@ class AgentRuntime:
                     raise PolicyDenied(
                         "Later authenticated interruption supersedes this instruction"
                     )
-                if not scope_allowed(self.provider.info, window.content_scope):
-                    raise PolicyDenied("Transcript-window disclosure does not permit this Agent")
             elif resolved.payload.get("final") is not True:
                 raise PolicyDenied(f"decisions-routed {op} source {source_id!r} is not finalized")
+            scopes.append(await self._source_scope(source_id, resolved))
             current_revision = resolved.payload.get("revision", 1)
             if source_revision is not None and source_revision != current_revision:
                 raise PolicyDenied(
@@ -368,7 +373,86 @@ class AgentRuntime:
             if not isinstance(text, str) or not text.strip():
                 raise PolicyDenied(f"decisions-routed {op} source {source_id!r} has no usable text")
             texts.append(text)
-        return texts
+        scope = combine_scopes(*scopes) if scopes else "public_synthetic"
+        if not scope_allowed(self.provider.info, scope):
+            raise PolicyDenied("Source disclosure does not permit the configured Agent provider")
+        return texts, scope
+
+    async def _source_scope(self, source_id, resolved):
+        """Keep original and intermediate native scope floors, never only the latest grant.
+
+        One bounded revision page is sufficient for ordinary typed sources. An
+        exhausted page cannot establish the complete chain and stays local.
+        This is a conservative disclosure bound, not a full-history query.
+        """
+        original = await self.journal.entry(source_id)
+        scope = combine_scopes(
+            original.payload.get("content_scope", "local_only"),
+            resolved.payload.get("content_scope", "local_only"),
+        )
+        if original.kind != "conversation.user":
+            return scope
+        revisions = await self.journal.read(
+            after=original.sequence,
+            session_id=original.session_id,
+            kinds=["conversation.revision"],
+            limit=200,
+        )
+        if len(revisions) >= 200:
+            return "local_only"
+        revision = original.payload.get("revision", 1)
+        if type(revision) is not int or revision < 1:
+            return "local_only"
+        for entry in revisions:
+            if entry.payload.get("target_event_id") != source_id:
+                continue
+            if (
+                (entry.session_id, entry.thread_id, entry.epoch)
+                != (original.session_id, original.thread_id, original.epoch)
+                or entry.origin not in {"authenticated-user", "converse"}
+                or type(entry.payload.get("revision")) is not int
+                or entry.payload["revision"] != revision + 1
+                or not isinstance(entry.payload.get("text"), str)
+            ):
+                return "local_only"
+            revision = entry.payload["revision"]
+            scope = combine_scopes(scope, entry.payload.get("content_scope", "local_only"))
+        if type(resolved.payload.get("revision", 1)) is not int or revision != resolved.payload.get(
+            "revision", 1
+        ):
+            return "local_only"
+        return scope
+
+    async def _task_scope(self, rec, *, persist=True):
+        """Recheck source floors and the actual target provider at each continuation."""
+        scopes = [rec.task.content_scope]
+        for source_id in rec.task.source_event_ids:
+            try:
+                source = await self.journal.resolve(source_id)
+                if (source.session_id, source.thread_id, source.epoch) != (
+                    rec.task.session_id,
+                    rec.task.thread_id,
+                    rec.task.epoch,
+                ):
+                    raise ValueError("Wrong source scope")
+                if source.kind not in {"conversation.user", "conversation.window"} or (
+                    source.origin != "authenticated-user"
+                ):
+                    raise ValueError("Not an authenticated user source")
+                scopes.append(await self._source_scope(source_id, source))
+            except Exception as exc:
+                # Missing provenance must never become a new export grant.
+                rec.task.content_scope = "local_only"
+                raise PolicyDenied("Task source disclosure cannot be verified") from exc
+        scope = combine_scopes(rec.task.content_scope, *scopes)
+        if scope != rec.task.content_scope:
+            rec.task.content_scope = scope
+            if persist:
+                await self._append(rec, "agent.command", {"op": "disclosure-narrowed"})
+        # A steer or profile change can land while native reads above await.
+        rec.task.content_scope = combine_scopes(rec.task.content_scope, scope)
+        if not scope_allowed(self.provider.info, rec.task.content_scope):
+            raise PolicyDenied("Task disclosure does not permit the configured Agent provider")
 
     # -- interface: submit --------------------------------------------
     async def submit(
@@ -395,8 +479,9 @@ class AgentRuntime:
                 f"session is now thread {session.thread_id} epoch {session.epoch}"
             )
         objective = request.objective
-        if actor == "decisions":
-            texts = await self._validated_source_texts(
+        source_scope = "public_synthetic"
+        if request.source_event_ids:
+            texts, source_scope = await self._validated_source_texts(
                 list(request.source_event_ids),
                 session_id=request.session_id,
                 thread_id=request.thread_id,
@@ -405,12 +490,16 @@ class AgentRuntime:
                 op="submit",
             )
             expected = "\n".join(texts)
-            if objective != expected:
+            if actor == "decisions" and objective != expected:
                 raise PolicyDenied(
                     "decisions-routed submit objective does not match "
                     "the resolved authenticated source text"
                 )
-            objective = expected
+            if actor == "decisions":
+                objective = expected
+        content_scope = combine_scopes(request.content_scope, source_scope)
+        if not scope_allowed(self.provider.info, content_scope):
+            raise PolicyDenied("Task disclosure does not permit the configured Agent provider")
         payload = {
             "session_id": request.session_id,
             "thread_id": request.thread_id,
@@ -418,6 +507,7 @@ class AgentRuntime:
             "objective": objective,
             "source_event_ids": list(request.source_event_ids),
             "source_revision": request.source_revision,
+            "content_scope": request.content_scope,
         }
         if explicit_skill is not None:
             payload["explicit_skill"] = explicit_skill
@@ -426,13 +516,22 @@ class AgentRuntime:
         if idem_key in self._submit_idem:
             old_digest, task_id = self._submit_idem[idem_key]
             if old_digest != digest:
-                raise IdemConflict("idempotency key reuses a conflicting submit payload")
+                old_payload = {
+                    key: value for key, value in payload.items() if key != "content_scope"
+                }
+                if not (
+                    self._get(task_id).legacy_submit_scope
+                    and request.content_scope == "local_only"
+                    and old_digest == _payload_hash(old_payload)
+                ):
+                    raise IdemConflict("idempotency key reuses a conflicting submit payload")
             return self._copy(task_id)
         task = Task(
             session_id=request.session_id,
             thread_id=request.thread_id,
             epoch=request.epoch,
             objective=objective,
+            content_scope=content_scope,
             objective_revision=request.source_revision,
             state=TaskState.ACCEPTED,
             source_event_ids=list(request.source_event_ids),
@@ -440,7 +539,7 @@ class AgentRuntime:
             harness_version=self.selector_registry.active if self.selector_registry else "seed-v1",
         )
         rec = _Record(task=task, explicit_skill=explicit_skill)
-        if actor == "decisions":
+        if request.source_event_ids:
             rec.source_revisions = dict.fromkeys(request.source_event_ids, request.source_revision)
         self._tasks[task.task_id] = rec
         self._submit_idem[idem_key] = (digest, task.task_id)
@@ -457,6 +556,7 @@ class AgentRuntime:
                 "objective_revision": task.objective_revision,
                 "source_event_ids": list(request.source_event_ids),
                 "source_revision": request.source_revision,
+                "requested_content_scope": request.content_scope,
                 "idempotency_key": request.idempotency_key,
                 "payload_digest": digest,
                 "harness_version": task.harness_version,
@@ -471,8 +571,9 @@ class AgentRuntime:
         rec = self._get(task_id)
         self._check_actor(actor, list(request.source_event_ids), "steer")
         instruction = request.instruction
-        if actor == "decisions":
-            texts = await self._validated_source_texts(
+        source_scope = "public_synthetic"
+        if request.source_event_ids:
+            texts, source_scope = await self._validated_source_texts(
                 list(request.source_event_ids),
                 session_id=rec.task.session_id,
                 thread_id=rec.task.thread_id,
@@ -481,16 +582,18 @@ class AgentRuntime:
                 op="steer",
             )
             expected = "\n".join(texts)
-            if instruction != expected:
+            if actor == "decisions" and instruction != expected:
                 raise PolicyDenied(
                     "decisions-routed steer instruction does not match "
                     "the resolved authenticated source text"
                 )
-            instruction = expected
+            if actor == "decisions":
+                instruction = expected
         payload = {
             "instruction": instruction,
             "expected_objective_revision": request.expected_objective_revision,
             "source_event_ids": list(request.source_event_ids),
+            "content_scope": request.content_scope,
         }
         digest = _payload_hash(payload)
         if request.idempotency_key in rec.steer_idem:
@@ -514,10 +617,22 @@ class AgentRuntime:
         stale = self._check_task_epoch(rec, await self._require_session(rec.task.session_id))
         if stale is not None:
             raise StaleRevision(stale)
+        await self._task_scope(rec)
+        if rec.pending_steer is not None:
+            raise StaleRevision(
+                "Another steering revision is pending; wait for its applied acknowledgment"
+            )
+        if request.expected_objective_revision != rec.task.objective_revision:
+            raise StaleRevision("Task revision changed during steering disclosure validation")
+        content_scope = combine_scopes(rec.task.content_scope, request.content_scope, source_scope)
+        if not scope_allowed(self.provider.info, content_scope):
+            raise PolicyDenied("Steering disclosure does not permit the configured Agent provider")
+        rec.task.content_scope = content_scope
         rec.steer_idem[request.idempotency_key] = (digest, task_id)
         rec.pending_steer = {
             "instruction": instruction,
             "actor": actor,
+            "content_scope": content_scope,
             "source_event_ids": list(request.source_event_ids),
             "source_revisions": {
                 source_id: (await self.journal.resolve(source_id)).payload.get("revision", 1)
@@ -543,9 +658,9 @@ class AgentRuntime:
         if not pending:
             return
         rec.pending_steer = None
-        if pending["actor"] == "decisions":
+        if pending["source_event_ids"]:
             try:
-                texts = await self._validated_source_texts(
+                texts, source_scope = await self._validated_source_texts(
                     pending["source_event_ids"],
                     session_id=rec.task.session_id,
                     thread_id=rec.task.thread_id,
@@ -557,19 +672,24 @@ class AgentRuntime:
                 for source_id, revision in pending.get("source_revisions", {}).items():
                     resolved = await self.journal.resolve(source_id)
                     revision_changed |= resolved.payload.get("revision", 1) != revision
-                if "\n".join(texts) != pending["instruction"] or revision_changed:
+                if pending["actor"] == "decisions" and (
+                    "\n".join(texts) != pending["instruction"] or revision_changed
+                ):
                     raise PolicyDenied("Steering source changed before its execution boundary")
+                rec.task.content_scope = combine_scopes(rec.task.content_scope, source_scope)
             except (PolicyDenied, ValueError, KeyError):
                 await self._append(
                     rec,
                     "agent.command",
                     {
                         "op": "steer-rejected",
-                        "actor": "decisions",
+                        "actor": pending["actor"],
                         "reason": "source_changed_before_boundary",
                     },
                 )
                 return
+        rec.task.content_scope = combine_scopes(rec.task.content_scope, pending["content_scope"])
+        await self._task_scope(rec)
         rec.source_revisions.update(pending.get("source_revisions", {}))
         invalidated = [
             e.evidence_id
@@ -689,7 +809,14 @@ class AgentRuntime:
             worker.cancel()
         rec.resume.set()
         await self._append(
-            rec, "agent.command", {"op": "interrupt", "actor": actor, "reason": request.reason}
+            rec,
+            "agent.command",
+            {
+                "op": "interrupt",
+                "actor": actor,
+                "reason": request.reason,
+                "content_scope": "local_only",
+            },
         )
         if recovered_paused:
             rec.task.summary = "Cancelled recovered work without replay; prior uncertain effects remain unreconciled."
@@ -973,6 +1100,8 @@ class AgentRuntime:
         stale = await self._epoch_error(rec)
         if stale is not None:
             raise StaleRevision(stale)
+        if resolution.approved:
+            await self._task_scope(rec)
         await self._append(
             rec,
             "approval.resolved",
@@ -1018,6 +1147,7 @@ class AgentRuntime:
         retirements: dict[str, list[JournalEntry]] = {}
         plugin_pins: dict[str, dict[str, str]] = {}
         journal_numbers: dict[str, int] = {}
+        task_scopes: dict[str, str] = {}
         after = 0
         while True:
             batch = await self.journal.read(after=after, limit=200)
@@ -1028,6 +1158,10 @@ class AgentRuntime:
                 refs = entry.task_refs or []
                 if entry.origin == "agent-supervisor":
                     for ref in refs:
+                        task_scopes[ref] = combine_scopes(
+                            task_scopes.get(ref, "public_synthetic"),
+                            entry.payload.get("content_scope", "local_only"),
+                        )
                         prefix = f"agent:{ref}:{entry.kind}:"
                         key = entry.idempotency_key
                         if key.startswith(prefix):
@@ -1071,7 +1205,15 @@ class AgentRuntime:
                 snapshot = outcomes[task_id].get("task")
                 if snapshot is None:
                     continue  # outcome without a snapshot cannot be grounded
-                task = Task.model_validate(snapshot)
+                task = Task.model_validate(
+                    {
+                        **snapshot,
+                        "content_scope": combine_scopes(
+                            snapshot.get("content_scope", "local_only"),
+                            task_scopes.get(task_id, "local_only"),
+                        ),
+                    }
+                )
                 if task.state not in TERMINAL:
                     task.state = TaskState.PAUSED
                     task.summary = (
@@ -1085,6 +1227,10 @@ class AgentRuntime:
                     thread_id=payload.get("thread_id", ""),
                     epoch=payload.get("epoch", 1),
                     objective=payload.get("objective", ""),
+                    content_scope=combine_scopes(
+                        payload.get("content_scope", "local_only"),
+                        task_scopes.get(task_id, "local_only"),
+                    ),
                     objective_revision=payload.get("objective_revision", 1),
                     state=TaskState.PAUSED,
                     summary=(
@@ -1095,7 +1241,10 @@ class AgentRuntime:
                     harness_version=payload.get("harness_version", "seed-v1"),
                 )
             rec = _Record(
-                task=task, recovered=True, submit_sequence=submit_sequences.get(task_id, 0)
+                task=task,
+                recovered=True,
+                submit_sequence=submit_sequences.get(task_id, 0),
+                legacy_submit_scope="requested_content_scope" not in payload,
             )
             if task.state not in TERMINAL:
                 # A valid native receipt retires the work without replay;
@@ -1111,6 +1260,11 @@ class AgentRuntime:
                     task.error = "cancelled by owner"
                     task.summary = RETIRED_SUMMARY
             rec.journal_seq = journal_numbers.get(task_id, 0)
+            try:
+                await self._task_scope(rec, persist=False)
+            except PolicyDenied:
+                if task.state not in TERMINAL:
+                    task.error = "Recovered task disclosure does not permit this Agent provider"
             pins = plugin_pins.get(task_id, {})
             if len(pins) > 16 or any(
                 not isinstance(k, str) or not isinstance(v, str) for k, v in pins.items()
@@ -1249,6 +1403,7 @@ class AgentRuntime:
                     await self.plugin_service.validate_task(
                         self._plugin_task(rec), self.provider.info
                     )
+                await self._task_scope(rec)
                 revision_before = rec.task.objective_revision
                 messages = build_messages(
                     rec.task.objective,
@@ -1270,6 +1425,7 @@ class AgentRuntime:
                 if rec.cancel_requested or rec.closing:
                     await self._cancel(rec)
                     return
+                await self._task_scope(rec)
                 # A steer that landed while inference was in flight applies
                 # at this boundary, and the response inferred under the old
                 # revision is discarded, never executed under the new one.
@@ -1366,6 +1522,7 @@ class AgentRuntime:
         return None
 
     async def _finish(self, rec: _Record, args: dict[str, Any], raw: str) -> None:
+        await self._task_scope(rec)
         _ = raw
         if rec.cancel_requested:
             await self._cancel(rec)
@@ -1442,6 +1599,7 @@ class AgentRuntime:
         return uncommitted
 
     async def _execute(self, rec: _Record, tool: str, args: dict[str, Any], raw: str) -> None:
+        await self._task_scope(rec)
         revision = rec.task.objective_revision
         if rec.cancel_requested:
             await self._cancel(rec)
@@ -1581,6 +1739,7 @@ class AgentRuntime:
         *,
         approval_id: str | None,
     ) -> None:
+        await self._task_scope(rec)
         revision = rec.task.objective_revision
         stale = await self._epoch_error(rec)
         if stale is not None:
@@ -1829,12 +1988,18 @@ class AgentRuntime:
             raise PolicyDenied("Transcript reference outside the task's current session epoch")
         selected, size = [], 0
         for entry in entries:
-            if not entry_allowed(self.provider.info, entry):
+            scope = entry.payload.get("content_scope", "local_only")
+            if entry.kind == "conversation.user":
+                scope = await self._source_scope(entry.event_id, entry)
+            if not entry_allowed(self.provider.info, entry) or not scope_allowed(
+                self.provider.info, scope
+            ):
                 if event_ids:
                     raise PolicyDenied(
                         "Transcript window disclosure is not authorized for this model"
                     )
                 continue
+            rec.task.content_scope = combine_scopes(rec.task.content_scope, scope)
             text = entry.payload.get("text", "")[:2000]
             size += len(text)
             if size > 12000:
