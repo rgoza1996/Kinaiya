@@ -135,6 +135,11 @@ that content was erased and the graph remains quarantined. It never returns a
 truncated ID list as a complete result. State reports the actual metadata count
 as a nonnegative safe integer, including an over-quota diagnostic count; the
 normal admission quota remains 256.
+An inconsistent retained forget receipt must not roll back content erasure.
+If its same-node uniqueness conflict prevents recording the new receipt, commit
+redaction and quarantine together, then report the same fixed erased-content
+conflict without inventing a success receipt. Other storage write failures still
+roll back the transaction and cannot claim erasure.
 
 Wire schema is 1.0; extra fields and numeric/string coercion are refused. IDs use
 the existing bounded ASCII identifier convention. Revisions/ordinals use safe
