@@ -2,7 +2,11 @@
 
 
 def scope_allowed(info, scope):
-    if scope not in {"local_only", "public_synthetic", "private_cloud_authorized"}:
+    if not isinstance(scope, str) or scope not in {
+        "local_only",
+        "public_synthetic",
+        "private_cloud_authorized",
+    }:
         return False
     if info.local:
         return True
@@ -12,7 +16,13 @@ def scope_allowed(info, scope):
 
 
 def entry_allowed(info, entry):
-    """Legacy unscoped typed entries retain their existing consent path."""
-    if entry.kind == "conversation.window" or "content_scope" in entry.payload:
-        return scope_allowed(info, entry.payload.get("content_scope", "local_only"))
-    return True
+    """Missing historical scope never implies permission to export content."""
+    return scope_allowed(info, entry.payload.get("content_scope", "local_only"))
+
+
+def combine_scopes(*scopes):
+    """Keep the most restrictive input scope; missing/invalid provenance stays local."""
+    rank = {"public_synthetic": 0, "private_cloud_authorized": 1, "local_only": 2}
+    if not scopes or any(not isinstance(scope, str) or scope not in rank for scope in scopes):
+        return "local_only"
+    return max(scopes, key=rank.__getitem__)
