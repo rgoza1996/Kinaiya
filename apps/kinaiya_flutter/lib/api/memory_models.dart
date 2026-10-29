@@ -48,7 +48,8 @@ String _string(Object? value, {int min = 0, int max = 2048}) {
 
 String memoryIdentifier(Object? value) {
   final s = _string(value, min: 1, max: 128);
-  if (!RegExp(r'^[A-Za-z0-9_.:-]+$').hasMatch(s)) _invalid();
+  final match = RegExp(r'^[A-Za-z0-9_.:-]+$').firstMatch(s);
+  if (match == null || match.end != s.length) _invalid();
   return s;
 }
 
@@ -270,7 +271,8 @@ class MemoryFact {
   factory MemoryFact.fromJson(Object? value) {
     final m = _object(value, {'schema_version', 'key', 'value'});
     final key = _string(m['key'], min: 1, max: 128);
-    if (!RegExp(r'^[A-Za-z0-9_.:/-]+$').hasMatch(key)) _invalid();
+    final match = RegExp(r'^[A-Za-z0-9_.:/-]+$').firstMatch(key);
+    if (match == null || match.end != key.length) _invalid();
     final v = m['value'];
     if (v is String) {
       _text(v, max: 512);
