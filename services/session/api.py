@@ -9,7 +9,9 @@ from services.common.auth import Auth
 from services.session.store import JournalError, Store
 
 
-def create_app(store: Store, auth: Auth, *, companion_clock=None) -> FastAPI:
+def create_app(
+    store: Store, auth: Auth, *, companion_clock=None, converse_memory: bool = False
+) -> FastAPI:
     app = FastAPI(title="Kinaiya shared session journal", version="1.0")
     authenticated = Depends(auth.require())
     app.add_middleware(
@@ -207,4 +209,8 @@ def create_app(store: Store, auth: Auth, *, companion_clock=None) -> FastAPI:
     from services.session.companion_api import install_companion
 
     install_companion(app, store, auth, clock=companion_clock)
+    if converse_memory:
+        from services.session.memory_api import install_memory
+
+        install_memory(app, store, auth)
     return app

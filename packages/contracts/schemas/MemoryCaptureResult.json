@@ -1,0 +1,277 @@
+{
+  "$defs": {
+    "MemoryFact": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "key": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:/-]+$",
+          "title": "Key",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        }
+      },
+      "required": [
+        "key",
+        "value"
+      ],
+      "title": "MemoryFact",
+      "type": "object"
+    },
+    "MemoryNode": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "session_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "title": "Session Id",
+          "type": "string"
+        },
+        "thread_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "title": "Thread Id",
+          "type": "string"
+        },
+        "epoch": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Epoch",
+          "type": "integer"
+        },
+        "node_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "title": "Node Id",
+          "type": "string"
+        },
+        "ordinal": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Ordinal",
+          "type": "integer"
+        },
+        "kind": {
+          "enum": [
+            "assertion",
+            "observation",
+            "inference"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "source_event_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "title": "Source Event Id",
+          "type": "string"
+        },
+        "source_revision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Source Revision",
+          "type": "integer"
+        },
+        "source_sequence": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Source Sequence",
+          "type": "integer"
+        },
+        "prerequisite_ids": {
+          "items": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "type": "string"
+          },
+          "maxItems": 8,
+          "title": "Prerequisite Ids",
+          "type": "array"
+        },
+        "body": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Body"
+        },
+        "fact": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MemoryFact"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state": {
+          "enum": [
+            "active",
+            "invalidated",
+            "tainted",
+            "forgotten"
+          ],
+          "title": "State",
+          "type": "string"
+        },
+        "content_scope": {
+          "const": "local_only",
+          "title": "Content Scope",
+          "type": "string"
+        },
+        "provenance": {
+          "const": "owner_curated",
+          "title": "Provenance",
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_id",
+        "thread_id",
+        "epoch",
+        "node_id",
+        "ordinal",
+        "kind",
+        "source_event_id",
+        "source_revision",
+        "source_sequence",
+        "body",
+        "fact",
+        "state",
+        "content_scope",
+        "provenance"
+      ],
+      "title": "MemoryNode",
+      "type": "object"
+    },
+    "MemoryState": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "session_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "title": "Session Id",
+          "type": "string"
+        },
+        "thread_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "title": "Thread Id",
+          "type": "string"
+        },
+        "epoch": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Epoch",
+          "type": "integer"
+        },
+        "enabled": {
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "revision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "node_count": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Node Count",
+          "type": "integer"
+        },
+        "status": {
+          "enum": [
+            "ready",
+            "quarantined"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_id",
+        "thread_id",
+        "epoch",
+        "enabled",
+        "revision",
+        "node_count",
+        "status"
+      ],
+      "title": "MemoryState",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "state": {
+      "$ref": "#/$defs/MemoryState"
+    },
+    "node": {
+      "$ref": "#/$defs/MemoryNode"
+    }
+  },
+  "required": [
+    "state",
+    "node"
+  ],
+  "title": "MemoryCaptureResult",
+  "type": "object"
+}
