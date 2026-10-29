@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:kinaiya_flutter/api/client.dart';
 import 'package:kinaiya_flutter/api/memory_client.dart';
 import 'package:kinaiya_flutter/api/memory_models.dart';
@@ -25,6 +26,16 @@ class OwnedClient extends http.BaseClient {
   void close() {
     closes++;
     if (closeError) throw StateError('PRIVATE TRANSPORT ERROR');
+  }
+}
+
+class CountedMockClient extends MockClient {
+  CountedMockClient(super.handler);
+  int closes = 0;
+  @override
+  void close() {
+    closes++;
+    super.close();
   }
 }
 
@@ -760,4 +771,35 @@ void main() {
       }
     },
   );
+  testWidgets('successful EOF cancellation restores capacity inside fakeAsync', (
+    tester,
+  ) async {
+    final clients = <CountedMockClient>[];
+    final memory = MemoryApi(
+      sessionBase: 'http://localhost:8761',
+      converseBase: 'https://converse.example',
+      ownerToken: 'token',
+      clientFactory: () {
+        final c = CountedMockClient(
+          (request) async => http.Response(
+            jsonEncode(fixture.stateJson()),
+            200,
+            headers: {'content-type': 'application/json'},
+          ),
+        );
+        clients.add(c);
+        return c;
+      },
+    );
+    // No runAsync or external-zone drain: ordinary widget requests must release
+    // each fully read/closed response before the eighth-owner safety cap.
+    for (var i = 0; i < 9; i++) {
+      expect((await memory.state(binding)).binding, binding);
+      expect(clients.length, i + 1);
+      expect(clients.every((c) => c.closes == 1), true);
+    }
+    await memory.close();
+    expect(clients.length, 9);
+    expect(clients.every((c) => c.closes == 1), true);
+  });
 }

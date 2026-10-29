@@ -296,7 +296,7 @@ class _OwnedRequest {
         first.then<void>((_) {}, onError: (Object _, StackTrace __) {}),
       );
       if (_closed) {
-        await _cancelReader().timeout(cleanupTimeout);
+        await _awaitCancellation();
         throw const MemoryFailure('Memory request ended');
       }
       if (response.statusCode != 200) throw _StatusFailure(response.statusCode);
@@ -352,6 +352,18 @@ class _OwnedRequest {
     return cancel;
   }
 
+  Future<void> _awaitCancellation() async {
+    final reader = _reader;
+    await _cancelReader().timeout(cleanupTimeout);
+    // A successful await is itself actual settlement proof. In particular,
+    // SDK completed futures may schedule the observer in a different Zone.
+    // Do not credit this if no response reader existed for this cancellation.
+    if (reader != null) {
+      _cancelSettled = true;
+      onSettled?.call();
+    }
+  }
+
   Future<bool> close() => _closing ??= _close();
   Future<bool> _close() async {
     _closed = true;
@@ -363,7 +375,7 @@ class _OwnedRequest {
       ok = false;
     }
     try {
-      await _cancelReader().timeout(cleanupTimeout);
+      await _awaitCancellation();
     } catch (_) {
       ok = false;
     }
