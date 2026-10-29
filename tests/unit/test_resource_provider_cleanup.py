@@ -63,6 +63,9 @@ async def test_early_wrapper_close_joins_http_cleanup_through_repeated_cancellat
             closing.cancel()
             await asyncio.sleep(0)
             assert not closing.done() and not body.closed
+            closing.cancel()
+            await asyncio.sleep(0)
+            assert not closing.done() and not body.closed
             body.release.set()
             with pytest.raises(asyncio.CancelledError):
                 await closing
