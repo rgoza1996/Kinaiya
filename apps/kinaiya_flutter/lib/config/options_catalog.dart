@@ -4,7 +4,14 @@
 /// searching it changes no runtime setting, credential, permission or session.
 library;
 
-enum SettingsAction { connection, appearance, voice, memory, agentControls, mcp }
+enum SettingsAction {
+  connection,
+  appearance,
+  voice,
+  memory,
+  agentControls,
+  mcp,
+}
 
 enum SettingsSection {
   connection('Connection & privacy'),
@@ -30,7 +37,8 @@ class SettingsEntry {
 
   bool matches(String query) {
     final words = query.toLowerCase().trim().split(RegExp(r'\s+'));
-    final haystack = '${section.label} $title $description $keywords'.toLowerCase();
+    final haystack = '${section.label} $title $description $keywords'
+        .toLowerCase();
     return words.every(haystack.contains);
   }
 }
@@ -48,13 +56,15 @@ const settingsEntries = <SettingsEntry>[
     section: SettingsSection.appearance,
     title: 'Appearance & character',
     description: 'Colors, character packs, captions and reduced motion.',
-    keywords: 'mascot sprites animation accessibility palette import export reset',
+    keywords:
+        'mascot sprites animation accessibility palette import export reset',
   ),
   SettingsEntry(
     action: SettingsAction.voice,
     section: SettingsSection.converse,
     title: 'Voice options',
-    description: 'Adjust the current conversation’s silence and timing options.',
+    description:
+        'Adjust the current conversation’s silence and timing options.',
     keywords: 'speech microphone vad live call tell audio',
   ),
   SettingsEntry(
@@ -68,14 +78,17 @@ const settingsEntries = <SettingsEntry>[
     action: SettingsAction.agentControls,
     section: SettingsSection.agent,
     title: 'Agent controls',
-    description: 'Open Agent controls for models, permissions, skills and tools.',
-    keywords: 'provider profile yolo approvals sandbox workspace resources plugins commands',
+    description:
+        'Open Agent controls for models, permissions, skills and tools.',
+    keywords:
+        'provider profile yolo approvals sandbox workspace resources plugins commands',
   ),
   SettingsEntry(
     action: SettingsAction.mcp,
     section: SettingsSection.agent,
     title: 'MCP connections',
-    description: 'Manage Agent tool servers and inspect their connection state.',
+    description:
+        'Manage Agent tool servers and inspect their connection state.',
     keywords: 'integrations extensions tools authentication enable disable',
   ),
 ];
@@ -101,7 +114,8 @@ class SettingsAvailability {
     if (allows(action)) return null;
     return switch (action) {
       SettingsAction.voice => 'Voice options are unavailable in this view.',
-      SettingsAction.agentControls => 'Connect and load the Agent controls first.',
+      SettingsAction.agentControls =>
+        'Connect and load the Agent controls first.',
       SettingsAction.mcp => 'Connect to the owner service first.',
       _ => null,
     };
