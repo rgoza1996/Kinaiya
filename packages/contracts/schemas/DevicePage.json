@@ -1,0 +1,131 @@
+{
+  "$defs": {
+    "CompanionDevice": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "session_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "title": "Session Id",
+          "type": "string"
+        },
+        "thread_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "title": "Thread Id",
+          "type": "string"
+        },
+        "epoch": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Epoch",
+          "type": "integer"
+        },
+        "device_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "title": "Device Id",
+          "type": "string"
+        },
+        "device_name": {
+          "maxLength": 120,
+          "minLength": 1,
+          "title": "Device Name",
+          "type": "string"
+        },
+        "label": {
+          "maxLength": 120,
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "scope": {
+          "const": "companion_control",
+          "default": "companion_control",
+          "title": "Scope",
+          "type": "string"
+        },
+        "created_at": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Created At",
+          "type": "integer"
+        },
+        "expires_at": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Expires At",
+          "type": "integer"
+        },
+        "revoked_at": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Revoked At"
+        },
+        "status": {
+          "enum": [
+            "active",
+            "expired",
+            "revoked",
+            "stale"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_id",
+        "thread_id",
+        "epoch",
+        "device_id",
+        "device_name",
+        "label",
+        "created_at",
+        "expires_at",
+        "status"
+      ],
+      "title": "CompanionDevice",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "devices": {
+      "items": {
+        "$ref": "#/$defs/CompanionDevice"
+      },
+      "maxItems": 32,
+      "title": "Devices",
+      "type": "array"
+    }
+  },
+  "required": [
+    "devices"
+  ],
+  "title": "DevicePage",
+  "type": "object"
+}

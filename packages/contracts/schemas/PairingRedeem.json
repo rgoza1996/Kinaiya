@@ -1,0 +1,30 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "code": {
+      "maxLength": 128,
+      "minLength": 43,
+      "pattern": "^[A-Za-z0-9_-]+$",
+      "title": "Code",
+      "type": "string"
+    },
+    "device_name": {
+      "maxLength": 120,
+      "minLength": 1,
+      "title": "Device Name",
+      "type": "string"
+    }
+  },
+  "required": [
+    "code",
+    "device_name"
+  ],
+  "title": "PairingRedeem",
+  "type": "object"
+}

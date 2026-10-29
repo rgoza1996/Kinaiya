@@ -1,0 +1,28 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "expected_revision": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Expected Revision",
+      "type": "integer"
+    },
+    "note": {
+      "maxLength": 4096,
+      "title": "Note",
+      "type": "string"
+    }
+  },
+  "required": [
+    "expected_revision",
+    "note"
+  ],
+  "title": "CallNote",
+  "type": "object"
+}

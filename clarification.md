@@ -376,3 +376,31 @@ Implement in dependency order: **(A)** versioned causal event contracts and back
 
 **Interpretation rule:** “Steered by Converse” is a verified record of an Agent objective change caused by a particular voice interaction—not merely a model's opinion that a task was steered.
 
+## 12. Korina Memory DAG: Optional Memory for Converse
+
+**Status:** Architectural design intent; this section specifies intended behavior, not completed implementation.  
+**Scope:** Converse's conversational memory and context preparation.
+
+### 12.1 Purpose and ownership
+
+The **Korina Memory DAG (directed acyclic graph) is intended for Converse only**. Its purpose is to help low-parameter conversational models make better use of a limited context window by retaining relevant information outside the active prompt and selectively retrieving or condensing that information for later turns.
+
+For example, a model with a **32,768-token context window** should be able to maintain useful conversational continuity across a longer history, making that window *feel larger* through selective recall. Every inference request must still fit within the model's actual context budget. This is an intended improvement in effective conversational continuity, not a claim that the DAG enlarges the native context window or guarantees complete recall.
+
+This DAG is not Agent's task memory, adaptive-harness memory system, or Decisions' routing state. Agent may use its own task-specific context and memory strategies independently.
+
+### 12.2 Replaceable implementation and user toggle
+
+The DAG must be an **optional, replaceable Converse memory implementation behind an explicit interface**, not a hardcoded dependency of Kinaiya Core, a particular model, or the rest of the platform.
+
+- Provide a user-controlled **enable/disable toggle**.
+- Converse must remain usable with DAG memory disabled or unavailable, using its ordinary bounded conversational context.
+- When disabled, Converse must stop DAG retrieval, updates, background memory processing, and adding DAG-derived content to prompts.
+- Another compatible memory implementation must be selectable without rewriting Converse's dialogue logic or changing Agent and Decisions.
+- The setting governs memory use; data retention and deletion remain separate explicit user controls.
+
+### 12.3 Shared-history boundary
+
+The DAG supplements the authoritative shared transcript; it does not replace it. Disabling DAG memory must not disable transcript persistence, remove Agent's authorized access to retained history, or change Decisions' routing responsibilities (§10.3). Retrieved memories remain derived context subject to the user's privacy and retention settings; they cannot grant permissions or serve as authoritative execution evidence.
+
+**Interpretation rule:** Korina Memory DAG extends Converse's practical recall through optional external memory. It must not become mandatory platform infrastructure or an implicit memory system for Agent.
