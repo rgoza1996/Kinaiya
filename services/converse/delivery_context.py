@@ -6,7 +6,9 @@ import re
 
 from packages.contracts.models import SpeechWindow
 from packages.providers.disclosure import scope_allowed
+from services.converse.context_projection import ContextProjection
 from services.converse.history import MAX_INTEGER, fold_users, native_snapshot
+from services.converse.memory_history import resolve_current_pin, tagged_assistant_eligible
 
 MAX_BLOCK_BYTES = 8192
 MAX_PLAYED_SECONDS = 86400
@@ -175,16 +177,35 @@ def _block(rows):
     return content
 
 
-def window_context(recent, source, info):
-    messages, delivery, _ = window_context_scoped(recent, source, info)
-    return messages, delivery
+def _keep_window_assistant(entry, source, info, current_pin, runtime_id):
+    if (
+        entry.kind != "conversation.converse"
+        or entry.origin != "converse"
+        or not entry.sequence < source.sequence
+        or not isinstance(entry.payload.get("text"), str)
+    ):
+        return False
+    if "memory_context" not in entry.payload:
+        return _allowed(info, entry.payload)
+    if not tagged_assistant_eligible(entry, source, info, current_pin, runtime_id):
+        return False
+    return _allowed(info, entry.payload)
 
 
-def window_context_scoped(recent, source, info):
-    """Use one contiguous native suffix; later corrections/receipts qualify earlier text."""
+def window_context_projection(recent, source, info, *, memory_context=None, runtime_id=None):
+    """Project live-window history with optional selected-recall assistants.
+
+    Untagged behavior matches the legacy compatibility path byte-for-byte,
+    including the last-eight/2000-character/8192-byte bounds. The tagged
+    gate runs before row selection inside the original contiguous recent100
+    snapshot; delivery qualifications refer only to retained assistant rows
+    with matching final indices, and consumed_memory is true only when a
+    tagged assistant is actually selected.
+    """
     snapshot = native_snapshot(recent, source)
     current = SpeechWindow.model_validate(source.payload)
     users = fold_users(snapshot, lambda entry: _allowed(info, entry.payload))
+    current_pin = resolve_current_pin(memory_context)
     windows = {}
     prior_utterances = set()
     for entry in snapshot:
@@ -223,11 +244,7 @@ def window_context_scoped(recent, source, info):
     candidates.extend(
         (e, e.payload["text"], e.payload.get("content_scope", "local_only"))
         for e in snapshot
-        if e.kind == "conversation.converse"
-        and e.origin == "converse"
-        and e.sequence < source.sequence
-        and isinstance(e.payload.get("text"), str)
-        and _allowed(info, e.payload)
+        if _keep_window_assistant(e, source, info, current_pin, runtime_id)
     )
     candidates = sorted(candidates, key=lambda pair: pair[0].sequence)[-8:]
     messages, rows, scopes = [], [], []
@@ -237,4 +254,29 @@ def window_context_scoped(recent, source, info):
         scopes.append(scope)
         if assistant:
             rows.append(_delivery_row(entry, index, snapshot, info))
-    return messages, _block(rows) if rows else None, scopes
+    delivery = _block(rows) if rows else None
+    consumed_memory = any(
+        entry.kind == "conversation.converse" and "memory_context" in entry.payload
+        for entry, _text, _scope in candidates
+    )
+    return ContextProjection(
+        messages=messages,
+        consumed_scopes=scopes,
+        delivery=delivery,
+        consumed_memory=consumed_memory,
+    )
+
+
+def window_context(recent, source, info):
+    projection = window_context_projection(
+        recent, source, info, memory_context=None, runtime_id=None
+    )
+    return projection.messages, projection.delivery
+
+
+def window_context_scoped(recent, source, info):
+    """Use one contiguous native suffix; later corrections/receipts qualify earlier text."""
+    projection = window_context_projection(
+        recent, source, info, memory_context=None, runtime_id=None
+    )
+    return projection.messages, projection.delivery, projection.consumed_scopes

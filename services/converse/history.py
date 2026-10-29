@@ -3,6 +3,8 @@
 from dataclasses import dataclass
 
 from packages.providers.disclosure import combine_scopes, entry_allowed
+from services.converse.context_projection import ContextProjection
+from services.converse.memory_history import resolve_current_pin, tagged_assistant_eligible
 
 MAX_INTEGER = 9_007_199_254_740_991
 
@@ -96,9 +98,68 @@ def _typed_allowed(info, entry):
     return entry_allowed(info, entry)
 
 
+def _keep_typed_assistant(entry, source, info, current_pin, runtime_id):
+    if (
+        entry.kind != "conversation.converse"
+        or entry.origin != "converse"
+        or not isinstance(entry.payload.get("text"), str)
+    ):
+        return False
+    if "memory_context" not in entry.payload:
+        return _typed_allowed(info, entry)
+    if not tagged_assistant_eligible(entry, source, info, current_pin, runtime_id):
+        return False
+    return _typed_allowed(info, entry)
+
+
+def typed_history_projection(
+    recent, source, info, context_turns, *, memory_context=None, runtime_id=None
+):
+    """Project typed history with optional selected-recall assistants.
+
+    Untagged behavior matches the legacy compatibility path byte-for-byte.
+    Tagged assistants are fail-closed: only an exact current pin, matching
+    runtime and outer scope, local provider, and explicit local_only scope
+    is retained. The gate runs before the suffix selection inside the
+    original contiguous recent100 snapshot; consumed_memory is true only
+    when a tagged assistant is actually selected.
+    """
+    snapshot = native_snapshot(recent, source)
+    users = fold_users(snapshot, lambda entry: _typed_allowed(info, entry))
+    current_pin = resolve_current_pin(memory_context)
+    candidates = [
+        (user.entry, user.text, user.floor)
+        for user in users.values()
+        if user.permitted and isinstance(user.text, str)
+    ]
+    candidates.extend(
+        (entry, entry.payload["text"], _entry_scope(entry))
+        for entry in snapshot
+        if _keep_typed_assistant(entry, source, info, current_pin, runtime_id)
+    )
+    ordered = sorted(candidates, key=lambda triple: triple[0].sequence)[-context_turns:]
+    messages = [
+        {"role": "user" if entry.kind == "conversation.user" else "assistant", "content": text}
+        for entry, text, _scope in ordered
+    ]
+    consumed = [scope for _entry, _text, scope in ordered]
+    consumed_memory = any(
+        entry.kind == "conversation.converse" and "memory_context" in entry.payload
+        for entry, _text, _scope in ordered
+    )
+    return ContextProjection(
+        messages=messages,
+        consumed_scopes=consumed,
+        delivery=None,
+        consumed_memory=consumed_memory,
+    )
+
+
 def typed_history(recent, source, info, context_turns):
     """Apply revisions before selecting typed turns; retain their full existing text."""
-    return typed_history_scoped(recent, source, info, context_turns)[0]
+    return typed_history_projection(
+        recent, source, info, context_turns, memory_context=None, runtime_id=None
+    ).messages
 
 
 def typed_history_scoped(recent, source, info, context_turns):
@@ -111,25 +172,7 @@ def typed_history_scoped(recent, source, info, context_turns):
     promote private history to a public reply. typed_history() stays as the
     narrow compatibility projection returning only the message list.
     """
-    snapshot = native_snapshot(recent, source)
-    users = fold_users(snapshot, lambda entry: _typed_allowed(info, entry))
-    candidates = [
-        (user.entry, user.text, user.floor)
-        for user in users.values()
-        if user.permitted and isinstance(user.text, str)
-    ]
-    candidates.extend(
-        (entry, entry.payload["text"], _entry_scope(entry))
-        for entry in snapshot
-        if entry.kind == "conversation.converse"
-        and entry.origin == "converse"
-        and isinstance(entry.payload.get("text"), str)
-        and _typed_allowed(info, entry)
+    projection = typed_history_projection(
+        recent, source, info, context_turns, memory_context=None, runtime_id=None
     )
-    ordered = sorted(candidates, key=lambda triple: triple[0].sequence)[-context_turns:]
-    messages = [
-        {"role": "user" if entry.kind == "conversation.user" else "assistant", "content": text}
-        for entry, text, _scope in ordered
-    ]
-    consumed = [scope for _entry, _text, scope in ordered]
-    return messages, consumed
+    return projection.messages, projection.consumed_scopes
