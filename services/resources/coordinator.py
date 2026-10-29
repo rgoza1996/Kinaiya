@@ -474,6 +474,16 @@ class ResourceCoordinator:
     async def admit_qwen3(self, expected_policy):
         return await self.admit_text(expected_policy)
 
+    async def resident_text(self, expected_policy):
+        """Capture existing GGUF ownership without allocation or a cold start."""
+        async with self.admission_lock:
+            if self.text_worker_id != "gguf" or self.text_policy() != expected_policy:
+                raise TextAdmissionError(cleanup_confirmed=True)
+            identity = self.manager.owned_identity(self.text_worker_id)
+            if identity is None or not self.manager.is_current(identity):
+                raise TextAdmissionError(cleanup_confirmed=True)
+            return identity
+
     async def admit_text(self, expected_policy):
         """Admit one fixed child; recheck revocation after awaited readiness.
 
