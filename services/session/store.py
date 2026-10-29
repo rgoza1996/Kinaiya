@@ -63,6 +63,7 @@ class Store:
     def __init__(self, path: str | Path):
         self.path = str(path)
         self.lock = threading.RLock()
+        self._converse_context_validators = {}
         self.db = sqlite3.connect(self.path, check_same_thread=False)
         self.db.row_factory = sqlite3.Row
         self.db.execute("PRAGMA foreign_keys=ON")
@@ -105,6 +106,62 @@ class Store:
                 "Unsupported database version; preserve the database before migration"
             )
         self.db.commit()
+
+    def register_converse_context_validator(self, implementation_id, callback):
+        """Trusted startup only; registration never imports a memory backend."""
+        import inspect
+
+        from pydantic import TypeAdapter
+
+        from packages.contracts.memory import Identifier
+
+        try:
+            name = TypeAdapter(Identifier).validate_python(implementation_id)
+        except ValueError:
+            raise ValueError("Invalid Converse context validator name") from None
+        if (
+            not callable(callback)
+            or inspect.iscoroutinefunction(callback)
+            or inspect.iscoroutinefunction(type(callback).__call__)
+        ):
+            raise ValueError("Converse context validator must be synchronous")
+        with self.lock:
+            if (
+                name in self._converse_context_validators
+                or len(self._converse_context_validators) >= 4
+            ):
+                raise ValueError("Converse context validator registration is unavailable")
+            self._converse_context_validators[name] = callback
+
+    @staticmethod
+    def _memory_context_pin(request, role):
+        if "memory_context" not in request.payload:
+            return None
+        from pydantic import TypeAdapter
+
+        from packages.contracts.memory import Identifier
+        from packages.contracts.memory_context import MemoryContextPin
+
+        try:
+            raw = json.dumps(
+                request.payload["memory_context"],
+                ensure_ascii=False,
+                separators=(",", ":"),
+                allow_nan=False,
+            ).encode("utf-8")
+            if (
+                len(raw) > 2048
+                or role != "converse"
+                or request.kind != "conversation.converse"
+                or request.payload.get("content_scope") != "local_only"
+                or request.payload.get("final") is not True
+                or not isinstance(request.payload.get("text"), str)
+            ):
+                raise ValueError
+            TypeAdapter(Identifier).validate_python(request.payload.get("runtime_id"))
+            return MemoryContextPin.model_validate(request.payload["memory_context"])
+        except (ValueError, TypeError, RecursionError):
+            raise JournalError("Invalid Converse memory context provenance") from None
 
     def create_session(self, request: SessionRequest) -> Session:
         session = Session(channel=request.channel, name=request.name)
@@ -251,6 +308,7 @@ class Store:
     def append(self, request: AppendRequest, role: str) -> JournalEntry:
         if request.kind not in ALLOWED_KINDS.get(role, set()):
             raise PermissionError("Writer cannot publish this event kind")
+        pin = self._memory_context_pin(request, role)
         encoded = request.model_dump_json()
         if len(encoded.encode()) > 65536:
             raise JournalError("Entry exceeds 64 KiB; store large artifacts by reference")
@@ -258,6 +316,8 @@ class Store:
             session = self.session(request.session_id)
             if (request.epoch, request.thread_id) != (session.epoch, session.thread_id):
                 raise JournalError("Stale epoch or wrong session thread")
+            if pin is not None and session.channel != "converse":
+                raise JournalError("Memory context requires a Converse session")
             if request.kind == "conversation.window":
                 try:
                     window = SpeechWindow.model_validate(request.payload)
@@ -374,6 +434,21 @@ class Store:
             if request.kind in {"conversation.user", "conversation.window"}:
                 origin = "authenticated-user"
             event = JournalEntry(**request.model_dump(), sequence=1, origin=origin)
+            if pin is not None:
+                validator = self._converse_context_validators.get(pin.implementation_id)
+                try:
+                    admitted = (
+                        validator is not None
+                        and validator(request.session_id, request.thread_id, request.epoch, pin)
+                        is True
+                    )
+                except Exception:
+                    raise JournalError("Converse memory context is unavailable") from None
+                if not admitted:
+                    raise JournalError("Converse memory context is unavailable")
+                # No append DML precedes this callback. Reconciliation may
+                # commit source invalidation/quarantine even when it refuses
+                # publication, without committing a partial journal entry.
             cursor = self.db.execute(
                 "INSERT INTO entries(event_id,session_id,thread_id,epoch,kind,writer,idem,request,value) "
                 "VALUES(?,?,?,?,?,?,?,?,?)",

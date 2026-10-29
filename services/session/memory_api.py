@@ -1,4 +1,4 @@
-"""Opt-in owner administration for local Converse memory; no prompt integration."""
+"""Opt-in owner administration and scoped read-only Converse recall bridge."""
 
 import json
 
@@ -18,6 +18,12 @@ from packages.contracts.memory import (
     MemoryQuery,
     MemoryQueryResult,
     MemoryState,
+)
+from packages.contracts.memory_context import (
+    MemoryContextValidate,
+    MemoryContextValidation,
+    MemoryRecallRequest,
+    MemoryRecallResult,
 )
 from services.session.memory import MemoryError, MemoryStore
 
@@ -41,11 +47,11 @@ def _constant(_):
 def install_memory(app, store, auth):
     try:
         memory = MemoryStore(store)
-    except MemoryError:
+        store.register_converse_context_validator("korina-dag-v1", memory.validate_publication)
+    except (MemoryError, ValueError):
         # Optional memory storage cannot take the ordinary journal offline.
         memory = None
     app.state.converse_memory = memory
-    authorize = auth.require("owner")
 
     def backend():
         if memory is None:
@@ -53,16 +59,31 @@ def install_memory(app, store, auth):
         return memory
 
     class MemoryRoute(APIRoute):
+        roles = ("owner",)
+        response_limit = RESPONSE_LIMIT
+        bridge = False
+
         def get_route_handler(self):
             original = super().get_route_handler()
+            authorize = auth.require(*self.roles)
 
             async def handle(request: Request):
                 try:
                     if len(request.headers.getlist("authorization")) > 1:
                         raise HTTPException(401, "Ambiguous bearer header")
+                    if self.bridge and len(request.headers.getlist("origin")) > 1:
+                        raise HTTPException(403, "Ambiguous browser origin")
                     await authorize(request, request.headers.get("authorization", ""))
                     if request.query_params:
                         raise HTTPException(422, "Memory routes do not accept query parameters")
+                    if self.bridge:
+                        for header in ("content-type", "content-length", "content-encoding"):
+                            if len(request.headers.getlist(header)) > 1:
+                                raise HTTPException(422, "Ambiguous memory request header")
+                        if request.headers.get(
+                            "content-encoding", "identity"
+                        ).strip().lower() not in {"", "identity"}:
+                            raise HTTPException(415, "Memory requests require uncompressed JSON")
                     raw = bytearray()
                     async for chunk in request.stream():
                         if len(raw) + len(chunk) > BODY_LIMIT:
@@ -84,7 +105,7 @@ def install_memory(app, store, auth):
                         except (ValueError, RecursionError):
                             raise HTTPException(422, "Invalid memory JSON") from None
                     response = await original(request)
-                    if len(response.body) > RESPONSE_LIMIT:
+                    if len(response.body) > self.response_limit:
                         raise HTTPException(503, "Memory response exceeds its bound")
                     response.headers["Cache-Control"] = "no-store"
                     return response
@@ -96,6 +117,10 @@ def install_memory(app, store, auth):
                     status, detail = 404, "Unknown memory reference"
                 except HTTPException as exc:
                     status, detail = exc.status_code, exc.detail
+                except Exception:
+                    if not self.bridge:
+                        raise
+                    status, detail = 503, "Memory context is unavailable"
                 return JSONResponse(
                     status_code=status,
                     content={"detail": detail},
@@ -135,3 +160,30 @@ def install_memory(app, store, auth):
         return backend().forget(request)
 
     app.include_router(router)
+
+    class RecallRoute(MemoryRoute):
+        roles = ("owner", "converse")
+        response_limit = 17 * 1024
+        bridge = True
+
+    class ValidateRoute(RecallRoute):
+        response_limit = 4 * 1024
+
+    def recall(request: MemoryRecallRequest):
+        return backend().recall(request)
+
+    def validate_context(request: MemoryContextValidate):
+        return backend().validate_context(request)
+
+    bridge = APIRouter(
+        prefix="/v1/converse-memory",
+        dependencies=[Depends(auth.require("owner", "converse"))],
+    )
+    for path, endpoint, model, route in (
+        ("/recall", recall, MemoryRecallResult, RecallRoute),
+        ("/validate", validate_context, MemoryContextValidation, ValidateRoute),
+    ):
+        bridge.add_api_route(
+            path, endpoint, methods=["POST"], response_model=model, route_class_override=route
+        )
+    app.include_router(bridge)

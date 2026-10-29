@@ -24,6 +24,13 @@ from packages.contracts.memory import (
     MemoryQueryResult,
     MemoryState,
 )
+from packages.contracts.memory_context import (
+    MemoryContextValidate,
+    MemoryContextValidation,
+    MemoryRecallRequest,
+    MemoryRecallResult,
+    recall_digest,
+)
 from packages.contracts.models import MAX_PLAYBACK_GENERATION
 
 MAX = MAX_PLAYBACK_GENERATION
@@ -720,6 +727,48 @@ class MemoryStore:
             if len(result.model_dump_json().encode("utf-8")) > 16 * 1024:
                 raise MemoryError(409, "Complete memory query exceeds bound")
             return result
+
+    @_storage
+    def recall(self, request):
+        request = self._request(MemoryRecallRequest, request)
+        with self.store.lock:
+            binding = self._binding(request)
+            selected = self.query(MemoryQuery(**binding, seed_ids=request.seed_ids))
+            try:
+                return MemoryRecallResult(
+                    state=selected.state,
+                    nodes=selected.nodes,
+                    closure_sha256=recall_digest(selected.state, selected.nodes),
+                )
+            except ValueError:
+                self._quarantine(binding)
+                raise MemoryError(409, "Memory context is unavailable") from None
+
+    @_storage
+    def validate_context(self, request):
+        request = self._request(MemoryContextValidate, request)
+        with self.store.lock:
+            binding = self._binding(request)
+            state = self._state(binding)
+            # Disabled validation inspects only state/count metadata. It must
+            # not reconcile sources or read retained graph contents.
+            if not state.enabled or request.pin.implementation_id != "korina-dag-v1":
+                return MemoryContextValidation(valid=False, state=state)
+            selected = self.recall(
+                MemoryRecallRequest(**binding, seed_ids=request.pin.selector_ids)
+            )
+            return MemoryContextValidation(
+                valid=(
+                    selected.state.revision == request.pin.namespace_revision
+                    and selected.closure_sha256 == request.pin.closure_sha256
+                ),
+                state=selected.state,
+            )
+
+    def validate_publication(self, session_id, thread_id, epoch, pin):
+        return self.validate_context(
+            MemoryContextValidate(session_id=session_id, thread_id=thread_id, epoch=epoch, pin=pin)
+        ).valid
 
     def _erase_corrupt(self, binding, request, digest):
         """Conservative whole-scope erasure without loading corrupt bodies."""
