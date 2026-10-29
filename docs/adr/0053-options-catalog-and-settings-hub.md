@@ -31,7 +31,9 @@ uses all query words against existing entry metadata; clearing search restores
 all entries. Empty results, unavailable destinations and build information have
 truthful text. The widget has no AppState/API/audio dependency or future switches.
 It must fit 320px/short screens/2x text, scroll without losing dismissal, label
-controls and support Escape and ordinary keyboard focus. Build information uses
+controls and support Escape and ordinary keyboard focus. Heading, search and
+entries share a scrollable body while Close stays outside it; a keyboard inset
+or enlarged text cannot push dismissal behind the keyboard. Build information uses
 explicit compile definitions KINAIYA_BUILD_LABEL/REVISION; missing definitions
 say Development build and omit the revision rather than inventing a release.
 

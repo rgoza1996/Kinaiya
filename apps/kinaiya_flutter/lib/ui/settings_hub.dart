@@ -96,6 +96,8 @@ class _SettingsHubState extends State<SettingsHub> {
         .clamp(280.0, 640.0)
         .toDouble();
 
+    // The heading and search share the scrollable body so an on-screen
+    // keyboard or enlarged text cannot push the fixed Close control away.
     return Dialog(
       insetPadding: const EdgeInsets.all(16),
       child: ConstrainedBox(
@@ -115,46 +117,6 @@ class _SettingsHubState extends State<SettingsHub> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 4),
-                    child: Semantics(
-                      header: true,
-                      child: Text(
-                        'Settings',
-                        style: theme.textTheme.titleLarge,
-                      ),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                    child: TextField(
-                      key: const Key('settings-search'),
-                      controller: _searchController,
-                      focusNode: _searchFocus,
-                      maxLength: 128,
-                      maxLengthEnforcement: MaxLengthEnforcement.enforced,
-                      textInputAction: TextInputAction.search,
-                      buildCounter:
-                          (
-                            context, {
-                            required int currentLength,
-                            required bool isFocused,
-                            int? maxLength,
-                          }) => const SizedBox.shrink(),
-                      decoration: InputDecoration(
-                        labelText: 'Search settings',
-                        hintText: 'Search settings',
-                        prefixIcon: const Icon(Icons.search),
-                        suffixIcon: _query.isEmpty
-                            ? null
-                            : IconButton(
-                                tooltip: 'Clear search',
-                                onPressed: _clearSearch,
-                                icon: const Icon(Icons.clear),
-                              ),
-                      ),
-                    ),
-                  ),
                   Flexible(
                     child: SingleChildScrollView(
                       padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
@@ -162,6 +124,47 @@ class _SettingsHubState extends State<SettingsHub> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         mainAxisSize: MainAxisSize.min,
                         children: <Widget>[
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 20, 20, 4),
+                            child: Semantics(
+                              header: true,
+                              child: Text(
+                                'Settings',
+                                style: theme.textTheme.titleLarge,
+                              ),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                            child: TextField(
+                              key: const Key('settings-search'),
+                              controller: _searchController,
+                              focusNode: _searchFocus,
+                              maxLength: 128,
+                              maxLengthEnforcement:
+                                  MaxLengthEnforcement.enforced,
+                              textInputAction: TextInputAction.search,
+                              buildCounter:
+                                  (
+                                    context, {
+                                    required int currentLength,
+                                    required bool isFocused,
+                                    int? maxLength,
+                                  }) => const SizedBox.shrink(),
+                              decoration: InputDecoration(
+                                labelText: 'Search settings',
+                                hintText: 'Search settings',
+                                prefixIcon: const Icon(Icons.search),
+                                suffixIcon: _query.isEmpty
+                                    ? null
+                                    : IconButton(
+                                        tooltip: 'Clear search',
+                                        onPressed: _clearSearch,
+                                        icon: const Icon(Icons.clear),
+                                      ),
+                              ),
+                            ),
+                          ),
                           if (filtered.isEmpty)
                             Padding(
                               padding: const EdgeInsets.fromLTRB(

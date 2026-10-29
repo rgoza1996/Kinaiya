@@ -342,6 +342,41 @@ void main() {
     expect(find.byType(SettingsHub), findsNothing);
   });
 
+  testWidgets('keyboard and enlarged text keep search and Close reachable', (
+    tester,
+  ) async {
+    final capture = await _openHub(
+      tester,
+      size: const Size(320, 480),
+      textScale: 2,
+    );
+    addTearDown(() => _closeHarness(tester));
+    addTearDown(tester.view.resetViewInsets);
+    await tester.tap(find.byKey(const Key('settings-search')));
+    tester.view.viewInsets = const FakeViewPadding(bottom: 220);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    await tester.ensureVisible(find.byKey(const Key('settings-search')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const Key('settings-search')).hitTestable(),
+      findsOneWidget,
+    );
+    await tester.enterText(
+      find.byKey(const Key('settings-search')),
+      'saved notes',
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    final close = find.byKey(const Key('settings-close'));
+    expect(close.hitTestable(), findsOneWidget);
+    expect(tester.getBottomRight(close).dy, lessThanOrEqualTo(260));
+    await tester.tap(close);
+    await tester.pumpAndSettle();
+    expect(capture.picked, isNull);
+    expect(find.byType(SettingsHub), findsNothing);
+  });
+
   testWidgets('320x480 at 2x text Close stays reachable', (tester) async {
     tester.view.physicalSize = const Size(320, 480);
     tester.view.devicePixelRatio = 1;
