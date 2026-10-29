@@ -21,8 +21,11 @@ class ControlledApi extends KinaiyaClient {
   @override
   Future<Map<String, Object?>> converseHealth() async => {'enabled': true};
   @override
-  Future<Map<String, Object?>> transcribe(List<int> bytes, String filename) =>
-      transcription.future;
+  Future<Map<String, Object?>> transcribe(
+    List<int> bytes,
+    String filename, {
+    ContentScope contentScope = ContentScope.localOnly,
+  }) => transcription.future;
   @override
   Future<void> interruptSpeech(String id, {int? expectedGeneration}) async {
     interrupts++;

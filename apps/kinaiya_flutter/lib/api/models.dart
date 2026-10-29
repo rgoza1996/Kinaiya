@@ -5,6 +5,25 @@ library;
 
 const String schemaVersion = '1.0';
 
+/// Owner-declared disclosure for this input, independent of provider choice.
+enum ContentScope {
+  localOnly('local_only', 2),
+  publicSynthetic('public_synthetic', 0),
+  privateCloudAuthorized('private_cloud_authorized', 1);
+
+  const ContentScope(this.wireValue, this._restriction);
+  final String wireValue;
+  final int _restriction;
+
+  ContentScope combine(ContentScope other) =>
+      _restriction >= other._restriction ? this : other;
+
+  static ContentScope fromWire(Object? value) => values.firstWhere(
+    (scope) => scope.wireValue == value,
+    orElse: () => localOnly,
+  );
+}
+
 void checkSchemaVersion(Map<String, Object?> json, String model) {
   final version = (json['schema_version'] as String?) ?? '1.0';
   if (version != schemaVersion) {
@@ -122,6 +141,7 @@ class AgentTask {
     this.summary = '',
     this.evidence = const [],
     this.remainingRequiredWork = const [],
+    this.contentScope = ContentScope.localOnly,
     this.error,
   });
 
@@ -135,6 +155,7 @@ class AgentTask {
       objective: json['objective'] as String? ?? '',
       objectiveRevision: (json['objective_revision'] as num?)?.toInt() ?? 1,
       state: json['state'] as String? ?? 'accepted',
+      contentScope: ContentScope.fromWire(json['content_scope']),
       idempotencyKey: json['idempotency_key'] as String? ?? '',
       summary: json['summary'] as String? ?? '',
       evidence: _mapList(json['evidence']).map(Evidence.fromJson).toList(),
@@ -152,6 +173,7 @@ class AgentTask {
   final String objective;
   final int objectiveRevision;
   final String state;
+  final ContentScope contentScope;
   final String idempotencyKey;
   final String summary;
   final List<Evidence> evidence;

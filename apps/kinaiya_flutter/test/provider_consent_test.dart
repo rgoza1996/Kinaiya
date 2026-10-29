@@ -180,6 +180,7 @@ class ConsentClient extends KinaiyaClient {
     required int epoch,
     required String objective,
     required String idempotencyKey,
+    ContentScope contentScope = ContentScope.localOnly,
   }) async {
     createTasks++;
     return AgentTask(
@@ -201,6 +202,7 @@ class ConsentClient extends KinaiyaClient {
     required int epoch,
     required String input,
     required String idempotencyKey,
+    ContentScope contentScope = ContentScope.localOnly,
   }) async {
     executed++;
     if (executionGate != null) return executionGate!.future;
@@ -220,6 +222,7 @@ class ConsentClient extends KinaiyaClient {
     required String text,
     required String idempotencyKey,
     String inputMode = 'text',
+    ContentScope contentScope = ContentScope.localOnly,
   }) async* {
     turns++;
     yield ConverseEvent('done', <String, Object?>{'type': 'done'});
@@ -277,8 +280,9 @@ class ConsentClient extends KinaiyaClient {
   @override
   Future<Map<String, Object?>> transcribe(
     List<int> bytes,
-    String filename,
-  ) async {
+    String filename, {
+    ContentScope contentScope = ContentScope.localOnly,
+  }) async {
     transcriptions++;
     return {'text': 'public synthetic audio'};
   }

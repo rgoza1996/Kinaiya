@@ -4,6 +4,8 @@
 /// placed in URLs. Insecure remote HTTP is rejected; loopback HTTP is allowed.
 library;
 
+import '../api/models.dart';
+
 const String defaultSessionUrl = 'http://127.0.0.1:8760';
 const String defaultAgentUrl = 'http://127.0.0.1:8761';
 const String defaultConverseUrl = 'http://127.0.0.1:8762';
@@ -31,11 +33,24 @@ enum BackendProfile {
   cloudDevelopment(
     'Allow cloud inference (development)',
     'Synthetic and public input only. Cloud disclosure applies.',
+  ),
+
+  privateCloudAuthorized(
+    'Allow private input off-device',
+    'Authorize private input to the configured cloud provider. Meta Contributor is excluded.',
   );
 
   const BackendProfile(this.label, this.note);
   final String label;
   final String note;
+
+  ContentScope get contentScope => switch (this) {
+    BackendProfile.clean => ContentScope.localOnly,
+    BackendProfile.metaContributor ||
+    BackendProfile.cloudDevelopment => ContentScope.publicSynthetic,
+    BackendProfile.privateCloudAuthorized =>
+      ContentScope.privateCloudAuthorized,
+  };
 }
 
 /// Validated connection settings. The token is held in memory only.

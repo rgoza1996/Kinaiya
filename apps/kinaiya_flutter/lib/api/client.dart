@@ -238,6 +238,7 @@ class KinaiyaClient {
     required String text,
     required String idempotencyKey,
     String inputMode = 'text',
+    ContentScope contentScope = ContentScope.localOnly,
   }) async* {
     final req = http.Request(
       'POST',
@@ -251,6 +252,7 @@ class KinaiyaClient {
       'epoch': epoch,
       'text': text,
       'input_mode': inputMode,
+      'content_scope': contentScope.wireValue,
       'idempotency_key': idempotencyKey,
     });
     final streamed = await _http.send(req);
@@ -321,13 +323,15 @@ class KinaiyaClient {
 
   Future<Map<String, Object?>> transcribe(
     List<int> bytes,
-    String filename,
-  ) async {
+    String filename, {
+    ContentScope contentScope = ContentScope.localOnly,
+  }) async {
     final req = http.MultipartRequest(
       'POST',
       Uri.parse('$converseBase/v1/converse/transcribe'),
     );
     req.headers['Authorization'] = 'Bearer $_token';
+    req.fields['content_scope'] = contentScope.wireValue;
     req.files.add(
       http.MultipartFile.fromBytes('file', bytes, filename: filename),
     );
@@ -378,6 +382,7 @@ class KinaiyaClient {
     required int epoch,
     required String objective,
     required String idempotencyKey,
+    ContentScope contentScope = ContentScope.localOnly,
   }) async {
     final json = await _post(agentBase, '/v1/agent/tasks', <String, Object?>{
       'schema_version': schemaVersion,
@@ -385,6 +390,7 @@ class KinaiyaClient {
       'thread_id': threadId,
       'epoch': epoch,
       'objective': objective,
+      'content_scope': contentScope.wireValue,
       'idempotency_key': idempotencyKey,
     });
     return AgentTask.fromJson(json);
@@ -412,6 +418,7 @@ class KinaiyaClient {
   Future<AgentTask> steerTask({
     required String taskId,
     required String instruction,
+    ContentScope contentScope = ContentScope.localOnly,
     required int expectedObjectiveRevision,
     required String idempotencyKey,
   }) async {
@@ -421,6 +428,7 @@ class KinaiyaClient {
       <String, Object?>{
         'schema_version': schemaVersion,
         'instruction': instruction,
+        'content_scope': contentScope.wireValue,
         'expected_objective_revision': expectedObjectiveRevision,
         'idempotency_key': idempotencyKey,
         'source_event_ids': <String>[],
@@ -513,6 +521,7 @@ class KinaiyaClient {
     required String threadId,
     required int epoch,
     required String input,
+    ContentScope contentScope = ContentScope.localOnly,
     required String idempotencyKey,
   }) async {
     for (final base in <String>[agentBase, sessionBase]) {
@@ -523,6 +532,7 @@ class KinaiyaClient {
           'thread_id': threadId,
           'epoch': epoch,
           'input': input,
+          'content_scope': contentScope.wireValue,
           'idempotency_key': idempotencyKey,
         });
       } on ApiException catch (e) {
