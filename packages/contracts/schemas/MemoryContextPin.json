@@ -1,0 +1,56 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "implementation_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.:-]+$",
+      "title": "Implementation Id",
+      "type": "string"
+    },
+    "use_generation": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Use Generation",
+      "type": "integer"
+    },
+    "namespace_revision": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "title": "Namespace Revision",
+      "type": "integer"
+    },
+    "closure_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Closure Sha256",
+      "type": "string"
+    },
+    "selector_ids": {
+      "items": {
+        "maxLength": 128,
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9_.:-]+$",
+        "type": "string"
+      },
+      "maxItems": 8,
+      "minItems": 1,
+      "title": "Selector Ids",
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "implementation_id",
+    "use_generation",
+    "namespace_revision",
+    "closure_sha256",
+    "selector_ids"
+  ],
+  "title": "MemoryContextPin",
+  "type": "object"
+}
