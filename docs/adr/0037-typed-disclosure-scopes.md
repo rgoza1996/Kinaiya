@@ -104,5 +104,6 @@ private-file detection or behavior of an external model. Real multi-model
 local Converse rehearsal, full #49/M2, realtime/physical audio acceptance and
 production hardening remain separate open gates. Automated independent
 review is not human approval. Exact results, retained failure provenance and
-the genuine Contributor development run are recorded in the evidence file
-for this change and its PR/CI record.
+the genuine Contributor development run are recorded in the
+[verification evidence](../../evaluation/evidence/typed-disclosure-2026-10-28.json)
+and its separate PR/CI record.
