@@ -260,6 +260,8 @@ def serve(args):
             for name in PORTS
             if name != "resources" or resources_enabled
         }
+        if getattr(args, "converse_memory", False):
+            commands["session"].append("--converse-memory")
         print(
             "Independent processes started; failed components restart at most three times.",
             flush=True,
@@ -274,7 +276,11 @@ def serve(args):
         from services.session.api import create_app
         from services.session.store import Store
 
-        app = create_app(Store(args.data_dir / "journal.sqlite"), auth)
+        app = create_app(
+            Store(args.data_dir / "journal.sqlite"),
+            auth,
+            converse_memory=getattr(args, "converse_memory", False),
+        )
     elif service == "agent":
         from core.policy import ToolPolicy
         from packages.commands import Registry
@@ -677,6 +683,11 @@ def main():
     server = commands.add_parser("serve")
     server.add_argument("service", choices=[*PORTS, "all"])
     server.add_argument("--port", type=int)
+    server.add_argument(
+        "--converse-memory",
+        action="store_true",
+        help="Install experimental owner-managed local Converse memory API (no automatic recall)",
+    )
     agent = commands.add_parser("agent", help="Submit real work directly, without Converse")
     agent.add_argument("objective")
     args = parser.parse_args()
