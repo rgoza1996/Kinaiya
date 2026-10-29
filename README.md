@@ -240,6 +240,12 @@ storage. `kinaiya agent "Write a small file"` connects directly to Agent. Unappr
 writes and shell calls wait for an action-specific owner approval. The worker
 workspace must be separate from core, evaluation, settings and credential directories.
 
+Agent [file-write arguments](docs/adr/0043-write-file-arguments.md) use explicit path
+and content strings and are checked before approval and dispatch. Optional legacy
+revision metadata is validated against the native task revision and stays bound
+to the exact approval digest. Malformed writes produce an unsuccessful observation
+for the bounded task loop.
+
 The [Flutter web client](apps/kinaiya_flutter/README.md) provides Character View,
 voice recording/playback and independent Agent Chat. Its [design and browser evidence](docs/adr/0005-flutter-voice-client.md)
 describe the tested synthetic voice-to-file flow and Agent operation while Converse

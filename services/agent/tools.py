@@ -309,6 +309,48 @@ async def run_shell(
             proc_slot["proc"] = None
 
 
+_WRITE_FILE_ALLOWED_KEYS = frozenset({"path", "content", "objective_revision"})
+
+
+def validate_write_arguments(args: dict, objective_revision: int) -> None:
+    """Trusted shape check for write_file only; pure, no I/O or mutation.
+
+    Required keys ``path``/``content`` must both be strict strings; ``path``
+    must be nonempty and NUL-free (no strip/coercion); ``content`` may be
+    empty but must UTF-8 encode within ``READ_LIMIT * 4`` bytes. Only
+    ``path``/``content`` plus optional nonauthoritative ``objective_revision``
+    metadata are allowed. When present that metadata must be a strict int
+    (bool rejected), positive, and equal to the current trusted revision.
+    Never used to set task revision. Raises ``ToolFailure`` on any mismatch.
+    """
+    if not isinstance(args, dict):
+        raise ToolFailure("write_file requires an object of arguments")
+    if not args.keys() <= _WRITE_FILE_ALLOWED_KEYS:
+        raise ToolFailure("write_file rejects unsupported fields")
+    if "path" not in args or "content" not in args:
+        raise ToolFailure("write_file requires path and content")
+    path = args["path"]
+    content = args["content"]
+    if not isinstance(path, str):
+        raise ToolFailure("write_file requires a string path argument")
+    if not isinstance(content, str):
+        raise ToolFailure("write_file requires a string content argument")
+    if path == "" or "\x00" in path:
+        raise ToolFailure("write_file requires a nonempty NUL-free path")
+    try:
+        data = content.encode("utf-8")
+    except (UnicodeEncodeError, ValueError) as exc:
+        raise ToolFailure("write_file content is not valid UTF-8") from exc
+    if len(data) > READ_LIMIT * 4:
+        raise ToolFailure("write_file exceeds the 256 KiB per-action limit")
+    if "objective_revision" in args:
+        meta = args["objective_revision"]
+        if type(meta) is not int:
+            raise ToolFailure("write_file objective_revision must be an int")
+        if meta < 1 or meta != objective_revision:
+            raise ToolFailure("write_file objective_revision does not match the current revision")
+
+
 class _FailedWithEvidence(ToolFailure):
     """A tool produced supervisor evidence but still failed (e.g. exit != 0)."""
 
@@ -475,4 +517,5 @@ __all__ = [
     "run_search",
     "run_shell",
     "run_write",
+    "validate_write_arguments",
 ]

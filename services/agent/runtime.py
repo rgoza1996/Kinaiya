@@ -58,6 +58,7 @@ from services.agent.tools import (
     run_search,
     run_shell,
     run_write,
+    validate_write_arguments,
 )
 
 
@@ -1566,6 +1567,16 @@ class AgentRuntime:
         if stale is not None:
             await self._fail(rec, stale)
             return
+        if tool == "write_file":
+            try:
+                validate_write_arguments(args, revision)
+            except ToolFailure as exc:
+                rec.last_tool_ok = False
+                rec.failed_effect = True
+                if raw:
+                    rec.history.append({"role": "assistant", "content": raw[:2000]})
+                rec.history.append({"role": "user", "content": observation_text(False, str(exc))})
+                return
         digest = self.policy.digest_for(tool, args, revision)
         if tool == "mcp_call" and self.mcp_host is not None:
             self._model_mcp()._check(args.get("server_id", ""))
@@ -1710,6 +1721,16 @@ class AgentRuntime:
         )
         if await self._discard_revised_action(rec, revision, raw):
             return
+        if tool == "write_file":
+            try:
+                validate_write_arguments(args, revision)
+            except ToolFailure as exc:
+                rec.last_tool_ok = False
+                rec.failed_effect = True
+                if raw:
+                    rec.history.append({"role": "assistant", "content": raw[:2000]})
+                rec.history.append({"role": "user", "content": observation_text(False, str(exc))})
+                return
         if sources:
             pending = rec.pending
             if (
@@ -1750,8 +1771,8 @@ class AgentRuntime:
             elif tool == "write_file":
                 out, evidence = run_write(
                     self.policy,
-                    str(args.get("path", "")),
-                    args.get("content", ""),
+                    args["path"],
+                    args["content"],
                     revision,
                     approval_id=approval_id,
                     digest=digest,
