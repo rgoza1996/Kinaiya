@@ -7,6 +7,7 @@ from collections import deque
 from collections.abc import AsyncIterator
 from contextlib import contextmanager
 from contextvars import ContextVar
+from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -197,7 +198,16 @@ def _validate_complete_payload(raw):
     return content
 
 
-async def _iter_compatible_stream(response):
+@dataclass(frozen=True)
+class _CompatibleStreamEvent:
+    """Validated SSE data; DONE alone does not confirm EOF or HTTP cleanup."""
+
+    data: str
+    text: str | None
+    done: bool
+
+
+async def _iter_compatible_events(response) -> AsyncIterator[_CompatibleStreamEvent]:
     total = events = out_bytes = data_bytes = 0
     line_buf, data_lines = bytearray(), []
     seen_stop = seen_done = False
@@ -212,12 +222,12 @@ async def _iter_compatible_stream(response):
             if seen_done or not seen_stop:
                 raise _refusal("out-of-order terminal")
             seen_done = True
-            return None
+            return _CompatibleStreamEvent(assembled, None, True)
         if seen_done:
             raise _refusal("data after DONE")
         payload = _compatible_json(assembled)
         if payload.get("choices") == [] and isinstance(payload.get("usage"), dict):
-            return None
+            return _CompatibleStreamEvent(assembled, None, False)
         choice = _compatible_choice(payload)
         if seen_stop:
             raise _refusal("choice after stop")
@@ -236,7 +246,7 @@ async def _iter_compatible_stream(response):
             if out_bytes + size > _COMPAT_MAX_TEXT_BYTES:
                 raise _refusal("text bound")
             out_bytes += size
-        return content
+        return _CompatibleStreamEvent(assembled, content, False)
 
     def feed_line(raw_line):
         nonlocal data_bytes
@@ -245,10 +255,10 @@ async def _iter_compatible_stream(response):
         except UnicodeDecodeError as exc:
             raise _refusal("invalid UTF-8") from exc
         if not line:
-            text = dispatch() if data_lines else None
+            event = dispatch() if data_lines else None
             data_lines.clear()
             data_bytes = 0
-            return text
+            return event
         if line.startswith(":"):
             return None
         field, _, value = line.partition(":")
@@ -283,10 +293,10 @@ async def _iter_compatible_stream(response):
                 break
             if line_buf[-1:] == b"\r":
                 line_buf.pop()
-            text = feed_line(bytes(line_buf))
+            event = feed_line(bytes(line_buf))
             line_buf.clear()
-            if text:
-                yield text
+            if event is not None:
+                yield event
             start = index + 1
     if line_buf:
         # An EOF comment is harmless; an unfinished data event is not a
@@ -296,6 +306,12 @@ async def _iter_compatible_stream(response):
         feed_line(bytes(line_buf))
     if data_lines or not (seen_stop and seen_done):
         raise _refusal("incomplete stream")
+
+
+async def _iter_compatible_stream(response) -> AsyncIterator[str]:
+    async for event in _iter_compatible_events(response):
+        if event.text:
+            yield event.text
 
 
 class CompatibleTextProvider:

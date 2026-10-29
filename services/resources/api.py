@@ -43,10 +43,8 @@ class ResourceAction(BaseModel):
 
 
 class ManagedTextResponse(StreamingResponse):
-    def __init__(self, body, *, timeout_s):
-        super().__init__(
-            body, media_type="application/x-ndjson", headers={"Cache-Control": "no-store"}
-        )
+    def __init__(self, body, *, timeout_s, media_type="application/x-ndjson"):
+        super().__init__(body, media_type=media_type, headers={"Cache-Control": "no-store"})
         self.timeout_s = timeout_s
 
     async def __call__(self, scope, receive, send):
@@ -62,7 +60,7 @@ class ManagedTextResponse(StreamingResponse):
                 await self.body_iterator.aclose()
 
 
-def create_app(coordinator, auth, whistle=None, qwen3=None):
+def create_app(coordinator, auth, whistle=None, qwen3=None, gguf=None):
     app = FastAPI(title="Kinaiya local resources")
     owner = [Depends(auth.require("owner"))]
 
@@ -78,6 +76,8 @@ def create_app(coordinator, auth, whistle=None, qwen3=None):
                 result["whistle"] = whistle.status()
             if qwen3 is not None:
                 result["qwen3"] = qwen3.status()
+            if gguf is not None:
+                result["gguf"] = gguf.status()
             return result
         except (OSError, ValueError) as exc:
             raise HTTPException(503, "Resource owner intent is unavailable") from exc
@@ -106,5 +106,14 @@ def create_app(coordinator, auth, whistle=None, qwen3=None):
             raise HTTPException(503, "Managed Qwen3 dialogue is not selected")
         body = await qwen3.stream(request)
         return ManagedTextResponse(body, timeout_s=body.remaining_timeout_s + 1)
+
+    @app.post("/v1/chat/completions", dependencies=[Depends(auth.require("owner", "converse"))])
+    async def native_complete(request: Request):
+        if gguf is None:
+            raise HTTPException(503, "Managed GGUF dialogue is not selected")
+        body = await gguf.stream(request)
+        return ManagedTextResponse(
+            body, timeout_s=body.remaining_timeout_s + 1, media_type="text/event-stream"
+        )
 
     return app

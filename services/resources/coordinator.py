@@ -2,6 +2,7 @@
 
 import asyncio
 import hashlib
+import inspect
 import json
 import os
 import sqlite3
@@ -25,6 +26,12 @@ class Qwen3AdmissionError(RuntimeError):
         self.cleanup_confirmed = cleanup_confirmed
 
 
+class TextAdmissionError(Qwen3AdmissionError):
+    def __init__(self, *, cleanup_confirmed=False):
+        super().__init__(cleanup_confirmed=cleanup_confirmed)
+        self.args = ("Managed text resource admission is unavailable",)
+
+
 class ResourceCoordinator:
     def __init__(
         self,
@@ -41,10 +48,32 @@ class ResourceCoordinator:
         restore_reserve_bytes=0,
         whistle_restore_reserve_bytes=0,
         qwen3_restore_reserve_bytes=0,
+        text_worker_id="qwen3",
+        text_restore_reserve_bytes=None,
         managed_text_binding=None,
         gpu_probe=None,
         gpu_restore_reserve_bytes=0,
     ):
+        workers = manager.status()["workers"]
+        text_workers = set(workers) & {"qwen3", "gguf"}
+        if (
+            type(text_worker_id) is not str
+            or text_worker_id not in {"qwen3", "gguf"}
+            or text_workers - {text_worker_id}
+        ):
+            raise ValueError("Configure exactly one selected managed text worker")
+        if text_worker_id == "gguf" and (not managed_text_binding or "gguf" not in workers):
+            raise ValueError("Managed GGUF requires its protected worker binding")
+        if (
+            managed_text_binding is not None
+            and managed_text_binding.get("provider")
+            != {"qwen3": "managed-qwen3", "gguf": "managed-gguf"}[text_worker_id]
+        ):
+            raise ValueError("Managed text binding does not match the selected worker")
+        if text_restore_reserve_bytes is not None and (
+            type(text_restore_reserve_bytes) is not int or text_restore_reserve_bytes < 0
+        ):
+            raise ValueError("Managed text restore reserve must be nonnegative bytes")
         self.manager, self.state, self.converse = manager, state, converse
         self.intent = ConverseIntent(
             state.path.parent / "converse-intent.json",
@@ -58,6 +87,12 @@ class ResourceCoordinator:
         self.restore_reserve = restore_reserve_bytes
         self.whistle_restore_reserve = whistle_restore_reserve_bytes
         self.qwen3_restore_reserve = qwen3_restore_reserve_bytes
+        self.text_worker_id = text_worker_id
+        self.text_restore_reserve = (
+            qwen3_restore_reserve_bytes
+            if text_restore_reserve_bytes is None
+            else text_restore_reserve_bytes
+        )
         self.managed_text_binding = (
             dict(managed_text_binding) if managed_text_binding is not None else None
         )
@@ -65,11 +100,18 @@ class ResourceCoordinator:
         self.gpu_restore_reserve = gpu_restore_reserve_bytes
         self.gpu_release = None
         self.lock = asyncio.Lock()
+        # Allocations never need the action/ledger lock. An owner action may
+        # therefore await the broker's existing admission/cleanup owner.
+        self.admission_lock = asyncio.Lock()
+        self._closing = False
+        self._closed = False
+        self._text_lifecycle = None
         self.publication_pending = False
         self._whistle_preemptions = 0
         self._has_whistle = "whistle" in self.manager.status()["workers"]
         self._qwen3_preemptions = 0
         self._has_qwen3 = "qwen3" in self.manager.status()["workers"]
+        self._has_text = text_worker_id in workers
         database = state.path.parent / "resource-actions.sqlite"
         fd = os.open(
             database, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC, 0o600
@@ -85,6 +127,45 @@ class ResourceCoordinator:
             "CREATE TABLE IF NOT EXISTS actions (key TEXT PRIMARY KEY, digest TEXT, result TEXT)"
         )
         self.db.commit()
+
+    def register_text_lifecycle(self, *, abort, drain, release):
+        """Register trusted selected-broker hooks once; never a second owner."""
+        if self._text_lifecycle is not None or self._closing or not self._has_text:
+            raise ValueError("Managed text lifecycle cannot be registered")
+        if not all(
+            callable(hook) for hook in (abort, drain, release)
+        ) or inspect.iscoroutinefunction(abort):
+            raise ValueError("Managed text lifecycle requires a synchronous abort hook")
+        self._text_lifecycle = abort, drain, release
+
+    async def stop_text(self, identity=None):
+        if identity is not None and identity.worker_id != self.text_worker_id:
+            raise ValueError("Cleanup identity is not the selected text worker")
+        captured = identity or self.manager.owned_identity(self.text_worker_id)
+        result = (
+            await self.manager.stop(self.text_worker_id)
+            if identity is None
+            else await self.manager.stop_if_current(identity)
+        )
+        confirmed = self._native_stopped(result)
+        if result.get("ok") and result.get("already"):
+            row = self.manager.status()["workers"][self.text_worker_id]
+            proof = row.get("stop_evidence") or {}
+            if row.get("state") == "stopped" and row.get("owned_pgid") is None:
+                if proof.get("reaped") and proof.get("group_empty"):
+                    result = {**result, "release_confirmed": True, "stop_evidence": proof}
+                    confirmed = True
+                elif row.get("owned_pid") is None and not proof:
+                    # No process was granted. Endpoint startup leases must
+                    # independently agree before this can confirm release.
+                    confirmed = True
+        if not confirmed:
+            raise RuntimeError("Managed text process release is unconfirmed")
+        if self._text_lifecycle is not None:
+            release = self._text_lifecycle[2]
+            if await release(captured, result) is not True:
+                raise RuntimeError("Managed text endpoint release is unconfirmed")
+        return result
 
     def status(self):
         gpu = self.gpu_probe() if self.gpu_probe is not None else None
@@ -164,6 +245,8 @@ class ResourceCoordinator:
             try:
                 health = await self.converse.health()
                 self._provider_locality(health)
+                if self.managed_text_binding is not None and self.local_converse_unmanaged:
+                    raise RuntimeError("Selected managed text health does not match its binding")
                 await self._save(phase="initializing")
                 if self.intent.read().enabled:
                     await self._restore_locked()
@@ -185,7 +268,7 @@ class ResourceCoordinator:
         # Protected startup configuration identifies the selected profile, not
         # a ready process. Only the manager can prove residency and release.
         matches = (
-            self._has_qwen3
+            self._has_text
             and type(binding) is dict
             and binding.keys() == expected.keys()
             and all(
@@ -209,7 +292,7 @@ class ResourceCoordinator:
         # already awaiting readiness under the lifecycle lock. A replay/conflict
         # must not revoke legitimate current work. The existing durable action
         # implementation remains the authority.
-        preempt = (self._has_whistle or self._has_qwen3) and (
+        preempt = (self._has_whistle or self._has_text) and (
             payload.get("operation") == "handoff"
             or (payload.get("operation") == "converse" and payload.get("enabled") is False)
         )
@@ -234,13 +317,13 @@ class ResourceCoordinator:
                 )
         if preempt:
             self._whistle_preemptions += int(self._has_whistle)
-            self._qwen3_preemptions += int(self._has_qwen3)
+            self._qwen3_preemptions += int(self._has_text)
         try:
             return await self._action(payload)
         finally:
             if preempt:
                 self._whistle_preemptions -= int(self._has_whistle)
-                self._qwen3_preemptions -= int(self._has_qwen3)
+                self._qwen3_preemptions -= int(self._has_text)
 
     async def _handoff_may_preempt(self, payload):
         """Read-only eligibility preview, never resource admission authority.
@@ -291,7 +374,8 @@ class ResourceCoordinator:
     def whistle_policy(self):
         record, choice = self.state.record, self.intent.read()
         if (
-            self._whistle_preemptions
+            self._closing
+            or self._whistle_preemptions
             or record.phase != "ready"
             or record.lease_id
             or not record.desired_converse
@@ -320,7 +404,7 @@ class ResourceCoordinator:
         Off/handoff barriers and durable owner revisions are rechecked after
         startup; a newly ready but revoked incarnation is stopped before return.
         """
-        async with self.lock:
+        async with self.admission_lock:
             if self.whistle_policy() != expected_policy:
                 raise WhistleAdmissionError(cleanup_confirmed=True)
             identity = self.manager.owned_identity("whistle")
@@ -361,10 +445,12 @@ class ResourceCoordinator:
                 ) from exc
             return identity
 
-    def qwen3_policy(self):
+    def text_policy(self):
         record, choice = self.state.record, self.intent.read()
         if (
-            not self._has_qwen3
+            self._closing
+            or not self._has_text
+            or (self.text_worker_id == "gguf" and self._text_lifecycle is None)
             or self._qwen3_preemptions
             or record.phase != "ready"
             or record.lease_id
@@ -372,47 +458,67 @@ class ResourceCoordinator:
             or not choice.enabled
             or record.owner_intent_revision != choice.revision
         ):
-            raise Qwen3AdmissionError(cleanup_confirmed=True)
+            raise TextAdmissionError(cleanup_confirmed=True)
         return record.revision, choice.revision
 
+    def qwen3_policy(self):
+        return self.text_policy()
+
+    async def _text_admission_cleanup(self, identity=None):
+        try:
+            await self.stop_text(identity)
+        except Exception:
+            return False
+        return True
+
     async def admit_qwen3(self, expected_policy):
+        return await self.admit_text(expected_policy)
+
+    async def admit_text(self, expected_policy):
         """Admit one fixed child; recheck revocation after awaited readiness.
 
         The broker retains this operation through request cancellation. A new
         request may restore a released allocation; it never retries generation.
         """
-        async with self.lock:
-            if self.qwen3_policy() != expected_policy:
-                raise Qwen3AdmissionError(cleanup_confirmed=True)
-            identity = self.manager.owned_identity("qwen3")
+        async with self.admission_lock:
+            if self.text_policy() != expected_policy:
+                raise TextAdmissionError(cleanup_confirmed=True)
+            worker_id = self.text_worker_id
+            identity = self.manager.owned_identity(worker_id)
             if identity is None:
+                if self._text_lifecycle is not None and not await self._text_admission_cleanup():
+                    raise TextAdmissionError()
+                if self.text_policy() != expected_policy:
+                    raise TextAdmissionError(cleanup_confirmed=True)
                 if self.before_start:
                     try:
-                        await self.before_start("qwen3")
+                        await self.before_start(worker_id)
                     except Exception as exc:
-                        raise Qwen3AdmissionError(cleanup_confirmed=True) from exc
-                if self.qwen3_policy() != expected_policy:
-                    raise Qwen3AdmissionError(cleanup_confirmed=True)
+                        raise TextAdmissionError(cleanup_confirmed=True) from exc
+                if self.text_policy() != expected_policy:
+                    raise TextAdmissionError(cleanup_confirmed=True)
                 available = self.memory_probe()
-                if available is None or available < max(self.minimum, self.qwen3_restore_reserve):
-                    raise Qwen3AdmissionError(cleanup_confirmed=True)
+                if available is None or available < max(self.minimum, self.text_restore_reserve):
+                    raise TextAdmissionError(cleanup_confirmed=True)
                 try:
-                    result = await self.manager.start("qwen3")
+                    result = await self.manager.start(worker_id)
+                except asyncio.CancelledError:
+                    await self._text_admission_cleanup()
+                    raise
                 except Exception as exc:
-                    stopped = await self.manager.stop("qwen3")
-                    raise Qwen3AdmissionError(
-                        cleanup_confirmed=self._native_stopped(stopped)
+                    raise TextAdmissionError(
+                        cleanup_confirmed=await self._text_admission_cleanup()
                     ) from exc
-                identity = self.manager.owned_identity("qwen3")
+                identity = self.manager.owned_identity(worker_id)
                 if not result.get("ok") or not result.get("ready") or identity is None:
-                    stopped = await self.manager.stop("qwen3")
-                    raise Qwen3AdmissionError(cleanup_confirmed=self._native_stopped(stopped))
+                    raise TextAdmissionError(cleanup_confirmed=await self._text_admission_cleanup())
             try:
-                if self.qwen3_policy() != expected_policy:
-                    raise Qwen3AdmissionError()
-            except (OSError, ValueError, Qwen3AdmissionError) as exc:
-                stopped = await self.manager.stop_if_current(identity)
-                raise Qwen3AdmissionError(cleanup_confirmed=self._native_stopped(stopped)) from exc
+                if self.text_policy() != expected_policy:
+                    raise TextAdmissionError()
+            except (OSError, ValueError, TextAdmissionError) as exc:
+                raise TextAdmissionError(
+                    cleanup_confirmed=await self._text_admission_cleanup(identity)
+                ) from exc
             return identity
 
     async def _action(self, payload):
@@ -546,9 +652,50 @@ class ResourceCoordinator:
             ) from control_error
 
     async def _stop_workers(self):
+        workers = tuple(self.manager.status()["workers"])
+        hooks, failure, first_identity, first_result = self._text_lifecycle, None, None, None
+        if hooks is not None:
+            try:
+                hooks[0]()
+            except (Exception, asyncio.CancelledError) as exc:
+                failure = exc
+        # First stop unblocks real native I/O. It is not the release barrier:
+        # an admitted start can still be delayed before entering Manager.
+        for worker_id in workers:
+            try:
+                if worker_id == self.text_worker_id:
+                    first_identity = self.manager.owned_identity(worker_id)
+                stopped = await self.manager.stop(worker_id)
+                if worker_id == self.text_worker_id:
+                    first_result = stopped
+            except (Exception, asyncio.CancelledError) as exc:
+                failure = failure or exc
+        if hooks is not None:
+            try:
+                await hooks[1]()
+            except (Exception, asyncio.CancelledError) as exc:
+                failure = failure or exc
+        try:
+            # Legacy Qwen/Whistle admissions have no broker hook. This also
+            # joins their allocation transaction before the final stop. No
+            # admission lock is held while draining broker-owned work above.
+            async with self.admission_lock:
+                pass
+        except asyncio.CancelledError as exc:
+            failure = failure or exc
+        if hooks is not None and first_identity is not None and first_result is not None:
+            try:
+                if await hooks[2](first_identity, first_result) is not True:
+                    raise RuntimeError("Managed text endpoint release is unconfirmed")
+            except (Exception, asyncio.CancelledError) as exc:
+                failure = failure or exc
         results = []
-        for worker_id in self.manager.status()["workers"]:
-            result = await self.manager.stop(worker_id)
+        for worker_id in workers:
+            result = (
+                await self.stop_text()
+                if worker_id == self.text_worker_id
+                else await self.manager.stop(worker_id)
+            )
             if not result.get("ok"):
                 raise RuntimeError("Managed worker termination is unconfirmed")
             evidence = result.get("stop_evidence")
@@ -556,7 +703,7 @@ class ResourceCoordinator:
                 not evidence.get("reaped") or not evidence.get("group_empty")
             ):
                 raise RuntimeError("Managed worker group release is unconfirmed")
-            if worker_id in {"whistle", "qwen3"} and result.get("already"):
+            if result.get("already"):
                 row = self.manager.status()["workers"][worker_id]
                 retained = row.get("stop_evidence") or {}
                 if (
@@ -565,8 +712,10 @@ class ResourceCoordinator:
                     and retained.get("reaped")
                     and retained.get("group_empty")
                 ):
-                    result = {**result, "release_confirmed": True}
+                    result = {**result, "release_confirmed": True, "stop_evidence": retained}
             results.append(result)
+        if failure is not None:
+            raise failure
         return results
 
     async def _handoff_locked(self, payload):
@@ -615,7 +764,7 @@ class ResourceCoordinator:
         await self._save(phase="unloading")
         workers = self.manager.status()["workers"]
         released = set()
-        for worker_id in ("whistle", "qwen3"):
+        for worker_id in ("whistle", self.text_worker_id):
             row = workers.get(worker_id, {})
             proof = row.get("stop_evidence") or {}
             if (
@@ -675,18 +824,45 @@ class ResourceCoordinator:
         )
 
     async def _restore_locked(self):
-        if not self.intent.read().enabled:
+        if self._closing or not self.intent.read().enabled:
             await self._off_locked()
             return
         await self._save(phase="restoring")
+        async with self.admission_lock:
+            restored = await self._restore_allocations()
+        # Stop/drain can await admission. Never retain admission_lock here.
+        if not restored or self._closing or not self.intent.read().enabled:
+            await self._off_locked()
+            return
+        if self.managed_text_binding is not None:
+            self._provider_locality(await self.converse.health())
+            if self.local_converse_unmanaged:
+                raise RuntimeError("Selected managed text health does not match its binding")
+        await self.converse.enabled(True)
+        if self._closing or not self.intent.read().enabled:
+            await self._off_locked()
+            return
+        await self._save(
+            phase="ready",
+            lease_id=None,
+            lease_task_id=None,
+            required_bytes=0,
+            required_gpu_bytes=0,
+            reason="Managed APIs ready; voice weights load on demand",
+        )
+
+    async def _restore_allocations(self):
+        """Run under admission_lock, including the resident credit snapshot."""
+        if self._has_text and self.text_worker_id == "gguf" and self._text_lifecycle is None:
+            raise RuntimeError("Managed GGUF lifecycle is not registered")
         reserve, recorded = self.restore_reserve, self.state.record.restore_bytes
-        credited_qwen = self.manager.owned_identity("qwen3") if self._has_qwen3 else None
-        if credited_qwen is not None:
+        credited_text = self.manager.owned_identity(self.text_worker_id) if self._has_text else None
+        if credited_text is not None:
             # An existing verified text child is already included in the fresh
             # host measurement. Reopening Converse must not reserve its whole
             # startup allocation a second time. Other worker rules are unchanged.
-            reserve = max(0, reserve - self.qwen3_restore_reserve)
-            resident = self.manager.status()["workers"]["qwen3"].get("group_rss_bytes")
+            reserve = max(0, reserve - self.text_restore_reserve)
+            resident = self.manager.status()["workers"][self.text_worker_id].get("group_rss_bytes")
             if type(resident) is int and resident >= 0:
                 recorded = max(0, recorded - resident)
         available = self.memory_probe()
@@ -706,61 +882,75 @@ class ResourceCoordinator:
             ):
                 raise RuntimeError("Restoration lacks measured GPU headroom")
         for worker_id in self.manager.status()["workers"]:
-            if not self.intent.read().enabled:
-                await self._off_locked()
-                return
+            if self._closing or not self.intent.read().enabled:
+                return False
             if self.before_start:
                 await self.before_start(worker_id)
-            if worker_id == "qwen3":
-                if credited_qwen is not None and self.manager.is_current(credited_qwen):
+            if self._closing or not self.intent.read().enabled:
+                return False
+            if worker_id == self.text_worker_id:
+                if credited_text is not None and self.manager.is_current(credited_text):
                     # Reuse that exact credited incarnation without calling
                     # start(), which could replace an exited leader after an
                     # await. Later loss is handled by ordinary fresh admission.
                     continue
-                needed = max(self.minimum, self.qwen3_restore_reserve)
-                if credited_qwen is not None:
+                if self._text_lifecycle is not None:
+                    await self.stop_text()
+                if self._closing or not self.intent.read().enabled:
+                    return False
+                needed = max(self.minimum, self.text_restore_reserve)
+                if credited_text is not None:
                     # The earlier credit no longer applies. A replacement
                     # requires a fresh full restore observation, not the old
                     # discounted measurement from before awaited work.
                     needed = max(needed, self.restore_reserve, self.state.record.restore_bytes)
                 available = self.memory_probe()
                 if available is None or available < needed:
-                    raise RuntimeError("Qwen3 restoration lacks measured minimum headroom")
-            result = await self.manager.start(worker_id)
+                    raise RuntimeError("Text restoration lacks measured minimum headroom")
+            try:
+                result = await self.manager.start(worker_id)
+            except (Exception, asyncio.CancelledError):
+                if worker_id == self.text_worker_id:
+                    await self._text_admission_cleanup()
+                raise
             if not result.get("ok") or not result.get("ready"):
+                if worker_id == self.text_worker_id:
+                    await self._text_admission_cleanup()
                 raise RuntimeError("Managed conversation worker did not become ready")
-        if not self.intent.read().enabled:
-            await self._off_locked()
-            return
-        await self.converse.enabled(True)
-        if not self.intent.read().enabled:
-            await self._off_locked()
-            return
-        await self._save(
-            phase="ready",
-            lease_id=None,
-            lease_task_id=None,
-            required_bytes=0,
-            required_gpu_bytes=0,
-            reason="Managed APIs ready; voice weights load on demand",
-        )
+        return not self._closing and self.intent.read().enabled
 
     async def close(self):
-        failure = None
-        try:
-            await self.manager.close()
-            self.state.save(
-                phase="initializing",
-                reason="Managed voice stopped; awaiting resource service startup",
-            )
-        except Exception as exc:
-            failure = exc
-            self.state.save(phase="failed", reason="Resource shutdown could not confirm release")
-        finally:
-            self.db.close()
-            self.state.close()
-            await self.converse.close()
-            if self.journal and hasattr(self.journal, "close"):
-                await self.journal.close()
-        if failure:
-            raise failure
+        self._closing = True
+        async with self.lock:
+            if self._closed:
+                return
+            failure = None
+            try:
+                if self._text_lifecycle is not None:
+                    await self._stop_workers()
+            except (Exception, asyncio.CancelledError) as exc:
+                failure = exc
+            finally:
+                try:
+                    await self.manager.close()
+                except (Exception, asyncio.CancelledError) as exc:
+                    failure = failure or exc
+            try:
+                if failure is None:
+                    self.state.save(
+                        phase="initializing",
+                        reason="Managed voice stopped; awaiting resource service startup",
+                    )
+                else:
+                    self.state.save(
+                        phase="failed", reason="Resource shutdown could not confirm release"
+                    )
+            finally:
+                self._closed = True
+                self.db.close()
+                self.state.close()
+                await self.converse.close()
+                if self.journal and hasattr(self.journal, "close"):
+                    await self.journal.close()
+            if failure is not None:
+                raise failure

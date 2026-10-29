@@ -65,7 +65,7 @@ def load_config(path):
     return json.loads(path.read_text())
 
 
-def provider(config, role, *, resource_state=None, service_token=None):
+def provider(config, role, *, resource_state=None, service_token=None, workspace=None):
     from packages.providers.text import CompatibleTextProvider, MetaResponsesProvider
 
     profile = dict(config["providers"][role])
@@ -138,6 +138,40 @@ def provider(config, role, *, resource_state=None, service_token=None):
 
         result = ManagedQwen3Provider(
             local_base(base_url), service_token, **limits, request_timeout_s=timeout
+        )
+    elif kind == "gguf":
+        if role != "converse":
+            raise SystemExit("Managed GGUF is selected independently for Converse")
+        from packages.providers.gguf import ManagedGGUFProvider
+        from services.resources.client import local_base
+        from services.resources.gguf import ManagedGGUFConfig, configured_manifest
+
+        resources = config.get("resources")
+        if (
+            set(profile) - {"base_url"}
+            or not isinstance(resources, dict)
+            or resources.get("enabled") is not True
+            or resources.get("qwen3") is not None
+            or not isinstance(resources.get("gguf"), dict)
+            or resource_state is None
+            or workspace is None
+        ):
+            raise ValueError("GGUF requires protected managed resources and an Agent workspace")
+        base_url = local_base(profile.get("base_url", ""))
+        if base_url != local_base(config.get("resources_url", "http://127.0.0.1:8764")):
+            raise ValueError("GGUF must select the configured resources origin")
+        settings = ManagedGGUFConfig.model_validate(resources["gguf"])
+        manifest = configured_manifest(settings, workspace)
+        result = ManagedGGUFProvider(
+            base_url,
+            service_token,
+            model=manifest["model"],
+            alias=manifest["alias"],
+            profile=manifest["profile"],
+            manifest_sha256=settings.manifest_sha256,
+            context_tokens=settings.context_tokens,
+            max_new_tokens=settings.max_new_tokens,
+            request_timeout_s=settings.request_timeout_s,
         )
     else:
         raise SystemExit(
@@ -439,6 +473,7 @@ def serve(args):
                 "converse",
                 resource_state=resource_state,
                 service_token=tokens["converse"],
+                workspace=args.workspace.resolve(),
             ),
             intent=intent,
             resources_managed=resources_enabled,
