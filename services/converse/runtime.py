@@ -17,8 +17,9 @@ from packages.contracts.models import (
     PlaybackGeneration,
     new_id,
 )
+from packages.providers.disclosure import combine_scopes, scope_allowed, source_scope
 from packages.providers.text import ProviderCleanupError, owned_http_stream_cleanup
-from services.converse.history import typed_history
+from services.converse.history import typed_history_scoped
 from services.converse.intent import ConverseIntent
 
 
@@ -176,12 +177,22 @@ class ConverseRuntime:
         *,
         name="Kinaiya",
         personality=None,
+        personality_scope=None,
         context_turns=12,
         intent=None,
         resources_managed=False,
     ):
         self.journal, self.provider = journal, provider
         self.name, self.context_turns = name, context_turns
+        custom_persona = personality is not None or name != "Kinaiya"
+        if personality_scope is None:
+            # The built-in Kinaiya persona is public code. Any custom
+            # personality/name without a positive owner-configured scope stays
+            # local-only. This is a constructor-owned value, never a
+            # request/model-controlled override.
+            self.personality_scope = "public_synthetic" if not custom_persona else "local_only"
+        else:
+            self.personality_scope = personality_scope
         self.personality = personality or (
             f"You are {name}, Kinaiya's thoughtful, warm conversational companion. "
             "Speak naturally and concisely. Personality exists only here. "
@@ -245,6 +256,29 @@ class ConverseRuntime:
             return self.admission() == admission
         except (OSError, ValueError, RuntimeError):
             return False
+
+    def _request_scope(self, request):
+        scope = getattr(request, "content_scope", "local_only")
+        if not isinstance(scope, str) or scope not in {
+            "local_only",
+            "public_synthetic",
+            "private_cloud_authorized",
+        }:
+            return "local_only"
+        return scope
+
+    def _check_typed_disclosure(self, request, provider=None):
+        """Fail closed before denied text reaches any provider call or error."""
+        request_scope = self._request_scope(request)
+        provider = provider or self.provider
+        if not scope_allowed(provider.info, request_scope):
+            raise ValueError("Typed input scope is not permitted for the selected provider")
+        if not scope_allowed(provider.info, self.personality_scope):
+            raise ValueError("Personality scope is not permitted for the selected provider")
+        return request_scope
+
+    def _derived_reply_scope(self, consumed_scopes, request_scope):
+        return combine_scopes(*consumed_scopes, request_scope, self.personality_scope)
 
     async def set_enabled(self, value, *, owner=False):
         if owner:
@@ -837,6 +871,7 @@ class ConverseRuntime:
 
     async def _events(self, request, turn):
         admission = self.admission()
+        request_scope = self._check_typed_disclosure(request)
         session = await self.journal.session(request.session_id)
         if session.channel != "converse" or (session.epoch, session.thread_id) != (
             request.epoch,
@@ -859,6 +894,7 @@ class ConverseRuntime:
                     != (request.epoch, request.thread_id)
                     or prior_user.payload.get("text") != request.text
                     or prior_user.payload.get("input_mode", "text") != request.input_mode
+                    or prior_user.payload.get("content_scope", "local_only") != request_scope
                 ):
                     raise ValueError("Idempotency key reused with different content")
                 replies = [
@@ -923,6 +959,7 @@ class ConverseRuntime:
                             "revision": 1,
                             "input_mode": request.input_mode,
                             "generation_epoch": generation,
+                            "content_scope": request_scope,
                         },
                         idempotency_key=request.idempotency_key,
                     )
@@ -934,6 +971,10 @@ class ConverseRuntime:
                 yield {"type": "text", "entry": reply.model_dump(mode="json"), "replay": True}
             yield {"type": "done", "replay": True, "pending": not bool(replies)}
             return
+        # Pin the actual transport after awaited admission. Projection and inference
+        # must use the same target even if owner configuration changes meanwhile.
+        provider = self.provider
+        self._check_typed_disclosure(request, provider)
         messages = [{"role": "system", "content": self.personality}]
         delivery = [
             e for e in existing if e.kind == "delivery.updated" and e.epoch == request.epoch
@@ -957,8 +998,12 @@ class ConverseRuntime:
                     + json.dumps(notes),
                 }
             )
-        messages += typed_history(existing, request, self.provider.info, self.context_turns)
+        history_messages, consumed_scopes = typed_history_scoped(
+            existing, request, provider.info, self.context_turns
+        )
+        messages += history_messages
         messages.append({"role": "user", "content": request.text})
+        derived_scope = self._derived_reply_scope(consumed_scopes, request_scope)
         chunker, index = SpeechChunker(), 0
         queue = operation.queue
 
@@ -967,7 +1012,9 @@ class ConverseRuntime:
                 # Protect the transport before __anext__: EOF and provider error
                 # can enter HTTP close before our independent aclose owner runs.
                 with owned_http_stream_cleanup():
-                    operation.iterator = aiter(self.provider.stream(messages))
+                    if not scope_allowed(provider.info, derived_scope):
+                        raise ValueError("Compiled context scope is not permitted for the provider")
+                    operation.iterator = aiter(provider.stream(messages))
                     async for delta in operation.iterator:
                         if not self._text_current(operation):
                             operation.cancel()
@@ -1049,6 +1096,7 @@ class ConverseRuntime:
                             "availability_generation": admission[1],
                             "chunk_id": new_id(),
                             "delivery": "generated",
+                            "content_scope": derived_scope,
                         },
                         causes=[source.event_id],
                         idempotency_key=f"reply:{source.event_id}:{index}",
@@ -1181,18 +1229,14 @@ class ConverseRuntime:
         scopes = []
         for source_id in task.get("source_event_ids", []):
             try:
-                source = await self.journal.resolve(source_id)
-                if source.kind == "conversation.window" or "content_scope" in source.payload:
-                    scopes.append(source.payload.get("content_scope", "local_only"))
+                scopes.append(await source_scope(self.journal, source_id))
             except (KeyError, ValueError):
                 scopes.append("local_only")
-        scope_fields = {}
-        if scopes:
-            scope_fields["content_scope"] = next(
-                s
-                for s in ("local_only", "private_cloud_authorized", "public_synthetic")
-                if s in scopes
-            )
+        task_scope = task.get("content_scope", "local_only")
+        combined_scope = (
+            combine_scopes(task_scope, *scopes) if scopes else combine_scopes(task_scope)
+        )
+        scope_fields = {"content_scope": combined_scope}
         # Completion does not cancel current social speech. It joins the current epoch.
         if not self.admission_current(admission):
             return None

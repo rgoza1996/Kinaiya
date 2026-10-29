@@ -48,7 +48,7 @@ from packages.contracts.models import (
     TaskRetirement,
     TaskState,
 )
-from packages.providers.disclosure import combine_scopes, entry_allowed, scope_allowed
+from packages.providers.disclosure import combine_scopes, entry_allowed, scope_allowed, source_scope
 from services.agent.mcp_tools import ModelScopedMCP, run_mcp_call, run_mcp_list
 from services.agent.tools import (
     RunningProc,
@@ -379,49 +379,7 @@ class AgentRuntime:
         return texts, scope
 
     async def _source_scope(self, source_id, resolved):
-        """Keep original and intermediate native scope floors, never only the latest grant.
-
-        One bounded revision page is sufficient for ordinary typed sources. An
-        exhausted page cannot establish the complete chain and stays local.
-        This is a conservative disclosure bound, not a full-history query.
-        """
-        original = await self.journal.entry(source_id)
-        scope = combine_scopes(
-            original.payload.get("content_scope", "local_only"),
-            resolved.payload.get("content_scope", "local_only"),
-        )
-        if original.kind != "conversation.user":
-            return scope
-        revisions = await self.journal.read(
-            after=original.sequence,
-            session_id=original.session_id,
-            kinds=["conversation.revision"],
-            limit=200,
-        )
-        if len(revisions) >= 200:
-            return "local_only"
-        revision = original.payload.get("revision", 1)
-        if type(revision) is not int or revision < 1:
-            return "local_only"
-        for entry in revisions:
-            if entry.payload.get("target_event_id") != source_id:
-                continue
-            if (
-                (entry.session_id, entry.thread_id, entry.epoch)
-                != (original.session_id, original.thread_id, original.epoch)
-                or entry.origin not in {"authenticated-user", "converse"}
-                or type(entry.payload.get("revision")) is not int
-                or entry.payload["revision"] != revision + 1
-                or not isinstance(entry.payload.get("text"), str)
-            ):
-                return "local_only"
-            revision = entry.payload["revision"]
-            scope = combine_scopes(scope, entry.payload.get("content_scope", "local_only"))
-        if type(resolved.payload.get("revision", 1)) is not int or revision != resolved.payload.get(
-            "revision", 1
-        ):
-            return "local_only"
-        return scope
+        return await source_scope(self.journal, source_id, resolved)
 
     async def _task_scope(self, rec, *, persist=True):
         """Recheck source floors and the actual target provider at each continuation."""
@@ -1991,6 +1949,21 @@ class AgentRuntime:
             scope = entry.payload.get("content_scope", "local_only")
             if entry.kind == "conversation.user":
                 scope = await self._source_scope(entry.event_id, entry)
+            elif entry.kind == "conversation.revision":
+                target_id = entry.payload.get("target_event_id")
+                scope = "local_only"
+                if isinstance(target_id, str):
+                    target = await self.journal.resolve(target_id)
+                    if (
+                        target.kind == "conversation.user"
+                        and target.origin == "authenticated-user"
+                        and (target.session_id, target.thread_id, target.epoch)
+                        == (entry.session_id, entry.thread_id, entry.epoch)
+                    ):
+                        scope = combine_scopes(
+                            entry.payload.get("content_scope", "local_only"),
+                            await self._source_scope(target_id, target),
+                        )
             if not entry_allowed(self.provider.info, entry) or not scope_allowed(
                 self.provider.info, scope
             ):

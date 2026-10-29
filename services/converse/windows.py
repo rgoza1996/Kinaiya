@@ -8,9 +8,9 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 from packages.contracts.models import AppendRequest, SpeechWindow, WindowDecision
-from packages.providers.disclosure import scope_allowed
+from packages.providers.disclosure import combine_scopes, scope_allowed
 from packages.providers.text import ProviderCleanupError, owned_http_stream_cleanup
-from services.converse.delivery_context import window_context
+from services.converse.delivery_context import window_context_scoped
 from services.converse.runtime import SpeechChunker
 
 
@@ -73,6 +73,8 @@ class PreparedReply:
     cleanup_failed: bool = False
     stop: object = None
     stop_generation: int = 0
+    content_scope: str = "local_only"
+    provider: object = None
 
 
 class WindowConverseController:
@@ -405,7 +407,13 @@ class WindowConverseController:
                             "window_source_id": source.event_id,
                             "window_utterance_id": latest.utterance_id,
                             "window_behavior": prepared.behavior,
-                            "content_scope": latest.content_scope,
+                            "content_scope": combine_scopes(
+                                prepared.content_scope,
+                                latest.content_scope
+                                if isinstance(latest.content_scope, str)
+                                else "local_only",
+                                self.runtime.personality_scope,
+                            ),
                         },
                         idempotency_key=f"window-reply:{source.event_id}:{index}",
                     )
@@ -429,7 +437,10 @@ class WindowConverseController:
         await self._native("append", prepared.prepare_request)
         recent = await self._native("recent", session_id=source.session_id, limit=100)
         w = SpeechWindow.model_validate(source.payload)
-        context, delivery = window_context(recent, source, self.runtime.provider.info)
+        context, delivery, scopes = window_context_scoped(recent, source, prepared.provider.info)
+        prepared.content_scope = combine_scopes(
+            w.content_scope, self.runtime.personality_scope, *scopes
+        )
         if await self.current(prepared) is None:
             self._abandon(prepared)
             return None
@@ -443,9 +454,12 @@ class WindowConverseController:
     async def generate(self, prepared):
         source = prepared.source
         try:
+            prepared.provider = self.runtime.provider
             w = SpeechWindow.model_validate(source.payload)
-            if not allowed_scope(self.runtime.provider, w.content_scope):
+            if not allowed_scope(prepared.provider, w.content_scope):
                 raise ValueError("Window disclosure does not permit this provider")
+            if not allowed_scope(prepared.provider, self.runtime.personality_scope):
+                raise ValueError("Personality scope is not permitted for the selected provider")
             messages = await self._recover(lambda: self._prepare(prepared), prepared=prepared)
             if (
                 messages is None
@@ -510,7 +524,9 @@ class WindowConverseController:
 
     @asynccontextmanager
     async def _owned_provider_stream(self, messages, prepared):
-        stream = self.runtime.provider.stream(messages)
+        if not allowed_scope(prepared.provider, prepared.content_scope):
+            raise ValueError("Compiled context scope is not permitted for the provider")
+        stream = prepared.provider.stream(messages)
         try:
             yield stream
         finally:

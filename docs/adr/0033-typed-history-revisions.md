@@ -1,5 +1,10 @@
 # ADR 0033: project native revisions before selecting typed history
 
+The legacy unscoped consent policy recorded here is superseded by
+[ADR 0037](0037-typed-disclosure-scopes.md): missing typed/history scope now
+stays local. The original verification record below describes this ADR's
+earlier baseline.
+
 Tracks [#81](https://github.com/rgoza1996/Kinaiya/issues/81). A typed Converse
 turn previously selected raw `conversation.user` payloads from the recent
 journal and checked only the original payload's disclosure scope. A native

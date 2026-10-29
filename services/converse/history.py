@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from packages.providers.disclosure import entry_allowed
+from packages.providers.disclosure import combine_scopes, entry_allowed
 
 MAX_INTEGER = 9_007_199_254_740_991
 
@@ -24,12 +24,25 @@ def _revision(value):
     return type(value) is int and 1 <= value <= MAX_INTEGER
 
 
+def _entry_scope(entry):
+    """Missing/invalid historical scope never implies export permission."""
+    scope = entry.payload.get("content_scope", "local_only")
+    if not isinstance(scope, str) or scope not in {
+        "local_only",
+        "public_synthetic",
+        "private_cloud_authorized",
+    }:
+        return "local_only"
+    return scope
+
+
 @dataclass
 class UserHistory:
     entry: object
     revision: object
     text: object
     permitted: bool
+    floor: str = "local_only"
 
 
 def fold_users(snapshot, allowed):
@@ -40,6 +53,7 @@ def fold_users(snapshot, allowed):
             entry.payload.get("revision", 1),
             entry.payload.get("text"),
             _revision(entry.payload.get("revision", 1)) and allowed(entry),
+            _entry_scope(entry),
         )
         for entry in snapshot
         if entry.kind == "conversation.user" and entry.origin == "authenticated-user"
@@ -65,16 +79,18 @@ def fold_users(snapshot, allowed):
             # An unprocessable correction cannot restore an old exportable
             # draft, even if a later correction looks public and well formed.
             original.permitted = False
+            original.floor = "local_only"
             continue
         original.revision, original.text = payload["revision"], payload["text"]
-        if "content_scope" in payload:
-            original.permitted = original.permitted and allowed(entry)
+        # A missing correction scope is a local-only floor: later public
+        # labels cannot restore eligibility for a private original/correction.
+        original.floor = combine_scopes(original.floor, _entry_scope(entry))
+        original.permitted = original.permitted and allowed(entry)
     return users
 
 
 def _typed_allowed(info, entry):
-    # Missing scope keeps typed history's legacy consent path. A present
-    # malformed scope is denied before the policy's set membership lookup.
+    # Legacy unscoped entries are local-only; malformed scopes are never grants.
     if "content_scope" in entry.payload and not isinstance(entry.payload["content_scope"], str):
         return False
     return entry_allowed(info, entry)
@@ -82,25 +98,38 @@ def _typed_allowed(info, entry):
 
 def typed_history(recent, source, info, context_turns):
     """Apply revisions before selecting typed turns; retain their full existing text."""
+    return typed_history_scoped(recent, source, info, context_turns)[0]
+
+
+def typed_history_scoped(recent, source, info, context_turns):
+    """Message list plus the sticky floors actually consumed.
+
+    Returns (messages, consumed_scopes). consumed_scopes holds one floor per
+    included turn in source order: folded user floors and per-reply entry
+    scopes. Missing/invalid provenance is already folded to local_only, so
+    combine_scopes over this list plus current input and personality cannot
+    promote private history to a public reply. typed_history() stays as the
+    narrow compatibility projection returning only the message list.
+    """
     snapshot = native_snapshot(recent, source)
     users = fold_users(snapshot, lambda entry: _typed_allowed(info, entry))
     candidates = [
-        (user.entry, user.text)
+        (user.entry, user.text, user.floor)
         for user in users.values()
         if user.permitted and isinstance(user.text, str)
     ]
     candidates.extend(
-        (entry, entry.payload["text"])
+        (entry, entry.payload["text"], _entry_scope(entry))
         for entry in snapshot
         if entry.kind == "conversation.converse"
         and entry.origin == "converse"
         and isinstance(entry.payload.get("text"), str)
         and _typed_allowed(info, entry)
     )
-    return [
-        {
-            "role": "user" if entry.kind == "conversation.user" else "assistant",
-            "content": text,
-        }
-        for entry, text in sorted(candidates, key=lambda pair: pair[0].sequence)[-context_turns:]
+    ordered = sorted(candidates, key=lambda triple: triple[0].sequence)[-context_turns:]
+    messages = [
+        {"role": "user" if entry.kind == "conversation.user" else "assistant", "content": text}
+        for entry, text, _scope in ordered
     ]
+    consumed = [scope for _entry, _text, scope in ordered]
+    return messages, consumed

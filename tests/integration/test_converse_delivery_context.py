@@ -428,7 +428,12 @@ async def test_suffix_user_revision_after_current_source_preserves_original_disc
     corrected = await write(
         env,
         "conversation.revision",
-        {"target_event_id": public.event_id, "text": "Corrected public text", "revision": 2},
+        {
+            "target_event_id": public.event_id,
+            "text": "Corrected public text",
+            "revision": 2,
+            "content_scope": "public_synthetic",
+        },
         causes=[public.event_id],
     )
     await write(

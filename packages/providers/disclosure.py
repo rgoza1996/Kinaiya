@@ -60,7 +60,7 @@ async def source_scope(journal, source_id, resolved=None):
     if len(revisions) >= 200:
         return "local_only"
     revision = original.payload.get("revision", 1)
-    if type(revision) is not int or revision < 1:
+    if type(revision) is not int or not 1 <= revision <= 9_007_199_254_740_991:
         return "local_only"
     for entry in revisions:
         if entry.payload.get("target_event_id") != source_id:
@@ -70,14 +70,18 @@ async def source_scope(journal, source_id, resolved=None):
             != (original.session_id, original.thread_id, original.epoch)
             or entry.origin not in {"authenticated-user", "converse"}
             or type(entry.payload.get("revision")) is not int
+            or not 1 <= entry.payload["revision"] <= 9_007_199_254_740_991
             or entry.payload["revision"] != revision + 1
             or not isinstance(entry.payload.get("text"), str)
         ):
             return "local_only"
         revision = entry.payload["revision"]
         scope = combine_scopes(scope, entry.payload.get("content_scope", "local_only"))
-    if type(resolved.payload.get("revision", 1)) is not int or revision != resolved.payload.get(
-        "revision", 1
+    resolved_revision = resolved.payload.get("revision", 1)
+    if (
+        type(resolved_revision) is not int
+        or not 1 <= resolved_revision <= 9_007_199_254_740_991
+        or revision != resolved_revision
     ):
         return "local_only"
     return scope

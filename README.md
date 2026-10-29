@@ -323,6 +323,13 @@ requires an explicit paid-inference flag and a budget proxy; ordinary CI is offl
 with respect to inference. See [integration evidence and limits](docs/adr/0002-verified-integration-slice.md)
 and the [threat model](docs/security/threat-model.md).
 
+[Native disclosure scopes](docs/adr/0037-typed-disclosure-scopes.md) default
+typed input, tasks and legacy unscoped history to local-only. Public/synthetic
+and private-cloud input require explicit grants; Contributor accepts only the
+public/synthetic grant. Drafts and recordings keep their capture-time scope
+when providers change. CLI cloud work must specify its input grant explicitly,
+for example `kinaiya --content-scope public_synthetic agent "Read the synthetic fixture"`.
+
 ```bash
 ruff check .
 ruff format --check .

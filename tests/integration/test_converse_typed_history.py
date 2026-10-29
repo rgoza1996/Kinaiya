@@ -111,6 +111,7 @@ def request_for(env, key="current"):
         thread_id=env.session.thread_id,
         epoch=env.session.epoch,
         text="Public synthetic current input.",
+        content_scope="public_synthetic",
         idempotency_key=key,
     )
 
@@ -209,9 +210,7 @@ async def test_present_malformed_scope_is_sticky_denied_for_actual_provider_prom
 
 
 @pytest.mark.parametrize("provider", PROVIDERS)
-async def test_legacy_unscoped_typed_history_and_missing_revision_scope_keep_consent_path(
-    env, provider
-):
+async def test_legacy_unscoped_typed_history_and_missing_revision_scope_stay_local(env, provider):
     env.provider.info = PROVIDERS[provider]
     original = await base(env)
     await correct(env, original)
@@ -221,10 +220,11 @@ async def test_legacy_unscoped_typed_history_and_missing_revision_scope_keep_con
         {"text": "Legacy unscoped assistant", "final": True},
         writer="journal",
     )
-    assert await prompt_history(env) == [
+    expected = [
         {"role": "user", "content": "Synthetic corrected text"},
         {"role": "assistant", "content": "Legacy unscoped assistant"},
     ]
+    assert await prompt_history(env) == (expected if provider == "local" else [])
 
 
 async def test_latest_consecutive_revision_keeps_original_order_full_text_and_context_turns(env):
