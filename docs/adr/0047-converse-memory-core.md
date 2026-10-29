@@ -76,10 +76,12 @@ inspectable but tainted and unavailable to hard retrieval. Disagreeing observati
 remain historical reports, without hypotheses or truth-confidence numbers.
 An assertion already contradicted by an observation with the same/newer source
 sequence is rejected. Matching later observations never revive old nodes.
-Correcting or forgetting an observation never restores an older observation as
-the comparison head: retain a non-content source-order high-water mark and require
-a fresh source for subsequent observations. Fact key comparison metadata needed
-for retained nodes must not reveal a forgotten key or value.
+Correcting an observation never restores an older observation as the comparison
+head; retained observation source order still fences later admissions. Forget
+advances a single namespace-wide capture floor to the greatest effective source
+sequence in the erased closure. Every new capture, including assertions, must
+use a source newer than this floor. This conservatively requires a fresh source
+even for an unrelated key, while retaining no forgotten key, value or key hash.
 
 One transaction commits capture, complete closure, refutation records, state and
 namespace revision together. No partial invalidation or partial hard context is
