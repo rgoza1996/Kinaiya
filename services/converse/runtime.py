@@ -9,6 +9,8 @@ from itertools import islice
 
 from anyio import CancelScope
 
+from packages.contracts.memory import MemoryBinding
+from packages.contracts.memory_context import MemoryContextPin
 from packages.contracts.models import (
     MAX_PLAYBACK_GENERATION,
     AppendRequest,
@@ -19,8 +21,10 @@ from packages.contracts.models import (
 )
 from packages.providers.disclosure import combine_scopes, scope_allowed, source_scope
 from packages.providers.text import ProviderCleanupError, owned_http_stream_cleanup
-from services.converse.history import typed_history_scoped
+from services.converse.context_projection import ContextProjection
+from services.converse.history import typed_history_projection
 from services.converse.intent import ConverseIntent
+from services.converse.memory import MemoryLease, MemoryUse, scope_key
 from services.converse.state_guard import UNVERIFIED_STATE_REPLY, negative_runtime_state_claim
 
 
@@ -142,6 +146,9 @@ class TextOperation:
     cancelled: bool = False
     stopped: asyncio.Event = field(default_factory=asyncio.Event)
     cleanup_failed: bool = False
+    memory_lease: object = None
+    provider: object = None
+    content_scope: str = "local_only"
 
     def cancel(self):
         if self.cancelled:
@@ -182,6 +189,7 @@ class ConverseRuntime:
         context_turns=12,
         intent=None,
         resources_managed=False,
+        memory_adapters=None,
     ):
         self.journal, self.provider = journal, provider
         self.name, self.context_turns = name, context_turns
@@ -217,6 +225,121 @@ class ConverseRuntime:
         self._epoch_locks = {}
         self._playback_start = {}
         self._runtime_id = new_id()
+        self._memory_stops = {}
+        self._memory_shutdown = None
+        self.memory = MemoryUse(
+            self._runtime_id,
+            memory_adapters,
+            on_revoke=self._revoke_memory,
+            pending_extra=self._memory_stop_pending,
+        )
+
+    def _revoke_memory(self, choice):
+        binding = choice.binding
+        playback = self.playback.get(binding.session_id)
+        if playback is None or playback.scope != (binding.epoch, binding.thread_id):
+            return
+        if any(
+            isinstance(entry.payload.get("memory_context"), dict)
+            and entry.payload["memory_context"].get("use_generation") == choice.generation
+            for entry in playback.chunks.values()
+        ):
+            stop, generation = self.fence_playback(
+                binding.session_id, expected_generation=playback.generation
+            )
+            self._memory_stops[scope_key(binding)] = stop, generation
+
+    async def _check_memory_binding(self, binding):
+        session = await self.journal.session(binding.session_id)
+        if session.channel != "converse" or (session.thread_id, session.epoch) != (
+            binding.thread_id,
+            binding.epoch,
+        ):
+            raise ValueError("Obsolete Converse memory scope")
+
+    def _memory_stop_pending(self, binding):
+        stop = self._memory_stops.get(scope_key(binding))
+        if stop is not None:
+            if stop[0].covers(stop[1]):
+                self._memory_stops.pop(scope_key(binding), None)
+            else:
+                return True
+        return False
+
+    def _memory_state(self, binding):
+        return self.memory.state(binding)
+
+    async def memory_state(self, binding):
+        await self._check_memory_binding(binding)
+        return self._memory_state(binding)
+
+    async def memory_use(self, request):
+        if request.expected_runtime_id != self._runtime_id:
+            raise ValueError("Memory runtime changed")
+        binding = MemoryBinding(
+            session_id=request.session_id, thread_id=request.thread_id, epoch=request.epoch
+        )
+        if not request.enabled:
+            # Off fences locally before its first awaited journal/control operation.
+            self.memory.configure(request)
+            await self._check_memory_binding(binding)
+        else:
+            await self._check_memory_binding(binding)
+            self.memory.configure(request)
+        playback = self.playback.get(binding.session_id)
+        if scope_key(binding) in self._memory_stops and playback is not None:
+            try:
+                async with asyncio.timeout(1):
+                    await self.reconcile_stop(binding.session_id, playback)
+            except Exception:
+                pass
+        return self._memory_state(binding)
+
+    def replace_memory_adapter(self, name, adapter):
+        self.memory.replace(name, adapter)
+
+    @staticmethod
+    def memory_payload(lease):
+        if lease is None or lease.snapshot is None:
+            return {}
+        return {"memory_context": lease.snapshot.pin.model_dump(mode="json")}
+
+    async def _validate_memory_speech(self, event):
+        if "memory_context" not in event.payload:
+            return
+        try:
+            pin = MemoryContextPin.model_validate(event.payload["memory_context"])
+            binding = MemoryBinding(
+                session_id=event.session_id, thread_id=event.thread_id, epoch=event.epoch
+            )
+            choice = self.memory.choices.get(scope_key(binding))
+            if (
+                choice is None
+                or not self.memory.current(choice)
+                or choice.adapter is None
+                or event.payload.get("content_scope") != "local_only"
+                or pin.use_generation != choice.generation
+                or pin.implementation_id != choice.implementation_id
+                or tuple(pin.selector_ids) != choice.selector_ids
+            ):
+                raise ValueError("Obsolete memory speech")
+            from services.converse.memory_adapter import RecallSnapshot
+
+            snapshot = RecallSnapshot(binding, pin, {"role": "system", "content": ""})
+            lease = MemoryLease(self.memory, choice, lambda: None)
+            if len(self.memory.leases) >= 64:
+                raise ValueError("Memory validation is busy")
+            self.memory.leases.add(lease)
+            try:
+                valid = await lease.run(choice.adapter.validate(snapshot))
+                if not valid or not lease.current():
+                    raise ValueError("Obsolete memory speech")
+            finally:
+                lease.finish()
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            raise ValueError("Memory speech validation is unavailable") from exc
 
     def availability(self):
         choice = self.intent.read()
@@ -532,6 +655,10 @@ class ConverseRuntime:
             and playback is not None
             and playback.scope == (operation.session_epoch, operation.thread_id)
             and playback.accepts(operation.generation)
+            and (
+                operation.memory_lease is None
+                or (operation.memory_lease.current() and self.provider is operation.provider)
+            )
         )
 
     async def _watch_text(self, operation):
@@ -645,9 +772,32 @@ class ConverseRuntime:
     async def close(self):
         self._cancel_text()
         cleanups = {operation.cleanup for operation in self._text.values() if operation.cleanup}
+        self.memory.shutdown()
+        for lease in tuple(self.memory.leases):
+            cleanups.update(lease.tasks)
         if cleanups:
             # One shared deadline, rather than one second for every owner.
             await self._wait_text_cleanup(cleanups, self._text_cleanup_timeout)
+
+        # A client close must not cut off a retained read/publication response.
+        # Keep the drain task owned if real close exceeds this shutdown caller.
+        async def close_memory():
+            tasks = {task for lease in self.memory.leases for task in lease.tasks}
+            if tasks:
+                await asyncio.gather(*tasks, return_exceptions=True)
+            adapters = {
+                **self.memory.retired_adapters,
+                **{id(a): a for a in self.memory.adapters.values()},
+            }
+            for adapter in adapters.values():
+                await adapter.close()
+
+        if self._memory_shutdown is None:
+            self._memory_shutdown = asyncio.create_task(close_memory())
+            self._memory_shutdown.add_done_callback(
+                lambda task: task.exception() if not task.cancelled() else None
+            )
+        await self._wait_text_cleanup((self._memory_shutdown,), self._text_cleanup_timeout)
 
     def _cancel_speech(self, session_id=None):
         sessions = list(self._speech) if session_id is None else [session_id]
@@ -865,10 +1015,16 @@ class ConverseRuntime:
             operation = turn.operation
             if operation is not None:
                 operation.cancel()
-                if operation.task is None:
-                    self._release_text(operation)
-                else:
-                    await self._wait_text_cleanup((operation.cleanup,), turn.wait_remaining)
+                try:
+                    if operation.task is None:
+                        self._release_text(operation)
+                    else:
+                        await self._wait_text_cleanup((operation.cleanup,), turn.wait_remaining)
+                finally:
+                    if operation.memory_lease is not None:
+                        if operation.cleanup_failed:
+                            operation.memory_lease.failed = True
+                        operation.memory_lease.finish()
 
     async def _events(self, request, turn):
         admission = self.admission()
@@ -975,6 +1131,7 @@ class ConverseRuntime:
         # Pin the actual transport after awaited admission. Projection and inference
         # must use the same target even if owner configuration changes meanwhile.
         provider = self.provider
+        operation.provider = provider
         self._check_typed_disclosure(request, provider)
         messages = [{"role": "system", "content": self.personality}]
         delivery = [
@@ -999,12 +1156,26 @@ class ConverseRuntime:
                     + json.dumps(notes),
                 }
             )
-        history_messages, consumed_scopes = typed_history_scoped(
-            existing, request, provider.info, self.context_turns
+        prefix = messages
+
+        def compile_context(pin):
+            projection = typed_history_projection(
+                existing,
+                request,
+                provider.info,
+                self.context_turns,
+                memory_context=pin,
+                runtime_id=self._runtime_id,
+            )
+            return ContextProjection(
+                [*prefix, *projection.messages, {"role": "user", "content": request.text}],
+                projection.consumed_scopes,
+                consumed_memory=projection.consumed_memory,
+            )
+
+        operation.content_scope = self._derived_reply_scope(
+            compile_context(None).consumed_scopes, request_scope
         )
-        messages += history_messages
-        messages.append({"role": "user", "content": request.text})
-        derived_scope = self._derived_reply_scope(consumed_scopes, request_scope)
         chunker, index = SpeechChunker(), 0
         queue = operation.queue
 
@@ -1013,9 +1184,30 @@ class ConverseRuntime:
                 # Protect the transport before __anext__: EOF and provider error
                 # can enter HTTP close before our independent aclose owner runs.
                 with owned_http_stream_cleanup():
-                    if not scope_allowed(provider.info, derived_scope):
+                    projection, lease = await self.memory.prepare(
+                        MemoryBinding(
+                            session_id=request.session_id,
+                            thread_id=request.thread_id,
+                            epoch=request.epoch,
+                        ),
+                        provider,
+                        compile_context,
+                        operation.cancel,
+                        lambda: self.provider is provider and self._text_current(operation),
+                        lambda lease: setattr(operation, "memory_lease", lease),
+                    )
+                    operation.memory_lease = lease
+                    if lease is not None:
+                        lease.retain_cleanup(operation.cleanup, lambda: operation.cleanup_failed)
+                    operation.content_scope = self._derived_reply_scope(
+                        projection.consumed_scopes, request_scope
+                    )
+                    if not self._text_current(operation):
+                        operation.cancel()
+                        return
+                    if not scope_allowed(provider.info, operation.content_scope):
                         raise ValueError("Compiled context scope is not permitted for the provider")
-                    operation.iterator = aiter(provider.stream(messages))
+                    operation.iterator = aiter(provider.stream(projection.messages))
                     async for delta in operation.iterator:
                         if not self._text_current(operation):
                             operation.cancel()
@@ -1101,28 +1293,31 @@ class ConverseRuntime:
                 if not self._text_current(operation):
                     yield {"type": "interrupted", "generation_epoch": generation}
                     return
-                event = await self.journal.append(
-                    AppendRequest(
-                        session_id=request.session_id,
-                        thread_id=request.thread_id,
-                        epoch=request.epoch,
-                        kind="conversation.converse",
-                        payload={
-                            "text": text,
-                            "final": True,
-                            "revision": 1,
-                            "generation_epoch": generation,
-                            "runtime_id": self._runtime_id,
-                            "owner_intent_revision": admission[0],
-                            "availability_generation": admission[1],
-                            "chunk_id": new_id(),
-                            "delivery": "generated",
-                            "content_scope": derived_scope,
-                        },
-                        causes=[source.event_id],
-                        idempotency_key=f"reply:{source.event_id}:{index}",
-                    )
+                reply_request = AppendRequest(
+                    session_id=request.session_id,
+                    thread_id=request.thread_id,
+                    epoch=request.epoch,
+                    kind="conversation.converse",
+                    payload={
+                        "text": text,
+                        "final": True,
+                        "revision": 1,
+                        "generation_epoch": generation,
+                        "runtime_id": self._runtime_id,
+                        "owner_intent_revision": admission[0],
+                        "availability_generation": admission[1],
+                        "chunk_id": new_id(),
+                        "delivery": "generated",
+                        "content_scope": operation.content_scope,
+                        **self.memory_payload(operation.memory_lease),
+                    },
+                    causes=[source.event_id],
+                    idempotency_key=f"reply:{source.event_id}:{index}",
                 )
+                if operation.memory_lease is None:
+                    event = await self.journal.append(reply_request)
+                else:
+                    event = await operation.memory_lease.publish(self.journal, reply_request)
                 if not self._text_current(operation):
                     yield {"type": "interrupted", "generation_epoch": generation}
                     return
@@ -1189,6 +1384,7 @@ class ConverseRuntime:
             ]
             if newer:
                 raise ValueError("Outcome changed before playback")
+        await self._validate_memory_speech(event)
         if not self.admission_current(admission) or not playback.accepts(generation_epoch):
             raise ValueError("Obsolete or unauthorized speech")
         return event

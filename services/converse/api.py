@@ -97,6 +97,8 @@ class TypedTurnResponse(StreamingResponse):
 
 
 def create_app(runtime, auth, speech=None, window_controller=None):
+    from services.converse.memory_api import install_memory_controls
+
     app = FastAPI(title="Kinaiya Converse", version="1.0")
     owner = [Depends(auth.require("owner"))]
     require_control = auth.require("owner", "resources")
@@ -283,4 +285,5 @@ def create_app(runtime, auth, speech=None, window_controller=None):
 
         return StreamingResponse(generate(), media_type="application/x-ndjson")
 
+    install_memory_controls(app, runtime, auth)
     return app

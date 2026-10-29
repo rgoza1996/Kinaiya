@@ -257,9 +257,20 @@ switch on `serve all`). Its owner-only API starts each current Converse namespac
 disabled. Explicitly enabled namespaces accept local owner-curated, transcript-pinned
 claims and hard dependencies, reconcile corrections and contradictions, retrieve
 complete bounded dependency sets, and forget retained content. Disabling use and
-deleting data are separate controls. This core does not yet add recalled content
-to dialogue prompts, provide a Flutter memory toggle, run extraction, or establish
-improved conversational recall. Agent and Decisions do not use this DAG.
+deleting data are separate controls. Agent and Decisions do not use this DAG.
+
+The first [selected recall runtime](docs/adr/0051-converse-selected-recall.md)
+adds owner-only Converse `POST /v1/memory/state` and `/v1/memory/use` controls.
+Runtime use starts off after every restart and is separate from the persisted
+namespace enable/retention setting. The owner selects existing note IDs; a local
+provider must measure the complete proposed prompt before either typed or live
+window generation uses the complete dependency set. Unsupported counting,
+unavailable memory or insufficient context omits recall. Provenance checks exclude
+old memory-derived assistant history after off, replacement or invalidation while
+keeping the authoritative transcript inspectable. In-flight work may remain
+pending after off; cancellation does not prove a journal write failed.
+Flutter memory controls, note creation/browsing UX, extraction, relevance ranking
+and improved human recall remain unverified or unimplemented.
 
 Optional local skill controls are enabled with `"skills": {"enabled": true}` in
 the owner configuration. `/skills list`, `/skills install <local-path>`, and
@@ -347,7 +358,8 @@ loading a model. Its result binds the complete chat request and protected profil
 and accounts for reserved output when checking context capacity. Unsupported
 counting refuses without a guessed estimate. The installed fork's count route
 has not been exercised; synthetic transport tests do not establish compatibility.
-Memory recall is not yet added to dialogue prompts.
+Selected memory recall depends on this optional capability; an unsupported
+installed counter leaves ordinary dialogue available without recalled content.
 
 A bounded [runtime-state publication guard](docs/adr/0042-negative-runtime-state-publication.md)
 also substitutes uncertainty for selected unsupported negative Agent/task claims

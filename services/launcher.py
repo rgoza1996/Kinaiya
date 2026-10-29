@@ -459,6 +459,7 @@ def serve(args):
         from packages.providers.speech import SpeechClient
         from services.converse.api import create_app
         from services.converse.intent import ConverseIntent
+        from services.converse.memory_adapter import SessionMemoryAdapter
         from services.converse.runtime import ConverseRuntime
         from services.converse.windows import WindowConverseController
         from services.decisions.runtime import OutcomeWorker
@@ -472,6 +473,12 @@ def serve(args):
         intent = ConverseIntent(
             args.data_dir.resolve() / "converse-intent.json", initial_enabled=initial_enabled
         )
+        try:
+            memory_adapters = {
+                "korina-dag-v1": SessionMemoryAdapter(config["session_url"], tokens["converse"])
+            }
+        except ValueError:
+            memory_adapters = {}
         runtime = ConverseRuntime(
             journal,
             provider(
@@ -483,6 +490,7 @@ def serve(args):
             ),
             intent=intent,
             resources_managed=resources_enabled,
+            memory_adapters=memory_adapters,
         )
         voice = config.get("voice")
         stt_settings = {}

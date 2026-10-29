@@ -7,10 +7,12 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
+from packages.contracts.memory import MemoryBinding
 from packages.contracts.models import AppendRequest, SpeechWindow, WindowDecision
 from packages.providers.disclosure import combine_scopes, scope_allowed
 from packages.providers.text import ProviderCleanupError, owned_http_stream_cleanup
-from services.converse.delivery_context import window_context_scoped
+from services.converse.context_projection import ContextProjection
+from services.converse.delivery_context import window_context_projection
 from services.converse.runtime import SpeechChunker
 from services.converse.state_guard import UNVERIFIED_STATE_REPLY, negative_runtime_state_claim
 
@@ -76,6 +78,8 @@ class PreparedReply:
     stop_generation: int = 0
     content_scope: str = "local_only"
     provider: object = None
+    memory_lease: object = None
+    messages: object = None
 
 
 class WindowConverseController:
@@ -110,6 +114,10 @@ class WindowConverseController:
 
     def _local_current(self, prepared):
         if prepared.abandoned or not self.runtime.admission_current(prepared.admission):
+            return False
+        if prepared.memory_lease is not None and (
+            not prepared.memory_lease.current() or self.runtime.provider is not prepared.provider
+        ):
             return False
         epoch = self.runtime.playback.get(prepared.source.session_id)
         expected = (
@@ -427,10 +435,16 @@ class WindowConverseController:
                                 else "local_only",
                                 self.runtime.personality_scope,
                             ),
+                            **self.runtime.memory_payload(prepared.memory_lease),
                         },
                         idempotency_key=f"window-reply:{source.event_id}:{index}",
                     )
-                entry = await self._native("append", prepared.reply_request)
+                if prepared.memory_lease is None:
+                    entry = await self._native("append", prepared.reply_request)
+                else:
+                    entry = await self._native_call(
+                        prepared.memory_lease.publish, self.journal, prepared.reply_request
+                    )
                 if await self.current(prepared) is None or not epoch.accepts(prepared.generation):
                     return False
                 epoch.chunks[entry.event_id] = entry
@@ -443,6 +457,8 @@ class WindowConverseController:
         if await self.current(prepared) is None:
             self._abandon(prepared)
             return None
+        if prepared.messages is not None:
+            return prepared.messages
         if prepared.prepare_request is None:
             prepared.prepare_request = self._state_request(
                 source, "preparing", behavior=prepared.behavior
@@ -450,19 +466,49 @@ class WindowConverseController:
         await self._native("append", prepared.prepare_request)
         recent = await self._native("recent", session_id=source.session_id, limit=100)
         w = SpeechWindow.model_validate(source.payload)
-        context, delivery, scopes = window_context_scoped(recent, source, prepared.provider.info)
-        prepared.content_scope = combine_scopes(
-            w.content_scope, self.runtime.personality_scope, *scopes
+
+        def compile_context(pin):
+            projection = window_context_projection(
+                recent,
+                source,
+                prepared.provider.info,
+                memory_context=pin,
+                runtime_id=self.runtime._runtime_id,
+            )
+            return ContextProjection(
+                [
+                    {"role": "system", "content": self.runtime.personality},
+                    *(
+                        [{"role": "system", "content": projection.delivery}]
+                        if projection.delivery is not None
+                        else []
+                    ),
+                    *projection.messages,
+                    {"role": "user", "content": w.text},
+                ],
+                projection.consumed_scopes,
+                consumed_memory=projection.consumed_memory,
+            )
+
+        projection, lease = await self.runtime.memory.prepare(
+            MemoryBinding(
+                session_id=source.session_id, thread_id=source.thread_id, epoch=source.epoch
+            ),
+            prepared.provider,
+            compile_context,
+            lambda: self._abandon(prepared),
+            lambda: self.runtime.provider is prepared.provider and self._local_current(prepared),
+            lambda lease: setattr(prepared, "memory_lease", lease),
         )
+        prepared.memory_lease = lease
+        prepared.content_scope = combine_scopes(
+            w.content_scope, self.runtime.personality_scope, *projection.consumed_scopes
+        )
+        prepared.messages = projection.messages
         if await self.current(prepared) is None:
             self._abandon(prepared)
             return None
-        return [
-            {"role": "system", "content": self.runtime.personality},
-            *([{"role": "system", "content": delivery}] if delivery is not None else []),
-            *context,
-            {"role": "user", "content": w.text},
-        ]
+        return projection.messages
 
     async def generate(self, prepared):
         source = prepared.source
@@ -526,6 +572,11 @@ class WindowConverseController:
             except Exception:
                 pass
         finally:
+            if prepared.memory_lease is not None:
+                prepared.memory_lease.retain_cleanup(
+                    prepared.cleanup, lambda: prepared.cleanup_failed
+                )
+                prepared.memory_lease.finish()
             if self.runtime._active.get(source.session_id) is prepared.task:
                 self.runtime._active.pop(source.session_id, None)
 
