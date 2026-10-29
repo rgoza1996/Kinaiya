@@ -26,7 +26,9 @@ committed.
 Android requires ordinary INTERNET access in the main manifest. Add no microphone,
 notification, foreground-service, full-screen or Telecom permissions. iOS gets a
 truthful local-network purpose string for connecting to an explicitly entered
-Kinaiya host; it does not advertise/discover Bonjour services. Add no microphone,
+Kinaiya host. No application-level host discovery is implemented; Flutter debug
+tooling may add Bonjour publication of its Dart VM debugging service to the built
+application. Add no microphone,
 VoIP background mode, PushKit entitlement or CallKit code. Keep normal certificate
 verification and platform transport policy: no trust-all code, Android cleartext
 override or broad App Transport Security bypass. A physical phone's loopback is
