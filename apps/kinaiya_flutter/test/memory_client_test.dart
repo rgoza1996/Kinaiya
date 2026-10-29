@@ -692,4 +692,72 @@ void main() {
       await body.close();
     },
   );
+  test(
+    'completed delayed cancellation restores capacity only after successful client close',
+    () async {
+      for (final closeFails in [false, true]) {
+        final releases = List.generate(8, (_) => Completer<void>());
+        final streams = <StreamController<List<int>>>[];
+        final clients = <OwnedClient>[];
+        var cancelStarted = 0;
+        var cancelFinished = 0;
+        final memory = MemoryApi(
+          sessionBase: 'http://localhost:8761',
+          converseBase: 'https://converse.example',
+          ownerToken: 'token',
+          requestTimeout: const Duration(milliseconds: 10),
+          cleanupTimeout: const Duration(milliseconds: 10),
+          clientFactory: () {
+            final index = clients.length;
+            final c = OwnedClient((r) async {
+              if (index >= 8) return response(fixture.stateJson());
+              final stream = StreamController<List<int>>(
+                onCancel: () async {
+                  cancelStarted++;
+                  await releases[index].future;
+                  cancelFinished++;
+                },
+              );
+              streams.add(stream);
+              return http.StreamedResponse(
+                stream.stream,
+                200,
+                headers: {'content-type': 'application/json'},
+              );
+            }, closeError: closeFails);
+            clients.add(c);
+            return c;
+          },
+        );
+        for (var i = 0; i < 8; i++) {
+          await expectLater(memory.state(binding), throwsA(failure()));
+        }
+        expect(clients.length, 8);
+        expect(cancelStarted, 8);
+        expect(cancelFinished, 0);
+        expect(clients.map((c) => c.closes), List.filled(8, 1));
+        await expectLater(memory.state(binding), throwsA(failure()));
+        expect(clients.length, 8);
+        for (final release in releases) {
+          release.complete();
+        }
+        for (var i = 0; i < 20 && cancelFinished < 8; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 1));
+        }
+        expect(cancelFinished, 8);
+        if (closeFails) {
+          await expectLater(memory.state(binding), throwsA(failure()));
+          expect(clients.length, 8);
+        } else {
+          expect((await memory.state(binding)).binding, binding);
+          expect(clients.length, 9);
+        }
+        await memory.close();
+        expect(clients.every((c) => c.closes == 1), true);
+        for (final stream in streams) {
+          await stream.close();
+        }
+      }
+    },
+  );
 }
