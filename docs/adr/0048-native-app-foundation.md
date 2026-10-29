@@ -36,8 +36,10 @@ the phone, not the host PC. Reachable trusted HTTPS host configuration is a sepa
 owner deployment choice; generating applications exposes no service ports.
 
 Native audio adapters still report unavailable. Owner credential-file import and
-native presentation persistence/import/export remain unimplemented; existing
-manual owner setup is in memory. Prefer the separately scoped companion for phone
+native presentation import/export remain unimplemented; the later
+[private appearance storage](0049-native-presentation-storage.md) change adds
+Android/iOS presentation persistence. Existing manual owner setup is in memory.
+Prefer the separately scoped companion for phone
 control; it never requests an owner credential. Its grant is in memory, and process
 death requires pairing again. Existing foreground lifecycle stops future polls
 when inactive; an already-dispatched finite request may settle. Preserve uncertain
