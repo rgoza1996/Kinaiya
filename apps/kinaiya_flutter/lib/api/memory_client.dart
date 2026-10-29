@@ -278,9 +278,11 @@ class _OwnedRequest {
   void Function()? onSettled;
   bool _closed = false;
   bool _finished = false;
-  bool _cleanupOk = false;
+  bool _clientClosed = false;
+  bool _cancelSettled = false;
   bool dispatched = false;
-  bool get settled => _finished && _cleanupOk;
+  bool get settled =>
+      _finished && _clientClosed && (_reader == null || _cancelSettled);
 
   Future<List<int>> read(http.Request request) async {
     try {
@@ -294,12 +296,7 @@ class _OwnedRequest {
         first.then<void>((_) {}, onError: (Object _, StackTrace __) {}),
       );
       if (_closed) {
-        try {
-          await _cancelReader().timeout(cleanupTimeout);
-        } catch (_) {
-          _cleanupOk = false;
-          rethrow;
-        }
+        await _cancelReader().timeout(cleanupTimeout);
         throw const MemoryFailure('Memory request ended');
       }
       if (response.statusCode != 200) throw _StatusFailure(response.statusCode);
@@ -342,7 +339,17 @@ class _OwnedRequest {
     final reader = _reader;
     // No empty memoized future: a timed-out send can still deliver a response.
     if (reader == null) return Future<void>.value();
-    return _cancel ??= reader.cancel();
+    if (_cancel != null) return _cancel!;
+    final cancel = _cancel = reader.cancel();
+    // A logical deadline is not settlement. Retain the real cancellation future
+    // and release capacity only when it actually succeeds AND client/read close.
+    unawaited(
+      cancel.then<void>((_) {
+        _cancelSettled = true;
+        onSettled?.call();
+      }, onError: (Object _, StackTrace __) {}),
+    );
+    return cancel;
   }
 
   Future<bool> close() => _closing ??= _close();
@@ -351,6 +358,7 @@ class _OwnedRequest {
     var ok = true;
     try {
       client.close();
+      _clientClosed = true;
     } catch (_) {
       ok = false;
     }
@@ -359,7 +367,6 @@ class _OwnedRequest {
     } catch (_) {
       ok = false;
     }
-    _cleanupOk = ok;
     onSettled?.call();
     return ok;
   }
