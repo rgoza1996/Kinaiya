@@ -14,6 +14,7 @@ import '../state/app_state.dart';
 import 'book_sheet.dart';
 import 'converse_memory.dart';
 import 'voice_options.dart';
+import 'settings_controls.dart';
 import 'moonlit_scene.dart';
 import 'visual_theme.dart';
 import 'widgets.dart';
@@ -53,6 +54,7 @@ class CharacterView extends StatefulWidget {
     super.key,
     required this.state,
     this.audio,
+    this.controls,
     this.onActivityChanged,
     this.character,
     this.showCharacter = true,
@@ -62,6 +64,7 @@ class CharacterView extends StatefulWidget {
   });
   final AppState state;
   final SpeechAudio? audio;
+  final ConverseViewControls? controls;
   final ValueChanged<VoiceActivity>? onActivityChanged;
   final CharacterSelection? character;
   final bool showCharacter, showCaptions;
@@ -74,6 +77,39 @@ class CharacterView extends StatefulWidget {
 const List<int> endSilenceOptionsMs = <int>[800, 1500, 2500];
 
 class _CharacterViewState extends State<CharacterView> {
+  ConverseViewControls? _registeredControls;
+  Future<void> Function()? _registeredVoiceOptions;
+
+  void _detachSettingsControls() {
+    final controls = _registeredControls;
+    if (controls != null &&
+        identical(controls.openVoiceOptions, _registeredVoiceOptions)) {
+      controls.openVoiceOptions = null;
+    }
+    _registeredControls = null;
+    _registeredVoiceOptions = null;
+  }
+
+  void _bindSettingsControls() {
+    _detachSettingsControls();
+    final controls = widget.controls;
+    if (controls == null) return;
+    final owner = widget.state;
+    late final Future<void> Function() open;
+    open = () async {
+      if (!mounted ||
+          !identical(widget.state, owner) ||
+          !identical(widget.controls, controls) ||
+          !identical(controls.openVoiceOptions, open)) {
+        return;
+      }
+      await _openVoiceOptions();
+    };
+    _registeredControls = controls;
+    _registeredVoiceOptions = open;
+    controls.openVoiceOptions = open;
+  }
+
   late final TextEditingController _input;
   late final SpeechAudio _audio;
   Future<CharacterPack>? _pack;
@@ -152,6 +188,7 @@ class _CharacterViewState extends State<CharacterView> {
   @override
   void initState() {
     super.initState();
+    _bindSettingsControls();
     _input = TextEditingController(text: widget.state.converseDraft);
     _audio = widget.audio ?? speechAudio();
     _lastClient = _s.client;
@@ -206,6 +243,10 @@ class _CharacterViewState extends State<CharacterView> {
   @override
   void didUpdateWidget(covariant CharacterView oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.controls, widget.controls) ||
+        !identical(oldWidget.state, widget.state)) {
+      _bindSettingsControls();
+    }
     if (!identical(oldWidget.character, widget.character)) {
       // Presentation changes never invalidate audio/session/task ownership.
       _pack = widget.character == null
@@ -240,6 +281,7 @@ class _CharacterViewState extends State<CharacterView> {
 
   @override
   void dispose() {
+    _detachSettingsControls();
     _pollTimer?.cancel();
     _noticeSubscription?.cancel();
     _windowSubscription?.cancel();
@@ -1697,16 +1739,25 @@ class _CharacterViewState extends State<CharacterView> {
   /// the silence value, or dismissing it never starts, stops, or rearms
   /// capture. Ownership of the value, handler, draft, session, and audio
   /// stays in this state object.
-  Future<void> _openVoiceOptions() => showVoiceOptions(
-    context: context,
-    endSilenceMs: _endSilenceMs,
-    silenceChoices: endSilenceOptionsMs,
-    windowMode: _windowMode,
-    onSilenceChanged: (v) async {
-      setState(() => _endSilenceMs = v);
-      await _audio.configureVad(endSilenceMs: v);
-    },
-  );
+  Future<void> _openVoiceOptions() {
+    final owner = widget.state;
+    final controls = widget.controls;
+    return showVoiceOptions(
+      context: context,
+      endSilenceMs: _endSilenceMs,
+      silenceChoices: endSilenceOptionsMs,
+      windowMode: _windowMode,
+      onSilenceChanged: (v) async {
+        if (!mounted ||
+            !identical(widget.state, owner) ||
+            !identical(widget.controls, controls)) {
+          return;
+        }
+        setState(() => _endSilenceMs = v);
+        await _audio.configureVad(endSilenceMs: v);
+      },
+    );
+  }
 
   Widget _composer() => SafeArea(
     top: false,

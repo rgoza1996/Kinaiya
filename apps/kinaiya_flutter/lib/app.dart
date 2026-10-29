@@ -3,12 +3,17 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'audio/speech_audio.dart';
+import 'config/options_catalog.dart';
 import 'state/app_state.dart';
 import 'presentation/controller.dart';
 import 'ui/presentation_settings.dart';
 import 'ui/agent_chat.dart';
 import 'ui/character_view.dart';
 import 'ui/setup_dialog.dart';
+import 'ui/settings_controls.dart';
+import 'ui/settings_hub.dart';
+import 'ui/converse_memory.dart';
+import 'ui/mcp_settings.dart';
 import 'ui/visual_theme.dart';
 
 export 'ui/visual_theme.dart' show kinaiyaIndigo, kinaiyaWhite;
@@ -154,6 +159,72 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   final _voice = ValueNotifier(const VoiceActivity());
+  final _converseControls = ConverseViewControls();
+  final _agentControls = AgentViewControls();
+  bool _settingsOpen = false;
+
+  SettingsAvailability get _settingsAvailability => SettingsAvailability(
+    voiceOptions: _converseControls.openVoiceOptions != null,
+    agentControls:
+        widget.state.commandsAvailable && _agentControls.openCommands != null,
+    mcpConnections: widget.state.client != null,
+  );
+
+  Future<void> _settings() async {
+    if (_settingsOpen || _closing) return;
+    final owner = widget.state;
+    _settingsOpen = true;
+    SettingsAction? action;
+    try {
+      action = await showDialog<SettingsAction>(
+        context: context,
+        builder: (_) => ListenableBuilder(
+          listenable: owner,
+          builder: (_, _) => SettingsHub(availability: _settingsAvailability),
+        ),
+      );
+    } finally {
+      _settingsOpen = false;
+    }
+    if (!mounted ||
+        _closing ||
+        !identical(widget.state, owner) ||
+        action == null) {
+      return;
+    }
+    // The hub is dismissed before any real destination is opened. Availability
+    // is read now, never taken from the snapshot that rendered a selected row.
+    if (!_settingsAvailability.allows(action)) return;
+    switch (action) {
+      case SettingsAction.connection:
+        _setup();
+      case SettingsAction.appearance:
+        _appearance();
+      case SettingsAction.memory:
+        await showConverseMemoryDialog(context: context, state: owner);
+      case SettingsAction.voice:
+        await _converseControls.openVoiceOptions?.call();
+      case SettingsAction.agentControls:
+      case SettingsAction.mcp:
+        owner.setView(AppView.agent);
+        await WidgetsBinding.instance.endOfFrame;
+        if (!mounted ||
+            _closing ||
+            !identical(widget.state, owner) ||
+            !_settingsAvailability.allows(action)) {
+          return;
+        }
+        if (action == SettingsAction.agentControls) {
+          _agentControls.openCommands?.call();
+        } else {
+          await showDialog<void>(
+            context: context,
+            builder: (_) => McpSettings(state: owner),
+          );
+        }
+    }
+  }
+
   bool _closing = false;
   @override
   void dispose() {
@@ -258,6 +329,13 @@ class _HomeShellState extends State<HomeShell> {
                               ),
                               ConnectionDot(state: state),
                               IconButton(
+                                key: const ValueKey('settings-open'),
+                                tooltip: 'Settings',
+                                color: _headerInk(isAgent),
+                                icon: const Icon(Icons.settings_outlined),
+                                onPressed: _settings,
+                              ),
+                              IconButton(
                                 tooltip: 'Appearance',
                                 color: _headerInk(isAgent),
                                 icon: const Icon(Icons.palette_outlined),
@@ -308,6 +386,7 @@ class _HomeShellState extends State<HomeShell> {
                                     child: CharacterView(
                                       state: state,
                                       audio: widget.audio,
+                                      controls: _converseControls,
                                       character: widget.presentation.selected,
                                       showCharacter: widget
                                           .presentation
@@ -335,7 +414,10 @@ class _HomeShellState extends State<HomeShell> {
                                   enabled: isAgent,
                                   child: Theme(
                                     data: widget.darkTheme,
-                                    child: AgentChat(state: state),
+                                    child: AgentChat(
+                                      state: state,
+                                      controls: _agentControls,
+                                    ),
                                   ),
                                 ),
                               ),
