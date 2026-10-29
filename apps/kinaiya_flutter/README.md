@@ -45,7 +45,7 @@ flutter build web --release --no-web-resources-cdn -t lib/companion_main.dart --
 While foregrounded, the companion polls bounded call pages and supports answer,
 decline, end, and literal host notes retained after hangup. `accepted_waiting_media`
 is shown as waiting for voice connection. This target supplies no voice media,
-native projects, push handling or background/locked-screen calling. The host must
+push handling or background/locked-screen calling. The host must
 allow the companion's browser origin when testing the web target. Remote HTTP is
 rejected; loopback HTTP is for a client and host on the same machine.
 
@@ -53,6 +53,38 @@ An uncertain action keeps its original revision and idempotency key for retry.
 A superseded receipt triggers a refresh. Revocation clears displayed call data;
 late responses from a prior pairing cannot repopulate the view. Notes are plain
 text, including any markup or URLs they contain, and never become actions.
+
+## Native development targets
+
+The Android and iOS projects use the pinned Flutter 3.47.8 templates. They build
+the same existing owner and foreground companion Dart entrypoints:
+
+```sh
+flutter pub get --enforce-lockfile
+flutter build apk --debug --no-pub -t lib/main.dart
+flutter build apk --debug --no-pub -t lib/companion_main.dart
+# On macOS with the required Xcode/simulator SDK:
+flutter build ios --simulator --debug --no-codesign --no-pub -t lib/main.dart
+flutter build ios --simulator --debug --no-codesign --no-pub -t lib/companion_main.dart
+```
+
+These alternative development builds share an application identity and replace
+each other on installation. CI copies each output before building the other
+target and gives it a distinct owner/companion artifact name. The label is
+**Kinaiya Dev**, with template launcher icons. Debug APKs and unsigned simulator
+applications are development artifacts, not store releases.
+
+Prefer the scoped companion for phone control; it never requests the host owner
+credential. Native audio still reports unavailable, and voice media, system
+incoming calls, push/background reachability and locked-screen calling remain
+unfinished. Native credential-file and presentation import/export/persistence
+are also unavailable; existing manual owner setup and presentation apply only
+in memory. A process restart loses the companion grant and requires pairing again.
+
+Connect only to the reachable trusted HTTPS host you configure. A phone's
+loopback address refers to the phone, not the host computer. The projects expose
+no host ports, bypass no certificate checks and add no microphone/VoIP permissions.
+See the [native foundation scope and toolchain](../../docs/adr/0048-native-app-foundation.md).
 
 ## Agent interface
 
