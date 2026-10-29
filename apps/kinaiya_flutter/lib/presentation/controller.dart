@@ -175,7 +175,7 @@ class PresentationController extends ChangeNotifier {
       } catch (_) {
         if (!_disposed && revision == _revision) {
           _notice =
-              'Presentation is active for this session, but could not be saved locally.';
+              'Presentation is active for this session, but saving locally is unconfirmed.';
           _notify();
         }
       }

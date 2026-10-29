@@ -23,6 +23,19 @@ Android and iOS implement MethodChannel `dev.kinaiya/presentation_storage_v1`:
   `presentation_busy` codes and fixed messages, without paths, raw OS errors,
   snapshot content or details. Never log snapshots or errors containing them.
 
+Native handlers retain the standard MethodChannel wire format while parsing
+only these narrow call shapes, before any generic container decoder can allocate
+from untrusted counts. Bound raw envelopes to the snapshot limit plus 256 bytes,
+method names to 128 UTF-8 bytes, and known argument shapes exactly as above.
+Unknown bounded method names return not-implemented without interpreting their
+arguments. Malformed lengths, truncation and malformed UTF-8 are refused. SDK
+standard success/error envelopes are encoded on the storage worker and only
+their already-encoded binary reply is delivered on the platform UI thread.
+Android copies Flutter's callback-lifetime incoming ByteBuffer on a framework
+background task queue before returning from that handler. Framework transport
+buffers and Dart's ordinary channel serialization remain platform costs; this
+does not claim zero copying or measured UI latency.
+
 The Dart implementation selects native storage only on Android/iOS; web keeps
 IndexedDB and other platforms keep session storage. A missing plugin, unexpected
 return type or failed call propagates to the controller's existing fixed notice
@@ -50,6 +63,12 @@ Failed replacement preserves the previous complete snapshot. Concurrent calls
 and engine recreation cannot let an older accepted write finish after a newer
 accepted write. Abrupt process/device loss durability is not established merely
 by a successful API return; reopening revalidates the complete snapshot.
+Android explicitly checks file-descriptor sync and committed content because
+AtomicFile.finishWrite can log sync/rename failures without throwing. A failed
+post-commit read makes saving unconfirmed, rather than proving the old snapshot
+is still current. Shared admission slots remain held through reply delivery or
+attachment retirement; an immutable attachment identity prevents an old result
+from being delivered after reattachment of the same plugin object.
 
 Only presentation preferences and optional artwork enter this file. Service
 credentials, host URLs, personality, conversation, model settings and grants

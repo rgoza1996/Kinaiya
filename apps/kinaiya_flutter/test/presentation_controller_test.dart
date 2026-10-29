@@ -230,7 +230,7 @@ void main() {
         const PresentationPreferences(showCharacter: false),
       );
       expect(controller.preferences.showCharacter, isFalse);
-      expect(controller.notice, contains('could not be saved'));
+      expect(controller.notice, contains('saving locally is unconfirmed'));
       expect(controller.notice, isNot(contains('private')));
       storage.failWrite = false;
       await controller.setPreferences(

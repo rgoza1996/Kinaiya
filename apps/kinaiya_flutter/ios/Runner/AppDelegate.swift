@@ -11,6 +11,11 @@ import UIKit
   }
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
-    GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    let registry = engineBridge.pluginRegistry
+    GeneratedPluginRegistrant.register(with: registry)
+    if !registry.hasPlugin(PresentationStoragePlugin.pluginKey),
+       let registrar = registry.registrar(forPlugin: PresentationStoragePlugin.pluginKey) {
+      PresentationStoragePlugin.register(with: registrar)
+    }
   }
 }

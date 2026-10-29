@@ -77,9 +77,10 @@ applications are development artifacts, not store releases.
 Prefer the scoped companion for phone control; it never requests the host owner
 credential. Native audio still reports unavailable, and voice media, system
 incoming calls, push/background reachability and locked-screen calling remain
-unfinished. Native credential-file and presentation import/export/persistence
-are also unavailable; existing manual owner setup and presentation apply only
-in memory. A process restart loses the companion grant and requires pairing again.
+unfinished. Native credential-file and presentation import/export remain
+unavailable. Appearance preferences and the selected character use private local
+storage; manual owner credentials and the companion grant stay in memory.
+A process restart loses the companion grant and requires pairing again.
 
 Connect only to the reachable trusted HTTPS host you configure. A phone's
 loopback address refers to the phone, not the host computer. The projects expose
@@ -96,7 +97,7 @@ Agent Chat consumes the backend command registry, including canonical names, ali
 
 Open **Appearance** from either view to import/preview/use a local character pack, export the current pack, restore the original, change colors, reduce motion or use a non-character view. An import changes artwork and palette; it does not import personality, voice, permissions or connection settings. Explicit color overrides take priority over pack colors and Kinaiya defaults. Device reduced motion always applies. Hiding character art retains the transcript and ordinary controls.
 
-The web client stores only presentation preferences and an optional imported pack in its own IndexedDB record. It validates saved data again on reload. Storage failures leave the current session usable and display a warning. Native import/export and durable presentation storage are not implemented; native preferences apply for the current session only.
+The web client stores only presentation preferences and an optional imported pack in its own IndexedDB record. Android/iOS use one bounded app-private presentation file configured to stay outside OS cloud backups. Both paths validate saved data again on restore; storage failures leave the current session usable and display a warning. Native import/export remains unavailable, and other platforms keep session-only settings. [Native storage ownership and verification limits](../../docs/adr/0049-native-presentation-storage.md) distinguish channel/build checks from device restart, backup and power-loss testing.
 
 Use **Export current pack** to obtain the self-contained JSON format. [Pack format and local storage](../../docs/character-packs.md) explains its provenance, checksums and limits. ZIP archives, remote asset fetching, voice/personality import and automatic image generation are not supported by this importer.
 

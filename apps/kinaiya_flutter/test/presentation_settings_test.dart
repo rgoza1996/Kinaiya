@@ -449,7 +449,7 @@ void main() {
       await press(tester, 'Use character pack');
       expect(controller.selected!.pack.name, 'Session character');
       const warning =
-          'Presentation is active for this session, but could not be saved locally.';
+          'Presentation is active for this session, but saving locally is unconfirmed.';
       expect(controller.notice, warning);
       expect(find.text('Character pack selected.'), findsOneWidget);
       expect(find.text(warning), findsOneWidget);
