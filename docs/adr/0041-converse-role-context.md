@@ -23,3 +23,23 @@ The original eight-case Gemma screen remains failed: six semantic passes, two be
 An independent reviewer froze twelve new synthetic cases and grading policy outside the Agent workspace before implementation, with their prompt text withheld from the implementer and the lead. The planned bounded experiment uses the production default personality with the new shared role context, unchanged Gemma bytes/sampling/context/output limits, actual typed/window runtime and owned resource provider. It must preserve raw and published responses, strict terminal/refusal status and cleanup separately. No same-case retry or adaptive prompt/decoder tuning is part of that experiment.
 
 Even a successful small fresh screen would not establish general dialogue quality, physical speech performance, combined 8 GB VRAM fit, a model/default promotion or the original full Stage B acceptance. Actual results and remaining failures must be recorded before review and integration.
+
+## Collected results and next evaluation
+
+Both fresh twelve-case screens at commit `3771f5c` failed qualification. Corrected
+Gemma E2B raw output received nine passes, two partials and one failure, plus one
+separate length refusal. The independent delivered-output grade differed only
+on the truncated draft case (eight passes, three partials, one failure); both
+interpretations remain recorded. Qwen3-VL-4B Q4 raw and delivered output each
+received nine passes, one partial and two failures, plus four length refusals.
+Its unsupported negative authorization and action-state assertions motivated
+the separate bounded publication guard in ADR 0042, not a regrade of that run.
+
+Those prompts, source, model bytes, sampling, outputs, grades and failed results
+remain fixed. Updating this branch with the independently verified guard changes
+the source for future experiments; it does not alter either earlier result.
+The owner confirmed **8 GB total VRAM for STT, conversational LLM and TTS
+together**. Further candidate evaluation must retain raw output separately from
+guarded delivery, use new frozen cases, and measure runtime and memory separately
+from dialogue quality. No model/default promotion follows from this context
+compiler change.
