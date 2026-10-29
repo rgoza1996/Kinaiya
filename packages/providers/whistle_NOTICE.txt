@@ -1,11 +1,12 @@
-Whistle offline batch binding derivative, Kinaiya, 2026.
+Whistle offline binding derivative, Kinaiya, 2026.
 Adapted selected ctypes signatures from Cactus Compute needle/agent/whistle.py
 at b4fc11b04f1852888d375c8c6dfbaca44572d014 (source package declares 3.2.1).
 Upstream source: https://github.com/cactus-compute/needle
 The retained upstream Apache License 2.0 is in whistle_LICENSE.txt.
 Weights are separately Apache-2.0 at Cactus-Compute/whistle revision
 741118687e1f008f06d1351a402a731274789790; the model license was inspected separately.
-Changes: selected explicit offline ctypes batch binding; no original loader,
+Changes: selected explicit offline ctypes batch and opt-in native incremental
+speech process/stop bindings; no original loader,
 resolver, network fallback or telemetry import; sealed SHA256-pinned local
 inputs, bounded established PCM-WAV conversion and owned IPC/process lifecycle.
 The source wrapper intentionally selects the separate gen3 engine 3.3.3.
@@ -14,3 +15,8 @@ d6c7d6a2e9655505e0f8e23339356dd1705900eb; that wheel contains no LICENSE/NOTICE
 member. Pinned bytes do not establish full source/build/ABI equivalence or
 independently resolve binary redistribution terms. No binary or weights are
 redistributed in this package. See whistle_manifest.json for all identities.
+
+The optional native streaming binding validates bounded committed/pending output,
+limits contiguous PCM16 input and refuses engine reuse after uncertain dispatch.
+Native stop is an explicit synchronous flush, not cancellation or user-input
+commitment. The transport/client integration is tracked separately in issue93.

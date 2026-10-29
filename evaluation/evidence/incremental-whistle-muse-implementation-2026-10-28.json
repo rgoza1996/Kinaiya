@@ -1,0 +1,138 @@
+{
+  "actual_cli": {
+    "additional_non_json_lines": 4,
+    "backend_effort_reported": false,
+    "cancelled_model_calls": 0,
+    "completed_model_calls": 13,
+    "contributor_mode": "on",
+    "direct_child_reaped": true,
+    "elapsed_s": 73.39482833800139,
+    "exit_code": 0,
+    "failed_model_calls": 0,
+    "forced_termination": false,
+    "json_event_records": 413,
+    "max_model_steps": 16,
+    "model_requested": "muse-spark-1.3-contributor",
+    "preset": "miniswe",
+    "prompt_sha256": "6fff9c737ef524c2bf898f549780c258f509c612b91cb878290c04230dc2dcba",
+    "raw_events_sha256": "42548ce2c9cc955c58aa723c3f5b6e490b91cf7b47c9bb5409bb8ec0e16eb5e6",
+    "reasoning_effort_requested": "xhigh",
+    "receipt_sha256": "dfdb87d5a01c2fe13d99b55a3341fdffd8f5d51e4ca02369f33cfa00a6ee4d98",
+    "reported_model_calls": 13,
+    "resolved_models": [
+      "muse-spark-1.3-contributor"
+    ],
+    "terminal_session": "kinaiya-muse-monitor",
+    "terminal_window": "@91",
+    "terminal_window_name": "muse-whistle-stream-v2",
+    "version": "1.4.14-R7309.1",
+    "wrapper_sha256": "66e53ef0ba5a3468f2f7b00fe5e6dd9b845db88620ff2ee995a51db40da64992"
+  },
+  "baseline": "4c84ce542291f1e9b5d15f5888983224dfe15f77",
+  "budget": {
+    "admission_ceiling_usd": 22,
+    "authorized_combined_limit_usd": 25,
+    "buffer_usd": 3,
+    "conservative_settled_admission_usd": 2.089920196000001,
+    "cumulative_contributor_estimate_usd": 1.0449600980000004,
+    "guard_total_usd": 3.645730246000001,
+    "incremental_contributor_estimate_usd": 0.009705276,
+    "ledger_call_ids": [
+      1402,
+      1403,
+      1404,
+      1405,
+      1406,
+      1407,
+      1408,
+      1409,
+      1410,
+      1411,
+      1412,
+      1413,
+      1414
+    ],
+    "pricing_basis": "cache-aware Contributor token estimate, not invoice",
+    "reasoning_tokens_included_in_output_not_added_again": true,
+    "reported_billing_usd": null,
+    "retained_unknown_reservations_usd": 1.55581005
+  },
+  "context_and_credentials": {
+    "clean_public_isolated_worktree": true,
+    "credential_transport": "owner credential passed only via CLI stdin; not written to arguments or fresh HOME",
+    "foreign_personal_context_disabled": true,
+    "fresh_cli_home_xdg": true,
+    "limit": "This describes context and launcher configuration, not an OS filesystem sandbox for Muse tools.",
+    "public_synthetic_prompt": true,
+    "web_reminders_user_input_disabled": true
+  },
+  "date": "2026-10-28",
+  "issue": 93,
+  "original_muse_delivered_files": [
+    {
+      "bytes": 9243,
+      "path": "packages/providers/whistle_backend.py",
+      "sha256": "05d387a91ccfc56d657873708ef37ed4d81eda57f62e47ee2c5a2775b9f66b18"
+    },
+    {
+      "bytes": 5099,
+      "path": "packages/providers/whistle_stream.py",
+      "sha256": "d6d86c6d1ae6f8c6c62499a01ad1209870b47059b1302d8d6d3c2b2f248d25cf"
+    },
+    {
+      "bytes": 11363,
+      "path": "tests/unit/test_whistle_stream_backend.py",
+      "sha256": "8e40d7db1bad7c2b9a22f934537df4c9fca2df3b1a2c4daac729d984c5748be0"
+    }
+  ],
+  "original_review_defect": {
+    "human_approval_claimed": false,
+    "independent_final_receipt_sha256": "487b5b8b19be539c478738c3d08c7c955e58a433c113daa1be9f1706e0af9571",
+    "original_independent_probe_sha256": "5627b09af8aa5b97f8e7ec11eff052befed31e4dd077e6d58236a726e5e8457d",
+    "original_red_log_sha256": "0b55c908e93a66c692ebbbd79e88b219810d07d575a1df811f180322bea72e14",
+    "pre_repair_commit": "a9ca99e",
+    "problem": "Result/state publication occurred outside the post-dispatch taint boundary; interruption/OOM could leave a natively consumed operation reusable.",
+    "red_cases": 4,
+    "repair_commit": "35e4ad58d303363837c143c1ef53668ea3574b0f",
+    "repaired_cases": 4
+  },
+  "prior_launch_failure": {
+    "attempt": "v1",
+    "diagnostic": "tmux selected a Conda Python build lacking pidfd_open; failure occurred after child spawn and before credential stdin write. V2 preflights supported system Python. Original empty event file and diagnostic are retained.",
+    "ledger_calls_after": 1401,
+    "ledger_calls_before": 1401,
+    "original_stderr_retained": false,
+    "status": "terminal launch failure, zero reported model calls"
+  },
+  "remaining": "Actual incremental engine behavior, owned transport, durable transcript/client backpressure and real integrated Decisions/voice acceptance remain unverified by this provenance record. Full issue93/#49/M2 and roadmap remain open.",
+  "reviewed_files_after_codex_repairs": {
+    "packages/providers/whistle_backend.py": {
+      "bytes": 9450,
+      "sha256": "133f87a0cb24aa23b928ff9bbb47280b6c9d2afb29c67751c7317a781772cfc1"
+    },
+    "packages/providers/whistle_stream.py": {
+      "bytes": 5243,
+      "sha256": "3cd5db9d179672b59ab92321a0996294c45a2b91a0def7e6e820cb021d324c5c"
+    },
+    "tests/unit/test_whistle_stream_backend.py": {
+      "bytes": 16259,
+      "sha256": "aa6b262dfd1ed7c29f09478b9e3ed9f4904aa51323d13e6ea8ed3720a1194977"
+    }
+  },
+  "reviewed_native_commit": "35e4ad58d303363837c143c1ef53668ea3574b0f",
+  "schema_version": "1.0",
+  "scope": "Actual Muse CLI implementation provenance for the native Whistle incremental seam only. Transport, Converse/client integration and actual native inference are separate gates.",
+  "usage": {
+    "cached_tokens": 288588,
+    "calls": 13,
+    "input_tokens": 336325,
+    "model": "muse-spark-1.3-contributor",
+    "output_tokens": 21772,
+    "reasoning_tokens": 12570
+  },
+  "work_attribution": {
+    "codex": "Reviewed/formatted and repaired lint/errors, strict word bounds and one-sample tolerance, post-dispatch BaseException handling, and the independent publication-interruption defect. Added meaningful exception, next-stream/batch and publication regressions; updated derivative provenance.",
+    "muse": "Wrote the explicit optional process/stop binding, bounded native result parser and synthetic fake-CDLL tests in three owned files. Reported AST checks; pytest/Ruff were unavailable in its sanitized environment. No actual native model was loaded by Muse.",
+    "test_scope": "226 focused Whistle and speech checks passed locally at the reviewed native commit. Independent synthetic parser/state/native-boundary matrix passed86; unchanged4-case red probe passed after repair. These are not actual model calls or full CI."
+  }
+}
