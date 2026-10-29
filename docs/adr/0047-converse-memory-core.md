@@ -8,6 +8,13 @@ work. Existing dialogue and the authoritative transcript do not depend on it.
 
 ## Authority and interface
 
+The backend is installed only with the launcher's explicit `serve session
+--converse-memory` (or `serve all --converse-memory`) switch. Without that opt-in,
+the module is not imported, its schema is not created and its routes are absent.
+This installation switch is separate from each namespace's owner use setting.
+If the selected backend reports unavailable storage or an unsupported memory
+schema, ordinary Session startup and transcript operations remain usable; memory
+routes return a fixed unavailable response. Authenticate before receiving a body.
 The backend uses the Session Store connection, lock and transactions. Its
 separately versioned additive schema leaves journal version 1 and roles intact.
 Each namespace is the current Converse `(session_id, thread_id, epoch)`. Reset
@@ -112,6 +119,8 @@ checking conflicting reused keys); this cannot consume the deletion budget.
 Never refuse deletion merely because capture/receipt capacity is exhausted.
 Configuration/disable remains possible. Reconciliation commits before reporting
 stale CAS, so the caller refreshes rather than unknowingly acting on old state.
+Explicit enabling also reconciles retained pins before CAS; a correction while
+off can therefore require a refresh and a second enable request.
 
 Forget erases body, key and value from the selected node and every dependent,
 including observations. Retain only IDs, source pins, type, ordinal, edges and
@@ -120,11 +129,21 @@ in this epoch, so retries cannot recreate forgotten content. A fresh, explicitly
 admitted owner source is required for later memory. No deletion promise extends
 to the original transcript, files, backups or any prior disclosure. Session
 deletion performs the existing cascade. No automatic capacity eviction occurs.
+If a corrupt namespace exceeds the ordinary response's 256-ID allowance, forget
+erases all namespace content atomically and then returns a fixed conflict stating
+that content was erased and the graph remains quarantined. It never returns a
+truncated ID list as a complete result. State reports the actual metadata count
+as a nonnegative safe integer, including an over-quota diagnostic count; the
+normal admission quota remains 256.
 
 Wire schema is 1.0; extra fields and numeric/string coercion are refused. IDs use
 the existing bounded ASCII identifier convention. Revisions/ordinals use safe
-integers, never booleans. Reserve the final revision increment for disabling so
-exhaustion cannot leave use enabled. Requests are JSON, at most 16 KiB before
+integers, never booleans. Expected-revision inputs accept the full safe range so
+final-revision no-ops can be reconciled. Reserve the final increment for disabling so
+exhaustion cannot leave use enabled. Other content-changing operations, including
+forget, refuse numeric exhaustion instead of wrapping or mutating at an unchanged
+revision; the existing owner session deletion remains available to erase all
+retained memory in that exceptional state. Requests are JSON, at most 16 KiB before
 parsing; reject duplicate object keys, malformed UTF-8 and nonfinite numbers.
 Responses are no-store and at most 256 KiB. Validation errors never echo bodies.
 Unknown/duplicate query parameters are rejected; none of these routes need query

@@ -251,6 +251,16 @@ voice recording/playback and independent Agent Chat. Its [design and browser evi
 describe the tested synthetic voice-to-file flow and Agent operation while Converse
 was unloaded. Native voice and the remaining M5 gates are unfinished.
 
+An experimental [Converse memory core](docs/adr/0047-converse-memory-core.md)
+is installed only with `kinaiya serve session --converse-memory` (or the same
+switch on `serve all`). Its owner-only API starts each current Converse namespace
+disabled. Explicitly enabled namespaces accept local owner-curated, transcript-pinned
+claims and hard dependencies, reconcile corrections and contradictions, retrieve
+complete bounded dependency sets, and forget retained content. Disabling use and
+deleting data are separate controls. This core does not yet add recalled content
+to dialogue prompts, provide a Flutter memory toggle, run extraction, or establish
+improved conversational recall. Agent and Decisions do not use this DAG.
+
 Optional local skill controls are enabled with `"skills": {"enabled": true}` in
 the owner configuration. `/skills list`, `/skills install <local-path>`, and
 `/skills enable <qualified-id>` manage packages without inference; `/skill
