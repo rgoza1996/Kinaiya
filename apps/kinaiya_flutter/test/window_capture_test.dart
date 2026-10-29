@@ -216,8 +216,14 @@ void main() {
       final state = await arm(tester, api, audio);
       expect(audio.enabled, isTrue);
       expect(audio.clips, 0);
+      await tester.tap(find.byKey(const ValueKey('voice-options')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
       expect(find.text('Conversation timing'), findsOneWidget);
       expect(find.text('Silence'), findsNothing);
+      await tester.tap(find.byTooltip('Close voice options'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
       for (var n = 0; n < 30; n++) {
         await tester.pump(const Duration(milliseconds: 100));
       }

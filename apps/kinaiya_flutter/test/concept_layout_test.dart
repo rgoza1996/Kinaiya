@@ -164,6 +164,15 @@ void main() {
         find.byKey(const ValueKey('converse-input')),
         'Conversation draft',
       );
+      // Focusing the input scrolls the taller stage's composer into view.
+      await tester.ensureVisible(
+        find.byTooltip('Start Live listen (armed mic)'),
+      );
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(
+        find.byTooltip('Start Live listen (armed mic)').hitTestable(),
+        findsOneWidget,
+      );
       await tester.tap(find.byTooltip('Start Live listen (armed mic)'));
       await settle(tester);
       expect(audio.starts, 1);
