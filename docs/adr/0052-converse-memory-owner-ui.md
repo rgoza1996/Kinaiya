@@ -19,6 +19,17 @@ if a current runtime state is known. Use state reports configuration, never a
 claim of model/counter readiness or actual context consumption. Disabled
 namespace access retains notes; runtime restart starts use off.
 
+Session availability/authentication flags do not establish Converse owner access.
+Each memory endpoint enforces its own owner credential. Do not gate Converse
+state/Stop on AppState.connected, sessionAuthenticated or inference readiness.
+During a refresh in the same client/connection generation/full binding, retain
+the last accepted runtime snapshot separately for explicit Stop if Session or
+use-state refresh fails. Display its last-observed/unknown status; its runtime
+identity and CAS still protect the actual off request. A changed client,
+connection generation or binding discards that snapshot. Only freshly coherent
+namespace/catalog/use state permits a replacement enable. A read error cannot
+make a previously reachable Stop disappear solely because Session is down.
+
 ## Shared native contract
 
 Owner-only Session POST `/v1/converse-memory/catalog` accepts MemoryBinding and
