@@ -250,6 +250,7 @@ class _SettingsHubState extends State<SettingsHub> {
                                 const SizedBox(height: 4),
                                 SelectableText(
                                   widget.buildInfo.label,
+                                  semanticsLabel: widget.buildInfo.label,
                                   style: theme.textTheme.bodySmall,
                                 ),
                                 if (widget.buildInfo.revision.isNotEmpty)
@@ -257,6 +258,7 @@ class _SettingsHubState extends State<SettingsHub> {
                                     padding: const EdgeInsets.only(top: 2),
                                     child: SelectableText(
                                       widget.buildInfo.revision,
+                                      semanticsLabel: widget.buildInfo.revision,
                                       style: theme.textTheme.bodySmall
                                           ?.copyWith(
                                             color: colors.onSurfaceVariant,

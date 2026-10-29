@@ -265,6 +265,18 @@ void main() {
     expect(find.text(revision), findsOneWidget);
     expect(find.widgetWithText(SelectableText, label), findsOneWidget);
     expect(find.widgetWithText(SelectableText, revision), findsOneWidget);
+    expect(
+      tester
+          .widget<SelectableText>(find.widgetWithText(SelectableText, label))
+          .semanticsLabel,
+      label,
+    );
+    expect(
+      tester
+          .widget<SelectableText>(find.widgetWithText(SelectableText, revision))
+          .semanticsLabel,
+      revision,
+    );
     expect(find.text('About'), findsOneWidget);
   });
 
