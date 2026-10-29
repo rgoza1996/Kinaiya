@@ -37,6 +37,14 @@ and both limits against its captured request/configuration after actual close.
 Wire JSON is bounded to 4096 bytes, strict UTF-8, no duplicate/nonfinite fields,
 exact keys and types. Errors expose no input, raw backend errors or paths.
 
+The client uses a logical timeout of min(configured native deadline, 10 seconds)
+plus five seconds of transport grace. Normal responses close before validation
+or success. Retaining real client close through cancellation uses the existing
+`owned_http_stream_cleanup` caller context; its close can outlast that logical
+deadline. Ordinary-context cancellation does not establish retained client
+cleanup. The resource broker independently owns native work and release in both
+cases, so closing a client request cannot admit a replacement native operation.
+
 ## Resident worker and retained ownership
 
 Measurement reserves the same single ManagedTextBroker operation as generation,
@@ -68,6 +76,9 @@ native failure abort through the existing captured-worker stop and retained
 cleanup barrier. Unconfirmed cleanup stays busy and cannot admit replacement.
 The count deadline is min(existing broker timeout, 10 seconds), including body
 receipt. No automatic retry or generation occurs.
+After joining graceful monitor/disconnect retirement, recheck the captured
+policy and worker again before returning a count or unsupported result. A
+completed native close is not permission to publish after an awaited revocation.
 
 ## Compatibility and verification
 

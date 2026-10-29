@@ -224,6 +224,58 @@ async def test_cancelled_resident_lookup_releases_without_waiting_for_allocation
         host.coordinator.admission_lock.release()
 
 
+@pytest.mark.parametrize("revocation", ["off", "identity_lost"])
+async def test_completed_count_rechecks_selection_after_disconnect_retirement(host, revocation):
+    first, retirement_waiting, retired = True, asyncio.Event(), asyncio.Event()
+
+    async def receive():
+        nonlocal first
+        if first:
+            first = False
+            return {"type": "http.request", "body": json.dumps(BODY).encode()}
+        try:
+            await asyncio.Future()
+        except asyncio.CancelledError:
+            retirement_waiting.set()
+            await retired.wait()
+            raise
+
+    req = Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": PATH,
+            "headers": [(b"content-type", b"application/json")],
+        },
+        receive,
+    )
+    task = asyncio.create_task(host.broker.measure_prompt(req))
+    off = None
+    try:
+        await retirement_waiting.wait()
+        assert host.protocol.closing.is_set()
+        assert host.broker.operation.closed.is_set() and not task.done()
+        if revocation == "off":
+            off = asyncio.create_task(
+                host.coordinator.action(
+                    {"operation": "converse", "enabled": False, "idempotency_key": "retire-off"}
+                )
+            )
+            await wait_until(lambda: not host.coordinator.intent.read().enabled)
+        else:
+            await host.manager.stop("gguf")
+        retired.set()
+        with pytest.raises(HTTPException) as caught:
+            await task
+        assert caught.value.status_code == 503
+        if off is not None:
+            assert (await off)["ok"]
+        assert host.broker.operation is None and host.manager.starts == []
+    finally:
+        retired.set()
+        await asyncio.gather(task, *([off] if off is not None else []), return_exceptions=True)
+
+
 @pytest.mark.parametrize(
     "raw,status", [(b"{}", 400), (b"{" * 1000, 400), (b"x" * (512 * 1024 + 1), 413)]
 )

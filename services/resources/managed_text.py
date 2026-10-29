@@ -139,11 +139,12 @@ class ManagedTextBroker:
             raise HTTPException(409, "Managed text is paused by owner/resource policy") from exc
 
     def current(self, op):
-        if (
-            op.closed.is_set()
-            or self.policy() != op.policy
-            or not self.manager.is_current(op.identity)
-        ):
+        if op.closed.is_set():
+            raise HTTPException(409, "Managed text resource revision or worker changed")
+        self.selection_current(op)
+
+    def selection_current(self, op):
+        if self.policy() != op.policy or not self.manager.is_current(op.identity):
             raise HTTPException(409, "Managed text resource revision or worker changed")
         try:
             self.protocol.current(op.lease, op.identity)
@@ -364,6 +365,10 @@ class ManagedTextBroker:
                 await asyncio.shield(op.cleanup)
                 if not op.cleanup_confirmed:
                     raise HTTPException(503, "Prompt measurement cleanup is unconfirmed")
+                # Joining monitor/disconnect retirement is an await boundary.
+                # A closed operation cannot use current(), but its captured
+                # policy and worker must still be selected before publication.
+                self.selection_current(op)
         except BaseException as exc:
             if started:
                 self.abort(op, "deadline" if isinstance(exc, TimeoutError) else "unavailable")
@@ -374,7 +379,11 @@ class ManagedTextBroker:
                 self.release(op)
             if isinstance(exc, asyncio.CancelledError):
                 raise
-            if isinstance(exc, HTTPException) and exc.status_code in {400, 409, 413}:
+            if (
+                not started
+                and isinstance(exc, HTTPException)
+                and exc.status_code in {400, 409, 413}
+            ):
                 raise
             raise HTTPException(503, "Prompt measurement is unavailable") from exc
         # Unsupported means a fully closed exchange, not an abort. Keep the

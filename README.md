@@ -341,6 +341,14 @@ and synthetic verification are CPU-only; actual runtime/model acceptance,
 GPU policy, dialogue quality and the combined 8 GB voice-profile target remain
 separate gates. It is not a reference default.
 
+An optional [whole-chat prompt measurement](docs/adr/0050-converse-prompt-measurement.md)
+uses only an already resident managed GGUF worker, without generating a reply or
+loading a model. Its result binds the complete chat request and protected profile
+and accounts for reserved output when checking context capacity. Unsupported
+counting refuses without a guessed estimate. The installed fork's count route
+has not been exercised; synthetic transport tests do not establish compatibility.
+Memory recall is not yet added to dialogue prompts.
+
 A bounded [runtime-state publication guard](docs/adr/0042-negative-runtime-state-publication.md)
 also substitutes uncertainty for selected unsupported negative Agent/task claims
 in generated Converse chunks. It preserves the existing native outcome evidence
