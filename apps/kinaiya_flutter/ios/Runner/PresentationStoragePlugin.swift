@@ -84,7 +84,11 @@ private final class PresentationStorageAttachment {
 
   func deliver(_ response: Data?, token: UUID, reply: @escaping FlutterBinaryReply) {
     let send = { [self] in
-      guard isCurrent(token) else { return }
+      lock.lock()
+      defer { lock.unlock() }
+      guard active && self.token == token else { return }
+      // Claim delivery atomically with retirement. Flutter's binary reply posts
+      // its completion; it does not synchronously reenter the plugin.
       reply(response)
     }
     if Thread.isMainThread { send() } else { DispatchQueue.main.async(execute: send) }
