@@ -33,7 +33,9 @@ truthful text. The widget has no AppState/API/audio dependency or future switche
 It must fit 320px/short screens/2x text, scroll without losing dismissal, label
 controls and support Escape and ordinary keyboard focus. Heading, search and
 entries share a scrollable body while Close stays outside it; a keyboard inset
-or enlarged text cannot push dismissal behind the keyboard. Build information uses
+or enlarged text cannot push dismissal behind the keyboard. With the keyboard
+open, the redundant visual title yields space to search while the route retains
+its Settings accessibility label. Build information uses
 explicit compile definitions KINAIYA_BUILD_LABEL/REVISION; missing definitions
 say Development build and omit the revision rather than inventing a release.
 

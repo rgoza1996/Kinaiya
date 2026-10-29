@@ -124,16 +124,19 @@ class _SettingsHubState extends State<SettingsHub> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         mainAxisSize: MainAxisSize.min,
                         children: <Widget>[
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(20, 20, 20, 4),
-                            child: Semantics(
-                              header: true,
-                              child: Text(
-                                'Settings',
-                                style: theme.textTheme.titleLarge,
+                          // The route still names Settings when the keyboard
+                          // is open; give that space to the focused search.
+                          if (media.viewInsets.bottom == 0)
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(20, 20, 20, 4),
+                              child: Semantics(
+                                header: true,
+                                child: Text(
+                                  'Settings',
+                                  style: theme.textTheme.titleLarge,
+                                ),
                               ),
                             ),
-                          ),
                           Padding(
                             padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                             child: TextField(

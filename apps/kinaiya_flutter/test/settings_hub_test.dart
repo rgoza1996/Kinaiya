@@ -356,8 +356,6 @@ void main() {
     tester.view.viewInsets = const FakeViewPadding(bottom: 220);
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
-    await tester.ensureVisible(find.byKey(const Key('settings-search')));
-    await tester.pumpAndSettle();
     expect(
       find.byKey(const Key('settings-search')).hitTestable(),
       findsOneWidget,
