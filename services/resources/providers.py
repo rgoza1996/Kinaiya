@@ -4,7 +4,8 @@ import re
 from collections.abc import Mapping
 from pathlib import Path
 
-from packages.providers.text import ProviderError
+from packages.providers.prompt_budget import PromptCountUnavailable, PromptTokenCount
+from packages.providers.text import ProviderCleanupError, ProviderError
 from services.resources.state import read_record
 
 
@@ -119,6 +120,30 @@ class ResourceBoundProvider:
             and (not state.desired_converse or state.phase != "ready")
         ):
             raise ProviderError("Local Decisions inference is paused for resource coordination")
+        return state
+
+    async def measure_prompt(self, messages):
+        try:
+            state = self._check()
+            provider, role, state_path = self.provider, self.role, self.state_path
+            measure = getattr(provider, "measure_prompt", None)
+            if role != "converse" or provider.info.local is not True or not callable(measure):
+                raise PromptCountUnavailable("Prompt measurement is unavailable")
+            result = await measure(messages)
+            if (
+                self.provider is not provider
+                or self.role != role
+                or self.state_path != state_path
+                or provider.info.local is not True
+                or self._check().revision != state.revision
+                or type(result) is not PromptTokenCount
+            ):
+                raise PromptCountUnavailable("Prompt measurement is unavailable")
+            return result
+        except ProviderCleanupError:
+            raise
+        except Exception as exc:
+            raise PromptCountUnavailable("Prompt measurement is unavailable") from exc
 
     async def complete(self, messages):
         self._check()
