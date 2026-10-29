@@ -13,6 +13,7 @@ from packages.providers.text import ProviderCleanupError, owned_http_stream_clea
 from services.converse.context import dialogue_system_message
 from services.converse.delivery_context import window_context_scoped
 from services.converse.runtime import SpeechChunker
+from services.converse.state_guard import UNVERIFIED_STATE_REPLY, negative_runtime_state_claim
 
 
 class NativeJournalUnavailable(Exception):
@@ -382,10 +383,17 @@ class WindowConverseController:
                     return False
                 index = prepared.published
                 text = prepared.chunks[index]
-                if unverified_work_claim(
+                positive_hit = unverified_work_claim(
                     text, prepared.decision.payload["agent_route"] != "IGNORE_FOR_IMMEDIATE_ROUTING"
-                ):
+                )
+                if positive_hit:
                     text = "The Agent has not provided a verified result for that claim."
+                    negative_state = False
+                elif negative_runtime_state_claim(text):
+                    negative_state = True
+                    text = UNVERIFIED_STATE_REPLY
+                else:
+                    negative_state = False
                 if prepared.reply_request is None:
                     prepared.reply_request = AppendRequest(
                         session_id=source.session_id,
@@ -408,6 +416,11 @@ class WindowConverseController:
                             "window_source_id": source.event_id,
                             "window_utterance_id": latest.utterance_id,
                             "window_behavior": prepared.behavior,
+                            **(
+                                {"guard_reason": "ungrounded_runtime_state_claim"}
+                                if negative_state
+                                else {}
+                            ),
                             "content_scope": combine_scopes(
                                 prepared.content_scope,
                                 latest.content_scope

@@ -22,6 +22,7 @@ from packages.providers.text import ProviderCleanupError, owned_http_stream_clea
 from services.converse.context import dialogue_system_message
 from services.converse.history import typed_history_scoped
 from services.converse.intent import ConverseIntent
+from services.converse.state_guard import UNVERIFIED_STATE_REPLY, negative_runtime_state_claim
 
 
 class SpeechChunker:
@@ -1058,11 +1059,14 @@ class ConverseRuntime:
                     return
                 # Defense in depth for unsupported execution claims. This conservative
                 # English guard is not claimed as a proof against every paraphrase.
-                if re.search(
-                    r"\b(done|completed?|finished|sent|saved|created|deleted|verified)\b",
-                    text,
-                    re.I,
-                ):
+                positive_hit = bool(
+                    re.search(
+                        r"\b(done|completed?|finished|sent|saved|created|deleted|verified)\b",
+                        text,
+                        re.I,
+                    )
+                )
+                if positive_hit:
                     await self.journal.append(
                         AppendRequest(
                             session_id=request.session_id,
@@ -1078,6 +1082,23 @@ class ConverseRuntime:
                         )
                     )
                     text = "The Agent has not provided a verified result for that claim."
+                # Bounded negative runtime-state guard (issue 97), after positive guard.
+                elif negative_runtime_state_claim(text):
+                    await self.journal.append(
+                        AppendRequest(
+                            session_id=request.session_id,
+                            thread_id=request.thread_id,
+                            epoch=request.epoch,
+                            kind="converse.safety",
+                            payload={
+                                "reason": "ungrounded_runtime_state_claim",
+                                "generation_epoch": generation,
+                            },
+                            causes=[source.event_id],
+                            idempotency_key=f"guard:{source.event_id}:{index}",
+                        )
+                    )
+                    text = UNVERIFIED_STATE_REPLY
                 if not self._text_current(operation):
                     yield {"type": "interrupted", "generation_epoch": generation}
                     return

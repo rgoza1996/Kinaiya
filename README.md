@@ -325,6 +325,12 @@ and synthetic verification are CPU-only; actual runtime/model acceptance,
 GPU policy, dialogue quality and the combined 8 GB voice-profile target remain
 separate gates. It is not a reference default.
 
+A bounded [runtime-state publication guard](docs/adr/0042-negative-runtime-state-publication.md)
+also substitutes uncertainty for selected unsupported negative Agent/task claims
+in generated Converse chunks. It preserves the existing native outcome evidence
+path. Its finite English matching does not qualify a model or establish general
+dialogue truthfulness.
+
 Provider keys belong in secret references/environment variables. Development Meta
 Contributor profiles are for public code and synthetic inputs only. The live test
 requires an explicit paid-inference flag and a budget proxy; ordinary CI is offline
