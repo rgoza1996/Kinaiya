@@ -335,11 +335,11 @@ def test_build_args_fixed_and_isolated(tmp_path, monkeypatch):
     assert "/runtime/llama-server" in cmd and "--model" in cmd and "/model.gguf" in cmd
     assert "--gpu-layers" in cmd and "--device none" in cmd
     assert "--chat-template-kwargs" in cmd and "--log-disable" in cmd
-    # exact FD mounts, no broad binds
+    # Exact links to retained sealed FDs, no broad binds or FD-consuming copies.
     for guest, fd in sealed.items():
-        assert "--ro-bind-fd" in argv
         idx = argv.index(guest)
-        assert argv[idx - 2] == "--ro-bind-fd" and argv[idx - 1] == str(fd)
+        assert argv[idx - 2] == "--symlink" and argv[idx - 1] == f"/proc/self/fd/{fd}"
+    assert not {"--ro-bind-fd", "--bind-fd", "--file", "--bind-data", "--ro-bind-data"} & set(argv)
     pairs = [(argv[i], argv[i + 1]) for i, a in enumerate(argv[:-1]) if a == "--ro-bind"]
     assert all(dst not in ("/runtime", "/vendor") for _, dst in pairs)
     assert "--dir" in argv

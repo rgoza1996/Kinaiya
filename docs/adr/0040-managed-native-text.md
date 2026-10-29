@@ -40,8 +40,15 @@ it. No downloads, automatic discovery, arbitrary command arguments or fallback
 provider run on this path.
 
 Parents read the small manifest and input metadata. The granted child alone
-copies/hashes model and runtime files into sealed memfds, then gives bwrap
-individual read-only FD mounts. It preserves the base sandbox's private
+copies/hashes model and runtime files into sealed memfds, then exposes only
+those inherited descriptors through exact guest symlinks to `/proc/self/fd/N`.
+The asset bytes remain sealed; no mutable copy replaces them. Bubblewrap's
+FD-bind source canonicalization cannot resolve anonymous memfds, which the
+first actual startup attempt demonstrated before native/model loading. Unused
+inherited descriptors survive into the payload, including its dynamic loader;
+the trusted native process owns those descriptors and namespace-local links.
+Other opened inputs/control descriptors are closed or close-on-exec. This
+composition preserves the base sandbox's private
 PID/network/user/UTS/IPC/cgroup namespaces, fresh `/proc` and `/dev`, and private
 IPC workspace. It mounts no broad runtime/vendor directory or host GPU/sysfs
 tree. The CPU worker retains its explicit address-space, file/core and
@@ -115,6 +122,12 @@ retained cancellation, startup quarantine and coordinator allocation/stop
 races. They use no model inference. Original Muse delivery and independent
 failing regressions are retained separately from repaired code. Existing Qwen,
 Whistle and resource regression expectations remain unchanged.
+
+A real no-model sandbox regression compiles a tiny ELF/DSO fixture and runs
+the production worker. It checks the original sealed executable inode, all
+declared guest inputs and their seals, refused writes, dynamic-library loading,
+no unexpected inherited descriptors and owned child/group extinction. The
+original FD-bind startup failure is retained separately from its repair.
 
 Before promotion, collect actual owned native startup, streaming,
 cancel/recovery, off/handoff and unload evidence at the tested tree. A separate

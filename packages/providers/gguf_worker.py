@@ -2,7 +2,7 @@
 
 The parent touches only the small manifest and file metadata. This child
 seals every listed asset, builds a fixed bubblewrap invocation with
-per-file ``--ro-bind-fd`` mounts, records a bounded phase receipt outside
+per-file guest symlinks to inherited sealed FDs, records a bounded phase receipt outside
 the mounted IPC directory, then ``execve``s the sandbox. No subprocess,
 no fallback, no network, no credentials, no GPU grant.
 """
@@ -95,7 +95,7 @@ def _native_argv(manifest, ctx_size, max_new_tokens):
 
 
 def build_args(manifest, sealed, socket_dir, *, ctx_size=2048, max_new_tokens=128, cpu_count=2):
-    """Build the fixed bwrap argv; sealed maps guest path -> open FD number."""
+    """Build fixed bwrap argv; guest links resolve only inherited sealed inputs."""
     from core.policy import ToolPolicy
     from services.agent.tools import build_bwrap_args
 
@@ -143,7 +143,10 @@ def build_args(manifest, sealed, socket_dir, *, ctx_size=2048, max_new_tokens=12
     if needs_vendor:
         extra += ["--dir", "/vendor"]
     for guest in sorted(guests):
-        extra += ["--ro-bind-fd", str(sealed[guest]), str(guest)]
+        # bwrap realpath()s --ro-bind-fd sources, which cannot resolve anonymous
+        # memfds. Unused inherited FDs survive into the payload; exact guest
+        # links preserve the original sealed inode without copying its bytes.
+        extra += ["--symlink", f"/proc/self/fd/{sealed[guest]}", str(guest)]
     extra += [
         "--setenv",
         "LD_LIBRARY_PATH",
