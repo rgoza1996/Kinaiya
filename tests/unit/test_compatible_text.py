@@ -92,6 +92,47 @@ async def test_complete_normal_returns_text():
         await p.close()
 
 
+@pytest.mark.parametrize("streaming", [False, True])
+async def test_explicit_nonthinking_effort_preserves_messages_and_terminal_checks(streaming):
+    observed = []
+
+    def respond(request):
+        observed.append(json.loads(request.content))
+        if streaming:
+            return httpx.Response(200, stream=_Frag([_stop_event("Hello."), b"data: [DONE]\n\n"]))
+        return httpx.Response(
+            200,
+            json={"choices": [{"message": {"content": "Hello."}, "finish_reason": "stop"}]},
+        )
+
+    p = CompatibleTextProvider(
+        "http://localhost/v1",
+        "synthetic",
+        reasoning_effort="none",
+        transport=httpx.MockTransport(respond),
+    )
+    try:
+        assert (await _collect(p) if streaming else await p.complete(MSGS)) == "Hello."
+        assert observed == [
+            {
+                "model": "synthetic",
+                "messages": MSGS,
+                "max_tokens": 2048,
+                "stream": streaming,
+                "reasoning_effort": "none",
+            }
+        ]
+        assert MSGS == [{"role": "user", "content": "Synthetic"}]
+    finally:
+        await p.close()
+
+
+@pytest.mark.parametrize("effort", ["off", "", "NONE", True, 0, {}, ["none"]])
+def test_invalid_reasoning_effort_refused_before_client_creation(effort):
+    with pytest.raises(ProviderError, match="reasoning effort"):
+        CompatibleTextProvider("http://localhost/v1", "synthetic", reasoning_effort=effort)
+
+
 async def test_complete_empty_string_preserved():
     body = {
         "choices": [

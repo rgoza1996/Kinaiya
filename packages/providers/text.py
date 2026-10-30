@@ -323,14 +323,21 @@ class CompatibleTextProvider:
         api_key: str = "",
         allow_cloud=False,
         max_tokens=2048,
+        reasoning_effort=None,
         timeout=90,
         transport=None,
     ):
+        if reasoning_effort is not None and (
+            type(reasoning_effort) is not str
+            or reasoning_effort not in {"none", "minimal", "low", "medium", "high", "xhigh"}
+        ):
+            raise ProviderError("Unsupported compatible provider reasoning effort")
         local = _authorize_endpoint(base_url, allow_cloud)
         self.info = ProviderInfo(
             provider="openai-compatible", model=model, local=local, streaming=True
         )
         self.model, self.max_tokens = model, max_tokens
+        self.reasoning_effort = reasoning_effort
         headers = {"Accept-Encoding": "identity"}
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"
@@ -344,12 +351,15 @@ class CompatibleTextProvider:
         )
 
     def _body(self, messages, stream):
-        return {
+        body = {
             "model": self.model,
             "messages": messages,
             "max_tokens": self.max_tokens,
             "stream": stream,
         }
+        if self.reasoning_effort is not None:
+            body["reasoning_effort"] = self.reasoning_effort
+        return body
 
     async def complete(self, messages):
         try:

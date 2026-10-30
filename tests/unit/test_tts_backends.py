@@ -12,6 +12,185 @@ import pytest
 from packages.providers import tts_backends as tts
 
 
+def kokoro_runtime(monkeypatch, *, available=True, devices=("cuda:0",), buffers=(), failure=None):
+    calls = []
+
+    def parameter(value):
+        kind, _, index = value.partition(":")
+        return SimpleNamespace(
+            device=SimpleNamespace(type=kind, index=int(index) if index else None)
+        )
+
+    class Pipeline:
+        def __init__(self, **kwargs):
+            calls.append(("pipeline", kwargs))
+            if failure is not None:
+                raise failure
+            self.model = SimpleNamespace(
+                parameters=lambda: iter(map(parameter, devices)),
+                buffers=lambda: iter(map(parameter, buffers)),
+            )
+
+        def __call__(self, text, *, voice):
+            calls.append(("synthesize", text, voice))
+            yield text, "synthetic phonemes", [0.25] * 4
+
+    monkeypatch.setitem(sys.modules, "kokoro", SimpleNamespace(KPipeline=Pipeline))
+    monkeypatch.setitem(
+        sys.modules,
+        "torch",
+        SimpleNamespace(
+            cuda=SimpleNamespace(
+                is_available=lambda: available,
+                set_device=lambda index: calls.append(("set_device", index)),
+            )
+        ),
+    )
+    return calls
+
+
+def test_kokoro_cuda_is_explicit_and_reports_only_verified_parameter_device(monkeypatch):
+    calls = kokoro_runtime(monkeypatch)
+    backend = tts.create_tts_backend("Kokoro 82M", device="cuda")
+    assert backend.loaded_device is None
+    backend.load()
+    assert backend.loaded_device == "cuda:0"
+    assert calls == [
+        ("set_device", 0),
+        ("pipeline", {"lang_code": "a", "device": "cuda", "repo_id": "hexgrad/Kokoro-82M"}),
+    ]
+    assert list(backend.synthesize("Public synthetic speech.")) == [
+        tts.AudioWaveform([0.25] * 4, 24000)
+    ]
+
+
+def test_kokoro_cuda_unavailable_never_constructs_or_falls_back(monkeypatch):
+    calls = kokoro_runtime(monkeypatch, available=False)
+    backend = tts.create_tts_backend("Kokoro 82M", device="cuda")
+    with pytest.raises(tts.TTSBackendError):
+        backend.load()
+    assert backend.loaded_device is None
+    assert calls == []
+
+
+@pytest.mark.parametrize("devices", [("cpu",), ("cuda:1",), ("cuda:0", "cpu"), ()])
+def test_kokoro_cuda_wrong_or_empty_placement_refuses_without_cpu_retry(monkeypatch, devices):
+    calls = kokoro_runtime(monkeypatch, devices=devices)
+    backend = tts.create_tts_backend("Kokoro 82M", device="cuda")
+    with pytest.raises(tts.TTSBackendError):
+        backend.load()
+    assert backend.loaded_device is None
+    assert [call[1]["device"] for call in calls if call[0] == "pipeline"] == ["cuda"]
+
+
+def test_kokoro_cuda_loader_failure_is_not_retried_on_cpu(monkeypatch):
+    calls = kokoro_runtime(monkeypatch, failure=RuntimeError("synthetic GPU unavailable"))
+    backend = tts.create_tts_backend("Kokoro 82M", device="cuda")
+    with pytest.raises(RuntimeError):
+        backend.load()
+    assert backend.loaded_device is None
+    assert [call[1]["device"] for call in calls if call[0] == "pipeline"] == ["cuda"]
+
+
+def test_kokoro_cuda_refuses_a_cpu_model_buffer(monkeypatch):
+    calls = kokoro_runtime(monkeypatch, buffers=("cpu",))
+    backend = tts.create_tts_backend("Kokoro 82M", device="cuda")
+    with pytest.raises(tts.TTSBackendError):
+        backend.load()
+    assert backend.loaded_device is None
+    assert [call[1]["device"] for call in calls if call[0] == "pipeline"] == ["cuda"]
+
+
+@pytest.mark.parametrize("boundary", ["before", "waveform", "eof"])
+def test_kokoro_cuda_revalidates_placement_at_native_output_boundaries(monkeypatch, boundary):
+    calls = kokoro_runtime(monkeypatch)
+    backend = tts.create_tts_backend("Kokoro 82M", device="cuda")
+    backend.load()
+
+    def move_to_cpu():
+        backend.pipeline.model.parameters = lambda: iter(
+            [SimpleNamespace(device=SimpleNamespace(type="cpu", index=None))]
+        )
+
+    def moved_pipeline(self, text, *, voice):
+        if boundary == "waveform":
+            move_to_cpu()
+        yield text, "synthetic phonemes", [0.25] * 4
+        if boundary == "eof":
+            move_to_cpu()
+
+    if boundary == "before":
+        move_to_cpu()
+    else:
+        monkeypatch.setattr(type(backend.pipeline), "__call__", moved_pipeline)
+    iterator = backend.synthesize("Public synthetic speech.")
+    if boundary == "eof":
+        assert next(iterator) == tts.AudioWaveform([0.25] * 4, 24000)
+    with pytest.raises(tts.TTSBackendError):
+        next(iterator)
+    assert backend.loaded_device is None
+    assert not [call for call in calls if call[0] == "synthesize"]
+
+
+def test_kokoro_cuda_execution_failure_invalidates_loaded_device(monkeypatch):
+    kokoro_runtime(monkeypatch)
+    backend = tts.create_tts_backend("Kokoro 82M", device="cuda")
+    backend.load()
+
+    def failed_pipeline(self, text, *, voice):
+        raise RuntimeError("synthetic GPU computation failed")
+
+    monkeypatch.setattr(type(backend.pipeline), "__call__", failed_pipeline)
+    with pytest.raises(RuntimeError):
+        list(backend.synthesize("Public synthetic speech."))
+    assert backend.loaded_device is None
+
+
+def test_kokoro_cuda_waveform_boundary_close_retains_verified_backend(monkeypatch):
+    kokoro_runtime(monkeypatch)
+    backend = tts.create_tts_backend("Kokoro 82M", device="cuda")
+    backend.load()
+    iterator = backend.synthesize("Public synthetic speech.")
+    assert next(iterator) == tts.AudioWaveform([0.25] * 4, 24000)
+    iterator.close()
+    assert backend.loaded_device == "cuda:0"
+
+
+def test_kokoro_cuda_close_verification_failure_invalidates_loaded_device(monkeypatch):
+    kokoro_runtime(monkeypatch)
+    backend = tts.create_tts_backend("Kokoro 82M", device="cuda")
+    backend.load()
+    iterator = backend.synthesize("Public synthetic speech.")
+    next(iterator)
+
+    def failed_parameters():
+        raise RuntimeError("synthetic device verification failed")
+
+    backend.pipeline.model.parameters = failed_parameters
+    with pytest.raises(RuntimeError):
+        iterator.close()
+    assert backend.loaded_device is None
+
+
+def test_kokoro_default_cpu_stays_explicit(monkeypatch):
+    calls = kokoro_runtime(monkeypatch, available=False, devices=("cpu",))
+    backend = tts.create_tts_backend("Kokoro 82M")
+    backend.load()
+    assert backend.loaded_device == "cpu"
+    assert calls == [
+        ("pipeline", {"lang_code": "a", "device": "cpu", "repo_id": "hexgrad/Kokoro-82M"})
+    ]
+
+
+@pytest.mark.parametrize(
+    "profile,device",
+    [("Supertonic 3", "cuda"), ("VibeVoice Realtime 0.5B", "cuda"), ("Kokoro 82M", "auto")],
+)
+def test_unsupported_tts_device_selection_refuses_before_optional_import(profile, device):
+    with pytest.raises(ValueError):
+        tts.create_tts_backend(profile, device=device)
+
+
 def asset_tree(tmp_path, monkeypatch):
     root = tmp_path / "models"
     files = {}

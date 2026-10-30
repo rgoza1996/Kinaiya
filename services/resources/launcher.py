@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from packages.contracts.client import JournalClient
 from packages.providers.qwen3_ipc import MANIFEST_SHA256, MODEL, PROFILE
-from packages.providers.tts_backends import profile_settings, validate_voice
+from packages.providers.tts_backends import profile_settings, validate_tts_device, validate_voice
 from packages.resources.processes import WorkerManager, WorkerSpec
 from services.resources.api import create_app
 from services.resources.client import ConverseControl, local_base
@@ -40,6 +40,9 @@ class LocalResourceConfig(BaseModel):
     voice_python: str = Field(min_length=1, max_length=4096)
     voice_port: int = Field(default=8765, ge=1024, le=65535)
     stt_model: Literal["tiny", "tiny.en"] = "tiny.en"
+    voice_device: Literal["cpu", "cuda"] = "cpu"
+    voice_stt_backend: Literal["faster-whisper", "openai-whisper"] = "faster-whisper"
+    voice_stt_checkpoint: str | None = Field(default=None, min_length=1, max_length=4096)
     tts_model_dir: str | None = Field(default=None, min_length=1, max_length=4096)
     tts_voice: (
         Literal[
@@ -62,6 +65,24 @@ class LocalResourceConfig(BaseModel):
         if self.qwen3 is not None and self.gguf is not None:
             raise ValueError("Select one managed Converse text worker")
         return self
+
+    @model_validator(mode="after")
+    def voice_backend_selection(self):
+        if self.voice_device == "cuda":
+            if self.voice_stt_backend != "openai-whisper" or self.voice_stt_checkpoint is None:
+                raise ValueError("GPU voice requires its configured OpenAI Whisper checkpoint")
+        elif self.voice_stt_backend != "faster-whisper" or self.voice_stt_checkpoint is not None:
+            raise ValueError("CPU voice requires its existing faster-whisper backend")
+        return self
+
+    @field_validator("voice_stt_checkpoint")
+    @classmethod
+    def absolute_stt_checkpoint(cls, value):
+        if value is not None and (
+            not Path(value).is_absolute() or any(char in value for char in "\0\r\n")
+        ):
+            raise ValueError("STT checkpoint must be an absolute owner-configured path")
+        return value
 
     @field_validator("tts_model_dir")
     @classmethod
@@ -90,6 +111,9 @@ def resource_app(args, config, auth, tokens, root):
     if not isinstance(tts_profile, str):
         raise ValueError("Select a configured retained TTS profile")
     tts_voice = validate_voice(tts_profile, settings.tts_voice)
+    validate_tts_device(tts_profile, settings.voice_device)
+    if settings.voice_device == "cuda" and voice.get("stt") is not None:
+        raise ValueError("The GPU voice profile cannot select the CPU Whistle target")
     tts_settings = profile_settings(tts_profile)
     if tts_settings.requires_model_directory and settings.tts_model_dir is None:
         raise ValueError(f"{tts_profile} requires its owner-configured local model directory")
@@ -107,6 +131,16 @@ def resource_app(args, config, auth, tokens, root):
                 or workspace.is_relative_to(location)
             ):
                 raise ValueError("Managed TTS model inputs must be outside the Agent workspace")
+    if settings.voice_stt_checkpoint is not None:
+        workspace = args.workspace.resolve()
+        checkpoint = Path(settings.voice_stt_checkpoint)
+        for location in (checkpoint, checkpoint.resolve()):
+            if (
+                location == workspace
+                or location.is_relative_to(workspace)
+                or workspace.is_relative_to(location)
+            ):
+                raise ValueError("Managed STT checkpoint must be outside the Agent workspace")
     if local_base(voice.get("url", "")) != voice_url:
         raise ValueError(
             "The configured Converse voice endpoint must match its managed local worker"
@@ -123,6 +157,15 @@ def resource_app(args, config, auth, tokens, root):
             str(settings.voice_port),
             "--stt-model",
             settings.stt_model,
+            "--device",
+            settings.voice_device,
+            "--stt-backend",
+            settings.voice_stt_backend,
+            *(
+                ("--stt-checkpoint", settings.voice_stt_checkpoint)
+                if settings.voice_stt_checkpoint
+                else ()
+            ),
             "--tts-profile",
             tts_profile,
             "--tts-voice",
@@ -255,21 +298,30 @@ def resource_app(args, config, auth, tokens, root):
                 "tts_artifact_revision",
                 "assets_state",
             }
+            if settings.voice_device == "cuda":
+                required |= {"stt_backend", "stt_device", "tts_device"}
             if not isinstance(payload, dict) or not required.issubset(payload):
                 return False
             loaded = payload["loaded"]
+            if not isinstance(loaded, list):
+                return False
+            actual_device = "cuda:0" if settings.voice_device == "cuda" else "cpu"
+            stt_device = payload.get("stt_device", "cpu" if "stt" in loaded else None)
+            tts_device = payload.get("tts_device", "cpu" if "tts" in loaded else None)
             if (
                 response.status_code != 200
                 or payload["service"] != "local-voice"
                 or type(payload["pid"]) is not int
                 or payload["pid"] != process.pid
-                or payload["device"] != "cpu"
+                or payload["device"] != settings.voice_device
+                or payload.get("stt_backend", "faster-whisper") != settings.voice_stt_backend
+                or stt_device != (actual_device if "stt" in loaded else None)
+                or tts_device != (actual_device if "tts" in loaded else None)
                 or payload["tts_profile"] != tts_profile
                 or payload["tts_voice"] != tts_voice
                 or payload["synthesis_mode"] != synthesis_mode
                 or payload["tts_artifact_revision"] != tts_revision
                 or payload["assets_state"] not in ("not_checked", "verified")
-                or not isinstance(loaded, list)
                 or any(not isinstance(name, str) or name not in {"stt", "tts"} for name in loaded)
                 or len(loaded) != len(set(loaded))
                 or (
@@ -291,6 +343,13 @@ def resource_app(args, config, auth, tokens, root):
                     "synthesis_mode": synthesis_mode,
                     "tts_artifact_revision": tts_revision,
                     "assets_state": payload["assets_state"],
+                }
+            )
+            voice_health.update(
+                {
+                    key: payload[key]
+                    for key in ("stt_backend", "stt_device", "tts_device")
+                    if key in payload
                 }
             )
             return True

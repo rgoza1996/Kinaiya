@@ -5,7 +5,9 @@ import base64
 import builtins
 import json
 import struct
+import sys
 import threading
+from types import SimpleNamespace
 
 import httpx
 import pytest
@@ -50,6 +52,229 @@ class SyntheticFactory:
     def __call__(self, profile, model_dir, voice):
         self.calls.append((profile, model_dir, voice))
         return self.backend
+
+
+class SyntheticGPUBackend(SyntheticBackend):
+    loaded_device = None
+
+    def __init__(self, *, actual_device="cuda:0"):
+        super().__init__()
+        self.actual_device = actual_device
+
+    def load(self):
+        super().load()
+        self.loaded_device = self.actual_device
+
+
+def gpu_options(tmp_path):
+    return {
+        "device": "cuda",
+        "stt_backend": "openai-whisper",
+        "stt_checkpoint": tmp_path / "tiny.en.pt",
+    }
+
+
+def synthetic_gpu_stt(monkeypatch, *, actual_device="cuda:0", result_device=None, error=None):
+    instances = []
+
+    class BackendError(RuntimeError):
+        pass
+
+    class InputError(BackendError):
+        pass
+
+    class Backend:
+        loaded_device = None
+
+        def __init__(self, checkpoint, *, model, device):
+            self.checkpoint, self.model, self.requested_device = checkpoint, model, device
+            self.inputs = []
+            instances.append(self)
+
+        def transcribe(self, data):
+            self.inputs.append(data)
+            if error == "input":
+                raise InputError("synthetic private input diagnostic")
+            if error == "backend":
+                raise BackendError("synthetic private backend diagnostic")
+            self.loaded_device = actual_device
+            return {
+                "text": "Public synthetic speech.",
+                "language": "en",
+                "final": True,
+                "provider": "openai-whisper",
+                "model": self.model,
+                "device": result_device if result_device is not None else actual_device,
+            }
+
+    monkeypatch.setitem(
+        sys.modules,
+        "packages.providers.openai_whisper_backend",
+        SimpleNamespace(
+            OpenAIWhisperBackend=Backend, STTBackendError=BackendError, STTInputError=InputError
+        ),
+    )
+    return instances
+
+
+async def test_cuda_health_stays_unloaded_without_factory_or_optional_imports(
+    monkeypatch, tmp_path
+):
+    original_import = builtins.__import__
+
+    def without_optional_runtime(name, *args, **kwargs):
+        if name.split(".", 1)[0] in {"torch", "kokoro", "faster_whisper", "whisper", "av"}:
+            raise AssertionError("Cold GPU health imported an optional runtime")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", without_optional_runtime)
+    factory = SyntheticFactory(SyntheticGPUBackend())
+    app = create_app(AUTH, tts_factory=factory, **gpu_options(tmp_path))
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        health = (await client.get("/health")).json()
+    assert health["device"] == "cuda"
+    assert health["stt_backend"] == "openai-whisper"
+    assert health["stt_device"] is None and health["tts_device"] is None
+    assert health["loaded"] == []
+    assert factory.calls == []
+
+
+@pytest.mark.parametrize("actual_device,status", [("cuda:0", 200), ("cpu", 503), (None, 503)])
+async def test_cuda_synthesis_requires_actual_backend_placement(tmp_path, actual_device, status):
+    factory = SyntheticFactory(SyntheticGPUBackend(actual_device=actual_device))
+    async with client_for(factory, profile="Kokoro 82M", **gpu_options(tmp_path)) as client:
+        response = await synthesize(client, profile="Kokoro 82M")
+        health = (await client.get("/health")).json()
+    assert response.status_code == status
+    assert len(factory.calls) == 1
+    if status == 200:
+        assert {row["device"] for row in audio_frames(response)} == {"cuda:0"}
+        assert health["tts_device"] == "cuda:0" and health["stt_device"] is None
+    else:
+        assert health["tts_device"] is None
+        assert health["loaded"] == []
+
+
+async def test_cuda_stt_uses_selected_backend_and_reuses_only_verified_model(monkeypatch, tmp_path):
+    instances = synthetic_gpu_stt(monkeypatch)
+    factory = SyntheticFactory(SyntheticGPUBackend())
+    async with client_for(factory, profile="Kokoro 82M", **gpu_options(tmp_path)) as client:
+        for _ in range(2):
+            result = await client.post(
+                "/v1/audio/transcriptions", files={"file": ("public.wav", b"synthetic wav")}
+            )
+            assert result.status_code == 200
+            assert result.json()["device"] == "cuda:0"
+        health = (await client.get("/health")).json()
+    assert len(instances) == 1 and len(instances[0].inputs) == 2
+    assert instances[0].requested_device == "cuda"
+    assert health["stt_device"] == "cuda:0" and health["tts_device"] is None
+    assert health["loaded"] == ["stt"]
+    assert factory.calls == []
+
+
+@pytest.mark.parametrize(
+    "actual_device,result_device,error,status",
+    [
+        ("cpu", None, None, 503),
+        ("cuda:0", "cpu", None, 503),
+        (None, None, "input", 400),
+        (None, None, "backend", 503),
+    ],
+)
+async def test_cuda_stt_refuses_wrong_device_and_sanitizes_errors(
+    monkeypatch, tmp_path, actual_device, result_device, error, status
+):
+    synthetic_gpu_stt(
+        monkeypatch, actual_device=actual_device, result_device=result_device, error=error
+    )
+    async with client_for(
+        SyntheticFactory(), profile="Kokoro 82M", **gpu_options(tmp_path)
+    ) as client:
+        result = await client.post(
+            "/v1/audio/transcriptions", files={"file": ("public.wav", b"synthetic wav")}
+        )
+    assert result.status_code == status
+    assert "synthetic private" not in result.text
+
+
+@pytest.mark.parametrize("boundary", ["cancel", "owner-off"])
+async def test_cuda_held_load_keeps_real_producer_owned_and_blocks_replacement(tmp_path, boundary):
+    state = ResourceState(tmp_path / "gpu-policy.json")
+    started, release = threading.Event(), threading.Event()
+
+    class HeldGPUBackend(SyntheticGPUBackend):
+        def load(self):
+            started.set()
+            assert release.wait(3)
+            super().load()
+
+    backend = HeldGPUBackend()
+    factory = SyntheticFactory(backend)
+    state.save(phase="ready")
+    try:
+        async with client_for(
+            factory,
+            profile="Kokoro 82M",
+            resource_policy=state.path,
+            producer_close_timeout=0.03,
+            **gpu_options(tmp_path),
+        ) as client:
+            pending = asyncio.create_task(synthesize(client, profile="Kokoro 82M"))
+            try:
+                await entered(started)
+                if boundary == "cancel":
+                    pending.cancel()
+                    with pytest.raises(asyncio.CancelledError):
+                        await pending
+                else:
+                    state.save(phase="off", desired_converse=False)
+                    assert (await asyncio.wait_for(pending, 2)).status_code == 409
+                health = (await client.get("/health")).json()
+                assert health["active_producers"] == 1
+                assert health["producer_stopped"] is False
+                assert health["synthesis_quarantined"] is True
+                assert (await synthesize(client, profile="Kokoro 82M")).status_code == 503
+                assert len(factory.calls) == 1
+            finally:
+                release.set()
+                if not pending.done():
+                    pending.cancel()
+                await asyncio.gather(pending, return_exceptions=True)
+                async with asyncio.timeout(2):
+                    while (await client.get("/health")).json()["active_producers"]:
+                        await asyncio.sleep(0.01)
+            assert backend.inputs == []
+            assert (await client.get("/health")).json()["synthesis_quarantined"] is True
+    finally:
+        release.set()
+        state.close()
+
+
+@pytest.mark.parametrize(
+    "options",
+    [
+        {"device": "auto"},
+        {"device": "cuda"},
+        {"device": "cpu", "stt_backend": "openai-whisper"},
+        {"device": "cuda", "stt_backend": "openai-whisper"},
+        {"device": "cpu", "stt_checkpoint": "/owned/tiny.en.pt"},
+        {"device": "cuda", "stt_backend": "openai-whisper", "stt_checkpoint": "relative.pt"},
+        {
+            "device": "cuda",
+            "stt_backend": "openai-whisper",
+            "stt_checkpoint": "/owned/tiny.en.pt",
+            "tts_profile": "Supertonic 3",
+        },
+    ],
+)
+def test_unsupported_voice_device_backend_pair_refuses_before_factory(options):
+    factory = SyntheticFactory()
+    with pytest.raises(ValueError):
+        create_app(AUTH, tts_factory=factory, **options)
+    assert factory.calls == []
 
 
 def client_for(factory, *, profile=PROFILE, messages=None, on_send=None, **options):
