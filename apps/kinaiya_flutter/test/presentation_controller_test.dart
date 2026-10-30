@@ -343,38 +343,46 @@ void main() {
     expect(storage.writes, isEmpty);
   });
 
-  test('persists converse false and restores it with pack and colors', () async {
-    final storage = _Storage();
-    final controller = PresentationController(
-      storage: storage,
-      defaultBundle: fixtures.defaultFixture(),
-    );
-    addTearDown(controller.dispose);
-    await controller.initialize();
-    await controller.setPreferences(
-      const PresentationPreferences(
-        showConverseView: false,
-        showCharacter: false,
-        primaryOverride: '#123456',
-        backgroundOverride: '#112233',
-      ),
-    );
-    final saved = jsonDecode(storage.value!) as Map;
-    final savedPreferences = saved['preferences'] as Map;
-    expect(savedPreferences['show_converse_view'], isFalse);
-    expect(saved['state_schema'], 1);
-    expect(saved['package'], isNull);
+  test(
+    'persists converse false and restores it with pack and colors',
+    () async {
+      final storage = _Storage();
+      final controller = PresentationController(
+        storage: storage,
+        defaultBundle: fixtures.defaultFixture(),
+      );
+      addTearDown(controller.dispose);
+      await controller.initialize();
+      final imported = await controller.inspectPackage(
+        jsonEncode(fixtures.packageFixture()),
+      );
+      await controller.useCharacter(imported);
+      await controller.setPreferences(
+        const PresentationPreferences(
+          showConverseView: false,
+          showCharacter: false,
+          primaryOverride: '#123456',
+          backgroundOverride: '#112233',
+        ),
+      );
+      final saved = jsonDecode(storage.value!) as Map;
+      final savedPreferences = saved['preferences'] as Map;
+      expect(savedPreferences['show_converse_view'], isFalse);
+      expect(saved['state_schema'], 1);
+      expect(saved['package'], imported.packageJson);
 
-    final reader = PresentationController(
-      storage: storage,
-      defaultBundle: fixtures.defaultFixture(),
-    );
-    addTearDown(reader.dispose);
-    await reader.initialize();
-    expect(reader.preferences.showConverseView, isFalse);
-    expect(reader.preferences.showCharacter, isFalse);
-    expect(reader.preferences.primaryOverride, '#123456');
-    expect(reader.preferences.backgroundOverride, '#112233');
-    expect(reader.notice, isNull);
-  });
+      final reader = PresentationController(
+        storage: storage,
+        defaultBundle: fixtures.defaultFixture(),
+      );
+      addTearDown(reader.dispose);
+      await reader.initialize();
+      expect(reader.selected!.pack.name, 'Local character');
+      expect(reader.preferences.showConverseView, isFalse);
+      expect(reader.preferences.showCharacter, isFalse);
+      expect(reader.preferences.primaryOverride, '#123456');
+      expect(reader.preferences.backgroundOverride, '#112233');
+      expect(reader.notice, isNull);
+    },
+  );
 }

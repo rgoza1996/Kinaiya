@@ -41,15 +41,40 @@ Build information in Settings uses optional
 
 ## Voice behavior
 
-The [owner design implementation](../../docs/adr/0054-penpot-owner-interface.md) supplies navy/blue surfaces, local Inter fonts and responsive Options/Agent panels. Default Converse uses new flat desktop/phone moonlit backgrounds with a shared water anchor beneath the separate animated mascot and Call/Tell controls; explicit palettes and imported packs keep the painter scene. The desktop sidebar includes Home, Converse, Agent Chat, People, Files, Documents, Gallery and Settings; a Menu drawer provides the same navigation on narrow or enlarged-text layouts. Unsupported sections state their current availability. Both views remain mounted, preserving their independent drafts, sessions and active voice capture while navigating. A global activity strip keeps microphone/speech controls reachable from Agent Chat. Changing views never starts capture.
+The [updated owner design](../../docs/adr/0059-home-and-optional-converse.md) opens
+on moonlit **Home**, with the animated mascot seated on water. **Talk with
+Kinaiya** arms the existing live browser listener; **End conversation** stops
+that listener. The mascot and **Setup** open model/conversation settings.
+The optional **Converse** view uses the supplied close-up character art, complete
+scrollable transcript, text composer, microphone controls and model summary.
+**Tell Kinaiya** remains available in Converse and Converse chat for one recorded
+message. These browser controls do not implement mobile calling or signaling.
 
-**Call Kinaiya** arms the existing live browser listener; **Tell Kinaiya** records one message. These labels do not implement phone signaling or the mobile calling milestone. Global **Stop microphone** discards an unfinished recording without transcribing it or cancelling Agent work. Pending stops remain visible; a failed or three-second unacknowledged adapter stop stays unconfirmed and retryable. These acknowledgments do not establish physical device behavior.
+The connected sidebar has Home, optional Converse, Agent Chat, Character & motion,
+Projects, Files, Media and Options; narrow/large-text layouts use a Menu drawer.
+Character & motion opens the existing appearance editor. Projects/Files/Media
+show their actual missing integration rather than sample libraries. Home and
+Converse share one mounted voice owner; Agent stays independently mounted. View
+changes preserve drafts, sessions, microphone and playback and never start capture.
+
+**Kinaiya setup** reads configured conversation, STT, TTS and Decisions model
+roles from the authenticated host endpoint. Configuration does not prove another
+worker is loaded/ready. Models and reasoning are host-managed and read-only;
+this host supports text dialogue with STT, not direct audio, image/video or camera
+input. **Save setup** only saves the optional Converse view on this device.
+Hiding it preserves Home voice and does not change backend Converse enabled state.
+Connection/disclosure, model selection and permissions remain separate owners.
+
+Global **Stop microphone** discards unfinished audio without transcription or
+Agent cancellation. Pending stops remain visible; failed or three-second
+unacknowledged adapter stops stay unconfirmed and retryable. These acknowledgments
+do not establish physical device behavior.
 
 Live starts only after a user gesture. Capture continues while transcription and replies run; one latest pending utterance bounds the transcription queue. Separate speech/silence thresholds and minimum speech duration guard acoustic overlap. Selectable endpoint silence ends only fallback clips; live window mode streams audio continuously and Decisions chooses when to wait, respond, or interrupt, with no silence timer ending the turn. Each fallback recording has its own epoch and 60-second cap. During playback, sustained speech stops local queued audio before an asynchronous server interrupt. Repeated interruptions cannot clear a newer turn's state, and late permission/resume callbacks cannot restart capture/playback after disposal.
 
 Sentences play in order. Synthesis completion is distinct from the browser's audio `onended`; delivery records mark playback only after that local event. Interrupted elapsed time is an estimate, not word alignment or proof of physical audibility. Speech controls do not cancel Agent work. Background evidenced Agent results arrive through the authenticated journal and join the speech queue.
 
-The character stage stays visible after messages arrive, with a current caption and **Conversation history** for complete retained text and delivery notes. **Voice options** shows live Decisions timing when streaming windows are available, or fallback clip silence otherwise; opening it leaves microphone capture and drafts alone. Idle Call/Tell capture is disabled when the adapter reports no microphone, while an active local stop stays reachable when backend readiness changes. The Converse bottom bar contains only Call and Tell, including custom palettes and imported packs. **Converse chat** in the header opens text input, recording import, Voice options and Memory; Settings also provides Voice options and Memory. The text dialog follows the selected light/dark surface colors. [Presentation rationale](../../docs/adr/0044-converse-stage-and-voice-options.md) records this focused pass.
+Home retains its scene after messages arrive and shows a current caption; **History** in Converse and **Converse chat** preserve complete retained text and delivery notes. **Voice options** shows live Decisions timing with streaming windows, or fallback clip silence otherwise; opening it leaves capture and drafts alone. Microphone start is disabled when unavailable, while active local stop stays reachable through backend readiness changes. Converse chat retains recording import, one-shot Tell, Voice options and Memory; Options also reaches the existing owners. Imported packs and explicit palette overrides retain their presentation precedence.
 
 ## Saved Converse notes (experimental)
 

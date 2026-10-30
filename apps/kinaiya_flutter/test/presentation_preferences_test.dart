@@ -29,8 +29,7 @@ void main() {
     expect(disabled.showConverseView, isFalse);
     expect(base.showConverseView, isTrue);
 
-    final restoredFalse =
-        PresentationPreferences.fromJson(disabled.toJson());
+    final restoredFalse = PresentationPreferences.fromJson(disabled.toJson());
     expect(restoredFalse.showConverseView, isFalse);
 
     final restoredTrue = PresentationPreferences.fromJson(base.toJson());
@@ -50,10 +49,7 @@ void main() {
     };
     // Unknown extra key on old shape.
     expect(
-      () => PresentationPreferences.fromJson({
-        ...validOld,
-        'extra': true,
-      }),
+      () => PresentationPreferences.fromJson({...validOld, 'extra': true}),
       throwsFormatException,
     );
     // Unknown extra key on new shape.
@@ -67,7 +63,10 @@ void main() {
     );
     // Missing old field in both shapes.
     final missing = Map<String, dynamic>.of(validOld)..remove('show_captions');
-    expect(() => PresentationPreferences.fromJson(missing), throwsFormatException);
+    expect(
+      () => PresentationPreferences.fromJson(missing),
+      throwsFormatException,
+    );
     expect(
       () => PresentationPreferences.fromJson({
         ...missing,

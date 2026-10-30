@@ -13,6 +13,7 @@ import 'package:uuid/uuid.dart';
 
 import 'memory_client.dart';
 import 'models.dart';
+import 'converse_setup.dart';
 
 const _uuid = Uuid();
 
@@ -77,6 +78,9 @@ class KinaiyaClient {
   final String _token;
   final http.Client _http;
   final http.Client Function() _memoryClientFactory;
+
+  Future<ConverseSetup> converseSetup() async =>
+      ConverseSetup.fromJson(await _get(converseBase, '/v1/converse/setup'));
 
   /// Independent per-request transport; never shares generation/voice ownership.
   late final MemoryApi memory = MemoryApi(

@@ -12,6 +12,7 @@ import 'ui/character_view.dart';
 import 'ui/setup_dialog.dart';
 import 'ui/settings_controls.dart';
 import 'ui/settings_hub.dart';
+import 'ui/model_setup.dart';
 import 'ui/converse_memory.dart';
 import 'ui/mcp_settings.dart';
 import 'ui/visual_theme.dart';
@@ -170,10 +171,10 @@ enum _ShellPage {
   home('Home', Icons.home_outlined),
   converse('Converse', Icons.graphic_eq_rounded),
   agent('Agent Chat', Icons.chat_bubble_outline_rounded),
-  people('People', Icons.people_outline_rounded),
-  files('Files', Icons.folder_outlined),
-  documents('Documents', Icons.description_outlined),
-  gallery('Gallery', Icons.photo_library_outlined);
+  character('Character & motion', Icons.person_outline_rounded),
+  projects('Projects', Icons.folder_outlined),
+  files('Files', Icons.description_outlined),
+  media('Media', Icons.photo_library_outlined);
 
   const _ShellPage(this.label, this.icon);
   final String label;
@@ -188,6 +189,8 @@ class _HomeShellState extends State<HomeShell> {
   final _converseControls = ConverseViewControls();
   final _agentControls = AgentViewControls();
   bool _settingsOpen = false;
+  bool _modelSetupOpen = false;
+  bool _converseVisible = true;
   bool _railExtended = false;
   _ShellPage? _workspacePage;
   late AppView _observedView;
@@ -196,12 +199,22 @@ class _HomeShellState extends State<HomeShell> {
   void initState() {
     super.initState();
     _observedView = widget.state.view;
+    _workspacePage = widget.state.view == AppView.agent
+        ? null
+        : _ShellPage.home;
+    _converseVisible = widget.presentation.preferences.showConverseView;
+    widget.presentation.addListener(_presentationChanged);
     widget.state.addListener(_viewChanged);
   }
 
   @override
   void didUpdateWidget(covariant HomeShell oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.presentation, widget.presentation)) {
+      oldWidget.presentation.removeListener(_presentationChanged);
+      widget.presentation.addListener(_presentationChanged);
+      _presentationChanged();
+    }
     if (!identical(oldWidget.state, widget.state)) {
       oldWidget.state.removeListener(_viewChanged);
       _observedView = widget.state.view;
@@ -210,10 +223,36 @@ class _HomeShellState extends State<HomeShell> {
     }
   }
 
+  void _presentationChanged() {
+    final visible = widget.presentation.preferences.showConverseView;
+    if (mounted && !_closing && _converseVisible != visible) {
+      setState(() {
+        _converseVisible = visible;
+        if (!visible && _workspacePage == _ShellPage.converse) {
+          _workspacePage = _ShellPage.home;
+        }
+      });
+    }
+  }
+
+  List<_ShellPage> get _destinations => [
+    for (final page in _ShellPage.values)
+      if (page != _ShellPage.converse ||
+          widget.presentation.preferences.showConverseView)
+        page,
+  ];
+
   void _viewChanged() {
     if (_observedView == widget.state.view) return;
     _observedView = widget.state.view;
-    if (mounted && !_closing && _workspacePage != null) {
+    if (mounted &&
+        !_closing &&
+        _workspacePage != null &&
+        (widget.state.view == AppView.agent ||
+            !const {
+              _ShellPage.home,
+              _ShellPage.converse,
+            }.contains(_workspacePage))) {
       setState(() => _workspacePage = null);
     }
   }
@@ -221,8 +260,18 @@ class _HomeShellState extends State<HomeShell> {
   void _selectPage(_ShellPage page) {
     if (_closing) return;
     _scaffoldKey.currentState?.closeDrawer();
-    if (page == _ShellPage.converse || page == _ShellPage.agent) {
-      setState(() => _workspacePage = null);
+    if (page == _ShellPage.character) {
+      _appearance();
+      return;
+    }
+    if (page == _ShellPage.home ||
+        page == _ShellPage.converse ||
+        page == _ShellPage.agent) {
+      if (page == _ShellPage.converse &&
+          !widget.presentation.preferences.showConverseView) {
+        return;
+      }
+      setState(() => _workspacePage = page == _ShellPage.agent ? null : page);
       widget.state.setView(
         page == _ShellPage.agent ? AppView.agent : AppView.character,
       );
@@ -240,6 +289,26 @@ class _HomeShellState extends State<HomeShell> {
   Future<void> _openConverseChat(AppState owner) async {
     if (!mounted || _closing || !identical(widget.state, owner)) return;
     await _converseControls.openTextConversation?.call();
+  }
+
+  Future<void> _modelSetup() async {
+    if (_closing || _modelSetupOpen) return;
+    final owner = widget.state;
+    _modelSetupOpen = true;
+    try {
+      await showDialog<void>(
+        context: context,
+        builder: (_) => Theme(
+          data: widget.lightTheme,
+          child: ModelSetupDialog(
+            state: owner,
+            presentation: widget.presentation,
+          ),
+        ),
+      );
+    } finally {
+      _modelSetupOpen = false;
+    }
   }
 
   SettingsAvailability get _settingsAvailability => SettingsAvailability(
@@ -278,6 +347,8 @@ class _HomeShellState extends State<HomeShell> {
     // is read now, never taken from the snapshot that rendered a selected row.
     if (!_settingsAvailability.allows(action)) return;
     switch (action) {
+      case SettingsAction.models:
+        await _modelSetup();
       case SettingsAction.connection:
         _setup();
       case SettingsAction.appearance:
@@ -313,6 +384,7 @@ class _HomeShellState extends State<HomeShell> {
   void dispose() {
     _closing = true;
     widget.state.removeListener(_viewChanged);
+    widget.presentation.removeListener(_presentationChanged);
     _voice.dispose();
     super.dispose();
   }
@@ -332,9 +404,11 @@ class _HomeShellState extends State<HomeShell> {
     final state = widget.state;
     final page =
         _workspacePage ??
-        (state.view == AppView.agent ? _ShellPage.agent : _ShellPage.converse);
+        (state.view == AppView.agent ? _ShellPage.agent : _ShellPage.home);
     final isAgent = page == _ShellPage.agent;
     final isConverse = page == _ShellPage.converse;
+    final isVoice = page == _ShellPage.home || isConverse;
+    final destinations = _destinations;
     return LayoutBuilder(
       builder: (context, box) {
         final scale = MediaQuery.textScalerOf(context).scale(1);
@@ -403,16 +477,16 @@ class _HomeShellState extends State<HomeShell> {
                             : Icons.chevron_right,
                       ),
                     ),
-                    selectedIndex: page.index,
+                    selectedIndex: destinations.indexOf(page),
                     onDestinationSelected: (i) {
-                      if (i == _ShellPage.values.length) {
+                      if (i == destinations.length) {
                         _settings();
                       } else {
-                        _selectPage(_ShellPage.values[i]);
+                        _selectPage(destinations[i]);
                       }
                     },
                     destinations: [
-                      for (final destination in _ShellPage.values)
+                      for (final destination in _destinations)
                         NavigationRailDestination(
                           icon: Icon(
                             destination.icon,
@@ -425,7 +499,7 @@ class _HomeShellState extends State<HomeShell> {
                           Icons.settings_outlined,
                           key: ValueKey('navigation-settings'),
                         ),
-                        label: Text('Settings'),
+                        label: Text('Options'),
                       ),
                     ],
                   ),
@@ -597,48 +671,63 @@ class _HomeShellState extends State<HomeShell> {
                           fit: StackFit.expand,
                           children: [
                             Offstage(
-                              offstage: !isConverse,
+                              offstage: !isVoice,
                               child: ExcludeFocus(
-                                excluding: !isConverse,
+                                excluding: !isVoice,
                                 child: TickerMode(
-                                  enabled: isConverse,
+                                  enabled: isVoice,
                                   child: Theme(
-                                    data: widget.lightTheme,
-                                    child: CharacterView(
-                                      voiceOnlyControls: true,
-                                      useDesignScene:
-                                          widget
-                                                  .presentation
-                                                  .selected
-                                                  ?.packageJson ==
-                                              null &&
-                                          widget
-                                                  .presentation
-                                                  .preferences
-                                                  .primaryOverride ==
-                                              null &&
-                                          widget
-                                                  .presentation
-                                                  .preferences
-                                                  .backgroundOverride ==
-                                              null,
-                                      state: state,
-                                      audio: widget.audio,
-                                      controls: _converseControls,
-                                      character: widget.presentation.selected,
-                                      showCharacter: widget
-                                          .presentation
-                                          .preferences
-                                          .showCharacter,
-                                      showCaptions: widget
-                                          .presentation
-                                          .preferences
-                                          .showCaptions,
-                                      scenePrimary: widget.accent,
-                                      sceneBackground: widget.stageBackground,
-                                      onActivityChanged: (activity) {
-                                        if (!_closing) _voice.value = activity;
-                                      },
+                                    data: isConverse
+                                        ? widget.darkTheme
+                                        : widget.lightTheme,
+                                    child: Material(
+                                      type: MaterialType.transparency,
+                                      child: CharacterView(
+                                        surface: isConverse
+                                            ? CharacterSurface.interaction
+                                            : CharacterSurface.home,
+                                        onModelSettings: _modelSetup,
+                                        showConverseView: widget
+                                            .presentation
+                                            .preferences
+                                            .showConverseView,
+                                        voiceOnlyControls: true,
+                                        useDesignScene:
+                                            widget
+                                                    .presentation
+                                                    .selected
+                                                    ?.packageJson ==
+                                                null &&
+                                            widget
+                                                    .presentation
+                                                    .preferences
+                                                    .primaryOverride ==
+                                                null &&
+                                            widget
+                                                    .presentation
+                                                    .preferences
+                                                    .backgroundOverride ==
+                                                null,
+                                        state: state,
+                                        audio: widget.audio,
+                                        controls: _converseControls,
+                                        character: widget.presentation.selected,
+                                        showCharacter: widget
+                                            .presentation
+                                            .preferences
+                                            .showCharacter,
+                                        showCaptions: widget
+                                            .presentation
+                                            .preferences
+                                            .showCaptions,
+                                        scenePrimary: widget.accent,
+                                        sceneBackground: widget.stageBackground,
+                                        onActivityChanged: (activity) {
+                                          if (!_closing) {
+                                            _voice.value = activity;
+                                          }
+                                        },
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -660,8 +749,7 @@ class _HomeShellState extends State<HomeShell> {
                                 ),
                               ),
                             ),
-                            if (!isConverse && !isAgent)
-                              _workspaceContent(page),
+                            if (!isVoice && !isAgent) _workspaceContent(page),
                           ],
                         ),
                       ),
@@ -710,7 +798,7 @@ class _HomeShellState extends State<HomeShell> {
               child: ListView(
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 children: [
-                  for (final destination in _ShellPage.values)
+                  for (final destination in _destinations)
                     ListTile(
                       key: ValueKey('navigation-${destination.name}'),
                       leading: Icon(destination.icon),
@@ -721,7 +809,7 @@ class _HomeShellState extends State<HomeShell> {
                   ListTile(
                     key: const ValueKey('navigation-settings'),
                     leading: const Icon(Icons.settings_outlined),
-                    title: const Text('Settings'),
+                    title: const Text('Options'),
                     onTap: () {
                       _scaffoldKey.currentState?.closeDrawer();
                       _settings();
@@ -741,14 +829,14 @@ class _HomeShellState extends State<HomeShell> {
     final description = switch (page) {
       _ShellPage.home =>
         'Choose where you want to start. Your conversations stay open when you switch sections.',
-      _ShellPage.people =>
-        'Contacts and people management are planned. No contacts are loaded or shared from this app.',
+      _ShellPage.character =>
+        'Character and motion settings are available from Appearance.',
       _ShellPage.files =>
         'Workspace file browsing is planned. Opening this page does not read files or grant Agent access.',
-      _ShellPage.documents =>
-        'A document library is planned. No documents are loaded by opening this page.',
-      _ShellPage.gallery =>
-        'A generated media gallery is planned. No media library is connected to this view.',
+      _ShellPage.projects =>
+        'Project management is not connected to this host yet. Existing Agent sessions remain available in Agent.',
+      _ShellPage.media =>
+        'A generated media library is not connected to this host yet. No example files are shown as your media.',
       _ShellPage.converse || _ShellPage.agent => '',
     };
     return Theme(
@@ -791,13 +879,13 @@ class _HomeShellState extends State<HomeShell> {
                         spacing: 12,
                         runSpacing: 12,
                         children: [
-                          if (home || page == _ShellPage.people)
+                          if (home || page == _ShellPage.character)
                             FilledButton.icon(
                               onPressed: () => _selectPage(_ShellPage.converse),
                               icon: const Icon(Icons.graphic_eq_rounded),
                               label: const Text('Open Converse'),
                             ),
-                          if (page != _ShellPage.people)
+                          if (page != _ShellPage.character)
                             OutlinedButton.icon(
                               onPressed: () => _selectPage(_ShellPage.agent),
                               icon: const Icon(

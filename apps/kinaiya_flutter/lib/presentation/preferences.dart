@@ -60,8 +60,8 @@ class PresentationPreferences {
 
   static PresentationPreferences fromJson(Object? value) {
     // No state schema bump: the new key is optional on read (old six-key
-    // snapshots default to true) and always written, so old readers/writers
-    // and new readers stay compatible under strict per-shape validation.
+    // snapshots default to true) and always written. New readers retain the old shape; old app versions
+    // still reject the new shape rather than interpreting unknown fields.
     const oldKeys = {
       'reduced_motion',
       'show_character',
@@ -100,9 +100,7 @@ class PresentationPreferences {
       showCharacter: value['show_character'] as bool,
       showCaptions: value['show_captions'] as bool,
       usePackPalette: value['use_pack_palette'] as bool,
-      showConverseView: isNewShape
-          ? value[converseKey] as bool
-          : true,
+      showConverseView: isNewShape ? value[converseKey] as bool : true,
       primaryOverride: value['primary_override'] as String?,
       backgroundOverride: value['background_override'] as String?,
     );

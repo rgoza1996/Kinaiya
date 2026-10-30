@@ -64,6 +64,7 @@ class _SettingsHubState extends State<SettingsHub> {
 
   IconData _entryIcon(SettingsAction action) {
     return switch (action) {
+      SettingsAction.models => Icons.tune_rounded,
       SettingsAction.connection => Icons.link_outlined,
       SettingsAction.appearance => Icons.palette_outlined,
       SettingsAction.voice => Icons.mic_outlined,

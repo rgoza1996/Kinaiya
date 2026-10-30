@@ -21,7 +21,15 @@ editable source and contains many more screens:
 3. Open the imported file and choose a page in the left sidebar. Select layers to
    edit them; use the **Prototype** tab and **View mode** to inspect linked flows.
 
-The file contains 11 pages and 43 top-level boards. Text, interface shapes,
+The current October 30 connected-sidebar export contains 12 pages and 80 top-level
+boards. Its SHA256 is `2b0766982cdbf29d1796a7fb73423d4f436af400a93a5873c353543c867a6d2d`.
+The first page, **00 · Home & Converse · Updated**, contains 25 connected boards
+for Home, optional Converse, model setup and existing sidebar destinations.
+The app implementation follows [ADR 0059](../../docs/adr/0059-home-and-optional-converse.md);
+unsupported model switching, camera and library controls are not working runtime
+features merely because they appear in this prototype.
+
+Text, interface shapes,
 controls, and icons are editable Penpot layers. The moonlit illustration and
 mascot expression references are replaceable raster images, not editable vector
 artwork. The expression boards are static design references, not a playable
@@ -31,6 +39,7 @@ sprite animation or a demonstration of live TTS synchronization.
 
 | Page | Purpose and key boards | Design status |
 | --- | --- | --- |
+| **00 · Home & Converse · Updated** | Moonlit Home, optional close-up Converse, model/conversation setup, listening and connected sidebar destinations. | Current owner direction. Illustrative models, tasks and library contents remain examples. |
 | **00 · Foundations** | Colors, typography and example controls used as a starting point for the design system. | Draft foundation; not a complete component library. |
 | **01 · Converse** | Moonlit home, listening state, and an Options copy for the Home flow. Call and end-conversation links demonstrate the voice entry flow. | Concept-based draft. The Home and gear icons link between the local Home and Options boards. |
 | **02 · Agent** | Agent workspace while a task runs and a review/approval state, based on the Agent concept. | Concept-based draft; task details and outcomes are examples. |
