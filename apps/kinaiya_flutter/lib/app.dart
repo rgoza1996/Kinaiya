@@ -76,7 +76,10 @@ class _KinaiyaAppState extends State<KinaiyaApp> {
     listenable: Listenable.merge([widget.state, _presentation]),
     builder: (context, _) {
       final preferences = _presentation.preferences;
-      final pack = preferences.usePackPalette
+      // Bundled character metadata preserves its legacy brand contract; only
+      // an imported package supplies an optional interface palette.
+      final imported = _presentation.selected?.packageJson != null;
+      final pack = preferences.usePackPalette && imported
           ? _presentation.selected?.pack
           : null;
       final primary = _presentationColor(
@@ -439,7 +442,10 @@ class _HomeShellState extends State<HomeShell> {
                                     data: widget.lightTheme,
                                     child: CharacterView(
                                       useDesignScene:
-                                          widget.presentation.selected ==
+                                          widget
+                                                  .presentation
+                                                  .selected
+                                                  ?.packageJson ==
                                               null &&
                                           widget
                                                   .presentation

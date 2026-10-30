@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kinaiya_flutter/ui/design_tokens.dart';
+import 'package:kinaiya_flutter/app.dart';
+import 'package:kinaiya_flutter/presentation/controller.dart';
+import 'package:kinaiya_flutter/state/app_state.dart';
+import 'package:kinaiya_flutter/ui/character_view.dart';
 import 'package:kinaiya_flutter/ui/visual_theme.dart';
 
 double contrast(Color a, Color b) {
@@ -9,6 +13,41 @@ double contrast(Color a, Color b) {
 }
 
 void main() {
+  testWidgets('fully initialized bundled selection keeps the owner design', (
+    tester,
+  ) async {
+    final presentation = PresentationController();
+    await tester.runAsync(presentation.initialize);
+    expect(presentation.selected, isNotNull);
+    expect(presentation.selected!.packageJson, isNull);
+    final state = AppState();
+    await tester.pumpWidget(
+      KinaiyaApp(state: state, presentation: presentation),
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+    final view = tester.widget<CharacterView>(find.byType(CharacterView));
+    expect(view.useDesignScene, isTrue);
+    expect(
+      Theme.of(tester.element(find.byType(CharacterView))).colorScheme.primary,
+      KinaiyaDesign.blue,
+    );
+    await presentation.setPreferences(
+      const PresentationPreferences(primaryOverride: '#12693C'),
+    );
+    await tester.pump();
+    expect(
+      tester.widget<CharacterView>(find.byType(CharacterView)).useDesignScene,
+      isFalse,
+    );
+    expect(
+      Theme.of(tester.element(find.byType(CharacterView))).colorScheme.primary,
+      const Color(0xFF12693C),
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+    state.dispose();
+    presentation.dispose();
+  });
+
   test(
     'owner design has readable text and actions on its layered surfaces',
     () {
