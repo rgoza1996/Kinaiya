@@ -89,6 +89,8 @@ class AppState extends ChangeNotifier {
   String? _noticeSession;
   final Set<String> _seenNotices = {};
   final _handoffs = ConverseHandoffTracker();
+  final Map<String, int> _handoffDecisionCursors = {};
+  int _handoffRecoveryOffset = 0;
   final _noticeEvents = StreamController<JournalEntry>.broadcast();
   Stream<JournalEntry> get outcomeNotices => _noticeEvents.stream;
   final _windowEvents = StreamController<JournalEntry>.broadcast();
@@ -335,6 +337,8 @@ class AppState extends ChangeNotifier {
       _noticeCursor = 0;
       _seenNotices.clear();
       _handoffs.clear();
+      _handoffDecisionCursors.clear();
+      _handoffRecoveryOffset = 0;
       agentNotice = '';
     }
     final generation = ++_connectionGeneration;
@@ -604,24 +608,7 @@ class AppState extends ChangeNotifier {
             entry.epoch != session.epoch) {
           continue;
         }
-        final handoff = _handoffs.observe(entry, session);
-        if (handoff != null) {
-          final id = 'handoff:${handoff.sourceEventId}';
-          final index = converseHistory.indexWhere(
-            (message) => message.eventId == id,
-          );
-          final message = ChatMsg(
-            role: 'system',
-            text: handoff.text,
-            note: 'Agent handoff',
-            eventId: id,
-          );
-          if (index < 0) {
-            converseHistory.add(message);
-          } else {
-            converseHistory[index] = message;
-          }
-        }
+        _observeHandoff(entry, session);
         if (entry.sequence > _noticeCursor) _noticeCursor = entry.sequence;
         if (entry.epoch == session.epoch &&
             (entry.kind == 'conversation.window' ||
@@ -693,11 +680,215 @@ class AppState extends ChangeNotifier {
         }
         _noticeEvents.add(entry);
       }
+      await _recoverHandoffs(api, session, generation);
+      if (!ownsConnection(generation, api)) return;
       notifyListeners();
     } catch (_) {
       // Durable cursor stays put on transport errors; next poll retries.
     } finally {
       _pollingNotices = false;
+    }
+  }
+
+  void _applyHandoff(HandoffNotice notice) {
+    final id = 'handoff:${notice.sourceEventId}';
+    final index = converseHistory.indexWhere(
+      (message) => message.eventId == id,
+    );
+    final message = ChatMsg(
+      role: 'system',
+      text: notice.text,
+      note: 'Agent handoff',
+      eventId: id,
+    );
+    if (index < 0) {
+      converseHistory.add(message);
+    } else {
+      converseHistory[index] = message;
+    }
+  }
+
+  void _observeHandoff(JournalEntry entry, SessionInfo session) {
+    final notice = _handoffs.observe(entry, session);
+    if (notice != null) _applyHandoff(notice);
+    for (final recovered in _handoffs.drainPending(session)) {
+      _applyHandoff(recovered);
+    }
+  }
+
+  /// Resolve native causal dependencies only. Never replay historical audio,
+  /// dialogue or Agent work. Each poll spends at most eight authenticated GETs;
+  /// typed decision cursors survive short/byte-capped pages and transient failure.
+  Future<void> _recoverHandoffs(
+    KinaiyaClient api,
+    SessionInfo session,
+    int generation,
+  ) async {
+    bool current() =>
+        ownsConnection(generation, api) &&
+        converseSession?.sessionId == session.sessionId &&
+        converseSession?.threadId == session.threadId &&
+        converseSession?.epoch == session.epoch;
+    final pending = _handoffs.pendingReceipts;
+    final pendingIds = pending.map((entry) => entry.eventId).toSet();
+    _handoffDecisionCursors.removeWhere((id, _) => !pendingIds.contains(id));
+    if (pending.isEmpty) return;
+    var budget = 8;
+    final start = _handoffRecoveryOffset++ % pending.length;
+    for (var n = 0; n < pending.length && budget >= 3; n++) {
+      if (!current()) return;
+      final receipt = pending[(start + n) % pending.length];
+      if (receipt.causes.length != 1) {
+        _handoffs.discardPending(receipt.eventId);
+        continue;
+      }
+      final sourceId = receipt.payload['source_event_id'];
+      if (sourceId is! String) continue;
+      try {
+        budget--;
+        final source = await api
+            .handoffEntry(sourceId, resolve: true)
+            .timeout(const Duration(seconds: 3));
+        if (!current()) return;
+        if (source.eventId != sourceId ||
+            source.sessionId != session.sessionId ||
+            source.threadId != session.threadId ||
+            source.epoch != session.epoch ||
+            source.origin != 'authenticated-user' ||
+            !const {
+              'conversation.user',
+              'conversation.window',
+            }.contains(source.kind) ||
+            source.sequence != receipt.payload['source_sequence'] ||
+            (source.payload['revision'] ?? 1) !=
+                receipt.payload['source_revision']) {
+          _handoffs.discardPending(receipt.eventId);
+          continue;
+        }
+        budget--;
+        final cause = await api
+            .handoffEntry(receipt.causes.single)
+            .timeout(const Duration(seconds: 3));
+        if (!current()) return;
+        if (cause.eventId != receipt.causes.single ||
+            cause.sessionId != session.sessionId ||
+            cause.threadId != session.threadId ||
+            cause.epoch != session.epoch ||
+            cause.sequence >= receipt.sequence) {
+          _handoffs.discardPending(receipt.eventId);
+          continue;
+        }
+
+        if (source.kind == 'conversation.window') {
+          if (!((receipt.kind == 'routing.window_status' &&
+                  cause.eventId == sourceId &&
+                  cause.kind == 'conversation.window') ||
+              (receipt.kind == 'routing.window_dispatch' &&
+                  cause.kind == 'routing.window_decided' &&
+                  cause.origin == 'decisions'))) {
+            _handoffs.discardPending(receipt.eventId);
+            continue;
+          }
+          final utterance = source.payload['utterance_id'];
+          if (utterance is! String) continue;
+          budget--;
+          final latest = await api
+              .handoffLatestWindow(
+                sessionId: session.sessionId,
+                epoch: session.epoch,
+                utteranceId: utterance,
+              )
+              .timeout(const Duration(seconds: 3));
+          if (!current()) return;
+          if (latest == null ||
+              latest.sessionId != session.sessionId ||
+              latest.threadId != session.threadId ||
+              latest.epoch != session.epoch ||
+              latest.payload['utterance_id'] != utterance ||
+              latest.kind != 'conversation.window' ||
+              latest.origin != 'authenticated-user' ||
+              latest.sequence < source.sequence ||
+              latest.payload['window_index'] is! int ||
+              (latest.payload['window_index'] as int) < 0 ||
+              latest.payload['revision'] is! int ||
+              (latest.payload['revision'] as int) < 1 ||
+              latest.payload['text'] is! String) {
+            continue;
+          }
+          _handoffs.observe(source, session);
+          _handoffs.observe(cause, session);
+          _handoffs.observe(latest, session);
+          final notice = _handoffs.observe(receipt, session);
+          if (notice != null) _applyHandoff(notice);
+          continue;
+        }
+        if (source.kind != 'conversation.user' ||
+            !((cause.kind == 'conversation.user' &&
+                    cause.eventId == sourceId &&
+                    cause.origin == 'authenticated-user' &&
+                    receipt.payload['source_revision'] == 1) ||
+                (cause.kind == 'conversation.revision' &&
+                    const {
+                      'authenticated-user',
+                      'converse',
+                    }.contains(cause.origin) &&
+                    cause.payload['target_event_id'] == sourceId &&
+                    cause.payload['revision'] == source.payload['revision']))) {
+          _handoffs.discardPending(receipt.eventId);
+          continue;
+        }
+        _handoffs.observe(source, session);
+        _handoffs.observe(cause, session);
+        var cursor = _handoffDecisionCursors[receipt.eventId] ?? cause.sequence;
+        while (budget > 0 && current()) {
+          budget--;
+          final page = await api
+              .handoffDecisions(
+                sessionId: session.sessionId,
+                threadId: session.threadId,
+                after: cursor,
+              )
+              .timeout(const Duration(seconds: 3));
+          if (!current()) return;
+          if (page.isEmpty) {
+            _handoffs.discardPending(receipt.eventId);
+            break;
+          }
+          var sequence = cursor;
+          for (final entry in page) {
+            if (entry.sequence <= sequence ||
+                entry.sessionId != session.sessionId ||
+                entry.threadId != session.threadId ||
+                entry.epoch != session.epoch ||
+                entry.kind != 'routing.decided' ||
+                entry.origin != 'decisions') {
+              throw const FormatException('Invalid native decision page.');
+            }
+            sequence = entry.sequence;
+          }
+          for (final entry in page) {
+            if (entry.sequence >= receipt.sequence) break;
+            _handoffs.observe(entry, session);
+          }
+          cursor = sequence;
+          _handoffDecisionCursors[receipt.eventId] = cursor;
+          final notice = _handoffs.observe(receipt, session);
+          if (notice != null) _applyHandoff(notice);
+          if (!_handoffs.pendingReceipts.any(
+            (entry) => entry.eventId == receipt.eventId,
+          )) {
+            break;
+          }
+          if (cursor >= receipt.sequence) {
+            _handoffs.discardPending(receipt.eventId);
+            break;
+          }
+        }
+      } catch (_) {
+        if (!current()) return;
+        // Native lookup failure leaves the pending receipt and cursor for a
+        // later bounded read. No acknowledgment or task is invented.
+      }
     }
   }
 

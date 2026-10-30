@@ -8,12 +8,38 @@ class ConverseHandoffTracker {
   final Map<(String, String, int, String), String> _windows = {};
   final Map<String, int> _sequences = {};
   final Set<String> _accepted = {};
+  final Map<String, JournalEntry> _decisions = {};
+  final Map<String, JournalEntry> _pending = {};
+  List<JournalEntry> get pendingReceipts => List.unmodifiable(_pending.values);
+
+  void discardPending(String eventId) => _pending.remove(eventId);
+
+  HandoffNotice? _defer(JournalEntry entry) {
+    if (_identifier(entry.eventId)) {
+      _pending.putIfAbsent(entry.eventId, () => entry);
+    }
+    while (_pending.length > 128) {
+      _pending.remove(_pending.keys.first);
+    }
+    return null;
+  }
+
+  List<HandoffNotice> drainPending(SessionInfo current) {
+    final notices = <HandoffNotice>[];
+    for (final entry in pendingReceipts) {
+      final notice = observe(entry, current);
+      if (notice != null) notices.add(notice);
+    }
+    return notices;
+  }
 
   void clear() {
     _sources.clear();
     _windows.clear();
     _sequences.clear();
     _accepted.clear();
+    _decisions.clear();
+    _pending.clear();
   }
 
   bool acceptedSource(SessionInfo session, String eventId) {
@@ -25,7 +51,10 @@ class ConverseHandoffTracker {
 
   void _bound() {
     while (_sources.length > 256) {
-      final old = _sources.keys.first;
+      final pinned = _pending.values
+          .map((entry) => entry.payload['source_event_id'])
+          .toSet();
+      final old = _sources.keys.firstWhere((id) => !pinned.contains(id));
       _sources.remove(old);
       _sequences.remove(old);
       _accepted.remove(old);
@@ -66,7 +95,19 @@ class ConverseHandoffTracker {
         return null;
       }
       source.sequence = entry.sequence;
-      if (revision > source.revision) source.revision = revision;
+      source.text = entry.payload['text'] is String
+          ? entry.payload['text'] as String
+          : '';
+      if (revision > source.revision) {
+        source.revision = revision;
+        _accepted.remove(entry.eventId);
+        source.causeEventId = null;
+        source.causeSequence = null;
+      }
+      if (revision == 1) {
+        source.causeEventId = entry.eventId;
+        source.causeSequence = entry.sequence;
+      }
       if (window) {
         source.utterance = utterance as String;
         source.windowIndex = index as int;
@@ -90,25 +131,60 @@ class ConverseHandoffTracker {
       if (source != null &&
           source.matches(current) &&
           revision is int &&
-          revision > source.revision) {
-        source.revision = revision;
-        _accepted.remove(entry.payload['target_event_id']);
+          revision >= source.revision &&
+          entry.sequence > (source.sequence ?? 0)) {
+        if (revision > source.revision) {
+          source.revision = revision;
+          source.causeEventId = null;
+          _accepted.remove(entry.payload['target_event_id']);
+        }
+        if (source.causeEventId == null ||
+            source.causeEventId == entry.eventId) {
+          source.causeEventId = entry.eventId;
+          source.causeSequence = entry.sequence;
+        }
       }
       return null;
     }
-    if (entry.origin != 'decisions' ||
-        !const {
-          'routing.dispatch',
-          'routing.window_dispatch',
-          'routing.window_status',
-        }.contains(entry.kind)) {
+    if (entry.origin != 'decisions') return null;
+    if (entry.kind == 'routing.decided' ||
+        entry.kind == 'routing.window_decided') {
+      final decisionId = entry.payload['decision_id'];
+      if (!_identifier(decisionId)) return null;
+      _decisions.putIfAbsent(decisionId as String, () => entry);
+      final pinned = _pending.values
+          .map((event) => event.payload['decision_id'])
+          .toSet();
+      while (_decisions.length > 256) {
+        _decisions.remove(
+          _decisions.keys.firstWhere((id) => !pinned.contains(id)),
+        );
+      }
       return null;
     }
+    if (!const {
+      'routing.dispatch',
+      'routing.window_dispatch',
+      'routing.window_status',
+    }.contains(entry.kind)) {
+      return null;
+    }
+    _pending.remove(entry.eventId);
     final id = entry.payload['source_event_id'];
     final source = _sources[id];
     if (id is! String ||
-        source == null ||
-        !source.matches(current) ||
+        !_identifier(id) ||
+        entry.payload['source_sequence'] is! int ||
+        (entry.payload['source_sequence'] as int) < 1 ||
+        entry.payload['source_revision'] is! int ||
+        (entry.payload['source_revision'] as int) < 1 ||
+        entry.sequence <= (entry.payload['source_sequence'] as int) ||
+        entry.causes.length != 1 ||
+        !_identifier(entry.causes.single)) {
+      return null;
+    }
+    if (source == null || source.sequence == null) return _defer(entry);
+    if (!source.matches(current) ||
         source.sequence == null ||
         entry.payload['source_sequence'] is! int ||
         entry.payload['source_revision'] is! int ||
@@ -116,7 +192,8 @@ class ConverseHandoffTracker {
         entry.payload['source_revision'] != source.revision ||
         entry.sequence <= source.sequence! ||
         entry.sequence <= (_sequences[id] ?? 0) ||
-        (source.utterance != null && _windows[source.windowKey] != id)) {
+        (source.utterance != null &&
+            _sources[_windows[source.windowKey]]?.text != source.text)) {
       return null;
     }
     if ((entry.kind == 'routing.dispatch') != (source.utterance == null)) {
@@ -124,6 +201,7 @@ class ConverseHandoffTracker {
     }
     String? text;
     if (entry.kind == 'routing.window_status') {
+      if (!_singleCause(entry, id)) return null;
       if (entry.payload['phase'] == 'agent_unavailable' &&
           entry.payload['reason'] == 'agent_status_unavailable' &&
           !_accepted.contains(id)) {
@@ -131,18 +209,58 @@ class ConverseHandoffTracker {
             'Agent status is unavailable. This request has no confirmed acceptance.';
       }
     } else {
-      final route = entry.kind == 'routing.dispatch'
-          ? entry.payload['route']
-          : switch (entry.payload['agent_route']) {
+      final decisionId = entry.payload['decision_id'];
+      if (!_identifier(decisionId)) return null;
+      final decision = _decisions[decisionId];
+      if (decision == null) return _defer(entry);
+      final window = entry.kind == 'routing.window_dispatch';
+      final expectedKind = window
+          ? 'routing.window_decided'
+          : 'routing.decided';
+      if (decision.kind != expectedKind ||
+          decision.origin != 'decisions' ||
+          decision.sessionId != current.sessionId ||
+          decision.threadId != current.threadId ||
+          decision.epoch != current.epoch ||
+          decision.sequence >= entry.sequence ||
+          decision.sequence <= (source.causeSequence ?? source.sequence!) ||
+          decision.payload['source_revision'] is! int ||
+          decision.payload['source_revision'] != source.revision ||
+          decision.payload['target_task_id'] !=
+              entry.payload['target_task_id']) {
+        return null;
+      }
+      if (window) {
+        if (!_singleCause(decision, id) ||
+            !_singleCause(entry, decision.eventId) ||
+            decision.payload['source_event_id'] != id ||
+            decision.payload['source_sequence'] is! int ||
+            decision.payload['source_sequence'] != source.sequence ||
+            decision.payload['agent_route'] != entry.payload['agent_route']) {
+          return null;
+        }
+      } else {
+        final ids = decision.payload['source_event_ids'];
+        final cause = source.causeEventId;
+        if (cause == null) return _defer(entry);
+        if (ids is! List ||
+            ids.length != 1 ||
+            ids.single != id ||
+            !_singleCause(decision, cause) ||
+            !_singleCause(entry, cause) ||
+            decision.payload['route'] != entry.payload['route']) {
+          return null;
+        }
+      }
+      final route = window
+          ? switch (decision.payload['agent_route']) {
               'QUEUE_UNTIL_TASK_DONE' => 'queue',
               'STEER_CURRENT_TASK' => 'steer',
               'INTERRUPT_CURRENT_TASK' => 'interrupt',
               _ => null,
-            };
-      if (!const {'queue', 'steer', 'interrupt'}.contains(route) ||
-          !_identifier(entry.payload['decision_id'])) {
-        return null;
-      }
+            }
+          : decision.payload['route'];
+      if (!const {'queue', 'steer', 'interrupt'}.contains(route)) return null;
       final state = entry.payload['state'];
       if ((entry.kind == 'routing.dispatch' && state == 'accepted') ||
           (entry.kind == 'routing.window_dispatch' && state == 'applied')) {
@@ -192,15 +310,20 @@ class ConverseHandoffTracker {
   }
 }
 
+bool _singleCause(JournalEntry entry, String expected) =>
+    entry.causes.length == 1 && entry.causes.single == expected;
+
 bool _identifier(Object? value) =>
     value is String && RegExp(r'^[A-Za-z0-9_.:-]{1,256}$').hasMatch(value);
 
 class _Source {
   _Source(this.session);
   final SessionInfo session;
-  int? sequence;
+  int? sequence, causeSequence;
+  String? causeEventId;
   int revision = 1, windowIndex = -1;
   String? utterance;
+  String text = '';
   (String, String, int, String) get windowKey =>
       (session.sessionId, session.threadId, session.epoch, utterance!);
   bool matches(SessionInfo other) =>

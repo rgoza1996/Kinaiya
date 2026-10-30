@@ -130,6 +130,75 @@ KinaiyaClient mockClient({bool commandsMissing = true}) => KinaiyaClient.mock(
 
 void main() {
   test(
+    'handoff causal reads use authenticated native GETs and bounded scoped decision pages',
+    () async {
+      final requests = <http.Request>[];
+      final native = <String, Object?>{
+        'schema_version': '1.0',
+        'event_id': 'native-source',
+        'sequence': 1,
+        'session_id': 's',
+        'thread_id': 't',
+        'epoch': 1,
+        'kind': 'conversation.window',
+        'origin': 'authenticated-user',
+        'payload': {'revision': 1},
+        'causes': <String>[],
+        'task_refs': <String>[],
+      };
+      final client = KinaiyaClient(
+        sessionBase: 'http://synthetic-session',
+        agentBase: 'http://synthetic-agent',
+        converseBase: 'http://synthetic-converse',
+        ownerToken: 'synthetic-owner',
+        httpClient: MockClient((request) async {
+          requests.add(request);
+          return http.Response(
+            jsonEncode(
+              request.url.path == '/v1/transcript' ? [native] : native,
+            ),
+            200,
+          );
+        }),
+      );
+      expect(
+        (await client.handoffEntry('native-source', resolve: true)).eventId,
+        'native-source',
+      );
+      await client.handoffLatestWindow(
+        sessionId: 's',
+        epoch: 1,
+        utteranceId: 'u',
+      );
+      await client.handoffDecisions(sessionId: 's', threadId: 't', after: 23);
+      expect(
+        requests.every(
+          (request) =>
+              request.method == 'GET' &&
+              request.headers['Authorization'] == 'Bearer synthetic-owner' &&
+              request.url.host == 'synthetic-session',
+        ),
+        isTrue,
+      );
+      expect(requests[0].url.path, '/v1/transcript/entries/native-source');
+      expect(requests[0].url.queryParameters, {'resolve': 'true'});
+      expect(requests[1].url.queryParameters, {
+        'session_id': 's',
+        'epoch': '1',
+        'utterance_id': 'u',
+      });
+      expect(requests[2].url.queryParameters, {
+        'session_id': 's',
+        'thread_id': 't',
+        'after': '23',
+        'limit': '200',
+        'kinds': 'routing.decided',
+      });
+      client.close();
+    },
+  );
+
+  test(
     'credentials never follow redirects on JSON, SSE or multipart requests',
     () async {
       final transport = RedirectProbe();
