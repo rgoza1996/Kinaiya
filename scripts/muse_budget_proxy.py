@@ -1,14 +1,16 @@
 """Run-local Meta admission proxy. Never persists credentials or prompt contents.
 
-Forward only the authorized Contributor model. Reserve future context/output at
-twice uncached Contributor rates. Settle verified Contributor usage at twice its
-reported cached/uncached cost. Preserve legacy estimates and uncertain reserves.
+Forward authorized Contributor text, free exact counts and bounded Standard
+buffered voice. Reserve future text context/output at twice uncached Contributor
+rates and voice at its full admissible minute. Preserve uncertain reservations.
 Dollar values computed from tokens are estimates, not a provider billing receipt.
 Run with the workspace Python; Muse --base-url points at this loopback listener.
 """
 
 import argparse
+import email.policy
 import fcntl
+import io
 import json
 import math
 import os
@@ -18,7 +20,9 @@ import threading
 import time
 import urllib.error
 import urllib.request
+import wave
 from contextlib import contextmanager
+from email.parser import BytesParser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -29,6 +33,135 @@ STATE = {}
 LEDGER = Path(".dev-run/meta-budget.json")
 MAX_TOOL_NODES = 2048
 MAX_TOOL_DEPTH = 8
+VOICE_MODEL = "muse-voice-transcribe-1.0"
+VOICE_USD_PER_SECOND = 0.18 / 3600
+MAX_AUX_REQUESTS = 10000
+MAX_VOICE_BODY = 3_000_000
+
+
+def strict_json(raw):
+    def pairs(items):
+        value = {}
+        for key, item in items:
+            if key in value:
+                raise ValueError("Duplicate JSON field")
+            value[key] = item
+        return value
+
+    def invalid(value):
+        raise ValueError("Non-finite JSON")
+
+    try:
+        return json.loads(raw.decode("utf-8"), object_pairs_hook=pairs, parse_constant=invalid)
+    except (UnicodeError, RecursionError) as exc:
+        raise ValueError("Invalid JSON") from exc
+
+
+def voice_request(body, content_type):
+    """Validate exactly one bounded buffered WAV, never an arbitrary billable route."""
+    if (
+        not body
+        or len(body) > MAX_VOICE_BODY
+        or len(content_type) > 256
+        or "\r" in content_type
+        or "\n" in content_type
+    ):
+        raise ValueError("Invalid bounded voice request")
+    message = BytesParser(policy=email.policy.default).parsebytes(
+        b"Content-Type: " + content_type.encode("ascii") + b"\r\nMIME-Version: 1.0\r\n\r\n" + body
+    )
+    if (
+        message.get_content_type() != "multipart/form-data"
+        or not message.is_multipart()
+        or message.defects
+        or len(message.get_params()) != 2
+        or not message.get_boundary()
+        or not 1 <= len(message.get_boundary()) <= 70
+    ):
+        raise ValueError("Voice requires multipart form data")
+    parts = list(message.iter_parts())
+    if len(parts) != 2:
+        raise ValueError("Voice requires exactly request and audio")
+    fields = {}
+    for part in parts:
+        name = part.get_param("name", header="content-disposition")
+        header_names = [key.lower() for key in part.keys()]
+        if (
+            part.is_multipart()
+            or part.defects
+            or name not in {"request", "audio"}
+            or name in fields
+            or part.get_content_disposition() != "form-data"
+            or part.get("Content-Transfer-Encoding") is not None
+            or len(set(header_names)) != len(header_names)
+            or set(header_names) != {"content-type", "content-disposition"}
+            or part.get_content_type() != ("application/json" if name == "request" else "audio/wav")
+        ):
+            raise ValueError("Invalid voice part")
+        fields[name] = part.get_payload(decode=True)
+    if len(fields["request"]) > 1024 or strict_json(fields["request"]) != {
+        "model": VOICE_MODEL,
+        "mode": "PUSH_TO_TALK",
+        "audioEncoding": "WAV",
+    }:
+        raise ValueError("Only the selected buffered voice model is budgeted")
+    audio = fields["audio"]
+    if (
+        len(audio) < 44
+        or audio[:4] != b"RIFF"
+        or audio[8:12] != b"WAVE"
+        or int.from_bytes(audio[4:8], "little") + 8 != len(audio)
+    ):
+        raise ValueError("Actual PCM WAV is required")
+    with wave.open(io.BytesIO(audio), "rb") as wav:
+        frames, rate = wav.getnframes(), wav.getframerate()
+        if (
+            wav.getnchannels() != 1
+            or wav.getsampwidth() != 2
+            or wav.getcomptype() != "NONE"
+            or rate not in {16000, 24000}
+            or not 1 <= frames <= 60 * rate
+            or len(wav.readframes(frames + 1)) != frames * 2
+        ):
+            raise ValueError("Only mono PCM16 WAV up to 60 seconds is budgeted")
+    return (frames + rate - 1) // rate
+
+
+def audio_state(state):
+    """Add a separate subledger without altering any legacy text charge/reserve."""
+    calls = state.setdefault("audio_calls", [])
+    if type(calls) is not list or len(calls) > MAX_AUX_REQUESTS:
+        raise ValueError("Invalid audio ledger")
+    settled = unsettled = 0.0
+    for row in calls:
+        reservation = money(row["reservation_usd"])
+        if row["state"] == "duration_reported":
+            settled += money(row["estimated_usd"])
+        else:
+            unsettled += reservation
+    state["audio_estimated_usd"] = max(money(state.get("audio_estimated_usd", 0)), settled)
+    state["audio_reserved_usd"] = max(money(state.get("audio_reserved_usd", 0)), unsettled)
+    state["audio_limit_usd"] = 3
+    count = state.setdefault("count_requests", 0)
+    if type(count) is not int or not 0 <= count <= MAX_AUX_REQUESTS:
+        raise ValueError("Invalid count audit counter")
+
+
+def admission_available(*, text=0, audio=0):
+    audio_state(STATE)
+    text_spent = money(
+        STATE.get("cache_aware_admission_estimated_usd", STATE["admission_estimated_usd"])
+    )
+    billed = STATE.get("billing_reported_usd")
+    billed = 0 if billed is None else money(billed)
+    reserved = money(STATE["reserved_usd"])
+    audio_spent, audio_reserved = STATE["audio_estimated_usd"], STATE["audio_reserved_usd"]
+    return (
+        (not text or max(text_spent, billed) + reserved + text <= 22)
+        and audio_spent + audio_reserved + audio <= 3
+        and max(text_spent + audio_spent, billed) + reserved + audio_reserved + text + audio
+        <= min(25, money(STATE["limit_usd"]))
+    )
 
 
 def local_function_tools(tools):
@@ -210,24 +343,193 @@ class Handler(BaseHTTPRequestHandler):
         self.local_json(405, {"error": "Only model discovery and budget reads are supported"})
 
     def do_POST(self):
+        if self.path in {"/v1/responses/input_tokens", "/v1/asr/transcribe"}:
+            self.forward_auxiliary(voice=self.path == "/v1/asr/transcribe")
+            return
         if self.path != "/v1/responses":
             self.local_json(405, {"error": "Only the reserved Responses route is supported"})
             return
         self.forward()
 
+    def bounded_body(self, limit):
+        lengths = self.headers.get_all("Content-Length", [])
+        if (
+            self.headers.get("Transfer-Encoding")
+            or len(lengths) != 1
+            or not lengths[0].isascii()
+            or not lengths[0].isdigit()
+        ):
+            raise ValueError("A single bounded Content-Length is required")
+        length = int(lengths[0])
+        if not 0 < length <= limit:
+            raise ValueError("Request exceeds its bound")
+        self.connection.settimeout(10)
+        body = self.rfile.read(length)
+        if len(body) != length:
+            raise ValueError("Incomplete request")
+        return body
+
+    def forward_auxiliary(self, *, voice):
+        record = None
+        try:
+            body = self.bounded_body(MAX_VOICE_BODY if voice else 8_000_000)
+            if voice:
+                seconds = voice_request(body, self.headers.get("Content-Type", ""))
+            else:
+                data = strict_json(body)
+                if (
+                    type(data) is not dict
+                    or data.get("model") != MODEL
+                    or not local_function_tools(data.get("tools", []))
+                    or type(data.get("max_output_tokens")) is not int
+                    or not 1 <= data["max_output_tokens"] <= OUTPUT_CAP
+                ):
+                    raise ValueError("Invalid Contributor count request")
+        except (ValueError, UnicodeError, wave.Error, EOFError, OSError):
+            self.local_json(400, {"error": "Invalid bounded auxiliary request"})
+            return
+        with LOCK:
+            audio_state(STATE)
+            if voice:
+                # Reserve a full admissible minute, even for shorter clips.
+                # Timeout, partial processing or a lost duration never refunds it.
+                reservation = 60 * VOICE_USD_PER_SECOND
+                if len(STATE["audio_calls"]) >= MAX_AUX_REQUESTS or not admission_available(
+                    audio=reservation
+                ):
+                    self.local_json(
+                        402, {"error": "Run audio/combined budget admission limit reached"}
+                    )
+                    return
+                record = {
+                    "id": len(STATE["audio_calls"]) + 1,
+                    "path": self.path,
+                    "model": VOICE_MODEL,
+                    "state": "in_flight",
+                    "started_at": time.time(),
+                    "uploaded_seconds_ceil": seconds,
+                    "reservation_usd": reservation,
+                }
+                STATE["audio_calls"].append(record)
+                STATE["audio_reserved_usd"] += reservation
+            else:
+                if STATE["count_requests"] >= MAX_AUX_REQUESTS:
+                    self.local_json(429, {"error": "Count request audit bound reached"})
+                    return
+                STATE["count_requests"] += 1
+            save()
+
+        class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, *args):
+                return None
+
+        headers = {
+            "Accept": "application/json",
+            "Accept-Encoding": "identity",
+            "Content-Type": self.headers.get("Content-Type", "application/json"),
+            "Authorization": self.headers.get("Authorization", ""),
+        }
+        if not voice:
+            headers["x-tbh-contributor-mode"] = "true"
+        request = urllib.request.Request(
+            "https://api.meta.ai" + self.path, data=body, headers=headers, method="POST"
+        )
+        upstream, valid_duration, output = None, None, None
+        status, failure = 502, "transport_error_reservation_retained"
+        try:
+            upstream = urllib.request.build_opener(
+                urllib.request.ProxyHandler({}), NoRedirect
+            ).open(request, timeout=120)
+            status = upstream.status
+            if (
+                status != 200
+                or upstream.headers.get("Content-Encoding", "identity").lower() != "identity"
+                or upstream.headers.get("Content-Type", "").split(";")[0].lower()
+                != "application/json"
+            ):
+                raise ValueError("Invalid auxiliary response")
+            limit = 128 * 1024 if voice else 4096
+            output = upstream.read(limit + 1)
+            if len(output) > limit:
+                raise ValueError("Auxiliary response exceeds bound")
+            value = strict_json(output)
+            if voice:
+                if (
+                    type(value) is not dict
+                    or set(value) != {"sessionId", "transcript", "audioDurationMs", "turns"}
+                    or type(value["sessionId"]) is not str
+                    or not 1 <= len(value["sessionId"].encode("utf-8")) <= 256
+                    or type(value["transcript"]) is not str
+                    or len(value["transcript"]) > 16000
+                    or len(value["transcript"].encode("utf-8")) > 64000
+                    or type(value["audioDurationMs"]) is not int
+                    or not 0 <= value["audioDurationMs"] <= 60000
+                    or value["turns"] != []
+                ):
+                    raise ValueError("Invalid voice duration response")
+                # Never discount a complete uploaded clip because the response
+                # reports a smaller duration; round upward conservatively.
+                valid_duration = max(seconds, (value["audioDurationMs"] + 999) // 1000)
+            elif (
+                type(value) is not dict
+                or set(value) != {"object", "input_tokens"}
+                or value["object"] != "response.input_tokens"
+                or type(value["input_tokens"]) is not int
+                or not 1 <= value["input_tokens"] <= 2**53 - 1
+            ):
+                raise ValueError("Invalid count response")
+        except urllib.error.HTTPError as exc:
+            status, failure, output = exc.code, f"http_{exc.code}_reservation_retained", None
+            exc.close()
+        except Exception:
+            status, output = 502, None
+        finally:
+            try:
+                if upstream is not None:
+                    upstream.close()
+            except Exception:
+                output, valid_duration, status = None, None, 502
+            if record is not None:
+                with LOCK:
+                    record["finished_at"] = time.time()
+                    if output is not None and valid_duration is not None:
+                        record.update(
+                            state="duration_reported",
+                            processed_seconds_ceil=valid_duration,
+                            estimated_usd=valid_duration * VOICE_USD_PER_SECOND,
+                        )
+                        STATE["audio_estimated_usd"] += record["estimated_usd"]
+                        STATE["audio_reserved_usd"] -= record["reservation_usd"]
+                    else:
+                        record["state"] = failure
+                    audio_state(STATE)
+                    save()
+        if output is None:
+            self.local_json(status, {"error": "Auxiliary provider request unavailable"})
+        else:
+            # Accounting is committed before delivery; a disconnected client
+            # cannot cause a second upload or erase an incurred audio charge.
+            self.close_connection = True
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(output)))
+            self.send_header("Connection", "close")
+            self.end_headers()
+            self.wfile.write(output)
+
     def forward(self):
         if ".." in self.path or not self.path.startswith("/"):
             self.local_json(400, {"error": "Invalid path"})
             return
-        length = int(self.headers.get("Content-Length", "0"))
-        if length > 8_000_000:
-            self.local_json(413, {"error": "Request too large"})
+        try:
+            body = self.bounded_body(8_000_000) if self.command == "POST" else None
+        except (ValueError, OSError):
+            self.local_json(400, {"error": "Invalid bounded request"})
             return
-        body = self.rfile.read(length) if length else None
         record = None
         if self.command == "POST":
             try:
-                data = json.loads(body)
+                data = strict_json(body)
             except (ValueError, TypeError):
                 self.local_json(400, {"error": "JSON required"})
                 return
@@ -253,16 +555,7 @@ class Handler(BaseHTTPRequestHandler):
             # Includes retained response context and reasoning output.
             reservation = (1_007_997 * 0.20 + OUTPUT_CAP * 0.40) / 1_000_000
             with LOCK:
-                billed = STATE.get("billing_reported_usd")
-                spent = max(
-                    money(
-                        STATE.get(
-                            "cache_aware_admission_estimated_usd", STATE["admission_estimated_usd"]
-                        )
-                    ),
-                    0 if billed is None else money(billed),
-                )
-                if spent + STATE["reserved_usd"] + reservation > 22:
+                if not admission_available(text=reservation):
                     self.local_json(402, {"error": "Run budget admission limit reached"})
                     return
                 record = {
@@ -292,7 +585,9 @@ class Handler(BaseHTTPRequestHandler):
             "https://api.meta.ai" + self.path, data=body, headers=headers, method=self.command
         )
         try:
-            upstream = urllib.request.build_opener(NoRedirect).open(request, timeout=300)
+            upstream = urllib.request.build_opener(
+                urllib.request.ProxyHandler({}), NoRedirect
+            ).open(request, timeout=300)
         except urllib.error.HTTPError as exc:
             raw = exc.read(65536)
             self.send_response(exc.code)
@@ -426,16 +721,21 @@ def main():
             }
         )
         reconcile(STATE)
+        audio_state(STATE)
         STATE["admission_policy"] = (
             "2x verified Contributor cached/uncached settled cost; full uncached-context "
-            "future reservations; uncertain reserves retained; $3 buffer"
+            "future reservations; uncertain reserves retained; text $22/audio $3/combined $25"
         )
         STATE["pricing_source"] = (
-            "https://dev.meta.ai/docs/pricing-rate-limits verified 2026-10-28; "
-            "Contributor input 0.10/output 0.20/cached 0.002 USD per million"
+            "https://dev.meta.ai/docs/pricing-rate-limits; "
+            "Contributor input 0.10/output 0.20/cached 0.002 USD per million; "
+            "Standard voice transcribe 0.18 USD/hour, conservative whole seconds"
         )
         save()
-        print(f"Budget proxy listening on 127.0.0.1:{args.port}; admission ceiling $22", flush=True)
+        print(
+            f"Budget proxy listening on 127.0.0.1:{args.port}; text $22/audio $3/combined $25",
+            flush=True,
+        )
         ThreadingHTTPServer(("127.0.0.1", args.port), Handler).serve_forever()
 
 
