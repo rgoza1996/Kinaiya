@@ -214,7 +214,13 @@ void main() {
       await tester.ensureVisible(find.byKey(const ValueKey('home-setup')));
       await tester.tap(find.byKey(const ValueKey('home-setup')));
       await routePump(tester);
+      await tester.tap(find.byKey(const ValueKey('setup-bubble-setup')));
+      await routePump(tester);
       expect(find.text('Kinaiya setup'), findsOneWidget);
+      await tester.tap(find.byTooltip('Close settings popover'));
+      await routePump(tester);
+      await tester.tap(find.byKey(const ValueKey('setup-bubble-view')));
+      await routePump(tester);
       await tester.ensureVisible(find.text('Cancel'));
       await tester.pump();
       expect(find.text('Cancel').hitTestable(), findsOneWidget);
