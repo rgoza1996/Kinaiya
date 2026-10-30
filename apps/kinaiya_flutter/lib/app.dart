@@ -260,6 +260,8 @@ class _HomeShellState extends State<HomeShell> {
       builder: (context, box) {
         final scale = MediaQuery.textScalerOf(context).scale(1);
         final rail = box.maxWidth / scale.clamp(1, 2) >= 900;
+        final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
+        final compressedHeader = keyboardOpen || box.maxHeight < 360;
         return Scaffold(
           body: SafeArea(
             bottom: false,
@@ -367,6 +369,23 @@ class _HomeShellState extends State<HomeShell> {
                                     ),
                                   ],
                                 );
+                                if (compressedHeader) {
+                                  return Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          isAgent ? 'Agent' : 'Converse',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: Theme.of(
+                                            context,
+                                          ).textTheme.titleMedium,
+                                        ),
+                                      ),
+                                      actions,
+                                    ],
+                                  );
+                                }
                                 return compact
                                     ? Row(
                                         children: [
@@ -483,7 +502,7 @@ class _HomeShellState extends State<HomeShell> {
               ],
             ),
           ),
-          bottomNavigationBar: rail
+          bottomNavigationBar: rail || keyboardOpen
               ? null
               : NavigationBar(
                   height: 80 + 32 * (scale - 1).clamp(0, 3),
