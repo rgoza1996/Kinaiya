@@ -3,6 +3,7 @@
 import asyncio
 import json
 import os
+import stat
 from collections import deque
 from collections.abc import AsyncIterator
 from contextlib import contextmanager
@@ -26,6 +27,39 @@ class ProviderRefusal(ProviderError):
 
 class ProviderCleanupError(ProviderError):
     """The provider's HTTP response did not confirm resource cleanup."""
+
+
+def _meta_credential():
+    """One bounded protected credential reference, never other user state."""
+    from packages.providers.whistle_ipc import decode_json
+
+    path = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "muse/auth.json"
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+        try:
+            info = os.fstat(fd)
+            if (
+                not stat.S_ISREG(info.st_mode)
+                or info.st_uid != os.geteuid()
+                or info.st_nlink != 1
+                or info.st_mode & 0o077
+                or info.st_size > 65536
+            ):
+                raise ValueError("Unsafe credential reference")
+            profile = decode_json(os.read(fd, 65537), 65536)["providers"]["meta"]
+            key = profile.get("api_key") or profile.get("access_token")
+            if (
+                not isinstance(key, str)
+                or not key
+                or len(key) > 16384
+                or any(c in key for c in "\0\r\n")
+            ):
+                raise ValueError("Invalid credential")
+            return key
+        finally:
+            os.close(fd)
+    except Exception as exc:
+        raise ProviderError("Meta credential is unavailable") from exc
 
 
 _http_cleanup_owned = ContextVar("http_cleanup_owned", default=False)
@@ -399,6 +433,14 @@ class CompatibleTextProvider:
         await self.http.aclose()
 
 
+@dataclass(frozen=True)
+class _MetaPromptTicket:
+    client: httpx.AsyncClient
+    headers_sha256: str
+    binding: tuple
+    measurement: object
+
+
 class MetaResponsesProvider:
     """Meta Responses API; explicit Contributor disclosure, scoped secret reference.
 
@@ -418,28 +460,160 @@ class MetaResponsesProvider:
         max_tokens=2048,
         reasoning_effort="xhigh",
         structured_actions=False,
+        context_tokens=None,
         transport=None,
     ):
         if not allow_cloud:
             raise ProviderError("Meta requires explicit cloud disclosure authorization")
         _authorize_endpoint(base_url, True)
         if secret_ref == "muse":
-            path = (
-                Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "muse/auth.json"
-            )
-            profile = json.loads(path.read_text())["providers"]["meta"]
-            api_key = profile.get("api_key") or profile.get("access_token")
+            api_key = _meta_credential()
+        elif secret_ref is not None:
+            raise ProviderError("Unknown Meta credential reference")
         if not api_key:
             raise ProviderError("Meta credential is unavailable")
         self.info = ProviderInfo(provider="meta", model=model, local=False, streaming=True)
         self.model, self.max_tokens, self.effort = model, max_tokens, reasoning_effort
         self.structured_actions = structured_actions
+        if context_tokens is not None and (
+            type(context_tokens) is not int
+            or not 64 <= context_tokens <= 2**53 - 1
+            or type(max_tokens) is not int
+            or not 16 <= max_tokens <= 2048
+            or max_tokens >= context_tokens
+        ):
+            raise ProviderError("Invalid explicit Meta context budget")
+        # An owner-provided/catalog-verified limit, never inferred from /models ids.
+        self.context_tokens = context_tokens
+        self._count_cleanup_failed = False
+        self._measurement_required = False
+        self._measurement = None
+        self._count_generation = 0
         self.http = httpx.AsyncClient(
             base_url=base_url.rstrip("/") + "/",
             timeout=120,
             headers={"Authorization": f"Bearer {api_key}", "x-tbh-contributor-mode": "true"},
             transport=transport,
+            trust_env=False,
+            follow_redirects=False,
         )
+
+    @property
+    def cloud_prompt_measurement(self):
+        return self.context_tokens is not None
+
+    def _count_binding(self):
+        from packages.providers.prompt_budget import request_digest
+
+        return (
+            str(self.http.base_url),
+            self.model,
+            self.max_tokens,
+            self.effort,
+            self.structured_actions,
+            self.context_tokens,
+            request_digest(self.info.model_dump()),
+        )
+
+    async def measure_prompt(self, messages):
+        """Count this exact Responses request; this operation never generates."""
+        from packages.providers.prompt_budget import (
+            MAX_SAFE_COUNT,
+            PromptCountUnavailable,
+            PromptTokenCount,
+            request_digest,
+        )
+        from packages.providers.whistle_ipc import decode_json
+
+        # A failed/replaced count cannot leave a prior ticket usable. Ordinary
+        # Agent calls that never opted into measurement retain their interface.
+        self._measurement_required = True
+        self._measurement = None
+        self._count_generation += 1
+        generation = self._count_generation
+        if self.context_tokens is None or self._count_cleanup_failed:
+            raise PromptCountUnavailable("Explicit Meta context limit is required")
+        try:
+            # The count schema accepts the generation fields, including stream,
+            # reasoning and structured text. Detach before the first await.
+            body = json.loads(json.dumps(self.body(messages, True), allow_nan=False))
+            stamp = request_digest(body)
+            client, headers = self.http, dict(self.http.headers)
+            binding = self._count_binding()
+            async with asyncio.timeout(10):
+                async with client.stream("POST", "responses/input_tokens", json=body) as response:
+                    response.stream = _OwnedHTTPStream(response.stream)
+                    if response.status_code != 200:
+                        raise PromptCountUnavailable("Meta prompt measurement is unavailable")
+                    _reject_compressed_response(response)
+                    raw = bytearray()
+                    async for chunk in response.aiter_bytes():
+                        if len(raw) + len(chunk) > 4096:
+                            raise PromptCountUnavailable("Meta prompt measurement is invalid")
+                        raw.extend(chunk)
+            value = decode_json(bytes(raw), 4096)
+            if (
+                type(value) is not dict
+                or set(value) != {"object", "input_tokens"}
+                or value["object"] != "response.input_tokens"
+                or type(value["input_tokens"]) is not int
+                or not 1 <= value["input_tokens"] <= MAX_SAFE_COUNT
+                or self.http is not client
+                or client.is_closed
+                or dict(client.headers) != headers
+                or self._count_generation != generation
+                or binding != self._count_binding()
+                or request_digest(self.body(messages, True)) != stamp
+            ):
+                raise PromptCountUnavailable("Meta prompt measurement is invalid or stale")
+            measured = PromptTokenCount(
+                value["input_tokens"],
+                self.context_tokens,
+                self.max_tokens,
+                stamp,
+                request_digest(
+                    {"provider": "meta", "contract": "responses-count-v1", "configuration": binding}
+                ),
+            )
+            self._measurement = _MetaPromptTicket(
+                client, request_digest(headers), binding, measured
+            )
+            return measured
+        except ProviderCleanupError:
+            self._count_cleanup_failed = True
+            raise
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            raise PromptCountUnavailable("Meta prompt measurement is unavailable") from exc
+
+    def _generation_request(self, messages, stream):
+        if not self._measurement_required:
+            return self.http, self.body(messages, stream)
+        from packages.providers.prompt_budget import PromptCountUnavailable, request_digest
+
+        # Consume once before the first transport await, including on refusal.
+        # Context assembly performs native awaits after its final count; only
+        # this synchronous check binds the actual outgoing generation to it.
+        ticket, self._measurement = self._measurement, None
+        try:
+            body = json.loads(json.dumps(self.body(messages, stream), allow_nan=False))
+            if (
+                ticket is None
+                or self._count_cleanup_failed
+                or self.http is not ticket.client
+                or ticket.client.is_closed
+                or request_digest(dict(ticket.client.headers)) != ticket.headers_sha256
+                or self._count_binding() != ticket.binding
+                or request_digest(body) != ticket.measurement.request_sha256
+                or not ticket.measurement.fits
+            ):
+                raise PromptCountUnavailable("Meta generation measurement is missing or stale")
+            return ticket.client, body
+        except PromptCountUnavailable:
+            raise
+        except Exception as exc:
+            raise PromptCountUnavailable("Meta generation measurement is missing or stale") from exc
 
     def body(self, messages, stream):
         if self.structured_actions:
@@ -548,7 +722,8 @@ class MetaResponsesProvider:
         return body
 
     async def complete(self, messages):
-        response = await self.http.post("responses", json=self.body(messages, False))
+        client, body = self._generation_request(messages, False)
+        response = await client.post("responses", json=body)
         if response.is_error:
             raise ProviderError(f"Meta HTTP {response.status_code}; no automatic provider fallback")
         data = response.json()
@@ -610,10 +785,9 @@ class MetaResponsesProvider:
         return text
 
     async def stream(self, messages):
+        client, body = self._generation_request(messages, True)
         terminal = False
-        async with self.http.stream(
-            "POST", "responses", json=self.body(messages, True)
-        ) as response:
+        async with client.stream("POST", "responses", json=body) as response:
             if _http_cleanup_owned.get():
                 response.stream = _OwnedHTTPStream(response.stream)
             if response.is_error:

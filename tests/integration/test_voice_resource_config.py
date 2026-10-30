@@ -128,6 +128,23 @@ async def test_cuda_voice_config_binds_cli_and_actual_loaded_health(voice_host, 
     assert not await manager.readiness(spec, SimpleNamespace(pid=42))
 
 
+async def test_cloud_stt_does_not_invent_a_local_worker_or_block_local_gpu_tts(
+    voice_host, tmp_path
+):
+    build, _ = voice_host
+    checkpoint = tmp_path / "tiny.en.pt"
+    checkpoint.write_bytes(b"public synthetic checkpoint metadata")
+    app, manager = build(
+        "Kokoro 82M",
+        voice_device="cuda",
+        voice_stt_backend="openai-whisper",
+        voice_stt_checkpoint=str(checkpoint),
+        stt_selection={"provider": "meta", "allow_cloud": True, "secret_ref": "muse"},
+    )
+    assert len(manager.specs) == 1 and manager.specs[0].id == "voice"
+    assert app.state.coordinator.whistle_restore_reserve == 0
+
+
 @pytest.mark.parametrize(
     "profile, changes",
     [

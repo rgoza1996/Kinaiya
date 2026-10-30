@@ -1,10 +1,13 @@
 """Budget boundaries use synthetic upstreams; these tests make no Meta calls."""
 
 import copy
+import http.client
 import importlib.util
 import io
 import json
+import socket
 import threading
+import wave
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 from types import SimpleNamespace
@@ -39,15 +42,28 @@ def budget(tmp_path, monkeypatch):
     class Upstream:
         def open(self, request, timeout):
             calls.append(request)
+            if hasattr(result, "error"):
+                raise result.error
             if hasattr(result, "opened"):
                 result.opened.set()
                 assert result.release.wait(timeout=5)
+            if hasattr(result, "response"):
+                return result.response
             payload = {"model": getattr(result, "model", module.MODEL), "usage": result.usage}
             if result.stream:
                 raw = b"data: " + json.dumps({"response": payload}).encode() + b"\n\n"
             else:
                 raw = json.dumps(payload).encode()
-            response = io.BytesIO(raw)
+            if hasattr(result, "raw"):
+                raw = result.raw
+
+            class Response(io.BytesIO):
+                def close(self):
+                    super().close()
+                    if getattr(result, "close_error", False):
+                        raise OSError("synthetic close failure")
+
+            response = Response(raw)
             response.status = 200
             response.headers = {
                 "Content-Type": "text/event-stream" if result.stream else "application/json"
@@ -80,6 +96,375 @@ def test_cache_discount_never_reduces_admission(budget):
     assert costs["contributor"] == pytest.approx(0.0000416)
     assert costs["admission"] == pytest.approx(0.00024)
     assert costs["comparison"] == pytest.approx(0.001675)
+
+
+def public_wav(seconds=1, rate=16000):
+    output = io.BytesIO()
+    with wave.open(output, "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(rate)
+        wav.writeframes(b"\0\0" * (seconds * rate))
+    return output.getvalue()
+
+
+def voice_parts(module, audio=None, **change):
+    request = {"model": module.VOICE_MODEL, "mode": "PUSH_TO_TALK", "audioEncoding": "WAV"}
+    request.update(change)
+    return {
+        "request": (None, json.dumps(request), "application/json"),
+        "audio": ("recording.wav", public_wav() if audio is None else audio, "audio/wav"),
+    }
+
+
+def voice_result(**change):
+    value = {
+        "sessionId": "public-session",
+        "transcript": "Synthetic public words.",
+        "audioDurationMs": 1000,
+        "turns": [],
+    }
+    value.update(change)
+    return json.dumps(value).encode()
+
+
+def test_exact_free_count_body_no_generation_reservation(gateway):
+    module, calls, result, client = gateway
+    result.raw = b'{"object":"response.input_tokens","input_tokens":200}'
+    body = {
+        "model": module.MODEL,
+        "input": [{"role": "user", "content": "public count fixture"}],
+        "stream": True,
+        "max_output_tokens": 128,
+        "reasoning": {"effort": "minimal"},
+    }
+    response = client.post("/v1/responses/input_tokens", json=body)
+    assert response.status_code == 200
+    assert json.loads(calls[0].data) == body
+    assert calls[0].full_url == "https://api.meta.ai/v1/responses/input_tokens"
+    assert module.STATE["calls"] == [] and module.STATE["reserved_usd"] == 0
+    assert module.STATE["count_requests"] == 1
+    assert "public count fixture" not in module.LEDGER.read_text()
+
+
+@pytest.mark.parametrize("rate,seconds", [(16000, 1), (24000, 60)])
+def test_audio_subledger_whole_processed_seconds_and_separate_headers(gateway, rate, seconds):
+    module, calls, result, client = gateway
+    result.raw = voice_result(audioDurationMs=seconds * 1000)
+    response = client.post(
+        "/v1/asr/transcribe",
+        files=voice_parts(module, public_wav(seconds, rate)),
+        headers={
+            "authorization": "Bearer synthetic-cloud-only-key",
+            "x-tbh-contributor-mode": "true",
+        },
+    )
+    assert response.status_code == 200 and len(calls) == 1
+    assert calls[0].full_url == "https://api.meta.ai/v1/asr/transcribe"
+    assert not any(k.lower() == "x-tbh-contributor-mode" for k in calls[0].headers)
+    row = module.STATE["audio_calls"][0]
+    assert row["reservation_usd"] == pytest.approx(60 * 0.18 / 3600)
+    assert row["processed_seconds_ceil"] == seconds
+    assert row["state"] == "duration_reported"
+    assert module.STATE["audio_estimated_usd"] == pytest.approx(seconds * 0.18 / 3600)
+    assert module.STATE["audio_reserved_usd"] == 0 and module.STATE["calls"] == []
+    saved = module.LEDGER.read_text()
+    assert "Synthetic public words" not in saved and "synthetic-cloud-only-key" not in saved
+
+
+@pytest.mark.parametrize("reported,charged", [(0, 2), (1001, 2), (5001, 6)])
+def test_reported_duration_cannot_discount_uploaded_clip(gateway, reported, charged):
+    module, _, result, client = gateway
+    result.raw = voice_result(audioDurationMs=reported)
+    assert (
+        client.post("/v1/asr/transcribe", files=voice_parts(module, public_wav(2))).status_code
+        == 200
+    )
+    assert module.STATE["audio_calls"][0]["processed_seconds_ceil"] == charged
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        b"partial",
+        voice_result(audioDurationMs=60001),
+        voice_result(audioDurationMs=True),
+        b" " * (128 * 1024 + 1),
+    ],
+)
+def test_audio_unknown_or_partial_retains_full_reservation(gateway, raw):
+    module, calls, result, client = gateway
+    result.raw = raw
+    assert client.post("/v1/asr/transcribe", files=voice_parts(module)).status_code == 502
+    assert len(calls) == 1 and module.STATE["audio_reserved_usd"] == pytest.approx(0.003)
+    assert module.STATE["audio_estimated_usd"] == 0
+    module.audio_state(module.STATE)
+    assert module.STATE["audio_reserved_usd"] == pytest.approx(0.003)
+
+
+def test_audio_timeout_retains_reservation_and_never_retries(gateway):
+    module, calls, result, client = gateway
+    result.error = TimeoutError("synthetic timeout")
+    assert client.post("/v1/asr/transcribe", files=voice_parts(module)).status_code == 502
+    assert len(calls) == 1 and module.STATE["audio_reserved_usd"] == pytest.approx(0.003)
+
+
+def test_audio_close_failure_keeps_unknown_charge(gateway):
+    module, calls, result, client = gateway
+    result.raw, result.close_error = voice_result(), True
+    assert client.post("/v1/asr/transcribe", files=voice_parts(module)).status_code == 502
+    assert len(calls) == 1
+    assert module.STATE["audio_reserved_usd"] == pytest.approx(0.003)
+    assert module.STATE["audio_estimated_usd"] == 0
+
+
+def real_http_response(body, framing):
+    """Real stdlib framing over two owned local sockets, no foreign upstream."""
+    reader, writer = socket.socketpair()
+    try:
+        writer.sendall(
+            b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n"
+            + framing
+            + b"Connection: close\r\n\r\n"
+            + body
+        )
+        writer.shutdown(socket.SHUT_WR)
+        response = http.client.HTTPResponse(reader)
+        response.begin()
+        return response
+    finally:
+        # The response's makefile retains the read descriptor until real close.
+        reader.close()
+        writer.close()
+
+
+@pytest.mark.parametrize("framing", ["truncated", "duplicate", "invalid", "negative", "oversize"])
+def test_real_http_response_cannot_discount_audio_before_complete_entity(gateway, framing):
+    module, calls, result, client = gateway
+    body = voice_result()
+    if framing == "truncated":
+        headers = f"Content-Length: {len(body) + 20}\r\n".encode()
+    elif framing == "duplicate":
+        headers = f"Content-Length: {len(body)}\r\nContent-Length: {len(body)}\r\n".encode()
+    elif framing == "invalid":
+        headers = b"Content-Length: invalid\r\n"
+    elif framing == "negative":
+        headers = b"Content-Length: -1\r\n"
+    else:
+        headers = b"Content-Length: 999999999\r\n"
+    result.response = real_http_response(body, headers)
+    response = client.post("/v1/asr/transcribe", files=voice_parts(module))
+    assert response.status_code == 502
+    assert len(calls) == 1 and result.response.isclosed()
+    assert module.STATE["audio_reserved_usd"] == pytest.approx(0.003)
+    assert module.STATE["audio_estimated_usd"] == 0
+
+
+@pytest.mark.parametrize("framing", ["length", "close", "chunked"])
+def test_complete_real_http_framing_settles_only_after_close(gateway, framing):
+    module, _, result, client = gateway
+    body = voice_result()
+    if framing == "length":
+        headers = f"Content-Length: {len(body)}\r\n".encode()
+    elif framing == "close":
+        headers = b""
+    else:
+        headers = b"Transfer-Encoding: chunked\r\n"
+        body = f"{len(body):x}\r\n".encode() + body + b"\r\n0\r\n\r\n"
+    result.response = real_http_response(body, headers)
+    assert client.post("/v1/asr/transcribe", files=voice_parts(module)).status_code == 200
+    assert result.response.isclosed()
+    assert module.STATE["audio_reserved_usd"] == 0
+    assert module.STATE["audio_estimated_usd"] == pytest.approx(0.00005)
+
+
+@pytest.mark.parametrize("stage", ["eof", "close"])
+def test_audio_reservation_stays_owned_until_real_eof_and_close(gateway, stage):
+    module, _, result, client = gateway
+    entered, release = threading.Event(), threading.Event()
+
+    class HeldResponse(io.BytesIO):
+        status = 200
+        headers = {"Content-Type": "application/json"}
+
+        def read(self, amount):
+            value = super().read(amount)
+            if stage == "eof" and not value:
+                entered.set()
+                assert release.wait(timeout=3)
+            return value
+
+        def close(self):
+            if stage == "close":
+                entered.set()
+                assert release.wait(timeout=3)
+            super().close()
+
+    result.response = HeldResponse(voice_result())
+    responses = []
+    thread = threading.Thread(
+        target=lambda: responses.append(
+            client.post("/v1/asr/transcribe", files=voice_parts(module))
+        )
+    )
+    thread.start()
+    try:
+        assert entered.wait(timeout=2)
+        assert module.STATE["audio_reserved_usd"] == pytest.approx(0.003)
+        assert module.STATE["audio_estimated_usd"] == 0
+    finally:
+        release.set()
+        thread.join(timeout=3)
+    assert not thread.is_alive() and responses[0].status_code == 200
+
+
+def test_concurrent_audio_admission_reserves_before_upstream(gateway):
+    module, calls, result, client = gateway
+    module.STATE["audio_reserved_usd"] = 2.996
+    result.raw, result.opened, result.release = voice_result(), threading.Event(), threading.Event()
+    responses = []
+    thread = threading.Thread(
+        target=lambda: responses.append(
+            client.post("/v1/asr/transcribe", files=voice_parts(module))
+        )
+    )
+    thread.start()
+    try:
+        assert result.opened.wait(timeout=2)
+        denied = client.post("/v1/asr/transcribe", files=voice_parts(module))
+        assert denied.status_code == 402 and len(calls) == 1
+        assert module.STATE["audio_reserved_usd"] == pytest.approx(2.999)
+    finally:
+        result.release.set()
+        thread.join(timeout=3)
+    assert not thread.is_alive() and responses[0].status_code == 200
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        b'{"object":"response.input_tokens","input_tokens":true}',
+        b'{"object":"response.input_tokens","input_tokens":1,"input_tokens":2}',
+        b" " * 4097,
+    ],
+)
+def test_auxiliary_count_rejects_invalid_response_without_generation(gateway, raw):
+    module, calls, result, client = gateway
+    result.raw = raw
+    response = client.post(
+        "/v1/responses/input_tokens", json={"model": module.MODEL, "max_output_tokens": 128}
+    )
+    assert response.status_code == 502 and len(calls) == 1
+    assert module.STATE["count_requests"] == 1 and module.STATE["calls"] == []
+    assert module.STATE["reserved_usd"] == 0
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"model": "other"},
+        {"mode": "STREAMING"},
+        {"audioEncoding": "OPUS"},
+        {"extra": "not allowed"},
+    ],
+)
+def test_voice_model_mode_and_part_shape_are_exact(gateway, change):
+    module, calls, _, client = gateway
+    assert client.post("/v1/asr/transcribe", files=voice_parts(module, **change)).status_code == 400
+    assert not calls and not module.STATE.get("audio_calls")
+
+
+@pytest.mark.parametrize(
+    "audio", [b"not WAV", public_wav(61), public_wav(1, 8000), public_wav() + b"extra"]
+)
+def test_voice_actual_format_duration_and_trailing_bytes_before_reservation(gateway, audio):
+    module, calls, _, client = gateway
+    assert client.post("/v1/asr/transcribe", files=voice_parts(module, audio)).status_code == 400
+    assert not calls and not module.STATE.get("audio_calls")
+
+
+def noncanonical_wav(kind):
+    raw = bytearray(public_wav())
+    if kind == "second_data_90_seconds":
+        second = b"\0\0" * (90 * 16000)
+        raw.extend(b"data" + len(second).to_bytes(4, "little") + second)
+    elif kind == "junk_after_data":
+        raw.extend(b"JUNK\x04\x00\x00\x00test")
+    elif kind == "junk_before_data":
+        raw[36:36] = b"JUNK\x04\x00\x00\x00test"
+    elif kind == "duplicate_fmt":
+        raw[36:36] = raw[12:36]
+    elif kind == "short_data_size":
+        raw[40:44] = (2).to_bytes(4, "little")
+    elif kind == "wrong_byte_rate":
+        raw[28:32] = (1).to_bytes(4, "little")
+    elif kind == "wrong_block_alignment":
+        raw[32:34] = (1).to_bytes(2, "little")
+    else:
+        raise AssertionError(kind)
+    raw[4:8] = (len(raw) - 8).to_bytes(4, "little")
+    return bytes(raw)
+
+
+@pytest.mark.parametrize(
+    "kind",
+    [
+        "second_data_90_seconds",
+        "junk_after_data",
+        "junk_before_data",
+        "duplicate_fmt",
+        "short_data_size",
+        "wrong_byte_rate",
+        "wrong_block_alignment",
+    ],
+)
+def test_noncanonical_riff_cannot_hide_unreserved_audio(budget, kind):
+    module, _, _ = budget
+    audio = noncanonical_wav(kind)
+    request = httpx.Request("POST", "http://synthetic", files=voice_parts(module, audio))
+    body = request.read()
+    assert len(body) < module.MAX_VOICE_BODY
+    with pytest.raises(ValueError):
+        module.voice_request(body, request.headers["content-type"])
+
+
+def test_second_data_chunk_is_refused_before_any_charge_or_export(gateway):
+    module, calls, _, client = gateway
+    response = client.post(
+        "/v1/asr/transcribe", files=voice_parts(module, noncanonical_wav("second_data_90_seconds"))
+    )
+    assert response.status_code == 400
+    assert not calls and not module.STATE.get("audio_calls")
+    assert module.STATE.get("audio_reserved_usd", 0) == 0
+
+
+@pytest.mark.parametrize("kind", ["audio", "combined", "text_combined"])
+def test_shared_admission_includes_both_subledgers(gateway, kind):
+    module, calls, _, client = gateway
+    if kind == "audio":
+        module.STATE["audio_reserved_usd"] = 2.999
+    elif kind == "combined":
+        module.STATE.update(billing_reported_usd=24.999)
+    else:
+        module.STATE.update(audio_reserved_usd=3, reserved_usd=21.9)
+    if kind == "text_combined":
+        response = client.post("/v1/responses", json={"model": module.MODEL})
+    else:
+        response = client.post("/v1/asr/transcribe", files=voice_parts(module))
+    assert response.status_code == 402 and not calls
+
+
+def test_audio_migration_keeps_all_unknowns_and_prior_floors(budget):
+    module, _, _ = budget
+    state = copy.deepcopy(module.STATE)
+    state.update(audio_reserved_usd=0.3, audio_estimated_usd=0.4)
+    state["audio_calls"] = [{"state": "in_flight", "reservation_usd": 0.003}]
+    module.audio_state(state)
+    assert state["audio_reserved_usd"] == 0.3 and state["audio_estimated_usd"] == 0.4
+    assert module.STATE["calls"] == []
+    before = copy.deepcopy(state)
+    module.audio_state(state)
+    assert before == state
 
 
 @pytest.mark.parametrize(

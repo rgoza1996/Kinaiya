@@ -127,14 +127,22 @@ class ResourceBoundProvider:
             state = self._check()
             provider, role, state_path = self.provider, self.role, self.state_path
             measure = getattr(provider, "measure_prompt", None)
-            if role != "converse" or provider.info.local is not True or not callable(measure):
+            cloud = getattr(provider, "cloud_prompt_measurement", False) is True
+            if (
+                role != "converse"
+                or not (provider.info.local is True or cloud)
+                or not callable(measure)
+            ):
                 raise PromptCountUnavailable("Prompt measurement is unavailable")
             result = await measure(messages)
             if (
                 self.provider is not provider
                 or self.role != role
                 or self.state_path != state_path
-                or provider.info.local is not True
+                or not (
+                    provider.info.local is True
+                    or (cloud and getattr(provider, "cloud_prompt_measurement", False) is True)
+                )
                 or self._check().revision != state.revision
                 or type(result) is not PromptTokenCount
             ):
