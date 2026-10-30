@@ -9,7 +9,7 @@ import 'package:kinaiya_flutter/audio/speech_audio.dart';
 import 'package:kinaiya_flutter/config/connection.dart';
 import 'package:kinaiya_flutter/state/app_state.dart';
 import 'package:kinaiya_flutter/ui/character_view.dart';
-import 'package:kinaiya_flutter/ui/moonlit_scene.dart';
+import 'package:kinaiya_flutter/ui/anchored_moonlit_scene.dart';
 import 'package:kinaiya_flutter/ui/visual_theme.dart';
 
 import 'client_test.dart' show mockTransport;
@@ -446,7 +446,7 @@ void main() {
         final state = wired(api);
         await tester.pumpWidget(KinaiyaApp(state: state, audio: LayoutAudio()));
         await settle(tester);
-        expect(find.byType(MoonlitScene), findsOneWidget);
+        expect(find.byType(AnchoredMoonlitScene), findsOneWidget);
         expect(tester.takeException(), isNull);
         state.setView(AppView.agent);
         await settle(tester);

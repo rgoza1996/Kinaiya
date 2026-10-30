@@ -17,6 +17,8 @@ import 'converse_design.dart';
 import 'voice_options.dart';
 import 'settings_controls.dart';
 import 'moonlit_scene.dart';
+import 'anchored_moonlit_scene.dart';
+import 'design_tokens.dart';
 import 'visual_theme.dart';
 import 'widgets.dart';
 
@@ -1678,11 +1680,13 @@ class _CharacterViewState extends State<CharacterView> {
             SizedBox(
               width: box.maxWidth,
               height: sceneHeight,
-              child: MoonlitScene(
+              child: AnchoredMoonlitScene(
                 primary: widget.scenePrimary,
                 background: widget.sceneBackground,
-                useIllustration: true,
-                illustrationHeight: sceneHeight * 1.15,
+                artwork: box.maxWidth < sceneHeight
+                    ? KinaiyaDesign.moonlitPhone
+                    : KinaiyaDesign.moonlitDesktop,
+                surfaceY: sceneHeight - size * .05,
                 child: Align(
                   alignment: Alignment.bottomCenter,
                   child: SizedBox(
@@ -1702,6 +1706,64 @@ class _CharacterViewState extends State<CharacterView> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _designHome(CharacterPack? pack, BoxConstraints box, Widget banner) {
+    final scale = MediaQuery.textScalerOf(context).scale(1);
+    final heroHeight = (box.maxHeight - 240 * scale).clamp(
+      (scale < 1.5 ? 180.0 : 320.0) * scale.clamp(1.0, 2.0),
+      double.infinity,
+    );
+    final size = (heroHeight - 28)
+        .clamp(140.0, 560.0)
+        .clamp(0.0, (box.maxWidth - 32).clamp(0.0, double.infinity));
+    return SingleChildScrollView(
+      child: AnchoredMoonlitScene(
+        artwork: box.maxWidth < box.maxHeight
+            ? KinaiyaDesign.moonlitPhone
+            : KinaiyaDesign.moonlitDesktop,
+        surfaceY: heroHeight - size * .05,
+        primary: widget.scenePrimary,
+        background: widget.sceneBackground,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: box.maxHeight),
+          child: Stack(
+            children: [
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    height: heroHeight,
+                    width: box.maxWidth,
+                    child: Align(
+                      alignment: Alignment.bottomCenter,
+                      child: SizedBox(
+                        key: const ValueKey('converse-design-hero'),
+                        width: size,
+                        height: size,
+                        child: _mascot(pack, size),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [_statusPill(), _packNote(pack)],
+                    ),
+                  ),
+                  _composer(),
+                ],
+              ),
+              Positioned(top: 0, left: 0, right: 0, child: banner),
+            ],
+          ),
         ),
       ),
     );
@@ -2137,6 +2199,14 @@ class _CharacterViewState extends State<CharacterView> {
                 ],
               )
             : const SizedBox.shrink();
+        final pack =
+            widget.character?.pack ??
+            (snap.connectionState == ConnectionState.done ? snap.data : null);
+        if (widget.useDesignScene &&
+            widget.showCharacter &&
+            _s.converseHistory.isEmpty) {
+          return _designHome(pack, box, banner);
+        }
         final scale = MediaQuery.textScalerOf(context).scale(1);
         final stageHeight = (box.maxHeight - 240 * scale).clamp(
           (widget.showCharacter

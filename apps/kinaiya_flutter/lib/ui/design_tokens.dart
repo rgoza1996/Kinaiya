@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'anchored_moonlit_scene.dart';
 
 /// Owner-interface visual roles. These values never carry runtime authority.
 abstract final class KinaiyaDesign {
@@ -16,6 +17,16 @@ abstract final class KinaiyaDesign {
   static const fontFamily = 'Inter';
   static const moonlitBackground =
       'assets/design/kinaiya-moonlit-background-v1.png';
+  static const moonlitDesktop = MoonlitArtwork(
+    asset: 'assets/design/kinaiya-moonlit-desktop-v2.png',
+    sourceSize: Size(1536, 1024),
+    surfaceAnchor: Offset(.5, 676 / 1024),
+  );
+  static const moonlitPhone = MoonlitArtwork(
+    asset: 'assets/design/kinaiya-moonlit-phone-v2.png',
+    sourceSize: Size(1024, 1536),
+    surfaceAnchor: Offset(.5, 950 / 1536),
+  );
 }
 
 /// Reusable surface; palette overrides still come from the active theme.

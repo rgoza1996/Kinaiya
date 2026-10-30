@@ -14,17 +14,12 @@ class MoonlitScene extends StatelessWidget {
     this.background = kinaiyaWhite,
     this.enabled = true,
     this.useIllustration = false,
-    this.illustrationHeight,
   });
 
   final Widget child;
   final Color primary, background;
   final bool enabled;
   final bool useIllustration;
-
-  /// The illustration follows the stage waterline when supplied by its owner.
-  /// Standalone callers retain full-viewport scenery.
-  final double? illustrationHeight;
 
   @override
   Widget build(BuildContext context) {
@@ -37,19 +32,21 @@ class MoonlitScene extends StatelessWidget {
     return ClipRect(
       child: Stack(
         children: <Widget>[
-          if (useIllustration && illustrationHeight != null)
-            const Positioned.fill(child: ColoredBox(color: Colors.white)),
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: useIllustration && illustrationHeight != null ? null : 0,
-            height: useIllustration ? illustrationHeight : null,
+          Positioned.fill(
             child: ExcludeSemantics(
               child: IgnorePointer(
                 child: RepaintBoundary(
                   child: useIllustration
-                      ? _illustration()
+                      ? Image.asset(
+                          KinaiyaDesign.moonlitBackground,
+                          key: const ValueKey('moonlit-illustration'),
+                          fit: BoxFit.cover,
+                          alignment: Alignment.topCenter,
+                          excludeFromSemantics: true,
+                          errorBuilder: (_, _, _) => CustomPaint(
+                            painter: _MoonlitPainter(primary, background),
+                          ),
+                        )
                       : CustomPaint(
                           painter: _MoonlitPainter(primary, background),
                         ),
@@ -58,63 +55,6 @@ class MoonlitScene extends StatelessWidget {
             ),
           ),
           child,
-        ],
-      ),
-    );
-  }
-
-  Widget _illustration() {
-    Widget asset() => Image.asset(
-      KinaiyaDesign.moonlitBackground,
-      key: const ValueKey('moonlit-illustration'),
-      fit: illustrationHeight == null ? BoxFit.cover : BoxFit.fill,
-      alignment: Alignment.topCenter,
-      excludeFromSemantics: true,
-      errorBuilder: (_, _, _) =>
-          CustomPaint(painter: _MoonlitPainter(primary, background)),
-    );
-    if (illustrationHeight == null) return asset();
-    return LayoutBuilder(
-      builder: (_, bounds) => Stack(
-        children: [
-          Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [primary, primary, background],
-                  stops: const [0, .65, .9],
-                ),
-              ),
-            ),
-          ),
-          // Keep the 1536x1024 artwork's full vertical composition. Extending its
-          // sky/water sideways avoids either squashing the moon or cropping it
-          // away on wide screens. The image and seated sprite remain separate.
-          Positioned.fill(
-            child: OverflowBox(
-              minWidth: 0,
-              maxWidth: double.infinity,
-              child: SizedBox(
-                width: bounds.maxHeight * 1.5,
-                height: bounds.maxHeight,
-                child: ShaderMask(
-                  blendMode: BlendMode.dstIn,
-                  shaderCallback: (rect) => const LinearGradient(
-                    colors: [
-                      Colors.transparent,
-                      Colors.white,
-                      Colors.white,
-                      Colors.transparent,
-                    ],
-                    stops: [0, .12, .88, 1],
-                  ).createShader(rect),
-                  child: asset(),
-                ),
-              ),
-            ),
-          ),
         ],
       ),
     );

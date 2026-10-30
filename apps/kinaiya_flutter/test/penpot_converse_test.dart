@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kinaiya_flutter/character/package.dart';
 import 'package:kinaiya_flutter/config/connection.dart';
 import 'package:kinaiya_flutter/state/app_state.dart';
+import 'package:kinaiya_flutter/ui/anchored_moonlit_scene.dart';
 import 'package:kinaiya_flutter/ui/character_view.dart';
 import 'package:kinaiya_flutter/ui/converse_design.dart';
 import 'package:kinaiya_flutter/ui/design_tokens.dart';
@@ -181,10 +182,34 @@ void main() {
         isNotNull,
         reason: 'A fallback painter is not illustration evidence.',
       );
-      // The supplied illustration's first water is two thirds down its source.
+      final sceneFinder = find.byType(AnchoredMoonlitScene);
+      expect(sceneFinder, findsOneWidget);
+      final sceneSize = tester.getSize(sceneFinder);
+      final phone = history
+          ? sceneSize.width < sceneSize.height
+          : size.width < size.height;
+      final artwork = phone
+          ? KinaiyaDesign.moonlitPhone
+          : KinaiyaDesign.moonlitDesktop;
+      expect(tester.widget<AnchoredMoonlitScene>(sceneFinder).artwork, artwork);
+      expect(
+        (tester
+                    .widget<Image>(
+                      find.byKey(const ValueKey('moonlit-illustration')),
+                    )
+                    .image
+                as AssetImage)
+            .assetName,
+        artwork.asset,
+      );
+      expect(
+        Size(image.image!.width.toDouble(), image.image!.height.toDouble()),
+        artwork.sourceSize,
+      );
+      // Read-only source inspection places water just below these horizons.
       final water = _illustratedRegion(
         image,
-        const Rect.fromLTRB(0, 2 / 3, 1, 1),
+        Rect.fromLTRB(0, phone ? .524 : .555, 1, 1),
       );
       final moon = _illustratedRegion(
         image,
@@ -315,8 +340,10 @@ void main() {
     expect(visibleMascot(tester).height, greaterThan(320));
     expect(find.byType(ConverseVoiceActions), findsOneWidget);
     expect(
-      tester.widget<MoonlitScene>(find.byType(MoonlitScene)).useIllustration,
-      isTrue,
+      tester
+          .widget<AnchoredMoonlitScene>(find.byType(AnchoredMoonlitScene))
+          .artwork,
+      KinaiyaDesign.moonlitDesktop,
     );
     // Missing image uses the deterministic painter, without losing controls.
     expect(find.byKey(const ValueKey('moonlit-illustration')), findsOneWidget);

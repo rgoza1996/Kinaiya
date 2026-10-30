@@ -9,17 +9,25 @@ Import validation, image bounds/hashes, reduced motion, stale decode ownership
 and honest unavailable-artwork fallback retain their existing responsibilities.
 The prompt record pins actual output geometry and source bytes.
 
-The illustrated water belongs to the actual mascot substage, including its
-smaller allotment when history is visible, rather than scaling against the whole
-viewport. Captions and status sit outside the image/mascot panel so enlarged
-labels cannot push the water below the seated contact. The hero aligns to the panel bottom and
-the illustration keeps its full vertical composition and natural aspect ratio
-on a 1.15-times-panel-height surface. A horizontal edge fade joins a sky-to-water
-color extension keeps the moon visible on wide screens without squashing it.
-The seated contact ring remains within its water region at phone, desktop and
-tall/ultrawide sizes. The stage can use the available
-height on tall screens; the legacy non-illustrated stage retains its prior cap.
-This is trusted presentation layout and does not change capture or model state.
+The owner rejected the old background scaling and a realistic generation attempt.
+The selected v2 desktop/phone images are new flat indigo-and-white illustrations
+made from the actual concept and sprite style references. They contain no mascot
+or UI. The default empty-history view uses one full canvas behind the separately
+animated character and the two real voice controls, including foreground water.
+No side fades, warped artwork or synthetic white footer patch are used.
+
+Each image records its actual sitting-ripple point: desktop (768,676) in a
+1536x1024 source and phone (512,950) in a 1024x1536 source. The trusted
+AnchoredMoonlitScene camera scales uniformly and places that point at the seated
+contact. It also covers the whole canvas above/below the point and on both sides.
+This couples scenery and character placement without treating the whole image
+as a movable poster. Narrow/tall home uses the portrait asset. Existing history
+layouts keep readable inline transcript panels and use the same anchored scenery
+in the mascot panel; custom palettes/packs retain their explicit painter scene.
+Large text/short keyboards can scroll the composed canvas while active stop
+controls remain outside the scene in the shell. Imported pack validation, audio
+ownership and disclosure are unaffected. Generation prompts, selected bytes and
+rejected attempts are recorded in assets/design/kinaiya-moonlit-v2.prompts.md.
 
 ## Concept navigation and voice surface
 
