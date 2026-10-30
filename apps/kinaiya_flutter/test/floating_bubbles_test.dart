@@ -234,7 +234,7 @@ void main() {
   });
 
   testWidgets(
-    'hover, pressed pointer and keyboard focus pause the actual setup field',
+    'hover, press and keyboard focus hold only the selected setup body',
     (tester) async {
       await _wide(tester);
       final host = await _setup(tester);
@@ -246,7 +246,8 @@ void main() {
       await _frames(tester, count: 2);
       final hovered = _positions(tester);
       await _frames(tester);
-      expect(_positions(tester), hovered);
+      expect(_positions(tester)['Model'], hovered['Model']);
+      _expectMoved(hovered, _positions(tester));
       await mouse.moveTo(Offset.zero);
       await _frames(tester, count: 2);
       final unhovered = _positions(tester);
@@ -259,7 +260,8 @@ void main() {
       await _frames(tester, count: 2);
       final pressed = _positions(tester);
       await _frames(tester);
-      expect(_positions(tester), pressed);
+      expect(_positions(tester)['Speech'], pressed['Speech']);
+      _expectMoved(pressed, _positions(tester));
       await pointer.cancel();
       await _frames(tester, count: 2);
 
@@ -271,7 +273,8 @@ void main() {
       expect(invoker.focusNode!.hasFocus, isTrue);
       final focused = _positions(tester);
       await _frames(tester);
-      expect(_positions(tester), focused);
+      expect(_positions(tester)['Inputs'], focused['Inputs']);
+      _expectMoved(focused, _positions(tester));
       invoker.focusNode!.unfocus();
       await _frames(tester, count: 2);
       final unfocused = _positions(tester);
@@ -282,6 +285,37 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('backgrounding clears a pre-drag setup pointer hold', (
+    tester,
+  ) async {
+    await _wide(tester);
+    final host = await _setup(tester);
+    addTearDown(
+      () => tester.binding.handleAppLifecycleStateChanged(
+        AppLifecycleState.resumed,
+      ),
+    );
+    await tester.pumpWidget(host.app());
+    await _frames(tester, count: 20);
+    final pointer = await tester.startGesture(
+      tester.getCenter(_bubble('Model')),
+    );
+    await _frames(tester, count: 2);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pump();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await _frames(tester, count: 2);
+    final resumed = _positions(tester);
+    await _frames(tester);
+    expect(
+      (_positions(tester)['Model']! - resumed['Model']!).distance,
+      greaterThan(1),
+    );
+    await pointer.cancel();
+    host.expectReadOnly();
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('a hovered field resumes after its breakpoint layout unmounts', (
     tester,
@@ -296,7 +330,8 @@ void main() {
     await _frames(tester, count: 2);
     final hovered = _positions(tester);
     await _frames(tester);
-    expect(_positions(tester), hovered);
+    expect(_positions(tester)['Model'], hovered['Model']);
+    _expectMoved(hovered, _positions(tester));
 
     // The old MouseRegion disappears at this breakpoint and cannot deliver
     // onExit. Moving outside must not leave the replacement field paused.
@@ -317,7 +352,7 @@ void main() {
   });
 
   for (final unavailable in ['disconnected host', 'HTTP error']) {
-    testWidgets('wide $unavailable header remains clear of drifting circles', (
+    testWidgets('$unavailable is exposed by the floating Setup bubble', (
       tester,
     ) async {
       await _wide(tester);
@@ -327,27 +362,19 @@ void main() {
       await _frames(tester, count: 20);
       expect(
         find.byKey(const ValueKey('model-setup-unavailable')),
+        findsNothing,
+      );
+      await tester.tap(_bubble('Setup'));
+      await _frames(tester, count: 20);
+      expect(
+        find.byKey(const ValueKey('model-setup-unavailable')),
         findsOneWidget,
       );
-      final header = tester.getRect(
-        find.byKey(const ValueKey('setup-fixed-header')),
+      expect(find.byKey(const ValueKey('setup-fixed-header')), findsNothing);
+      expect(
+        find.byKey(const ValueKey('setup-fixed-preferences')),
+        findsNothing,
       );
-      for (var frame = 0; frame < 120; frame++) {
-        for (final section in _sections) {
-          final circle = tester.getRect(_bubble(section));
-          final center = circle.center;
-          final nearest = Offset(
-            center.dx.clamp(header.left, header.right),
-            center.dy.clamp(header.top, header.bottom),
-          );
-          expect(
-            (center - nearest).distance,
-            greaterThanOrEqualTo(circle.width / 2),
-            reason: '$section must remain outside the fixed error header.',
-          );
-        }
-        await tester.pump(const Duration(milliseconds: 16));
-      }
       if (unavailable == 'disconnected host') {
         expect(host.requests, isEmpty);
       } else {
@@ -372,9 +399,7 @@ void main() {
       await mouse.up();
       await _frames(tester, count: 20);
       expect(find.byKey(const ValueKey('setup-popover')), findsOneWidget);
-      final clearSpace = tester.getCenter(
-        find.byKey(const ValueKey('setup-fixed-header')),
-      );
+      final clearSpace = tester.getCenter(find.byTooltip('Close setup'));
       await mouse.moveTo(clearSpace);
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await _frames(tester, count: 20);
@@ -385,7 +410,8 @@ void main() {
       expect(invoker.focusNode!.hasFocus, isTrue);
       final keyboardPaused = _positions(tester);
       await _frames(tester);
-      expect(_positions(tester), keyboardPaused);
+      expect(_positions(tester)['Model'], keyboardPaused['Model']);
+      _expectMoved(keyboardPaused, _positions(tester));
       expect(invoker.focusNode!.hasFocus, isTrue);
 
       // A real PointerHover reaches the setup Listener. No direct unfocus is
@@ -416,7 +442,8 @@ void main() {
       await _frames(tester, count: 2);
       final opened = _positions(tester);
       await _frames(tester);
-      expect(_positions(tester), opened);
+      expect(_positions(tester)['Model'], opened['Model']);
+      _expectMoved(opened, _positions(tester));
       await tester.tap(find.byTooltip('Close settings popover'));
       await _frames(tester, count: 20);
       expect(find.byKey(const ValueKey('setup-popover')), findsNothing);
@@ -488,14 +515,14 @@ void main() {
   );
 
   testWidgets(
-    'all five controls remain reachable at320px2x and after resizing',
+    'all seven controls remain reachable at320px2x and after resizing',
     (tester) async {
       await tester.binding.setSurfaceSize(const Size(320, 740));
       addTearDown(() => tester.binding.setSurfaceSize(null));
       final host = await _setup(tester);
 
       Future<void> inspectEverySection() async {
-        for (final section in _sections) {
+        for (final section in ['Setup', ..._sections, 'View']) {
           final bubble = _bubble(section);
           await tester.ensureVisible(bubble);
           await _frames(tester, count: 20);

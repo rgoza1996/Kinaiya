@@ -76,6 +76,14 @@ Future<void> pumpSetupFrames(WidgetTester tester) async {
   }
 }
 
+Future<void> openSetupSection(WidgetTester tester, String section) async {
+  final bubble = find.byKey(ValueKey('setup-bubble-${section.toLowerCase()}'));
+  await tester.ensureVisible(bubble);
+  await pumpSetupFrames(tester);
+  await tester.tap(bubble);
+  await pumpSetupFrames(tester);
+}
+
 void main() {
   test('setup rejects unsupported or incoherent declarations', () {
     expect(
@@ -164,6 +172,7 @@ void main() {
           'Bearer synthetic-owner',
         );
         expect(storage.writes, isEmpty);
+        await openSetupSection(tester, 'View');
         final toggle = find.byKey(const ValueKey('show-converse-view'));
         await tester.ensureVisible(toggle);
         await tester.pump();
@@ -180,6 +189,7 @@ void main() {
         expect(storage.writes, isEmpty);
         await tester.tap(find.text('Open'));
         await pumpSetupFrames(tester);
+        await openSetupSection(tester, 'View');
         await tester.ensureVisible(toggle);
         await tester.pump();
         expect(toggle.hitTestable(), findsOneWidget);
@@ -212,7 +222,7 @@ void main() {
 
   for (final small in [false, true]) {
     testWidgets(
-      'five glass bubbles expose only bounded read-only native declarations (small=$small)',
+      'seven glass bubbles expose only bounded read-only native declarations (small=$small)',
       (tester) async {
         await tester.binding.setSurfaceSize(
           small ? const Size(320, 740) : const Size(1536, 1024),
@@ -245,6 +255,8 @@ void main() {
         );
         await pumpSetupFrames(tester);
         for (final section in [
+          'Setup',
+          'View',
           'Model',
           'Reasoning',
           'Inputs',
@@ -316,6 +328,7 @@ void main() {
       ),
     );
     await pumpSetupFrames(tester);
+    await openSetupSection(tester, 'View');
     final toggle = find.byKey(const ValueKey('show-converse-view'));
     await tester.ensureVisible(toggle);
     await tester.pump();
@@ -364,6 +377,7 @@ void main() {
     pending.complete(http.Response(jsonEncode(setupFixture()), 200));
     await pumpSetupFrames(tester);
     expect(find.text('Synthetic conversation'), findsNothing);
+    await openSetupSection(tester, 'Setup');
     expect(
       find.text('Connect to your host to inspect configured models.'),
       findsOneWidget,

@@ -1,25 +1,51 @@
-# 0063: Slowly floating Converse setup controls
+# 0063: Floating Converse setup controls
 
-Issue [#148](https://github.com/rgoza1996/Kinaiya/issues/148) requests randomized
-starting locations and gentle physical motion for the five existing setup
-bubbles. Their declarations, host reads and local visibility preference keep
-the boundaries in ADR0060. This change owns presentation only.
+Issues [#148](https://github.com/rgoza1996/Kinaiya/issues/148) and
+[#152](https://github.com/rgoza1996/Kinaiya/issues/152) request randomized starting
+locations, slow physical drift, independent hover holds, dragging/flinging, and
+expanding options modals. Seven bubbles replace the former fixed setup and view
+cards: Setup, Model, Reasoning, Inputs, Speech, Decisions, View. Their host reads
+and separately saved local visibility preference retain ADR0060's boundaries.
+This change owns presentation only.
 
 A bounded local simulation gives circles slow velocities and wall, obstacle and
-pair collisions. Every newly mounted setup gets fresh random starts. Fixed
-header/footer controls and the central character area remain clear in wide
-layouts. Narrow layouts provide a taller scrollable field; large text sizes
-increase bubble diameter. Impossible geometry falls back to ordinary readable
-flow. Resize establishes a new valid arrangement without changing control identity.
+pair collisions. Newly mounted setup gets fresh random starts. Only the small
+Close setup action and the central character area remain reserved in wide
+layouts. Narrow layouts have a taller scrollable field; large text increases
+bubble diameter. Impossible geometry falls back to readable flow. Resize creates
+a new valid arrangement while preserving control identity.
 
-Movement pauses while a bubble is hovered, pressed or focused and while any
-popover is open. Keyboard order follows Model, Reasoning, Inputs, Speech,
-Decisions independently of position; Escape restores the invoker. The existing
-Animations preference, reduced motion, OS disable-animations, inactive lifecycle
-and TickerMode suppress the ticker. Background elapsed time is discarded; step
-time is bounded. Dismissal disposes the ticker. Continuous motion tests pump
-bounded frames rather than waiting for an intentionally ongoing animation.
+Hover, press and keyboard focus hold only the affected body; a held circle acts
+as an immovable collision surface. Pointer dragging follows a swept collision
+path. Release caps speed at 600 logical pixels/second and damps it toward ordinary
+slow drift. Cancel, responsive replacement and backgrounding discard gesture
+ownership and stale launch velocity. Pointer movement releases old keyboard focus
+when it is outside that focused bubble. Keyboard order follows declaration order,
+independently of randomized position.
 
-The separate owner-approved Decisions traceability design is recorded in
-[its planned requirements](../decisions-traceability.md). No example Decisions
-timeline or generated rationale is supplied by this presentation change.
+Clicking a bubble holds and hides its source body while an overlay grows from its
+actual bounds into the options modal over 260 ms. Other bodies continue drifting
+behind the input barrier. The panel retains its final layout inside the animated
+clip; intermediate bounds cannot squeeze its controls. Close, outside click and
+Escape reverse the animation and restore the invoking bubble's focus. Resize
+rebases the return bounds. The small setup Close action and existing voice Stop
+controls remain reachable. Opening and closing options never saves the local
+view preference; View retains explicit Save/Cancel and uncertain-save feedback.
+
+Animations off, reduced motion and OS disable-animations suppress autonomous
+movement and morph transitions; direct dragging remains available without fling.
+Inactive lifecycle and TickerMode suppress physics frames. Background elapsed time
+is discarded and simulation step time is bounded. Dismissal disposes tickers.
+
+Verification maps #152 to `bubble_drag_physics_test.dart` (held collisions,
+sweeps, velocity and recovery), `bubble_drag_field_test.dart` (gestures, ownership,
+visibility and motion gates), `floating_bubbles_test.dart` (actual setup holds,
+continued neighbor motion, focus, availability, resize and accessibility), and
+`model_bubble_morph_test.dart` (source/intermediate/target/reverse bounds, motion
+gates and resize). Existing setup/navigation tests retain GET-only, session,
+voice-owner and preference persistence checks. All fixtures are synthetic.
+Continuous motion tests advance bounded frames instead of waiting to settle.
+
+The separate Decisions traceability design remains
+[planned requirements](../decisions-traceability.md). This presentation change
+supplies no example timeline or generated rationale.

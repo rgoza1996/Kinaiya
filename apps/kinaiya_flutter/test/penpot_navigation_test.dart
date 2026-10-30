@@ -130,6 +130,11 @@ void main() {
         ),
         findsOneWidget,
       );
+      final viewBubble = find.byKey(const ValueKey('setup-bubble-view'));
+      await tester.ensureVisible(viewBubble);
+      await routePump(tester);
+      await tester.tap(viewBubble);
+      await routePump(tester);
       final toggle = find.byKey(const ValueKey('show-converse-view'));
       await tester.ensureVisible(toggle);
       await tester.pump();
