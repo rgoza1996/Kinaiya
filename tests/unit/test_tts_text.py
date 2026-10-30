@@ -9,6 +9,12 @@ from services.converse.tts_text import normalize_for_tts
         ("Hello 😊 How are you?", "Hello How are you?"),
         ("One🙂two", "One two"),
         ("👩🏽‍💻 👨‍👩‍👧‍👦 🇵🇭 1️⃣ ❤️ ★ •", ""),
+        ("😊\ufe0f\u200d", ""),
+        ("1\ufe0f\u20e3\u200d", ""),
+        ("😊!", ""),
+        ("Hello😊\ufe0f\u200d", "Hello"),
+        ("Hello ℹ️ ‼️ ⁉️ 〰️ 〽️ ↔️ friend.", "Hello friend."),
+        ("x ↔ y; x ≥ 2", "x ↔ y; x ≥ 2"),
         ("Sure :) I'll think about it. ;-) :D", "Sure I'll think about it."),
         (
             "12:30 http://example.test/a:=b x:=3 C++ C#",

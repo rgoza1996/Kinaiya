@@ -14,7 +14,15 @@ from services.session.store import LocalJournal, Store
 
 
 @pytest.mark.parametrize(
-    ("original", "spoken"), [("Hello🙂friend.", "Hello friend."), ("😊👩🏽‍💻🇵🇭", "")]
+    ("original", "spoken"),
+    [
+        ("Hello🙂friend.", "Hello friend."),
+        ("😊👩🏽‍💻🇵🇭", ""),
+        ("😊\ufe0f\u200d", ""),
+        ("1\ufe0f\u20e3\u200d", ""),
+        ("😊!", ""),
+        ("Hello ℹ️ friend.", "Hello friend."),
+    ],
 )
 async def test_native_speech_cleans_only_synthesis_and_releases_emoji_only_reply(
     tmp_path, original, spoken
