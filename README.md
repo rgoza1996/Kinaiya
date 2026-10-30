@@ -411,6 +411,12 @@ requires an explicit paid-inference flag and a budget proxy; ordinary CI is offl
 with respect to inference. See [integration evidence and limits](docs/adr/0002-verified-integration-slice.md)
 and the [threat model](docs/security/threat-model.md).
 
+An opt-in [OpenRouter Kokoro TTS selection](docs/adr/0062-explicit-openrouter-tts.md)
+provides cloud speech output independently of dialogue and STT. It uses its own
+protected credential and bounded admission ledger, authorizes each persisted
+reply's disclosure scope, and retains native interruption/cleanup ownership.
+Selecting it introduces no local TTS fallback or managed-worker lifecycle change.
+
 [Native disclosure scopes](docs/adr/0037-typed-disclosure-scopes.md) default
 typed input, tasks and legacy unscoped history to local-only. Public/synthetic
 and private-cloud input require explicit grants; Contributor accepts only the

@@ -876,7 +876,9 @@ class ConverseRuntime:
                     task.cancel()
             await asyncio.gather(validation, stopped, return_exceptions=True)
 
-    async def speech_frames(self, event, generation, synthesize):
+    async def speech_frames(
+        self, event, generation, synthesize, *, synthesize_scoped=None, current=None
+    ):
         """Own one cancellable upstream stream, independent of the response reader.
 
         Cancelling its task closes the HTTP iterator; it is not confirmation that
@@ -885,15 +887,53 @@ class ConverseRuntime:
         queue = asyncio.Queue(maxsize=1)
         iterator = None
         close_failed = False
+        runtime_id = self._runtime_id
+        content_scope = event.payload.get("content_scope", "local_only")
+
+        def bound():
+            return (
+                operation is not None
+                and not operation.cancelled
+                and self._runtime_id == runtime_id
+                and self.admission_current(operation.admission)
+                and self.playback.get(event.session_id) is playback
+                and playback.accepts(generation)
+                and (current is None or current() is True)
+            )
+
+        async def synthesis_current():
+            if not bound() or not await self._speech_valid(operation):
+                return False
+            session = await self.journal.session(event.session_id)
+            return (session.epoch, session.thread_id) == (
+                operation.session_epoch,
+                operation.thread_id,
+            ) and bound()
 
         async def produce():
             nonlocal iterator, close_failed
             try:
                 try:
-                    await self.validate_speech(event.event_id, generation)
+                    validated = await self.validate_speech(event.event_id, generation)
+                    if (
+                        validated.payload.get("text") != event.payload.get("text")
+                        or validated.payload.get("content_scope", "local_only") != content_scope
+                    ):
+                        raise ValueError("Speech reply changed before synthesis")
+                    if not bound():
+                        await queue.put(("done", None))
+                        return
                     spoken = normalize_for_tts(event.payload["text"])
                     if spoken:
-                        iterator = synthesize(spoken)
+                        # Scope/currentness belong to this producer task. Explicit
+                        # arguments cannot be lost across copied task contexts.
+                        iterator = (
+                            synthesize_scoped(
+                                spoken, content_scope=content_scope, current=synthesis_current
+                            )
+                            if synthesize_scoped is not None
+                            else synthesize(spoken)
+                        )
                         async for chunk in iterator:
                             if operation is None or operation.cancelled:
                                 return
@@ -909,7 +949,9 @@ class ConverseRuntime:
                 return
             except Exception as exc:
                 if operation is not None and operation.cancelled:
-                    close_failed = True
+                    # A stale admission can fail validation before a stream
+                    # exists; that is refusal, not unconfirmed HTTP cleanup.
+                    close_failed = close_failed or iterator is not None
                 else:
                     await queue.put(("error", exc))
             else:
