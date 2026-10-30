@@ -183,7 +183,12 @@ class ConverseHandoffTracker {
         !_identifier(entry.causes.single)) {
       return null;
     }
-    if (source == null || source.sequence == null) return _defer(entry);
+    if (source == null ||
+        source.sequence == null ||
+        (entry.payload['source_revision'] as int) > source.revision ||
+        (source.utterance != null && !_windows.containsKey(source.windowKey))) {
+      return _defer(entry);
+    }
     if (!source.matches(current) ||
         source.sequence == null ||
         entry.payload['source_sequence'] is! int ||

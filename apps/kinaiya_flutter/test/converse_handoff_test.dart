@@ -486,6 +486,47 @@ void main() {
   );
 
   test(
+    'a newer native receipt recovers a correction skipped by a resumed journal cursor',
+    () async {
+      final api = ReceiptApi()
+        ..entries = [source(), decision(), receipt('queued')];
+      final state = wired(api);
+      await state.refreshNotices();
+      final correction = event('conversation.revision', 4, {
+        'target_event_id': 'source',
+        'revision': 2,
+      }, id: 'correction');
+      api.references = {
+        'source': source(revision: 2),
+        'correction': correction,
+      };
+      api.decisions = [
+        decision(
+          sequence: 5,
+          decisionId: 'corrected',
+          revision: 2,
+          cause: 'correction',
+        ),
+      ];
+      api.entries.add(
+        receipt(
+          'accepted',
+          id: 'new-revision-receipt',
+          sequence: 20,
+          revision: 2,
+          decisionId: 'corrected',
+          cause: 'correction',
+        ),
+      );
+      await state.refreshNotices();
+      expect(state.converseHistory, hasLength(1));
+      expect(state.converseHistory.single.text, contains('task-1'));
+      expect(api.causalReads, 3);
+      state.dispose();
+    },
+  );
+
+  test(
     'typed causal lookup preserves pagination across short pages and transient failures with eight-read budget',
     () async {
       final api = ReceiptApi()
