@@ -263,6 +263,10 @@ shares one live conversation owner: Home keeps the seated water scene, while the
 optional interaction view adds close-up artwork, transcript and composer. Home's
 mascot/Setup opens model declarations and local view visibility. Model hot-swap,
 camera/direct-audio input and project/media libraries remain unavailable.
+The [setup bubbles](docs/adr/0063-floating-setup-bubbles.md) start in fresh random
+positions and drift slowly, pausing during interaction and honoring motion
+preferences. The separate [Decisions inspection design](docs/decisions-traceability.md)
+is planned; existing routing records do not yet provide its exact-script timeline.
 
 An experimental [Converse memory core](docs/adr/0047-converse-memory-core.md)
 is installed only with `kinaiya serve session --converse-memory` (or the same

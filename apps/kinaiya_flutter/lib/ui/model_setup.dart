@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../api/converse_setup.dart';
 import '../presentation/controller.dart';
 import '../state/app_state.dart';
+import 'floating_bubbles.dart';
 import 'motion_transition.dart';
 
 /// Read-only host configuration and a separately saved local view preference.
@@ -34,11 +35,53 @@ class _ModelSetupDialogState extends State<ModelSetupDialog> {
     super.initState();
     _showConverse = widget.presentation.preferences.showConverseView;
     widget.state.addListener(_changed);
+    widget.presentation.addListener(_presentationChanged);
+    for (final node in _bubbleFocus.values) {
+      node.addListener(_interactionChanged);
+    }
     _refresh();
   }
 
   void _changed() {
     if (_connection != widget.state.connectionGeneration) _refresh();
+  }
+
+  void _presentationChanged() {
+    if (mounted) setState(() {});
+  }
+
+  void _interactionChanged() {
+    if (mounted) setState(() {});
+  }
+
+  final _hovered = <String>{};
+  final _pressed = <int>{};
+  Size? _bubbleLayoutSize;
+  double? _bubbleDiameter;
+
+  void _hover(String section, bool value) {
+    setState(() {
+      if (value) {
+        _hovered.add(section);
+      } else {
+        _hovered.remove(section);
+      }
+    });
+  }
+
+  bool get _pauseBubbles =>
+      _section != null ||
+      _hovered.isNotEmpty ||
+      _pressed.isNotEmpty ||
+      _bubbleFocus.values.any((node) => node.hasFocus);
+
+  void _resumeForPointer() {
+    if (_section != null || _hovered.isNotEmpty) return;
+    // Escape restores keyboard focus. Once the user returns to the pointer
+    // outside a bubble, that focus must not latch motion off indefinitely.
+    for (final node in _bubbleFocus.values) {
+      if (node.hasFocus) node.unfocus();
+    }
   }
 
   @override
@@ -50,6 +93,8 @@ class _ModelSetupDialogState extends State<ModelSetupDialog> {
       _refresh();
     }
     if (!identical(oldWidget.presentation, widget.presentation)) {
+      oldWidget.presentation.removeListener(_presentationChanged);
+      widget.presentation.addListener(_presentationChanged);
       _showConverse = widget.presentation.preferences.showConverseView;
       _saving = false;
       _saveNotice = null;
@@ -125,7 +170,9 @@ class _ModelSetupDialogState extends State<ModelSetupDialog> {
   void dispose() {
     _request++;
     widget.state.removeListener(_changed);
+    widget.presentation.removeListener(_presentationChanged);
     for (final node in _bubbleFocus.values) {
+      node.removeListener(_interactionChanged);
       node.dispose();
     }
     super.dispose();
@@ -213,71 +260,80 @@ class _ModelSetupDialogState extends State<ModelSetupDialog> {
   Widget _bubble(String section, IconData icon, double diameter) {
     final colors = Theme.of(context).colorScheme;
     final active = _section == section;
-    return Semantics(
-      label: '$section settings',
-      value: _value(section),
-      button: true,
-      child: Tooltip(
-        message: 'Inspect $section settings',
-        child: Material(
-          key: ValueKey('setup-bubble-${section.toLowerCase()}'),
-          shape: CircleBorder(
-            side: BorderSide(
-              color: active ? colors.primary : colors.surface,
-              width: 3,
-            ),
-          ),
-          elevation: active ? 10 : 4,
-          color: colors.surface.withValues(alpha: .94),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            customBorder: const CircleBorder(),
-            focusNode: _bubbleFocus[section],
-            canRequestFocus: _section == null,
-            onTap: () => _openSection(section),
-            child: Container(
-              width: diameter,
-              height: diameter,
-              padding: const EdgeInsets.all(17),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    colors.surface,
-                    colors.primaryContainer.withValues(alpha: .65),
-                  ],
-                ),
-                border: Border.all(
-                  color: colors.primary.withValues(alpha: .28),
-                  width: 5,
+    return MouseRegion(
+      onEnter: (_) => _hover(section, true),
+      onExit: (_) => _hover(section, false),
+      child: Listener(
+        onPointerDown: (event) => setState(() => _pressed.add(event.pointer)),
+        onPointerUp: (event) => setState(() => _pressed.remove(event.pointer)),
+        onPointerCancel: (event) =>
+            setState(() => _pressed.remove(event.pointer)),
+        child: Semantics(
+          label: '$section settings',
+          value: _value(section),
+          button: true,
+          child: Tooltip(
+            message: 'Inspect $section settings',
+            child: Material(
+              key: ValueKey('setup-bubble-${section.toLowerCase()}'),
+              shape: CircleBorder(
+                side: BorderSide(
+                  color: active ? colors.primary : colors.surface,
+                  width: 3,
                 ),
               ),
-              child: ExcludeSemantics(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(icon, color: colors.primary, size: 28),
-                    const SizedBox(height: 6),
-                    Text(
-                      section,
-                      style: Theme.of(context).textTheme.titleMedium,
-                      textAlign: TextAlign.center,
+              elevation: active ? 10 : 4,
+              color: colors.surface.withValues(alpha: .94),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                focusNode: _bubbleFocus[section],
+                canRequestFocus: _section == null,
+                onTap: () => _openSection(section),
+                child: Container(
+                  width: diameter,
+                  height: diameter,
+                  padding: const EdgeInsets.all(17),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        colors.surface,
+                        colors.primaryContainer.withValues(alpha: .65),
+                      ],
                     ),
-                    const SizedBox(height: 4),
-                    Flexible(
-                      child: Text(
-                        _value(section),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                        style: Theme.of(
-                          context,
-                        ).textTheme.bodySmall?.copyWith(color: colors.primary),
-                      ),
+                    border: Border.all(
+                      color: colors.primary.withValues(alpha: .28),
+                      width: 5,
                     ),
-                  ],
+                  ),
+                  child: ExcludeSemantics(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(icon, color: colors.primary, size: 28),
+                        const SizedBox(height: 6),
+                        Text(
+                          section,
+                          style: Theme.of(context).textTheme.titleMedium,
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 4),
+                        Flexible(
+                          child: Text(
+                            _value(section),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(color: colors.primary),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -477,135 +533,213 @@ class _ModelSetupDialogState extends State<ModelSetupDialog> {
     backgroundColor: Colors.transparent,
     shadowColor: Colors.transparent,
     insetPadding: const EdgeInsets.all(16),
-    child: Column(
-      children: [
-        if (widget.voiceControls != null) widget.voiceControls!,
-        Expanded(
-          child: LayoutBuilder(
-            builder: (context, box) {
-              final scale = MediaQuery.textScalerOf(context).scale(1);
-              final wide =
-                  box.maxWidth / scale >= 1050 && box.maxHeight / scale >= 650;
-              const sections = <String, IconData>{
-                'Model': Icons.settings_outlined,
-                'Reasoning': Icons.auto_awesome_outlined,
-                'Inputs': Icons.article_outlined,
-                'Speech': Icons.record_voice_over_outlined,
-                'Decisions': Icons.diamond_outlined,
-              };
-              final header = Material(
-                color: Theme.of(
-                  context,
-                ).colorScheme.surface.withValues(alpha: .96),
-                borderRadius: BorderRadius.circular(16),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              'Kinaiya setup',
-                              style: Theme.of(context).textTheme.titleLarge,
+    child: Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerHover: (_) => _resumeForPointer(),
+      child: Column(
+        children: [
+          if (widget.voiceControls != null) widget.voiceControls!,
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, box) {
+                final scale = MediaQuery.textScalerOf(context).scale(1);
+                final wide =
+                    box.maxWidth / scale >= 1050 &&
+                    box.maxHeight / scale >= 650;
+                const sections = <String, IconData>{
+                  'Model': Icons.settings_outlined,
+                  'Reasoning': Icons.auto_awesome_outlined,
+                  'Inputs': Icons.article_outlined,
+                  'Speech': Icons.record_voice_over_outlined,
+                  'Decisions': Icons.diamond_outlined,
+                };
+                final diameter = wide
+                    ? 178 * scale
+                    : (160 * scale).clamp(0.0, box.maxWidth - 32);
+                if (_bubbleLayoutSize != box.biggest ||
+                    _bubbleDiameter != diameter) {
+                  // MouseRegion does not send onExit when a region unmounts.
+                  // A responsive replacement must not retain its hover latch.
+                  _hovered.clear();
+                  _pressed.clear();
+                  _bubbleLayoutSize = box.biggest;
+                  _bubbleDiameter = diameter;
+                }
+                final bubbles = {
+                  for (final item in sections.entries)
+                    item.key: _bubble(item.key, item.value, diameter),
+                };
+                final animate =
+                    widget.presentation.preferences.animateTransitions &&
+                    !widget.presentation.preferences.reducedMotion;
+                Widget flow() => Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 16,
+                  runSpacing: 16,
+                  children: bubbles.values.toList(),
+                );
+                final header = Material(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.surface.withValues(alpha: .96),
+                  borderRadius: BorderRadius.circular(16),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Kinaiya setup',
+                                style: Theme.of(context).textTheme.titleLarge,
+                              ),
                             ),
-                          ),
-                          IconButton(
-                            tooltip: 'Close setup',
-                            onPressed: _saving
-                                ? null
-                                : () => Navigator.of(context).pop(),
-                            icon: const Icon(Icons.close),
-                          ),
-                        ],
-                      ),
-                      if (_loading) const LinearProgressIndicator(),
-                      if (_error != null)
-                        Text(
-                          _error!,
-                          key: const ValueKey('model-setup-unavailable'),
+                            IconButton(
+                              tooltip: 'Close setup',
+                              onPressed: _saving
+                                  ? null
+                                  : () => Navigator.of(context).pop(),
+                              icon: const Icon(Icons.close),
+                            ),
+                          ],
                         ),
-                      TextButton.icon(
-                        onPressed: _loading ? null : _refresh,
-                        icon: const Icon(Icons.refresh),
-                        label: const Text('Refresh host configuration'),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-              if (!wide) {
-                return SingleChildScrollView(
-                  key: const ValueKey('setup-bubbles-narrow'),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      header,
-                      const SizedBox(height: 16),
-                      Wrap(
-                        alignment: WrapAlignment.center,
-                        spacing: 16,
-                        runSpacing: 16,
-                        children: [
-                          for (final item in sections.entries)
-                            _bubble(
-                              item.key,
-                              item.value,
-                              (160 * scale).clamp(0.0, box.maxWidth),
-                            ),
-                        ],
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.only(top: 16),
-                        child: _popoverSlot(),
-                      ),
-                      const SizedBox(height: 16),
-                      _preferences(),
-                    ],
+                        if (_loading) const LinearProgressIndicator(),
+                        if (_error != null)
+                          Text(
+                            _error!,
+                            key: const ValueKey('model-setup-unavailable'),
+                          ),
+                        TextButton.icon(
+                          onPressed: _loading ? null : _refresh,
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Refresh host configuration'),
+                        ),
+                      ],
+                    ),
                   ),
                 );
-              }
-              const positions = <String, Alignment>{
-                'Model': Alignment(-.76, .18),
-                'Reasoning': Alignment(-.50, -.19),
-                'Inputs': Alignment(.50, -.22),
-                'Speech': Alignment(.78, .07),
-                'Decisions': Alignment(.69, .50),
-              };
-              return Stack(
-                key: const ValueKey('setup-bubbles-wide'),
-                children: [
-                  Positioned(top: 0, left: 0, width: 260, child: header),
-                  for (final item in sections.entries)
-                    Align(
-                      alignment: positions[item.key]!,
-                      child: _bubble(item.key, item.value, 178),
+                if (!wide) {
+                  return SingleChildScrollView(
+                    key: const ValueKey('setup-bubbles-narrow'),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        header,
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          height:
+                              (5 /
+                                          (box.maxWidth / (diameter + 32))
+                                              .floor()
+                                              .clamp(1, 5))
+                                      .ceil() *
+                                  (diameter + 32) +
+                              32,
+                          child: FocusTraversalGroup(
+                            policy: OrderedTraversalPolicy(),
+                            child: FloatingBubbles(
+                              key: const ValueKey('setup-floating-narrow'),
+                              children: bubbles,
+                              diameter: diameter,
+                              enabled: animate,
+                              paused: _pauseBubbles,
+                              fallback: flow(),
+                            ),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 16),
+                          child: _popoverSlot(),
+                        ),
+                        const SizedBox(height: 16),
+                        _preferences(),
+                      ],
                     ),
-                  Positioned(
-                    left: 0,
-                    bottom: 0,
-                    width: 420,
-                    child: _preferences(),
-                  ),
-                  Positioned(
-                    top: 140,
-                    bottom: 80,
-                    left: const {'Model', 'Reasoning'}.contains(_popoverAnchor)
-                        ? 0
-                        : box.maxWidth - 420,
-                    width: 420,
-                    child: Align(
-                      alignment: Alignment.topCenter,
-                      child: _popoverSlot(),
+                  );
+                }
+                return Stack(
+                  key: const ValueKey('setup-bubbles-wide'),
+                  children: [
+                    Positioned.fill(
+                      child: FocusTraversalGroup(
+                        policy: OrderedTraversalPolicy(),
+                        child: FloatingBubbles(
+                          key: const ValueKey('setup-floating-wide'),
+                          children: bubbles,
+                          diameter: diameter,
+                          enabled: animate,
+                          paused: _pauseBubbles,
+                          obstacles: [
+                            Rect.fromLTWH(0, 0, 280 * scale, 236 * scale),
+                            Rect.fromLTWH(
+                              0,
+                              box.maxHeight - 300 * scale,
+                              440 * scale,
+                              300 * scale,
+                            ),
+                            // Keep the character visible between the controls.
+                            Rect.fromLTWH(
+                              box.maxWidth / 2 - 130 * scale,
+                              box.maxHeight * .3,
+                              260 * scale,
+                              box.maxHeight * .45,
+                            ),
+                          ],
+                          fallback: Padding(
+                            padding: EdgeInsets.only(left: 440 * scale),
+                            child: SingleChildScrollView(child: flow()),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ],
-              );
-            },
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      width: 260 * scale,
+                      height: 220 * scale,
+                      child: Align(
+                        alignment: Alignment.topLeft,
+                        child: SingleChildScrollView(
+                          key: const ValueKey('setup-fixed-header'),
+                          child: header,
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      left: 0,
+                      bottom: 0,
+                      width: 420 * scale,
+                      height: 300 * scale,
+                      child: Align(
+                        alignment: Alignment.bottomLeft,
+                        child: SingleChildScrollView(
+                          key: const ValueKey('setup-fixed-preferences'),
+                          child: _preferences(),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      top: 140,
+                      bottom: 80,
+                      left:
+                          const {'Model', 'Reasoning'}.contains(_popoverAnchor)
+                          ? 0
+                          : box.maxWidth - 420,
+                      width: 420,
+                      child: Align(
+                        alignment: Alignment.topCenter,
+                        child: _popoverSlot(),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     ),
   );
 }
