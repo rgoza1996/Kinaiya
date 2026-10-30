@@ -1,15 +1,15 @@
 {
   "pack_schema": 3,
   "pack_id": "kinaiya-default",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "name": "Kinaiya",
   "author": "Kinaiya project; owner reference with generated animation frames",
   "license": "Apache-2.0; project terms, original owner-supplied reference retained",
   "provenance": {
     "source_asset": "assets/mascot/kinaiya-mascot.png",
     "source_sha256": "426188e15d0f8dad7216b51da6a2dddbb7ff74c1aec714a7de01b5b3b3bc6977",
-    "generator": "OpenAI built-in image generation; 2026-10-27; core and semantic activity atlases",
-    "prompt_file": "assets/character/kinaiya-activity-v1.prompts.md"
+    "generator": "OpenAI built-in image generation; 2026-10-27 core and semantic activity atlases; 2026-10-29 seated idle atlas",
+    "prompt_file": "assets/character/kinaiya-seated-idle-v1.prompts.md"
   },
   "theme": {
     "primary": "#141091",
@@ -43,18 +43,29 @@
       "height": 1254,
       "frame_width": 313,
       "frame_height": 313
+    },
+    {
+      "id": "seated_idle",
+      "asset": "assets/character/kinaiya-seated-idle-v1.png",
+      "sha256": "1322c7fa9ba76ad0cbc6ac8409564d5247d0366bf53fe368f9a39338ac938259",
+      "width": 1254,
+      "height": 1254,
+      "frame_width": 627,
+      "frame_height": 576
     }
   ],
   "animations": {
     "idle": {
-      "sheet": "core",
+      "sheet": "seated_idle",
       "frames": [
         0,
-        1,
+        0,
+        0,
+        0,
+        0,
         2,
-        3,
-        2,
-        1
+        0,
+        0
       ],
       "frame_ms": 280,
       "loop": true
@@ -151,14 +162,11 @@
       "loop": true
     },
     "idle_blink": {
-      "sheet": "core",
+      "sheet": "seated_idle",
       "frames": [
         0,
-        1,
         2,
-        3,
-        2,
-        1
+        0
       ],
       "frame_ms": 220,
       "loop": true
