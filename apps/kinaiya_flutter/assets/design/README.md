@@ -16,3 +16,13 @@ The optional Converse view crops the original neutral/thinking/speaking cells in
 Flutter. It does not bake controls into the artwork or alter the imported pack,
 voice, personality or permission settings. These static poses are not phoneme
 alignment evidence. Home retains the existing seated sprite animation.
+`kinaiya-sleeping-home-v1.png` is the unmodified 1536×1024 sleeping artwork
+from the owner's October 30 **Kinaiya — Home & Converse · Sleeping state**
+Penpot file. SHA256:
+`617217a193bb965619ca75c5ee4fb1cb1fbff6b0b88b4efc9fbd60e4856fdfbb`.
+It contains Kinaiya asleep on the water and the decorative scene, with no baked
+controls. It was generated in the owner's separate Penpot setup chat; this
+implementation reuses that supplied asset without another image generation.
+The sleeping illustration is a static state reference. It is shown only for a
+confirmed owner-off Converse state; an outage or resource handoff is not evidence
+that the owner put Converse to sleep.

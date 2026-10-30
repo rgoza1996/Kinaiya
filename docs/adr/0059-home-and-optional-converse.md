@@ -9,9 +9,9 @@ character-to-Agent navigation described in Roadmap §15.2: clicking the Home
 character opens setup. Agent remains a separate, direct destination.
 
 The source export is preserved at `assets/penpot/Kinaiya-Converse-Agent.penpot`,
-SHA256 `2b0766982cdbf29d1796a7fb73423d4f436af400a93a5873c353543c867a6d2d`.
-Its first page, “00 · Home & Converse · Updated”, includes the 25 connected
-boards inspected for this change. Existing example messages, weather, projects,
+SHA256 `2cf97cfe945a22dfebb358d96928f4aa0c6b658fc0fa97e32a80bf10b95d64d8`.
+Its first page, “00 · Home & Converse · Updated”, includes the 26 connected
+boards inspected for this change, including the latest sleeping Home state. Existing example messages, weather, projects,
 model names and task outcomes are design examples, never runtime fixtures.
 
 ## Ownership and compatibility
@@ -38,6 +38,23 @@ static expression references do not establish phoneme timing or new emotion
 inference. Imported packs, character visibility, theme overrides and reduced
 motion retain their existing owners. The interaction canvas and history remain
 bounded; narrow and enlarged-text layouts scroll instead of hiding controls.
+
+## Owner-off sleeping Home
+
+The latest native file adds **Home / Offline · Sleeping**, with a separate full
+scene illustration and editable Sleep/Wake controls. Sleep and Wake operate the
+existing authenticated Converse owner intent. They never disable Agent or treat
+the optional-view preference as a service switch. Confirmed owner-off uses the
+supplied sleeping scene; resource handoff, failed health reads and connection
+loss keep distinct status instead of claiming intentional sleep. An accepted
+Wake is not readiness and never starts microphone capture automatically.
+
+Control responses and reconciliation remain bound to the connection that issued
+them. A timeout leaves the outcome uncertain until a fresh owner observation;
+it does not justify retrying a mutation or presenting a successful state.
+Existing capture/playback cancellation owns local cleanup and prevents late
+recording or speech completions from rearming after Sleep. The static sleeping
+reference respects character visibility and custom presentation precedence.
 
 ## Capability boundaries
 

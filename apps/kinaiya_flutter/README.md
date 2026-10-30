@@ -63,6 +63,11 @@ worker is loaded/ready. Models and reasoning are host-managed and read-only;
 this host supports text dialogue with STT, not direct audio, image/video or camera
 input. **Save setup** only saves the optional Converse view on this device.
 Hiding it preserves Home voice and does not change backend Converse enabled state.
+**Sleep** and **Wake Kinaiya** separately control the authenticated Converse
+owner intent. Only a confirmed owner-off state shows the supplied sleeping
+illustration; resource pauses and outages remain distinct. Waking waits for
+actual service readiness and does not start the microphone. Agent stays usable.
+
 Connection/disclosure, model selection and permissions remain separate owners.
 
 Global **Stop microphone** discards unfinished audio without transcription or

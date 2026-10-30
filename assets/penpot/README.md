@@ -21,10 +21,11 @@ editable source and contains many more screens:
 3. Open the imported file and choose a page in the left sidebar. Select layers to
    edit them; use the **Prototype** tab and **View mode** to inspect linked flows.
 
-The current October 30 connected-sidebar export contains 12 pages and 80 top-level
-boards. Its SHA256 is `2b0766982cdbf29d1796a7fb73423d4f436af400a93a5873c353543c867a6d2d`.
-The first page, **00 · Home & Converse · Updated**, contains 25 connected boards
-for Home, optional Converse, model setup and existing sidebar destinations.
+The current October 30 sleeping-state export contains 12 pages and 81 top-level
+boards. Its SHA256 is `2cf97cfe945a22dfebb358d96928f4aa0c6b658fc0fa97e32a80bf10b95d64d8`.
+The first page, **00 · Home & Converse · Updated**, contains 26 connected boards
+for Home, optional Converse, model setup, existing sidebar destinations and the
+owner-off sleeping Home state.
 The app implementation follows [ADR 0059](../../docs/adr/0059-home-and-optional-converse.md);
 unsupported model switching, camera and library controls are not working runtime
 features merely because they appear in this prototype.
