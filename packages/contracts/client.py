@@ -1,5 +1,13 @@
 import httpx
 
+from packages.contracts.context import (
+    MAX_CONTEXT_RESPONSE_BYTES,
+    ContextHistoryPage,
+    ContextHistoryRequest,
+    ContextQualificationPage,
+    ContextQualificationRequest,
+    context_json,
+)
 from packages.contracts.models import JournalEntry, PlaybackGeneration, Session
 
 
@@ -31,6 +39,44 @@ class JournalClient:
         response = await self.http.get("/v1/transcript/recent", params=kwargs)
         response.raise_for_status()
         return [JournalEntry.model_validate(value) for value in response.json()]
+
+    async def context_history(
+        self, *, source_event_id, through_sequence=None, before_sequence=None, limit=100
+    ) -> ContextHistoryPage:
+        request = ContextHistoryRequest(
+            source_event_id=source_event_id,
+            through_sequence=through_sequence,
+            before_sequence=before_sequence,
+            limit=limit,
+        )
+        response = await self.http.get(
+            "/v1/transcript/context-history",
+            params=request.model_dump(exclude_none=True, exclude={"schema_version"}),
+        )
+        response.raise_for_status()
+        # JSON-mode strict validation accepts native ISO timestamps while rejecting
+        # coerced identities, booleans and counters, including nested entries.
+        context_json(response.content, maximum=MAX_CONTEXT_RESPONSE_BYTES)
+        page = ContextHistoryPage.model_validate_json(response.content, strict=True)
+        return page.validate_request(request)
+
+    async def context_qualifications(
+        self, *, source_event_id, through_sequence, base_event_ids, before_sequence=None, limit=100
+    ) -> ContextQualificationPage:
+        request = ContextQualificationRequest(
+            source_event_id=source_event_id,
+            through_sequence=through_sequence,
+            base_event_ids=base_event_ids,
+            before_sequence=before_sequence,
+            limit=limit,
+        )
+        response = await self.http.post(
+            "/v1/transcript/context-qualifications", json=request.model_dump(mode="json")
+        )
+        response.raise_for_status()
+        context_json(response.content, maximum=MAX_CONTEXT_RESPONSE_BYTES)
+        page = ContextQualificationPage.model_validate_json(response.content, strict=True)
+        return page.validate_request(request)
 
     async def session(self, session_id):
         response = await self.http.get(f"/v1/sessions/{session_id}")

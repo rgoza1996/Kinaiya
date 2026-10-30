@@ -5,6 +5,13 @@ import sqlite3
 import threading
 from pathlib import Path
 
+from packages.contracts.context import (
+    MAX_CONTEXT_PAGE_BYTES,
+    ContextHistoryPage,
+    ContextHistoryRequest,
+    ContextQualificationPage,
+    ContextQualificationRequest,
+)
 from packages.contracts.models import (
     MAX_PLAYBACK_GENERATION,
     AppendRequest,
@@ -82,6 +89,31 @@ class Store:
                 value TEXT NOT NULL, UNIQUE(session_id,writer,idem));
             CREATE INDEX IF NOT EXISTS entries_thread ON entries(thread_id,sequence);
             CREATE INDEX IF NOT EXISTS entries_session ON entries(session_id,sequence);
+            CREATE INDEX IF NOT EXISTS entries_context ON entries(
+                session_id, thread_id, epoch, kind, sequence);
+            CREATE INDEX IF NOT EXISTS entries_context_base ON entries(
+                session_id, thread_id, epoch, sequence)
+                WHERE kind IN ('conversation.user','conversation.window','conversation.converse');
+            CREATE INDEX IF NOT EXISTS entries_context_window ON entries(
+                session_id, thread_id, epoch,
+                json_extract(value,'$.payload.utterance_id'),
+                json_extract(value,'$.payload.window_index'),
+                json_extract(value,'$.payload.revision'), sequence)
+                WHERE kind='conversation.window';
+            CREATE INDEX IF NOT EXISTS entries_context_revision ON entries(
+                session_id, thread_id, epoch,
+                json_extract(value,'$.payload.target_event_id'), sequence)
+                WHERE kind='conversation.revision';
+            CREATE INDEX IF NOT EXISTS entries_context_receipt ON entries(
+                session_id, thread_id, epoch,
+                json_extract(value,'$.payload.event_id'), sequence)
+                WHERE kind='delivery.updated';
+            CREATE INDEX IF NOT EXISTS entries_context_stop ON entries(
+                session_id, thread_id, epoch,
+                json_extract(value,'$.payload.runtime_id'),
+                json_extract(value,'$.payload.next_generation_epoch'), sequence)
+                WHERE kind='delivery.updated'
+                AND json_extract(value,'$.payload.control')='generation_stop';
             CREATE INDEX IF NOT EXISTS entries_window_dispatch ON entries(
                 json_extract(value,'$.payload.decision_id'), sequence)
                 WHERE kind='routing.window_dispatch';
@@ -670,6 +702,241 @@ class Store:
             output.append(JournalEntry.model_validate_json(row[0]))
         return list(reversed(output))
 
+    def _context_scope(self, source_event_id, through_sequence):
+        source = self.entry(source_event_id)
+        session = self.session(source.session_id)
+        if (
+            source.kind not in {"conversation.user", "conversation.window"}
+            or source.origin != "authenticated-user"
+            or session.channel != "converse"
+            or (source.thread_id, source.epoch) != (session.thread_id, session.epoch)
+        ):
+            raise JournalError("Native context source is not a current Converse user source")
+        if source.kind == "conversation.window":
+            try:
+                window = SpeechWindow.model_validate(source.payload)
+            except ValueError as exc:
+                raise JournalError("Invalid native context window source") from exc
+            if (window.session_id, window.thread_id, window.epoch) != (
+                source.session_id,
+                source.thread_id,
+                source.epoch,
+            ):
+                raise JournalError("Wrong native context window scope")
+        elif source.payload.get("final") is not True or not isinstance(
+            source.payload.get("text"), str
+        ):
+            raise JournalError("Invalid native context user source")
+        latest = self.db.execute("SELECT coalesce(max(sequence),0) FROM entries").fetchone()[0]
+        through = through_sequence if through_sequence is not None else latest
+        if not source.sequence <= through <= latest:
+            raise JournalError("Native context watermark does not cover the source")
+        return source, through
+
+    @staticmethod
+    def _context_base_query(source, through):
+        current_utterance = (
+            source.payload["utterance_id"] if source.kind == "conversation.window" else None
+        )
+        # Choose window heads over the complete frozen scope before the page
+        # cursor or provider disclosure. Later denied corrections never expose
+        # an older public hypothesis. A prior utterance may have a late head.
+        sql = """
+            SELECT e.value FROM entries e
+            WHERE e.session_id=? AND e.thread_id=? AND e.epoch=? AND e.sequence<=?
+            AND e.kind IN ('conversation.user','conversation.window','conversation.converse')
+            AND (
+                (e.kind IN ('conversation.user','conversation.converse') AND e.sequence<?)
+                OR (
+                    e.kind='conversation.window'
+                    AND (? IS NULL OR json_extract(e.value,'$.payload.utterance_id')<>?)
+                    AND EXISTS (
+                        SELECT 1 FROM entries p
+                        WHERE p.session_id=e.session_id AND p.thread_id=e.thread_id
+                        AND p.epoch=e.epoch AND p.kind='conversation.window'
+                        AND p.sequence<?
+                        AND json_extract(p.value,'$.payload.utterance_id')=
+                            json_extract(e.value,'$.payload.utterance_id')
+                    )
+                    AND NOT EXISTS (
+                        SELECT 1 FROM entries n
+                        WHERE n.session_id=e.session_id AND n.thread_id=e.thread_id
+                        AND n.epoch=e.epoch AND n.kind='conversation.window'
+                        AND n.sequence<=?
+                        AND json_extract(n.value,'$.payload.utterance_id')=
+                            json_extract(e.value,'$.payload.utterance_id')
+                        AND (
+                            json_extract(n.value,'$.payload.window_index'),
+                            json_extract(n.value,'$.payload.revision'), n.sequence
+                        ) > (
+                            json_extract(e.value,'$.payload.window_index'),
+                            json_extract(e.value,'$.payload.revision'), e.sequence
+                        )
+                    )
+                )
+            )
+        """
+        return sql, [
+            source.session_id,
+            source.thread_id,
+            source.epoch,
+            through,
+            source.sequence,
+            current_utterance,
+            current_utterance,
+            source.sequence,
+            through,
+        ]
+
+    def _context_page(self, request, source, through, sql, parameters, page_type, **extra):
+        if request.before_sequence is not None:
+            sql += " AND e.sequence<?"
+            parameters.append(request.before_sequence)
+        sql += " ORDER BY e.sequence DESC LIMIT ?"
+        parameters.append(request.limit + 1)
+        rows = self.db.execute(sql, parameters)
+        entries, size, exhausted = [], 0, True
+        try:
+            for row in rows:
+                if len(entries) == request.limit:
+                    exhausted = False
+                    break
+                row_size = len(row[0].encode())
+                if row_size > MAX_CONTEXT_PAGE_BYTES:
+                    raise JournalError("Native context entry exceeds the page byte limit")
+                if size + row_size > MAX_CONTEXT_PAGE_BYTES:
+                    exhausted = False
+                    break
+                try:
+                    entry = JournalEntry.model_validate_json(row[0], strict=True)
+                except ValueError as exc:
+                    raise JournalError("Invalid native context entry") from exc
+                entries.append(entry)
+                size += row_size
+        finally:
+            rows.close()
+        try:
+            page = page_type(
+                schema_version="1.0",
+                source_event_id=source.event_id,
+                session_id=source.session_id,
+                thread_id=source.thread_id,
+                epoch=source.epoch,
+                through_sequence=through,
+                entries=entries,
+                next_before_sequence=entries[-1].sequence if not exhausted else None,
+                exhausted=exhausted,
+                **extra,
+            )
+            return page.validate_request(request)
+        except ValueError as exc:
+            raise JournalError("Invalid native context page") from exc
+
+    def context_history(
+        self, *, source_event_id, through_sequence=None, before_sequence=None, limit=100
+    ) -> ContextHistoryPage:
+        """Reverse semantic bases, independent of operational traffic and token capacity."""
+        try:
+            request = ContextHistoryRequest(
+                source_event_id=source_event_id,
+                through_sequence=through_sequence,
+                before_sequence=before_sequence,
+                limit=limit,
+            )
+        except ValueError as exc:
+            raise JournalError("Invalid native context history request") from exc
+        with self.lock:
+            source, through = self._context_scope(request.source_event_id, request.through_sequence)
+            sql, parameters = self._context_base_query(source, through)
+            return self._context_page(request, source, through, sql, parameters, ContextHistoryPage)
+
+    def context_qualifications(
+        self, *, source_event_id, through_sequence, base_event_ids, before_sequence=None, limit=100
+    ) -> ContextQualificationPage:
+        """All matching native corrections and playback evidence at the same watermark.
+
+        Qualification paging must reach explicit exhaustion before the requested
+        bases are projected. Generation stops can precede late obsolete chunks;
+        the qualification cursor is therefore independent of the base cursor.
+        """
+        try:
+            request = ContextQualificationRequest(
+                source_event_id=source_event_id,
+                through_sequence=through_sequence,
+                base_event_ids=base_event_ids,
+                before_sequence=before_sequence,
+                limit=limit,
+            )
+        except ValueError as exc:
+            raise JournalError("Invalid native context qualification request") from exc
+        with self.lock:
+            source, through = self._context_scope(request.source_event_id, request.through_sequence)
+            base_sql, base_parameters = self._context_base_query(source, through)
+            placeholders = ",".join("?" for _ in request.base_event_ids)
+            bases = [
+                JournalEntry.model_validate_json(row[0], strict=True)
+                for row in self.db.execute(
+                    base_sql + f" AND e.event_id IN ({placeholders})",
+                    [*base_parameters, *request.base_event_ids],
+                )
+            ]
+            if {base.event_id for base in bases} != set(request.base_event_ids):
+                raise JournalError("Qualification bases are not frozen native context records")
+            user_ids = [base.event_id for base in bases if base.kind == "conversation.user"]
+            assistant_ids = [
+                base.event_id for base in bases if base.kind == "conversation.converse"
+            ]
+            clauses, parameters = [], [source.session_id, source.thread_id, source.epoch, through]
+            if user_ids:
+                user_slots = ",".join("?" for _ in user_ids)
+                clauses.append(
+                    "(e.kind='conversation.revision' AND "
+                    f"json_extract(e.value,'$.payload.target_event_id') IN ({user_slots}))"
+                )
+                parameters.extend(user_ids)
+            if assistant_ids:
+                assistant_slots = ",".join("?" for _ in assistant_ids)
+                clauses.append(f"""(
+                    e.kind='delivery.updated' AND (
+                        json_extract(e.value,'$.payload.event_id') IN ({assistant_slots})
+                        OR (
+                            json_extract(e.value,'$.payload.control')='generation_stop'
+                            AND EXISTS (
+                                SELECT 1 FROM entries b
+                                WHERE b.event_id IN ({assistant_slots})
+                                AND json_extract(b.value,'$.payload.runtime_id')=
+                                    json_extract(e.value,'$.payload.runtime_id')
+                                AND json_type(b.value,'$.payload.generation_epoch')='integer'
+                                AND json_type(e.value,'$.payload.next_generation_epoch')='integer'
+                                AND json_extract(e.value,'$.payload.next_generation_epoch')>
+                                    json_extract(b.value,'$.payload.generation_epoch')
+                            )
+                        )
+                    )
+                )""")
+                parameters.extend([*assistant_ids, *assistant_ids])
+            # Window heads need no extra chain: head selection already happened
+            # before disclosure. An all-window request has an empty qualification set.
+            sql = (
+                """
+                SELECT e.value FROM entries e
+                WHERE e.session_id=? AND e.thread_id=? AND e.epoch=? AND e.sequence<=?
+                AND e.kind IN ('conversation.revision','delivery.updated')
+                AND (
+            """
+                + (" OR ".join(clauses) if clauses else "0")
+                + ")"
+            )
+            return self._context_page(
+                request,
+                source,
+                through,
+                sql,
+                parameters,
+                ContextQualificationPage,
+                base_event_ids=request.base_event_ids,
+            )
+
     def read(
         self,
         *,
@@ -755,6 +1022,16 @@ class LocalJournal:
 
     async def recent(self, **kwargs):
         return self.store.recent(**kwargs)
+
+    async def context_history(self, **kwargs) -> ContextHistoryPage:
+        if self.role not in {"owner", "converse"}:
+            raise PermissionError("Context history requires owner or Converse")
+        return self.store.context_history(**kwargs)
+
+    async def context_qualifications(self, **kwargs) -> ContextQualificationPage:
+        if self.role not in {"owner", "converse"}:
+            raise PermissionError("Context qualifications require owner or Converse")
+        return self.store.context_qualifications(**kwargs)
 
     async def session(self, session_id):
         return self.store.session(session_id)
