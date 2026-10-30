@@ -29,8 +29,8 @@ controls fill a command draft; selection does not send it.
 
 The [full options catalog](../../docs/options.md) records working, host-only and
 planned controls separately, including their scope, defaults and native owner.
-It is independent of screen composition so the later Penpot design can supply
-the visual style, with additional matching sections for omitted advanced options.
+Its stable controls now use the owner-supplied Penpot visual style, with matching
+sections for omitted advanced options as their native editors become available.
 Provider choice, disclosure consent, permissions, isolation and cost limits
 remain separate controls.
 
@@ -41,7 +41,7 @@ Build information in Settings uses optional
 
 ## Voice behavior
 
-Converse uses the moonlit concept in `assets/UIUX Concept`; Agent Chat uses the navy workspace concept. The desktop rail becomes bottom navigation on narrow or enlarged-text layouts. Both views remain mounted, preserving their independent drafts, sessions and active voice capture while navigating. A global activity strip keeps microphone/speech controls reachable from Agent Chat. Changing views never starts capture.
+The [owner design implementation](../../docs/adr/0054-penpot-owner-interface.md) supplies navy/blue surfaces, local Inter fonts and responsive Options/Agent panels. Default Converse uses a background-only derivative of the moonlit illustration beneath the existing animated mascot; explicit palettes and imported packs keep the painter scene. The desktop rail becomes bottom navigation on narrow or enlarged-text layouts. Both views remain mounted, preserving their independent drafts, sessions and active voice capture while navigating. A global activity strip keeps microphone/speech controls reachable from Agent Chat. Changing views never starts capture.
 
 **Call Kinaiya** arms the existing live browser listener; **Tell Kinaiya** records one message. These labels do not implement phone signaling or the mobile calling milestone. Global **Stop microphone** discards an unfinished recording without transcribing it or cancelling Agent work. Pending stops remain visible; a failed or three-second unacknowledged adapter stop stays unconfirmed and retryable. These acknowledgments do not establish physical device behavior.
 
