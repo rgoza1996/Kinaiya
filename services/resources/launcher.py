@@ -112,7 +112,13 @@ def resource_app(args, config, auth, tokens, root):
         raise ValueError("Select a configured retained TTS profile")
     tts_voice = validate_voice(tts_profile, settings.tts_voice)
     validate_tts_device(tts_profile, settings.voice_device)
-    if settings.voice_device == "cuda" and voice.get("stt") is not None:
+    selected_stt = voice.get("stt")
+    cloud_stt = isinstance(selected_stt, dict) and selected_stt.get("provider") == "meta"
+    if cloud_stt:
+        from packages.providers.meta_speech import meta_stt_settings
+
+        meta_stt_settings(selected_stt)
+    if settings.voice_device == "cuda" and selected_stt is not None and not cloud_stt:
         raise ValueError("The GPU voice profile cannot select the CPU Whistle target")
     tts_settings = profile_settings(tts_profile)
     if tts_settings.requires_model_directory and settings.tts_model_dir is None:
@@ -187,8 +193,7 @@ def resource_app(args, config, auth, tokens, root):
     specs = [spec]
     resources_url = f"http://127.0.0.1:{getattr(args, 'port', None) or 8764}"
     whistle_endpoint = None
-    selected_stt = voice.get("stt")
-    if selected_stt is not None or settings.whistle is not None:
+    if (selected_stt is not None and not cloud_stt) or settings.whistle is not None:
         if (
             not isinstance(selected_stt, dict)
             or set(selected_stt) != {"provider", "url"}

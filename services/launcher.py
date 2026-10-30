@@ -65,6 +65,47 @@ def load_config(path):
     return json.loads(path.read_text())
 
 
+def converse_speech(config, token, *, resource_state=None):
+    """Keep local TTS/service auth independent from an explicit cloud STT choice."""
+    from packages.providers.speech import SpeechClient
+
+    voice = config.get("voice")
+    if not voice:
+        return None
+    choice, settings, cloud = voice.get("stt"), {}, None
+    if isinstance(choice, dict) and choice.get("provider") == "meta":
+        from packages.providers.meta_speech import MetaSTTClient, meta_stt_settings
+
+        cloud = MetaSTTClient(**meta_stt_settings(choice))
+    elif choice is not None:
+        from services.resources.client import local_base
+        from services.resources.whistle import ManagedWhistleConfig
+
+        if (
+            config.get("resources", {}).get("enabled") is not True
+            or not isinstance(choice, dict)
+            or set(choice) != {"provider", "url"}
+            or choice["provider"] != "whistle"
+            or local_base(choice["url"])
+            != local_base(config.get("resources_url", "http://127.0.0.1:8764"))
+        ):
+            raise ValueError("Whistle STT must select the managed resources endpoint")
+        managed = ManagedWhistleConfig.model_validate(config["resources"].get("whistle"))
+        settings = {
+            "stt_url": choice["url"],
+            "stt_provider": "whistle",
+            "stt_timeout_s": managed.request_timeout_s,
+        }
+    local = SpeechClient(
+        voice["url"], token, profile=voice.get("profile", "Kokoro 82M"), **settings
+    )
+    if cloud is not None:
+        from packages.providers.meta_speech import CloudSTTLocalTTS
+
+        return CloudSTTLocalTTS(local, cloud, resource_state=resource_state)
+    return local
+
+
 def provider(config, role, *, resource_state=None, service_token=None, workspace=None):
     from packages.providers.text import CompatibleTextProvider, MetaResponsesProvider
 
@@ -462,7 +503,6 @@ def serve(args):
         app = create_app(runtime, auth, commands)
         app.router.lifespan_context = agent_lifespan
     elif service == "converse":
-        from packages.providers.speech import SpeechClient
         from services.converse.api import create_app
         from services.converse.intent import ConverseIntent
         from services.converse.memory_adapter import SessionMemoryAdapter
@@ -500,38 +540,7 @@ def serve(args):
             memory_adapters=memory_adapters,
             context_budgeted=True,
         )
-        voice = config.get("voice")
-        stt_settings = {}
-        if voice and voice.get("stt") is not None:
-            from services.resources.client import local_base
-            from services.resources.whistle import ManagedWhistleConfig
-
-            stt_choice = voice["stt"]
-            if (
-                not resources_enabled
-                or not isinstance(stt_choice, dict)
-                or set(stt_choice) != {"provider", "url"}
-                or stt_choice["provider"] != "whistle"
-                or local_base(stt_choice["url"])
-                != local_base(config.get("resources_url", "http://127.0.0.1:8764"))
-            ):
-                raise ValueError("Whistle STT must select the managed resources endpoint")
-            managed_stt = ManagedWhistleConfig.model_validate(config["resources"].get("whistle"))
-            stt_settings = {
-                "stt_url": stt_choice["url"],
-                "stt_provider": "whistle",
-                "stt_timeout_s": managed_stt.request_timeout_s,
-            }
-        speech = (
-            SpeechClient(
-                voice["url"],
-                tokens["converse"],
-                profile=voice.get("profile", "Kokoro 82M"),
-                **stt_settings,
-            )
-            if voice
-            else None
-        )
+        speech = converse_speech(config, tokens["converse"], resource_state=resource_state)
         windows = (
             WindowConverseController(runtime)
             if config.get("streaming_windows", {}).get("enabled", True)

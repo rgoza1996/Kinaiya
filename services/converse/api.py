@@ -14,10 +14,48 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from packages.contracts.converse_setup import ConverseSetup
 from packages.contracts.models import ContentScope, ConverseRequest, DeliveryRequest, SpeechWindow
+from packages.providers.disclosure import scope_allowed
 from packages.providers.speech import SpeechProviderError
 
 _STT_CLOSE_OWNERS = set()
 _STT_OWNERS = set()
+
+
+def _cloud_stt_current(runtime, speech, content_scope, validate=None):
+    """Capture owner availability before decoding; recheck immediately before export.
+
+    This fences late results, not an already admitted remote provider's processing.
+    Local SpeechClient keeps its existing, independent interface.
+    """
+    info = getattr(speech, "stt_info", None)
+    if info is None:
+        return None
+    if info.local is not False or not scope_allowed(info, content_scope):
+        raise HTTPException(409, "Recording scope is not permitted for the selected STT provider")
+    stamp, target = info.model_dump(), speech.stt
+    try:
+        admission = runtime.admission()
+    except (OSError, ValueError, RuntimeError) as exc:
+        raise HTTPException(409, "Converse availability changed") from exc
+
+    async def current():
+        if (
+            not runtime.admission_current(admission)
+            or speech.stt is not target
+            or speech.stt_info.model_dump() != stamp
+        ):
+            return False
+        if validate is not None and not await validate():
+            return False
+        return runtime.admission_current(admission)
+
+    return current
+
+
+def _transcription(speech, data, filename, content_scope, current):
+    if current is None:
+        return speech.transcribe(data, filename)
+    return speech.transcribe(data, filename, content_scope=content_scope, current=current)
 
 
 async def _transcribe_connected(request, operation):
@@ -205,13 +243,17 @@ def create_app(runtime, auth, speech=None, window_controller=None, *, setup=None
             raise HTTPException(409, "Converse is off; direct Agent Chat remains available")
         if speech is None:
             raise HTTPException(503, "Configure an STT provider in settings")
+        current = _cloud_stt_current(runtime, speech, content_scope)
         data = await file.read(10_000_001)
         if len(data) > 10_000_000:
             raise HTTPException(413, "Recording exceeds 10 MB temporary limit")
         if not runtime.enabled:
             raise HTTPException(409, "Converse is off; direct Agent Chat remains available")
         transcript = await _transcribe_connected(
-            request, lambda: speech.transcribe(data, file.filename or "recording.wav")
+            request,
+            lambda: _transcription(
+                speech, data, file.filename or "recording.wav", content_scope, current
+            ),
         )
         return {**transcript, "content_scope": content_scope}
 
@@ -242,7 +284,7 @@ def create_app(runtime, auth, speech=None, window_controller=None, *, setup=None
         digest = hashlib.sha256(data).hexdigest()
         try:
             session = await runtime.journal.session(request.session_id)
-            if session.thread_id != request.thread_id:
+            if session.thread_id != request.thread_id or session.epoch != request.epoch:
                 raise ValueError("Wrong window thread")
             previous = await runtime.journal.latest_window(
                 request.session_id, request.epoch, request.utterance_id, request.window_index
@@ -258,9 +300,27 @@ def create_app(runtime, auth, speech=None, window_controller=None, *, setup=None
             return {"entry": previous.model_dump(mode="json"), "replay": True}
         if request.revision != (previous.payload["revision"] + 1 if previous else 1):
             raise HTTPException(409, "Audio-window revision must increase by one")
+
+        async def window_current():
+            try:
+                session = await runtime.journal.session(request.session_id)
+                latest = await runtime.journal.latest_window(
+                    request.session_id, request.epoch, request.utterance_id, request.window_index
+                )
+                return (
+                    session.thread_id == request.thread_id
+                    and session.epoch == request.epoch
+                    and (latest.event_id if latest else None)
+                    == (previous.event_id if previous else None)
+                )
+            except (KeyError, ValueError):
+                return False
+
+        current = _cloud_stt_current(runtime, speech, request.content_scope, window_current)
         started = time.monotonic()
         transcript = await _transcribe_connected(
-            http_request, lambda: speech.transcribe(data, "window.wav")
+            http_request,
+            lambda: _transcription(speech, data, "window.wav", request.content_scope, current),
         )
         fields = request.model_dump(exclude={"audio_base64"})
         fields.update(text=transcript.get("text", "").strip(), audio_sha256=digest)

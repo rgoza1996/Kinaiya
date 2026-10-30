@@ -95,6 +95,11 @@ def host_setup(config):
                 and isinstance(resources.get("whistle"), dict)
             ):
                 stt = _role("whistle", "Whistle", label="Whistle")
+        elif isinstance(choice, dict) and choice.get("provider") == "meta":
+            from packages.providers.meta_speech import MODEL, meta_stt_settings
+
+            meta_stt_settings(choice)
+            stt = _role("meta", MODEL, label="Muse Voice Transcribe 1.0 (cloud)")
         elif choice is None and isinstance(resources, dict) and resources.get("enabled") is True:
             stt_model = resources.get("stt_model", "tiny.en")
             stt = _role("whisper", stt_model, label=f"Whisper {stt_model}")
