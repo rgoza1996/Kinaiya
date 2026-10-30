@@ -570,7 +570,10 @@ void main() {
     final pack = await loadCharacterPack();
     expect(pack.fallback, isFalse, reason: pack.note);
     expect(pack.isSpritesheet, isTrue);
-    for (final state in ['idle', 'listening', 'thinking', 'speaking']) {
+    // The generated seated atlas has four cells, but its right column is not
+    // registered. The owner-selected idle uses only the stable left pair.
+    expect(pack.animationFor('idle')!.frames.toSet(), {0, 2});
+    for (final state in ['listening', 'thinking', 'speaking']) {
       expect(
         pack.animationFor(state)!.frames.toSet().length,
         greaterThanOrEqualTo(4),

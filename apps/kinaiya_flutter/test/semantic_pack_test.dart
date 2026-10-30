@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kinaiya_flutter/character/pack.dart';
 
@@ -50,6 +52,83 @@ Map<String, dynamic> _workVariant(Map<String, dynamic> manifest) =>
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('bundled seated idle keeps all non-idle atlas identities', () async {
+    final pack = await loadCharacterPack();
+    expect(pack.fallback, isFalse, reason: pack.note);
+    expect(pack.sheets.keys.toSet(), {'core', 'activity', 'seated_idle'});
+    expect(pack.sheets['seated_idle']!.capacity, 4);
+    expect(pack.sheets['seated_idle']!.width, 1254);
+    expect(pack.sheets['seated_idle']!.height, 1254);
+    expect(pack.sheets['seated_idle']!.frameWidth, 627);
+    expect(pack.sheets['seated_idle']!.frameHeight, 576);
+    expect(
+      pack.sheets['seated_idle']!.sha256,
+      '1322c7fa9ba76ad0cbc6ac8409564d5247d0366bf53fe368f9a39338ac938259',
+    );
+    expect(pack.sheets.values.fold(0, (n, s) => n + s.capacity), 36);
+    for (final alias in ['idle', 'idle_blink']) {
+      final animation = pack.animations[alias]!;
+      expect(animation.sheet, 'seated_idle');
+      expect(
+        animation.frames,
+        alias == 'idle' ? [0, 0, 0, 0, 0, 2, 0, 0] : [0, 2, 0],
+      );
+      expect(animation.frames.toSet(), {0, 2});
+      expect(animation.frameMs, alias == 'idle' ? 280 : 220);
+      expect(animation.loop, isTrue);
+    }
+    final unchanged = {
+      'listening': ('core', 4, 250),
+      'thinking': ('core', 8, 300),
+      'speaking': ('core', 12, 140),
+      'generic_work': ('activity', 0, 300),
+      'waiting': ('activity', 4, 320),
+      'important': ('activity', 8, 220),
+      'critical': ('activity', 12, 180),
+    };
+    for (final entry in unchanged.entries) {
+      final animation = pack.animations[entry.key]!;
+      final (sheet, first, ms) = entry.value;
+      expect(animation.sheet, sheet);
+      expect(animation.frames, [
+        first,
+        first + 1,
+        first + 2,
+        first + 3,
+        first + 2,
+        first + 1,
+      ]);
+      expect(animation.frameMs, ms);
+      expect(animation.loop, isTrue);
+    }
+    expect(pack.animations, hasLength(9));
+    expect(pack.fallbackAnimation, 'idle');
+    expect(pack.anchorX, .5);
+    expect(pack.anchorY, .9);
+    const originals = {
+      'core':
+          '4eabec3223bc1a921645ce086a1f9fbf8b0098e66c1017e73af826197ff39412',
+      'activity':
+          'c89deb785e27cb8a741fbcf697b991e46f9b03ab2256342a2c340d555761d4c2',
+    };
+    for (final entry in originals.entries) {
+      final sheet = pack.sheets[entry.key]!;
+      final bytes = await rootBundle.load(sheet.asset);
+      expect(sheet.sha256, entry.value);
+      expect(
+        sha256
+            .convert(
+              bytes.buffer.asUint8List(
+                bytes.offsetInBytes,
+                bytes.lengthInBytes,
+              ),
+            )
+            .toString(),
+        entry.value,
+      );
+    }
+  });
 
   test(
     'schema 3 retains all required spritesheet metadata and semantics',
