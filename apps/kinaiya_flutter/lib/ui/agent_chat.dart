@@ -718,104 +718,107 @@ class _AgentChatState extends State<AgentChat> {
     return Container(
       width: AgentDesign.workspaceWidth,
       decoration: agentWorkspaceDecoration(context),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
-            child: Text('Workspace', style: textTheme.titleLarge),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Text(
-              _s.agentSession?.name.isNotEmpty == true
-                  ? _s.agentSession!.name
-                  : 'New Agent session',
-              style: textTheme.titleSmall,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
+      child: Material(
+        type: MaterialType.transparency,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
+              child: Text('Workspace', style: textTheme.titleLarge),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
-            child: Text(
-              'Direct instructions to Agent',
-              style: agentMutedStyle(context, textTheme.bodySmall),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: TextField(
-              controller: _search,
-              decoration: const InputDecoration(
-                labelText: 'Search tasks',
-                prefixIcon: Icon(Icons.search_rounded),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Text(
+                _s.agentSession?.name.isNotEmpty == true
+                    ? _s.agentSession!.name
+                    : 'New Agent session',
+                style: textTheme.titleSmall,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
-              onChanged: (_) => setState(() {}),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-            child: Text(
-              'Tasks · ${_s.tasks.length}',
-              style: textTheme.titleSmall,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+              child: Text(
+                'Direct instructions to Agent',
+                style: agentMutedStyle(context, textTheme.bodySmall),
+              ),
             ),
-          ),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-              children: [
-                for (final task in tasks)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 2),
-                    child: ListTile(
-                      key: ValueKey('workspace-task-${task.taskId}'),
-                      selected: selected?.taskId == task.taskId,
-                      selectedTileColor: scheme.primaryContainer,
-                      selectedColor: scheme.onPrimaryContainer,
-                      shape: agentTileShape(),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 4,
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: TextField(
+                controller: _search,
+                decoration: const InputDecoration(
+                  labelText: 'Search tasks',
+                  prefixIcon: Icon(Icons.search_rounded),
+                ),
+                onChanged: (_) => setState(() {}),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+              child: Text(
+                'Tasks · ${_s.tasks.length}',
+                style: textTheme.titleSmall,
+              ),
+            ),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                children: [
+                  for (final task in tasks)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 2),
+                      child: ListTile(
+                        key: ValueKey('workspace-task-${task.taskId}'),
+                        selected: selected?.taskId == task.taskId,
+                        selectedTileColor: scheme.primaryContainer,
+                        selectedColor: scheme.onPrimaryContainer,
+                        shape: agentTileShape(),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 4,
+                        ),
+                        leading: Icon(agentTaskIcon(task)),
+                        title: Text(
+                          task.objective,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        subtitle: Text(
+                          '${task.state} · revision ${task.objectiveRevision}',
+                        ),
+                        onTap: () =>
+                            setState(() => _selectedTaskId = task.taskId),
                       ),
-                      leading: Icon(agentTaskIcon(task)),
-                      title: Text(
-                        task.objective,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      subtitle: Text(
-                        '${task.state} · revision ${task.objectiveRevision}',
-                      ),
-                      onTap: () =>
-                          setState(() => _selectedTaskId = task.taskId),
                     ),
-                  ),
-                if (tasks.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Text(
-                      query.isEmpty ? 'No tasks yet.' : 'No matching tasks.',
-                      style: agentMutedStyle(context, textTheme.bodyMedium),
+                  if (tasks.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Text(
+                        query.isEmpty ? 'No tasks yet.' : 'No matching tasks.',
+                        style: agentMutedStyle(context, textTheme.bodyMedium),
+                      ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const Divider(height: 1),
-          ListTile(
-            leading: const Icon(Icons.terminal_rounded),
-            title: const Text('Commands'),
-            enabled: _s.commandsAvailable,
-            onTap: _s.commandsAvailable ? _showCommands : null,
-          ),
-          ListTile(
-            leading: const Icon(Icons.hub_outlined),
-            title: const Text('Connections'),
-            enabled: _s.client != null,
-            onTap: _s.client == null ? null : _showMcp,
-          ),
-        ],
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.terminal_rounded),
+              title: const Text('Commands'),
+              enabled: _s.commandsAvailable,
+              onTap: _s.commandsAvailable ? _showCommands : null,
+            ),
+            ListTile(
+              leading: const Icon(Icons.hub_outlined),
+              title: const Text('Connections'),
+              enabled: _s.client != null,
+              onTap: _s.client == null ? null : _showMcp,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1068,10 +1071,10 @@ class _AgentChatState extends State<AgentChat> {
     final textTheme = Theme.of(context).textTheme;
     _steer.putIfAbsent(task.taskId, TextEditingController.new);
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       shape: agentCardShape(context),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1079,7 +1082,6 @@ class _AgentChatState extends State<AgentChat> {
               label: 'Task objective: ${task.objective}',
               child: Text(task.objective, style: textTheme.titleSmall),
             ),
-            const SizedBox(height: 8),
             Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -1099,7 +1101,9 @@ class _AgentChatState extends State<AgentChat> {
                 padding: const EdgeInsets.only(top: 8),
                 child: Text(
                   'Succeeded with evidence below.',
-                  style: textTheme.bodyMedium?.copyWith(color: scheme.primary),
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: scheme.onSurface,
+                  ),
                 ),
               ),
             if (task.state == 'succeeded' && !grounded)
@@ -1197,11 +1201,11 @@ class _AgentChatState extends State<AgentChat> {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       color: scheme.tertiaryContainer,
       shape: agentCardShape(context),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1221,13 +1225,10 @@ class _AgentChatState extends State<AgentChat> {
                   style: textTheme.bodyMedium,
                 ),
               ),
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: SelectableText(
-                'Action: $args\ndigest:${approval.actionDigest} '
-                'revision:${approval.objectiveRevision}'
-                '${approval.expiresAt != null ? ' expires:${approval.expiresAt}' : ''}',
-              ),
+            SelectableText(
+              'Action: $args\ndigest:${approval.actionDigest} '
+              'revision:${approval.objectiveRevision}'
+              '${approval.expiresAt != null ? ' expires:${approval.expiresAt}' : ''}',
             ),
             if (approval.isExpired)
               Padding(

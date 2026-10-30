@@ -5,6 +5,8 @@ import 'package:kinaiya_flutter/api/models.dart';
 import 'package:kinaiya_flutter/app.dart';
 import 'package:kinaiya_flutter/config/connection.dart';
 import 'package:kinaiya_flutter/state/app_state.dart';
+import 'package:kinaiya_flutter/ui/agent_chat.dart';
+import 'package:kinaiya_flutter/ui/widgets.dart' show StatusChip;
 
 import 'client_test.dart' show mockTransport;
 
@@ -69,6 +71,7 @@ void main() {
   testWidgets('desktop shows workspace, conversation and details', (
     tester,
   ) async {
+    final semantics = tester.ensureSemantics();
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(1560, 1000);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -85,10 +88,11 @@ void main() {
     expect(find.byKey(const ValueKey('agent-input')), findsOneWidget);
     expect(find.text('Send task'), findsOneWidget);
     expect(find.text('Task details'), findsOneWidget);
-    expect(find.bySemanticsLabel('Status: running'), findsWidgets);
+    expect(find.bySemanticsLabel(RegExp(r'\bStatus: running\b')), findsWidgets);
     expect(find.text('No tasks yet.'), findsNothing);
     expect(tester.takeException(), isNull);
     await penpotClose(tester, state);
+    semantics.dispose();
   });
 
   testWidgets('narrow hides workspace and details, keeps conversation', (
@@ -161,7 +165,8 @@ void main() {
     expect(find.text('No tasks yet.'), findsNothing);
     expect(find.text('What would you like to work on?'), findsOneWidget);
     expect(find.text('Succeeded with evidence below.'), findsNothing);
-    state.setTasks([penpotTask('u1', 'succeeded')]);
+    api.fixtures = [penpotTask('u1', 'succeeded')];
+    state.setTasks(api.fixtures);
     await penpotSettle(tester);
     expect(
       find.text('Finished without independent completion evidence.'),
@@ -175,27 +180,29 @@ void main() {
   testWidgets('grounded success shows evidence receipt honestly', (
     tester,
   ) async {
+    final semantics = tester.ensureSemantics();
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(360, 800);
     addTearDown(tester.view.resetDevicePixelRatio);
     addTearDown(tester.view.resetPhysicalSize);
-    final api = PenpotAgentApi();
+    final api = PenpotAgentApi()
+      ..fixtures = [
+        penpotTask(
+          'g1',
+          'succeeded',
+          evidence: [
+            Evidence(
+              kind: 'file',
+              summary: 'wrote proof',
+              path: '/proof.txt',
+              sha256: 'abcdef1234567890',
+              objectiveRevision: 1,
+            ),
+          ],
+        ),
+      ];
     final state = penpotWired(api);
-    state.setTasks([
-      penpotTask(
-        'g1',
-        'succeeded',
-        evidence: [
-          Evidence(
-            kind: 'file',
-            summary: 'wrote proof',
-            path: '/proof.txt',
-            sha256: 'abcdef1234567890',
-            objectiveRevision: 1,
-          ),
-        ],
-      ),
-    ]);
+    state.setTasks(api.fixtures);
     await tester.pumpWidget(KinaiyaApp(state: state));
     await penpotSettle(tester);
     expect(find.text('Succeeded with evidence below.'), findsOneWidget);
@@ -203,8 +210,64 @@ void main() {
       find.text('Finished without independent completion evidence.'),
       findsNothing,
     );
-    expect(find.bySemanticsLabel('Status: succeeded'), findsWidgets);
+    expect(
+      find.bySemanticsLabel(RegExp(r'\bStatus: succeeded\b')),
+      findsWidgets,
+    );
     expect(tester.takeException(), isNull);
     await penpotClose(tester, state);
+    semantics.dispose();
   });
+
+  for (final scheme in [
+    const ColorScheme.light(primary: Color(0xFF075BFF)),
+    const ColorScheme.dark(
+      primary: Color(0xFF075BFF),
+      surface: Color(0xFF0B1B2E),
+      onSurface: Color(0xFFF3F6FF),
+    ),
+  ]) {
+    testWidgets('grounded body text remains readable in ${scheme.brightness}', (
+      tester,
+    ) async {
+      final api = PenpotAgentApi()
+        ..fixtures = [
+          penpotTask(
+            'contrast',
+            'succeeded',
+            evidence: [Evidence(kind: 'file', summary: 'Synthetic receipt')],
+          ),
+        ];
+      final state = penpotWired(api)..setTasks(api.fixtures);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData.from(
+            colorScheme: scheme,
+          ).copyWith(cardTheme: CardThemeData(color: scheme.surface)),
+          home: Scaffold(
+            body: ListenableBuilder(
+              listenable: state,
+              builder: (_, _) => AgentChat(state: state),
+            ),
+          ),
+        ),
+      );
+      await penpotSettle(tester);
+      final text = tester.widget<Text>(
+        find.text('Succeeded with evidence below.'),
+      );
+      final ink = text.style!.color!.computeLuminance();
+      final fill = scheme.surface.computeLuminance();
+      final contrast = ink > fill
+          ? (ink + .05) / (fill + .05)
+          : (fill + .05) / (ink + .05);
+      expect(contrast, greaterThanOrEqualTo(4.5));
+      expect(
+        tester.widget<StatusChip>(find.byType(StatusChip)).tone,
+        scheme.primary,
+      );
+      expect(tester.takeException(), isNull);
+      await penpotClose(tester, state);
+    });
+  }
 }
