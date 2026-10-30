@@ -154,3 +154,16 @@ async def test_successful_window_replay_does_not_upload_again(env):
     assert replay.status_code == 200 and replay.json()["replay"] is True
     assert len(env.calls) == 1
     assert len(env.store.read(kinds=["conversation.window"])) == 1
+
+
+async def test_native_stt_replacement_during_window_validation_invalidates_capture(env):
+    from services.converse.api import _cloud_stt_current
+
+    speech = SimpleNamespace(stt_info=env.stt.info, stt=env.stt)
+
+    async def validate():
+        speech.stt = object()
+        return True
+
+    current = _cloud_stt_current(env.runtime, speech, "public_synthetic", validate)
+    assert await current() is False

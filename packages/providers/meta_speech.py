@@ -181,8 +181,8 @@ class MetaSTTClient:
         info = self.info.model_dump()
         client, origin, headers = self.http, str(self.http.base_url), dict(self.http.headers)
 
-        async def check():
-            if (
+        def bound():
+            return not (
                 self._cleanup_failed
                 or not scope_allowed(self.info, content_scope)
                 or self.info.model_dump() != info
@@ -191,12 +191,15 @@ class MetaSTTClient:
                 or str(client.base_url) != origin
                 or dict(client.headers) != headers
                 or current is None
-            ):
+            )
+
+        async def check():
+            if not bound():
                 raise SpeechProviderError(409)
             value = current()
             if inspect.isawaitable(value):
                 value = await value
-            if value is not True:
+            if value is not True or not bound():
                 raise SpeechProviderError(409)
 
         await check()
@@ -301,7 +304,8 @@ class CloudSTTLocalTTS:
             if self.resource_state != state_path or policy() != revision or native_current is None:
                 return False
             value = native_current()
-            return await value if inspect.isawaitable(value) else value
+            valid = await value if inspect.isawaitable(value) else value
+            return valid is True and self.resource_state == state_path and policy() == revision
 
         return await self.stt.transcribe(data, filename, **{**kwargs, "current": current})
 

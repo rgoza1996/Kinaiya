@@ -38,16 +38,19 @@ def _cloud_stt_current(runtime, speech, content_scope, validate=None):
     except (OSError, ValueError, RuntimeError) as exc:
         raise HTTPException(409, "Converse availability changed") from exc
 
+    def bound():
+        return (
+            runtime.admission_current(admission)
+            and speech.stt is target
+            and speech.stt_info.model_dump() == stamp
+        )
+
     async def current():
-        if (
-            not runtime.admission_current(admission)
-            or speech.stt is not target
-            or speech.stt_info.model_dump() != stamp
-        ):
+        if not bound():
             return False
         if validate is not None and not await validate():
             return False
-        return runtime.admission_current(admission)
+        return bound()
 
     return current
 

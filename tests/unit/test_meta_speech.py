@@ -332,3 +332,56 @@ async def test_protected_resource_policy_independently_gates_cloud_speech(
     finally:
         await stt.close()
         state.close()
+
+
+@pytest.mark.parametrize("change", ["local_only", "revision"])
+async def test_resource_policy_rechecked_after_awaited_native_current(
+    monkeypatch, tmp_path, change
+):
+    from services.resources.state import ResourceState
+
+    state = ResourceState(tmp_path / "resources.json", profile="configured_hybrid")
+    state.save(phase="ready")
+    stt, calls, _ = client(monkeypatch)
+    speech = CloudSTTLocalTTS(SimpleNamespace(profile="Kokoro 82M"), stt, resource_state=state.path)
+    checks = 0
+
+    async def current():
+        nonlocal checks
+        checks += 1
+        await asyncio.sleep(0)
+        if checks == 2:
+            state.save(profile="local_only" if change == "local_only" else "configured_hybrid")
+        return True
+
+    try:
+        with pytest.raises(SpeechProviderError):
+            await speech.transcribe(b"public", content_scope="public_synthetic", current=current)
+        assert not calls
+    finally:
+        await stt.close()
+        state.close()
+
+
+@pytest.mark.parametrize("change", ["headers", "provider"])
+async def test_transport_identity_rechecked_after_awaited_native_current(monkeypatch, change):
+    stt, calls, _ = client(monkeypatch)
+    checks = 0
+
+    async def current():
+        nonlocal checks
+        checks += 1
+        await asyncio.sleep(0)
+        if checks == 2:
+            if change == "headers":
+                stt.http.headers["x-selected-profile"] = "replacement"
+            else:
+                stt.info = stt.info.model_copy(update={"model": "replacement"})
+        return True
+
+    try:
+        with pytest.raises(SpeechProviderError):
+            await stt.transcribe(b"public", content_scope="public_synthetic", current=current)
+        assert not calls
+    finally:
+        await stt.close()
