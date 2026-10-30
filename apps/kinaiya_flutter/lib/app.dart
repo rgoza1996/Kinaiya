@@ -362,7 +362,12 @@ class _HomeShellState extends State<HomeShell> {
           listenable: owner,
           builder: (_, _) => Theme(
             data: widget.darkTheme,
-            child: SettingsHub(availability: _settingsAvailability),
+            child: SettingsHub(
+              availability: _settingsAvailability,
+              quickSettings: InterfaceTransitionsSwitch(
+                controller: widget.presentation,
+              ),
+            ),
           ),
         ),
       );

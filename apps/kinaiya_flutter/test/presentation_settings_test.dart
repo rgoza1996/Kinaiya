@@ -1,12 +1,15 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kinaiya_flutter/presentation/controller.dart';
 import 'package:kinaiya_flutter/presentation/platform.dart';
+import 'package:kinaiya_flutter/config/options_catalog.dart';
 import 'package:kinaiya_flutter/ui/presentation_settings.dart';
+import 'package:kinaiya_flutter/ui/settings_hub.dart';
 import 'package:kinaiya_flutter/ui/visual_theme.dart';
 import 'package:kinaiya_flutter/ui/widgets.dart';
 
@@ -112,6 +115,82 @@ double contrast(Color a, Color b) {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  testWidgets(
+    'Options quick Animations control writes only on intent and persists',
+    (tester) async {
+      final storage = MemoryPresentationStorage();
+      final controller = await initialized(tester, storage: storage);
+      await controller.setPreferences(
+        controller.preferences.copyWith(showConverseView: false),
+      );
+      final before = storage.record;
+      tester.view.physicalSize = const Size(320, 740);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MediaQuery(
+            data: const MediaQueryData(
+              size: Size(320, 740),
+              textScaler: TextScaler.linear(2),
+            ),
+            child: SettingsHub(
+              availability: const SettingsAvailability(),
+              quickSettings: InterfaceTransitionsSwitch(controller: controller),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(storage.record, before);
+      await tester.ensureVisible(find.text('Animations'));
+      await tester.tap(find.text('Animations'));
+      await tester.pumpAndSettle();
+      expect(controller.preferences.animateTransitions, isFalse);
+      expect(controller.preferences.showConverseView, isFalse);
+      expect(
+        (jsonDecode(storage.record!)
+            as Map)['preferences']['animate_transitions'],
+        isFalse,
+      );
+      expect(find.text('Off · Instant'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      final restored = await initialized(tester, storage: storage);
+      expect(restored.preferences.animateTransitions, isFalse);
+    },
+  );
+
+  testWidgets('quick Animations shows reduced motion and storage uncertainty', (
+    tester,
+  ) async {
+    final controller = await initialized(
+      tester,
+      storage: FailingPresentationStorage(),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MediaQuery(
+          data: const MediaQueryData(disableAnimations: true),
+          child: Material(
+            child: InterfaceTransitionsSwitch(controller: controller),
+          ),
+        ),
+      ),
+    );
+    expect(
+      find.text('Instant · Reduced motion takes priority'),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Animations'));
+    await tester.pumpAndSettle();
+    expect(controller.preferences.animateTransitions, isFalse);
+    expect(controller.notice, isNotNull);
+    expect(find.text(controller.notice!), findsOneWidget);
+    expect(find.textContaining('private-storage-error-marker'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 
   test('default colors preserve the established light and dark schemes', () {
     final light = kinaiyaTheme().colorScheme;
