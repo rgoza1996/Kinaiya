@@ -113,6 +113,25 @@ a live ledger. The owner must independently review the active-version delta,
 preserve its state/uncertainty, validate source/policy and perform any migration.
 Paid verification and live promotion are separate gates.
 
+`serve converse --start-paused` installs the temporary resource-availability
+fence synchronously after runtime construction, before the listener, lifespan
+observers, window controller or speech client can admit work. The flag is rejected
+for every other service, including `serve all`. It does not change the durable
+owner Sleep/Wake value or revision. Existing authenticated resource control can
+release the fence after activation verification; the effective state is still
+the conjunction of the **current** owner choice and temporary availability.
+This is a boot gate, not a new owner permission or a claim that already admitted
+remote work was revoked. Nonbillable isolated CLI tests exercise both initial
+owner choices, a later Wake, rejected turn admission, and explicit gate release.
+
+The separately reviewed host activation helper must prepare its known local
+rollback source/configuration before retiring the old owner, observe the resource
+pause watchdog expiry, and enforce a shorter critical deadline on health/control
+operations. Failure after retirement requires confirmed replacement reaping
+before local restoration; uncertain release forbids overlapping replacement.
+It must preserve newer owner intent rather than restoring an earlier snapshot.
+Health/setup verification does not issue a model or speech probe.
+
 Primary contracts: [reasoning](https://dev.meta.ai/docs/reasoning),
 [token counting](https://dev.meta.ai/docs/token-counting),
 [Responses schemas](https://dev.meta.ai/docs/api-reference/responses/schemas),

@@ -276,6 +276,8 @@ def initialize(args):
 
 
 def serve(args):
+    if getattr(args, "start_paused", False) and args.service != "converse":
+        raise SystemExit("--start-paused is only supported by serve converse")
     import uvicorn
 
     from packages.contracts.client import JournalClient
@@ -540,6 +542,10 @@ def serve(args):
             memory_adapters=memory_adapters,
             context_budgeted=True,
         )
+        if getattr(args, "start_paused", False):
+            # A launch-time availability fence, installed before observers or
+            # the listener exist. It must not rewrite the durable owner choice.
+            runtime.enabled = False
         speech = converse_speech(config, tokens["converse"], resource_state=resource_state)
         windows = (
             WindowConverseController(runtime)
@@ -708,6 +714,11 @@ def main():
     server = commands.add_parser("serve")
     server.add_argument("service", choices=[*PORTS, "all"])
     server.add_argument("--port", type=int)
+    server.add_argument(
+        "--start-paused",
+        action="store_true",
+        help="Converse only: close temporary admission before startup; preserve owner intent",
+    )
     server.add_argument(
         "--converse-memory",
         action="store_true",
