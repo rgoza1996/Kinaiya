@@ -33,9 +33,8 @@ Rect _visiblePaintRegion(RenderBox box, Rect local) {
   return visible;
 }
 
-/// The supplied illustration's first water is two thirds down the source.
 /// Account for the actual fit/crop, not the unpainted Image widget bounds.
-Rect _illustratedWater(RenderImage image) {
+Rect _illustratedRegion(RenderImage image, Rect fractions) {
   final input = Size(
     image.image!.width.toDouble(),
     image.image!.height.toDouble(),
@@ -47,21 +46,22 @@ Rect _illustratedWater(RenderImage image) {
     fitted.destination,
     Offset.zero & image.size,
   );
-  final water = Rect.fromLTRB(
-    0,
-    input.height * 2 / 3,
-    input.width,
-    input.height,
+  final region = Rect.fromLTRB(
+    input.width * fractions.left,
+    input.height * fractions.top,
+    input.width * fractions.right,
+    input.height * fractions.bottom,
   ).intersect(source);
+  if (region.isEmpty) return Rect.zero;
   final local = Rect.fromLTRB(
     destination.left +
-        (water.left - source.left) / source.width * destination.width,
+        (region.left - source.left) / source.width * destination.width,
     destination.top +
-        (water.top - source.top) / source.height * destination.height,
+        (region.top - source.top) / source.height * destination.height,
     destination.left +
-        (water.right - source.left) / source.width * destination.width,
+        (region.right - source.left) / source.width * destination.width,
     destination.top +
-        (water.bottom - source.top) / source.height * destination.height,
+        (region.bottom - source.top) / source.height * destination.height,
   );
   return _visiblePaintRegion(image, local);
 }
@@ -181,7 +181,20 @@ void main() {
         isNotNull,
         reason: 'A fallback painter is not illustration evidence.',
       );
-      final water = _illustratedWater(image);
+      // The supplied illustration's first water is two thirds down its source.
+      final water = _illustratedRegion(
+        image,
+        const Rect.fromLTRB(0, 2 / 3, 1, 1),
+      );
+      final moon = _illustratedRegion(
+        image,
+        const Rect.fromLTRB(.4, .12, .6, .30),
+      );
+      expect(
+        moon.isEmpty,
+        isFalse,
+        reason: 'The central upper moon is cropped out at $size.',
+      );
       final sprite = tester.renderObject<RenderBox>(paintedFrame());
       final frame = currentFrame(tester);
       final fitted = applyBoxFit(BoxFit.contain, frame.src.size, sprite.size);

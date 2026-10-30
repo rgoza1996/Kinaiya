@@ -49,18 +49,7 @@ class MoonlitScene extends StatelessWidget {
               child: IgnorePointer(
                 child: RepaintBoundary(
                   child: useIllustration
-                      ? Image.asset(
-                          KinaiyaDesign.moonlitBackground,
-                          key: const ValueKey('moonlit-illustration'),
-                          fit: BoxFit.cover,
-                          alignment: illustrationHeight == null
-                              ? Alignment.topCenter
-                              : Alignment.bottomCenter,
-                          excludeFromSemantics: true,
-                          errorBuilder: (_, _, _) => CustomPaint(
-                            painter: _MoonlitPainter(primary, background),
-                          ),
-                        )
+                      ? _illustration()
                       : CustomPaint(
                           painter: _MoonlitPainter(primary, background),
                         ),
@@ -69,6 +58,63 @@ class MoonlitScene extends StatelessWidget {
             ),
           ),
           child,
+        ],
+      ),
+    );
+  }
+
+  Widget _illustration() {
+    Widget asset() => Image.asset(
+      KinaiyaDesign.moonlitBackground,
+      key: const ValueKey('moonlit-illustration'),
+      fit: illustrationHeight == null ? BoxFit.cover : BoxFit.fill,
+      alignment: Alignment.topCenter,
+      excludeFromSemantics: true,
+      errorBuilder: (_, _, _) =>
+          CustomPaint(painter: _MoonlitPainter(primary, background)),
+    );
+    if (illustrationHeight == null) return asset();
+    return LayoutBuilder(
+      builder: (_, bounds) => Stack(
+        children: [
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [primary, primary, background],
+                  stops: const [0, .65, .9],
+                ),
+              ),
+            ),
+          ),
+          // Keep the 1536x1024 artwork's full vertical composition. Extending its
+          // sky/water sideways avoids either squashing the moon or cropping it
+          // away on wide screens. The image and seated sprite remain separate.
+          Positioned.fill(
+            child: OverflowBox(
+              minWidth: 0,
+              maxWidth: double.infinity,
+              child: SizedBox(
+                width: bounds.maxHeight * 1.5,
+                height: bounds.maxHeight,
+                child: ShaderMask(
+                  blendMode: BlendMode.dstIn,
+                  shaderCallback: (rect) => const LinearGradient(
+                    colors: [
+                      Colors.transparent,
+                      Colors.white,
+                      Colors.white,
+                      Colors.transparent,
+                    ],
+                    stops: [0, .12, .88, 1],
+                  ).createShader(rect),
+                  child: asset(),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );

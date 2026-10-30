@@ -11,10 +11,13 @@ The prompt record pins actual output geometry and source bytes.
 
 The illustrated water belongs to the actual mascot substage, including its
 smaller allotment when history is visible, rather than scaling against the whole
-viewport. Captions and status sit outside the image/mascot panel so enlarged labels cannot
-push the water below the seated contact. The hero aligns to the panel bottom and
-the illustration covers a 1.15-times-panel-height surface, preserving aspect ratio, placing the seated contact ring within its water
-region at phone, desktop and tall/ultrawide sizes. The stage can use the available
+viewport. Captions and status sit outside the image/mascot panel so enlarged
+labels cannot push the water below the seated contact. The hero aligns to the panel bottom and
+the illustration keeps its full vertical composition and natural aspect ratio
+on a 1.15-times-panel-height surface. A horizontal edge fade joins a sky-to-water
+color extension keeps the moon visible on wide screens without squashing it.
+The seated contact ring remains within its water region at phone, desktop and
+tall/ultrawide sizes. The stage can use the available
 height on tall screens; the legacy non-illustrated stage retains its prior cap.
 This is trusted presentation layout and does not change capture or model state.
 

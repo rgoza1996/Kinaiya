@@ -1670,7 +1670,7 @@ class _CharacterViewState extends State<CharacterView> {
         .clamp(0.0, (box.maxWidth - 32).clamp(0.0, double.infinity));
     final sceneHeight = (box.maxHeight - 108).clamp(size, double.infinity);
     return Align(
-      alignment: Alignment.bottomCenter,
+      alignment: Alignment.topCenter,
       child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
