@@ -61,6 +61,33 @@ def _transcription(speech, data, filename, content_scope, current):
     return speech.transcribe(data, filename, content_scope=content_scope, current=current)
 
 
+def _cloud_tts_current(speech, event, scoped):
+    """Bind the selected backend; additionally authorize cloud reply disclosure."""
+    info = getattr(speech, "tts_info", getattr(speech, "info", None))
+    content_scope = event.payload.get("content_scope", "local_only")
+    if info is not None and info.local is not True:
+        if (
+            info.local is not False
+            or not scope_allowed(info, content_scope)
+            or not callable(scoped)
+        ):
+            raise HTTPException(403, "Reply scope is not permitted for the selected TTS provider")
+    stamp = None if info is None else info.model_dump()
+    target, unscoped = getattr(speech, "tts", speech), speech.synthesize
+
+    def current():
+        selected_info = getattr(speech, "tts_info", getattr(speech, "info", None))
+        return (
+            getattr(speech, "tts", speech) is target
+            and (None if selected_info is None else selected_info.model_dump()) == stamp
+            and speech.synthesize == unscoped
+            and getattr(speech, "synthesize_scoped", None) == scoped
+            and event.payload.get("content_scope", "local_only") == content_scope
+        )
+
+    return current
+
+
 async def _transcribe_connected(request, operation):
     """Bodies are already parsed; one receive owner now watches disconnect.
 
@@ -346,10 +373,18 @@ def create_app(runtime, auth, speech=None, window_controller=None, *, setup=None
             event = await runtime.validate_speech(request.event_id, request.generation_epoch)
         except ValueError as exc:
             raise HTTPException(409, str(exc)) from exc
+        scoped = getattr(speech, "synthesize_scoped", None)
+        current = _cloud_tts_current(speech, event, scoped)
 
         async def generate():
             async with aclosing(
-                runtime.speech_frames(event, request.generation_epoch, speech.synthesize)
+                runtime.speech_frames(
+                    event,
+                    request.generation_epoch,
+                    speech.synthesize,
+                    synthesize_scoped=scoped,
+                    current=current,
+                )
             ) as frames:
                 async for chunk in frames:
                     yield (

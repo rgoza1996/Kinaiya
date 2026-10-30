@@ -15,7 +15,7 @@ class SpeechProviderError(RuntimeError):
         self.status_code = (
             status_code if status_code in {400, 409, 413, 415, 499, 503, 504} else 502
         )
-        super().__init__("Managed STT request was refused or unavailable")
+        super().__init__("Speech provider request was refused or unavailable")
 
 
 class SpeechClient:

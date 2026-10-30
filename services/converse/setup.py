@@ -87,6 +87,11 @@ def host_setup(config):
     if isinstance(voice, dict) and voice:
         # SpeechClient applies this same default when voice is configured.
         tts = _role("tts", voice.get("profile", "Kokoro 82M"))
+        if voice.get("tts") is not None:
+            from packages.providers.openrouter_speech import MODEL, openrouter_tts_settings
+
+            openrouter_tts_settings(voice["tts"])
+            tts = _role("openrouter", MODEL, label="Kokoro 82M (OpenRouter cloud)")
         choice = voice.get("stt")
         if isinstance(choice, dict) and choice.get("provider") == "whistle":
             if (

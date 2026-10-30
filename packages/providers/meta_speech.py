@@ -1,4 +1,4 @@
-"""Explicit buffered Meta STT, composed with independently local TTS.
+"""Explicit buffered Meta STT and independently selected speech composition.
 
 Audio is transient. Decoding denies nested protocols and normalizes actual
 samples, rather than labelling a WebM upload as WAV. No model runtime is loaded.
@@ -266,18 +266,27 @@ class MetaSTTClient:
 
 
 class CloudSTTLocalTTS:
-    """Composition only; no local worker or GPU ownership is invented for STT."""
+    """Independent STT/TTS ownership; the historical name remains compatible.
 
-    def __init__(self, local, stt, *, resource_state=None):
+    ``local`` is optional when both selected services are remote. A retained
+    local client can supply STT without ever becoming a remote TTS fallback.
+    """
+
+    def __init__(self, local, stt, *, resource_state=None, tts=None):
         self.local, self.stt = local, stt
-        self.profile = local.profile
+        self.tts = local if tts is None else tts
+        self.profile = self.tts.profile
         self.resource_state = resource_state
 
     @property
     def stt_info(self):
-        return self.stt.info
+        return getattr(self.stt, "info", None)
 
-    async def transcribe(self, data, filename="recording.wav", **kwargs):
+    @property
+    def tts_info(self):
+        return getattr(self.tts, "info", None)
+
+    def _cloud_current(self, native_current):
         from services.resources.state import read_record
 
         state_path = self.resource_state
@@ -298,7 +307,6 @@ class CloudSTTLocalTTS:
             return state.revision
 
         revision = policy()
-        native_current = kwargs.get("current")
 
         async def current():
             if self.resource_state != state_path or policy() != revision or native_current is None:
@@ -307,13 +315,41 @@ class CloudSTTLocalTTS:
             valid = await value if inspect.isawaitable(value) else value
             return valid is True and self.resource_state == state_path and policy() == revision
 
+        return current
+
+    async def transcribe(self, data, filename="recording.wav", **kwargs):
+        if self.stt_info is None or self.stt_info.local:
+            return await self.stt.transcribe(data, filename)
+        current = self._cloud_current(kwargs.get("current"))
         return await self.stt.transcribe(data, filename, **{**kwargs, "current": current})
 
     def synthesize(self, text):
-        return self.local.synthesize(text)
+        return self.tts.synthesize(text)
+
+    def synthesize_scoped(self, text, *, content_scope="local_only", current=None):
+        selected = self.tts
+        if self.tts_info is None or self.tts_info.local:
+            return selected.synthesize(text)
+        cloud_current = self._cloud_current(current)
+
+        async def selected_current():
+            return self.tts is selected and await cloud_current() and self.tts is selected
+
+        return selected.synthesize_scoped(
+            text, content_scope=content_scope, current=selected_current
+        )
 
     async def close(self):
         try:
             await self.stt.close()
         finally:
-            await self.local.close()
+            try:
+                if self.tts is not self.stt:
+                    await self.tts.close()
+            finally:
+                if (
+                    self.local is not None
+                    and self.local is not self.stt
+                    and self.local is not self.tts
+                ):
+                    await self.local.close()

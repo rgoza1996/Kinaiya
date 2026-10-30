@@ -66,13 +66,19 @@ def load_config(path):
 
 
 def converse_speech(config, token, *, resource_state=None):
-    """Keep local TTS/service auth independent from an explicit cloud STT choice."""
+    """Select STT and TTS independently, keeping service and cloud secrets apart."""
     from packages.providers.speech import SpeechClient
 
     voice = config.get("voice")
     if not voice:
         return None
     choice, settings, cloud = voice.get("stt"), {}, None
+    tts_choice, cloud_tts = voice.get("tts"), None
+    tts_settings = None
+    if tts_choice is not None:
+        from packages.providers.openrouter_speech import openrouter_tts_settings
+
+        tts_settings = openrouter_tts_settings(tts_choice)
     if isinstance(choice, dict) and choice.get("provider") == "meta":
         from packages.providers.meta_speech import MetaSTTClient, meta_stt_settings
 
@@ -96,13 +102,24 @@ def converse_speech(config, token, *, resource_state=None):
             "stt_provider": "whistle",
             "stt_timeout_s": managed.request_timeout_s,
         }
-    local = SpeechClient(
-        voice["url"], token, profile=voice.get("profile", "Kokoro 82M"), **settings
-    )
-    if cloud is not None:
+    local = None
+    if cloud is None or tts_settings is None:
+        local = SpeechClient(
+            voice["url"], token, profile=voice.get("profile", "Kokoro 82M"), **settings
+        )
+    if tts_settings is not None:
+        from packages.providers.openrouter_speech import OpenRouterTTSClient
+
+        cloud_tts = OpenRouterTTSClient(**tts_settings)
+    if cloud is not None or cloud_tts is not None:
         from packages.providers.meta_speech import CloudSTTLocalTTS
 
-        return CloudSTTLocalTTS(local, cloud, resource_state=resource_state)
+        return CloudSTTLocalTTS(
+            local,
+            cloud if cloud is not None else local,
+            tts=cloud_tts,
+            resource_state=resource_state,
+        )
     return local
 
 
