@@ -72,6 +72,7 @@ class CharacterView extends StatefulWidget {
     this.surface = CharacterSurface.legacy,
     this.onModelSettings,
     this.showConverseView = true,
+    this.setupOpen = false,
     this.scenePrimary = kinaiyaIndigo,
     this.sceneBackground = kinaiyaWhite,
   });
@@ -85,7 +86,7 @@ class CharacterView extends StatefulWidget {
   final bool voiceOnlyControls;
   final CharacterSurface surface;
   final VoidCallback? onModelSettings;
-  final bool showConverseView;
+  final bool showConverseView, setupOpen;
   final Color scenePrimary, sceneBackground;
 
   @override
@@ -485,6 +486,7 @@ class _CharacterViewState extends State<CharacterView> {
         !_armed ||
         !_windowMode ||
         entry.sessionId != _s.converseSession?.sessionId ||
+        entry.threadId != _s.converseSession?.threadId ||
         entry.epoch != _s.converseSession?.epoch) {
       return;
     }
@@ -626,6 +628,7 @@ class _CharacterViewState extends State<CharacterView> {
       }
     } catch (_) {}
     if (!stillAuthorized()) return;
+    final userIndex = _s.converseHistory.length;
     _s.appendHistory(AppView.character, ChatMsg(role: 'user', text: text));
     if (overrideText == null) {
       _input.clear();
@@ -660,6 +663,12 @@ class _CharacterViewState extends State<CharacterView> {
         if (!turnOwnsCleanup(nonce, _s.turnNonce)) break;
         switch (event.type) {
           case 'accepted':
+            _s.acceptedConverseSource(
+              session,
+              event.raw['source_event_id'],
+              userIndex,
+            );
+            unawaited(_s.refreshNotices());
             _s.speechEpoch =
                 (event.raw['generation_epoch'] as num?)?.toInt() ?? 0;
           case 'text':
@@ -1071,7 +1080,13 @@ class _CharacterViewState extends State<CharacterView> {
     _publishVoiceActivity();
     if (_windowMode) {
       try {
-        await _s.ensureSession('converse', name: 'Converse');
+        final api = _s.client;
+        final generation = _s.connectionGeneration;
+        _s.converseSession ??= await _s.ensureSession(
+          'converse',
+          name: 'Converse',
+        );
+        if (!_s.ownsConnection(generation, api)) return;
         if (!mounted || !_armed || owner != _armOwner) return;
         await _nextWindowUtterance();
       } catch (_) {
@@ -2375,6 +2390,7 @@ class _CharacterViewState extends State<CharacterView> {
     sessionName: _s.agentSession?.name,
     onAgent: () => _s.setView(AppView.agent),
     showConverseView: widget.showConverseView,
+    setupOpen: widget.setupOpen,
     caption: _s.converseHistory.isEmpty ? null : _currentCaption(),
     banner: !_homeSleeping && (_s.resourceStatusStale || !_s.converseEnabled)
         ? banner

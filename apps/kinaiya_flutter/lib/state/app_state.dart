@@ -17,6 +17,7 @@ import 'package:flutter/foundation.dart';
 import '../api/client.dart';
 import '../api/models.dart';
 import '../config/connection.dart';
+import 'converse_handoff.dart';
 
 enum AppView { character, agent }
 
@@ -87,6 +88,7 @@ class AppState extends ChangeNotifier {
   int _noticeCursor = 0;
   String? _noticeSession;
   final Set<String> _seenNotices = {};
+  final _handoffs = ConverseHandoffTracker();
   final _noticeEvents = StreamController<JournalEntry>.broadcast();
   Stream<JournalEntry> get outcomeNotices => _noticeEvents.stream;
   final _windowEvents = StreamController<JournalEntry>.broadcast();
@@ -332,6 +334,7 @@ class AppState extends ChangeNotifier {
       _noticeSession = null;
       _noticeCursor = 0;
       _seenNotices.clear();
+      _handoffs.clear();
       agentNotice = '';
     }
     final generation = ++_connectionGeneration;
@@ -589,11 +592,36 @@ class AppState extends ChangeNotifier {
             limit: 100,
           )
           .timeout(const Duration(seconds: 5));
-      if (generation != _connectionGeneration ||
-          converseSession?.sessionId != session.sessionId) {
+      if (!ownsConnection(generation, api) ||
+          converseSession?.sessionId != session.sessionId ||
+          converseSession?.threadId != session.threadId ||
+          converseSession?.epoch != session.epoch) {
         return;
       }
       for (final entry in entries) {
+        if (entry.sessionId != session.sessionId ||
+            entry.threadId != session.threadId ||
+            entry.epoch != session.epoch) {
+          continue;
+        }
+        final handoff = _handoffs.observe(entry, session);
+        if (handoff != null) {
+          final id = 'handoff:${handoff.sourceEventId}';
+          final index = converseHistory.indexWhere(
+            (message) => message.eventId == id,
+          );
+          final message = ChatMsg(
+            role: 'system',
+            text: handoff.text,
+            note: 'Agent handoff',
+            eventId: id,
+          );
+          if (index < 0) {
+            converseHistory.add(message);
+          } else {
+            converseHistory[index] = message;
+          }
+        }
         if (entry.sequence > _noticeCursor) _noticeCursor = entry.sequence;
         if (entry.epoch == session.epoch &&
             (entry.kind == 'conversation.window' ||
@@ -1146,6 +1174,38 @@ class AppState extends ChangeNotifier {
     }
     notifyListeners();
     return session;
+  }
+
+  /// Retain the source identity supplied by native typed-turn acceptance.
+  /// Acceptance of conversation input itself is not Agent acceptance.
+  void acceptedConverseSource(
+    SessionInfo session,
+    Object? eventId,
+    int userIndex,
+  ) {
+    if (eventId is! String ||
+        converseSession?.sessionId != session.sessionId ||
+        converseSession?.threadId != session.threadId ||
+        converseSession?.epoch != session.epoch) {
+      return;
+    }
+    if (!_handoffs.acceptedSource(session, eventId)) return;
+    if (userIndex >= 0 && userIndex < converseHistory.length) {
+      final old = converseHistory[userIndex];
+      if (old.role == 'user') {
+        converseHistory[userIndex] = ChatMsg(
+          role: old.role,
+          text: old.text,
+          eventId: eventId,
+          note: old.note,
+          grounded: old.grounded,
+          utteranceId: old.utteranceId,
+          windowIndex: old.windowIndex,
+          windowRevision: old.windowRevision,
+        );
+      }
+    }
+    notifyListeners();
   }
 
   void appendHistory(AppView which, ChatMsg msg) {

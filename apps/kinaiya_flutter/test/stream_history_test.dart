@@ -48,7 +48,11 @@ void main() {
         if (request.url.path == '/v1/converse/turns/stream') {
           turns++;
           final events = [
-            {'type': 'accepted', 'generation_epoch': turns},
+            {
+              'type': 'accepted',
+              'generation_epoch': turns,
+              'source_event_id': 'user-$turns',
+            },
             for (var i = 0; i < 2; i++)
               {
                 'type': 'text',
@@ -95,6 +99,12 @@ void main() {
       ['Sure thing. Here you go.', 'Sure thing. Here you go.'],
     );
     expect(state.converseHistory.where((m) => m.role == 'user').length, 2);
+    expect(
+      state.converseHistory
+          .where((m) => m.role == 'user')
+          .map((m) => m.eventId),
+      ['user-1', 'user-2'],
+    );
     await closeConverseChat(tester);
     await tester.pumpWidget(const SizedBox.shrink());
     state.dispose();
