@@ -43,8 +43,9 @@ An owner profile may select:
 This is a fragment, not a runnable complete service/resource configuration. The
 context limit must be explicitly verified by the owner against the selected
 model's current catalog. `/v1/models` returning only IDs is insufficient evidence
-for a context limit. The example limit reflects the existing development guard's
-reserved catalog context, not a discovery result. `minimal` is the lowest supported
+for a context limit. On 2026-10-30, the authenticated `/muse-code/models` catalog reported a
+1,007,997-token context for `muse-spark-1.3-contributor` and a `minimal` variant.
+The live test profile uses that verified context limit. `minimal` is the lowest supported
 Muse Spark reasoning effort; `none` is unsupported. These are host declarations,
 not mutable app settings or a change to other profiles' defaults.
 
@@ -54,7 +55,10 @@ structured text/tools when present, output limit and stream field. A strict
 positive safe-integer count is accepted only after bounded UTF-8 JSON parsing,
 real EOF/response cleanup and unchanged input/configuration. ContextBudgetBuilder
 then chooses whole history entries and revalidates the exact whole-prompt budget;
-it does not replace token counts with byte lengths or fixed turn counts. Only
+it does not replace token counts with byte lengths or fixed turn counts. A
+single-use measured request ticket is revalidated synchronously before generation,
+including after context assembly's native awaits. Changed configuration, transport,
+provider identity or request text requires another exact count. Only
 explicit measurement-capable cloud adapters pass the Converse resource wrapper;
 local-only resource policy and local-only DAG recall remain enforced. Native
 disclosure checks precede private count requests as well as generation.
@@ -64,8 +68,10 @@ The independent STT client sends `request` JSON plus actual `audio` WAV to
 lazy PyAV, with nested file/network protocols denied, maximum compressed upload
 10 MB and both source/decoded duration at most 60 seconds. Output is mono PCM16
 16 kHz WAV. Conversion does not load a speech model or retain audio. The real
-decoder worker remains owned through cancellation. This optional adapter requires
-the existing PyAV dependency (`whistle` extra); no package is installed on demand.
+decoder worker remains owned through cancellation. This optional adapter requires PyAV 17.1.0 and NumPy 2.3.3 for sample conversion
+(`meta-speech` extra; hash-pinned `requirements-meta-speech.lock`). No package is
+installed on demand. A reusable host was qualified with real generated PCM WAV
+and Opus WebM decoding without loading a speech model.
 
 Meta STT uses its own Meta credential and **omits** the Contributor header because
 voice is Standard-only. The local TTS bearer never leaves loopback. The native
