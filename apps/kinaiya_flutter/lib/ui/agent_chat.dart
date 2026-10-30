@@ -6,10 +6,10 @@ import 'package:flutter/material.dart';
 import '../api/client.dart';
 import '../api/models.dart';
 import '../state/app_state.dart';
+import 'agent_design.dart';
 import 'mcp_settings.dart';
 import 'settings_controls.dart';
 import 'widgets.dart';
-import 'visual_theme.dart';
 
 /// Direct Agent Chat: real worker surface with tools, evidence, approvals
 /// and cancel. Slash commands are Agent-only and registry-driven; Converse
@@ -643,62 +643,65 @@ class _AgentChatState extends State<AgentChat> {
     ],
   );
 
-  Widget _composer() => SafeArea(
-    top: false,
-    child: Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-      child: LayoutBuilder(
-        builder: (context, box) {
-          final input = TextField(
-            controller: _input,
-            key: const ValueKey('agent-input'),
-            decoration: const InputDecoration(
-              labelText: 'Work for the agent, or /command',
-            ),
-            minLines: 1,
-            maxLines: 4,
-            textInputAction: TextInputAction.send,
-            onChanged: (v) => _s.setDraft(AppView.agent, v),
-            onSubmitted: (_) => _send(),
-          );
-          final send = SendMascotButton(
-            label: 'Send task',
-            enabled: _canSubmitText(_input.text),
-            onPressed: _send,
-          );
-          if (box.maxWidth /
-                  MediaQuery.textScalerOf(context).scale(1).clamp(1, 2) <
-              620) {
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                input,
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    _tools(),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Align(
-                        alignment: Alignment.centerRight,
-                        child: send,
+  Widget _composer() => Container(
+    decoration: agentComposerDecoration(context),
+    child: SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+        child: LayoutBuilder(
+          builder: (context, box) {
+            final input = TextField(
+              controller: _input,
+              key: const ValueKey('agent-input'),
+              decoration: const InputDecoration(
+                labelText: 'Work for the agent, or /command',
+              ),
+              minLines: 1,
+              maxLines: 4,
+              textInputAction: TextInputAction.send,
+              onChanged: (v) => _s.setDraft(AppView.agent, v),
+              onSubmitted: (_) => _send(),
+            );
+            final send = SendMascotButton(
+              label: 'Send task',
+              enabled: _canSubmitText(_input.text),
+              onPressed: _send,
+            );
+            if (box.maxWidth /
+                    MediaQuery.textScalerOf(context).scale(1).clamp(1, 2) <
+                AgentDesign.composerBreakpoint) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  input,
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      _tools(),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: send,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
+                ],
+              );
+            }
+            return Row(
+              children: [
+                _tools(),
+                const SizedBox(width: 8),
+                Expanded(child: input),
+                const SizedBox(width: 12),
+                send,
               ],
             );
-          }
-          return Row(
-            children: [
-              _tools(),
-              const SizedBox(width: 8),
-              Expanded(child: input),
-              const SizedBox(width: 12),
-              send,
-            ],
-          );
-        },
+          },
+        ),
       ),
     ),
   );
@@ -710,37 +713,35 @@ class _AgentChatState extends State<AgentChat> {
           query.isEmpty ||
           '${t.objective} ${t.state} ${t.taskId}'.toLowerCase().contains(query),
     );
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     return Container(
-      width: 260,
-      decoration: BoxDecoration(
-        border: Border(
-          right: BorderSide(
-            color: Theme.of(context).colorScheme.outlineVariant,
-          ),
-        ),
-      ),
+      width: AgentDesign.workspaceWidth,
+      decoration: agentWorkspaceDecoration(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
-            child: Text(
-              'Workspace',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
+            child: Text('Workspace', style: textTheme.titleLarge),
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Text(
               _s.agentSession?.name.isNotEmpty == true
                   ? _s.agentSession!.name
                   : 'New Agent session',
-              style: Theme.of(context).textTheme.titleSmall,
+              style: textTheme.titleSmall,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 4, 16, 20),
-            child: Text('Direct instructions to Agent'),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+            child: Text(
+              'Direct instructions to Agent',
+              style: agentMutedStyle(context, textTheme.bodySmall),
+            ),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -754,41 +755,48 @@ class _AgentChatState extends State<AgentChat> {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
             child: Text(
               'Tasks · ${_s.tasks.length}',
-              style: Theme.of(context).textTheme.titleSmall,
+              style: textTheme.titleSmall,
             ),
           ),
           Expanded(
             child: ListView(
+              padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
               children: [
                 for (final task in tasks)
-                  ListTile(
-                    key: ValueKey('workspace-task-${task.taskId}'),
-                    selected: selected?.taskId == task.taskId,
-                    selectedTileColor: const Color(0xFF192B58),
-                    selectedColor: kinaiyaWhite,
-                    leading: Icon(
-                      task.isTerminal
-                          ? Icons.task_alt_rounded
-                          : Icons.pending_outlined,
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: ListTile(
+                      key: ValueKey('workspace-task-${task.taskId}'),
+                      selected: selected?.taskId == task.taskId,
+                      selectedTileColor: scheme.primaryContainer,
+                      selectedColor: scheme.onPrimaryContainer,
+                      shape: agentTileShape(),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 4,
+                      ),
+                      leading: Icon(agentTaskIcon(task)),
+                      title: Text(
+                        task.objective,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      subtitle: Text(
+                        '${task.state} · revision ${task.objectiveRevision}',
+                      ),
+                      onTap: () =>
+                          setState(() => _selectedTaskId = task.taskId),
                     ),
-                    title: Text(
-                      task.objective,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    subtitle: Text(
-                      '${task.state} · revision ${task.objectiveRevision}',
-                    ),
-                    onTap: () => setState(() => _selectedTaskId = task.taskId),
                   ),
                 if (tasks.isEmpty)
                   Padding(
                     padding: const EdgeInsets.all(16),
                     child: Text(
                       query.isEmpty ? 'No tasks yet.' : 'No matching tasks.',
+                      style: agentMutedStyle(context, textTheme.bodyMedium),
                     ),
                   ),
               ],
@@ -812,30 +820,45 @@ class _AgentChatState extends State<AgentChat> {
     );
   }
 
-  Widget _detail(String label, String value) => Padding(
-    padding: const EdgeInsets.only(bottom: 16),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: Theme.of(context).textTheme.labelLarge),
-        const SizedBox(height: 4),
-        SelectableText(value),
-      ],
-    ),
-  );
+  Widget _detail(String label, String value) {
+    final textTheme = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: textTheme.labelMedium?.copyWith(
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 4),
+          SelectableText(value, style: textTheme.bodyMedium),
+        ],
+      ),
+    );
+  }
 
   Widget _details(AgentTask? task) => Container(
-    width: 300,
-    decoration: BoxDecoration(
-      border: Border(
-        left: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
-      ),
-    ),
+    width: AgentDesign.detailsWidth,
+    decoration: agentDetailsDecoration(context),
     child: ListView(
       padding: const EdgeInsets.all(20),
       children: [
         Text('Task details', style: Theme.of(context).textTheme.titleLarge),
-        const SizedBox(height: 24),
+        const SizedBox(height: 8),
+        Text(
+          task == null
+              ? 'Select a task on the left or in the conversation.'
+              : 'Selected task inspection; new instructions stay unassigned.',
+          style: agentMutedStyle(
+            context,
+            Theme.of(context).textTheme.bodySmall,
+          ),
+        ),
+        const SizedBox(height: 16),
         if (task == null)
           const Text('Choose a task to inspect its status and evidence.')
         else ...[
@@ -862,8 +885,12 @@ class _AgentChatState extends State<AgentChat> {
               : '${_s.agentProvider!['provider']} · ${_s.agentProvider!['model']}',
         ),
         _detail('Pending approvals', '${_s.approvals.length}'),
-        const Text(
+        Text(
           'Inspecting a task does not change the recipient of a new instruction. Use its Steer or Stop control to affect that task.',
+          style: agentMutedStyle(
+            context,
+            Theme.of(context).textTheme.bodySmall,
+          ),
         ),
       ],
     ),
@@ -893,6 +920,10 @@ class _AgentChatState extends State<AgentChat> {
                       : 'New instructions use your Agent session.',
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
+                  style: agentMutedStyle(
+                    context,
+                    Theme.of(context).textTheme.bodyMedium,
+                  ),
                 ),
               ],
             ),
@@ -933,9 +964,18 @@ class _AgentChatState extends State<AgentChat> {
                   speaker: 'Agent',
                 ),
               if (_s.tasks.isNotEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Text('Worker tasks across sessions · newest first'),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  child: Text(
+                    'Worker tasks across sessions · newest first',
+                    style: agentMutedStyle(
+                      context,
+                      Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
                 ),
               if (wide && selected != null)
                 _taskCard(selected)
@@ -948,8 +988,13 @@ class _AgentChatState extends State<AgentChat> {
                     vertical: 40,
                   ),
                   child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.auto_awesome_outlined, size: 40),
+                      Icon(
+                        Icons.auto_awesome_outlined,
+                        size: 40,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                       const SizedBox(height: 16),
                       Text(
                         'What would you like to work on?',
@@ -957,9 +1002,13 @@ class _AgentChatState extends State<AgentChat> {
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 12),
-                      const Text(
+                      Text(
                         'Give Agent a task, inspect its work, and review approvals here. Your conversation stays in Converse.',
                         textAlign: TextAlign.center,
+                        style: agentMutedStyle(
+                          context,
+                          Theme.of(context).textTheme.bodyMedium,
+                        ),
                       ),
                     ],
                   ),
@@ -977,7 +1026,7 @@ class _AgentChatState extends State<AgentChat> {
     builder: (context, box) {
       final width =
           box.maxWidth / MediaQuery.textScalerOf(context).scale(1).clamp(1, 2);
-      final wide = width >= 1080;
+      final wide = width >= AgentDesign.wideBreakpoint;
       final matches = _s.tasks.where((t) => t.taskId == _selectedTaskId);
       final selected = matches.isNotEmpty
           ? matches.first
@@ -991,12 +1040,14 @@ class _AgentChatState extends State<AgentChat> {
           Expanded(
             child: Center(
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 1120),
+                constraints: const BoxConstraints(
+                  maxWidth: AgentDesign.conversationMaxWidth,
+                ),
                 child: _conversation(wide, selected),
               ),
             ),
           ),
-          if (width >= 1360) _details(selected),
+          if (width >= AgentDesign.detailsBreakpoint) _details(selected),
         ],
       );
       final minHeight = MediaQuery.textScalerOf(context).scale(1) >= 1.5
@@ -1013,58 +1064,62 @@ class _AgentChatState extends State<AgentChat> {
 
   Widget _taskCard(AgentTask task) {
     final grounded = task.isGroundedSuccess;
-    final tone = grounded
-        ? Colors.green
-        : task.state == 'failed'
-        ? Colors.red
-        : Colors.amber;
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     _steer.putIfAbsent(task.taskId, TextEditingController.new);
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      shape: agentCardShape(context),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            Semantics(
+              label: 'Task objective: ${task.objective}',
+              child: Text(task.objective, style: textTheme.titleSmall),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                Semantics(
-                  label: 'Task objective: ${task.objective}',
-                  child: Text(
-                    task.objective,
-                    style: Theme.of(context).textTheme.titleSmall,
+                agentStatusChip(context, task),
+                if (!task.isTerminal)
+                  TextButton.icon(
+                    onPressed: () => _cancelTask(task),
+                    icon: const Icon(Icons.stop_circle_outlined),
+                    label: const Text('Stop'),
                   ),
-                ),
-                Wrap(
-                  spacing: 8,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    StatusChip(text: task.state, tone: tone),
-                    if (!task.isTerminal)
-                      TextButton.icon(
-                        onPressed: () => _cancelTask(task),
-                        icon: const Icon(Icons.stop_circle_outlined),
-                        label: const Text('Stop'),
-                      ),
-                  ],
-                ),
               ],
             ),
             if (grounded)
-              const Text(
-                'Succeeded with evidence below.',
-                style: TextStyle(color: Colors.green),
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  'Succeeded with evidence below.',
+                  style: textTheme.bodyMedium?.copyWith(color: scheme.primary),
+                ),
               ),
             if (task.state == 'succeeded' && !grounded)
-              Text(
-                task.hasUnverifiedExternalOnly
-                    ? 'Finished with a tool or computation receipt only; '
-                          'task effects need independent evidence.'
-                    : 'Finished without independent completion evidence.',
-                style: const TextStyle(color: Colors.orange),
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  task.hasUnverifiedExternalOnly
+                      ? 'Finished with a tool or computation receipt only; '
+                            'task effects need independent evidence.'
+                      : 'Finished without independent completion evidence.',
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: scheme.secondary,
+                  ),
+                ),
               ),
-            if (task.summary.isNotEmpty) Text(task.summary),
+            if (task.summary.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(task.summary),
+              ),
             for (final e in task.evidence)
               Padding(
                 padding: const EdgeInsets.only(top: 4),
@@ -1074,22 +1129,28 @@ class _AgentChatState extends State<AgentChat> {
                   '${e.path != null ? ' @ ${e.path}' : ''}'
                   '${e.sha256 != null ? ' sha256:${e.sha256!.substring(0, e.sha256!.length.clamp(0, 12))}' : ''}'
                   '${e.exitCode != null ? ' exit:${e.exitCode}' : ''}',
-                  style: Theme.of(context).textTheme.bodySmall,
+                  style: textTheme.bodySmall,
                 ),
               ),
             if (task.remainingRequiredWork.isNotEmpty)
-              Text(
-                'Remaining: ${task.remainingRequiredWork.join('; ')}',
-                style: Theme.of(context).textTheme.bodySmall,
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  'Remaining: ${task.remainingRequiredWork.join('; ')}',
+                  style: textTheme.bodySmall,
+                ),
               ),
             if (task.error != null && task.error!.isNotEmpty)
-              Text(
-                'Error: ${task.error}',
-                style: const TextStyle(color: Colors.red),
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  'Error: ${task.error}',
+                  style: textTheme.bodyMedium?.copyWith(color: scheme.error),
+                ),
               ),
             if (!task.isTerminal)
               Padding(
-                padding: const EdgeInsets.only(top: 8),
+                padding: const EdgeInsets.only(top: 12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -1111,6 +1172,7 @@ class _AgentChatState extends State<AgentChat> {
                         border: OutlineInputBorder(),
                       ),
                     ),
+                    const SizedBox(height: 4),
                     Wrap(
                       children: [
                         TextButton(
@@ -1132,11 +1194,14 @@ class _AgentChatState extends State<AgentChat> {
     final args = approval.arguments.entries
         .map((e) => '${e.key}=${e.value}')
         .join(' ');
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      color: Theme.of(context).colorScheme.tertiaryContainer,
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      color: scheme.tertiaryContainer,
+      shape: agentCardShape(context),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1145,22 +1210,32 @@ class _AgentChatState extends State<AgentChat> {
                   'Approval requested for ${approval.tool} on task ${approval.taskId}',
               child: Text(
                 'Approval: ${approval.tool}',
-                style: Theme.of(context).textTheme.titleSmall,
+                style: textTheme.titleSmall,
               ),
             ),
             if (approval.reason == 'uncommitted_speech')
-              const Text(
-                'Live speech is not yet confirmed. Review this exact action.',
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  'Live speech is not yet confirmed. Review this exact action.',
+                  style: textTheme.bodyMedium,
+                ),
               ),
-            SelectableText(
-              'Action: $args\ndigest:${approval.actionDigest} '
-              'revision:${approval.objectiveRevision}'
-              '${approval.expiresAt != null ? ' expires:${approval.expiresAt}' : ''}',
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: SelectableText(
+                'Action: $args\ndigest:${approval.actionDigest} '
+                'revision:${approval.objectiveRevision}'
+                '${approval.expiresAt != null ? ' expires:${approval.expiresAt}' : ''}',
+              ),
             ),
             if (approval.isExpired)
-              const Text(
-                'Expired: this approval cannot be reused.',
-                style: TextStyle(color: Colors.red),
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  'Expired: this approval cannot be reused.',
+                  style: textTheme.bodyMedium?.copyWith(color: scheme.error),
+                ),
               ),
             Wrap(
               spacing: 8,
