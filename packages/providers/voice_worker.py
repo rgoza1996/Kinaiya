@@ -1,4 +1,4 @@
-"""Optional local CPU voice service. Launch with a Python containing the voice extra.
+"""Optional local voice service. Launch with an owner-provisioned voice Python.
 
 Models load lazily in this process; Agent and session services never import them.
 Audio is transient by default. Client playback, not this server, measures audibility.
@@ -32,6 +32,7 @@ from packages.providers.tts_backends import (
     pcm_frames,
     produce_synthesis,
     synthesis_mode,
+    validate_tts_device,
     validate_voice,
 )
 from services.common.auth import Auth, load_or_create_tokens
@@ -46,6 +47,9 @@ def create_app(
     tts_profile="Kokoro 82M",
     tts_model_dir=None,
     tts_factory=None,
+    device="cpu",
+    stt_backend="faster-whisper",
+    stt_checkpoint=None,
     first_frame_timeout=300.0,
     idle_frame_timeout=60.0,
     producer_close_timeout=5.0,
@@ -59,11 +63,41 @@ def create_app(
         ):
             raise ValueError("Voice deadlines must be finite positive seconds")
     voice = validate_voice(tts_profile, voice)
+    device = validate_tts_device(tts_profile, device)
+    if not isinstance(stt_backend, str) or stt_backend not in {"faster-whisper", "openai-whisper"}:
+        raise ValueError("Unsupported configured STT backend")
+    if device == "cuda":
+        if stt_backend != "openai-whisper" or stt_checkpoint is None:
+            raise ValueError("GPU voice requires its configured OpenAI Whisper checkpoint")
+        if stt_model not in {"tiny", "tiny.en"}:
+            raise ValueError("GPU voice requires a supported pinned Whisper model")
+    elif stt_backend != "faster-whisper" or stt_checkpoint is not None:
+        raise ValueError("The CPU voice profile requires its existing faster-whisper backend")
+    if stt_checkpoint is not None:
+        if not isinstance(stt_checkpoint, (str, Path)):
+            raise ValueError("STT checkpoint must be an absolute owner input")
+        checkpoint_text = str(stt_checkpoint)
+        if (
+            not Path(checkpoint_text).is_absolute()
+            or len(checkpoint_text) > 4096
+            or any(char in checkpoint_text for char in "\0\r\n")
+        ):
+            raise ValueError("STT checkpoint must be an absolute owner input")
+        stt_checkpoint = Path(checkpoint_text)
     mode = synthesis_mode(tts_profile)
-    factory = tts_factory if tts_factory is not None else create_tts_backend
+    if tts_factory is not None:
+        factory = tts_factory
+    elif device == "cpu":
+        factory = create_tts_backend
+    else:
+
+        def factory(profile, model_dir, selected_voice):
+            return create_tts_backend(profile, model_dir, selected_voice, device=device)
+
     app = FastAPI(title="Kinaiya local voice worker")
     models = {}
     selected_backend = None
+    selected_stt_backend = None
     lock = threading.Lock()
     admission = asyncio.Lock()
     sessions = set()
@@ -107,11 +141,18 @@ def create_app(
         active = sum(stream.thread.is_alive() for stream in producers)
         return {
             "service": "local-voice",
-            "device": "cpu",
+            "device": device,
             "pid": os.getpid(),
             "loaded": list(models),
             "tts_profile": tts_profile,
             "tts_voice": voice,
+            "stt_backend": stt_backend,
+            "stt_device": (
+                getattr(models["stt"], "loaded_device", "cpu") if "stt" in models else None
+            ),
+            "tts_device": (
+                getattr(models["tts"], "loaded_device", "cpu") if "tts" in models else None
+            ),
             "synthesis_mode": mode,
             "tts_artifact_revision": artifact_revision(tts_profile),
             "assets_state": getattr(selected_backend, "assets_state", "not_checked"),
@@ -127,7 +168,42 @@ def create_app(
         }
 
     def recognize(data):
+        nonlocal selected_stt_backend
         allow_inference()
+        if stt_backend == "openai-whisper":
+            with lock:
+                allow_inference()
+                from packages.providers.openai_whisper_backend import (
+                    OpenAIWhisperBackend,
+                    STTInputError,
+                )
+
+                try:
+                    if selected_stt_backend is None:
+                        selected_stt_backend = OpenAIWhisperBackend(
+                            stt_checkpoint, model=stt_model, device=device
+                        )
+                    allow_inference()
+                    result = selected_stt_backend.transcribe(data)
+                except STTInputError:
+                    raise HTTPException(400, "Unsupported or invalid voice audio input") from None
+                except HTTPException:
+                    raise
+                except Exception:
+                    raise HTTPException(
+                        503, "The configured GPU STT backend is unavailable"
+                    ) from None
+                finally:
+                    if getattr(selected_stt_backend, "loaded_device", None) == "cuda:0":
+                        models["stt"] = selected_stt_backend
+                if (
+                    getattr(selected_stt_backend, "loaded_device", None) != "cuda:0"
+                    or not isinstance(result, dict)
+                    or result.get("device") != "cuda:0"
+                ):
+                    raise HTTPException(503, "The configured STT model is not on its required GPU")
+                allow_inference()
+                return result
         from faster_whisper import WhisperModel
 
         with lock:
@@ -205,6 +281,8 @@ def create_app(
             revision = allow_inference()
             if revision != self.policy_revision:
                 raise HTTPException(409, "Voice resource admission changed")
+            if device == "cuda" and "tts" in models and models["tts"].loaded_device != "cuda:0":
+                raise TTSBackendError("The configured voice model is not on its required GPU")
 
         async def watch(self):
             # FastAPI has already consumed the JSON body. This is the sole
@@ -270,6 +348,10 @@ def create_app(
                         selected_backend = backend
                         self.check()
                         backend.load()
+                        if device == "cuda" and getattr(backend, "loaded_device", None) != "cuda:0":
+                            raise TTSBackendError(
+                                "The configured voice model is not on its required GPU"
+                            )
                         self.load_seconds = time.perf_counter() - loading
                         models["tts"] = backend
                         self.check()
@@ -343,7 +425,11 @@ def create_app(
                     "chunk_index": self.index,
                     "elapsed_seconds": time.perf_counter() - self.start_time,
                     "provider": tts_profile,
-                    "device": "cpu",
+                    "device": (
+                        getattr(models["tts"], "loaded_device", "cpu")
+                        if device == "cpu"
+                        else models["tts"].loaded_device
+                    ),
                     "synthesis_mode": mode,
                     "load_seconds": self.load_seconds,
                     "first_waveform_seconds": self.first_waveform_seconds,
@@ -493,6 +579,11 @@ def main():
     parser.add_argument("--tts-profile", default="Kokoro 82M")
     parser.add_argument("--tts-model-dir", type=Path)
     parser.add_argument("--tts-voice")
+    parser.add_argument("--device", choices=("cpu", "cuda"), default="cpu")
+    parser.add_argument(
+        "--stt-backend", choices=("faster-whisper", "openai-whisper"), default="faster-whisper"
+    )
+    parser.add_argument("--stt-checkpoint", type=Path)
     args = parser.parse_args()
     app = create_app(
         Auth(load_or_create_tokens(args.data_dir)),
@@ -501,6 +592,9 @@ def main():
         tts_profile=args.tts_profile,
         tts_model_dir=args.tts_model_dir,
         voice=args.tts_voice,
+        device=args.device,
+        stt_backend=args.stt_backend,
+        stt_checkpoint=args.stt_checkpoint,
     )
     uvicorn.run(app, host="127.0.0.1", port=args.port, log_level="warning")
 

@@ -46,10 +46,12 @@ async def voice_host(tmp_path, monkeypatch):
     monkeypatch.setattr(httpx, "AsyncClient", client)
     monkeypatch.setattr(launcher, "WorkerManager", Manager)
 
-    def build(profile=MISSING, **resource_changes):
+    def build(profile=MISSING, *, stt_selection=MISSING, **resource_changes):
         voice = {"url": "http://127.0.0.1:8915"}
         if profile is not MISSING:
             voice["profile"] = profile
+        if stt_selection is not MISSING:
+            voice["stt"] = stt_selection
         config = {
             "session_url": "http://127.0.0.1:8910",
             "agent_url": "http://127.0.0.1:8911",
@@ -75,6 +77,116 @@ async def voice_host(tmp_path, monkeypatch):
         await app.state.coordinator.close()
     for connection in clients:
         await connection.aclose()
+
+
+async def test_cuda_voice_config_binds_cli_and_actual_loaded_health(voice_host, tmp_path):
+    build, health = voice_host
+    checkpoint = tmp_path / "tiny.en.pt"
+    checkpoint.write_bytes(b"public synthetic checkpoint metadata")
+    app, manager = build(
+        "Kokoro 82M",
+        voice_device="cuda",
+        voice_stt_backend="openai-whisper",
+        voice_stt_checkpoint=str(checkpoint),
+    )
+    spec = manager.specs[0]
+    assert spec.argv[spec.argv.index("--device") + 1] == "cuda"
+    assert spec.argv[spec.argv.index("--stt-backend") + 1] == "openai-whisper"
+    assert spec.argv[spec.argv.index("--stt-checkpoint") + 1] == str(checkpoint)
+    health.update(
+        service="local-voice",
+        pid=42,
+        device="cuda",
+        loaded=[],
+        tts_profile="Kokoro 82M",
+        tts_voice="af_heart",
+        synthesis_mode="sentence_buffered",
+        tts_artifact_revision=None,
+        assets_state="not_checked",
+        stt_backend="openai-whisper",
+        stt_device=None,
+        tts_device=None,
+    )
+    assert await manager.readiness(spec, SimpleNamespace(pid=42))
+    assert app.state.voice_health["loaded"] == []
+    assert app.state.voice_health["tts_device"] is None
+    health.update(loaded=["stt", "tts"], stt_device="cuda:0", tts_device="cuda:0")
+    assert await manager.readiness(spec, SimpleNamespace(pid=42))
+    for field, value in [
+        ("device", "cpu"),
+        ("stt_device", "cpu"),
+        ("tts_device", "cuda:1"),
+        ("tts_device", None),
+        ("stt_backend", "faster-whisper"),
+    ]:
+        old = health[field]
+        health[field] = value
+        assert not await manager.readiness(spec, SimpleNamespace(pid=42))
+        assert app.state.voice_health == {}
+        health[field] = old
+    health.pop("stt_device")
+    assert not await manager.readiness(spec, SimpleNamespace(pid=42))
+
+
+@pytest.mark.parametrize(
+    "profile, changes",
+    [
+        ("Kokoro 82M", {"voice_device": "auto"}),
+        ("Kokoro 82M", {"voice_device": True}),
+        ("Kokoro 82M", {"voice_device": "cuda"}),
+        ("Kokoro 82M", {"voice_stt_backend": "openai-whisper"}),
+        ("Kokoro 82M", {"voice_stt_checkpoint": "/owned/tiny.en.pt"}),
+        (
+            "Kokoro 82M",
+            {
+                "voice_device": "cuda",
+                "voice_stt_backend": "openai-whisper",
+                "voice_stt_checkpoint": "relative.pt",
+            },
+        ),
+        (
+            "Supertonic 3",
+            {
+                "voice_device": "cuda",
+                "voice_stt_backend": "openai-whisper",
+                "voice_stt_checkpoint": "/owned/tiny.en.pt",
+            },
+        ),
+        (
+            "VibeVoice Realtime 0.5B",
+            {
+                "voice_device": "cuda",
+                "voice_stt_backend": "openai-whisper",
+                "voice_stt_checkpoint": "/owned/tiny.en.pt",
+            },
+        ),
+    ],
+)
+async def test_invalid_gpu_voice_combinations_refuse_before_worker_creation(
+    voice_host, profile, changes
+):
+    build, _ = voice_host
+    with pytest.raises((ValueError, ValidationError)):
+        build(profile, **changes)
+
+
+async def test_cuda_voice_cannot_select_cpu_whistle_or_agent_checkpoint(voice_host, tmp_path):
+    build, _ = voice_host
+    checkpoint = tmp_path / "tiny.en.pt"
+    checkpoint.write_bytes(b"public synthetic checkpoint metadata")
+    selected = {
+        "voice_device": "cuda",
+        "voice_stt_backend": "openai-whisper",
+        "voice_stt_checkpoint": str(checkpoint),
+    }
+    with pytest.raises(ValueError):
+        build("Kokoro 82M", stt_selection={"provider": "whistle"}, **selected)
+    protected = tmp_path / "agent" / "tiny.en.pt"
+    protected.parent.mkdir()
+    protected.write_bytes(b"public synthetic checkpoint metadata")
+    selected["voice_stt_checkpoint"] = str(protected)
+    with pytest.raises(ValueError):
+        build("Kokoro 82M", **selected)
 
 
 @pytest.mark.parametrize(

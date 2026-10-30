@@ -1,4 +1,4 @@
-"""Allowlisted local CPU TTS adapters; optional inference imports stay lazy.
+"""Allowlisted local TTS adapters; optional inference imports stay lazy.
 
 No model installer, remote adapter, user-provided Python module or execution
 configuration is accepted here. Provider computation may finish after caller
@@ -13,6 +13,7 @@ import numbers
 import os
 import stat
 from array import array
+from contextlib import nullcontext
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -87,6 +88,15 @@ def artifact_revision(profile):
 
 def input_limit(profile):
     return profile_settings(profile).input_limit
+
+
+def validate_tts_device(profile, device="cpu"):
+    profile_settings(profile)
+    if device not in ("cpu", "cuda") or not isinstance(device, str):
+        raise ValueError("Unsupported configured voice device")
+    if device == "cuda" and profile != "Kokoro 82M":
+        raise ValueError("The selected retained TTS profile does not support GPU execution")
+    return device
 
 
 @dataclass(frozen=True)
@@ -240,8 +250,10 @@ def _verify_assets(model_dir, voice):
 class _KokoroBackend:
     assets_state = "not_checked"
 
-    def __init__(self, voice):
+    def __init__(self, voice, *, device="cpu"):
         self.voice = voice
+        self.requested_device = validate_tts_device("Kokoro 82M", device)
+        self.loaded_device = None
         self.pipeline = None
 
     def load(self):
@@ -249,17 +261,97 @@ class _KokoroBackend:
         os.environ["TRANSFORMERS_OFFLINE"] = "1"
         from kokoro import KPipeline
 
-        self.pipeline = KPipeline(lang_code="a", device="cpu", repo_id="hexgrad/Kokoro-82M")
+        if self.requested_device == "cuda":
+            import torch
+
+            if not torch.cuda.is_available():
+                raise TTSBackendError("The configured GPU voice runtime is unavailable")
+            torch.cuda.set_device(0)
+        pipeline = KPipeline(
+            lang_code="a", device=self.requested_device, repo_id="hexgrad/Kokoro-82M"
+        )
+        self._require_gpu_placement(pipeline)
+        self.pipeline = pipeline
+        self.loaded_device = "cuda:0" if self.requested_device == "cuda" else "cpu"
+
+    def _require_gpu_placement(self, pipeline):
+        if self.requested_device == "cuda":
+            try:
+                try:
+                    parameters = list(pipeline.model.parameters())
+                    buffers = list(pipeline.model.buffers())
+                    placed = bool(parameters) and all(
+                        tensor.device.type == "cuda"
+                        and type(tensor.device.index) is int
+                        and tensor.device.index == 0
+                        for tensor in parameters + buffers
+                    )
+                except (AttributeError, TypeError):
+                    placed = False
+                if not placed:
+                    raise TTSBackendError("The configured voice model is not on its required GPU")
+            except BaseException:
+                self.loaded_device = None
+                raise
 
     def synthesize(self, text):
-        for _, _, audio in self.pipeline(text, voice=self.voice):
-            yield AudioWaveform(audio.numpy() if hasattr(audio, "numpy") else audio, 24000)
+        iterator = None
+        try:
+            try:
+                self._require_gpu_placement(self.pipeline)
+                with self._native_context():
+                    iterator = iter(self.pipeline(text, voice=self.voice))
+                ended = object()
+                while True:
+                    with self._native_context():
+                        result = next(iterator, ended)
+                    if result is ended:
+                        break
+                    _, _, audio = result
+                    self._require_gpu_placement(self.pipeline)
+                    yield AudioWaveform(audio.numpy() if hasattr(audio, "numpy") else audio, 24000)
+                self._require_gpu_placement(self.pipeline)
+            finally:
+                close = getattr(iterator, "close", None)
+                if close is not None:
+                    with self._native_context():
+                        close()
+                    self._require_gpu_placement(self.pipeline)
+        except GeneratorExit:
+            # A returned CPU waveform has completed its device-to-host transfer.
+            # Preserve normal boundary cancellation only while placement holds.
+            self._require_gpu_placement(self.pipeline)
+            raise
+        except BaseException:
+            if self.requested_device == "cuda":
+                self.loaded_device = None
+            raise
+
+    def _native_context(self):
+        if self.requested_device == "cuda":
+            import torch
+
+            if getattr(getattr(torch, "version", None), "hip", None):
+                # ROCm MIOpen fused LSTMs fail on the verified GPU runtime.
+                # Native Torch ops retain CUDA tensors. The worker serializes
+                # STT/TTS; restore every caller flag before yielding/backpressure.
+                backend = torch.backends.cudnn
+                return backend.flags(
+                    enabled=False,
+                    benchmark=backend.benchmark,
+                    benchmark_limit=backend.benchmark_limit,
+                    deterministic=backend.deterministic,
+                    allow_tf32=backend.allow_tf32,
+                    fp32_precision=backend.fp32_precision,
+                )
+        return nullcontext()
 
 
 class _SupertonicBackend:
     def __init__(self, model_dir, voice):
         self.model_dir, self.voice = model_dir, voice
         self.assets_state = "not_checked"
+        self.loaded_device = None
         self.pipeline = self.style = None
 
     def load(self):
@@ -288,6 +380,7 @@ class _SupertonicBackend:
                 raise TTSBackendError("The configured voice runtime must use CPU only")
         self.style = self.pipeline.get_voice_style(self.voice)
         self.assets_state = "verified"
+        self.loaded_device = "cpu"
 
     def synthesize(self, text):
         waveform, _predicted_duration = self.pipeline.synthesize(
@@ -300,10 +393,11 @@ class _SupertonicBackend:
         yield AudioWaveform(waveform, self.pipeline.sample_rate)
 
 
-def create_tts_backend(profile, model_dir=None, voice=None):
+def create_tts_backend(profile, model_dir=None, voice=None, *, device="cpu"):
     voice = validate_voice(profile, voice)
+    device = validate_tts_device(profile, device)
     if profile == "Kokoro 82M":
-        return _KokoroBackend(voice)
+        return _KokoroBackend(voice, device=device)
     if profile == "VibeVoice Realtime 0.5B":
         from packages.providers.vibevoice_backend import VibeVoiceBackend
 
