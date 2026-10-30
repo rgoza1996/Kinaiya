@@ -2,11 +2,15 @@ import 'package:flutter/material.dart';
 
 /// Presentation-only Voice options sheet for Converse.
 ///
-/// Displays the existing silence/timing controls without owning anything:
+/// Displays the existing timing controls without owning anything:
 /// the silence value, the change handler, capture, drafts, sessions,
 /// disclosure scopes, and audio all stay in [CharacterView]'s owner state.
 /// Opening or closing this surface never starts, stops, rearms, or
 /// otherwise touches capture; it only forwards an explicit silence change.
+///
+/// In streaming-window mode the sheet shows live Decisions timing and hides
+/// the fallback silence control. Otherwise it shows the fallback clip
+/// silence control.
 class VoiceOptionsSheet extends StatelessWidget {
   const VoiceOptionsSheet({
     super.key,
@@ -54,9 +58,13 @@ class VoiceOptionsSheet extends StatelessWidget {
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     const Text('Live'),
-                    if (windowMode)
-                      const Text('Conversation timing')
-                    else ...[
+                    if (windowMode) ...[
+                      const Text('Conversation timing'),
+                      const Text(
+                        'Live audio streams continuously. Decisions chooses when to wait, respond, or interrupt; no silence timer ends the turn.',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ] else ...[
                       const Tooltip(
                         message: 'Silence that ends a voice clip',
                         child: Text('Silence'),
@@ -75,6 +83,10 @@ class VoiceOptionsSheet extends StatelessWidget {
                           if (v == null) return;
                           onSilenceChanged(v);
                         },
+                      ),
+                      const Text(
+                        'Fallback clip capture: silence ends the clip. Not live model timing.',
+                        style: TextStyle(fontSize: 12),
                       ),
                     ],
                     const Text(

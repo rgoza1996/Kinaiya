@@ -64,8 +64,9 @@ const settingsEntries = <SettingsEntry>[
     section: SettingsSection.converse,
     title: 'Voice options',
     description:
-        'Adjust the current conversation’s silence and timing options.',
-    keywords: 'speech microphone vad live call tell audio',
+        'Conversation timing for the current view: live Decisions timing or fallback clip silence.',
+    keywords:
+        'speech microphone vad live call tell audio window decisions clip fallback timing silence',
   ),
   SettingsEntry(
     action: SettingsAction.memory,
