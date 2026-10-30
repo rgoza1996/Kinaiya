@@ -8,11 +8,13 @@ and model/conversation setup. This explicit change supersedes the older
 character-to-Agent navigation described in Roadmap §15.2: clicking the Home
 character opens setup. Agent remains a separate, direct destination.
 
-The source export is preserved at `assets/penpot/Kinaiya-Converse-Agent.penpot`,
+The initial source export was preserved at `assets/penpot/Kinaiya-Converse-Agent.penpot`,
 SHA256 `2cf97cfe945a22dfebb358d96928f4aa0c6b658fc0fa97e32a80bf10b95d64d8`.
 Its first page, “00 · Home & Converse · Updated”, includes the 26 connected
 boards inspected for this change, including the latest sleeping Home state. Existing example messages, weather, projects,
 model names and task outcomes are design examples, never runtime fixtures.
+The later consolidated master replaces that archive at the same path;
+[ADR 0060](0060-converse-handoffs-and-motion.md) records its new digest and scope.
 
 ## Ownership and compatibility
 
