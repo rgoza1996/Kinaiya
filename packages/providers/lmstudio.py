@@ -210,6 +210,25 @@ def _history(messages):
     return result
 
 
+def _template_history(history):
+    # Some model templates accept exactly one initial system message. Preserve
+    # every leading section in order, without moving later messages or promoting
+    # user text. The original history still binds source-mutation checks.
+    messages = history["messages"]
+    leading = 0
+    while leading < len(messages) and messages[leading]["role"] == "system":
+        leading += 1
+    if leading < 2:
+        return history
+    text = "\n\n".join(message["content"][0]["text"] for message in messages[:leading])
+    return {
+        "messages": [
+            {"role": "system", "content": [{"type": "text", "text": text}]},
+            *messages[leading:],
+        ]
+    }
+
+
 @dataclass
 class _Operation:
     socket: object = None
@@ -489,6 +508,7 @@ class LMStudioProvider:
         }
 
     async def _measure(self, op, history, snapshot):
+        history = _template_history(history)
         formatted = await self._rpc(
             op,
             "applyPromptTemplate",
