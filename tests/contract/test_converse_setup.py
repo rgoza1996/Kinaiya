@@ -12,9 +12,15 @@ from pydantic import ValidationError
 
 from packages.contracts.converse_setup import ConverseSetup
 from packages.contracts.models import ProviderInfo
+from services import launcher
 from services.common.auth import Auth
 from services.converse.api import create_app
-from services.converse.setup import host_setup, setup_state
+from services.converse.setup import (
+    HOST_SETUP_UNAVAILABLE,
+    host_setup,
+    safe_host_setup,
+    setup_state,
+)
 
 TOKENS = {"owner": "o" * 32, "converse": "c" * 32, "resources": "r" * 32}
 AUTH = Auth(TOKENS, ("https://ui.invalid",))
@@ -85,6 +91,134 @@ async def owner_setup():
 
 def owner_headers(**extra):
     return {"Authorization": "Bearer " + TOKENS["owner"], **extra}
+
+
+@pytest.mark.parametrize("alias", ["/synthetic/model", "bad\u202ename", "\ud800", "x" * 129])
+def test_safe_projection_refuses_display_data_without_inventing_embedded_configuration(alias):
+    config = configuration()
+    config["providers"]["decisions"]["model"] = alias
+    assert safe_host_setup(config) is HOST_SETUP_UNAVAILABLE
+    assert HOST_SETUP_UNAVAILABLE is not None
+    assert vars(HOST_SETUP_UNAVAILABLE) == {}
+    with pytest.raises(ValueError, match="projection is unavailable"):
+        setup_state(Runtime(), HOST_SETUP_UNAVAILABLE)
+    embedded = setup_state(Runtime(), None)
+    assert embedded.roles.decisions.configured is False
+    assert embedded.reasoning.selected == "unavailable"
+
+
+def test_safe_projection_preserves_valid_declarations():
+    config = configuration()
+    assert safe_host_setup(config) == host_setup(config)
+
+
+@pytest.mark.parametrize("error", [RuntimeError, OSError, TypeError])
+def test_safe_projection_does_not_swallow_unrelated_errors(monkeypatch, error):
+    from services.converse import setup as setup_module
+
+    def unexpected_failure(_config):
+        raise error("Synthetic non-validation failure")
+
+    monkeypatch.setattr(setup_module, "host_setup", unexpected_failure)
+    with pytest.raises(error, match="non-validation failure"):
+        safe_host_setup(configuration())
+
+
+async def test_opaque_decisions_alias_cannot_prevent_converse_startup_or_owner_controls(
+    tmp_path, monkeypatch
+):
+    import uvicorn
+
+    from services.converse import runtime as runtime_module
+
+    alias = "/synthetic/local/model"
+    config = {
+        "session_url": "http://127.0.0.1:6",
+        "providers": {
+            "converse": {
+                "kind": "lmstudio",
+                "base_url": "http://127.0.0.1:1234",
+                "model": "synthetic-conversation",
+                "reasoning_effort": "none",
+            },
+            "decisions": {
+                "kind": "compatible",
+                "base_url": "http://127.0.0.1:6/v1",
+                "model": alias,
+            },
+        },
+        "streaming_windows": {"enabled": False},
+    }
+    calls = []
+
+    async def unexpected_network(_self, request):
+        calls.append(request.url)
+        raise AssertionError("Setup inspection and owner controls must not make model calls")
+
+    monkeypatch.setattr(httpx.AsyncHTTPTransport, "handle_async_request", unexpected_network)
+    selected = launcher.provider(config, "decisions")
+    assert selected.info.model == alias and selected.info.local
+    await selected.http.aclose()
+
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(config))
+    monkeypatch.setattr(launcher, "load_or_create_tokens", lambda _path: TOKENS)
+    runtimes, apps = [], []
+    constructor = runtime_module.ConverseRuntime
+
+    def capture_runtime(*args, **kwargs):
+        runtime = constructor(*args, **kwargs)
+        runtimes.append(runtime)
+        return runtime
+
+    def capture_app(app, **kwargs):
+        assert kwargs["host"] == "127.0.0.1"
+        apps.append(app)
+
+    monkeypatch.setattr(runtime_module, "ConverseRuntime", capture_runtime)
+    monkeypatch.setattr(uvicorn, "run", capture_app)
+    try:
+        launcher.serve(
+            SimpleNamespace(
+                config=config_path,
+                data_dir=tmp_path / "data",
+                workspace=tmp_path / "workspace",
+                service="converse",
+                port=None,
+            )
+        )
+        assert len(apps) == 1 and len(runtimes) == 1
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=apps[0]), base_url="http://fixture"
+        ) as client:
+            setup = await client.get("/v1/converse/setup", headers=owner_headers())
+            assert setup.status_code == 503
+            assert setup.headers["cache-control"] == "no-store"
+            assert setup.json() == {"detail": "Converse setup declarations are unavailable"}
+            assert alias not in setup.text
+            health = await client.get("/health")
+            assert health.status_code == 200 and health.json()["enabled"] is True
+            assert health.json()["provider"]["model"] == "synthetic-conversation"
+            assert health.json()["context_history"] == "measured"
+            for enabled, revision in ((False, 1), (True, 2)):
+                control = await client.post(
+                    "/v1/converse/enabled",
+                    json={"enabled": enabled},
+                    headers=owner_headers(),
+                )
+                assert control.status_code == 200
+                assert control.json()["enabled"] is enabled
+                assert control.json()["owner_intent_revision"] == revision
+                assert (await client.get("/health")).json()["enabled"] is enabled
+            assert (await client.get("/v1/converse/setup")).status_code == 401
+            unavailable = await client.get("/v1/converse/setup", headers=owner_headers())
+            assert unavailable.status_code == 503 and alias not in unavailable.text
+        assert calls == []
+    finally:
+        for runtime in runtimes:
+            await runtime.close()
+            await runtime.journal.close()
+            await runtime.provider.close()
 
 
 async def test_only_owner_with_permitted_origin_can_inspect_setup(owner_setup):

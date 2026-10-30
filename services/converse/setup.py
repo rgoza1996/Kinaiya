@@ -68,6 +68,14 @@ class HostSetup:
     reasoning: str
 
 
+@dataclass(frozen=True)
+class HostSetupUnavailable:
+    """Failed optional projection, with no retained config or exception detail."""
+
+
+HOST_SETUP_UNAVAILABLE = HostSetupUnavailable()
+
+
 def host_setup(config):
     """Project explicit launcher fields, never retain the complete host config.
 
@@ -108,8 +116,24 @@ def host_setup(config):
     return HostSetup(stt, tts, decisions, _name(reasoning))
 
 
+def safe_host_setup(config):
+    """Display validation cannot take ownership of service startup.
+
+    Some providers accept opaque aliases that the narrower display contract must
+    refuse. Keep that optional failure distinct from absent embedded metadata;
+    provider construction, runtime failures and unrelated exceptions still fail
+    through their existing owners.
+    """
+    try:
+        return host_setup(config)
+    except ValueError:
+        return HOST_SETUP_UNAVAILABLE
+
+
 def setup_state(runtime, host=None):
     """Read live operation counters and the configured provider declaration only."""
+    if isinstance(host, HostSetupUnavailable):
+        raise ValueError("Host setup projection is unavailable")
     info = runtime.provider.info
     roles = SetupRoles(
         conversation=_role(info.provider, info.model, source="runtime"),

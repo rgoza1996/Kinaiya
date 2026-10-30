@@ -22,6 +22,18 @@ resource policy, disclosure consent, permissions, sessions, memory, captures,
 playback, or independent Agent/Decisions operation. Client presentation preferences
 have a separate owner and persistence mechanism.
 
+The display projection is optional and cannot prevent Converse startup. A valid
+provider may use an opaque model alias, such as an absolute local identifier, that
+the narrower display contract refuses to publish. Expected projection validation
+failures produce a distinct in-process unavailable marker, retaining neither the
+configuration nor the exception. Setup inspection then returns the generic
+no-store 503; ordinary health, owner controls and the configured runtime keep
+their existing owners. This differs from absent embedded metadata (`None`), which
+continues to report unknown declarations. Only projection `ValueError` failures
+(including Unicode and response-model validation) are converted; unrelated
+programming, I/O and runtime exceptions are not swallowed. Provider validation
+and runtime construction remain outside this fallback.
+
 The 64-character lowercase hexadecimal `revision` hashes the visible role/input/
 reasoning declarations. It changes when those declarations change, not when a
 private credential, transient operation count, session or transcript changes. It
@@ -115,3 +127,7 @@ role declarations, reasoning identity, revision stability during activity,
 malformed runtime names, secret/path exclusion and exported-schema consistency.
 All fixtures are synthetic; no external inference, model load, service restart or
 private transcript is needed.
+The launcher regression also constructs the accepted opaque provider alias,
+captures the real Converse application without binding a server, and verifies
+health plus persistent owner off/on controls while setup remains unavailable. A
+network transport trap verifies that none of those paths contacts a model.

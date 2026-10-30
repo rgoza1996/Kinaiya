@@ -467,7 +467,7 @@ def serve(args):
         from services.converse.intent import ConverseIntent
         from services.converse.memory_adapter import SessionMemoryAdapter
         from services.converse.runtime import ConverseRuntime
-        from services.converse.setup import host_setup
+        from services.converse.setup import safe_host_setup
         from services.converse.windows import WindowConverseController
         from services.decisions.runtime import OutcomeWorker
 
@@ -537,7 +537,7 @@ def serve(args):
             if config.get("streaming_windows", {}).get("enabled", True)
             else None
         )
-        app = create_app(runtime, auth, speech, windows, setup=host_setup(config))
+        app = create_app(runtime, auth, speech, windows, setup=safe_host_setup(config))
 
         @asynccontextmanager
         async def converse_lifespan(app):
