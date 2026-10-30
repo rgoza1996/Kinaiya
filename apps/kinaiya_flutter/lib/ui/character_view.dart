@@ -17,6 +17,7 @@ import 'converse_design.dart';
 import 'converse_interaction.dart';
 import 'moonlit_home.dart';
 import 'model_setup.dart';
+import 'motion_transition.dart';
 import 'voice_options.dart';
 import 'settings_controls.dart';
 import 'moonlit_scene.dart';
@@ -72,6 +73,8 @@ class CharacterView extends StatefulWidget {
     this.surface = CharacterSurface.legacy,
     this.onModelSettings,
     this.showConverseView = true,
+    this.setupOpen = false,
+    this.animateTransitions = true,
     this.scenePrimary = kinaiyaIndigo,
     this.sceneBackground = kinaiyaWhite,
   });
@@ -85,7 +88,7 @@ class CharacterView extends StatefulWidget {
   final bool voiceOnlyControls;
   final CharacterSurface surface;
   final VoidCallback? onModelSettings;
-  final bool showConverseView;
+  final bool showConverseView, setupOpen, animateTransitions;
   final Color scenePrimary, sceneBackground;
 
   @override
@@ -485,6 +488,7 @@ class _CharacterViewState extends State<CharacterView> {
         !_armed ||
         !_windowMode ||
         entry.sessionId != _s.converseSession?.sessionId ||
+        entry.threadId != _s.converseSession?.threadId ||
         entry.epoch != _s.converseSession?.epoch) {
       return;
     }
@@ -626,6 +630,7 @@ class _CharacterViewState extends State<CharacterView> {
       }
     } catch (_) {}
     if (!stillAuthorized()) return;
+    final userIndex = _s.converseHistory.length;
     _s.appendHistory(AppView.character, ChatMsg(role: 'user', text: text));
     if (overrideText == null) {
       _input.clear();
@@ -660,6 +665,12 @@ class _CharacterViewState extends State<CharacterView> {
         if (!turnOwnsCleanup(nonce, _s.turnNonce)) break;
         switch (event.type) {
           case 'accepted':
+            _s.acceptedConverseSource(
+              session,
+              event.raw['source_event_id'],
+              userIndex,
+            );
+            unawaited(_s.refreshNotices());
             _s.speechEpoch =
                 (event.raw['generation_epoch'] as num?)?.toInt() ?? 0;
           case 'text':
@@ -1071,7 +1082,13 @@ class _CharacterViewState extends State<CharacterView> {
     _publishVoiceActivity();
     if (_windowMode) {
       try {
-        await _s.ensureSession('converse', name: 'Converse');
+        final api = _s.client;
+        final generation = _s.connectionGeneration;
+        _s.converseSession ??= await _s.ensureSession(
+          'converse',
+          name: 'Converse',
+        );
+        if (!_s.ownsConnection(generation, api)) return;
         if (!mounted || !_armed || owner != _armOwner) return;
         await _nextWindowUtterance();
       } catch (_) {
@@ -2375,6 +2392,7 @@ class _CharacterViewState extends State<CharacterView> {
     sessionName: _s.agentSession?.name,
     onAgent: () => _s.setView(AppView.agent),
     showConverseView: widget.showConverseView,
+    setupOpen: widget.setupOpen,
     caption: _s.converseHistory.isEmpty ? null : _currentCaption(),
     banner: !_homeSleeping && (_s.resourceStatusStale || !_s.converseEnabled)
         ? banner
@@ -2434,6 +2452,12 @@ class _CharacterViewState extends State<CharacterView> {
     ],
   );
 
+  Widget _fadeSurface(Widget child) => UiFadeTransition(
+    enabled: widget.animateTransitions,
+    transitionKey: widget.surface,
+    child: child,
+  );
+
   @override
   Widget build(BuildContext context) => FutureBuilder<CharacterPack>(
     future: _pack,
@@ -2465,61 +2489,65 @@ class _CharacterViewState extends State<CharacterView> {
             (snap.connectionState == ConnectionState.done ? snap.data : null);
         if (widget.surface == CharacterSurface.home) {
           if (!widget.showCharacter) {
-            return MoonlitScene(
-              primary: widget.scenePrimary,
-              background: widget.sceneBackground,
-              enabled: false,
-              child: Column(
-                children: [
-                  banner,
-                  _historyBar(),
-                  Expanded(child: _transcript()),
-                  SafeArea(
-                    top: false,
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Wrap(
-                        alignment: WrapAlignment.center,
-                        spacing: 12,
-                        runSpacing: 12,
-                        children: [
-                          FilledButton.icon(
-                            key: const ValueKey('call-kinaiya'),
-                            onPressed: _callAction,
-                            icon: const Icon(Icons.mic_none),
-                            label: Text(
-                              _armed || _micStopUnconfirmed || _micStopPending
-                                  ? _callLabel
-                                  : 'Talk with Kinaiya',
+            return _fadeSurface(
+              MoonlitScene(
+                primary: widget.scenePrimary,
+                background: widget.sceneBackground,
+                enabled: false,
+                child: Column(
+                  children: [
+                    banner,
+                    _historyBar(),
+                    Expanded(child: _transcript()),
+                    SafeArea(
+                      top: false,
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Wrap(
+                          alignment: WrapAlignment.center,
+                          spacing: 12,
+                          runSpacing: 12,
+                          children: [
+                            FilledButton.icon(
+                              key: const ValueKey('call-kinaiya'),
+                              onPressed: _callAction,
+                              icon: const Icon(Icons.mic_none),
+                              label: Text(
+                                _armed || _micStopUnconfirmed || _micStopPending
+                                    ? _callLabel
+                                    : 'Talk with Kinaiya',
+                              ),
                             ),
-                          ),
-                          OutlinedButton(
-                            key: const ValueKey('home-setup'),
-                            onPressed:
-                                widget.onModelSettings ?? _openVoiceOptions,
-                            child: const Text('Setup'),
-                          ),
-                          _ownerSleepControl(),
-                        ],
+                            OutlinedButton(
+                              key: const ValueKey('home-setup'),
+                              onPressed:
+                                  widget.onModelSettings ?? _openVoiceOptions,
+                              child: const Text('Setup'),
+                            ),
+                            _ownerSleepControl(),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             );
           }
           final home = _homeSurface(pack, banner);
-          return widget.useDesignScene && widget.showCharacter
-              ? home
-              : MoonlitScene(
-                  primary: widget.scenePrimary,
-                  background: widget.sceneBackground,
-                  enabled: widget.showCharacter,
-                  child: home,
-                );
+          return _fadeSurface(
+            widget.useDesignScene && widget.showCharacter
+                ? home
+                : MoonlitScene(
+                    primary: widget.scenePrimary,
+                    background: widget.sceneBackground,
+                    enabled: widget.showCharacter,
+                    child: home,
+                  ),
+          );
         }
         if (widget.surface == CharacterSurface.interaction) {
-          return _interactionSurface(pack, banner);
+          return _fadeSurface(_interactionSurface(pack, banner));
         }
         if (widget.useDesignScene &&
             widget.showCharacter &&

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../api/converse_setup.dart';
 import '../presentation/controller.dart';
 import '../state/app_state.dart';
+import 'motion_transition.dart';
 
 /// Read-only host configuration and a separately saved local view preference.
 /// Opening this surface never loads a model, captures audio or changes consent.
@@ -11,9 +13,11 @@ class ModelSetupDialog extends StatefulWidget {
     super.key,
     required this.state,
     required this.presentation,
+    this.voiceControls,
   });
   final AppState state;
   final PresentationController presentation;
+  final Widget? voiceControls;
   @override
   State<ModelSetupDialog> createState() => _ModelSetupDialogState();
 }
@@ -121,7 +125,45 @@ class _ModelSetupDialogState extends State<ModelSetupDialog> {
   void dispose() {
     _request++;
     widget.state.removeListener(_changed);
+    for (final node in _bubbleFocus.values) {
+      node.dispose();
+    }
     super.dispose();
+  }
+
+  String? _section;
+  String _popoverAnchor = 'Model';
+  final _popoverKey = GlobalKey();
+  final Map<String, FocusNode> _bubbleFocus = {
+    for (final section in [
+      'Model',
+      'Reasoning',
+      'Inputs',
+      'Speech',
+      'Decisions',
+    ])
+      section: FocusNode(),
+  };
+
+  void _openSection(String section) {
+    setState(() {
+      _section = section;
+      _popoverAnchor = section;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final target = _popoverKey.currentContext;
+      if (mounted && target != null) {
+        Scrollable.ensureVisible(target, alignment: 0);
+      }
+    });
+  }
+
+  void _closeSection() {
+    final node = _bubbleFocus[_section];
+    setState(() => _section = null);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) node?.requestFocus();
+    });
   }
 
   Widget _role(String key, String title) {
@@ -134,10 +176,10 @@ class _ModelSetupDialogState extends State<ModelSetupDialog> {
           Text(title, style: Theme.of(context).textTheme.titleSmall),
           const SizedBox(height: 8),
           InputDecorator(
-            decoration: InputDecoration(
-              suffixIcon: const Icon(Icons.lock_outline, size: 18),
+            decoration: const InputDecoration(
+              suffixIcon: Icon(Icons.lock_outline, size: 18),
               enabled: false,
-              contentPadding: const EdgeInsets.all(14),
+              contentPadding: EdgeInsets.all(14),
             ),
             child: Text(
               role?.label ?? 'Not declared by this host',
@@ -146,7 +188,7 @@ class _ModelSetupDialogState extends State<ModelSetupDialog> {
           ),
           const SizedBox(height: 6),
           Text(
-            role == null ? 'Host configuration unavailable.' : role.reason,
+            role?.reason ?? 'Host configuration unavailable.',
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ],
@@ -154,212 +196,418 @@ class _ModelSetupDialogState extends State<ModelSetupDialog> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
+  String _value(String section) => switch (section) {
+    'Model' => _setup?.roles['conversation']?.label ?? 'Unavailable',
+    'Reasoning' =>
+      _setup == null
+          ? 'Unavailable'
+          : _setup!.reasoning == 'none'
+          ? 'Off'
+          : _setup!.reasoning,
+    'Inputs' => _setup == null ? 'Unavailable' : 'Text',
+    'Speech' => _setup == null ? 'Unavailable' : 'Transcription',
+    'Decisions' => _setup?.roles['decisions']?.label ?? 'Unavailable',
+    _ => '',
+  };
+
+  Widget _bubble(String section, IconData icon, double diameter) {
     final colors = Theme.of(context).colorScheme;
-    final reasoning = _setup?.reasoning;
-    return Dialog(
-      key: const ValueKey('model-setup-dialog'),
-      alignment: Alignment.centerRight,
-      insetPadding: const EdgeInsets.all(16),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: 490,
-          maxHeight:
-              (MediaQuery.sizeOf(context).height -
-                      MediaQuery.viewInsetsOf(context).bottom -
-                      32)
-                  .clamp(0, double.infinity),
-        ),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 20, 8, 12),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Kinaiya setup',
-                            style: Theme.of(context).textTheme.headlineSmall,
-                          ),
-                          const Text('Models and conversation preferences'),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: 'Close setup',
-                      onPressed: _saving
-                          ? null
-                          : () => Navigator.of(context).pop(),
-                      icon: const Icon(Icons.close),
-                    ),
+    final active = _section == section;
+    return Semantics(
+      label: '$section settings',
+      value: _value(section),
+      button: true,
+      child: Tooltip(
+        message: 'Inspect $section settings',
+        child: Material(
+          key: ValueKey('setup-bubble-${section.toLowerCase()}'),
+          shape: CircleBorder(
+            side: BorderSide(
+              color: active ? colors.primary : colors.surface,
+              width: 3,
+            ),
+          ),
+          elevation: active ? 10 : 4,
+          color: colors.surface.withValues(alpha: .94),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            focusNode: _bubbleFocus[section],
+            canRequestFocus: _section == null,
+            onTap: () => _openSection(section),
+            child: Container(
+              width: diameter,
+              height: diameter,
+              padding: const EdgeInsets.all(17),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    colors.surface,
+                    colors.primaryContainer.withValues(alpha: .65),
                   ],
                 ),
+                border: Border.all(
+                  color: colors.primary.withValues(alpha: .28),
+                  width: 5,
+                ),
               ),
-              const Divider(height: 1),
-              Padding(
-                padding: const EdgeInsets.all(24),
+              child: ExcludeSemantics(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    if (_loading) const LinearProgressIndicator(),
-                    if (_saveNotice != null)
-                      Text(
-                        _saveNotice!,
-                        key: const ValueKey('setup-save-notice'),
-                      ),
-                    if (_error != null)
-                      Text(
-                        _error!,
-                        key: const ValueKey('model-setup-unavailable'),
-                      ),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton.icon(
-                        onPressed: _loading ? null : _refresh,
-                        icon: const Icon(Icons.refresh),
-                        label: const Text('Refresh host configuration'),
-                      ),
-                    ),
-                    _role('conversation', 'Conversation model'),
-                    Text(
-                      'Accepted inputs',
-                      style: Theme.of(context).textTheme.titleSmall,
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 12,
-                      children: [
-                        for (final modality in [
-                          'Text',
-                          'Image',
-                          'Video',
-                          'Audio',
-                        ])
-                          FilterChip(
-                            label: Text(modality),
-                            selected: _setup != null && modality == 'Text',
-                            onSelected: null,
-                          ),
-                      ],
-                    ),
-                    const Text(
-                      'This host supports text input. Microphone audio uses speech-to-text; direct audio, images and video are unavailable.',
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Reasoning level',
-                      style: Theme.of(context).textTheme.titleSmall,
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        for (final level in ['Auto', 'Low', 'Medium', 'High'])
-                          ChoiceChip(
-                            label: Text(level),
-                            selected: reasoning == level.toLowerCase(),
-                            onSelected: null,
-                          ),
-                      ],
-                    ),
+                    Icon(icon, color: colors.primary, size: 28),
                     const SizedBox(height: 6),
                     Text(
-                      reasoning == null || reasoning == 'unavailable'
-                          ? 'Reasoning configuration is unavailable.'
-                          : 'Configured: ${reasoning == 'none' ? 'off' : reasoning}. Reasoning changes are managed on the host.',
+                      section,
+                      style: Theme.of(context).textTheme.titleMedium,
+                      textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: 20),
-                    _role('stt', 'Speech-to-text'),
-                    const SwitchListTile.adaptive(
-                      contentPadding: EdgeInsets.zero,
-                      value: true,
-                      onChanged: null,
-                      title: Text('Transcribe microphone audio'),
-                      subtitle: Text(
-                        'Required by this host’s text conversation pipeline.',
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    _role('tts', 'Text-to-speech'),
-                    _role('decisions', 'Decisions model'),
-                    const Divider(),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Converse view',
-                            style: Theme.of(context).textTheme.titleSmall,
-                          ),
-                        ),
-                        Switch.adaptive(
-                          key: const ValueKey('show-converse-view'),
-                          value: _showConverse,
-                          onChanged: _saving
-                              ? null
-                              : (value) =>
-                                    setState(() => _showConverse = value),
-                        ),
-                      ],
-                    ),
-                    const Text(
-                      'Optional mascot interaction · Open with the waveform icon. Home voice stays available when hidden.',
-                    ),
-                    if (!widget.presentation.persistent)
-                      const Text(
-                        'This platform keeps the view preference for this session.',
-                      ),
-                    const SizedBox(height: 12),
-                    DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: colors.surfaceContainer,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Padding(
-                        padding: EdgeInsets.all(12),
-                        child: Text(
-                          'Save updates the Converse view on this device. Model choices are configured on the host; switching them here is not supported.',
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const Divider(height: 1),
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton(
-                      onPressed: _saving
-                          ? null
-                          : () => Navigator.of(context).pop(),
-                      child: const Text('Cancel'),
-                    ),
-                    const SizedBox(width: 12),
+                    const SizedBox(height: 4),
                     Flexible(
-                      child: FilledButton(
-                        key: const ValueKey('save-model-setup'),
-                        onPressed: _saving ? null : _save,
-                        child: Text(_saving ? 'Saving…' : 'Save setup'),
+                      child: Text(
+                        _value(section),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(
+                          context,
+                        ).textTheme.bodySmall?.copyWith(color: colors.primary),
                       ),
                     ),
                   ],
                 ),
               ),
-            ],
+            ),
           ),
         ),
       ),
     );
   }
+
+  Widget _sectionContent() => switch (_section) {
+    'Model' => _role('conversation', 'Conversation model'),
+    'Reasoning' => Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final level in ['Off', 'Auto', 'Low', 'Medium', 'High'])
+              ChoiceChip(
+                label: Text(level),
+                onSelected: null,
+                selected:
+                    _setup != null &&
+                    _setup!.reasoning ==
+                        (level == 'Off' ? 'none' : level.toLowerCase()),
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Text(
+          _setup == null
+              ? 'Reasoning configuration is unavailable.'
+              : 'Configured: ${_value('Reasoning')}. Reasoning changes are managed on the host.',
+        ),
+      ],
+    ),
+    'Inputs' => Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 8,
+          children: [
+            for (final input in ['Text', 'Image', 'Video', 'Audio'])
+              FilterChip(
+                label: Text(input),
+                selected: _setup != null && input == 'Text',
+                onSelected: null,
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        const Text(
+          'This host supports text input. Microphone audio uses speech-to-text; direct audio, images and video are unavailable.',
+        ),
+      ],
+    ),
+    'Speech' => Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _role('stt', 'Speech-to-text'),
+        const SwitchListTile.adaptive(
+          contentPadding: EdgeInsets.zero,
+          value: true,
+          onChanged: null,
+          title: Text('Transcribe microphone audio'),
+          subtitle: Text('Required by this host’s text conversation pipeline.'),
+        ),
+        const SizedBox(height: 12),
+        _role('tts', 'Text-to-speech'),
+      ],
+    ),
+    'Decisions' => _role('decisions', 'Decisions model'),
+    _ => const SizedBox.shrink(),
+  };
+
+  Widget _popover() {
+    final colors = Theme.of(context).colorScheme;
+    return Material(
+      color: colors.surface.withValues(alpha: .98),
+      elevation: 12,
+      borderRadius: BorderRadius.circular(20),
+      child: CallbackShortcuts(
+        bindings: {
+          const SingleActivator(LogicalKeyboardKey.escape): _closeSection,
+        },
+        child: FocusScope(
+          autofocus: true,
+          child: SingleChildScrollView(
+            key: const ValueKey('setup-popover'),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 12, 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '$_section settings',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Close settings popover',
+                        autofocus: true,
+                        onPressed: _closeSection,
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  _sectionContent(),
+                  const Text(
+                    'Host configuration is read-only. A declaration does not establish model readiness.',
+                  ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: _closeSection,
+                      child: const Text('Done'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _popoverSlot() => UiFadeTransition(
+    key: _popoverKey,
+    enabled:
+        widget.presentation.preferences.animateTransitions &&
+        !widget.presentation.preferences.reducedMotion,
+    transitionKey: _section ?? 'closed',
+    child: _section == null ? const SizedBox.shrink() : _popover(),
+  );
+
+  Widget _preferences() => Material(
+    color: Theme.of(context).colorScheme.surface.withValues(alpha: .97),
+    borderRadius: BorderRadius.circular(18),
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_saveNotice != null)
+            Text(_saveNotice!, key: const ValueKey('setup-save-notice')),
+          SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Converse view'),
+            subtitle: const Text(
+              'Optional mascot interaction. Home voice stays available when hidden.',
+            ),
+            key: const ValueKey('show-converse-view'),
+            value: _showConverse,
+            onChanged: _saving
+                ? null
+                : (value) => setState(() => _showConverse = value),
+          ),
+          if (!widget.presentation.persistent)
+            const Text(
+              'This platform keeps the view preference for this session.',
+            ),
+          const Text(
+            'Save updates only the view on this device. Model choices are configured on the host.',
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            alignment: WrapAlignment.end,
+            spacing: 12,
+            runSpacing: 8,
+            children: [
+              TextButton(
+                onPressed: _saving ? null : () => Navigator.of(context).pop(),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                key: const ValueKey('save-model-setup'),
+                onPressed: _saving ? null : _save,
+                child: Text(_saving ? 'Saving…' : 'Save setup'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) => Dialog(
+    key: const ValueKey('model-setup-dialog'),
+    backgroundColor: Colors.transparent,
+    shadowColor: Colors.transparent,
+    insetPadding: const EdgeInsets.all(16),
+    child: Column(
+      children: [
+        if (widget.voiceControls != null) widget.voiceControls!,
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, box) {
+              final scale = MediaQuery.textScalerOf(context).scale(1);
+              final wide =
+                  box.maxWidth / scale >= 1050 && box.maxHeight / scale >= 650;
+              const sections = <String, IconData>{
+                'Model': Icons.settings_outlined,
+                'Reasoning': Icons.auto_awesome_outlined,
+                'Inputs': Icons.article_outlined,
+                'Speech': Icons.record_voice_over_outlined,
+                'Decisions': Icons.diamond_outlined,
+              };
+              final header = Material(
+                color: Theme.of(
+                  context,
+                ).colorScheme.surface.withValues(alpha: .96),
+                borderRadius: BorderRadius.circular(16),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Kinaiya setup',
+                              style: Theme.of(context).textTheme.titleLarge,
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Close setup',
+                            onPressed: _saving
+                                ? null
+                                : () => Navigator.of(context).pop(),
+                            icon: const Icon(Icons.close),
+                          ),
+                        ],
+                      ),
+                      if (_loading) const LinearProgressIndicator(),
+                      if (_error != null)
+                        Text(
+                          _error!,
+                          key: const ValueKey('model-setup-unavailable'),
+                        ),
+                      TextButton.icon(
+                        onPressed: _loading ? null : _refresh,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Refresh host configuration'),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+              if (!wide) {
+                return SingleChildScrollView(
+                  key: const ValueKey('setup-bubbles-narrow'),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      header,
+                      const SizedBox(height: 16),
+                      Wrap(
+                        alignment: WrapAlignment.center,
+                        spacing: 16,
+                        runSpacing: 16,
+                        children: [
+                          for (final item in sections.entries)
+                            _bubble(
+                              item.key,
+                              item.value,
+                              (160 * scale).clamp(0.0, box.maxWidth),
+                            ),
+                        ],
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 16),
+                        child: _popoverSlot(),
+                      ),
+                      const SizedBox(height: 16),
+                      _preferences(),
+                    ],
+                  ),
+                );
+              }
+              const positions = <String, Alignment>{
+                'Model': Alignment(-.76, .18),
+                'Reasoning': Alignment(-.50, -.19),
+                'Inputs': Alignment(.50, -.22),
+                'Speech': Alignment(.78, .07),
+                'Decisions': Alignment(.69, .50),
+              };
+              return Stack(
+                key: const ValueKey('setup-bubbles-wide'),
+                children: [
+                  Positioned(top: 0, left: 0, width: 260, child: header),
+                  for (final item in sections.entries)
+                    Align(
+                      alignment: positions[item.key]!,
+                      child: _bubble(item.key, item.value, 178),
+                    ),
+                  Positioned(
+                    left: 0,
+                    bottom: 0,
+                    width: 420,
+                    child: _preferences(),
+                  ),
+                  Positioned(
+                    top: 140,
+                    bottom: 80,
+                    left: const {'Model', 'Reasoning'}.contains(_popoverAnchor)
+                        ? 0
+                        : box.maxWidth - 420,
+                    width: 420,
+                    child: Align(
+                      alignment: Alignment.topCenter,
+                      child: _popoverSlot(),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class ConverseModelSummary extends StatelessWidget {

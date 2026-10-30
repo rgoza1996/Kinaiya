@@ -6,21 +6,24 @@ import 'design_tokens.dart';
 
 /// Searchable Options page on the existing owner Settings route.
 ///
-/// Pure navigation: lists the destinations in [settingsEntries] grouped by
+/// Lists the destinations in [settingsEntries] grouped by
 /// [SettingsSection] and returns the chosen [SettingsAction] with
 /// `Navigator.pop(context, entry.action)`. Opening, searching or closing the
 /// hub changes no setting, credential, permission, session or audio state and
-/// performs no network or inference work. Unavailable destinations show
+/// performs no network or inference work. An optional owner-supplied local
+/// quick control changes preferences only on explicit interaction. Unavailable destinations show
 /// [SettingsAvailability.unavailableReason] and cannot be selected.
 class SettingsHub extends StatefulWidget {
   const SettingsHub({
     super.key,
     required this.availability,
     this.buildInfo = const SettingsBuildInfo.fromEnvironment(),
+    this.quickSettings,
   });
 
   final SettingsAvailability availability;
   final SettingsBuildInfo buildInfo;
+  final Widget? quickSettings;
 
   @override
   State<SettingsHub> createState() => _SettingsHubState();
@@ -340,6 +343,10 @@ class _SettingsHubState extends State<SettingsHub> {
                 ),
               ),
               const SizedBox(height: 24),
+              if (widget.quickSettings != null) ...[
+                widget.quickSettings!,
+                const Divider(height: 32),
+              ],
               _quickLink(
                 theme,
                 SettingsAction.voice,

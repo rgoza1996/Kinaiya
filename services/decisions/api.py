@@ -5,6 +5,13 @@ from fastapi import Depends, FastAPI
 
 
 def create_app(worker, auth, window_worker=None, window_dispatcher=None):
+    def window_status():
+        return {
+            "window_agent_available": window_worker.agent_available if window_worker else None,
+            "window_dispatch_error": window_dispatcher.last_error if window_dispatcher else None,
+            "window_dispatch_running": window_dispatcher.running if window_dispatcher else False,
+        }
+
     @asynccontextmanager
     async def lifespan(app):
         task = asyncio.create_task(worker.run())
@@ -40,6 +47,7 @@ def create_app(worker, auth, window_worker=None, window_dispatcher=None):
             "provider_readiness": readiness,
             "streaming_windows": window_worker is not None,
             "window_error": window_worker.last_error if window_worker else None,
+            **window_status(),
         }
 
     @app.get("/v1/decisions/status", dependencies=[Depends(auth.require("owner"))])
@@ -48,6 +56,7 @@ def create_app(worker, auth, window_worker=None, window_dispatcher=None):
             "cursor": await worker.journal.cursor(worker.consumer),
             "last_error": worker.last_error,
             "enabled": worker.enabled,
+            **window_status(),
         }
 
     return app

@@ -21,12 +21,17 @@ editable source and contains many more screens:
 3. Open the imported file and choose a page in the left sidebar. Select layers to
    edit them; use the **Prototype** tab and **View mode** to inspect linked flows.
 
-The current October 30 sleeping-state export contains 12 pages and 69 top-level
-boards. Its SHA256 is `2cf97cfe945a22dfebb358d96928f4aa0c6b658fc0fa97e32a80bf10b95d64d8`.
-The first page, **00 · Home & Converse · Updated**, contains 26 connected boards
-for Home, optional Converse, model setup, existing sidebar destinations and the
-owner-off sleeping Home state.
+The current October 30 consolidated **Kinaiya — Master design** export contains
+12 pages and 125 top-level boards. Its SHA256 is
+`62ba30b5a01b9056d4cbc490108e8bcb33f4840739d5049eb4d57a491ef37673`.
+The first page, **00 · Home & Converse · Updated**, contains 82 boards, including
+the Model/Reasoning/Inputs/Speech/Decisions bubbles and parallel fade/instant
+prototype routes. Home, optional Converse, sidebar and sleeping states remain.
+The native file is preserved unchanged. Prototype choices are illustrative;
+the app saves real interface-transition preferences independently of Penpot.
 The app implementation follows [ADR 0059](../../docs/adr/0059-home-and-optional-converse.md);
+the updated bubbles, transitions and speech behavior follow
+[ADR 0060](../../docs/adr/0060-converse-handoffs-and-motion.md).
 unsupported model switching, camera and library controls are not working runtime
 features merely because they appear in this prototype.
 

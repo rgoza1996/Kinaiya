@@ -5,6 +5,8 @@ import 'package:http/http.dart' as http;
 import 'package:kinaiya_flutter/ui/character_view.dart';
 import 'package:kinaiya_flutter/ui/agent_chat.dart';
 import 'package:kinaiya_flutter/ui/presentation_settings.dart';
+import 'package:kinaiya_flutter/ui/model_setup.dart';
+import 'package:kinaiya_flutter/ui/motion_transition.dart';
 
 import 'settings_navigation_test.dart' show NavigationFixture, routePump;
 import 'model_setup_test.dart' show setupFixture;
@@ -21,6 +23,58 @@ class PenpotNavigationFixture extends NavigationFixture {
 }
 
 void main() {
+  for (final mode in ['off', 'reduced', 'animated']) {
+    testWidgets(
+      'navigation $mode fades preserve the mounted voice owner and both drafts',
+      (tester) async {
+        await tester.binding.setSurfaceSize(const Size(1440, 1000));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        final f = PenpotNavigationFixture();
+        await f.mount(tester);
+        await f.presentation.setPreferences(
+          f.presentation.preferences.copyWith(
+            animateTransitions: mode != 'off',
+            reducedMotion: mode == 'reduced',
+          ),
+        );
+        await routePump(tester);
+        final owner = tester.state(find.byType(CharacterView));
+        await tester.tap(find.byKey(const ValueKey('home-talk')));
+        await routePump(tester);
+        final session = f.state.converseSession;
+        await tester.tap(find.byKey(const ValueKey('navigation-converse')));
+        await tester.pump();
+        final transition = find.descendant(
+          of: find.byType(CharacterView),
+          matching: find.byType(UiFadeTransition),
+        );
+        final switcher = find
+            .descendant(of: transition, matching: find.byType(AnimatedSwitcher))
+            .first;
+        expect(
+          tester.widget<AnimatedSwitcher>(switcher).duration,
+          mode == 'animated'
+              ? const Duration(milliseconds: 220)
+              : Duration.zero,
+        );
+        await routePump(tester);
+        expect(
+          identical(tester.state(find.byType(CharacterView)), owner),
+          isTrue,
+        );
+        expect(identical(f.state.converseSession, session), isTrue);
+        expect(f.state.converseDraft, 'Retained conversation draft');
+        expect(f.state.agentDraft, 'Retained Agent draft');
+        expect(f.audio.arms, 1);
+        expect(f.audio.armStops, 0);
+        expect(f.audio.disposals, 0);
+        expect(f.dispatchedEffect, isFalse);
+        expect(tester.takeException(), isNull);
+        await f.dispose(tester);
+      },
+    );
+  }
+
   testWidgets(
     'Home and optional Converse share voice owner and drafts across navigation and hide',
     (tester) async {
@@ -69,6 +123,13 @@ void main() {
       await tester.ensureVisible(find.byKey(const ValueKey('home-setup')));
       await tester.tap(find.byKey(const ValueKey('home-setup')));
       await routePump(tester);
+      expect(
+        find.descendant(
+          of: find.byType(ModelSetupDialog),
+          matching: find.text('Stop microphone'),
+        ),
+        findsOneWidget,
+      );
       final toggle = find.byKey(const ValueKey('show-converse-view'));
       await tester.ensureVisible(toggle);
       await tester.pump();

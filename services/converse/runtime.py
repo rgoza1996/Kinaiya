@@ -27,6 +27,7 @@ from services.converse.history import typed_history_projection
 from services.converse.intent import ConverseIntent
 from services.converse.memory import MemoryLease, MemoryUse, scope_key
 from services.converse.state_guard import UNVERIFIED_STATE_REPLY, negative_runtime_state_claim
+from services.converse.tts_text import normalize_for_tts
 
 
 class SpeechChunker:
@@ -214,6 +215,14 @@ class ConverseRuntime:
             " Use short, natural sentences suitable for speech. Avoid decorative symbols and tables."
             " After an interruption, answer the latest user message. Delivery notes distinguish"
             " generated text from estimated playback; never assume unheard words were delivered."
+            " When the user asks for work handled by a separate Agent, briefly acknowledge receipt"
+            ' in natural varied words, for example "Give me some time on it." or'
+            ' "Let me think about that." Such an acknowledgment is receipt only; it proves'
+            " neither task acceptance nor execution. Routing to the Agent is asynchronous and"
+            " independent of the local/cloud model choice. Do not claim work was queued, started,"
+            " done, or failed, and do not claim the Agent is absent or unavailable, without a"
+            " current authenticated fact proving that exact state. Use such acknowledgments"
+            " sparingly; ordinary conversation stays natural and varied."
         )
         self.playback = {}
         self.intent = intent if intent is not None else ConverseIntent()
@@ -882,11 +891,13 @@ class ConverseRuntime:
             try:
                 try:
                     await self.validate_speech(event.event_id, generation)
-                    iterator = synthesize(event.payload["text"])
-                    async for chunk in iterator:
-                        if operation is None or operation.cancelled:
-                            return
-                        await queue.put(("frame", chunk))
+                    spoken = normalize_for_tts(event.payload["text"])
+                    if spoken:
+                        iterator = synthesize(spoken)
+                        async for chunk in iterator:
+                            if operation is None or operation.cancelled:
+                                return
+                            await queue.put(("frame", chunk))
                 finally:
                     if iterator is not None:
                         try:

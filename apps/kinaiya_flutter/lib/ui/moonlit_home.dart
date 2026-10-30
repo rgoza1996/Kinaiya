@@ -20,6 +20,7 @@ class MoonlitHome extends StatefulWidget {
     this.agentStatus = 'Not connected',
     this.sessionName,
     this.showConverseView = true,
+    this.setupOpen = false,
     this.caption,
     this.banner,
     this.useDesignScene = true,
@@ -31,7 +32,7 @@ class MoonlitHome extends StatefulWidget {
   final String? sessionName;
   final VoidCallback onSetup;
   final VoidCallback? onCall, onAgent;
-  final bool showConverseView, useDesignScene, sleeping;
+  final bool showConverseView, useDesignScene, sleeping, setupOpen;
   final Widget? caption, banner, ownerControl;
   @override
   State<MoonlitHome> createState() => _MoonlitHomeState();
@@ -174,7 +175,9 @@ class _MoonlitHomeState extends State<MoonlitHome> {
                   ),
                   Padding(
                     padding: const EdgeInsets.all(16),
-                    child: _homePanel(),
+                    child: widget.setupOpen
+                        ? const SizedBox.shrink()
+                        : _homePanel(),
                   ),
                 ],
               ),
@@ -294,12 +297,13 @@ class _MoonlitHomeState extends State<MoonlitHome> {
                   ],
                 ),
               ),
-            Positioned(
-              left: 16,
-              right: 16,
-              bottom: sleepingDesign ? 8 : 16,
-              child: _homePanel(),
-            ),
+            if (!widget.setupOpen)
+              Positioned(
+                left: 16,
+                right: 16,
+                bottom: sleepingDesign ? 8 : 16,
+                child: _homePanel(),
+              ),
             if (widget.banner != null)
               Positioned(top: 0, left: 0, right: 0, child: widget.banner!),
           ],

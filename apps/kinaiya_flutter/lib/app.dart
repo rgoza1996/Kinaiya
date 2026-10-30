@@ -294,20 +294,52 @@ class _HomeShellState extends State<HomeShell> {
   Future<void> _modelSetup() async {
     if (_closing || _modelSetupOpen) return;
     final owner = widget.state;
-    _modelSetupOpen = true;
+    final previousPage = _workspacePage;
+    final previousView = owner.view;
+    setState(() {
+      _modelSetupOpen = true;
+      _workspacePage = _ShellPage.home;
+    });
+    owner.setView(AppView.character);
     try {
       await showDialog<void>(
         context: context,
+        barrierColor: Colors.transparent,
+        animationStyle: AnimationStyle(
+          duration:
+              widget.presentation.preferences.animateTransitions &&
+                  !widget.presentation.preferences.reducedMotion &&
+                  !MediaQuery.disableAnimationsOf(context)
+              ? const Duration(milliseconds: 220)
+              : Duration.zero,
+          curve: Curves.easeInOut,
+          reverseCurve: Curves.easeInOut,
+        ),
         builder: (_) => Theme(
           data: widget.lightTheme,
           child: ModelSetupDialog(
             state: owner,
             presentation: widget.presentation,
+            voiceControls: ValueListenableBuilder<VoiceActivity>(
+              valueListenable: _voice,
+              builder: (_, voice, _) =>
+                  voice.active ? _voiceBar(voice) : const SizedBox.shrink(),
+            ),
           ),
         ),
       );
     } finally {
-      _modelSetupOpen = false;
+      if (mounted) {
+        setState(() {
+          _modelSetupOpen = false;
+          _workspacePage =
+              previousPage == _ShellPage.converse &&
+                  !widget.presentation.preferences.showConverseView
+              ? _ShellPage.home
+              : previousPage;
+        });
+        if (identical(widget.state, owner)) owner.setView(previousView);
+      }
     }
   }
 
@@ -330,7 +362,12 @@ class _HomeShellState extends State<HomeShell> {
           listenable: owner,
           builder: (_, _) => Theme(
             data: widget.darkTheme,
-            child: SettingsHub(availability: _settingsAvailability),
+            child: SettingsHub(
+              availability: _settingsAvailability,
+              quickSettings: InterfaceTransitionsSwitch(
+                controller: widget.presentation,
+              ),
+            ),
           ),
         ),
       );
@@ -687,6 +724,16 @@ class _HomeShellState extends State<HomeShell> {
                                             ? CharacterSurface.interaction
                                             : CharacterSurface.home,
                                         onModelSettings: _modelSetup,
+                                        setupOpen: _modelSetupOpen,
+                                        animateTransitions:
+                                            widget
+                                                .presentation
+                                                .preferences
+                                                .animateTransitions &&
+                                            !widget
+                                                .presentation
+                                                .preferences
+                                                .reducedMotion,
                                         showConverseView: widget
                                             .presentation
                                             .preferences

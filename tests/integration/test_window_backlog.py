@@ -277,6 +277,8 @@ async def test_retry_limit_survives_restart_during_backoff(store):
         assert not store.pending_windows()
         assert store.read(kinds=["routing.window_status"])[-1].payload == {
             "source_event_id": source.event_id,
+            "source_sequence": source.sequence,
+            "source_revision": source.payload["revision"],
             "phase": "error",
             "reason": "provider_unavailable",
         }

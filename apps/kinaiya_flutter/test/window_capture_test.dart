@@ -17,12 +17,13 @@ final session = SessionInfo(
 );
 
 class WindowApi extends ControlledApi {
+  List<SessionInfo> listedSessions = [session];
   final received = <Map<String, Object?>>[];
   final entries = <JournalEntry>[];
   final deliveries = <String>[];
   final first = Completer<Map<String, Object?>>();
   @override
-  Future<List<SessionInfo>> listSessions() async => [session];
+  Future<List<SessionInfo>> listSessions() async => listedSessions;
   @override
   Future<List<JournalEntry>> recent({
     required String sessionId,
@@ -132,6 +133,65 @@ Future<AppState> arm(
 }
 
 void main() {
+  for (final reconnect in [false, true]) {
+    testWidgets(
+      'typed conversation stays pinned for rolling Call (reconnect=$reconnect)',
+      (tester) async {
+        final api = WindowApi();
+        final audio = WindowAudio();
+        final state = AppState()
+          ..connect(ConnectionProfile.defaults(), injected: api);
+        final typed = SessionInfo(
+          sessionId: 'typed-kinaiya',
+          threadId: 'typed-thread',
+          channel: 'converse',
+          epoch: 4,
+          name: 'Kinaiya',
+        );
+        // The backend lists a distinct old Converse session. Calling after typing
+        // must retain the pinned session rather than selecting that name.
+        api.listedSessions = [session, typed];
+        state.converseSession = typed;
+        state.streamingWindows = true;
+        state.converseDraft = 'Retained unsent draft';
+        state.appendHistory(
+          AppView.character,
+          ChatMsg(role: 'user', text: 'Earlier typed context'),
+        );
+        if (reconnect) {
+          state.disconnect();
+          state.connect(state.connection!, injected: api);
+          // Typed mode's existing acquisition restores its selected session.
+          await state.ensureSession('converse', name: 'Kinaiya');
+          state.streamingWindows = true;
+        }
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: CharacterView(state: state, audio: audio),
+            ),
+          ),
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+        await tester.tap(find.byTooltip('Start Live listen (armed mic)'));
+        for (var n = 0; n < 12; n++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        expect(identical(state.converseSession, typed), isTrue);
+        expect(api.received, isNotEmpty);
+        expect(api.received.first['session_id'], 'typed-kinaiya');
+        expect(api.received.first['thread_id'], 'typed-thread');
+        expect(api.received.first['epoch'], 4);
+        expect(state.converseDraft, 'Retained unsent draft');
+        expect(state.converseHistory.first.text, 'Earlier typed context');
+        api.first.complete({});
+        await tester.pump();
+        await tester.pumpWidget(const SizedBox.shrink());
+        state.dispose();
+      },
+    );
+  }
+
   testWidgets(
     'native generation stop clears buffered window audio without disarming mic',
     (tester) async {

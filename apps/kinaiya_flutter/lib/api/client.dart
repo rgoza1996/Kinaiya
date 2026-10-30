@@ -208,6 +208,69 @@ class KinaiyaClient {
     return const [];
   }
 
+  /// Read-only native causal references. These never replay dialogue or work.
+  Future<JournalEntry> handoffEntry(
+    String eventId, {
+    bool resolve = false,
+  }) async => JournalEntry.fromJson(
+    await _get(
+      sessionBase,
+      '/v1/transcript/entries/${Uri.encodeComponent(eventId)}${resolve ? '?resolve=true' : ''}',
+    ),
+  );
+
+  Future<JournalEntry?> handoffLatestWindow({
+    required String sessionId,
+    required int epoch,
+    required String utteranceId,
+  }) async {
+    final uri = Uri.parse('$sessionBase/v1/transcript/windows/latest').replace(
+      queryParameters: {
+        'session_id': sessionId,
+        'epoch': '$epoch',
+        'utterance_id': utteranceId,
+      },
+    );
+    final res = await _http.get(uri, headers: _auth);
+    if (res.statusCode >= 300) {
+      throw ApiException(res.statusCode, _detail(res.body));
+    }
+    final data = jsonDecode(res.body);
+    return data == null
+        ? null
+        : JournalEntry.fromJson((data as Map).cast<String, Object?>());
+  }
+
+  Future<List<JournalEntry>> handoffDecisions({
+    required String sessionId,
+    required String threadId,
+    required int after,
+  }) async {
+    final uri = Uri.parse('$sessionBase/v1/transcript').replace(
+      queryParameters: {
+        'session_id': sessionId,
+        'thread_id': threadId,
+        'after': '$after',
+        'limit': '200',
+        'kinds': 'routing.decided',
+      },
+    );
+    final res = await _http.get(uri, headers: _auth);
+    if (res.statusCode >= 300) {
+      throw ApiException(res.statusCode, _detail(res.body));
+    }
+    final data = jsonDecode(res.body);
+    if (data is! List || data.length > 200) {
+      throw const FormatException('Invalid native decision page.');
+    }
+    return data
+        .map(
+          (entry) =>
+              JournalEntry.fromJson((entry as Map).cast<String, Object?>()),
+        )
+        .toList();
+  }
+
   Future<List<JournalEntry>> recent({
     required String sessionId,
     int limit = 100,
