@@ -416,6 +416,7 @@ class Store:
                         "superseded",
                         "expired",
                         "obsolete",
+                        "agent_unavailable",
                     }
                     or not isinstance(payload.get("reason"), str)
                     or not 1 <= len(payload["reason"]) <= 120
@@ -433,6 +434,20 @@ class Store:
                     or source.origin != "authenticated-user"
                     or (source.session_id, source.thread_id, source.epoch, [source.event_id])
                     != (request.session_id, request.thread_id, request.epoch, request.causes)
+                    or (
+                        "source_sequence" in payload
+                        and (
+                            type(payload["source_sequence"]) is not int
+                            or payload["source_sequence"] != source.sequence
+                        )
+                    )
+                    or (
+                        "source_revision" in payload
+                        and (
+                            type(payload["source_revision"]) is not int
+                            or payload["source_revision"] != source.payload.get("revision", 1)
+                        )
+                    )
                 ):
                     raise JournalError("Window status does not bind an authenticated source")
             row = self.db.execute(

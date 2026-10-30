@@ -51,6 +51,7 @@ class WindowDecisionsWorker:
         self.pending = OrderedDict()
         self.outputs = OrderedDict()
         self.last_error = None
+        self.agent_available = None
         self.running = False
 
     async def _native(self, operation, *args, **kwargs):
@@ -60,7 +61,13 @@ class WindowDecisionsWorker:
             raise JournalUnavailable("Native journal is unavailable") from exc
 
     async def status(self, source, phase, reason, *, attempt=None):
-        payload = {"source_event_id": source.event_id, "phase": phase, "reason": reason}
+        payload = {
+            "source_event_id": source.event_id,
+            "source_sequence": source.sequence,
+            "source_revision": source.payload.get("revision", 1),
+            "phase": phase,
+            "reason": reason,
+        }
         suffix = ""
         if attempt is not None:
             payload["attempt"] = attempt
@@ -121,6 +128,8 @@ class WindowDecisionsWorker:
         if available:
             try:
                 tasks = await asyncio.wait_for(self.agent.status(), 0.25)
+                if not isinstance(tasks, list):
+                    raise ValueError("Agent status is unavailable")
                 tasks = [
                     t
                     for t in tasks
@@ -129,7 +138,10 @@ class WindowDecisionsWorker:
                     and t.state not in {"succeeded", "failed", "cancelled"}
                 ]
             except Exception:
-                available = False
+                tasks, available = [], False
+        self.agent_available = available if self.agent_enabled else None
+        if self.agent_enabled and not available:
+            await self.status(source, "agent_unavailable", "agent_status_unavailable")
         started = time.monotonic()
         key = (source.session_id, source.epoch, window.utterance_id)
         task_binding = (
@@ -154,7 +166,10 @@ class WindowDecisionsWorker:
         self.outputs.move_to_end(key)
         if len(self.outputs) > 128:
             self.outputs.popitem(last=False)
-        if not available:
+        if not self.agent_enabled:
+            # Explicitly disabled work never replays later. A failed status
+            # probe is different: preserve valid intent, then let the native
+            # dispatcher wait for a confirmed boundary and recheck admission.
             labels = {
                 **labels,
                 "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
