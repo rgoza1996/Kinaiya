@@ -1713,7 +1713,7 @@ class _CharacterViewState extends State<CharacterView> {
 
   Widget _designHome(CharacterPack? pack, BoxConstraints box, Widget banner) {
     final scale = MediaQuery.textScalerOf(context).scale(1);
-    final heroHeight = (box.maxHeight - 240 * scale).clamp(
+    final heroHeight = (box.maxHeight - 272 * scale).clamp(
       (scale < 1.5 ? 180.0 : 320.0) * scale.clamp(1.0, 2.0),
       double.infinity,
     );

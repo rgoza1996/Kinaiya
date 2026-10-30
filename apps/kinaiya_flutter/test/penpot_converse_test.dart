@@ -250,6 +250,51 @@ void main() {
     });
   }
 
+  testWidgets('Call and Tell copy has opaque readable surfaces over water', (
+    tester,
+  ) async {
+    await designStage(tester);
+    for (final entry in [
+      ('call-kinaiya-copy', 'Call Kinaiya', 'Have a natural conversation'),
+      ('tell-kinaiya-copy', 'Tell Kinaiya', 'Send a voice message'),
+    ]) {
+      final copy = find.byKey(ValueKey(entry.$1));
+      expect(copy, findsOneWidget);
+      final container = tester.widget<Container>(copy);
+      final fill = (container.decoration! as BoxDecoration).color!;
+      expect(
+        fill.a,
+        1,
+        reason: 'Water must not show through the copy surface.',
+      );
+      final labels = find.descendant(of: copy, matching: find.byType(Text));
+      expect(labels, findsNWidgets(2));
+      expect(tester.widgetList<Text>(labels).map((text) => text.data), [
+        entry.$2,
+        entry.$3,
+      ]);
+      for (final text in tester.widgetList<Text>(labels)) {
+        final ink = text.style!.color!;
+        expect(ink.a, 1);
+        final a = fill.computeLuminance(), b = ink.computeLuminance();
+        expect(
+          (a > b ? a + .05 : b + .05) / (a > b ? b + .05 : a + .05),
+          greaterThanOrEqualTo(4.5),
+          reason: '${text.data} must remain readable over the patterned water.',
+        );
+      }
+    }
+    expect(
+      find.byWidgetPredicate((widget) => widget is ButtonStyleButton),
+      findsNWidgets(2),
+    );
+    expect(find.byKey(const ValueKey('converse-input')), findsNothing);
+    expect(find.byKey(const ValueKey('voice-options')), findsNothing);
+    expect(find.text('Memory'), findsNothing);
+    expect(find.text('Send'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('scene caption has an opaque readable surface over moon pixels', (
     tester,
   ) async {
