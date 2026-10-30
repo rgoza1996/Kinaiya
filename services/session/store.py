@@ -3,6 +3,7 @@
 import json
 import sqlite3
 import threading
+from contextlib import contextmanager
 from pathlib import Path
 
 from packages.contracts.context import (
@@ -702,6 +703,17 @@ class Store:
             output.append(JournalEntry.model_validate_json(row[0]))
         return list(reversed(output))
 
+    @contextmanager
+    def _context_read(self):
+        with self.lock:
+            try:
+                yield
+            except sqlite3.Error as exc:
+                # Malformed retained records refuse context, including when an
+                # indexed payload expression cannot be evaluated. Never omit
+                # their correction/qualification and restore an older draft.
+                raise JournalError("Native context records are unavailable") from exc
+
     def _context_scope(self, source_event_id, through_sequence):
         source = self.entry(source_event_id)
         session = self.session(source.session_id)
@@ -845,7 +857,7 @@ class Store:
             )
         except ValueError as exc:
             raise JournalError("Invalid native context history request") from exc
-        with self.lock:
+        with self._context_read():
             source, through = self._context_scope(request.source_event_id, request.through_sequence)
             sql, parameters = self._context_base_query(source, through)
             return self._context_page(request, source, through, sql, parameters, ContextHistoryPage)
@@ -869,7 +881,7 @@ class Store:
             )
         except ValueError as exc:
             raise JournalError("Invalid native context qualification request") from exc
-        with self.lock:
+        with self._context_read():
             source, through = self._context_scope(request.source_event_id, request.through_sequence)
             base_sql, base_parameters = self._context_base_query(source, through)
             placeholders = ",".join("?" for _ in request.base_event_ids)

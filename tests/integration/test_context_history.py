@@ -513,3 +513,42 @@ async def test_history_http_query_rejects_ambiguous_or_coerced_counters(env):
                 f"/v1/transcript/context-history?source_event_id={source.event_id}&{query}"
             )
             assert response.status_code == 422
+
+
+@pytest.mark.parametrize("kind", ["conversation.revision", "delivery.updated"])
+async def test_malformed_native_qualification_refuses_without_restoring_old_text(env, kind):
+    base = write(
+        env, "conversation.converse" if kind == "delivery.updated" else "conversation.user"
+    )
+    bad = write(
+        env,
+        kind,
+        {
+            "target_event_id": base.event_id,
+            "event_id": base.event_id,
+            "text": "Public correction",
+            "revision": 2,
+        },
+    )
+    source = write(env)
+    page = await env.journal.context_history(source_event_id=source.event_id)
+    with env.store.db:
+        env.store.db.execute(
+            "UPDATE entries SET value='not-json' WHERE event_id=?", (bad.event_id,)
+        )
+    try:
+        with pytest.raises((JournalError, httpx.HTTPStatusError)) as error:
+            await env.journal.context_qualifications(
+                source_event_id=source.event_id,
+                through_sequence=page.through_sequence,
+                base_event_ids=[base.event_id],
+            )
+        if isinstance(error.value, httpx.HTTPStatusError):
+            assert error.value.response.status_code == 409
+            assert error.value.response.json()["detail"] == "Native context records are unavailable"
+        else:
+            assert str(error.value) == "Native context records are unavailable"
+    finally:
+        # Leave fixture cleanup independent of deliberately malformed bytes.
+        with env.store.db:
+            env.store.db.execute("DELETE FROM entries WHERE event_id=?", (bad.event_id,))
