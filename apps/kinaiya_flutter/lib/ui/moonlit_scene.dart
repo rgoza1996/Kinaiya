@@ -1,8 +1,9 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'design_tokens.dart';
 import 'visual_theme.dart';
 
-// Decorative lunar backdrop. Presentation only: no state, timers, images,
+// Decorative lunar backdrop. Presentation only: no state, timers,
 // network, audio, input, or animation. The lead-supplied child (mascot,
 // transcript, controls) paints above this scenery and stays interactive.
 class MoonlitScene extends StatelessWidget {
@@ -12,11 +13,13 @@ class MoonlitScene extends StatelessWidget {
     this.primary = kinaiyaIndigo,
     this.background = kinaiyaWhite,
     this.enabled = true,
+    this.useIllustration = false,
   });
 
   final Widget child;
   final Color primary, background;
   final bool enabled;
+  final bool useIllustration;
 
   @override
   Widget build(BuildContext context) {
@@ -33,9 +36,20 @@ class MoonlitScene extends StatelessWidget {
             child: ExcludeSemantics(
               child: IgnorePointer(
                 child: RepaintBoundary(
-                  child: CustomPaint(
-                    painter: _MoonlitPainter(primary, background),
-                  ),
+                  child: useIllustration
+                      ? Image.asset(
+                          KinaiyaDesign.moonlitBackground,
+                          key: const ValueKey('moonlit-illustration'),
+                          fit: BoxFit.cover,
+                          alignment: Alignment.topCenter,
+                          excludeFromSemantics: true,
+                          errorBuilder: (_, _, _) => CustomPaint(
+                            painter: _MoonlitPainter(primary, background),
+                          ),
+                        )
+                      : CustomPaint(
+                          painter: _MoonlitPainter(primary, background),
+                        ),
                 ),
               ),
             ),
