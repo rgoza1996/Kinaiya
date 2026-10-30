@@ -5,11 +5,17 @@ import 'package:kinaiya_flutter/ui/voice_options.dart';
 Future<void> _pumpSheet(
   WidgetTester tester, {
   required bool windowMode,
+  double scale = 1,
+  double keyboard = 0,
   required int endSilenceMs,
   required ValueChanged<int> onSilenceChanged,
 }) async {
   tester.view.physicalSize = const Size(320, 480);
   tester.view.devicePixelRatio = 1;
+  tester.platformDispatcher.textScaleFactorTestValue = scale;
+  tester.view.viewInsets = FakeViewPadding(bottom: keyboard);
+  addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+  addTearDown(tester.view.resetViewInsets);
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
   await tester.pumpWidget(
@@ -29,6 +35,33 @@ Future<void> _pumpSheet(
 }
 
 void main() {
+  for (final windowMode in [true, false]) {
+    testWidgets('timing mode $windowMode stays readable at 320px2x with keyboard', (
+      tester,
+    ) async {
+      var calls = 0;
+      await _pumpSheet(
+        tester,
+        windowMode: windowMode,
+        scale: 2,
+        keyboard: 320,
+        endSilenceMs: 1500,
+        onSilenceChanged: (_) => calls++,
+      );
+      expect(
+        find.byTooltip('Close voice options').hitTestable(),
+        findsOneWidget,
+      );
+      final explanation = windowMode
+          ? 'Live audio streams continuously. Decisions chooses when to wait, respond, or interrupt; no silence timer ends the turn.'
+          : 'Fallback clip capture: silence ends the clip. Not live model timing.';
+      await tester.ensureVisible(find.text(explanation));
+      await tester.pumpAndSettle();
+      expect(calls, 0);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets(
     'window mode hides silence control and describes Decisions timing',
     (tester) async {
@@ -69,7 +102,8 @@ void main() {
       endSilenceMs: 1500,
       onSilenceChanged: seen.add,
     );
-    expect(find.text('Live'), findsOneWidget);
+    expect(find.text('Clip capture fallback'), findsOneWidget);
+    expect(find.text('Live'), findsNothing);
     expect(find.text('Silence'), findsOneWidget);
     expect(find.text('Conversation timing'), findsNothing);
     expect(

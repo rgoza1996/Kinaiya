@@ -1871,7 +1871,7 @@ class _CharacterViewState extends State<CharacterView> {
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   Tooltip(
-                    message: 'Voice options (silence and timing)',
+                    message: 'Voice options (capture and conversation timing)',
                     child: TextButton.icon(
                       key: const ValueKey('voice-options'),
                       style: TextButton.styleFrom(

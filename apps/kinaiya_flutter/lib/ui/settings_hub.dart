@@ -343,7 +343,7 @@ class _SettingsHubState extends State<SettingsHub> {
                 theme,
                 SettingsAction.voice,
                 title: 'Voice & audio',
-                description: 'Silence and timing for the current conversation.',
+                description: 'Capture mode and conversation timing.',
                 label: 'Open voice options',
               ),
               const Divider(height: 32),
