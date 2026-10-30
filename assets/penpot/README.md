@@ -21,7 +21,7 @@ editable source and contains many more screens:
 3. Open the imported file and choose a page in the left sidebar. Select layers to
    edit them; use the **Prototype** tab and **View mode** to inspect linked flows.
 
-The current October 30 sleeping-state export contains 12 pages and 81 top-level
+The current October 30 sleeping-state export contains 12 pages and 69 top-level
 boards. Its SHA256 is `2cf97cfe945a22dfebb358d96928f4aa0c6b658fc0fa97e32a80bf10b95d64d8`.
 The first page, **00 · Home & Converse · Updated**, contains 26 connected boards
 for Home, optional Converse, model setup, existing sidebar destinations and the
