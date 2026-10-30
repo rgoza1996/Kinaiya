@@ -286,6 +286,103 @@ void main() {
     },
   );
 
+  testWidgets('a released mouse drag escapes the stationary pointer hover', (
+    tester,
+  ) async {
+    await _wide(tester);
+    await tester.binding.setSurfaceSize(const Size(3200, 1800));
+    final host = await _setup(tester);
+    await tester.pumpWidget(host.app());
+    await _frames(tester, count: 20);
+    final field = tester.getRect(find.byType(FloatingBubbles));
+    final circles = {
+      for (final name in ['Setup', ..._sections, 'View'])
+        name: tester.getRect(_bubble(name)),
+    };
+    final obstacle = Rect.fromLTWH(
+      field.center.dx - 110,
+      field.top + field.height * .3,
+      220,
+      field.height * .4,
+    );
+    String? chosen;
+    Offset? direction;
+    // Select a clear path from the actual randomized layout. This keeps the
+    // regression about release-pointer re-entry rather than a wall collision.
+    for (final entry in circles.entries) {
+      final radius = entry.value.width / 2;
+      for (final axis in [
+        const Offset(1, 0),
+        const Offset(-1, 0),
+        const Offset(0, 1),
+        const Offset(0, -1),
+      ]) {
+        var clear = true;
+        for (var step = 0; step <= 60; step++) {
+          final point = entry.value.center + axis * (step * 10.0);
+          if (!field.deflate(radius + 2).contains(point) ||
+              obstacle.inflate(radius + 2).contains(point) ||
+              Rect.fromLTWH(
+                field.left,
+                field.top,
+                56,
+                56,
+              ).inflate(radius + 2).contains(point) ||
+              circles.entries.any(
+                (other) =>
+                    other.key != entry.key &&
+                    (other.value.center - point).distance < radius * 2 + 2,
+              )) {
+            clear = false;
+            break;
+          }
+        }
+        if (clear) {
+          chosen = entry.key;
+          direction = axis;
+          break;
+        }
+      }
+      if (chosen != null) break;
+    }
+    expect(
+      chosen,
+      isNotNull,
+      reason: 'Seven circles have a clear release path.',
+    );
+    final name = chosen!;
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    var at = tester.getCenter(_bubble(name));
+    await mouse.addPointer(location: Offset.zero);
+    await mouse.moveTo(at);
+    await tester.pump();
+    await mouse.down(at);
+    // A large initial move is consumed by pan recognition, leaving the cursor
+    // ahead of the body. Its ensuing re-entry used to swallow the launch.
+    for (var i = 0; i < 3; i++) {
+      at += direction! * (i == 0 ? 110.0 : 1.0);
+      await mouse.moveTo(at, timeStamp: Duration(milliseconds: 16 * (i + 1)));
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    await mouse.up(timeStamp: const Duration(milliseconds: 49));
+    await mouse.moveTo(at);
+    await _frames(tester, count: 2);
+    expect(find.byKey(const ValueKey('setup-popover')), findsNothing);
+    final released = tester.getTopLeft(_bubble(name));
+    await _frames(tester, count: 120);
+    expect(
+      tester.widget<FloatingBubbles>(find.byType(FloatingBubbles)).heldKeys,
+      isNot(contains(name)),
+    );
+    expect(
+      (tester.getTopLeft(_bubble(name)) - released).distance,
+      greaterThan(30),
+    );
+    await mouse.removePointer();
+    host.expectReadOnly();
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('backgrounding clears a pre-drag setup pointer hold', (
     tester,
   ) async {

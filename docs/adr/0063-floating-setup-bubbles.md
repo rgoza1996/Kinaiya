@@ -18,7 +18,9 @@ a new valid arrangement while preserving control identity.
 Hover, press and keyboard focus hold only the affected body; a held circle acts
 as an immovable collision surface. Pointer dragging follows a swept collision
 path. Release caps speed at 600 logical pixels/second and damps it toward ordinary
-slow drift. Cancel, responsive replacement and backgrounding discard gesture
+slow drift. A released body ignores automatic re-entry beneath the stationary
+release pointer until it has left that pointer once, so hover cannot swallow its
+launch. Cancel, responsive replacement and backgrounding discard gesture
 ownership and stale launch velocity. Pointer movement releases old keyboard focus
 when it is outside that focused bubble. Keyboard order follows declaration order,
 independently of randomized position.

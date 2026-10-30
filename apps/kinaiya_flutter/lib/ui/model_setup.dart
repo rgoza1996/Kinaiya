@@ -125,6 +125,7 @@ class _ModelSetupDialogState extends State<ModelSetupDialog>
   }
 
   final _hovered = <String>{};
+  final _releasedUnderPointer = <String>{};
   final _pressed = <int, String>{};
   Size? _bubbleLayoutSize;
   double? _bubbleDiameter;
@@ -133,9 +134,10 @@ class _ModelSetupDialogState extends State<ModelSetupDialog>
     if (!mounted) return;
     setState(() {
       if (value) {
-        _hovered.add(section);
+        if (!_releasedUnderPointer.contains(section)) _hovered.add(section);
       } else {
         _hovered.remove(section);
+        _releasedUnderPointer.remove(section);
       }
     });
   }
@@ -165,6 +167,9 @@ class _ModelSetupDialogState extends State<ModelSetupDialog>
     if (!mounted) return;
     _bubbleFocus[section]?.unfocus();
     setState(() {
+      // The body may enter beneath the stationary release pointer on the
+      // next layout. Let it leave once before hover can hold it again.
+      _releasedUnderPointer.add(section);
       _hovered.remove(section);
       _pressed.removeWhere((_, value) => value == section);
     });
@@ -268,6 +273,7 @@ class _ModelSetupDialogState extends State<ModelSetupDialog>
     _foreground = state == AppLifecycleState.resumed;
     if (!_foreground) {
       _hovered.clear();
+      _releasedUnderPointer.clear();
       _pressed.clear();
       _snapMorphIfNeeded();
     }
@@ -732,6 +738,7 @@ class _ModelSetupDialogState extends State<ModelSetupDialog>
                         _bubbleDiameter != diameter) {
                       // Responsive replacement does not deliver MouseRegion.onExit.
                       _hovered.clear();
+                      _releasedUnderPointer.clear();
                       _pressed.clear();
                       _bubbleLayoutSize = box.biggest;
                       _bubbleDiameter = diameter;
