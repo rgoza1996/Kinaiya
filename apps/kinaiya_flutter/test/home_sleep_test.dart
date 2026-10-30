@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -11,6 +12,7 @@ import 'package:kinaiya_flutter/config/connection.dart';
 import 'package:kinaiya_flutter/character/package.dart';
 import 'package:kinaiya_flutter/state/app_state.dart';
 import 'package:kinaiya_flutter/ui/character_view.dart';
+import 'package:kinaiya_flutter/ui/design_tokens.dart';
 import 'package:kinaiya_flutter/ui/moonlit_home.dart';
 import 'package:kinaiya_flutter/ui/widgets.dart';
 
@@ -650,7 +652,13 @@ void main() {
     },
   );
 
-  for (final size in [const Size(1280, 720), const Size(320, 500)]) {
+  for (final size in [
+    const Size(1204, 656),
+    const Size(1280, 720),
+    const Size(1536, 1024),
+    const Size(320, 500),
+    const Size(320, 320),
+  ]) {
     testWidgets(
       'sleeping scene contains whole artwork and reachable controls at $size',
       (tester) async {
@@ -689,7 +697,38 @@ void main() {
         );
         expect(tester.getSize(artwork).width.isFinite, isTrue);
         expect(tester.getSize(artwork).height, greaterThan(0));
+        final scene = find.byKey(const ValueKey('home-sleeping-scene'));
+        expect(
+          tester.widget<ColoredBox>(scene).color,
+          KinaiyaDesign.background,
+        );
+        final artworkRect = tester.getRect(artwork);
+        final panelRect = tester.getRect(
+          find.byKey(const ValueKey('home-status-panel')),
+        );
+        expect(panelRect.width, math.min(440, size.width - 32));
+        if (size.width > 320) {
+          // The background must cover the whole scene rather than ending
+          // above the card and exposing a blank lower half.
+          expect(artworkRect.size, size);
+          expect(
+            tester.widget<Image>(artwork).alignment,
+            Alignment.bottomCenter,
+          );
+          final imageScale = math.max(size.width / 1536, size.height / 1024);
+          final imageTop = size.height - 1024 * imageScale;
+          // Native artwork bounds: moon ends near y=452, sleeping character
+          // ends near y=752. The moon remains visible and the panel sits below
+          // the complete character, over the reflected water.
+          expect(imageTop + 452 * imageScale, greaterThan(size.height * .25));
+          expect(imageTop + 752 * imageScale, lessThanOrEqualTo(panelRect.top));
+          expect(panelRect.bottom, lessThanOrEqualTo(size.height));
+        } else {
+          expect(artworkRect.height, closeTo(size.width * 2 / 3, .01));
+          expect(panelRect.top - artworkRect.bottom, closeTo(16, .01));
+        }
         expect(find.text('No duplicate character'), findsNothing);
+        expect(find.byIcon(Icons.graphic_eq_rounded), findsNothing);
         await tester.ensureVisible(find.text('Wake Kinaiya'));
         await tester.pump();
         expect(find.text('Wake Kinaiya').hitTestable(), findsOneWidget);
