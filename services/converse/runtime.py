@@ -27,6 +27,7 @@ from services.converse.history import typed_history_projection
 from services.converse.intent import ConverseIntent
 from services.converse.memory import MemoryLease, MemoryUse, scope_key
 from services.converse.state_guard import UNVERIFIED_STATE_REPLY, negative_runtime_state_claim
+from services.converse.tts_text import normalize_for_tts
 
 
 class SpeechChunker:
@@ -890,11 +891,13 @@ class ConverseRuntime:
             try:
                 try:
                     await self.validate_speech(event.event_id, generation)
-                    iterator = synthesize(event.payload["text"])
-                    async for chunk in iterator:
-                        if operation is None or operation.cancelled:
-                            return
-                        await queue.put(("frame", chunk))
+                    spoken = normalize_for_tts(event.payload["text"])
+                    if spoken:
+                        iterator = synthesize(spoken)
+                        async for chunk in iterator:
+                            if operation is None or operation.cancelled:
+                                return
+                            await queue.put(("frame", chunk))
                 finally:
                     if iterator is not None:
                         try:
