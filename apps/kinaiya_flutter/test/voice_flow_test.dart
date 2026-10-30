@@ -131,6 +131,15 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('Silence'), findsNothing);
     expect(find.byKey(const ValueKey('converse-input')), findsOneWidget);
+    // Tell remains a real one-shot control in the chat tools. Its move from
+    // Home must preserve unavailable capture without affecting the text input.
+    expect(
+      tester
+          .widget<TextButton>(find.byKey(const ValueKey('tell-kinaiya')))
+          .onPressed,
+      isNull,
+    );
+    expect(find.byTooltip('Microphone unavailable here'), findsNWidgets(2));
     await closeConverseChat(tester);
     // Capture must not look usable; text still works.
     expect(
@@ -139,13 +148,8 @@ void main() {
           .onPressed,
       isNull,
     );
-    expect(
-      tester
-          .widget<OutlinedButton>(find.byKey(const ValueKey('tell-kinaiya')))
-          .onPressed,
-      isNull,
-    );
-    expect(find.byTooltip('Microphone unavailable here'), findsNWidgets(2));
+    expect(find.byKey(const ValueKey('tell-kinaiya')), findsNothing);
+    expect(find.byTooltip('Microphone unavailable here'), findsOneWidget);
     expect(tester.takeException(), isNull);
     state.dispose();
   });
@@ -162,10 +166,15 @@ void main() {
     await tester.tap(find.byTooltip('Start Live listen (armed mic)'));
     await tester.pump(const Duration(milliseconds: 300));
     expect(
-      find.text('Live listening is unavailable here; text works.'),
+      find.text('Status: Live listening is unavailable here; text works.'),
       findsOneWidget,
     );
     expect(state.converseHistory, isNotEmpty);
+    expect(state.converseHistory.last.role, 'system');
+    expect(
+      state.converseHistory.last.text,
+      'Live listening is unavailable here; text works.',
+    );
     state.dispose();
   });
 }

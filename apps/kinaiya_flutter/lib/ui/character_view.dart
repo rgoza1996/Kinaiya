@@ -14,6 +14,9 @@ import '../state/app_state.dart';
 import 'book_sheet.dart';
 import 'converse_memory.dart';
 import 'converse_design.dart';
+import 'converse_interaction.dart';
+import 'moonlit_home.dart';
+import 'model_setup.dart';
 import 'voice_options.dart';
 import 'settings_controls.dart';
 import 'moonlit_scene.dart';
@@ -52,6 +55,8 @@ class VoiceActivity {
 ///   interrupt. Agent work is never touched.
 /// - The mic is never enabled automatically: one-shot recording and the
 ///   Live (armed) mode both start only from explicit user gestures.
+enum CharacterSurface { legacy, home, interaction }
+
 class CharacterView extends StatefulWidget {
   const CharacterView({
     super.key,
@@ -64,6 +69,9 @@ class CharacterView extends StatefulWidget {
     this.showCaptions = true,
     this.useDesignScene = false,
     this.voiceOnlyControls = false,
+    this.surface = CharacterSurface.legacy,
+    this.onModelSettings,
+    this.showConverseView = true,
     this.scenePrimary = kinaiyaIndigo,
     this.sceneBackground = kinaiyaWhite,
   });
@@ -75,6 +83,9 @@ class CharacterView extends StatefulWidget {
   final bool showCharacter, showCaptions;
   final bool useDesignScene;
   final bool voiceOnlyControls;
+  final CharacterSurface surface;
+  final VoidCallback? onModelSettings;
+  final bool showConverseView;
   final Color scenePrimary, sceneBackground;
 
   @override
@@ -203,7 +214,24 @@ class _CharacterViewState extends State<CharacterView> {
                         listenable: owner,
                         builder: (_, _) =>
                             mounted && identical(widget.state, owner)
-                            ? _conversationTools(expectedOwner: owner)
+                            ? Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (_s.converseHistory.isNotEmpty)
+                                    SizedBox(
+                                      height: 260,
+                                      child: Column(
+                                        children: [
+                                          _historyBar(),
+                                          Expanded(child: _transcript()),
+                                        ],
+                                      ),
+                                    )
+                                  else
+                                    const SizedBox.shrink(),
+                                  _conversationTools(expectedOwner: owner),
+                                ],
+                              )
                             : const SizedBox.shrink(),
                       ),
                     ),
@@ -332,21 +360,7 @@ class _CharacterViewState extends State<CharacterView> {
     });
     _resourceSubscription = _s.resourceStops.listen((_) {
       if (!mounted) return;
-      _armOwner++;
-      _voiceRequest++;
-      _pendingClip = null;
-      _clearWindows();
-      _pollTimer?.cancel();
-      _speechQueue = SpeechQueue();
-      setState(() {
-        _armed = _recording = _speaking = _voiceBusy = _transcribing =
-            _clipOpen = false;
-        _micStopPending = false;
-      });
-      _publishVoiceActivity();
-      unawaited(_audio.stopArmed());
-      unawaited(_audio.cancelRecording());
-      unawaited(_audio.stopPlayback());
+      unawaited(_stopMicrophone(stopSpeech: true));
     });
   }
 
@@ -436,21 +450,7 @@ class _CharacterViewState extends State<CharacterView> {
       _micReady = mic;
       _voiceReady = mic || play;
     });
-    final api = widget.state.client;
-    final connectionGeneration = _s.connectionGeneration;
-    if (api != null) {
-      try {
-        final health = await api.converseHealth();
-        if (!mounted || !_s.ownsConnection(connectionGeneration, api)) return;
-        widget.state.converseEnabled =
-            ((health['enabled'] as bool?) ?? true) &&
-            !_s.resourceStatusStale &&
-            (_s.resourcesConfigured != true || _s.resourcePhase == 'ready');
-        _s.touch();
-      } catch (_) {
-        // Factual status surfaces through the connection indicator.
-      }
-    }
+    await _s.refreshConverseAvailability();
   }
 
   AppState get _s => widget.state;
@@ -530,6 +530,8 @@ class _CharacterViewState extends State<CharacterView> {
       _s.sessionAuthenticated &&
       _s.converseInferenceAllowed &&
       _s.converseEnabled &&
+      !_s.converseControlPending &&
+      !_s.converseControlUncertain &&
       !_s.resourceStatusStale;
 
   /// Sends a turn. Interruptible mid-SSE: when a turn is already in flight,
@@ -987,11 +989,11 @@ class _CharacterViewState extends State<CharacterView> {
 
   /// Cancel capture locally without submitting the unfinished message or
   /// cancelling Agent work. Invalidate ownership before issuing adapter stops.
-  Future<void> _stopMicrophone() async {
+  Future<void> _stopMicrophone({bool stopSpeech = false}) async {
     // Clearing _armed does not acknowledge a failed playback stop. Retain
     // that obligation so a retry must stop the same window speech as well.
     final stopWindowSpeech =
-        _windowSpeechStopUnconfirmed || (_armed && _windowMode);
+        stopSpeech || _windowSpeechStopUnconfirmed || (_armed && _windowMode);
     _windowSpeechStopUnconfirmed = stopWindowSpeech;
     final owner = ++_armOwner;
     _voiceRequest++;
@@ -1006,6 +1008,7 @@ class _CharacterViewState extends State<CharacterView> {
     }
     setState(() {
       _armed = _recording = _clipOpen = false;
+      _voiceBusy = _transcribing = false;
       _micStopUnconfirmed = _micStopPending = true;
       if (stopWindowSpeech) _speaking = false;
       _mood = _speaking ? 'speaking' : 'idle';
@@ -1506,9 +1509,11 @@ class _CharacterViewState extends State<CharacterView> {
     }
     return Semantics(
       button: true,
-      label: 'Open Agent Chat',
+      label: widget.onModelSettings == null
+          ? 'Open Agent Chat'
+          : 'Open Kinaiya setup',
       child: InkWell(
-        onTap: _openAgent,
+        onTap: widget.onModelSettings ?? _openAgent,
         borderRadius: BorderRadius.circular(24),
         child: pack == null
             ? SizedBox(width: size, height: size)
@@ -2100,6 +2105,26 @@ class _CharacterViewState extends State<CharacterView> {
                     ),
                   ),
                   ConverseMemoryButton(state: expectedOwner ?? _s),
+                  if (widget.surface != CharacterSurface.legacy)
+                    Tooltip(
+                      message: _recording
+                          ? 'Stop recording'
+                          : _micReady
+                          ? 'Record voice'
+                          : 'Microphone unavailable here',
+                      child: TextButton.icon(
+                        key: const ValueKey('tell-kinaiya'),
+                        onPressed: _toolsAction(expectedOwner, _tellAction),
+                        icon: Icon(
+                          _recording
+                              ? Icons.send_rounded
+                              : Icons.mic_none_rounded,
+                        ),
+                        label: Text(
+                          _recording ? 'Send voice message' : 'Tell Kinaiya',
+                        ),
+                      ),
+                    ),
                   if (_armed)
                     Text(
                       _windowMode ? _liveStatus : 'Listening (live)',
@@ -2173,6 +2198,242 @@ class _CharacterViewState extends State<CharacterView> {
     ),
   );
 
+  Widget _inlineComposer() => Column(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      TextField(
+        key: const ValueKey('converse-input'),
+        controller: _input,
+        decoration: const InputDecoration(
+          hintText: 'Message Kinaiya…',
+          labelText: 'Talk with Kinaiya',
+        ),
+        minLines: 1,
+        maxLines: 4,
+        textInputAction: TextInputAction.send,
+        onChanged: (value) => _s.setDraft(AppView.character, value),
+        onSubmitted: (_) => _send(),
+      ),
+      const SizedBox(height: 8),
+      Wrap(
+        alignment: WrapAlignment.end,
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          IconButton(
+            key: const ValueKey('converse-tell-inline'),
+            tooltip: _recording ? 'Send voice message' : 'Tell Kinaiya',
+            onPressed: _tellAction,
+            icon: Icon(
+              _recording ? Icons.send_rounded : Icons.mic_none_rounded,
+            ),
+          ),
+          if (_voiceReady && !_armed)
+            IconButton(
+              tooltip: 'Use audio recording',
+              onPressed: _converseAvailable ? _importRecording : null,
+              icon: const Icon(Icons.audio_file_outlined),
+            ),
+          if (_speaking || _s.busyConverse)
+            IconButton(
+              tooltip: 'Stop speech',
+              onPressed: _stopSpeech,
+              icon: const Icon(Icons.stop_circle_outlined),
+            ),
+          FilledButton.icon(
+            key: const ValueKey('converse-send'),
+            onPressed:
+                _converseAvailable &&
+                    !_s.busyConverse &&
+                    _s.converseDraft.trim().isNotEmpty
+                ? () => _send()
+                : null,
+            icon: const Icon(Icons.arrow_upward),
+            label: const Text('Send'),
+          ),
+        ],
+      ),
+      const Text('Type or speak — your choice'),
+    ],
+  );
+
+  bool get _homeSleeping =>
+      _s.converseSleeping &&
+      !_micStopPending &&
+      !_micStopUnconfirmed &&
+      !_speaking;
+
+  void _changeConverseOwner(bool enabled) {
+    final owner = _s;
+    unawaited(
+      owner.setConverseEnabled(
+        enabled,
+        beforeSleep: () {
+          if (mounted && identical(widget.state, owner)) {
+            // The existing cancellation owner invalidates late capture and TTS
+            // completions before its first await, retaining uncertain-stop state.
+            unawaited(_stopMicrophone(stopSpeech: true));
+          }
+        },
+      ),
+    );
+  }
+
+  Widget _ownerSleepControl() {
+    final sleeping =
+        _s.converseOwnerEnabled == false && !_s.converseOwnerStatusStale;
+    final pending = _s.converseControlPending;
+    final label = pending
+        ? (_s.converseControlTarget == true
+              ? 'Waking Kinaiya…'
+              : 'Putting Kinaiya to sleep…')
+        : sleeping
+        ? 'Wake Kinaiya'
+        : 'Sleep';
+    final action = _s.converseOwnerControlAvailable
+        ? () => _changeConverseOwner(sleeping)
+        : null;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (sleeping)
+          FilledButton.icon(
+            key: const ValueKey('home-owner-control'),
+            onPressed: action,
+            icon: const Icon(Icons.wb_sunny_outlined),
+            label: Text(label),
+          )
+        else
+          OutlinedButton.icon(
+            key: const ValueKey('home-owner-control'),
+            onPressed: action,
+            icon: const Icon(Icons.bedtime_outlined),
+            label: Text(label),
+          ),
+        if (_s.converseControlError != null)
+          Text(_s.converseControlError!, textAlign: TextAlign.center),
+        if (!pending &&
+            (_s.converseOwnerStatusStale || _s.converseControlUncertain))
+          TextButton(
+            key: const ValueKey('home-owner-refresh'),
+            onPressed: _s.sessionAuthenticated && _s.client != null
+                ? () => unawaited(_s.refreshConverseAvailability())
+                : null,
+            child: const Text('Check host status'),
+          ),
+      ],
+    );
+  }
+
+  Widget _homeSurface(CharacterPack? pack, Widget banner) => MoonlitHome(
+    character: LayoutBuilder(
+      builder: (_, bounds) => _mascot(pack, bounds.maxWidth),
+    ),
+    sleeping: _homeSleeping,
+    ownerControl: _ownerSleepControl(),
+    status: _homeSleeping
+        ? 'Offline · Sleeping'
+        : _s.converseControlPending
+        ? (_s.converseControlTarget == true
+              ? 'Waking Kinaiya…'
+              : 'Putting Kinaiya to sleep…')
+        : !_s.connected
+        ? 'Connect to talk with Kinaiya'
+        : _armed || _recording
+        ? _status
+        : _s.busyConverse || _speaking
+        ? _status
+        : _converseAvailable
+        ? 'Ready when you are'
+        : _status,
+    callLabel: _armed || _micStopPending || _micStopUnconfirmed
+        ? _callLabel
+        : 'Talk with Kinaiya',
+    onCall: _callAction,
+    callTooltip: _armed || _micStopUnconfirmed
+        ? 'Stop Live listen'
+        : _micReady
+        ? 'Start Live listen (armed mic)'
+        : 'Microphone unavailable here',
+    onSetup: widget.onModelSettings ?? _openVoiceOptions,
+    agentStatus: !_s.agentOnline
+        ? 'Not connected'
+        : !_s.sessionAuthenticated || _s.tasksStatusStale
+        ? 'Status unavailable'
+        : _s.tasks.any(
+            (task) => const {
+              'running',
+              'queued',
+              'verifying',
+              'accepted',
+            }.contains(task.state),
+          )
+        ? 'Working'
+        : _s.agentInferenceAllowed
+        ? 'Available'
+        : 'Controls available',
+    sessionName: _s.agentSession?.name,
+    onAgent: () => _s.setView(AppView.agent),
+    showConverseView: widget.showConverseView,
+    caption: _s.converseHistory.isEmpty ? null : _currentCaption(),
+    banner: !_homeSleeping && (_s.resourceStatusStale || !_s.converseEnabled)
+        ? banner
+        : null,
+    useDesignScene: widget.useDesignScene && widget.showCharacter,
+  );
+
+  Widget _interactionSurface(CharacterPack? pack, Widget banner) => Column(
+    children: [
+      banner,
+      Expanded(
+        child: ConverseInteraction(
+          character:
+              widget.showCharacter &&
+                  widget.character?.packageJson == null &&
+                  pack?.fallback != true
+              ? InkWell(
+                  onTap: widget.onModelSettings,
+                  child: ConversePortrait(
+                    speaking: _speaking,
+                    thinking: _s.busyConverse && !_speaking,
+                  ),
+                )
+              : LayoutBuilder(
+                  builder: (_, bounds) => Center(
+                    child: _mascot(
+                      pack,
+                      bounds.maxHeight.clamp(48.0, bounds.maxWidth),
+                    ),
+                  ),
+                ),
+          transcript: _transcript(),
+          composer: _inlineComposer(),
+          modelSummary: ConverseModelSummary(state: _s),
+          status: _status,
+          callLabel: _armed || _micStopPending || _micStopUnconfirmed
+              ? _callLabel
+              : 'Talk with Kinaiya',
+          onCall: _callAction,
+          onMicrophone: _micStopPending
+              ? null
+              : _armed || _recording || _micStopUnconfirmed
+              ? _stopMicrophone
+              : _callAction,
+          microphoneLabel: _micStopPending
+              ? 'Stopping microphone…'
+              : _armed || _recording || _micStopUnconfirmed
+              ? 'Mute'
+              : 'Unmute',
+          onModelSettings: widget.onModelSettings ?? _openVoiceOptions,
+          onHistory: _openHistory,
+          onVoiceOptions: _openVoiceOptions,
+          onMemory: () => showConverseMemoryDialog(context: context, state: _s),
+          activeVoice: _armed || _recording || _speaking,
+        ),
+      ),
+    ],
+  );
+
   @override
   Widget build(BuildContext context) => FutureBuilder<CharacterPack>(
     future: _pack,
@@ -2202,6 +2463,64 @@ class _CharacterViewState extends State<CharacterView> {
         final pack =
             widget.character?.pack ??
             (snap.connectionState == ConnectionState.done ? snap.data : null);
+        if (widget.surface == CharacterSurface.home) {
+          if (!widget.showCharacter) {
+            return MoonlitScene(
+              primary: widget.scenePrimary,
+              background: widget.sceneBackground,
+              enabled: false,
+              child: Column(
+                children: [
+                  banner,
+                  _historyBar(),
+                  Expanded(child: _transcript()),
+                  SafeArea(
+                    top: false,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Wrap(
+                        alignment: WrapAlignment.center,
+                        spacing: 12,
+                        runSpacing: 12,
+                        children: [
+                          FilledButton.icon(
+                            key: const ValueKey('call-kinaiya'),
+                            onPressed: _callAction,
+                            icon: const Icon(Icons.mic_none),
+                            label: Text(
+                              _armed || _micStopUnconfirmed || _micStopPending
+                                  ? _callLabel
+                                  : 'Talk with Kinaiya',
+                            ),
+                          ),
+                          OutlinedButton(
+                            key: const ValueKey('home-setup'),
+                            onPressed:
+                                widget.onModelSettings ?? _openVoiceOptions,
+                            child: const Text('Setup'),
+                          ),
+                          _ownerSleepControl(),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+          final home = _homeSurface(pack, banner);
+          return widget.useDesignScene && widget.showCharacter
+              ? home
+              : MoonlitScene(
+                  primary: widget.scenePrimary,
+                  background: widget.sceneBackground,
+                  enabled: widget.showCharacter,
+                  child: home,
+                );
+        }
+        if (widget.surface == CharacterSurface.interaction) {
+          return _interactionSurface(pack, banner);
+        }
         if (widget.useDesignScene &&
             widget.showCharacter &&
             _s.converseHistory.isEmpty) {

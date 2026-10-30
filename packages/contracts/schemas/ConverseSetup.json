@@ -1,0 +1,335 @@
+{
+  "$defs": {
+    "SetupInputs": {
+      "additionalProperties": false,
+      "properties": {
+        "supported": {
+          "items": {
+            "const": "text",
+            "type": "string"
+          },
+          "maxItems": 1,
+          "minItems": 1,
+          "title": "Supported",
+          "type": "array"
+        },
+        "selected": {
+          "items": {
+            "const": "text",
+            "type": "string"
+          },
+          "maxItems": 1,
+          "minItems": 1,
+          "title": "Selected",
+          "type": "array"
+        },
+        "direct_audio": {
+          "const": false,
+          "default": false,
+          "title": "Direct Audio",
+          "type": "boolean"
+        },
+        "stt_required": {
+          "const": true,
+          "default": true,
+          "title": "Stt Required",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "supported",
+        "selected"
+      ],
+      "title": "SetupInputs",
+      "type": "object"
+    },
+    "SetupOperationState": {
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "$ref": "#/$defs/SetupTextOperations"
+        },
+        "speech": {
+          "$ref": "#/$defs/SetupSpeechOperations"
+        }
+      },
+      "required": [
+        "text",
+        "speech"
+      ],
+      "title": "SetupOperationState",
+      "type": "object"
+    },
+    "SetupOption": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "label"
+      ],
+      "title": "SetupOption",
+      "type": "object"
+    },
+    "SetupReasoning": {
+      "additionalProperties": false,
+      "properties": {
+        "selected": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Selected",
+          "type": "string"
+        },
+        "options": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 1,
+          "minItems": 1,
+          "title": "Options",
+          "type": "array"
+        },
+        "mutable": {
+          "const": false,
+          "default": false,
+          "title": "Mutable",
+          "type": "boolean"
+        },
+        "reason": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "selected",
+        "options",
+        "reason"
+      ],
+      "title": "SetupReasoning",
+      "type": "object"
+    },
+    "SetupRole": {
+      "additionalProperties": false,
+      "properties": {
+        "selected_id": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Selected Id"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Label"
+        },
+        "configured": {
+          "title": "Configured",
+          "type": "boolean"
+        },
+        "source": {
+          "enum": [
+            "runtime",
+            "host_configuration"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "options": {
+          "items": {
+            "$ref": "#/$defs/SetupOption"
+          },
+          "maxItems": 1,
+          "title": "Options",
+          "type": "array"
+        },
+        "mutable": {
+          "const": false,
+          "default": false,
+          "title": "Mutable",
+          "type": "boolean"
+        },
+        "reason": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "selected_id",
+        "label",
+        "configured",
+        "source",
+        "options",
+        "reason"
+      ],
+      "title": "SetupRole",
+      "type": "object"
+    },
+    "SetupRoles": {
+      "additionalProperties": false,
+      "properties": {
+        "conversation": {
+          "$ref": "#/$defs/SetupRole"
+        },
+        "stt": {
+          "$ref": "#/$defs/SetupRole"
+        },
+        "tts": {
+          "$ref": "#/$defs/SetupRole"
+        },
+        "decisions": {
+          "$ref": "#/$defs/SetupRole"
+        }
+      },
+      "required": [
+        "conversation",
+        "stt",
+        "tts",
+        "decisions"
+      ],
+      "title": "SetupRoles",
+      "type": "object"
+    },
+    "SetupSpeechOperations": {
+      "additionalProperties": false,
+      "properties": {
+        "active": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Active",
+          "type": "integer"
+        },
+        "cancellation_pending": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Cancellation Pending",
+          "type": "integer"
+        },
+        "cleanup_failed": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Cleanup Failed",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "active",
+        "cancellation_pending",
+        "cleanup_failed"
+      ],
+      "title": "SetupSpeechOperations",
+      "type": "object"
+    },
+    "SetupTextOperations": {
+      "additionalProperties": false,
+      "properties": {
+        "active": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Active",
+          "type": "integer"
+        },
+        "cleanup_pending": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Cleanup Pending",
+          "type": "integer"
+        },
+        "cleanup_failed": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Cleanup Failed",
+          "type": "integer"
+        },
+        "admitting": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Admitting",
+          "type": "integer"
+        },
+        "capacity": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Capacity",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "active",
+        "cleanup_pending",
+        "cleanup_failed",
+        "admitting",
+        "capacity"
+      ],
+      "title": "SetupTextOperations",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Contract Version",
+      "type": "integer"
+    },
+    "revision": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Revision",
+      "type": "string"
+    },
+    "roles": {
+      "$ref": "#/$defs/SetupRoles"
+    },
+    "inputs": {
+      "$ref": "#/$defs/SetupInputs"
+    },
+    "reasoning": {
+      "$ref": "#/$defs/SetupReasoning"
+    },
+    "operation_state": {
+      "$ref": "#/$defs/SetupOperationState"
+    }
+  },
+  "required": [
+    "revision",
+    "roles",
+    "inputs",
+    "reasoning",
+    "operation_state"
+  ],
+  "title": "ConverseSetup",
+  "type": "object"
+}

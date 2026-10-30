@@ -3,6 +3,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kinaiya_flutter/state/app_state.dart';
 import 'package:kinaiya_flutter/ui/agent_chat.dart';
 import 'package:kinaiya_flutter/ui/character_view.dart';
+import 'package:kinaiya_flutter/ui/converse_interaction.dart';
+import 'package:kinaiya_flutter/ui/moonlit_home.dart';
+import 'package:kinaiya_flutter/ui/presentation_settings.dart';
 
 import 'settings_navigation_test.dart' show NavigationFixture, routePump;
 
@@ -40,6 +43,16 @@ Future<void> _navigate(WidgetTester tester, String page) async {
   await routePump(tester);
 }
 
+Finder _liveMicrophoneStatus() => find.descendant(
+  of: find
+      .ancestor(
+        of: find.widgetWithText(TextButton, 'Stop microphone'),
+        matching: find.byType(Wrap),
+      )
+      .first,
+  matching: find.text('Live microphone on'),
+);
+
 void main() {
   testWidgets('desktop sidebar has all concept destinations and can expand', (
     tester,
@@ -55,10 +68,10 @@ void main() {
       'home',
       'converse',
       'agent',
-      'people',
+      'character',
+      'projects',
       'files',
-      'documents',
-      'gallery',
+      'media',
       'settings',
     ]) {
       expect(find.byKey(ValueKey('navigation-$page')), findsOneWidget);
@@ -93,7 +106,8 @@ void main() {
     expect(find.byKey(const ValueKey('agent-input')), findsOneWidget);
     await _navigate(tester, 'converse');
     expect(fixture.state.view, AppView.character);
-    expect(find.byKey(const ValueKey('call-kinaiya')), findsOneWidget);
+    expect(find.byType(ConverseInteraction), findsOneWidget);
+    expect(find.byKey(const ValueKey('converse-call')), findsOneWidget);
     expect(fixture.state.converseDraft, 'Retained conversation draft');
     expect(fixture.state.agentDraft, 'Retained Agent draft');
     expect(fixture.dispatchedEffect, isFalse);
@@ -116,13 +130,26 @@ void main() {
     expect(fixture.audio.arms, 1);
     final requests = fixture.requests.length;
     final vad = fixture.audio.vadCalls;
-    for (final page in ['home', 'people', 'files', 'documents', 'gallery']) {
+    for (final page in ['home', 'projects', 'files', 'media']) {
       await _navigate(tester, page);
-      expect(find.byKey(ValueKey('workspace-$page')), findsOneWidget);
-      if (page != 'home') {
-        expect(find.textContaining('planned.'), findsOneWidget);
+      if (page == 'home') {
+        expect(find.byType(MoonlitHome), findsOneWidget);
+        expect(find.byKey(const ValueKey('home-setup')), findsOneWidget);
+      } else {
+        expect(find.byKey(ValueKey('workspace-$page')), findsOneWidget);
+        expect(
+          find.text(switch (page) {
+            'projects' =>
+              'Project management is not connected to this host yet. Existing Agent sessions remain available in Agent.',
+            'files' =>
+              'Workspace file browsing is planned. Opening this page does not read files or grant Agent access.',
+            _ =>
+              'A generated media library is not connected to this host yet. No example files are shown as your media.',
+          }),
+          findsOneWidget,
+        );
       }
-      expect(find.text('Live microphone on'), findsOneWidget);
+      expect(_liveMicrophoneStatus(), findsOneWidget);
       expect(
         identical(
           tester.state(find.byType(CharacterView, skipOffstage: false)),
@@ -138,6 +165,26 @@ void main() {
         isTrue,
       );
     }
+    await _navigate(tester, 'character');
+    expect(find.byType(PresentationSettings), findsOneWidget);
+    await tester.tap(find.byTooltip('Close appearance settings'));
+    await routePump(tester);
+    expect(find.byKey(const ValueKey('workspace-media')), findsOneWidget);
+    expect(_liveMicrophoneStatus(), findsOneWidget);
+    expect(
+      identical(
+        tester.state(find.byType(CharacterView, skipOffstage: false)),
+        character,
+      ),
+      isTrue,
+    );
+    expect(
+      identical(
+        tester.state(find.byType(AgentChat, skipOffstage: false)),
+        agent,
+      ),
+      isTrue,
+    );
     await tester.tap(find.text('Open Agent Chat'));
     await routePump(tester);
     expect(fixture.state.view, AppView.agent);
@@ -156,21 +203,32 @@ void main() {
   });
 
   testWidgets(
-    'Home offers real navigation and Settings opens existing Options',
+    'Home setup and connected sidebar preserve navigation through Options',
     (tester) async {
       await _size(tester, const Size(1440, 1000));
       final fixture = NavigationFixture();
       await fixture.mount(tester);
       addTearDown(() => fixture.dispose(tester));
       await _navigate(tester, 'home');
-      await tester.tap(find.text('Open Converse'));
+      expect(find.byType(MoonlitHome), findsOneWidget);
+      await tester.ensureVisible(find.byKey(const ValueKey('home-setup')));
+      await tester.tap(find.byKey(const ValueKey('home-setup')));
+      await routePump(tester);
+      expect(find.text('Kinaiya setup'), findsOneWidget);
+      await tester.ensureVisible(find.text('Cancel'));
+      await tester.pump();
+      expect(find.text('Cancel').hitTestable(), findsOneWidget);
+      await tester.tap(find.text('Cancel'));
       await routePump(tester);
       expect(find.byKey(const ValueKey('call-kinaiya')), findsOneWidget);
+      await _navigate(tester, 'converse');
+      expect(find.byType(ConverseInteraction), findsOneWidget);
+      expect(find.byKey(const ValueKey('converse-call')), findsOneWidget);
       await _navigate(tester, 'settings');
       expect(find.byKey(const ValueKey('settings-search')), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('settings-close')));
       await routePump(tester);
-      expect(find.byKey(const ValueKey('call-kinaiya')), findsOneWidget);
+      expect(find.byKey(const ValueKey('converse-call')), findsOneWidget);
       expect(fixture.dispatchedEffect, isFalse);
       expect(tester.takeException(), isNull);
     },
@@ -198,7 +256,8 @@ void main() {
       );
       await tester.tap(find.byKey(const ValueKey('settings-close')));
       await routePump(tester);
-      expect(find.byKey(const ValueKey('workspace-home')), findsOneWidget);
+      expect(find.byType(MoonlitHome), findsOneWidget);
+      expect(find.byKey(const ValueKey('home-setup')), findsOneWidget);
       expect(fixture.dispatchedEffect, isFalse);
       expect(tester.takeException(), isNull);
     },

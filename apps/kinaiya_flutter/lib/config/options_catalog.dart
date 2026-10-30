@@ -5,6 +5,7 @@
 library;
 
 enum SettingsAction {
+  models,
   connection,
   appearance,
   voice,
@@ -44,6 +45,13 @@ class SettingsEntry {
 }
 
 const settingsEntries = <SettingsEntry>[
+  SettingsEntry(
+    action: SettingsAction.models,
+    section: SettingsSection.converse,
+    title: 'Models & conversation',
+    description: 'Inspect host models and choose the optional Converse view.',
+    keywords: 'conversation stt tts decisions reasoning modalities setup',
+  ),
   SettingsEntry(
     action: SettingsAction.connection,
     section: SettingsSection.connection,
@@ -104,6 +112,7 @@ class SettingsAvailability {
 
   bool allows(SettingsAction action) => switch (action) {
     SettingsAction.connection ||
+    SettingsAction.models ||
     SettingsAction.appearance ||
     SettingsAction.memory => true,
     SettingsAction.voice => voiceOptions,

@@ -450,9 +450,9 @@ void main() {
       final agentState = tester.state(
         find.byType(AgentChat, skipOffstage: false),
       );
-      await tester.ensureVisible(find.byKey(const ValueKey('call-kinaiya')));
+      await tester.ensureVisible(find.byKey(const ValueKey('home-talk')));
       await tester.pump();
-      await tester.tap(find.byKey(const ValueKey('call-kinaiya')));
+      await tester.tap(find.byKey(const ValueKey('home-talk')));
       await routePump(tester);
       expect(f.audio.arms, 1);
       final vad = f.audio.vadCalls;

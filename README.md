@@ -258,7 +258,11 @@ separates working controls, host configuration and planned editors. Its stable
 semantics now use the [supplied Penpot presentation](docs/adr/0054-penpot-owner-interface.md):
 navy/blue panels, local Inter fonts, an illustrated Converse scene with its real
 animated mascot, and responsive Agent and Options layouts. Full provider/settings
-management remains unfinished.
+management remains unfinished. The [updated Home and optional Converse design](docs/adr/0059-home-and-optional-converse.md)
+shares one live conversation owner: Home keeps the seated water scene, while the
+optional interaction view adds close-up artwork, transcript and composer. Home's
+mascot/Setup opens model declarations and local view visibility. Model hot-swap,
+camera/direct-audio input and project/media libraries remain unavailable.
 
 An experimental [Converse memory core](docs/adr/0047-converse-memory-core.md)
 is installed only with `kinaiya serve session --converse-memory` (or the same
