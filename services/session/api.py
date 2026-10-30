@@ -1,9 +1,16 @@
 import asyncio
 
-from fastapi import Depends, FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from packages.contracts.context import (
+    MAX_CONTEXT_REQUEST_BYTES,
+    ContextHistoryPage,
+    ContextQualificationPage,
+    ContextQualificationRequest,
+    context_json,
+)
 from packages.contracts.models import AppendRequest, PlaybackGeneration, SessionRequest
 from services.common.auth import Auth
 from services.session.store import JournalError, Store
@@ -132,6 +139,68 @@ def create_app(
     @app.get("/v1/transcript/recent", dependencies=[Depends(auth.require())])
     async def recent(session_id: str, limit: int = Query(100, ge=1, le=200)):
         return store.recent(session_id=session_id, limit=limit)
+
+    @app.get(
+        "/v1/transcript/context-history",
+        response_model=ContextHistoryPage,
+        dependencies=[Depends(auth.require("owner", "converse"))],
+    )
+    async def context_history(
+        request: Request,
+        source_event_id: str = Query(min_length=1, max_length=128),
+        through_sequence: int | None = Query(default=None, ge=1),
+        before_sequence: int | None = Query(default=None, ge=1),
+        limit: int = Query(default=100, ge=1, le=200),
+    ):
+        allowed = {"source_event_id", "through_sequence", "before_sequence", "limit"}
+        if any(
+            key not in allowed or len(request.query_params.getlist(key)) != 1
+            for key in request.query_params
+        ):
+            raise HTTPException(422, "Ambiguous native context history query")
+        for key in allowed - {"source_event_id"}:
+            raw = request.query_params.get(key)
+            if raw is not None and (not raw.isascii() or not raw.isdigit() or raw.startswith("0")):
+                raise HTTPException(
+                    422, "Native context counters require positive decimal integers"
+                )
+        return store.context_history(
+            source_event_id=source_event_id,
+            through_sequence=through_sequence,
+            before_sequence=before_sequence,
+            limit=limit,
+        )
+
+    @app.post(
+        "/v1/transcript/context-qualifications",
+        response_model=ContextQualificationPage,
+        dependencies=[Depends(auth.require("owner", "converse"))],
+        openapi_extra={
+            "requestBody": {
+                "required": True,
+                "content": {
+                    "application/json": {"schema": ContextQualificationRequest.model_json_schema()}
+                },
+            }
+        },
+    )
+    async def context_qualifications(request: Request):
+        if (
+            request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+            != "application/json"
+        ):
+            raise HTTPException(415, "Native context qualifications require JSON")
+        raw = bytearray()
+        async for chunk in request.stream():
+            if len(raw) + len(chunk) > MAX_CONTEXT_REQUEST_BYTES:
+                raise HTTPException(413, "Native context request exceeds its byte limit")
+            raw.extend(chunk)
+        try:
+            data = context_json(raw, maximum=MAX_CONTEXT_REQUEST_BYTES)
+            body = ContextQualificationRequest.model_validate(data)
+        except (ValueError, RecursionError) as exc:
+            raise HTTPException(422, "Invalid native context qualification JSON") from exc
+        return store.context_qualifications(**body.model_dump(exclude={"schema_version"}))
 
     @app.get(
         "/v1/transcript/playback/generation",

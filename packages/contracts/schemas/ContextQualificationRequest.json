@@ -1,0 +1,62 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source_event_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Source Event Id",
+      "type": "string"
+    },
+    "through_sequence": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Through Sequence",
+      "type": "integer"
+    },
+    "base_event_ids": {
+      "items": {
+        "maxLength": 128,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 200,
+      "minItems": 1,
+      "title": "Base Event Ids",
+      "type": "array"
+    },
+    "before_sequence": {
+      "anyOf": [
+        {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Before Sequence"
+    },
+    "limit": {
+      "default": 100,
+      "maximum": 200,
+      "minimum": 1,
+      "title": "Limit",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "source_event_id",
+    "through_sequence",
+    "base_event_ids"
+  ],
+  "title": "ContextQualificationRequest",
+  "type": "object"
+}

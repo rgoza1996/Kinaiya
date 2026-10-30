@@ -11,6 +11,7 @@ from packages.contracts.memory import MemoryBinding
 from packages.contracts.models import AppendRequest, SpeechWindow, WindowDecision
 from packages.providers.disclosure import combine_scopes, scope_allowed
 from packages.providers.text import ProviderCleanupError, owned_http_stream_cleanup
+from services.converse.context_budget import ContextBudgetBuilder
 from services.converse.context_projection import ContextProjection
 from services.converse.delivery_context import window_context_projection
 from services.converse.runtime import SpeechChunker
@@ -464,8 +465,27 @@ class WindowConverseController:
                 source, "preparing", behavior=prepared.behavior
             )
         await self._native("append", prepared.prepare_request)
-        recent = await self._native("recent", session_id=source.session_id, limit=100)
+        recent = (
+            []
+            if self.runtime.context_budgeted
+            else await self._native("recent", session_id=source.session_id, limit=100)
+        )
         w = SpeechWindow.model_validate(source.payload)
+        budget = (
+            ContextBudgetBuilder(
+                self.journal,
+                source,
+                prepared.provider,
+                personality=self.runtime.personality,
+                runtime_id=self.runtime._runtime_id,
+                current=lambda: (
+                    self.runtime.provider is prepared.provider and self._local_current(prepared)
+                ),
+                native=self._native,
+            )
+            if self.runtime.context_budgeted
+            else None
+        )
 
         def compile_context(pin):
             projection = window_context_projection(
@@ -499,8 +519,15 @@ class WindowConverseController:
             lambda: self._abandon(prepared),
             lambda: self.runtime.provider is prepared.provider and self._local_current(prepared),
             lambda lease: setattr(prepared, "memory_lease", lease),
+            budgeted_builder=budget.build if budget is not None else None,
         )
         prepared.memory_lease = lease
+        if budget is not None:
+            projection = (
+                await lease.run(budget.finalize(projection))
+                if lease is not None
+                else await budget.finalize(projection)
+            )
         prepared.content_scope = combine_scopes(
             w.content_scope, self.runtime.personality_scope, *projection.consumed_scopes
         )

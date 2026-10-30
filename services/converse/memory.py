@@ -297,8 +297,22 @@ class MemoryUse:
             for choice in tuple(self.choices.values()):
                 self._revoke(choice)
 
-    async def prepare(self, binding, provider, compile_context, cancel, provider_current, attach):
-        ordinary = compile_context(None)
+    async def prepare(
+        self,
+        binding,
+        provider,
+        compile_context,
+        cancel,
+        provider_current,
+        attach,
+        *,
+        budgeted_builder=None,
+    ):
+        ordinary = (
+            await budgeted_builder(None, None)
+            if budgeted_builder is not None
+            else compile_context(None)
+        )
         if not provider.info.local:
             return ordinary, None
         lease = self.acquire(binding, cancel)
@@ -332,9 +346,14 @@ class MemoryUse:
                 or tuple(pin.selector_ids) != lease.choice.selector_ids
             ):
                 return ordinary, None
-            projection = compile_context(pin)
+            projection = (
+                await lease.run(budgeted_builder(pin, snapshot.message))
+                if budgeted_builder is not None
+                else compile_context(pin)
+            )
             messages = [dict(row) for row in projection.messages]
-            messages.insert(1, dict(snapshot.message))
+            if budgeted_builder is None:
+                messages.insert(1, dict(snapshot.message))
             measure = getattr(provider, "measure_prompt", None)
             if not callable(measure):
                 return ordinary, None
@@ -351,7 +370,12 @@ class MemoryUse:
 
             lease.snapshot = snapshot
             self.notices[scope_key(binding)] = "ready"
-            return ContextProjection(messages, ["local_only"], consumed_memory=True), lease
+            return ContextProjection(
+                messages,
+                ["local_only"],
+                consumed_memory=True,
+                measurement=count if budgeted_builder is not None else None,
+            ), lease
         except ProviderCleanupError:
             lease.failed = True
             raise

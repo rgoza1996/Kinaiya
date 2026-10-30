@@ -48,7 +48,7 @@ class PromptTokenCount:
             type(self.input_tokens) is not int
             or not 1 <= self.input_tokens <= MAX_SAFE_COUNT
             or type(self.context_tokens) is not int
-            or not 64 <= self.context_tokens <= 32768
+            or not 64 <= self.context_tokens <= MAX_SAFE_COUNT
             or type(self.reserved_output_tokens) is not int
             or not 16 <= self.reserved_output_tokens < self.context_tokens
             or self.reserved_output_tokens > 2048

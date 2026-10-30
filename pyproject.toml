@@ -24,6 +24,7 @@ whistle = ["av==17.1.0"]
 ecosystem = ["mcp>=1.20,<2", "PyYAML>=6,<7"]
 plugins = ["jsonschema>=4.23,<5"]
 audit = ["pip-audit>=2.10,<3"]
+lmstudio = ["websockets==15.0.1"]
 
 [project.scripts]
 kinaiya = "services.launcher:main"
