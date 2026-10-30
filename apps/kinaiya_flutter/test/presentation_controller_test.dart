@@ -360,6 +360,7 @@ void main() {
       await controller.setPreferences(
         const PresentationPreferences(
           showConverseView: false,
+          animateTransitions: false,
           showCharacter: false,
           primaryOverride: '#123456',
           backgroundOverride: '#112233',
@@ -368,6 +369,7 @@ void main() {
       final saved = jsonDecode(storage.value!) as Map;
       final savedPreferences = saved['preferences'] as Map;
       expect(savedPreferences['show_converse_view'], isFalse);
+      expect(savedPreferences['animate_transitions'], isFalse);
       expect(saved['state_schema'], 1);
       expect(saved['package'], imported.packageJson);
 
@@ -379,6 +381,7 @@ void main() {
       await reader.initialize();
       expect(reader.selected!.pack.name, 'Local character');
       expect(reader.preferences.showConverseView, isFalse);
+      expect(reader.preferences.animateTransitions, isFalse);
       expect(reader.preferences.showCharacter, isFalse);
       expect(reader.preferences.primaryOverride, '#123456');
       expect(reader.preferences.backgroundOverride, '#112233');

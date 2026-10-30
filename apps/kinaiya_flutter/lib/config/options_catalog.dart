@@ -63,7 +63,8 @@ const settingsEntries = <SettingsEntry>[
     action: SettingsAction.appearance,
     section: SettingsSection.appearance,
     title: 'Appearance & character',
-    description: 'Colors, character packs, captions and reduced motion.',
+    description:
+        'Colors, character packs, captions, interface transitions and reduced motion.',
     keywords:
         'mascot sprites animation accessibility palette import export reset',
   ),

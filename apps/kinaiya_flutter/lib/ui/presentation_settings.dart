@@ -185,9 +185,11 @@ class _PresentationSettingsState extends State<PresentationSettings> {
     _preferences(
       PresentationPreferences(
         reducedMotion: current.reducedMotion,
+        animateTransitions: current.animateTransitions,
         showCharacter: current.showCharacter,
         showCaptions: current.showCaptions,
         usePackPalette: current.usePackPalette,
+        showConverseView: current.showConverseView,
         primaryOverride: primary.isEmpty ? null : primary.toUpperCase(),
         backgroundOverride: background.isEmpty
             ? null
@@ -387,12 +389,25 @@ class _PresentationSettingsState extends State<PresentationSettings> {
                         contentPadding: EdgeInsets.zero,
                         title: const Text('Reduce motion'),
                         subtitle: const Text(
-                          'Keep character animation still. Your device’s reduced motion setting always applies.',
+                          'Keep character animation and interface transitions still. Your device’s reduced motion setting always applies.',
                         ),
                         value: preferences.reducedMotion,
                         onChanged: enabled
                             ? (value) => _preferences(
                                 preferences.copyWith(reducedMotion: value),
+                              )
+                            : null,
+                      ),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Interface transitions'),
+                        subtitle: const Text(
+                          'Fade between views and settings panels. Reduced motion always takes priority.',
+                        ),
+                        value: preferences.animateTransitions,
+                        onChanged: enabled
+                            ? (value) => _preferences(
+                                preferences.copyWith(animateTransitions: value),
                               )
                             : null,
                       ),

@@ -261,6 +261,7 @@ void main() {
       await mount(tester, controller, size: const Size(390, 844), textScale: 2);
       for (final label in [
         'Reduce motion',
+        'Interface transitions',
         'Show character',
         'Show captions',
         'Use character pack colors',
@@ -269,6 +270,7 @@ void main() {
         expect(tester.takeException(), isNull);
       }
       expect(controller.preferences.reducedMotion, isTrue);
+      expect(controller.preferences.animateTransitions, isFalse);
       expect(controller.preferences.showCharacter, isFalse);
       expect(controller.preferences.showCaptions, isFalse);
       expect(controller.preferences.usePackPalette, isFalse);
@@ -285,6 +287,12 @@ void main() {
     'palette validates exact hex, applies colors and clears overrides',
     (tester) async {
       final controller = await initialized(tester);
+      await controller.setPreferences(
+        controller.preferences.copyWith(
+          animateTransitions: false,
+          showConverseView: false,
+        ),
+      );
       await mount(tester, controller);
       final primary = find.widgetWithText(TextField, 'Primary color override');
       final background = find.widgetWithText(
@@ -303,6 +311,8 @@ void main() {
       await press(tester, 'Apply color overrides');
       expect(controller.preferences.primaryOverride, '#AABBCC');
       expect(controller.preferences.backgroundOverride, '#000001');
+      expect(controller.preferences.animateTransitions, isFalse);
+      expect(controller.preferences.showConverseView, isFalse);
       await press(tester, 'Clear color overrides');
       expect(controller.preferences.primaryOverride, isNull);
       expect(controller.preferences.backgroundOverride, isNull);
