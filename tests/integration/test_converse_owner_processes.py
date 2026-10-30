@@ -119,6 +119,7 @@ async def test_native_owner_off_during_restore_and_later_explicit_on(tmp_path):
             await coordinator.initialize()
             assert coordinator.state.record.phase == "ready"
             initial_pid = manager.status()["workers"]["voice"]["owned_pid"]
+            assert (await owner.get("/health")).json()["context_history"] == "measured"
             assert (await owner.get("/health")).json()["enabled"]
             handed = await coordinator.action(
                 {

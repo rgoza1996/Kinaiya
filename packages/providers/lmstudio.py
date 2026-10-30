@@ -628,6 +628,16 @@ class LMStudioProvider:
             raise _refuse()
         if stats.get("usedDraftModelKey") not in {None, ""}:
             raise _refuse()
+        if any(
+            stats.get(key, 0) != 0
+            for key in (
+                "totalDraftTokensCount",
+                "acceptedDraftTokensCount",
+                "rejectedDraftTokensCount",
+                "ignoredDraftTokensCount",
+            )
+        ):
+            raise _refuse()
         return stats
 
     def _terminal(self, message, snapshot, measured):

@@ -705,3 +705,26 @@ async def test_native_terminal_omits_inactive_draft_default_but_active_draft_ref
     wire.terminal = active
     with pytest.raises(ProviderCleanupError):
         await provider(wire).complete(MESSAGES)
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "totalDraftTokensCount",
+        "acceptedDraftTokensCount",
+        "rejectedDraftTokensCount",
+        "ignoredDraftTokensCount",
+    ],
+)
+async def test_native_draft_usage_refuses_even_without_a_named_draft_model(field):
+    wire = NativeFixture()
+    original = wire.terminal
+
+    def terminal(ws, stop=None):
+        result = original(ws, stop)
+        result["stats"][field] = 1
+        return result
+
+    wire.terminal = terminal
+    with pytest.raises(ProviderCleanupError):
+        await provider(wire).complete(MESSAGES)

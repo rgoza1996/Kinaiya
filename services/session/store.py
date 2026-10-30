@@ -96,24 +96,24 @@ class Store:
                 WHERE kind IN ('conversation.user','conversation.window','conversation.converse');
             CREATE INDEX IF NOT EXISTS entries_context_window ON entries(
                 session_id, thread_id, epoch,
-                json_extract(value,'$.payload.utterance_id'),
-                json_extract(value,'$.payload.window_index'),
-                json_extract(value,'$.payload.revision'), sequence)
+                CASE WHEN json_valid(value) THEN json_extract(value,'$.payload.utterance_id') END,
+                CASE WHEN json_valid(value) THEN json_extract(value,'$.payload.window_index') END,
+                CASE WHEN json_valid(value) THEN json_extract(value,'$.payload.revision') END, sequence)
                 WHERE kind='conversation.window';
             CREATE INDEX IF NOT EXISTS entries_context_revision ON entries(
                 session_id, thread_id, epoch,
-                json_extract(value,'$.payload.target_event_id'), sequence)
+                CASE WHEN json_valid(value) THEN json_extract(value,'$.payload.target_event_id') END, sequence)
                 WHERE kind='conversation.revision';
             CREATE INDEX IF NOT EXISTS entries_context_receipt ON entries(
                 session_id, thread_id, epoch,
-                json_extract(value,'$.payload.event_id'), sequence)
+                CASE WHEN json_valid(value) THEN json_extract(value,'$.payload.event_id') END, sequence)
                 WHERE kind='delivery.updated';
             CREATE INDEX IF NOT EXISTS entries_context_stop ON entries(
                 session_id, thread_id, epoch,
-                json_extract(value,'$.payload.runtime_id'),
-                json_extract(value,'$.payload.next_generation_epoch'), sequence)
+                CASE WHEN json_valid(value) THEN json_extract(value,'$.payload.runtime_id') END,
+                CASE WHEN json_valid(value) THEN json_extract(value,'$.payload.next_generation_epoch') END, sequence)
                 WHERE kind='delivery.updated'
-                AND json_extract(value,'$.payload.control')='generation_stop';
+                AND CASE WHEN json_valid(value) THEN json_extract(value,'$.payload.control') END='generation_stop';
             CREATE INDEX IF NOT EXISTS entries_window_dispatch ON entries(
                 json_extract(value,'$.payload.decision_id'), sequence)
                 WHERE kind='routing.window_dispatch';
