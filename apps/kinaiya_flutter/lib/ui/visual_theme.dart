@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'design_tokens.dart';
+
 // Kinaiya brand ink. Presentation only; never gates speech, runtime, or evidence.
 const Color kinaiyaIndigo = Color(0xFF141091);
 const Color kinaiyaWhite = Color(0xFFFFFFFF);
@@ -14,10 +16,11 @@ ThemeData kinaiyaTheme({
   Brightness brightness = Brightness.light,
   Color? primary,
   Color? background,
+  bool designSystem = false,
 }) {
   final bool isDark = brightness == Brightness.dark;
 
-  final ColorScheme defaults = isDark
+  final ColorScheme legacy = isDark
       ? const ColorScheme.dark(
           primary: kinaiyaWhite,
           onPrimary: kinaiyaIndigo,
@@ -65,10 +68,44 @@ ThemeData kinaiyaTheme({
           onTertiaryContainer: kinaiyaNavy,
         );
 
-  // The bundled palette keeps the established light/dark identity unchanged.
-  final custom =
-      (primary != null && primary != kinaiyaIndigo) ||
-      (background != null && background != kinaiyaWhite);
+  final defaults = designSystem
+      ? (isDark
+            ? legacy.copyWith(
+                primary: KinaiyaDesign.blue,
+                onPrimary: kinaiyaWhite,
+                primaryContainer: const Color(0xFF123B7D),
+                onPrimaryContainer: KinaiyaDesign.text,
+                secondary: KinaiyaDesign.cyan,
+                surface: KinaiyaDesign.background,
+                onSurface: KinaiyaDesign.text,
+                onSurfaceVariant: KinaiyaDesign.muted,
+                outlineVariant: KinaiyaDesign.stroke,
+                surfaceContainerLowest: KinaiyaDesign.background,
+                surfaceContainerLow: KinaiyaDesign.panel,
+                surfaceContainer: KinaiyaDesign.raised,
+                surfaceContainerHigh: const Color(0xFF16324F),
+                surfaceContainerHighest: const Color(0xFF1D3D60),
+              )
+            : legacy.copyWith(
+                primary: KinaiyaDesign.blue,
+                onPrimary: kinaiyaWhite,
+                primaryContainer: const Color(0xFFE9F0FF),
+                onPrimaryContainer: const Color(0xFF0B285F),
+                secondary: const Color(0xFF0750D7),
+                surface: kinaiyaWhite,
+                onSurface: KinaiyaDesign.background,
+                outlineVariant: const Color(0xFFCBD9F0),
+                surfaceContainerLow: const Color(0xFFF6F8FF),
+                surfaceContainer: const Color(0xFFE9F0FF),
+                surfaceContainerHigh: const Color(0xFFDFE9FC),
+              ))
+      : legacy;
+
+  // Explicit palette choices keep their fills and receive readable foregrounds.
+  final custom = designSystem
+      ? primary != null || background != null
+      : (primary != null && primary != kinaiyaIndigo) ||
+            (background != null && background != kinaiyaWhite);
   final scheme = custom
       ? _customScheme(
           defaults,
@@ -76,12 +113,15 @@ ThemeData kinaiyaTheme({
           background ?? defaults.surface,
         )
       : defaults;
-  final actionInk = custom ? _readableActionInk(scheme) : scheme.primary;
+  final actionInk = custom || designSystem
+      ? _readableActionInk(scheme)
+      : scheme.primary;
 
   final TextTheme baseText = isDark
       ? ThemeData.dark().textTheme
       : ThemeData.light().textTheme;
   final TextTheme textTheme = baseText.apply(
+    fontFamily: designSystem ? KinaiyaDesign.fontFamily : null,
     bodyColor: scheme.onSurface,
     displayColor: scheme.onSurface,
   );
@@ -91,7 +131,7 @@ ThemeData kinaiyaTheme({
     borderRadius: BorderRadius.circular(12),
   );
   final RoundedRectangleBorder cardShape = RoundedRectangleBorder(
-    borderRadius: BorderRadius.circular(16),
+    borderRadius: BorderRadius.circular(designSystem ? 12 : 16),
     side: BorderSide(color: scheme.outlineVariant),
   );
 
@@ -107,6 +147,7 @@ ThemeData kinaiyaTheme({
 
   return ThemeData(
     useMaterial3: true,
+    fontFamily: designSystem ? KinaiyaDesign.fontFamily : null,
     brightness: brightness,
     colorScheme: scheme,
     scaffoldBackgroundColor: scheme.surface,
@@ -139,7 +180,7 @@ ThemeData kinaiyaTheme({
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(designSystem ? 12 : 20),
         side: BorderSide(color: scheme.outlineVariant),
       ),
     ),
@@ -170,7 +211,7 @@ ThemeData kinaiyaTheme({
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
-        foregroundColor: custom ? actionInk : null,
+        foregroundColor: custom || designSystem ? actionInk : null,
         minimumSize: minTap,
         shape: buttonShape,
         textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
@@ -207,7 +248,9 @@ ThemeData kinaiyaTheme({
     ),
     iconButtonTheme: IconButtonThemeData(
       style: ButtonStyle(
-        foregroundColor: custom ? WidgetStatePropertyAll(actionInk) : null,
+        foregroundColor: custom || designSystem
+            ? WidgetStatePropertyAll(actionInk)
+            : null,
         minimumSize: const WidgetStatePropertyAll<Size>(minTap),
         shape: WidgetStatePropertyAll<OutlinedBorder>(buttonShape),
       ),

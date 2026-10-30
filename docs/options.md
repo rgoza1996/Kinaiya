@@ -2,10 +2,11 @@
 
 Prepared for #126 on 2026-10-29. This catalog complements Roadmap.md and
 clarification.md; it does not mark planned capabilities as implemented. The
-later Penpot design supplies visual language and composition. Stable option
+owner-supplied Penpot design now supplies visual language and composition
+([ADR0054](adr/0054-penpot-owner-interface.md)). Stable option
 identities, ownership, validation and scope survive a layout change.
 
-The first Settings hub groups working controls and forwards to their existing
+The responsive Options hub groups working controls and forwards to their existing
 owners. The larger catalog below is preparation for the full harness, not a set
 of simulated switches. Backend capabilities determine which editors can exist.
 

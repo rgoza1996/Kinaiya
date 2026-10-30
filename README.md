@@ -255,7 +255,9 @@ The owner app's [Settings hub](docs/adr/0053-options-catalog-and-settings-hub.md
 groups existing connection/privacy, appearance, voice, memory, Agent and MCP
 controls without starting tasks or inference. The [options catalog](docs/options.md)
 separates working controls, host configuration and planned editors. Its stable
-semantics are independent of a future Penpot layout; full provider/settings
+semantics now use the [supplied Penpot presentation](docs/adr/0054-penpot-owner-interface.md):
+navy/blue panels, local Inter fonts, an illustrated Converse scene with its real
+animated mascot, and responsive Agent and Options layouts. Full provider/settings
 management remains unfinished.
 
 An experimental [Converse memory core](docs/adr/0047-converse-memory-core.md)

@@ -15,6 +15,7 @@ import 'ui/settings_hub.dart';
 import 'ui/converse_memory.dart';
 import 'ui/mcp_settings.dart';
 import 'ui/visual_theme.dart';
+import 'ui/design_tokens.dart';
 
 export 'ui/visual_theme.dart' show kinaiyaIndigo, kinaiyaWhite;
 
@@ -93,8 +94,13 @@ class _KinaiyaAppState extends State<KinaiyaApp> {
           background != _themeBackground) {
         _themePrimary = primary;
         _themeBackground = background;
-        _lightTheme = kinaiyaTheme(primary: primary, background: background);
+        _lightTheme = kinaiyaTheme(
+          primary: primary,
+          background: background,
+          designSystem: true,
+        );
         _darkTheme = kinaiyaTheme(
+          designSystem: true,
           brightness: Brightness.dark,
           primary: primary,
           background: background,
@@ -127,7 +133,7 @@ class _KinaiyaAppState extends State<KinaiyaApp> {
           presentation: _presentation,
           lightTheme: light,
           darkTheme: dark,
-          accent: primary ?? kinaiyaIndigo,
+          accent: primary ?? KinaiyaDesign.blue,
           stageBackground: background ?? kinaiyaWhite,
         ),
       );
@@ -180,7 +186,10 @@ class _HomeShellState extends State<HomeShell> {
         context: context,
         builder: (_) => ListenableBuilder(
           listenable: owner,
-          builder: (_, _) => SettingsHub(availability: _settingsAvailability),
+          builder: (_, _) => Theme(
+            data: widget.darkTheme,
+            child: SettingsHub(availability: _settingsAvailability),
+          ),
         ),
       );
     } finally {
@@ -258,15 +267,16 @@ class _HomeShellState extends State<HomeShell> {
               children: [
                 if (rail)
                   NavigationRail(
-                    backgroundColor: kinaiyaNavy,
-                    indicatorColor: kinaiyaWhite,
-                    selectedIconTheme: const IconThemeData(
-                      color: kinaiyaIndigo,
+                    backgroundColor:
+                        widget.darkTheme.colorScheme.surfaceContainerLow,
+                    indicatorColor: widget.darkTheme.colorScheme.primary,
+                    selectedIconTheme: IconThemeData(
+                      color: widget.darkTheme.colorScheme.onPrimary,
                     ),
-                    unselectedIconTheme: const IconThemeData(
-                      color: kinaiyaWhite,
+                    unselectedIconTheme: IconThemeData(
+                      color: widget.darkTheme.colorScheme.onSurfaceVariant,
                     ),
-                    minWidth: 80,
+                    minWidth: 76,
                     groupAlignment: -.65,
                     leading: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 20),
@@ -296,58 +306,87 @@ class _HomeShellState extends State<HomeShell> {
                 Expanded(
                   child: Column(
                     children: [
-                      Material(
-                        color: isAgent
-                            ? widget.darkTheme.colorScheme.surface
-                            : widget.accent,
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 8, 12, 8),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Column(
+                      Theme(
+                        data: widget.darkTheme,
+                        child: Material(
+                          color: widget.darkTheme.colorScheme.surface,
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 8, 12, 8),
+                            child: LayoutBuilder(
+                              builder: (context, header) {
+                                final compact = header.maxWidth / scale >= 420;
+                                final title = Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Text(
-                                      'Kinaiya',
-                                      style: TextStyle(
-                                        color: _headerInk(isAgent),
-                                        fontSize: 22,
-                                        fontWeight: FontWeight.w700,
-                                      ),
+                                      isAgent
+                                          ? 'Kinaiya Agent'
+                                          : 'Kinaiya Converse',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleLarge
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w700,
+                                          ),
                                     ),
                                     Text(
-                                      isAgent ? 'AGENT WORKSPACE' : 'CONVERSE',
-                                      style: TextStyle(
-                                        color: _headerInk(isAgent),
-                                        fontSize: 12,
-                                        letterSpacing: 1.5,
-                                      ),
+                                      isAgent
+                                          ? 'Your workspace'
+                                          : 'Your voice, your companion',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.onSurfaceVariant,
+                                          ),
                                     ),
                                   ],
-                                ),
-                              ),
-                              ConnectionDot(state: state),
-                              IconButton(
-                                key: const ValueKey('settings-open'),
-                                tooltip: 'Settings',
-                                color: _headerInk(isAgent),
-                                icon: const Icon(Icons.settings_outlined),
-                                onPressed: _settings,
-                              ),
-                              IconButton(
-                                tooltip: 'Appearance',
-                                color: _headerInk(isAgent),
-                                icon: const Icon(Icons.palette_outlined),
-                                onPressed: _appearance,
-                              ),
-                              IconButton(
-                                tooltip: 'Connection setup',
-                                color: _headerInk(isAgent),
-                                icon: const Icon(Icons.tune_rounded),
-                                onPressed: _setup,
-                              ),
-                            ],
+                                );
+                                final actions = Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    ConnectionDot(state: state),
+                                    IconButton(
+                                      key: const ValueKey('settings-open'),
+                                      tooltip: 'Settings',
+                                      icon: const Icon(Icons.settings_outlined),
+                                      onPressed: _settings,
+                                    ),
+                                    IconButton(
+                                      tooltip: 'Appearance',
+                                      icon: const Icon(Icons.palette_outlined),
+                                      onPressed: _appearance,
+                                    ),
+                                    IconButton(
+                                      tooltip: 'Connection setup',
+                                      icon: const Icon(Icons.tune_rounded),
+                                      onPressed: _setup,
+                                    ),
+                                  ],
+                                );
+                                return compact
+                                    ? Row(
+                                        children: [
+                                          Expanded(child: title),
+                                          actions,
+                                        ],
+                                      )
+                                    : Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          title,
+                                          Align(
+                                            alignment: Alignment.centerRight,
+                                            child: actions,
+                                          ),
+                                        ],
+                                      );
+                              },
+                            ),
                           ),
                         ),
                       ),
@@ -384,6 +423,19 @@ class _HomeShellState extends State<HomeShell> {
                                   child: Theme(
                                     data: widget.lightTheme,
                                     child: CharacterView(
+                                      useDesignScene:
+                                          widget.presentation.selected ==
+                                              null &&
+                                          widget
+                                                  .presentation
+                                                  .preferences
+                                                  .primaryOverride ==
+                                              null &&
+                                          widget
+                                                  .presentation
+                                                  .preferences
+                                                  .backgroundOverride ==
+                                              null,
                                       state: state,
                                       audio: widget.audio,
                                       controls: _converseControls,
@@ -453,12 +505,6 @@ class _HomeShellState extends State<HomeShell> {
       },
     );
   }
-
-  Color _headerInk(bool isAgent) => isAgent
-      ? widget.darkTheme.colorScheme.onSurface
-      : widget.accent.computeLuminance() > 0.179
-      ? Colors.black
-      : Colors.white;
 
   Widget _voiceBar(VoiceActivity voice) => Material(
     color: Theme.of(context).colorScheme.surfaceContainerHigh,
