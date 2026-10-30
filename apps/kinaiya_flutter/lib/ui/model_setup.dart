@@ -75,6 +75,15 @@ class _ModelSetupDialogState extends State<ModelSetupDialog> {
       _pressed.isNotEmpty ||
       _bubbleFocus.values.any((node) => node.hasFocus);
 
+  void _resumeForPointer() {
+    if (_section != null || _hovered.isNotEmpty) return;
+    // Escape restores keyboard focus. Once the user returns to the pointer
+    // outside a bubble, that focus must not latch motion off indefinitely.
+    for (final node in _bubbleFocus.values) {
+      if (node.hasFocus) node.unfocus();
+    }
+  }
+
   @override
   void didUpdateWidget(covariant ModelSetupDialog oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -524,207 +533,213 @@ class _ModelSetupDialogState extends State<ModelSetupDialog> {
     backgroundColor: Colors.transparent,
     shadowColor: Colors.transparent,
     insetPadding: const EdgeInsets.all(16),
-    child: Column(
-      children: [
-        if (widget.voiceControls != null) widget.voiceControls!,
-        Expanded(
-          child: LayoutBuilder(
-            builder: (context, box) {
-              final scale = MediaQuery.textScalerOf(context).scale(1);
-              final wide =
-                  box.maxWidth / scale >= 1050 && box.maxHeight / scale >= 650;
-              const sections = <String, IconData>{
-                'Model': Icons.settings_outlined,
-                'Reasoning': Icons.auto_awesome_outlined,
-                'Inputs': Icons.article_outlined,
-                'Speech': Icons.record_voice_over_outlined,
-                'Decisions': Icons.diamond_outlined,
-              };
-              final diameter = wide
-                  ? 178 * scale
-                  : (160 * scale).clamp(0.0, box.maxWidth - 32);
-              if (_bubbleLayoutSize != box.biggest ||
-                  _bubbleDiameter != diameter) {
-                // MouseRegion does not send onExit when a region unmounts.
-                // A responsive replacement must not retain its hover latch.
-                _hovered.clear();
-                _pressed.clear();
-                _bubbleLayoutSize = box.biggest;
-                _bubbleDiameter = diameter;
-              }
-              final bubbles = {
-                for (final item in sections.entries)
-                  item.key: _bubble(item.key, item.value, diameter),
-              };
-              final animate =
-                  widget.presentation.preferences.animateTransitions &&
-                  !widget.presentation.preferences.reducedMotion;
-              Widget flow() => Wrap(
-                alignment: WrapAlignment.center,
-                spacing: 16,
-                runSpacing: 16,
-                children: bubbles.values.toList(),
-              );
-              final header = Material(
-                color: Theme.of(
-                  context,
-                ).colorScheme.surface.withValues(alpha: .96),
-                borderRadius: BorderRadius.circular(16),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              'Kinaiya setup',
-                              style: Theme.of(context).textTheme.titleLarge,
+    child: Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerHover: (_) => _resumeForPointer(),
+      child: Column(
+        children: [
+          if (widget.voiceControls != null) widget.voiceControls!,
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, box) {
+                final scale = MediaQuery.textScalerOf(context).scale(1);
+                final wide =
+                    box.maxWidth / scale >= 1050 &&
+                    box.maxHeight / scale >= 650;
+                const sections = <String, IconData>{
+                  'Model': Icons.settings_outlined,
+                  'Reasoning': Icons.auto_awesome_outlined,
+                  'Inputs': Icons.article_outlined,
+                  'Speech': Icons.record_voice_over_outlined,
+                  'Decisions': Icons.diamond_outlined,
+                };
+                final diameter = wide
+                    ? 178 * scale
+                    : (160 * scale).clamp(0.0, box.maxWidth - 32);
+                if (_bubbleLayoutSize != box.biggest ||
+                    _bubbleDiameter != diameter) {
+                  // MouseRegion does not send onExit when a region unmounts.
+                  // A responsive replacement must not retain its hover latch.
+                  _hovered.clear();
+                  _pressed.clear();
+                  _bubbleLayoutSize = box.biggest;
+                  _bubbleDiameter = diameter;
+                }
+                final bubbles = {
+                  for (final item in sections.entries)
+                    item.key: _bubble(item.key, item.value, diameter),
+                };
+                final animate =
+                    widget.presentation.preferences.animateTransitions &&
+                    !widget.presentation.preferences.reducedMotion;
+                Widget flow() => Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 16,
+                  runSpacing: 16,
+                  children: bubbles.values.toList(),
+                );
+                final header = Material(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.surface.withValues(alpha: .96),
+                  borderRadius: BorderRadius.circular(16),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Kinaiya setup',
+                                style: Theme.of(context).textTheme.titleLarge,
+                              ),
                             ),
-                          ),
-                          IconButton(
-                            tooltip: 'Close setup',
-                            onPressed: _saving
-                                ? null
-                                : () => Navigator.of(context).pop(),
-                            icon: const Icon(Icons.close),
-                          ),
-                        ],
-                      ),
-                      if (_loading) const LinearProgressIndicator(),
-                      if (_error != null)
-                        Text(
-                          _error!,
-                          key: const ValueKey('model-setup-unavailable'),
+                            IconButton(
+                              tooltip: 'Close setup',
+                              onPressed: _saving
+                                  ? null
+                                  : () => Navigator.of(context).pop(),
+                              icon: const Icon(Icons.close),
+                            ),
+                          ],
                         ),
-                      TextButton.icon(
-                        onPressed: _loading ? null : _refresh,
-                        icon: const Icon(Icons.refresh),
-                        label: const Text('Refresh host configuration'),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-              if (!wide) {
-                return SingleChildScrollView(
-                  key: const ValueKey('setup-bubbles-narrow'),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      header,
-                      const SizedBox(height: 16),
-                      SizedBox(
-                        height:
-                            (5 /
-                                        (box.maxWidth / (diameter + 32))
-                                            .floor()
-                                            .clamp(1, 5))
-                                    .ceil() *
-                                (diameter + 32) +
-                            32,
-                        child: FocusTraversalGroup(
-                          policy: OrderedTraversalPolicy(),
-                          child: FloatingBubbles(
-                            key: const ValueKey('setup-floating-narrow'),
-                            children: bubbles,
-                            diameter: diameter,
-                            enabled: animate,
-                            paused: _pauseBubbles,
-                            fallback: flow(),
+                        if (_loading) const LinearProgressIndicator(),
+                        if (_error != null)
+                          Text(
+                            _error!,
+                            key: const ValueKey('model-setup-unavailable'),
                           ),
+                        TextButton.icon(
+                          onPressed: _loading ? null : _refresh,
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Refresh host configuration'),
                         ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.only(top: 16),
-                        child: _popoverSlot(),
-                      ),
-                      const SizedBox(height: 16),
-                      _preferences(),
-                    ],
+                      ],
+                    ),
                   ),
                 );
-              }
-              return Stack(
-                key: const ValueKey('setup-bubbles-wide'),
-                children: [
-                  Positioned.fill(
-                    child: FocusTraversalGroup(
-                      policy: OrderedTraversalPolicy(),
-                      child: FloatingBubbles(
-                        key: const ValueKey('setup-floating-wide'),
-                        children: bubbles,
-                        diameter: diameter,
-                        enabled: animate,
-                        paused: _pauseBubbles,
-                        obstacles: [
-                          Rect.fromLTWH(0, 0, 280 * scale, 236 * scale),
-                          Rect.fromLTWH(
-                            0,
-                            box.maxHeight - 300 * scale,
-                            440 * scale,
-                            300 * scale,
+                if (!wide) {
+                  return SingleChildScrollView(
+                    key: const ValueKey('setup-bubbles-narrow'),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        header,
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          height:
+                              (5 /
+                                          (box.maxWidth / (diameter + 32))
+                                              .floor()
+                                              .clamp(1, 5))
+                                      .ceil() *
+                                  (diameter + 32) +
+                              32,
+                          child: FocusTraversalGroup(
+                            policy: OrderedTraversalPolicy(),
+                            child: FloatingBubbles(
+                              key: const ValueKey('setup-floating-narrow'),
+                              children: bubbles,
+                              diameter: diameter,
+                              enabled: animate,
+                              paused: _pauseBubbles,
+                              fallback: flow(),
+                            ),
                           ),
-                          // Keep the character visible between the controls.
-                          Rect.fromLTWH(
-                            box.maxWidth / 2 - 130 * scale,
-                            box.maxHeight * .3,
-                            260 * scale,
-                            box.maxHeight * .45,
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 16),
+                          child: _popoverSlot(),
+                        ),
+                        const SizedBox(height: 16),
+                        _preferences(),
+                      ],
+                    ),
+                  );
+                }
+                return Stack(
+                  key: const ValueKey('setup-bubbles-wide'),
+                  children: [
+                    Positioned.fill(
+                      child: FocusTraversalGroup(
+                        policy: OrderedTraversalPolicy(),
+                        child: FloatingBubbles(
+                          key: const ValueKey('setup-floating-wide'),
+                          children: bubbles,
+                          diameter: diameter,
+                          enabled: animate,
+                          paused: _pauseBubbles,
+                          obstacles: [
+                            Rect.fromLTWH(0, 0, 280 * scale, 236 * scale),
+                            Rect.fromLTWH(
+                              0,
+                              box.maxHeight - 300 * scale,
+                              440 * scale,
+                              300 * scale,
+                            ),
+                            // Keep the character visible between the controls.
+                            Rect.fromLTWH(
+                              box.maxWidth / 2 - 130 * scale,
+                              box.maxHeight * .3,
+                              260 * scale,
+                              box.maxHeight * .45,
+                            ),
+                          ],
+                          fallback: Padding(
+                            padding: EdgeInsets.only(left: 440 * scale),
+                            child: SingleChildScrollView(child: flow()),
                           ),
-                        ],
-                        fallback: Padding(
-                          padding: EdgeInsets.only(left: 440 * scale),
-                          child: SingleChildScrollView(child: flow()),
                         ),
                       ),
                     ),
-                  ),
-                  Positioned(
-                    top: 0,
-                    left: 0,
-                    width: 260 * scale,
-                    height: 220 * scale,
-                    child: Align(
-                      alignment: Alignment.topLeft,
-                      child: SingleChildScrollView(
-                        key: const ValueKey('setup-fixed-header'),
-                        child: header,
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      width: 260 * scale,
+                      height: 220 * scale,
+                      child: Align(
+                        alignment: Alignment.topLeft,
+                        child: SingleChildScrollView(
+                          key: const ValueKey('setup-fixed-header'),
+                          child: header,
+                        ),
                       ),
                     ),
-                  ),
-                  Positioned(
-                    left: 0,
-                    bottom: 0,
-                    width: 420 * scale,
-                    height: 300 * scale,
-                    child: Align(
-                      alignment: Alignment.bottomLeft,
-                      child: SingleChildScrollView(
-                        key: const ValueKey('setup-fixed-preferences'),
-                        child: _preferences(),
+                    Positioned(
+                      left: 0,
+                      bottom: 0,
+                      width: 420 * scale,
+                      height: 300 * scale,
+                      child: Align(
+                        alignment: Alignment.bottomLeft,
+                        child: SingleChildScrollView(
+                          key: const ValueKey('setup-fixed-preferences'),
+                          child: _preferences(),
+                        ),
                       ),
                     ),
-                  ),
-                  Positioned(
-                    top: 140,
-                    bottom: 80,
-                    left: const {'Model', 'Reasoning'}.contains(_popoverAnchor)
-                        ? 0
-                        : box.maxWidth - 420,
-                    width: 420,
-                    child: Align(
-                      alignment: Alignment.topCenter,
-                      child: _popoverSlot(),
+                    Positioned(
+                      top: 140,
+                      bottom: 80,
+                      left:
+                          const {'Model', 'Reasoning'}.contains(_popoverAnchor)
+                          ? 0
+                          : box.maxWidth - 420,
+                      width: 420,
+                      child: Align(
+                        alignment: Alignment.topCenter,
+                        child: _popoverSlot(),
+                      ),
                     ),
-                  ),
-                ],
-              );
-            },
+                  ],
+                );
+              },
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     ),
   );
 }

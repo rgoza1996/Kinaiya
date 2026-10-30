@@ -359,6 +359,50 @@ void main() {
   }
 
   testWidgets(
+    'Escape retains keyboard pause until pointer movement resumes the field',
+    (tester) async {
+      await _wide(tester);
+      final host = await _setup(tester);
+      await tester.pumpWidget(host.app());
+      await _frames(tester, count: 20);
+      final bubbleCenter = tester.getCenter(_bubble('Model'));
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: bubbleCenter);
+      await mouse.down(bubbleCenter);
+      await mouse.up();
+      await _frames(tester, count: 20);
+      expect(find.byKey(const ValueKey('setup-popover')), findsOneWidget);
+      final clearSpace = tester.getCenter(
+        find.byKey(const ValueKey('setup-fixed-header')),
+      );
+      await mouse.moveTo(clearSpace);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await _frames(tester, count: 20);
+      expect(find.byKey(const ValueKey('setup-popover')), findsNothing);
+      final invoker = tester.widget<InkWell>(
+        find.descendant(of: _bubble('Model'), matching: find.byType(InkWell)),
+      );
+      expect(invoker.focusNode!.hasFocus, isTrue);
+      final keyboardPaused = _positions(tester);
+      await _frames(tester);
+      expect(_positions(tester), keyboardPaused);
+      expect(invoker.focusNode!.hasFocus, isTrue);
+
+      // A real PointerHover reaches the setup Listener. No direct unfocus is
+      // used: returning to the pointer must release only the old bubble focus.
+      await mouse.moveTo(clearSpace + const Offset(2, 0));
+      await _frames(tester, count: 2);
+      expect(invoker.focusNode!.hasFocus, isFalse);
+      final pointerResumed = _positions(tester);
+      await _frames(tester);
+      _expectMoved(pointerResumed, _positions(tester));
+      await mouse.removePointer();
+      host.expectReadOnly();
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
     'an open popover stays anchored while pointer and focus leave its bubble',
     (tester) async {
       await _wide(tester);
