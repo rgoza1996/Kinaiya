@@ -23,14 +23,16 @@ class MoonlitHome extends StatefulWidget {
     this.caption,
     this.banner,
     this.useDesignScene = true,
+    this.sleeping = false,
+    this.ownerControl,
   });
   final Widget character;
   final String status, callLabel, agentStatus, callTooltip;
   final String? sessionName;
   final VoidCallback onSetup;
   final VoidCallback? onCall, onAgent;
-  final bool showConverseView, useDesignScene;
-  final Widget? caption, banner;
+  final bool showConverseView, useDesignScene, sleeping;
+  final Widget? caption, banner, ownerControl;
   @override
   State<MoonlitHome> createState() => _MoonlitHomeState();
 }
@@ -68,7 +70,8 @@ class _MoonlitHomeState extends State<MoonlitHome> {
       final height = math.max(box.maxHeight, 640.0 * scale);
       final cardHeight =
           (176 +
-              (widget.caption == null ? 0 : 80) +
+              (widget.ownerControl == null ? 0 : 80) +
+              (widget.caption == null || widget.sleeping ? 0 : 80) +
               (widget.showConverseView ? 0 : 64)) *
           scale;
       final surfaceY = height - cardHeight - 48;
@@ -97,13 +100,38 @@ class _MoonlitHomeState extends State<MoonlitHome> {
         width: box.maxWidth,
         child: Stack(
           children: [
-            Positioned(
-              top: surfaceY - size * .95,
-              left: (box.maxWidth - size) / 2,
-              width: size,
-              height: size,
-              child: widget.character,
-            ),
+            if (widget.sleeping && widget.useDesignScene)
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                height: math.max(0, surfaceY - 16),
+                child: Semantics(
+                  label: 'Kinaiya sleeping',
+                  child: Image.asset(
+                    KinaiyaDesign.sleepingHome,
+                    key: const ValueKey('home-sleeping-artwork'),
+                    fit:
+                        box.maxWidth / scale < 950 ||
+                            surfaceY - 16 < box.maxWidth * .20
+                        ? BoxFit.contain
+                        : BoxFit.cover,
+                    alignment: const Alignment(0, .35),
+                    excludeFromSemantics: true,
+                    errorBuilder: (_, _, _) => const Center(
+                      child: Icon(Icons.bedtime_outlined, size: 64),
+                    ),
+                  ),
+                ),
+              )
+            else
+              Positioned(
+                top: surfaceY - size * .95,
+                left: (box.maxWidth - size) / 2,
+                width: size,
+                height: size,
+                child: widget.character,
+              ),
             if (box.maxWidth / scale >= 950)
               Positioned(
                 top: 16,
@@ -185,41 +213,47 @@ class _MoonlitHomeState extends State<MoonlitHome> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          widget.status,
+                          widget.sleeping
+                              ? 'Kinaiya is sleeping'
+                              : widget.status,
                           textAlign: TextAlign.center,
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
+                        if (widget.sleeping) const Text('Converse is offline'),
                         const SizedBox(height: 10),
-                        ExcludeSemantics(
-                          child: Icon(
-                            Icons.graphic_eq_rounded,
-                            size: 48,
-                            color: Theme.of(context).colorScheme.primary,
+                        if (!widget.sleeping)
+                          ExcludeSemantics(
+                            child: Icon(
+                              Icons.graphic_eq_rounded,
+                              size: 48,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
                           ),
-                        ),
-                        if (widget.caption != null) widget.caption!,
+                        if (!widget.sleeping && widget.caption != null)
+                          widget.caption!,
                         const SizedBox(height: 10),
                         Wrap(
                           alignment: WrapAlignment.center,
                           spacing: 8,
                           runSpacing: 8,
                           children: [
-                            Tooltip(
-                              message: widget.callTooltip,
-                              child: Semantics(
-                                key: const ValueKey('home-talk'),
-                                child: FilledButton.icon(
-                                  key: const ValueKey('call-kinaiya'),
-                                  onPressed: widget.onCall,
-                                  icon: Icon(
-                                    widget.callLabel == 'End conversation'
-                                        ? Icons.call_end_rounded
-                                        : Icons.mic_none,
+                            if (!widget.sleeping)
+                              Tooltip(
+                                message: widget.callTooltip,
+                                child: Semantics(
+                                  key: const ValueKey('home-talk'),
+                                  child: FilledButton.icon(
+                                    key: const ValueKey('call-kinaiya'),
+                                    onPressed: widget.onCall,
+                                    icon: Icon(
+                                      widget.callLabel == 'End conversation'
+                                          ? Icons.call_end_rounded
+                                          : Icons.mic_none,
+                                    ),
+                                    label: Text(widget.callLabel),
                                   ),
-                                  label: Text(widget.callLabel),
                                 ),
                               ),
-                            ),
                             OutlinedButton(
                               key: const ValueKey('home-setup'),
                               onPressed: widget.onSetup,
@@ -227,6 +261,11 @@ class _MoonlitHomeState extends State<MoonlitHome> {
                             ),
                           ],
                         ),
+                        if (widget.ownerControl != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 10),
+                            child: widget.ownerControl!,
+                          ),
                         if (!widget.showConverseView)
                           const Padding(
                             padding: EdgeInsets.only(top: 12),
@@ -248,7 +287,7 @@ class _MoonlitHomeState extends State<MoonlitHome> {
       );
       return SingleChildScrollView(
         key: const ValueKey('home-scene'),
-        child: widget.useDesignScene
+        child: widget.useDesignScene && !widget.sleeping
             ? AnchoredMoonlitScene(
                 artwork: box.maxWidth < height
                     ? KinaiyaDesign.moonlitPhone

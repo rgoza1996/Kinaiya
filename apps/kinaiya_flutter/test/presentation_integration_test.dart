@@ -106,10 +106,22 @@ void expectVoiceOnlyMain() {
       of: main,
       matching: find.byWidgetPredicate((widget) => widget is ButtonStyleButton),
     ),
-    findsNWidgets(2),
+    findsNWidgets(4),
   );
   expect(find.byKey(const ValueKey('call-kinaiya')), findsOneWidget);
   expect(find.byKey(const ValueKey('home-setup')), findsOneWidget);
+  // This older host fixture declares only effective availability. The new
+  // owner control stays disabled until an owner revision can be inspected.
+  expect(
+    find.byWidgetPredicate(
+      (widget) =>
+          widget is ButtonStyleButton &&
+          widget.key == const ValueKey('home-owner-control') &&
+          widget.onPressed == null,
+    ),
+    findsOneWidget,
+  );
+  expect(find.byKey(const ValueKey('home-owner-refresh')), findsOneWidget);
   expect(find.byKey(const ValueKey('converse-input')), findsNothing);
   expect(find.byKey(const ValueKey('voice-options')), findsNothing);
   expect(find.byKey(const ValueKey('converse-memory')), findsNothing);

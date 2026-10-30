@@ -133,6 +133,32 @@ class AppState extends ChangeNotifier {
   int agentCursor = 0;
 
   bool converseEnabled = true;
+  bool? converseOwnerEnabled;
+  int? _converseOwnerRevision, _healthOwnerRevision;
+  bool? _lastHealthEnabled;
+  bool converseOwnerStatusStale = true;
+  bool converseControlPending = false;
+  bool? converseControlTarget;
+  bool converseControlUncertain = false;
+  int _converseControlRequest = 0;
+  String? converseControlError;
+
+  /// Intent is separate from resource availability. An outage is never sleep.
+  bool get converseSleeping =>
+      sessionAuthenticated &&
+      client != null &&
+      !converseOwnerStatusStale &&
+      converseOwnerEnabled == false &&
+      !converseControlPending &&
+      !converseControlUncertain;
+
+  bool get converseOwnerControlAvailable =>
+      sessionAuthenticated &&
+      client != null &&
+      !converseOwnerStatusStale &&
+      converseOwnerEnabled != null &&
+      !converseControlPending &&
+      !converseControlUncertain;
   bool busyConverse = false;
   bool busyAgent = false;
 
@@ -273,6 +299,7 @@ class AppState extends ChangeNotifier {
     _resourceController = null;
     _resourceRevision = -1;
     _resourceOwnerRevision = null;
+    _resetConverseOwner();
     // The registry is honest only for its own connection: invalidate on
     // every (re)connect until the new registry loads.
     commands = null;
@@ -404,7 +431,7 @@ class AppState extends ChangeNotifier {
             .then((v) {
               if (generation == _connectionGeneration &&
                   identical(api, client)) {
-                converseEnabled = v['enabled'] == true;
+                applyConverseHealth(v);
                 streamingWindows = v['streaming_windows'] == true;
               }
               converseInfo = v['provider'];
@@ -646,11 +673,257 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  void _resetConverseOwner() {
+    converseOwnerEnabled = null;
+    _converseOwnerRevision = _healthOwnerRevision = null;
+    _lastHealthEnabled = null;
+    converseOwnerStatusStale = true;
+    converseControlPending = converseControlUncertain = false;
+    converseControlTarget = null;
+    converseControlError = null;
+  }
+
+  bool _acceptConverseOwner(bool enabled, int revision) {
+    final previous = _converseOwnerRevision;
+    if (revision < 0 ||
+        revision > 9007199254740991 ||
+        (previous != null &&
+            (revision < previous ||
+                (revision == previous && converseOwnerEnabled != enabled)))) {
+      return false;
+    }
+    _converseOwnerRevision = revision;
+    converseOwnerEnabled = enabled;
+    converseOwnerStatusStale = false;
+    if (converseControlUncertain && enabled == converseControlTarget) {
+      converseControlUncertain = false;
+      converseControlError = null;
+      if (!converseControlPending) converseControlTarget = null;
+    }
+    return true;
+  }
+
+  /// Apply only a health read already bound to the live client/generation.
+  /// Legacy effective-only health cannot establish intentional sleep.
+  void applyConverseHealth(Map<String, Object?> health) {
+    final observedRevision = health['owner_intent_revision'];
+    if (observedRevision is int &&
+        _converseOwnerRevision != null &&
+        observedRevision < _converseOwnerRevision!) {
+      return;
+    }
+    final wasEnabled = converseEnabled;
+    converseOwnerStatusStale = true;
+    Never invalid(String message) {
+      _lastHealthEnabled = null;
+      if (wasEnabled) _stopUnavailableConverse();
+      converseEnabled = false;
+      throw FormatException(message);
+    }
+
+    if (health['enabled'] is! bool) {
+      invalid('Invalid Converse availability');
+    }
+    if (health.containsKey('owner_enabled') ||
+        health.containsKey('owner_intent_revision')) {
+      final owner = health['owner_enabled'];
+      final revision = health['owner_intent_revision'];
+      if (owner is! bool ||
+          revision is! int ||
+          health['resource_enabled'] is! bool ||
+          health['enabled'] != (owner && health['resource_enabled'] == true) ||
+          !_acceptConverseOwner(owner, revision)) {
+        invalid('Invalid Converse owner intent');
+      }
+      _healthOwnerRevision = revision;
+    }
+    _lastHealthEnabled = health['enabled'] == true;
+    _applyEffectiveConverseHealth();
+    if (wasEnabled && !converseEnabled) {
+      _stopUnavailableConverse();
+    }
+  }
+
+  void _stopUnavailableConverse() {
+    converseEnabled = false;
+    turnNonce++;
+    voiceNonce++;
+    speechEpoch++;
+    busyConverse = false;
+    _resourceStops.add(_converseOwnerRevision ?? -1);
+  }
+
+  void _applyEffectiveConverseHealth() {
+    converseEnabled =
+        _lastHealthEnabled == true &&
+        converseOwnerEnabled != false &&
+        !converseControlPending &&
+        !converseControlUncertain &&
+        !resourceStatusStale &&
+        (resourcesConfigured != true || resourcePhase == 'ready');
+  }
+
+  /// Read after an uncertain write; this never repeats the mutation.
+  Future<bool> refreshConverseAvailability() async {
+    final api = client;
+    final generation = _connectionGeneration;
+    if (api == null || !sessionAuthenticated) return false;
+    try {
+      final health = await api.converseHealth().timeout(
+        const Duration(seconds: 5),
+      );
+      if (!ownsConnection(generation, api)) return false;
+      applyConverseHealth(health);
+      // An opposite snapshot cannot prove a timed-out request will not apply
+      // later. Resolve only when its requested choice is actually observed.
+      if (converseControlUncertain) {
+        if (converseOwnerStatusStale ||
+            converseOwnerEnabled != converseControlTarget) {
+          notifyListeners();
+          return false;
+        }
+        converseControlUncertain = false;
+        applyConverseHealth(health);
+        if (!converseControlPending) converseControlTarget = null;
+      }
+      converseControlError = null;
+      notifyListeners();
+      return !converseOwnerStatusStale;
+    } catch (_) {
+      if (!ownsConnection(generation, api)) return false;
+      converseOwnerStatusStale = true;
+      _lastHealthEnabled = null;
+      if (converseEnabled) _stopUnavailableConverse();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  void _completeConverseControl(Map<String, Object?> result, bool enabled) {
+    final revision = result['owner_intent_revision'];
+    if (result['owner_enabled'] != enabled ||
+        revision is! int ||
+        revision < 0 ||
+        revision > 9007199254740991 ||
+        result['resource_enabled'] is! bool ||
+        result['enabled'] != (enabled && result['resource_enabled'] == true)) {
+      throw const FormatException('Owner choice was not confirmed');
+    }
+    final uncertain = converseControlUncertain;
+    converseControlUncertain = false;
+    try {
+      if (revision < (_converseOwnerRevision ?? -1)) {
+        // A newer observed owner action wins. The original HTTP operation has
+        // now completed, so a fresh read may reconcile effective availability.
+        unawaited(refreshConverseAvailability());
+      } else {
+        applyConverseHealth(result);
+      }
+    } catch (_) {
+      converseControlUncertain = uncertain;
+      rethrow;
+    }
+    converseControlError = null;
+  }
+
+  bool _converseControlRejected(Object error) =>
+      error is ApiException &&
+      const [400, 401, 403, 404, 405, 422].contains(error.status);
+
+  /// Owner choice only: no Agent mutation, provider switch or microphone arm.
+  /// beforeSleep invalidates the existing local audio owners synchronously.
+  Future<void> setConverseEnabled(
+    bool enabled, {
+    VoidCallback? beforeSleep,
+  }) async {
+    final api = client;
+    final generation = _connectionGeneration;
+    if (api == null || !converseOwnerControlAvailable) return;
+    converseControlPending = true;
+    converseControlTarget = enabled;
+    final request = ++_converseControlRequest;
+    converseControlError = null;
+    if (!enabled) {
+      converseEnabled = false;
+      turnNonce++;
+      voiceNonce++;
+      speechEpoch++;
+      busyConverse = false;
+      beforeSleep?.call();
+    }
+    notifyListeners();
+    var timedOut = false;
+    try {
+      final response = api.setConverseEnabled(enabled);
+      // Future.timeout does not recall an HTTP request. Keep its completion
+      // attributable to this operation rather than allowing a blind retry.
+      unawaited(
+        response.then(
+          (result) {
+            if (!timedOut ||
+                !ownsConnection(generation, api) ||
+                request != _converseControlRequest) {
+              return;
+            }
+            try {
+              _completeConverseControl(result, enabled);
+              converseControlTarget = null;
+              notifyListeners();
+            } catch (_) {
+              /* The original outcome remains unconfirmed. */
+            }
+          },
+          onError: (Object error) {
+            if (!timedOut ||
+                !ownsConnection(generation, api) ||
+                request != _converseControlRequest ||
+                !_converseControlRejected(error)) {
+              return;
+            }
+            converseControlUncertain = false;
+            converseControlTarget = null;
+            unawaited(refreshConverseAvailability());
+            notifyListeners();
+          },
+        ),
+      );
+      final result = await response.timeout(const Duration(seconds: 8));
+      if (!ownsConnection(generation, api)) return;
+      _completeConverseControl(result, enabled);
+    } catch (error) {
+      if (!ownsConnection(generation, api)) return;
+      timedOut = error is TimeoutException;
+      converseOwnerStatusStale = true;
+      // These explicit rejections precede native owner mutation. Transport
+      // failures and 503 may follow persistence and remain uncertain.
+      final rejected = _converseControlRejected(error);
+      converseControlUncertain = !rejected;
+      converseControlError =
+          '${enabled ? 'Wake' : 'Sleep'} is unconfirmed. Check host status before trying again.';
+      final confirmed = await refreshConverseAvailability();
+      if (!ownsConnection(generation, api)) return;
+      if (!confirmed || converseOwnerEnabled != enabled) {
+        converseControlError = rejected && confirmed
+            ? '${enabled ? 'Wake' : 'Sleep'} was not applied. Host state was checked.'
+            : '${enabled ? 'Wake' : 'Sleep'} is unconfirmed. Check host status before trying again.';
+      }
+    } finally {
+      if (ownsConnection(generation, api)) {
+        converseControlPending = false;
+        if (!converseControlUncertain) converseControlTarget = null;
+        _applyEffectiveConverseHealth();
+        notifyListeners();
+      }
+    }
+  }
+
   Future<void> refreshResources({bool force = false}) async {
     final api = client;
-    if (api == null ||
-        _pollingResources ||
-        (resourcesConfigured == false && !force)) {
+    if (api == null || _pollingResources) {
+      return;
+    }
+    if (resourcesConfigured == false && !force) {
+      await refreshConverseAvailability();
       return;
     }
     _pollingResources = true;
@@ -659,7 +932,7 @@ class AppState extends ChangeNotifier {
       final status = await api.resourceStatus().timeout(
         const Duration(seconds: 4),
       );
-      if (generation != _connectionGeneration) return;
+      if (!ownsConnection(generation, api)) return;
       if (status['configured'] == false) {
         resourcesConfigured = false;
         resourceConverseDesired = null;
@@ -682,10 +955,13 @@ class AppState extends ChangeNotifier {
       final revision = (policy['revision'] as num).toInt();
       final ownerRevision = policy['owner_intent_revision'];
       if (ownerRevision != null &&
-          (ownerRevision is! int || ownerRevision < 0)) {
+          (ownerRevision is! int ||
+              ownerRevision < 0 ||
+              ownerRevision > 9007199254740991)) {
         throw const FormatException('Invalid Converse owner revision');
       }
-      if (_resourceController != controller) {
+      final controllerChanged = _resourceController != controller;
+      if (controllerChanged) {
         _resourceController = controller;
         _resourceRevision = -1;
         _resourceOwnerRevision = null;
@@ -701,15 +977,33 @@ class AppState extends ChangeNotifier {
       // the controller lock. Its revision is independent of worker progress.
       if (revision == _resourceRevision &&
           ownerRevision == _resourceOwnerRevision &&
-          !wasStale) {
+          !wasStale &&
+          !converseOwnerStatusStale) {
+        await _refreshRestoredConverse();
         return;
       }
       _resourceRevision = revision;
       _resourceOwnerRevision = ownerRevision is int ? ownerRevision : null;
+      if (ownerRevision is int && sessionAuthenticated) {
+        if (controllerChanged && _healthOwnerRevision == null) {
+          _converseOwnerRevision = null;
+        }
+        if (!_acceptConverseOwner(
+          policy['desired_converse'] as bool,
+          ownerRevision,
+        )) {
+          throw const FormatException('Obsolete Converse owner intent');
+        }
+      }
       resourcePhase = policy['phase'] as String? ?? 'failed';
       resourceConverseDesired = policy['desired_converse'] as bool;
       converseEnabled =
-          resourcePhase == 'ready' && policy['desired_converse'] == true;
+          resourcePhase == 'ready' &&
+          policy['desired_converse'] == true &&
+          converseOwnerEnabled != false &&
+          _lastHealthEnabled != false &&
+          !converseControlPending &&
+          !converseControlUncertain;
       if (!converseEnabled) {
         turnNonce++;
         voiceNonce++;
@@ -718,8 +1012,9 @@ class AppState extends ChangeNotifier {
         _resourceStops.add(revision);
       }
       notifyListeners();
+      await _refreshRestoredConverse();
     } catch (_) {
-      if (generation != _connectionGeneration) return;
+      if (!ownsConnection(generation, api)) return;
       if (!resourceStatusStale && resourcesConfigured == true) {
         turnNonce++;
         voiceNonce++;
@@ -729,9 +1024,23 @@ class AppState extends ChangeNotifier {
         _resourceStops.add(-1);
       }
       resourceStatusStale = true;
+      if (resourcesConfigured == true) converseOwnerStatusStale = true;
       notifyListeners();
     } finally {
       _pollingResources = false;
+    }
+  }
+
+  Future<void> _refreshRestoredConverse() async {
+    if (resourcePhase == 'ready' &&
+        resourceConverseDesired == true &&
+        converseOwnerEnabled != false &&
+        _lastHealthEnabled == false &&
+        !converseControlPending &&
+        !converseControlUncertain) {
+      // Resource readiness is not a receipt that Converse reopened its gate.
+      // Recheck actual availability, including on unchanged ready snapshots.
+      await refreshConverseAvailability();
     }
   }
 
@@ -744,6 +1053,7 @@ class AppState extends ChangeNotifier {
     connected = false;
     tasksStatusStale = true;
     resourceConverseDesired = null;
+    _resetConverseOwner();
     sessionAuthenticated = false;
     agentInferenceAllowed = false;
     converseInferenceAllowed = false;

@@ -329,12 +329,8 @@ class KinaiyaClient {
     });
   }
 
-  Future<bool> setConverseEnabled(bool enabled) async {
-    final json = await _post(converseBase, '/v1/converse/enabled', {
-      'enabled': enabled,
-    });
-    return json['enabled'] as bool? ?? enabled;
-  }
+  Future<Map<String, Object?>> setConverseEnabled(bool enabled) =>
+      _post(converseBase, '/v1/converse/enabled', {'enabled': enabled});
 
   Future<Map<String, Object?>> converseHealth() =>
       _get(converseBase, '/health', auth: false);

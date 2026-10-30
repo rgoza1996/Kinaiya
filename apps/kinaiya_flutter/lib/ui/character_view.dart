@@ -360,21 +360,7 @@ class _CharacterViewState extends State<CharacterView> {
     });
     _resourceSubscription = _s.resourceStops.listen((_) {
       if (!mounted) return;
-      _armOwner++;
-      _voiceRequest++;
-      _pendingClip = null;
-      _clearWindows();
-      _pollTimer?.cancel();
-      _speechQueue = SpeechQueue();
-      setState(() {
-        _armed = _recording = _speaking = _voiceBusy = _transcribing =
-            _clipOpen = false;
-        _micStopPending = false;
-      });
-      _publishVoiceActivity();
-      unawaited(_audio.stopArmed());
-      unawaited(_audio.cancelRecording());
-      unawaited(_audio.stopPlayback());
+      unawaited(_stopMicrophone(stopSpeech: true));
     });
   }
 
@@ -464,21 +450,7 @@ class _CharacterViewState extends State<CharacterView> {
       _micReady = mic;
       _voiceReady = mic || play;
     });
-    final api = widget.state.client;
-    final connectionGeneration = _s.connectionGeneration;
-    if (api != null) {
-      try {
-        final health = await api.converseHealth();
-        if (!mounted || !_s.ownsConnection(connectionGeneration, api)) return;
-        widget.state.converseEnabled =
-            ((health['enabled'] as bool?) ?? true) &&
-            !_s.resourceStatusStale &&
-            (_s.resourcesConfigured != true || _s.resourcePhase == 'ready');
-        _s.touch();
-      } catch (_) {
-        // Factual status surfaces through the connection indicator.
-      }
-    }
+    await _s.refreshConverseAvailability();
   }
 
   AppState get _s => widget.state;
@@ -558,6 +530,8 @@ class _CharacterViewState extends State<CharacterView> {
       _s.sessionAuthenticated &&
       _s.converseInferenceAllowed &&
       _s.converseEnabled &&
+      !_s.converseControlPending &&
+      !_s.converseControlUncertain &&
       !_s.resourceStatusStale;
 
   /// Sends a turn. Interruptible mid-SSE: when a turn is already in flight,
@@ -1015,11 +989,11 @@ class _CharacterViewState extends State<CharacterView> {
 
   /// Cancel capture locally without submitting the unfinished message or
   /// cancelling Agent work. Invalidate ownership before issuing adapter stops.
-  Future<void> _stopMicrophone() async {
+  Future<void> _stopMicrophone({bool stopSpeech = false}) async {
     // Clearing _armed does not acknowledge a failed playback stop. Retain
     // that obligation so a retry must stop the same window speech as well.
     final stopWindowSpeech =
-        _windowSpeechStopUnconfirmed || (_armed && _windowMode);
+        stopSpeech || _windowSpeechStopUnconfirmed || (_armed && _windowMode);
     _windowSpeechStopUnconfirmed = stopWindowSpeech;
     final owner = ++_armOwner;
     _voiceRequest++;
@@ -1034,6 +1008,7 @@ class _CharacterViewState extends State<CharacterView> {
     }
     setState(() {
       _armed = _recording = _clipOpen = false;
+      _voiceBusy = _transcribing = false;
       _micStopUnconfirmed = _micStopPending = true;
       if (stopWindowSpeech) _speaking = false;
       _mood = _speaking ? 'speaking' : 'idle';
@@ -2282,11 +2257,87 @@ class _CharacterViewState extends State<CharacterView> {
     ],
   );
 
+  bool get _homeSleeping =>
+      _s.converseSleeping &&
+      !_micStopPending &&
+      !_micStopUnconfirmed &&
+      !_speaking;
+
+  void _changeConverseOwner(bool enabled) {
+    final owner = _s;
+    unawaited(
+      owner.setConverseEnabled(
+        enabled,
+        beforeSleep: () {
+          if (mounted && identical(widget.state, owner)) {
+            // The existing cancellation owner invalidates late capture and TTS
+            // completions before its first await, retaining uncertain-stop state.
+            unawaited(_stopMicrophone(stopSpeech: true));
+          }
+        },
+      ),
+    );
+  }
+
+  Widget _ownerSleepControl() {
+    final sleeping =
+        _s.converseOwnerEnabled == false && !_s.converseOwnerStatusStale;
+    final pending = _s.converseControlPending;
+    final label = pending
+        ? (_s.converseControlTarget == true
+              ? 'Waking Kinaiya…'
+              : 'Putting Kinaiya to sleep…')
+        : sleeping
+        ? 'Wake Kinaiya'
+        : 'Sleep';
+    final action = _s.converseOwnerControlAvailable
+        ? () => _changeConverseOwner(sleeping)
+        : null;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (sleeping)
+          FilledButton.icon(
+            key: const ValueKey('home-owner-control'),
+            onPressed: action,
+            icon: const Icon(Icons.wb_sunny_outlined),
+            label: Text(label),
+          )
+        else
+          OutlinedButton.icon(
+            key: const ValueKey('home-owner-control'),
+            onPressed: action,
+            icon: const Icon(Icons.bedtime_outlined),
+            label: Text(label),
+          ),
+        if (_s.converseControlError != null)
+          Text(_s.converseControlError!, textAlign: TextAlign.center),
+        if (!pending &&
+            (_s.converseOwnerStatusStale || _s.converseControlUncertain))
+          TextButton(
+            key: const ValueKey('home-owner-refresh'),
+            onPressed: _s.sessionAuthenticated && _s.client != null
+                ? () => unawaited(_s.refreshConverseAvailability())
+                : null,
+            child: const Text('Check host status'),
+          ),
+      ],
+    );
+  }
+
   Widget _homeSurface(CharacterPack? pack, Widget banner) => MoonlitHome(
     character: LayoutBuilder(
       builder: (_, bounds) => _mascot(pack, bounds.maxWidth),
     ),
-    status: !_s.connected
+    sleeping: _homeSleeping,
+    ownerControl: _ownerSleepControl(),
+    status: _homeSleeping
+        ? 'Offline · Sleeping'
+        : _s.converseControlPending
+        ? (_s.converseControlTarget == true
+              ? 'Waking Kinaiya…'
+              : 'Putting Kinaiya to sleep…')
+        : !_s.connected
         ? 'Connect to talk with Kinaiya'
         : _armed || _recording
         ? _status
@@ -2325,7 +2376,9 @@ class _CharacterViewState extends State<CharacterView> {
     onAgent: () => _s.setView(AppView.agent),
     showConverseView: widget.showConverseView,
     caption: _s.converseHistory.isEmpty ? null : _currentCaption(),
-    banner: _s.resourceStatusStale || !_s.converseEnabled ? banner : null,
+    banner: !_homeSleeping && (_s.resourceStatusStale || !_s.converseEnabled)
+        ? banner
+        : null,
     useDesignScene: widget.useDesignScene && widget.showCharacter,
   );
 
@@ -2446,6 +2499,7 @@ class _CharacterViewState extends State<CharacterView> {
                                 widget.onModelSettings ?? _openVoiceOptions,
                             child: const Text('Setup'),
                           ),
+                          _ownerSleepControl(),
                         ],
                       ),
                     ),
