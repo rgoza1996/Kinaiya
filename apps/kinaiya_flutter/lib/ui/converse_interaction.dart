@@ -44,6 +44,35 @@ class ConverseInteraction extends StatelessWidget {
           final width = constraints.maxWidth - padding * 2;
           final stageWidth = wide ? (width - 22) * (880 / 1362) : width;
           final sideWidth = wide ? width - 22 - stageWidth : width;
+          final innerStageWidth = stageWidth - (wide ? 48 : 32);
+          final controlRows = innerStageWidth >= 600 * textScale
+              ? 1
+              : innerStageWidth >= 400 * textScale
+              ? 2
+              : 4;
+          final controlsHeight =
+              64 * controlRows +
+              12 * (controlRows - 1) +
+              (textScale > 1 ? 20 * controlRows : 0);
+          // Leave the labels and touch targets at their natural sizes. On a
+          // short desktop, the supplied renderer crops into a shallower canvas.
+          final maxPortraitHeight = wide && constraints.hasBoundedHeight
+              ? (constraints.maxHeight -
+                        padding * 2 -
+                        78 * textScale -
+                        28 -
+                        48 -
+                        42 * textScale -
+                        _waveformGap(wide) -
+                        controlsHeight)
+                    .clamp(120.0, double.infinity)
+                    .toDouble()
+              : null;
+          final transcriptHeight = wide && constraints.hasBoundedHeight
+              ? (constraints.maxHeight - 520 * textScale)
+                    .clamp(100.0, 278.0)
+                    .toDouble()
+              : 260.0;
           return SingleChildScrollView(
             key: const ValueKey('converse-interaction-scroll'),
             padding: EdgeInsets.all(padding),
@@ -60,7 +89,11 @@ class ConverseInteraction extends StatelessWidget {
                   children: [
                     SizedBox(
                       width: stageWidth,
-                      child: _stage(context, wide: wide),
+                      child: _stage(
+                        context,
+                        wide: wide,
+                        maxPortraitHeight: maxPortraitHeight,
+                      ),
                     ),
                     SizedBox(width: wide ? 22 : 0, height: wide ? 0 : 22),
                     SizedBox(
@@ -68,7 +101,11 @@ class ConverseInteraction extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          _conversation(context, wide: wide),
+                          _conversation(
+                            context,
+                            wide: wide,
+                            transcriptHeight: transcriptHeight,
+                          ),
                           const SizedBox(height: 22),
                           DesignPanel(
                             key: const ValueKey('converse-model-summary'),
@@ -144,7 +181,14 @@ class ConverseInteraction extends StatelessWidget {
     );
   }
 
-  Widget _stage(BuildContext context, {required bool wide}) {
+  double _waveformGap(bool wide) =>
+      activeVoice ? (wide ? 64 : 56) : (wide ? 24 : 16);
+
+  Widget _stage(
+    BuildContext context, {
+    required bool wide,
+    double? maxPortraitHeight,
+  }) {
     final theme = Theme.of(context);
     return DesignPanel(
       key: const ValueKey('converse-character-panel'),
@@ -177,19 +221,27 @@ class ConverseInteraction extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          AspectRatio(
-            key: const ValueKey('converse-character-canvas'),
-            aspectRatio: 832 / 446,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: ColoredBox(
-                color: theme.colorScheme.primaryContainer,
-                child: SizedBox.expand(child: character),
-              ),
-            ),
+          LayoutBuilder(
+            builder: (context, bounds) {
+              final preferredHeight = bounds.maxWidth * (446 / 832);
+              final height = maxPortraitHeight == null
+                  ? preferredHeight
+                  : preferredHeight.clamp(0.0, maxPortraitHeight).toDouble();
+              return AspectRatio(
+                key: const ValueKey('converse-character-canvas'),
+                aspectRatio: bounds.maxWidth / height,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: ColoredBox(
+                    color: theme.colorScheme.primaryContainer,
+                    child: SizedBox.expand(child: character),
+                  ),
+                ),
+              );
+            },
           ),
           SizedBox(
-            height: wide ? 130 : 64,
+            height: _waveformGap(wide),
             child: activeVoice
                 ? Center(child: _waveform(context, wide: wide))
                 : null,
@@ -229,7 +281,7 @@ class ConverseInteraction extends StatelessWidget {
     builder: (context, constraints) {
       final scale = MediaQuery.textScalerOf(context).scale(16) / 16;
       final width = constraints.maxWidth;
-      final inline = width >= 720 * scale;
+      final inline = width >= 600 * scale;
       final paired = width >= 400 * scale;
       final available = inline
           ? width - 42
@@ -330,7 +382,11 @@ class ConverseInteraction extends StatelessWidget {
           );
   }
 
-  Widget _conversation(BuildContext context, {required bool wide}) {
+  Widget _conversation(
+    BuildContext context, {
+    required bool wide,
+    required double transcriptHeight,
+  }) {
     final theme = Theme.of(context);
     return DesignPanel(
       key: const ValueKey('converse-conversation-panel'),
@@ -350,7 +406,7 @@ class ConverseInteraction extends StatelessWidget {
           // remains mounted below it and never scrolls with transcript messages.
           SizedBox(
             key: const ValueKey('converse-transcript-viewport'),
-            height: wide ? 278 : 260,
+            height: transcriptHeight,
             child: transcript,
           ),
           const SizedBox(height: 16),

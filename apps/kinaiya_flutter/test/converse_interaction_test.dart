@@ -42,7 +42,10 @@ class _CharacterProbeState extends State<_CharacterProbe> {
 
 Widget _screen({
   Widget character = const ColoredBox(color: Color(0xFF253359)),
+  Widget? composer,
   double textScale = 1,
+  double hostHeader = 0,
+  double hostRailWidth = 0,
   ThemeData? theme,
   bool activeVoice = false,
   String status = 'Synthetic owner status',
@@ -63,31 +66,43 @@ Widget _screen({
     child: child!,
   ),
   home: Scaffold(
-    body: ConverseInteraction(
-      character: character,
-      transcript: ListView.builder(
-        key: const ValueKey('synthetic-transcript'),
-        itemCount: 80,
-        itemBuilder: (_, index) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          child: Text('Synthetic line $index'),
-        ),
+    body: Padding(
+      padding: EdgeInsets.only(left: hostRailWidth),
+      child: Column(
+        children: [
+          SizedBox(height: hostHeader),
+          Expanded(
+            child: ConverseInteraction(
+              character: character,
+              transcript: ListView.builder(
+                key: const ValueKey('synthetic-transcript'),
+                itemCount: 80,
+                itemBuilder: (_, index) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text('Synthetic line $index'),
+                ),
+              ),
+              composer:
+                  composer ??
+                  const TextField(
+                    key: ValueKey('synthetic-composer'),
+                    decoration: InputDecoration(hintText: 'Synthetic composer'),
+                  ),
+              modelSummary: const Text('Synthetic supplied model summary'),
+              status: status,
+              callLabel: callLabel,
+              microphoneLabel: microphoneLabel,
+              onCall: onCall,
+              onMicrophone: onMicrophone,
+              onModelSettings: onModelSettings ?? () {},
+              onHistory: onHistory ?? () {},
+              onVoiceOptions: onVoiceOptions ?? () {},
+              onMemory: onMemory ?? () {},
+              activeVoice: activeVoice,
+            ),
+          ),
+        ],
       ),
-      composer: const TextField(
-        key: ValueKey('synthetic-composer'),
-        decoration: InputDecoration(hintText: 'Synthetic composer'),
-      ),
-      modelSummary: const Text('Synthetic supplied model summary'),
-      status: status,
-      callLabel: callLabel,
-      microphoneLabel: microphoneLabel,
-      onCall: onCall,
-      onMicrophone: onMicrophone,
-      onModelSettings: onModelSettings ?? () {},
-      onHistory: onHistory ?? () {},
-      onVoiceOptions: onVoiceOptions ?? () {},
-      onMemory: onMemory ?? () {},
-      activeVoice: activeVoice,
     ),
   ),
 );
@@ -100,6 +115,91 @@ void _viewport(WidgetTester tester, Size size) {
 }
 
 void main() {
+  for (final activeVoice in [false, true]) {
+    testWidgets(
+      '720px desktop keeps call and composer visible (voice $activeVoice)',
+      (tester) async {
+        _viewport(tester, const Size(1280, 720));
+        BoxConstraints? characterConstraints;
+        await tester.pumpWidget(
+          _screen(
+            hostHeader: 80,
+            hostRailWidth: 76,
+            activeVoice: activeVoice,
+            onCall: () {},
+            onMicrophone: () {},
+            character: _CharacterProbe(
+              constraints: (value) => characterConstraints = value,
+              onMount: () {},
+              onDispose: () {},
+            ),
+            composer: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const TextField(
+                  key: ValueKey('synthetic-composer'),
+                  decoration: InputDecoration(labelText: 'Synthetic message'),
+                ),
+                const SizedBox(height: 8),
+                FilledButton(
+                  onPressed: () {},
+                  child: const Text('Synthetic send'),
+                ),
+                const Text('Synthetic composer help'),
+              ],
+            ),
+          ),
+        );
+        expect(tester.takeException(), isNull);
+        expect(characterConstraints!.hasBoundedHeight, isTrue);
+        expect(characterConstraints!.hasBoundedWidth, isTrue);
+        final canvas = tester.getSize(
+          find.byKey(const ValueKey('converse-character-canvas')),
+        );
+        expect(canvas.height, lessThan(320));
+        expect(canvas.width, greaterThan(canvas.height));
+        final microphone = tester.getRect(
+          find.byKey(const ValueKey('converse-microphone')),
+        );
+        for (final action in [
+          'microphone',
+          'camera',
+          'call',
+          'model-settings',
+        ]) {
+          final target = find.byKey(ValueKey('converse-$action'));
+          final rect = tester.getRect(target);
+          expect(rect.height, greaterThanOrEqualTo(48));
+          expect(rect.bottom, lessThanOrEqualTo(720));
+          expect(rect.top, closeTo(microphone.top, .01));
+        }
+        expect(
+          find.byKey(const ValueKey('converse-call')).hitTestable(),
+          findsOneWidget,
+        );
+        expect(
+          tester.getBottomRight(find.text('Synthetic composer help')).dy,
+          lessThanOrEqualTo(720),
+        );
+        expect(
+          tester
+              .getSize(
+                find.byKey(const ValueKey('converse-transcript-viewport')),
+              )
+              .height,
+          inInclusiveRange(100, 180),
+        );
+        await tester.drag(
+          find.byKey(const ValueKey('converse-transcript-viewport')),
+          const Offset(0, -180),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Synthetic line 0'), findsNothing);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   testWidgets(
     'desktop keeps the supplied character bounded in a landscape canvas',
     (tester) async {
