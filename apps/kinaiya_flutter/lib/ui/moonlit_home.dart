@@ -13,6 +13,7 @@ class MoonlitHome extends StatefulWidget {
     required this.character,
     required this.status,
     required this.callLabel,
+    this.callTooltip = 'Start Live listen (armed mic)',
     required this.onSetup,
     this.onCall,
     this.onAgent,
@@ -24,7 +25,7 @@ class MoonlitHome extends StatefulWidget {
     this.useDesignScene = true,
   });
   final Widget character;
-  final String status, callLabel, agentStatus;
+  final String status, callLabel, agentStatus, callTooltip;
   final String? sessionName;
   final VoidCallback onSetup;
   final VoidCallback? onCall, onAgent;
@@ -203,17 +204,20 @@ class _MoonlitHomeState extends State<MoonlitHome> {
                           spacing: 8,
                           runSpacing: 8,
                           children: [
-                            Semantics(
-                              key: const ValueKey('home-talk'),
-                              child: FilledButton.icon(
-                                key: const ValueKey('call-kinaiya'),
-                                onPressed: widget.onCall,
-                                icon: Icon(
-                                  widget.callLabel == 'End conversation'
-                                      ? Icons.call_end_rounded
-                                      : Icons.mic_none,
+                            Tooltip(
+                              message: widget.callTooltip,
+                              child: Semantics(
+                                key: const ValueKey('home-talk'),
+                                child: FilledButton.icon(
+                                  key: const ValueKey('call-kinaiya'),
+                                  onPressed: widget.onCall,
+                                  icon: Icon(
+                                    widget.callLabel == 'End conversation'
+                                        ? Icons.call_end_rounded
+                                        : Icons.mic_none,
+                                  ),
+                                  label: Text(widget.callLabel),
                                 ),
-                                label: Text(widget.callLabel),
                               ),
                             ),
                             OutlinedButton(

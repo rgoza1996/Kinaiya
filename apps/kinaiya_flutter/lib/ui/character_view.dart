@@ -2114,16 +2114,23 @@ class _CharacterViewState extends State<CharacterView> {
                   ),
                   ConverseMemoryButton(state: expectedOwner ?? _s),
                   if (widget.surface != CharacterSurface.legacy)
-                    TextButton.icon(
-                      key: const ValueKey('tell-kinaiya'),
-                      onPressed: _toolsAction(expectedOwner, _tellAction),
-                      icon: Icon(
-                        _recording
-                            ? Icons.send_rounded
-                            : Icons.mic_none_rounded,
-                      ),
-                      label: Text(
-                        _recording ? 'Send voice message' : 'Tell Kinaiya',
+                    Tooltip(
+                      message: _recording
+                          ? 'Stop recording'
+                          : _micReady
+                          ? 'Record voice'
+                          : 'Microphone unavailable here',
+                      child: TextButton.icon(
+                        key: const ValueKey('tell-kinaiya'),
+                        onPressed: _toolsAction(expectedOwner, _tellAction),
+                        icon: Icon(
+                          _recording
+                              ? Icons.send_rounded
+                              : Icons.mic_none_rounded,
+                        ),
+                        label: Text(
+                          _recording ? 'Send voice message' : 'Tell Kinaiya',
+                        ),
                       ),
                     ),
                   if (_armed)
@@ -2275,6 +2282,11 @@ class _CharacterViewState extends State<CharacterView> {
         ? _callLabel
         : 'Talk with Kinaiya',
     onCall: _callAction,
+    callTooltip: _armed || _micStopUnconfirmed
+        ? 'Stop Live listen'
+        : _micReady
+        ? 'Start Live listen (armed mic)'
+        : 'Microphone unavailable here',
     onSetup: widget.onModelSettings ?? _openVoiceOptions,
     agentStatus: !_s.agentOnline
         ? 'Not connected'
@@ -2383,41 +2395,46 @@ class _CharacterViewState extends State<CharacterView> {
             (snap.connectionState == ConnectionState.done ? snap.data : null);
         if (widget.surface == CharacterSurface.home) {
           if (!widget.showCharacter) {
-            return Column(
-              children: [
-                banner,
-                _historyBar(),
-                Expanded(child: _transcript()),
-                SafeArea(
-                  top: false,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Wrap(
-                      alignment: WrapAlignment.center,
-                      spacing: 12,
-                      runSpacing: 12,
-                      children: [
-                        FilledButton.icon(
-                          key: const ValueKey('call-kinaiya'),
-                          onPressed: _callAction,
-                          icon: const Icon(Icons.mic_none),
-                          label: Text(
-                            _armed || _micStopUnconfirmed || _micStopPending
-                                ? _callLabel
-                                : 'Talk with Kinaiya',
+            return MoonlitScene(
+              primary: widget.scenePrimary,
+              background: widget.sceneBackground,
+              enabled: false,
+              child: Column(
+                children: [
+                  banner,
+                  _historyBar(),
+                  Expanded(child: _transcript()),
+                  SafeArea(
+                    top: false,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Wrap(
+                        alignment: WrapAlignment.center,
+                        spacing: 12,
+                        runSpacing: 12,
+                        children: [
+                          FilledButton.icon(
+                            key: const ValueKey('call-kinaiya'),
+                            onPressed: _callAction,
+                            icon: const Icon(Icons.mic_none),
+                            label: Text(
+                              _armed || _micStopUnconfirmed || _micStopPending
+                                  ? _callLabel
+                                  : 'Talk with Kinaiya',
+                            ),
                           ),
-                        ),
-                        OutlinedButton(
-                          key: const ValueKey('home-setup'),
-                          onPressed:
-                              widget.onModelSettings ?? _openVoiceOptions,
-                          child: const Text('Setup'),
-                        ),
-                      ],
+                          OutlinedButton(
+                            key: const ValueKey('home-setup'),
+                            onPressed:
+                                widget.onModelSettings ?? _openVoiceOptions,
+                            child: const Text('Setup'),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             );
           }
           final home = _homeSurface(pack, banner);
