@@ -64,7 +64,11 @@ revisions cannot authorize an old reply. Local synthesis keeps its existing
 interface and does not depend on task-context propagation.
 
 The OpenRouter adapter requests real PCM audio through `/audio/speech` and emits
-bounded mono PCM16 little-endian frames with actual sample counts. The native
+bounded mono PCM16 little-endian frames with actual sample counts. PCM is
+reassembled independently of network chunk boundaries into at most 100 ms per
+frame and 1200 frames per 120-second request. The final frame may be shorter.
+Conflicting headers, truncated samples and mislabeled common containers are
+refused. The native
 route supplies event, generation and chunk identity; provider fields cannot
 override them. HTTP response ownership remains retained through cancellation
 and real cleanup, using the existing Converse cleanup registry. An unconfirmed

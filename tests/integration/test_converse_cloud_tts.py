@@ -11,6 +11,7 @@ import pytest
 from packages.contracts.models import ConverseRequest, ProviderInfo, SessionRequest
 from packages.providers.disclosure import scope_allowed
 from packages.providers.meta_speech import CloudSTTLocalTTS
+from packages.providers.openrouter_speech import OpenRouterTTSClient
 from packages.providers.speech import SpeechProviderError
 from packages.providers.text import ScriptedProvider
 from services.common.auth import Auth
@@ -133,6 +134,60 @@ async def test_cloud_tts_uses_persisted_reply_scope_and_real_pcm(env, scope, sta
         assert frame["generation_epoch"] == entry["payload"]["generation_epoch"]
     assert not env.runtime._speech
     await env.runtime.close()
+
+
+@pytest.mark.parametrize("scope,status", [("local_only", 403), ("public_synthetic", 200)])
+async def test_native_route_real_adapter_and_persistent_ledger(env, tmp_path, scope, status):
+    requests = []
+    pcm = b"\0\0\x01\0" * 1500
+
+    class PCMStream(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            yield pcm[:1]
+            yield pcm[1:]
+
+        async def aclose(self):
+            pass
+
+    def handle(request):
+        requests.append(request)
+        return httpx.Response(
+            200,
+            headers={
+                "content-type": "audio/pcm;rate=24000;channels=1",
+                "x-generation-id": "gen-tts-synthetic-native",
+            },
+            stream=PCMStream(),
+        )
+
+    ledger = tmp_path / "speech-ledger.json"
+    speech = OpenRouterTTSClient(
+        allow_cloud=True,
+        api_key="synthetic-openrouter-key",
+        budget_path=ledger,
+        transport=httpx.MockTransport(handle),
+    )
+    entry = await reply(env, scope)
+    try:
+        async with client(env, speech) as http:
+            response = await http.post("/v1/converse/speech", json=body(entry))
+        assert response.status_code == status
+        if status == 403:
+            assert requests == [] and not ledger.exists()
+        else:
+            assert len(requests) == 1
+            assert json.loads(requests[0].content)["input"] == entry["payload"]["text"]
+            frames = [json.loads(line) for line in response.text.splitlines()]
+            assert b"".join(base64.b64decode(frame["audio"]) for frame in frames) == pcm
+            assert [frame["samples"] for frame in frames] == [2400, 600]
+            assert all(frame["event_id"] == entry["event_id"] for frame in frames)
+            calls = json.loads(ledger.read_text())["calls"]
+            assert len(calls) == 1 and calls[0]["state"] == "completed"
+            assert calls[0]["generation_id"] == "gen-tts-synthetic-native"
+        assert not env.runtime._speech
+    finally:
+        await speech.close()
+        await env.runtime.close()
 
 
 @pytest.mark.parametrize("floor", ["missing", "history", "persona"])
