@@ -13,6 +13,7 @@ import '../presentation/controller.dart';
 import '../state/app_state.dart';
 import 'book_sheet.dart';
 import 'converse_memory.dart';
+import 'converse_design.dart';
 import 'voice_options.dart';
 import 'settings_controls.dart';
 import 'moonlit_scene.dart';
@@ -59,6 +60,7 @@ class CharacterView extends StatefulWidget {
     this.character,
     this.showCharacter = true,
     this.showCaptions = true,
+    this.useDesignScene = false,
     this.scenePrimary = kinaiyaIndigo,
     this.sceneBackground = kinaiyaWhite,
   });
@@ -68,6 +70,7 @@ class CharacterView extends StatefulWidget {
   final ValueChanged<VoiceActivity>? onActivityChanged;
   final CharacterSelection? character;
   final bool showCharacter, showCaptions;
+  final bool useDesignScene;
   final Color scenePrimary, sceneBackground;
 
   @override
@@ -1466,6 +1469,9 @@ class _CharacterViewState extends State<CharacterView> {
   }
 
   Widget _stage(CharacterPack? pack, BoxConstraints box) {
+    if (widget.useDesignScene) {
+      return _designStage(pack, box);
+    }
     final size = (box.maxHeight - 76).clamp(100.0, 320.0);
     return Center(
       child: SingleChildScrollView(
@@ -1491,6 +1497,7 @@ class _CharacterViewState extends State<CharacterView> {
   /// landscape heights and 2x text cannot overflow.
   Widget _narrowStage(CharacterPack? pack) => LayoutBuilder(
     builder: (context, box) {
+      if (widget.useDesignScene) return _designStage(pack, box);
       final size = (box.maxHeight - 116).clamp(96.0, 240.0);
       return Center(
         child: SingleChildScrollView(
@@ -1511,6 +1518,37 @@ class _CharacterViewState extends State<CharacterView> {
       );
     },
   );
+
+  /// The sprite remains the existing semantic, reduced-motion-aware owner.
+  /// Only its allotted hero area changes; scenery never supplies a character.
+  Widget _designStage(CharacterPack? pack, BoxConstraints box) {
+    final heroScale = (box.maxWidth / 580).clamp(.72, 1.0);
+    final size = (box.maxHeight - 108)
+        .clamp(140.0, 440.0 * heroScale)
+        .clamp(0.0, (box.maxWidth - 32).clamp(0.0, double.infinity));
+    return Center(
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                key: const ValueKey('converse-design-hero'),
+                width: size,
+                height: size,
+                child: _mascot(pack, size),
+              ),
+              const SizedBox(height: 12),
+              _statusPill(),
+              _currentCaption(),
+              _packNote(pack),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   Widget _transcript() => ListView(
     padding: const EdgeInsets.symmetric(vertical: 12),
@@ -1661,79 +1699,98 @@ class _CharacterViewState extends State<CharacterView> {
     },
   );
 
-  Widget _voiceActions() => Row(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Expanded(
-        child: Tooltip(
-          message: _armed || _micStopUnconfirmed
+  VoidCallback? get _callAction => _micStopPending
+      ? null
+      : _micStopUnconfirmed
+      ? _stopMicrophone
+      : _armed
+      ? () => _setArmed(false)
+      : _micReady && _converseAvailable
+      ? () => _setArmed(true)
+      : null;
+
+  VoidCallback? get _tellAction => _recording
+      ? _toggleMic
+      : _micReady && _converseAvailable && !_armed && !_micStopUnconfirmed
+      ? _toggleMic
+      : null;
+
+  String get _callLabel => _micStopPending
+      ? 'Stopping microphone…'
+      : _armed
+      ? 'End conversation'
+      : _micStopUnconfirmed
+      ? 'Stop microphone'
+      : 'Call Kinaiya';
+
+  Widget _voiceActions() => widget.useDesignScene
+      ? ConverseVoiceActions(
+          callLabel: _callLabel,
+          tellLabel: _recording ? 'Send voice message' : 'Tell Kinaiya',
+          callTooltip: _armed || _micStopUnconfirmed
               ? 'Stop Live listen'
               : _micReady
               ? 'Start Live listen (armed mic)'
               : 'Microphone unavailable here',
-          child: FilledButton.icon(
-            key: const ValueKey('call-kinaiya'),
-            onPressed: _micStopPending
-                ? null
-                : _micStopUnconfirmed
-                ? _stopMicrophone
-                : _armed
-                ? () => _setArmed(false)
-                : _micReady && _converseAvailable
-                ? () => _setArmed(true)
-                : null,
-            icon: Icon(
-              _armed ? Icons.call_end_rounded : Icons.mic_none_rounded,
-            ),
-            label: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              child: Text(
-                _micStopPending
-                    ? 'Stopping microphone…'
-                    : _armed
-                    ? 'End conversation'
-                    : _micStopUnconfirmed
-                    ? 'Stop microphone'
-                    : 'Call Kinaiya',
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ),
-        ),
-      ),
-      const SizedBox(width: 12),
-      Expanded(
-        child: Tooltip(
-          message: _recording
+          tellTooltip: _recording
               ? 'Stop recording'
               : _micReady
               ? 'Record voice'
               : 'Microphone unavailable here',
-          child: OutlinedButton.icon(
-            key: const ValueKey('tell-kinaiya'),
-            onPressed: _recording
-                ? _toggleMic
-                : _micReady &&
-                      _converseAvailable &&
-                      !_armed &&
-                      !_micStopUnconfirmed
-                ? _toggleMic
-                : null,
-            icon: Icon(
-              _recording ? Icons.send_rounded : Icons.graphic_eq_rounded,
-            ),
-            label: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              child: Text(
-                _recording ? 'Send voice message' : 'Tell Kinaiya',
-                textAlign: TextAlign.center,
+          callIcon: _armed ? Icons.call_end_rounded : Icons.mic_none_rounded,
+          tellIcon: _recording ? Icons.send_rounded : Icons.graphic_eq_rounded,
+          onCall: _callAction,
+          onTell: _tellAction,
+        )
+      : Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Tooltip(
+                message: _armed || _micStopUnconfirmed
+                    ? 'Stop Live listen'
+                    : _micReady
+                    ? 'Start Live listen (armed mic)'
+                    : 'Microphone unavailable here',
+                child: FilledButton.icon(
+                  key: const ValueKey('call-kinaiya'),
+                  onPressed: _callAction,
+                  icon: Icon(
+                    _armed ? Icons.call_end_rounded : Icons.mic_none_rounded,
+                  ),
+                  label: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    child: Text(_callLabel, textAlign: TextAlign.center),
+                  ),
+                ),
               ),
             ),
-          ),
-        ),
-      ),
-    ],
-  );
+            const SizedBox(width: 12),
+            Expanded(
+              child: Tooltip(
+                message: _recording
+                    ? 'Stop recording'
+                    : _micReady
+                    ? 'Record voice'
+                    : 'Microphone unavailable here',
+                child: OutlinedButton.icon(
+                  key: const ValueKey('tell-kinaiya'),
+                  onPressed: _tellAction,
+                  icon: Icon(
+                    _recording ? Icons.send_rounded : Icons.graphic_eq_rounded,
+                  ),
+                  label: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    child: Text(
+                      _recording ? 'Send voice message' : 'Tell Kinaiya',
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
 
   /// Opens the Voice options surface. Presentation only: opening, changing
   /// the silence value, or dismissing it never starts, stops, or rearms
@@ -1763,13 +1820,17 @@ class _CharacterViewState extends State<CharacterView> {
     top: false,
     child: Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 1120),
+        constraints: BoxConstraints(
+          maxWidth: widget.useDesignScene ? 640 : 1120,
+        ),
         child: Container(
           margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surface,
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(
+              widget.useDesignScene ? 16 : 24,
+            ),
             border: Border.all(
               color: Theme.of(context).colorScheme.outlineVariant,
             ),
@@ -1866,6 +1927,7 @@ class _CharacterViewState extends State<CharacterView> {
       primary: widget.scenePrimary,
       background: widget.sceneBackground,
       enabled: widget.showCharacter,
+      useIllustration: widget.useDesignScene,
       child: LayoutBuilder(
         builder: (context, box) {
           final resourceNote = _s.resourceStatusStale
