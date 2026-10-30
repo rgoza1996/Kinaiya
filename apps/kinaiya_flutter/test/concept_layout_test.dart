@@ -266,6 +266,8 @@ void main() {
     final state = wired(api);
     await tester.pumpWidget(KinaiyaApp(state: state, audio: audio));
     await settle(tester);
+    await openConverseChat(tester);
+    expect(find.byKey(const ValueKey('tell-kinaiya')), findsOneWidget);
     await tester.tap(find.byTooltip('Record voice'));
     await settle(tester);
     expect(audio.recordStarts, 1);
