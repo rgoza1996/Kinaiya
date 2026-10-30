@@ -322,9 +322,7 @@ class _HomeShellState extends State<HomeShell> {
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Text(
-                                      isAgent
-                                          ? 'Kinaiya Agent'
-                                          : 'Kinaiya Converse',
+                                      'Kinaiya',
                                       style: Theme.of(context)
                                           .textTheme
                                           .titleLarge
@@ -333,9 +331,7 @@ class _HomeShellState extends State<HomeShell> {
                                           ),
                                     ),
                                     Text(
-                                      isAgent
-                                          ? 'Your workspace'
-                                          : 'Your voice, your companion',
+                                      isAgent ? 'Agent' : 'Converse',
                                       style: Theme.of(context)
                                           .textTheme
                                           .bodySmall

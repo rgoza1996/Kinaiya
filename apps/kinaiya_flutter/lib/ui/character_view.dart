@@ -1991,11 +1991,20 @@ class _CharacterViewState extends State<CharacterView> {
                     // The outer surface scrolls when a keyboard/large text
                     // leaves little height. Preserve room for the stage and
                     // wrapped history button instead of overfilling a tiny flex.
-                    height: (box.maxHeight - 240 * scale).clamp(
-                      (widget.showCharacter ? 320.0 : 200.0) *
-                          scale.clamp(1.0, 2.0),
-                      700.0,
-                    ),
+                    height:
+                        (box.maxHeight -
+                                (widget.useDesignScene ? 360 : 240) * scale)
+                            .clamp(
+                              (widget.showCharacter
+                                      ? (widget.useDesignScene &&
+                                                _s.converseHistory.isEmpty &&
+                                                scale < 1.5
+                                            ? 140.0
+                                            : 320.0)
+                                      : 200.0) *
+                                  scale.clamp(1.0, 2.0),
+                              700.0,
+                            ),
                     child: _conversation(
                       widget.character?.pack ??
                           (snap.connectionState == ConnectionState.done
