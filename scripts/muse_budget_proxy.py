@@ -10,17 +10,16 @@ Run with the workspace Python; Muse --base-url points at this loopback listener.
 import argparse
 import email.policy
 import fcntl
-import io
 import json
 import math
 import os
 import stat
+import struct
 import tempfile
 import threading
 import time
 import urllib.error
 import urllib.request
-import wave
 from contextlib import contextmanager
 from email.parser import BytesParser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -106,25 +105,78 @@ def voice_request(body, content_type):
     }:
         raise ValueError("Only the selected buffered voice model is budgeted")
     audio = fields["audio"]
+    if len(audio) < 44:
+        raise ValueError("Canonical PCM WAV is required")
+    # The first-party normalizer emits exactly this 44-byte PCM layout. A
+    # general WAV reader's first data chunk is not a whole-upload duration:
+    # additional in-RIFF data could otherwise bypass the one-minute reserve.
+    (
+        riff,
+        size,
+        kind,
+        fmt,
+        fmt_size,
+        encoding,
+        channels,
+        rate,
+        byte_rate,
+        alignment,
+        bits,
+        data,
+        data_size,
+    ) = struct.unpack("<4sI4s4sIHHIIHH4sI", audio[:44])
     if (
-        len(audio) < 44
-        or audio[:4] != b"RIFF"
-        or audio[8:12] != b"WAVE"
-        or int.from_bytes(audio[4:8], "little") + 8 != len(audio)
+        (riff, kind, fmt, fmt_size, encoding, channels, alignment, bits, data)
+        != (b"RIFF", b"WAVE", b"fmt ", 16, 1, 1, 2, 16, b"data")
+        or rate not in {16000, 24000}
+        or byte_rate != rate * 2
+        or size != len(audio) - 8
+        or data_size != len(audio) - 44
+        or data_size % 2
+        or not 1 <= data_size // 2 <= 60 * rate
     ):
-        raise ValueError("Actual PCM WAV is required")
-    with wave.open(io.BytesIO(audio), "rb") as wav:
-        frames, rate = wav.getnframes(), wav.getframerate()
-        if (
-            wav.getnchannels() != 1
-            or wav.getsampwidth() != 2
-            or wav.getcomptype() != "NONE"
-            or rate not in {16000, 24000}
-            or not 1 <= frames <= 60 * rate
-            or len(wav.readframes(frames + 1)) != frames * 2
-        ):
-            raise ValueError("Only mono PCM16 WAV up to 60 seconds is budgeted")
+        raise ValueError("Only canonical mono PCM16 WAV up to 60 seconds is budgeted")
+    frames = data_size // 2
     return (frames + rate - 1) // rate
+
+
+def bounded_entity(upstream, limit):
+    """Read a complete bounded entity, rejecting ambiguous/truncated framing.
+
+    HTTPResponse.read(n) can return a valid JSON prefix at premature EOF without
+    raising IncompleteRead. A caller-supplied amount is not completeness proof.
+    """
+    headers = upstream.headers
+
+    def values(name):
+        if hasattr(headers, "get_all"):
+            return headers.get_all(name, [])
+        value = headers.get(name)
+        return [] if value is None else [value]
+
+    lengths, transfers = values("Content-Length"), values("Transfer-Encoding")
+    transfer = transfers[0] if transfers else None
+    if len(lengths) > 1 or len(transfers) > 1 or (lengths and transfers):
+        raise ValueError("Ambiguous auxiliary framing")
+    declared = None
+    if lengths:
+        value = lengths[0]
+        if type(value) is not str or not value.isascii() or not value.isdigit():
+            raise ValueError("Invalid auxiliary length")
+        declared = int(value)
+        if not 1 <= declared <= limit:
+            raise ValueError("Auxiliary entity exceeds bound")
+    elif transfer is not None and transfer.lower() != "chunked":
+        raise ValueError("Unsupported auxiliary transfer encoding")
+    raw = bytearray()
+    while len(raw) <= limit:
+        chunk = upstream.read(min(16384, limit + 1 - len(raw)))
+        if not chunk:
+            break
+        raw.extend(chunk)
+    if len(raw) > limit or (declared is not None and len(raw) != declared):
+        raise ValueError("Incomplete or oversized auxiliary entity")
+    return bytes(raw)
 
 
 def audio_state(state):
@@ -385,7 +437,7 @@ class Handler(BaseHTTPRequestHandler):
                     or not 1 <= data["max_output_tokens"] <= OUTPUT_CAP
                 ):
                     raise ValueError("Invalid Contributor count request")
-        except (ValueError, UnicodeError, wave.Error, EOFError, OSError):
+        except (ValueError, UnicodeError, EOFError, OSError):
             self.local_json(400, {"error": "Invalid bounded auxiliary request"})
             return
         with LOCK:
@@ -449,9 +501,7 @@ class Handler(BaseHTTPRequestHandler):
             ):
                 raise ValueError("Invalid auxiliary response")
             limit = 128 * 1024 if voice else 4096
-            output = upstream.read(limit + 1)
-            if len(output) > limit:
-                raise ValueError("Auxiliary response exceeds bound")
+            output = bounded_entity(upstream, limit)
             value = strict_json(output)
             if voice:
                 if (

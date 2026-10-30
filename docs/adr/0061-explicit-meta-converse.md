@@ -88,6 +88,15 @@ request reserves the full 60-second admissible duration at $0.18/hour. A valid f
 response settles a conservative upward whole-second estimate, at least the full
 uploaded duration and never less because a provider reports a smaller number.
 HTTP/transport/partial/malformed/close uncertainty retains the entire reservation.
+The guard accepts only the normalizer's canonical 44-byte PCM WAV layout:
+one 16-byte `fmt ` chunk, one `data` chunk, exact RIFF/data/file sizes, matching
+sample/byte rates and block alignment. Extra chunks, additional audio data or
+ambiguous sizes are refused before reservation or forwarding. Counting just a
+general WAV parser's first data chunk is insufficient to bound the upload.
+Auxiliary responses require unambiguous bounded HTTP framing, actual entity EOF
+and successful close before any audio reservation can settle. Duplicate, invalid
+or oversized Content-Length, conflicting transfer framing and premature EOF
+retain the full reservation even when the received prefix is valid JSON.
 Overlapping windows are separate processed requests and separately charged.
 This is conservative admission/accounting, not a provider billing receipt.
 No transcripts, audio, credentials or prompt text enter the ledger. Auxiliary
