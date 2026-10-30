@@ -276,6 +276,10 @@ void main() {
           await tester.sendKeyEvent(LogicalKeyboardKey.escape);
           await tester.pumpAndSettle();
           expect(popover, findsNothing);
+          final invoker = tester.widget<InkWell>(
+            find.descendant(of: bubble, matching: find.byType(InkWell)),
+          );
+          expect(invoker.focusNode!.hasFocus, isTrue);
           expect(find.byType(ModelSetupDialog), findsOneWidget);
           expect(tester.takeException(), isNull);
         }

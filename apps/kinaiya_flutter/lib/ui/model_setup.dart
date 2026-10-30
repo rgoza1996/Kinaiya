@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../api/converse_setup.dart';
 import '../presentation/controller.dart';
 import '../state/app_state.dart';
+import 'motion_transition.dart';
 
 /// Read-only host configuration and a separately saved local view preference.
 /// Opening this surface never loads a model, captures audio or changes consent.
@@ -131,6 +132,7 @@ class _ModelSetupDialogState extends State<ModelSetupDialog> {
   }
 
   String? _section;
+  String _popoverAnchor = 'Model';
   final _popoverKey = GlobalKey();
   final Map<String, FocusNode> _bubbleFocus = {
     for (final section in [
@@ -144,7 +146,10 @@ class _ModelSetupDialogState extends State<ModelSetupDialog> {
   };
 
   void _openSection(String section) {
-    setState(() => _section = section);
+    setState(() {
+      _section = section;
+      _popoverAnchor = section;
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final target = _popoverKey.currentContext;
       if (mounted && target != null) {
@@ -156,7 +161,9 @@ class _ModelSetupDialogState extends State<ModelSetupDialog> {
   void _closeSection() {
     final node = _bubbleFocus[_section];
     setState(() => _section = null);
-    node?.requestFocus();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) node?.requestFocus();
+    });
   }
 
   Widget _role(String key, String title) {
@@ -350,7 +357,6 @@ class _ModelSetupDialogState extends State<ModelSetupDialog> {
   Widget _popover() {
     final colors = Theme.of(context).colorScheme;
     return Material(
-      key: _popoverKey,
       color: colors.surface.withValues(alpha: .98),
       elevation: 12,
       borderRadius: BorderRadius.circular(20),
@@ -404,6 +410,15 @@ class _ModelSetupDialogState extends State<ModelSetupDialog> {
       ),
     );
   }
+
+  Widget _popoverSlot() => UiFadeTransition(
+    key: _popoverKey,
+    enabled:
+        widget.presentation.preferences.animateTransitions &&
+        !widget.presentation.preferences.reducedMotion,
+    transitionKey: _section ?? 'closed',
+    child: _section == null ? const SizedBox.shrink() : _popover(),
+  );
 
   Widget _preferences() => Material(
     color: Theme.of(context).colorScheme.surface.withValues(alpha: .97),
@@ -541,11 +556,10 @@ class _ModelSetupDialogState extends State<ModelSetupDialog> {
                             ),
                         ],
                       ),
-                      if (_section != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 16),
-                          child: _popover(),
-                        ),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 16),
+                        child: _popoverSlot(),
+                      ),
                       const SizedBox(height: 16),
                       _preferences(),
                     ],
@@ -553,11 +567,11 @@ class _ModelSetupDialogState extends State<ModelSetupDialog> {
                 );
               }
               const positions = <String, Alignment>{
-                'Model': Alignment(-.80, -.03),
-                'Reasoning': Alignment(-.52, -.62),
-                'Inputs': Alignment(.46, -.66),
-                'Speech': Alignment(.88, -.12),
-                'Decisions': Alignment(.68, .46),
+                'Model': Alignment(-.76, .18),
+                'Reasoning': Alignment(-.50, -.19),
+                'Inputs': Alignment(.50, -.22),
+                'Speech': Alignment(.78, .07),
+                'Decisions': Alignment(.69, .50),
               };
               return Stack(
                 key: const ValueKey('setup-bubbles-wide'),
@@ -574,19 +588,18 @@ class _ModelSetupDialogState extends State<ModelSetupDialog> {
                     width: 420,
                     child: _preferences(),
                   ),
-                  if (_section != null)
-                    Positioned(
-                      top: 140,
-                      bottom: 80,
-                      left: const {'Model', 'Reasoning'}.contains(_section)
-                          ? 0
-                          : box.maxWidth - 420,
-                      width: 420,
-                      child: Align(
-                        alignment: Alignment.topCenter,
-                        child: _popover(),
-                      ),
+                  Positioned(
+                    top: 140,
+                    bottom: 80,
+                    left: const {'Model', 'Reasoning'}.contains(_popoverAnchor)
+                        ? 0
+                        : box.maxWidth - 420,
+                    width: 420,
+                    child: Align(
+                      alignment: Alignment.topCenter,
+                      child: _popoverSlot(),
                     ),
+                  ),
                 ],
               );
             },

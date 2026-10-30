@@ -196,6 +196,7 @@ void main() {
         }),
         native('routing.dispatch', 2, {
           ...receipt('accepted'),
+          'route': 'steer',
           'target_task_id': 'other',
         }),
         native('routing.dispatch', 2, {
@@ -266,11 +267,10 @@ void main() {
       expect(
         tracker
             .observe(
-              native(
-                'routing.window_dispatch',
-                15,
-                receipt('applied', source: 'w1', sequence: 12),
-              ),
+              native('routing.window_dispatch', 15, {
+                ...receipt('applied', source: 'w1', sequence: 12),
+                'target_task_id': 'prior-task',
+              }),
               scope,
             )!
             .text,
@@ -303,11 +303,19 @@ void main() {
             .text,
         contains('unconfirmed'),
       );
+      tracker.observe(
+        native('conversation.window', 4, {
+          'utterance_id': 'unavailable-window',
+          'window_index': 0,
+          'revision': 1,
+        }, id: 'window-source'),
+        scope,
+      );
       expect(
         tracker
             .observe(
-              native('routing.window_status', 4, {
-                ...receipt('queued'),
+              native('routing.window_status', 5, {
+                ...receipt('queued', source: 'window-source', sequence: 4),
                 'phase': 'agent_unavailable',
                 'reason': 'agent_status_unavailable',
               }),

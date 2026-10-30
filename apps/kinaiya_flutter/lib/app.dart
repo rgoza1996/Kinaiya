@@ -305,6 +305,16 @@ class _HomeShellState extends State<HomeShell> {
       await showDialog<void>(
         context: context,
         barrierColor: Colors.transparent,
+        animationStyle: AnimationStyle(
+          duration:
+              widget.presentation.preferences.animateTransitions &&
+                  !widget.presentation.preferences.reducedMotion &&
+                  !MediaQuery.disableAnimationsOf(context)
+              ? const Duration(milliseconds: 220)
+              : Duration.zero,
+          curve: Curves.easeInOut,
+          reverseCurve: Curves.easeInOut,
+        ),
         builder: (_) => Theme(
           data: widget.lightTheme,
           child: ModelSetupDialog(
@@ -710,6 +720,15 @@ class _HomeShellState extends State<HomeShell> {
                                             : CharacterSurface.home,
                                         onModelSettings: _modelSetup,
                                         setupOpen: _modelSetupOpen,
+                                        animateTransitions:
+                                            widget
+                                                .presentation
+                                                .preferences
+                                                .animateTransitions &&
+                                            !widget
+                                                .presentation
+                                                .preferences
+                                                .reducedMotion,
                                         showConverseView: widget
                                             .presentation
                                             .preferences

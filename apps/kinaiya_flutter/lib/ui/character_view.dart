@@ -17,6 +17,7 @@ import 'converse_design.dart';
 import 'converse_interaction.dart';
 import 'moonlit_home.dart';
 import 'model_setup.dart';
+import 'motion_transition.dart';
 import 'voice_options.dart';
 import 'settings_controls.dart';
 import 'moonlit_scene.dart';
@@ -73,6 +74,7 @@ class CharacterView extends StatefulWidget {
     this.onModelSettings,
     this.showConverseView = true,
     this.setupOpen = false,
+    this.animateTransitions = true,
     this.scenePrimary = kinaiyaIndigo,
     this.sceneBackground = kinaiyaWhite,
   });
@@ -86,7 +88,7 @@ class CharacterView extends StatefulWidget {
   final bool voiceOnlyControls;
   final CharacterSurface surface;
   final VoidCallback? onModelSettings;
-  final bool showConverseView, setupOpen;
+  final bool showConverseView, setupOpen, animateTransitions;
   final Color scenePrimary, sceneBackground;
 
   @override
@@ -2450,6 +2452,12 @@ class _CharacterViewState extends State<CharacterView> {
     ],
   );
 
+  Widget _fadeSurface(Widget child) => UiFadeTransition(
+    enabled: widget.animateTransitions,
+    transitionKey: widget.surface,
+    child: child,
+  );
+
   @override
   Widget build(BuildContext context) => FutureBuilder<CharacterPack>(
     future: _pack,
@@ -2481,61 +2489,65 @@ class _CharacterViewState extends State<CharacterView> {
             (snap.connectionState == ConnectionState.done ? snap.data : null);
         if (widget.surface == CharacterSurface.home) {
           if (!widget.showCharacter) {
-            return MoonlitScene(
-              primary: widget.scenePrimary,
-              background: widget.sceneBackground,
-              enabled: false,
-              child: Column(
-                children: [
-                  banner,
-                  _historyBar(),
-                  Expanded(child: _transcript()),
-                  SafeArea(
-                    top: false,
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Wrap(
-                        alignment: WrapAlignment.center,
-                        spacing: 12,
-                        runSpacing: 12,
-                        children: [
-                          FilledButton.icon(
-                            key: const ValueKey('call-kinaiya'),
-                            onPressed: _callAction,
-                            icon: const Icon(Icons.mic_none),
-                            label: Text(
-                              _armed || _micStopUnconfirmed || _micStopPending
-                                  ? _callLabel
-                                  : 'Talk with Kinaiya',
+            return _fadeSurface(
+              MoonlitScene(
+                primary: widget.scenePrimary,
+                background: widget.sceneBackground,
+                enabled: false,
+                child: Column(
+                  children: [
+                    banner,
+                    _historyBar(),
+                    Expanded(child: _transcript()),
+                    SafeArea(
+                      top: false,
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Wrap(
+                          alignment: WrapAlignment.center,
+                          spacing: 12,
+                          runSpacing: 12,
+                          children: [
+                            FilledButton.icon(
+                              key: const ValueKey('call-kinaiya'),
+                              onPressed: _callAction,
+                              icon: const Icon(Icons.mic_none),
+                              label: Text(
+                                _armed || _micStopUnconfirmed || _micStopPending
+                                    ? _callLabel
+                                    : 'Talk with Kinaiya',
+                              ),
                             ),
-                          ),
-                          OutlinedButton(
-                            key: const ValueKey('home-setup'),
-                            onPressed:
-                                widget.onModelSettings ?? _openVoiceOptions,
-                            child: const Text('Setup'),
-                          ),
-                          _ownerSleepControl(),
-                        ],
+                            OutlinedButton(
+                              key: const ValueKey('home-setup'),
+                              onPressed:
+                                  widget.onModelSettings ?? _openVoiceOptions,
+                              child: const Text('Setup'),
+                            ),
+                            _ownerSleepControl(),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             );
           }
           final home = _homeSurface(pack, banner);
-          return widget.useDesignScene && widget.showCharacter
-              ? home
-              : MoonlitScene(
-                  primary: widget.scenePrimary,
-                  background: widget.sceneBackground,
-                  enabled: widget.showCharacter,
-                  child: home,
-                );
+          return _fadeSurface(
+            widget.useDesignScene && widget.showCharacter
+                ? home
+                : MoonlitScene(
+                    primary: widget.scenePrimary,
+                    background: widget.sceneBackground,
+                    enabled: widget.showCharacter,
+                    child: home,
+                  ),
+          );
         }
         if (widget.surface == CharacterSurface.interaction) {
-          return _interactionSurface(pack, banner);
+          return _fadeSurface(_interactionSurface(pack, banner));
         }
         if (widget.useDesignScene &&
             widget.showCharacter &&

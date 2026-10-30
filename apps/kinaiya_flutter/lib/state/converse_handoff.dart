@@ -119,12 +119,16 @@ class ConverseHandoffTracker {
         (source.utterance != null && _windows[source.windowKey] != id)) {
       return null;
     }
+    if ((entry.kind == 'routing.dispatch') != (source.utterance == null)) {
+      return null;
+    }
     String? text;
     if (entry.kind == 'routing.window_status') {
       if (entry.payload['phase'] == 'agent_unavailable' &&
           entry.payload['reason'] == 'agent_status_unavailable' &&
           !_accepted.contains(id)) {
-        text = 'Agent is unavailable. This request has not been accepted.';
+        text =
+            'Agent status is unavailable. This request has no confirmed acceptance.';
       }
     } else {
       final route = entry.kind == 'routing.dispatch'
@@ -144,7 +148,10 @@ class ConverseHandoffTracker {
           (entry.kind == 'routing.window_dispatch' && state == 'applied')) {
         final task = entry.payload['native_task_id'];
         final target = entry.payload['target_task_id'];
+        // A queued window may wait on an older target task while native
+        // submission accepts a new task. Controls must match their target.
         if (!_identifier(task) ||
+            (target != null && !_identifier(target)) ||
             (route != 'queue' && target != task) ||
             !const {
               'accepted',
