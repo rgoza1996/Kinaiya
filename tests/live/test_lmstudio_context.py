@@ -84,6 +84,57 @@ class PublicProvider(LMStudioProvider):
     os.environ.get("KINAIYA_LIVE_LMSTUDIO_CONTEXT") != "1",
     reason="Requires explicit already-resident local-model integration opt-in",
 )
+async def test_native_leading_system_sections_preserve_count_and_generation(tmp_path):
+    p = PublicProvider()
+    sections = [
+        "Public synthetic character instructions: reply briefly.",
+        "Public synthetic recall: the test color is blue.",
+        "Playback qualification: the prior response was interrupted; it was not fully heard.",
+    ]
+    messages = [{"role": "system", "content": section} for section in sections] + [
+        {"role": "user", "content": "Say hello in one short sentence."}
+    ]
+    original = copy.deepcopy(messages)
+    try:
+        measured = await p.measure_prompt(messages)
+        reply = await p.complete(messages)
+        assert reply and messages == original
+        assert len(p.creations) == len(p.terminals) == 1
+        history = p.creations[0]["history"]["messages"]
+        assert [m["role"] for m in history] == ["system", "user"]
+        assert history[0]["content"] == [{"type": "text", "text": "\n\n".join(sections)}]
+        assert p.terminals[0]["stats"]["promptTokensCount"] == measured.input_tokens
+        assert p.terminals[0]["stats"]["stopReason"] in {"eosFound", "stopStringFound"}
+        assert p._active is None and not p._uncertain
+        receipt = {
+            "source_head": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
+            "public_synthetic_only": True,
+            "raw_system_sections": len(sections),
+            "native_system_messages": 1,
+            "input_tokens": measured.input_tokens,
+            "context_tokens": measured.context_tokens,
+            "public_reply": reply,
+            "terminal_stats": p.terminals[0]["stats"],
+            "source_unchanged": messages == original,
+            "cleanup_confirmed": True,
+        }
+        (tmp_path / "system-prefix-receipt.json").write_text(json.dumps(receipt, indent=2) + "\n")
+        proof = os.environ.get("KINAIYA_CONTEXT_PROOF_DIR")
+        if proof:
+            destination = Path(proof)
+            destination.mkdir(parents=True, exist_ok=True)
+            (destination / "system-prefix-receipt.json").write_text(
+                json.dumps(receipt, indent=2) + "\n"
+            )
+    finally:
+        await p.close()
+
+
+@pytest.mark.live
+@pytest.mark.skipif(
+    os.environ.get("KINAIYA_LIVE_LMSTUDIO_CONTEXT") != "1",
+    reason="Requires explicit already-resident local-model integration opt-in",
+)
 async def test_native_context_history_and_request_owned_cancellation(tmp_path):
     ROOT = tmp_path
     store = Store(ROOT / "public-history.sqlite")

@@ -204,6 +204,88 @@ async def test_generation_is_same_instance_history_and_effective_stack_as_measur
     assert not endpoints & {"getOrLoad", "loadModel", "unloadModel", "preloadDraftModel"}
 
 
+@pytest.mark.parametrize(
+    "sections",
+    [["Persona.", "Playback notes."], ["Persona.", "", "Recall: 你好.\nPlayback notes."]],
+)
+async def test_leading_system_sections_fit_single_system_templates_without_losing_context(sections):
+    wire = NativeFixture()
+
+    def strict_initial_system(packet, reply):
+        if packet["endpoint"] == "applyPromptTemplate":
+            messages = packet["parameter"]["history"]["messages"]
+            if any(m["role"] == "system" for m in messages[1:]):
+                return {
+                    "type": "rpcError",
+                    "callId": packet["callId"],
+                    "error": {"title": "System message must be at the beginning."},
+                }
+        return reply
+
+    wire.response_hook = strict_initial_system
+    dialogue = [
+        {"role": "user", "content": "Public question."},
+        {"role": "assistant", "content": "First reply chunk."},
+        {"role": "assistant", "content": "Second reply chunk."},
+        {"role": "user", "content": "Continue briefly."},
+    ]
+    messages = [{"role": "system", "content": section} for section in sections] + dialogue
+    original = copy.deepcopy(messages)
+    p = provider(wire)
+    measured = await p.measure_prompt(messages)
+    assert await p.complete(messages) == "Public reply."
+    creation = wire.connections[-1].creation
+    expected = {
+        "messages": [
+            {"role": "system", "content": [{"type": "text", "text": "\n\n".join(sections)}]},
+            *[
+                {"role": m["role"], "content": [{"type": "text", "text": m["content"]}]}
+                for m in dialogue
+            ],
+        ]
+    }
+    assert creation["history"] == expected
+    formatters = [c["parameter"] for c in wire.calls if c["endpoint"] == "applyPromptTemplate"]
+    assert all(c["history"] == expected for c in formatters)
+    assert measured.request_sha256 == request_digest(creation)
+    assert messages == original
+    assert all(ws.closed and ws.waited for ws in wire.connections)
+
+
+async def test_later_system_positions_and_source_message_boundaries_remain_authoritative():
+    wire = NativeFixture()
+    p = provider(wire)
+    messages = [
+        {"role": "system", "content": "First."},
+        {"role": "user", "content": "User text is never promoted."},
+        {"role": "system", "content": "Later system."},
+        {"role": "system", "content": "Another later system."},
+    ]
+    await p.measure_prompt(messages)
+    history = next(c for c in wire.calls if c["endpoint"] == "applyPromptTemplate")["parameter"][
+        "history"
+    ]
+    assert [m["role"] for m in history["messages"]] == [m["role"] for m in messages]
+    assert [m["content"][0]["text"] for m in history["messages"]] == [
+        m["content"] for m in messages
+    ]
+
+    before = [
+        {"role": "system", "content": "One."},
+        {"role": "system", "content": "Two.\n\nThree."},
+        {"role": "user", "content": "Hi."},
+    ]
+    after = [
+        {"role": "system", "content": "One.\n\nTwo."},
+        {"role": "system", "content": "Three."},
+        {"role": "user", "content": "Hi."},
+    ]
+    await p.measure_prompt(before)
+    with pytest.raises(ProviderRefusal):
+        await p.complete(after)
+    assert not any(ws.creation for ws in wire.connections)
+
+
 async def test_whole_history_is_not_capped_to_legacy_rows():
     wire = NativeFixture()
     p = provider(wire)
