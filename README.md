@@ -325,6 +325,12 @@ capability acquisition remain open.
 Optional voice runs in a separate Python with the `voice` extra and preinstalled
 Kokoro/Whisper weights: `python -m packages.providers.voice_worker`. Model downloads
 are disabled by default; a clean-machine model installer is still a roadmap task.
+An explicit [GPU voice profile](docs/adr/0056-explicit-gpu-converse.md) selects
+pinned OpenAI Whisper tiny/tiny.en and Kokoro on CUDA or AMD ROCm, verifies loaded
+parameters and buffers, and refuses CPU fallback. It supports a local GPU dialogue
+provider with thinking disabled. Combined VRAM and native execution evidence are
+tracked in [#132](https://github.com/rgoza1996/Kinaiya/issues/132); a development-GPU
+measurement does not establish constrained 8 GB hardware acceptance.
 An opt-in [managed Whistle CPU STT profile](docs/adr/0034-managed-whistle-cpu-stt.md)
 selects transcription independently of TTS, using pinned local artifacts and a
 separate owned native process. It supports bounded PCM WAV slices with process

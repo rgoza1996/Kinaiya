@@ -13,6 +13,7 @@ import numbers
 import os
 import stat
 from array import array
+from contextlib import nullcontext
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -294,12 +295,28 @@ class _KokoroBackend:
                 raise
 
     def synthesize(self, text):
+        iterator = None
         try:
-            self._require_gpu_placement(self.pipeline)
-            for _, _, audio in self.pipeline(text, voice=self.voice):
+            try:
                 self._require_gpu_placement(self.pipeline)
-                yield AudioWaveform(audio.numpy() if hasattr(audio, "numpy") else audio, 24000)
-            self._require_gpu_placement(self.pipeline)
+                with self._native_context():
+                    iterator = iter(self.pipeline(text, voice=self.voice))
+                ended = object()
+                while True:
+                    with self._native_context():
+                        result = next(iterator, ended)
+                    if result is ended:
+                        break
+                    _, _, audio = result
+                    self._require_gpu_placement(self.pipeline)
+                    yield AudioWaveform(audio.numpy() if hasattr(audio, "numpy") else audio, 24000)
+                self._require_gpu_placement(self.pipeline)
+            finally:
+                close = getattr(iterator, "close", None)
+                if close is not None:
+                    with self._native_context():
+                        close()
+                    self._require_gpu_placement(self.pipeline)
         except GeneratorExit:
             # A returned CPU waveform has completed its device-to-host transfer.
             # Preserve normal boundary cancellation only while placement holds.
@@ -309,6 +326,25 @@ class _KokoroBackend:
             if self.requested_device == "cuda":
                 self.loaded_device = None
             raise
+
+    def _native_context(self):
+        if self.requested_device == "cuda":
+            import torch
+
+            if getattr(getattr(torch, "version", None), "hip", None):
+                # ROCm MIOpen fused LSTMs fail on the verified GPU runtime.
+                # Native Torch ops retain CUDA tensors. The worker serializes
+                # STT/TTS; restore every caller flag before yielding/backpressure.
+                backend = torch.backends.cudnn
+                return backend.flags(
+                    enabled=False,
+                    benchmark=backend.benchmark,
+                    benchmark_limit=backend.benchmark_limit,
+                    deterministic=backend.deterministic,
+                    allow_tf32=backend.allow_tf32,
+                    fp32_precision=backend.fp32_precision,
+                )
+        return nullcontext()
 
 
 class _SupertonicBackend:

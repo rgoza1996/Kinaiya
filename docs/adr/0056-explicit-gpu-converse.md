@@ -28,6 +28,15 @@ Parameters and registered buffers must remain on the selected GPU before and
 after inference. Kokoro explicitly receives the GPU device and verifies placement.
 Phonemization, audio decoding and transport may use CPU; model inference uses GPU.
 
+The installed ROCm runtime failed Kokoro's fused MIOpen LSTM with
+`miopenStatusUnknownError` after successful GPU loading. Kokoro therefore uses
+native Torch GPU operations on ROCm, disabling the cuDNN/MIOpen dispatch only
+around iterator construction, each native advance, and cleanup. Caller flags are
+restored before audio publication or backpressure. The successful diagnostic
+observed all six LSTM input/output boundaries on `cuda:0`; this selects another
+GPU kernel path, without moving model inference to CPU. NVIDIA and CPU selections
+retain their existing dispatch behavior.
+
 Worker health distinguishes the requested `device` from nullable actual
 `stt_device` and `tts_device`. Unloaded models report null. An API-ready worker
 with `loaded: []` does not establish GPU model readiness. The resource host checks
