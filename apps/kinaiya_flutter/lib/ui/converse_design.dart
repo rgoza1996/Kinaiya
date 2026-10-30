@@ -21,15 +21,10 @@ class ConverseVoiceActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
     return Container(
       key: const ValueKey('converse-voice-group'),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-      decoration: BoxDecoration(
-        color: colors.primaryContainer.withValues(alpha: .72),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: colors.outlineVariant),
-      ),
+
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

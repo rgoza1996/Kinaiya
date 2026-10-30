@@ -25,6 +25,7 @@ import 'package:kinaiya_flutter/state/app_state.dart';
 import 'package:kinaiya_flutter/ui/character_view.dart';
 
 import 'live_capture_test.dart' show CaptureAudio;
+import 'concept_layout_test.dart' show openConverseChat;
 
 Map<String, Object?> localProvider() => <String, Object?>{
   'provider': 'local',
@@ -333,6 +334,7 @@ void main() {
       ..connect(ConnectionProfile.defaults(), injected: api);
     await tester.pumpWidget(KinaiyaApp(state: state));
     await tester.pump(const Duration(milliseconds: 100));
+    await openConverseChat(tester);
     await tester.enterText(find.byType(TextField), 'public synthetic request');
     await tester.testTextInput.receiveAction(TextInputAction.send);
     await tester.pump();
@@ -811,6 +813,7 @@ void main() {
     await tester.pumpWidget(KinaiyaApp(state: state));
     await tester.pump(const Duration(milliseconds: 300));
 
+    await openConverseChat(tester);
     await tester.enterText(find.byType(TextField), 'hello kinaiya');
     await tester.pump();
     await tester.testTextInput.receiveAction(TextInputAction.send);

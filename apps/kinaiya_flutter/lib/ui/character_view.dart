@@ -61,6 +61,7 @@ class CharacterView extends StatefulWidget {
     this.showCharacter = true,
     this.showCaptions = true,
     this.useDesignScene = false,
+    this.voiceOnlyControls = false,
     this.scenePrimary = kinaiyaIndigo,
     this.sceneBackground = kinaiyaWhite,
   });
@@ -71,6 +72,7 @@ class CharacterView extends StatefulWidget {
   final CharacterSelection? character;
   final bool showCharacter, showCaptions;
   final bool useDesignScene;
+  final bool voiceOnlyControls;
   final Color scenePrimary, sceneBackground;
 
   @override
@@ -82,6 +84,31 @@ const List<int> endSilenceOptionsMs = <int>[800, 1500, 2500];
 class _CharacterViewState extends State<CharacterView> {
   ConverseViewControls? _registeredControls;
   Future<void> Function()? _registeredVoiceOptions;
+  Future<void> Function()? _registeredTextConversation;
+  bool _textConversationOpen = false;
+  Route<void>? _textConversationRoute;
+
+  void _dismissTextConversation() {
+    final route = _textConversationRoute;
+    _textConversationRoute = null;
+    if (route == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (route.isActive) route.navigator?.removeRoute(route);
+    });
+  }
+
+  bool _toolsOwnerCurrent(AppState? owner) =>
+      mounted &&
+      (owner == null ||
+          (identical(widget.state, owner) &&
+              _textConversationRoute?.isActive == true));
+
+  VoidCallback? _toolsAction(AppState? owner, VoidCallback? action) =>
+      action == null
+      ? null
+      : () {
+          if (_toolsOwnerCurrent(owner)) action();
+        };
 
   void _detachSettingsControls() {
     final controls = _registeredControls;
@@ -89,8 +116,13 @@ class _CharacterViewState extends State<CharacterView> {
         identical(controls.openVoiceOptions, _registeredVoiceOptions)) {
       controls.openVoiceOptions = null;
     }
+    if (controls != null &&
+        identical(controls.openTextConversation, _registeredTextConversation)) {
+      controls.openTextConversation = null;
+    }
     _registeredControls = null;
     _registeredVoiceOptions = null;
+    _registeredTextConversation = null;
   }
 
   void _bindSettingsControls() {
@@ -111,6 +143,79 @@ class _CharacterViewState extends State<CharacterView> {
     _registeredControls = controls;
     _registeredVoiceOptions = open;
     controls.openVoiceOptions = open;
+    late final Future<void> Function() chat;
+    chat = () async {
+      if (!mounted ||
+          !identical(widget.state, owner) ||
+          !identical(widget.controls, controls) ||
+          !identical(controls.openTextConversation, chat)) {
+        return;
+      }
+      await _openTextConversation();
+    };
+    _registeredTextConversation = chat;
+    controls.openTextConversation = chat;
+  }
+
+  Future<void> _openTextConversation() async {
+    if (_textConversationOpen) return;
+    _textConversationOpen = true;
+    final owner = widget.state;
+    try {
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) {
+          _textConversationRoute = ModalRoute.of<void>(dialogContext);
+          return Dialog(
+            insetPadding: const EdgeInsets.all(12),
+            child: SizedBox(
+              width: 640,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 4, 4),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Converse chat',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(
+                              dialogContext,
+                            ).textTheme.titleMedium,
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Close Converse chat',
+                          onPressed: () => Navigator.of(dialogContext).pop(),
+                          icon: const Icon(Icons.close),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Flexible(
+                    child: SingleChildScrollView(
+                      child: ListenableBuilder(
+                        listenable: owner,
+                        builder: (_, _) =>
+                            mounted && identical(widget.state, owner)
+                            ? _conversationTools(expectedOwner: owner)
+                            : const SizedBox.shrink(),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    } finally {
+      _textConversationRoute = null;
+      _textConversationOpen = false;
+    }
   }
 
   late final TextEditingController _input;
@@ -248,6 +353,7 @@ class _CharacterViewState extends State<CharacterView> {
     super.didUpdateWidget(oldWidget);
     if (!identical(oldWidget.controls, widget.controls) ||
         !identical(oldWidget.state, widget.state)) {
+      _dismissTextConversation();
       _bindSettingsControls();
     }
     if (!identical(oldWidget.character, widget.character)) {
@@ -258,7 +364,20 @@ class _CharacterViewState extends State<CharacterView> {
     }
     if (_lastClient != _s.client) {
       _lastClient = _s.client;
-      if (_input.text != _s.converseDraft) _input.text = _s.converseDraft;
+      final owner = _s;
+      final client = owner.client;
+      // A chat dialog is in a separate route. Updating its controller during
+      // this pane's build would notify that route while the tree is building.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted ||
+            !identical(widget.state, owner) ||
+            !identical(owner.client, client)) {
+          return;
+        }
+        if (_input.text != owner.converseDraft) {
+          _input.text = owner.converseDraft;
+        }
+      });
       _s.turnNonce++;
       _s.voiceNonce++;
       _s.speechEpoch = 0;
@@ -284,6 +403,7 @@ class _CharacterViewState extends State<CharacterView> {
 
   @override
   void dispose() {
+    _dismissTextConversation();
     _detachSettingsControls();
     _pollTimer?.cancel();
     _noticeSubscription?.cancel();
@@ -1492,7 +1612,7 @@ class _CharacterViewState extends State<CharacterView> {
 
   Widget _stage(CharacterPack? pack, BoxConstraints box) {
     if (widget.useDesignScene) {
-      return _designStage(pack, box);
+      return LayoutBuilder(builder: (_, actual) => _designStage(pack, actual));
     }
     final size = (box.maxHeight - 76).clamp(100.0, 320.0);
     return Center(
@@ -1548,25 +1668,40 @@ class _CharacterViewState extends State<CharacterView> {
     final size = (box.maxHeight - 108)
         .clamp(140.0, 440.0 * heroScale)
         .clamp(0.0, (box.maxWidth - 32).clamp(0.0, double.infinity));
-    return Center(
+    final sceneHeight = (box.maxHeight - 108).clamp(size, double.infinity);
+    return Align(
+      alignment: Alignment.bottomCenter,
       child: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(
-                key: const ValueKey('converse-design-hero'),
-                width: size,
-                height: size,
-                child: _mascot(pack, size),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: box.maxWidth,
+              height: sceneHeight,
+              child: MoonlitScene(
+                primary: widget.scenePrimary,
+                background: widget.sceneBackground,
+                useIllustration: true,
+                illustrationHeight: sceneHeight * 1.15,
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: SizedBox(
+                    key: const ValueKey('converse-design-hero'),
+                    width: size,
+                    height: size,
+                    child: _mascot(pack, size),
+                  ),
+                ),
               ),
-              const SizedBox(height: 12),
-              _statusPill(),
-              _currentCaption(),
-              _packNote(pack),
-            ],
-          ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [_statusPill(), _currentCaption(), _packNote(pack)],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -1838,7 +1973,22 @@ class _CharacterViewState extends State<CharacterView> {
     );
   }
 
-  Widget _composer() => SafeArea(
+  Widget _composer() => widget.useDesignScene || widget.voiceOnlyControls
+      ? SafeArea(
+          top: false,
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 520),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+                child: _voiceActions(),
+              ),
+            ),
+          ),
+        )
+      : _conversationTools();
+
+  Widget _conversationTools({AppState? expectedOwner}) => SafeArea(
     top: false,
     child: Center(
       child: ConstrainedBox(
@@ -1860,7 +2010,8 @@ class _CharacterViewState extends State<CharacterView> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _voiceActions(),
+              if (!widget.useDesignScene && !widget.voiceOnlyControls)
+                _voiceActions(),
               // Voice options keep their key, handler, and stop state; the
               // Memory entry beside them opens an owner-only read dialog and
               // never touches capture, drafts, sessions, or audio. A Wrap
@@ -1883,10 +2034,10 @@ class _CharacterViewState extends State<CharacterView> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      onPressed: _openVoiceOptions,
+                      onPressed: _toolsAction(expectedOwner, _openVoiceOptions),
                     ),
                   ),
-                  ConverseMemoryButton(state: _s),
+                  ConverseMemoryButton(state: expectedOwner ?? _s),
                   if (_armed)
                     Text(
                       _windowMode ? _liveStatus : 'Listening (live)',
@@ -1895,43 +2046,61 @@ class _CharacterViewState extends State<CharacterView> {
                     ),
                 ],
               ),
-              Row(
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (_voiceReady && !_armed)
-                    IconButton(
-                      tooltip: 'Use audio recording',
-                      icon: const Icon(Icons.audio_file_outlined),
-                      onPressed: _converseAvailable ? _importRecording : null,
+                  TextField(
+                    controller: _input,
+                    key: const ValueKey('converse-input'),
+                    decoration: const InputDecoration(
+                      labelText: 'Talk with Kinaiya',
                     ),
-                  Expanded(
-                    child: TextField(
-                      controller: _input,
-                      key: const ValueKey('converse-input'),
-                      decoration: const InputDecoration(
-                        labelText: 'Talk with Kinaiya',
-                      ),
-                      minLines: 1,
-                      maxLines: 4,
-                      textInputAction: TextInputAction.send,
-                      onChanged: (v) => _s.setDraft(AppView.character, v),
-                      onSubmitted: (_) => _send(),
-                    ),
+                    minLines: 1,
+                    maxLines: 4,
+                    textInputAction: TextInputAction.send,
+                    onChanged: (v) {
+                      if (_toolsOwnerCurrent(expectedOwner)) {
+                        _s.setDraft(AppView.character, v);
+                      }
+                    },
+                    onSubmitted: (_) =>
+                        _toolsAction(expectedOwner, () => _send())?.call(),
                   ),
-                  const SizedBox(width: 8),
-                  if (_speaking || _s.busyConverse)
-                    IconButton(
-                      tooltip: 'Stop speech',
-                      icon: const Icon(Icons.stop_circle_outlined),
-                      onPressed: _stopSpeech,
-                    ),
-                  FilledButton(
-                    onPressed:
-                        _converseAvailable &&
-                            !_s.busyConverse &&
-                            _s.converseDraft.trim().isNotEmpty
-                        ? () => _send()
-                        : null,
-                    child: const Text('Send'),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    alignment: WrapAlignment.end,
+                    spacing: 8,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      if (_voiceReady && !_armed)
+                        IconButton(
+                          tooltip: 'Use audio recording',
+                          icon: const Icon(Icons.audio_file_outlined),
+                          onPressed: _toolsAction(
+                            expectedOwner,
+                            _converseAvailable ? _importRecording : null,
+                          ),
+                        ),
+                      if (_speaking || _s.busyConverse)
+                        IconButton(
+                          tooltip: 'Stop speech',
+                          icon: const Icon(Icons.stop_circle_outlined),
+                          onPressed: _toolsAction(expectedOwner, _stopSpeech),
+                        ),
+                      FilledButton(
+                        onPressed: _toolsAction(
+                          expectedOwner,
+                          _converseAvailable &&
+                                  !_s.busyConverse &&
+                                  _s.converseDraft.trim().isNotEmpty
+                              ? () => _send()
+                              : null,
+                        ),
+                        child: const Text('Send'),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -1945,80 +2114,78 @@ class _CharacterViewState extends State<CharacterView> {
   @override
   Widget build(BuildContext context) => FutureBuilder<CharacterPack>(
     future: _pack,
-    builder: (context, snap) => MoonlitScene(
-      primary: widget.scenePrimary,
-      background: widget.sceneBackground,
-      enabled: widget.showCharacter,
-      useIllustration: widget.useDesignScene,
-      child: LayoutBuilder(
-        builder: (context, box) {
-          final resourceNote = _s.resourceStatusStale
-              ? 'Resource status is unavailable. Voice availability is unconfirmed; Agent Chat remains available.'
-              : _s.resourceConverseDesired == true &&
-                    const {
-                      'initializing',
-                      'restoring',
-                    }.contains(_s.resourcePhase)
-              ? 'Voice services are starting or restoring. Agent Chat and approvals remain available.'
-              : _s.resourcePhase == 'failed'
-              ? 'Voice restoration failed. Agent Chat and approvals remain available.'
-              : _s.resourcePhase == 'local_work'
-              ? 'Voice is paused for local work. Agent Chat and approvals remain available.'
-              : 'Converse is off. Direct Agent Chat remains available.';
-          final banner = _s.resourceStatusStale || !_s.converseEnabled
-              ? MaterialBanner(
-                  content: Text(resourceNote),
-                  actions: [
-                    TextButton(
-                      onPressed: () => _s.setView(AppView.agent),
-                      child: const Text('OPEN AGENT CHAT'),
-                    ),
-                  ],
-                )
-              : const SizedBox.shrink();
-          final scale = MediaQuery.textScalerOf(context).scale(1);
-          // Natural composer height can grow with accessibility text or the
-          // keyboard. Keep it scrollable without replacing the focused input.
-          return SingleChildScrollView(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: box.maxHeight),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  banner,
-                  SizedBox(
-                    // The outer surface scrolls when a keyboard/large text
-                    // leaves little height. Preserve room for the stage and
-                    // wrapped history button instead of overfilling a tiny flex.
-                    height:
-                        (box.maxHeight -
-                                (widget.useDesignScene ? 360 : 240) * scale)
-                            .clamp(
-                              (widget.showCharacter
-                                      ? (widget.useDesignScene &&
-                                                _s.converseHistory.isEmpty &&
-                                                scale < 1.5
-                                            ? 140.0
-                                            : 320.0)
-                                      : 200.0) *
-                                  scale.clamp(1.0, 2.0),
-                              700.0,
-                            ),
-                    child: _conversation(
-                      widget.character?.pack ??
-                          (snap.connectionState == ConnectionState.done
-                              ? snap.data
-                              : null),
-                    ),
+    builder: (context, snap) => LayoutBuilder(
+      builder: (context, box) {
+        final resourceNote = _s.resourceStatusStale
+            ? 'Resource status is unavailable. Voice availability is unconfirmed; Agent Chat remains available.'
+            : _s.resourceConverseDesired == true &&
+                  const {'initializing', 'restoring'}.contains(_s.resourcePhase)
+            ? 'Voice services are starting or restoring. Agent Chat and approvals remain available.'
+            : _s.resourcePhase == 'failed'
+            ? 'Voice restoration failed. Agent Chat and approvals remain available.'
+            : _s.resourcePhase == 'local_work'
+            ? 'Voice is paused for local work. Agent Chat and approvals remain available.'
+            : 'Converse is off. Direct Agent Chat remains available.';
+        final banner = _s.resourceStatusStale || !_s.converseEnabled
+            ? MaterialBanner(
+                content: Text(resourceNote),
+                actions: [
+                  TextButton(
+                    onPressed: () => _s.setView(AppView.agent),
+                    child: const Text('OPEN AGENT CHAT'),
                   ),
-                  _composer(),
                 ],
-              ),
+              )
+            : const SizedBox.shrink();
+        final scale = MediaQuery.textScalerOf(context).scale(1);
+        final stageHeight = (box.maxHeight - 240 * scale).clamp(
+          (widget.showCharacter
+                  ? (widget.useDesignScene &&
+                            _s.converseHistory.isEmpty &&
+                            scale < 1.5
+                        ? 140.0
+                        : 320.0)
+                  : 200.0) *
+              scale.clamp(1.0, 2.0),
+          widget.useDesignScene ? double.infinity : 700.0,
+        );
+        // Natural composer height grows with text or the keyboard. Keep it
+        // scrollable without replacing the focused input. Illustrated scenery
+        // belongs to its actual mascot substage, including layouts with history.
+        final content = SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: box.maxHeight),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                banner,
+                SizedBox(
+                  // The outer surface scrolls when a keyboard/large text
+                  // leaves little height. Preserve room for the stage and
+                  // wrapped history button instead of overfilling a tiny flex.
+                  height: stageHeight,
+                  child: _conversation(
+                    widget.character?.pack ??
+                        (snap.connectionState == ConnectionState.done
+                            ? snap.data
+                            : null),
+                  ),
+                ),
+                _composer(),
+              ],
             ),
-          );
-        },
-      ),
+          ),
+        );
+        return widget.useDesignScene && widget.showCharacter
+            ? ColoredBox(color: Colors.white, child: content)
+            : MoonlitScene(
+                primary: widget.scenePrimary,
+                background: widget.sceneBackground,
+                enabled: widget.showCharacter,
+                child: content,
+              );
+      },
     ),
   );
 }

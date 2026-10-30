@@ -132,7 +132,10 @@ remain separate from preparing these options.
 
 Keep everyday choices near their task and detailed controls in searchable
 sections. Advanced controls should explain units, scope and unsupported values;
-the main conversation screen should retain clear Call/Tell/Stop/composer actions.
+the main Converse bottom bar contains only Call and Tell. Global active capture
+and playback stops remain visible when needed; text input is available through
+Converse chat in the header, and supporting options remain accessible in chat
+and Settings.
 The Penpot design can supply additional panels in its own style when it lacks a
 particular option. Do not invent a separate visual system for omitted settings.
 

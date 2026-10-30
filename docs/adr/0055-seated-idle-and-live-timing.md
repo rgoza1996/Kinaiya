@@ -9,6 +9,30 @@ Import validation, image bounds/hashes, reduced motion, stale decode ownership
 and honest unavailable-artwork fallback retain their existing responsibilities.
 The prompt record pins actual output geometry and source bytes.
 
+The illustrated water belongs to the actual mascot substage, including its
+smaller allotment when history is visible, rather than scaling against the whole
+viewport. Captions and status sit outside the image/mascot panel so enlarged labels cannot
+push the water below the seated contact. The hero aligns to the panel bottom and
+the illustration covers a 1.15-times-panel-height surface, preserving aspect ratio, placing the seated contact ring within its water
+region at phone, desktop and tall/ultrawide sizes. The stage can use the available
+height on tall screens; the legacy non-illustrated stage retains its prior cap.
+This is trusted presentation layout and does not change capture or model state.
+
+## Concept navigation and voice surface
+
+The Converse bottom surface contains only Call and Tell in default and custom
+appearances. Header Converse
+chat opens text input and supporting tools without arming capture or losing the
+draft. Its callbacks are bound to the current owner/route; owner replacement or
+disposal invalidates and removes the dialog. Text and actions wrap on narrow,
+enlarged-text layouts. Voice options and Memory also remain available in Settings.
+
+The full concept sidebar provides Home, Converse, Agent Chat, People, Files,
+Documents, Gallery and Settings, with expansion and a narrow-screen drawer.
+Unsupported areas report their availability; they do not fabricate user content
+or imply completed product features. Existing Converse and Agent panes retain
+state and active local stop controls while the owner navigates.
+
 ## Live timing already has no silence turn timer
 
 Continuous audio-window capture bypasses the legacy end-of-silence branch in

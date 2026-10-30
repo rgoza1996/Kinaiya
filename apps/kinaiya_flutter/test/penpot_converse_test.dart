@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderImage;
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kinaiya_flutter/character/package.dart';
@@ -8,11 +9,62 @@ import 'package:kinaiya_flutter/ui/character_view.dart';
 import 'package:kinaiya_flutter/ui/converse_design.dart';
 import 'package:kinaiya_flutter/ui/design_tokens.dart';
 import 'package:kinaiya_flutter/ui/moonlit_scene.dart';
+import 'package:kinaiya_flutter/ui/settings_controls.dart';
 import 'package:kinaiya_flutter/ui/visual_theme.dart';
 import 'package:kinaiya_flutter/ui/widgets.dart';
 
 import 'converse_stage_test.dart'
     show StageApi, StageAudio, seedHistory, visibleMascot;
+import 'mascot_sprites_test.dart' show currentFrame, decoded, paintedFrame;
+
+Rect _visiblePaintRegion(RenderBox box, Rect local) {
+  var visible = MatrixUtils.transformRect(box.getTransformTo(null), local);
+  RenderObject child = box;
+  while (child.parent is RenderObject) {
+    final parent = child.parent!;
+    final clip = parent.describeApproximatePaintClip(child);
+    if (clip != null) {
+      visible = visible.intersect(
+        MatrixUtils.transformRect(parent.getTransformTo(null), clip),
+      );
+    }
+    child = parent;
+  }
+  return visible;
+}
+
+/// The supplied illustration's first water is two thirds down the source.
+/// Account for the actual fit/crop, not the unpainted Image widget bounds.
+Rect _illustratedWater(RenderImage image) {
+  final input = Size(
+    image.image!.width.toDouble(),
+    image.image!.height.toDouble(),
+  );
+  final fitted = applyBoxFit(image.fit ?? BoxFit.scaleDown, input, image.size);
+  final alignment = image.alignment.resolve(image.textDirection);
+  final source = alignment.inscribe(fitted.source, Offset.zero & input);
+  final destination = alignment.inscribe(
+    fitted.destination,
+    Offset.zero & image.size,
+  );
+  final water = Rect.fromLTRB(
+    0,
+    input.height * 2 / 3,
+    input.width,
+    input.height,
+  ).intersect(source);
+  final local = Rect.fromLTRB(
+    destination.left +
+        (water.left - source.left) / source.width * destination.width,
+    destination.top +
+        (water.top - source.top) / source.height * destination.height,
+    destination.left +
+        (water.right - source.left) / source.width * destination.width,
+    destination.top +
+        (water.bottom - source.top) / source.height * destination.height,
+  );
+  return _visiblePaintRegion(image, local);
+}
 
 class DesignAudio extends StageAudio {
   int vadCalls = 0;
@@ -45,6 +97,7 @@ Future<AppState> designStage(
   bool characterVisible = true,
   List<ChatMsg> history = const [],
   StageAudio? audio,
+  ConverseViewControls? controls,
 }) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = Size(width, height);
@@ -72,6 +125,7 @@ Future<AppState> designStage(
             state: state,
             character: selection,
             audio: audio ?? StageAudio(),
+            controls: controls,
             useDesignScene: true,
             showCaptions: captions,
             showCharacter: characterVisible,
@@ -85,6 +139,79 @@ Future<AppState> designStage(
 }
 
 void main() {
+  for (final sample in [
+    (const Size(1440, 1000), false, true, 1.0),
+    (const Size(2688, 1416), false, true, 1.0),
+    (const Size(390, 844), false, true, 1.0),
+    (const Size(390, 844), true, true, 1.0),
+    (const Size(390, 844), true, false, 1.0),
+    (const Size(320, 568), true, true, 2.0),
+  ]) {
+    final (size, history, captions, scale) = sample;
+    testWidgets('decoded idle contact intersects illustrated water at $sample', (
+      tester,
+    ) async {
+      await designStage(
+        tester,
+        width: size.width,
+        height: size.height,
+        scale: scale,
+        history: history ? seedHistory() : const [],
+        captions: captions,
+      );
+      await decoded(tester);
+      final raw = find.descendant(
+        of: find.byKey(const ValueKey('moonlit-illustration')),
+        matching: find.byType(RawImage),
+      );
+      for (var attempt = 0; attempt < 40; attempt++) {
+        if (raw.evaluate().length == 1 &&
+            tester.renderObject<RenderImage>(raw).image != null) {
+          break;
+        }
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 10)),
+        );
+        await tester.pump(const Duration(milliseconds: 1));
+      }
+      expect(raw, findsOneWidget);
+      final image = tester.renderObject<RenderImage>(raw);
+      expect(
+        image.image,
+        isNotNull,
+        reason: 'A fallback painter is not illustration evidence.',
+      );
+      final water = _illustratedWater(image);
+      final sprite = tester.renderObject<RenderBox>(paintedFrame());
+      final frame = currentFrame(tester);
+      final fitted = applyBoxFit(BoxFit.contain, frame.src.size, sprite.size);
+      final drawing = Alignment(
+        frame.anchor.dx * 2 - 1,
+        frame.anchor.dy * 2 - 1,
+      ).inscribe(fitted.destination, Offset.zero & sprite.size);
+      // Both curated seated poses put the contact ripple around 95% of the
+      // frame height. Use a thin central band rather than the whole avatar box.
+      final contact = _visiblePaintRegion(
+        sprite,
+        Rect.fromLTRB(
+          drawing.left + drawing.width * .15,
+          drawing.top + drawing.height * .93,
+          drawing.right - drawing.width * .15,
+          drawing.top + drawing.height * .98,
+        ),
+      );
+      expect(water.isEmpty, isFalse);
+      expect(contact.isEmpty, isFalse);
+      expect(
+        contact.overlaps(water),
+        isTrue,
+        reason:
+            'Decoded seated contact $contact floats above painted water $water at $size.',
+      );
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets('scene caption has an opaque readable surface over moon pixels', (
     tester,
   ) async {
@@ -119,6 +246,7 @@ void main() {
     (800.0, 360.0, 2.0, 0.0),
   ]) {
     testWidgets('design stage/history accessible at $sample', (tester) async {
+      final controls = ConverseViewControls();
       await designStage(
         tester,
         width: sample.$1,
@@ -126,6 +254,7 @@ void main() {
         scale: sample.$3,
         keyboard: sample.$4,
         history: seedHistory(),
+        controls: controls,
       );
       expect(find.byType(MascotWidget), findsOneWidget);
       expect(visibleMascot(tester).height, greaterThanOrEqualTo(100));
@@ -137,12 +266,20 @@ void main() {
         find.byKey(const ValueKey('conversation-history')),
         findsOneWidget,
       );
+      final chat = controls.openTextConversation!();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
       await tester.ensureVisible(find.byKey(const ValueKey('voice-options')));
       await tester.pump(const Duration(milliseconds: 200));
       expect(
         find.byKey(const ValueKey('voice-options')).hitTestable(),
         findsOneWidget,
       );
+      await tester.ensureVisible(find.byTooltip('Close Converse chat'));
+      await tester.tap(find.byTooltip('Close Converse chat'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await chat;
       await tester.ensureVisible(find.byKey(const ValueKey('call-kinaiya')));
       await tester.pump(const Duration(milliseconds: 200));
       expect(
@@ -180,7 +317,22 @@ void main() {
     tester,
   ) async {
     final audio = DesignAudio();
-    final state = await designStage(tester, audio: audio);
+    final controls = ConverseViewControls();
+    final state = await designStage(tester, audio: audio, controls: controls);
+    expect(find.byKey(const ValueKey('converse-input')), findsNothing);
+    expect(find.byKey(const ValueKey('voice-options')), findsNothing);
+    expect(find.text('Memory'), findsNothing);
+    expect(find.text('Send'), findsNothing);
+    expect(
+      find.byWidgetPredicate((widget) => widget is ButtonStyleButton),
+      findsNWidgets(2),
+      reason: 'The design bottom bar contains only Call and Tell.',
+    );
+    final initialVadCalls = audio.vadCalls;
+    final draftChat = controls.openTextConversation!();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(audio.vadCalls, initialVadCalls);
     await tester.ensureVisible(find.byKey(const ValueKey('converse-input')));
     await tester.pump(const Duration(milliseconds: 200));
     await tester.enterText(
@@ -188,6 +340,10 @@ void main() {
       'Synthetic draft',
     );
     await tester.pump();
+    await tester.tap(find.byTooltip('Close Converse chat'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await draftChat;
     await tester.ensureVisible(find.byKey(const ValueKey('call-kinaiya')));
     await tester.pump(const Duration(milliseconds: 200));
     await tester.tap(find.byKey(const ValueKey('call-kinaiya')));
@@ -196,6 +352,16 @@ void main() {
     expect(find.text('End conversation'), findsOneWidget);
     final configured = audio.vadCalls;
     final silence = audio.lastVad;
+    final activeChat = controls.openTextConversation!();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const ValueKey('converse-input')))
+          .controller!
+          .text,
+      'Synthetic draft',
+    );
     await tester.ensureVisible(find.byKey(const ValueKey('voice-options')));
     await tester.pump(const Duration(milliseconds: 200));
     await tester.tap(find.byKey(const ValueKey('voice-options')));
@@ -208,6 +374,10 @@ void main() {
     await tester.tap(find.byTooltip('Close voice options'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.byTooltip('Close Converse chat'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await activeChat;
     expect(state.converseDraft, 'Synthetic draft');
     expect(audio.arms, 1);
     expect(audio.armStops, 0);

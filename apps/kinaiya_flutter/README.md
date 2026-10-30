@@ -41,7 +41,7 @@ Build information in Settings uses optional
 
 ## Voice behavior
 
-The [owner design implementation](../../docs/adr/0054-penpot-owner-interface.md) supplies navy/blue surfaces, local Inter fonts and responsive Options/Agent panels. Default Converse uses a background-only derivative of the moonlit illustration beneath the existing animated mascot; explicit palettes and imported packs keep the painter scene. The desktop rail becomes bottom navigation on narrow or enlarged-text layouts. Both views remain mounted, preserving their independent drafts, sessions and active voice capture while navigating. A global activity strip keeps microphone/speech controls reachable from Agent Chat. Changing views never starts capture.
+The [owner design implementation](../../docs/adr/0054-penpot-owner-interface.md) supplies navy/blue surfaces, local Inter fonts and responsive Options/Agent panels. Default Converse uses a background-only derivative of the moonlit illustration beneath the existing animated mascot; explicit palettes and imported packs keep the painter scene. The desktop sidebar includes Home, Converse, Agent Chat, People, Files, Documents, Gallery and Settings; a Menu drawer provides the same navigation on narrow or enlarged-text layouts. Unsupported sections state their current availability. Both views remain mounted, preserving their independent drafts, sessions and active voice capture while navigating. A global activity strip keeps microphone/speech controls reachable from Agent Chat. Changing views never starts capture.
 
 **Call Kinaiya** arms the existing live browser listener; **Tell Kinaiya** records one message. These labels do not implement phone signaling or the mobile calling milestone. Global **Stop microphone** discards an unfinished recording without transcribing it or cancelling Agent work. Pending stops remain visible; a failed or three-second unacknowledged adapter stop stays unconfirmed and retryable. These acknowledgments do not establish physical device behavior.
 
@@ -49,11 +49,11 @@ Live starts only after a user gesture. Capture continues while transcription and
 
 Sentences play in order. Synthesis completion is distinct from the browser's audio `onended`; delivery records mark playback only after that local event. Interrupted elapsed time is an estimate, not word alignment or proof of physical audibility. Speech controls do not cancel Agent work. Background evidenced Agent results arrive through the authenticated journal and join the speech queue.
 
-The character stage stays visible after messages arrive, with a current caption and **Conversation history** for complete retained text and delivery notes. **Voice options** shows live Decisions timing when streaming windows are available, or fallback clip silence otherwise; opening it leaves microphone capture and drafts alone. Idle Call/Tell capture is disabled when the adapter reports no microphone, while an active local stop stays reachable when backend readiness changes. The composer follows the selected light/dark surface colors. [Presentation rationale](../../docs/adr/0044-converse-stage-and-voice-options.md) records this focused pass.
+The character stage stays visible after messages arrive, with a current caption and **Conversation history** for complete retained text and delivery notes. **Voice options** shows live Decisions timing when streaming windows are available, or fallback clip silence otherwise; opening it leaves microphone capture and drafts alone. Idle Call/Tell capture is disabled when the adapter reports no microphone, while an active local stop stays reachable when backend readiness changes. The Converse bottom bar contains only Call and Tell, including custom palettes and imported packs. **Converse chat** in the header opens text input, recording import, Voice options and Memory; Settings also provides Voice options and Memory. The text dialog follows the selected light/dark surface colors. [Presentation rationale](../../docs/adr/0044-converse-stage-and-voice-options.md) records this focused pass.
 
 ## Saved Converse notes (experimental)
 
-**Memory**, beside Voice options, opens the owner dialog for the current
+**Memory**, available in Settings and beside Voice options in Converse chat, opens the owner dialog for the current
 Converse conversation. It lists existing notes, shows their full text on request,
 and lets the owner select up to eight active notes with **Use selected notes**.
 **Stop using notes** does not stop the conversation or Agent work. Saved access

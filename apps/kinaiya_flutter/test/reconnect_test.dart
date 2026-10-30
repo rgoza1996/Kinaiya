@@ -15,6 +15,7 @@ import 'package:kinaiya_flutter/config/connection.dart';
 import 'package:kinaiya_flutter/state/app_state.dart';
 
 import 'client_test.dart' show mockClient;
+import 'concept_layout_test.dart' show openConverseChat, closeConverseChat;
 
 ConnectionProfile profileA() => ConnectionProfile(
   sessionUrl: 'http://127.0.0.1:8760',
@@ -192,6 +193,7 @@ void main() {
       state.setView(view);
       await tester.pumpWidget(KinaiyaApp(state: state));
       await tester.pump(const Duration(milliseconds: 200));
+      if (view == AppView.character) await openConverseChat(tester);
       await tester.enterText(
         find.byType(TextField),
         'synthetic old-context draft',
@@ -199,12 +201,14 @@ void main() {
       await tester.pump();
       state.connect(profileB(), injected: FakeAgentClient());
       await tester.pump(const Duration(milliseconds: 200));
+      if (view == AppView.character) await openConverseChat(tester);
       expect(
         tester.widget<TextField>(find.byType(TextField)).controller!.text,
         isEmpty,
       );
       expect(state.agentDraft, isEmpty);
       expect(state.converseDraft, isEmpty);
+      if (view == AppView.character) await closeConverseChat(tester);
       await tester.pumpWidget(const SizedBox.shrink());
       state.dispose();
     });
