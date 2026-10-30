@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -150,11 +149,9 @@ void main() {
       await tester.pumpAndSettle();
       expect(controller.preferences.animateTransitions, isFalse);
       expect(controller.preferences.showConverseView, isFalse);
-      expect(
-        (jsonDecode(storage.record!)
-            as Map)['preferences']['animate_transitions'],
-        isFalse,
-      );
+      final saved = jsonDecode(storage.record!) as Map<String, Object?>;
+      final preferences = saved['preferences']! as Map<String, Object?>;
+      expect(preferences['animate_transitions'], isFalse);
       expect(find.text('Off · Instant'), findsOneWidget);
       expect(tester.takeException(), isNull);
       final restored = await initialized(tester, storage: storage);
