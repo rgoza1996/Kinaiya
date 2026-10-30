@@ -293,6 +293,18 @@ If Converse is unloaded, direct Agent Chat bypasses Decisions. If Decisions is u
 
 Optional future use of a lightweight classifier for semantic turn-ending is separate from Agent routing and must not turn the latter into a mandatory blocking step.
 
+### 6.6 Owner inspection and decision traceability
+
+The owner-approved Decisions window is a planned addition beside Converse and
+Agent. Preserve the exact submitted script (every question, type, instruction
+and possible answer), actual structured outputs and available confidence,
+historical model/provider identity, source transcript or Agent event, session
+and decision IDs, and timestamps. Include ignored dispositions and bounded
+search, single-date and date-range filters. Do not fabricate rationale, summaries,
+scores or missing historical inputs. See the [Decisions traceability requirements](docs/decisions-traceability.md)
+for capture, privacy, retrieval and verification boundaries. Existing routing
+records and the Penpot prototype do not establish this feature as shipped.
+
 ## 7. Converse and real-time voice
 
 ### 7.1 Exclusive ownership of personality

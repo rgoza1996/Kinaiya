@@ -67,6 +67,15 @@ class SetupStorage implements PresentationStorage {
   }
 }
 
+// Continuous presentation drift deliberately never settles. Advance a bounded
+// 320 ms of real frames for HTTP completion, route and popover transitions.
+Future<void> pumpSetupFrames(WidgetTester tester) async {
+  await tester.pump();
+  for (var frame = 0; frame < 20; frame++) {
+    await tester.pump(const Duration(milliseconds: 16));
+  }
+}
+
 void main() {
   test('setup rejects unsupported or incoherent declarations', () {
     expect(
@@ -146,7 +155,7 @@ void main() {
           ),
         );
         await tester.tap(find.text('Open'));
-        await tester.pumpAndSettle();
+        await pumpSetupFrames(tester);
         expect(find.text('Synthetic conversation'), findsOneWidget);
         expect(requests.single.method, 'GET');
         expect(requests.single.url.path, '/v1/converse/setup');
@@ -166,11 +175,11 @@ void main() {
         await tester.pump();
         expect(find.text('Cancel').hitTestable(), findsOneWidget);
         await tester.tap(find.text('Cancel'));
-        await tester.pumpAndSettle();
+        await pumpSetupFrames(tester);
         expect(presentation.preferences.showConverseView, isTrue);
         expect(storage.writes, isEmpty);
         await tester.tap(find.text('Open'));
-        await tester.pumpAndSettle();
+        await pumpSetupFrames(tester);
         await tester.ensureVisible(toggle);
         await tester.pump();
         expect(toggle.hitTestable(), findsOneWidget);
@@ -188,7 +197,7 @@ void main() {
           findsOneWidget,
         );
         await tester.tap(find.byKey(const ValueKey('save-model-setup')));
-        await tester.pumpAndSettle();
+        await pumpSetupFrames(tester);
         expect(presentation.preferences.showConverseView, isFalse);
         expect(presentation.preferences.showCaptions, isFalse);
         expect(requests.every((request) => request.method == 'GET'), isTrue);
@@ -234,7 +243,7 @@ void main() {
             ),
           ),
         );
-        await tester.pumpAndSettle();
+        await pumpSetupFrames(tester);
         for (final section in [
           'Model',
           'Reasoning',
@@ -246,14 +255,14 @@ void main() {
             ValueKey('setup-bubble-${section.toLowerCase()}'),
           );
           await tester.ensureVisible(bubble);
-          await tester.pumpAndSettle();
+          await pumpSetupFrames(tester);
           expect(bubble.hitTestable(), findsOneWidget);
           await tester.tap(bubble);
-          await tester.pumpAndSettle();
+          await pumpSetupFrames(tester);
           final popover = find.byKey(const ValueKey('setup-popover'));
           expect(popover, findsOneWidget);
           await tester.ensureVisible(popover);
-          await tester.pumpAndSettle();
+          await pumpSetupFrames(tester);
           expect(find.text('$section settings'), findsOneWidget);
           if (section == 'Inputs') {
             expect(
@@ -274,7 +283,7 @@ void main() {
           // Escape closes the popover and restores its invoking bubble focus,
           // without dismissing the encompassing setup or changing any model.
           await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-          await tester.pumpAndSettle();
+          await pumpSetupFrames(tester);
           expect(popover, findsNothing);
           final invoker = tester.widget<InkWell>(
             find.descendant(of: bubble, matching: find.byType(InkWell)),
@@ -306,7 +315,7 @@ void main() {
         home: ModelSetupDialog(state: state, presentation: presentation),
       ),
     );
-    await tester.pumpAndSettle();
+    await pumpSetupFrames(tester);
     final toggle = find.byKey(const ValueKey('show-converse-view'));
     await tester.ensureVisible(toggle);
     await tester.pump();
@@ -315,7 +324,7 @@ void main() {
     await tester.ensureVisible(save);
     await tester.pump();
     await tester.tap(save);
-    await tester.pumpAndSettle();
+    await pumpSetupFrames(tester);
     expect(presentation.preferences.showConverseView, isFalse);
     expect(find.byType(ModelSetupDialog), findsOneWidget);
     expect(
@@ -353,7 +362,7 @@ void main() {
     state.disconnect();
     await tester.pump();
     pending.complete(http.Response(jsonEncode(setupFixture()), 200));
-    await tester.pumpAndSettle();
+    await pumpSetupFrames(tester);
     expect(find.text('Synthetic conversation'), findsNothing);
     expect(
       find.text('Connect to your host to inspect configured models.'),
