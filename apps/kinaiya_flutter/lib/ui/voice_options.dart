@@ -41,6 +41,8 @@ class VoiceOptionsSheet extends StatelessWidget {
                   Expanded(
                     child: Text(
                       'Voice options',
+                      maxLines: bounds.maxHeight < 240 ? 1 : null,
+                      overflow: TextOverflow.ellipsis,
                       style: bounds.maxHeight < 240
                           ? Theme.of(context).textTheme.titleMedium
                           : Theme.of(context).textTheme.titleLarge,
@@ -125,15 +127,21 @@ Future<void> showVoiceOptions({
   return showModalBottomSheet<void>(
     context: context,
     showDragHandle: true,
-    builder: (_) => StatefulBuilder(
-      builder: (_, updateDisplay) => VoiceOptionsSheet(
-        endSilenceMs: selection,
-        silenceChoices: silenceChoices,
-        onSilenceChanged: (value) {
-          updateDisplay(() => selection = value);
-          onSilenceChanged(value);
-        },
-        windowMode: windowMode,
+    isScrollControlled: true,
+    builder: (sheetContext) => Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.viewInsetsOf(sheetContext).bottom,
+      ),
+      child: StatefulBuilder(
+        builder: (_, updateDisplay) => VoiceOptionsSheet(
+          endSilenceMs: selection,
+          silenceChoices: silenceChoices,
+          onSilenceChanged: (value) {
+            updateDisplay(() => selection = value);
+            onSilenceChanged(value);
+          },
+          windowMode: windowMode,
+        ),
       ),
     ),
   );
