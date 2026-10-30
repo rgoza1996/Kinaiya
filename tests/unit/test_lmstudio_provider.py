@@ -236,12 +236,43 @@ async def test_effective_base_formatting_drift_refuses_before_predict():
     assert not any(ws.creation for ws in wire.connections)
 
 
-@pytest.mark.parametrize("capacity", [True, 0, 63, 32769, 40960])
+@pytest.mark.parametrize("capacity", [True, 0, 63, 2**53, 2048.0])
 async def test_unsupported_loaded_capacity_is_not_clamped(capacity):
     wire = NativeFixture()
     wire.load["fields"][0]["value"] = capacity
     with pytest.raises(PromptCountUnavailable, match="loaded context capacity is unsupported"):
         await provider(wire).measure_prompt(MESSAGES)
+
+
+@pytest.mark.parametrize("capacity", [32769, 40960, 131072])
+async def test_large_loaded_context_is_measured_without_clamping(capacity):
+    wire = NativeFixture()
+    wire.load["fields"][0]["value"] = capacity
+    assert (await provider(wire).measure_prompt(MESSAGES)).context_tokens == capacity
+
+
+async def test_candidate_bindings_are_stable_but_request_identity_changes():
+    p = provider(NativeFixture())
+    first = await p.measure_prompt(MESSAGES)
+    second = await p.measure_prompt([*MESSAGES, {"role": "assistant", "content": "Public."}])
+    assert first.binding_sha256 == second.binding_sha256
+    assert first.request_sha256 != second.request_sha256
+
+
+async def test_formatted_template_drift_refuses_even_when_count_is_identical():
+    wire = NativeFixture()
+    p = provider(wire)
+    await p.measure_prompt(MESSAGES)
+
+    def drift(packet, reply):
+        if packet["endpoint"] == "applyPromptTemplate":
+            reply["result"]["formatted"] = "Changed public template with the same fixture count."
+        return reply
+
+    wire.response_hook = drift
+    with pytest.raises(ProviderError):
+        await p.complete(MESSAGES)
+    assert not any(ws.creation for ws in wire.connections)
 
 
 @pytest.mark.parametrize("count", [True, -1, 0, 1.5, 2**53])
@@ -614,3 +645,35 @@ async def test_optional_websocket_dependency_is_lazy_and_missing_is_clear(monkey
     monkeypatch.setitem(sys.modules, "websockets.asyncio.client", None)
     with pytest.raises(ProviderError, match="optional lmstudio"):
         await p.complete(MESSAGES)
+
+
+@pytest.mark.parametrize("tag", ["<think>", "</think>", "<THINK "])
+@pytest.mark.parametrize("split", [1, 2, 3, 4, 5, 6])
+async def test_control_tags_split_across_native_fragments_refuse_before_reasoning(tag, split):
+    wire = NativeFixture()
+
+    def frames(ws):
+        for content in (tag[:split], tag[split:] + "Private fixture reasoning"):
+            yield {
+                "type": "channelSend",
+                "channelId": 1,
+                "message": {
+                    "type": "fragment",
+                    "fragment": {
+                        "content": content,
+                        "tokensCount": 1,
+                        "containsDrafted": False,
+                        "reasoningType": "none",
+                        "isStructural": False,
+                    },
+                },
+            }
+        yield {"type": "channelSend", "channelId": 1, "message": wire.terminal(ws)}
+        yield {"type": "channelClose", "channelId": 1}
+
+    wire.frames = frames
+    emitted = []
+    with pytest.raises(ProviderRefusal):
+        async for fragment in provider(wire).stream(MESSAGES):
+            emitted.append(fragment)
+    assert "Private fixture reasoning" not in "".join(emitted)

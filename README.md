@@ -375,6 +375,17 @@ and synthetic verification are CPU-only; actual runtime/model acceptance,
 GPU policy, dialogue quality and the combined 8 GB voice-profile target remain
 separate gates. It is not a reference default.
 
+Production Converse [history budgeting](docs/adr/0057-converse-context-window-budget.md)
+uses the active model's complete formatted prompt count and reserved output space.
+Semantic native pages preserve corrections and playback qualifications while
+routing traffic consumes no dialogue allowance. It retains whole recent messages
+that fit, rather than eight live or twelve typed entries. The local native
+`lmstudio` provider uses the exact already-loaded instance for counting and
+generation, without JIT loading. Providers lacking exact counting visibly refuse
+this host path; a compatible HTTP endpoint alone is insufficient. Embedded
+runtime compatibility remains separately identified in health. Conversation
+quality and physical latency still require human testing.
+
 An optional [whole-chat prompt measurement](docs/adr/0050-converse-prompt-measurement.md)
 uses only an already resident managed GGUF worker, without generating a reply or
 loading a model. Its result binds the complete chat request and protected profile

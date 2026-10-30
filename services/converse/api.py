@@ -126,6 +126,7 @@ def create_app(runtime, auth, speech=None, window_controller=None):
             "speech_operations": runtime.speech_status(),
             "text_operations": runtime.text_status(),
             "streaming_windows": window_controller is not None,
+            "context_history": "measured" if runtime.context_budgeted else "legacy_embedded",
         }
         try:
             binding = managed_text_binding(runtime.provider)

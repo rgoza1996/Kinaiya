@@ -456,9 +456,9 @@ class LMStudioProvider:
             raise _refuse()
         load = _fields(await self._rpc(op, "getLoadConfig", {"specifier": specifier}))
         context = load.get("llm.load.contextLength")
-        if not _integer(context, 64, 32768) or self.max_tokens >= context:
+        if not _integer(context, 64) or self.max_tokens >= context:
             raise PromptCountUnavailable(
-                "LM Studio loaded context capacity is unsupported; requires 64..32768 tokens and output space"
+                "LM Studio loaded context capacity is unsupported; requires a safe integer of at least 64 tokens and output space"
             )
         base = _fields(
             await self._rpc(
@@ -533,12 +533,11 @@ class LMStudioProvider:
                     "provider": "lmstudio",
                     "endpoint": self._endpoint,
                     "contract": "auth-v1-instance-text-1",
-                    "formatted_sha256": _digest(formatted),
                     **snapshot,
                 }
             ),
         )
-        return creation, measured
+        return creation, measured, _digest(formatted)
 
     def _unchanged(self, messages, history, config):
         if self._configuration() != config or _history(messages) != history:
@@ -550,12 +549,12 @@ class LMStudioProvider:
             async with asyncio.timeout(min(self.timeout, 10)):
                 async with self._operation() as op:
                     snapshot = await self._snapshot(op)
-                    _, measured = await self._measure(op, history, snapshot)
+                    _, measured, formatted_sha256 = await self._measure(op, history, snapshot)
                     if await self._snapshot(op) != snapshot:
                         raise _refuse()
                     self._unchanged(messages, history, config)
             self._unchanged(messages, history, config)
-            self._measurement = (_digest(history), config, measured)
+            self._measurement = (_digest(history), config, measured, formatted_sha256)
             return measured
         except (ProviderCleanupError, PromptCountUnavailable, asyncio.CancelledError):
             raise
@@ -647,9 +646,16 @@ class LMStudioProvider:
             async with asyncio.timeout(self.timeout):
                 async with self._operation() as op:
                     snapshot = await self._snapshot(op)
-                    creation, measured = await self._measure(op, history, snapshot)
+                    creation, measured, formatted_sha256 = await self._measure(
+                        op, history, snapshot
+                    )
                     if self._measurement is not None:
-                        if self._measurement != (_digest(history), config, measured):
+                        if self._measurement != (
+                            _digest(history),
+                            config,
+                            measured,
+                            formatted_sha256,
+                        ):
                             raise _refuse()
                     if not measured.fits or await self._snapshot(op) != snapshot:
                         raise _refuse()
@@ -673,7 +679,7 @@ class LMStudioProvider:
                             "creationParameter": creation,
                         },
                     )
-                    text_bytes, completed = 0, False
+                    text_bytes, completed, pending = 0, False, ""
                     while not op.channel_closed:
                         message = self._channel_packet(op, await self._receive(op))
                         if message is None:
@@ -709,15 +715,32 @@ class LMStudioProvider:
                                 or fragment["reasoningType"] != "none"
                                 or fragment["isStructural"] is not False
                                 or fragment.get("tokens") not in (None, [])
-                                or re.search(r"</?think(?:>|\s)", fragment["content"], re.I)
                             ):
                                 raise _refuse()
                             text_bytes += len(fragment["content"].encode("utf-8"))
                             if text_bytes > _MAX_TEXT:
                                 raise _refuse()
                             self._unchanged(messages, history, config)
-                            if fragment["content"]:
-                                yield fragment["content"]
+                            pending += fragment["content"]
+                            if re.search(r"</?think(?:>|\s)", pending, re.I):
+                                raise _refuse()
+                            # Native token fragments can split a control delimiter.
+                            # Keep only its possible prefix until it is disambiguated.
+                            held = max(
+                                (
+                                    size
+                                    for size in range(1, min(len(pending), 7) + 1)
+                                    if any(
+                                        tag.startswith(pending[-size:].lower())
+                                        for tag in ("<think", "</think")
+                                    )
+                                ),
+                                default=0,
+                            )
+                            ready = pending[:-held] if held else pending
+                            pending = pending[-held:] if held else ""
+                            if ready:
+                                yield ready
                         elif kind == "success":
                             completed = self._terminal(message, snapshot, measured)
                             op.terminal = True
@@ -738,6 +761,8 @@ class LMStudioProvider:
                     self._unchanged(messages, history, config)
                     if not completed:
                         raise _refuse()
+                    if pending:
+                        yield pending
             self._unchanged(messages, history, config)
         except (ProviderError, asyncio.CancelledError, GeneratorExit):
             raise

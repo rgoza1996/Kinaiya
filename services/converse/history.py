@@ -9,12 +9,12 @@ from services.converse.memory_history import resolve_current_pin, tagged_assista
 MAX_INTEGER = 9_007_199_254_740_991
 
 
-def native_snapshot(recent, source):
+def native_snapshot(recent, source, *, limit=100):
     """Filter one contiguous suffix without filling gaps from older or foreign history."""
     return sorted(
         (
             entry
-            for entry in recent[-100:]
+            for entry in (recent if limit is None else recent[-limit:])
             if (entry.session_id, entry.thread_id, entry.epoch)
             == (source.session_id, source.thread_id, source.epoch)
         ),

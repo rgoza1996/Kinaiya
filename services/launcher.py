@@ -74,6 +74,12 @@ def provider(config, role, *, resource_state=None, service_token=None, workspace
         if role == "agent":
             profile.setdefault("structured_actions", True)
         result = MetaResponsesProvider(**profile)
+    elif kind == "lmstudio":
+        if role != "converse":
+            raise SystemExit("Native LM Studio text is selected independently for Converse")
+        from packages.providers.lmstudio import LMStudioProvider
+
+        result = LMStudioProvider(**profile)
     elif kind in {"compatible", "laya"}:
         if kind == "laya" and role != "decisions":
             raise SystemExit("Laya is a typed Decisions provider, not an Agent or Converse model")
@@ -491,6 +497,7 @@ def serve(args):
             intent=intent,
             resources_managed=resources_enabled,
             memory_adapters=memory_adapters,
+            context_budgeted=True,
         )
         voice = config.get("voice")
         stt_settings = {}

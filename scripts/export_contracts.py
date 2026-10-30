@@ -3,11 +3,11 @@
 import json
 from pathlib import Path
 
-from packages.contracts import companion, memory, memory_catalog, memory_context, models
+from packages.contracts import companion, context, memory, memory_catalog, memory_context, models
 
 target = Path(__file__).resolve().parents[1] / "packages/contracts/schemas"
 target.mkdir(parents=True, exist_ok=True)
-for module in (models, companion, memory, memory_catalog, memory_context):
+for module in (models, companion, memory, memory_catalog, memory_context, context):
     for name in dir(module):
         cls = getattr(module, name)
         if isinstance(cls, type) and issubclass(cls, models.WireModel):

@@ -141,11 +141,13 @@ def _delivery_row(assistant, index, snapshot, info):
     return row
 
 
-def _block(rows):
+def _block(rows, *, bounded=True):
     def encode():
         return PREFIX + json.dumps({"version": 1, "history": rows}, separators=(",", ":"))
 
     content = encode()
+    if not bounded:
+        return content
     if len(content.encode()) > MAX_BLOCK_BYTES:
         for row in rows:
             if row["receipts"]:
@@ -192,7 +194,9 @@ def _keep_window_assistant(entry, source, info, current_pin, runtime_id):
     return _allowed(info, entry.payload)
 
 
-def window_context_projection(recent, source, info, *, memory_context=None, runtime_id=None):
+def window_context_projection(
+    recent, source, info, *, memory_context=None, runtime_id=None, budgeted_snapshot=False
+):
     """Project live-window history with optional selected-recall assistants.
 
     Untagged behavior matches the legacy compatibility path byte-for-byte,
@@ -202,8 +206,14 @@ def window_context_projection(recent, source, info, *, memory_context=None, runt
     with matching final indices, and consumed_memory is true only when a
     tagged assistant is actually selected.
     """
-    snapshot = native_snapshot(recent, source)
-    current = SpeechWindow.model_validate(source.payload)
+    snapshot = native_snapshot(recent, source, limit=None if budgeted_snapshot else 100)
+    current = (
+        SpeechWindow.model_validate(source.payload)
+        if source.kind == "conversation.window"
+        else None
+    )
+    if current is None and not (budgeted_snapshot and source.kind == "conversation.user"):
+        raise ValueError("Context requires a native conversation source")
     users = fold_users(snapshot, lambda entry: _allowed(info, entry.payload))
     current_pin = resolve_current_pin(memory_context)
     windows = {}
@@ -222,7 +232,9 @@ def window_context_projection(recent, source, info, *, memory_context=None, runt
             entry.epoch,
         ):
             continue
-        if entry.sequence < source.sequence:
+        # Budgeted snapshots contain only native heads whose pre-source witness
+        # was checked by Session, including corrections committed after source.
+        if budgeted_snapshot or entry.sequence < source.sequence:
             prior_utterances.add(window.utterance_id)
         rank = window.window_index, window.revision, entry.sequence
         previous = windows.get(window.utterance_id)
@@ -238,7 +250,7 @@ def window_context_projection(recent, source, info, *, memory_context=None, runt
         (entry, window.text, window.content_scope)
         for _, entry, window in windows.values()
         if window.utterance_id in prior_utterances
-        and window.utterance_id != current.utterance_id
+        and (current is None or window.utterance_id != current.utterance_id)
         and _allowed(info, entry.payload)
     )
     candidates.extend(
@@ -246,15 +258,22 @@ def window_context_projection(recent, source, info, *, memory_context=None, runt
         for e in snapshot
         if _keep_window_assistant(e, source, info, current_pin, runtime_id)
     )
-    candidates = sorted(candidates, key=lambda pair: pair[0].sequence)[-8:]
+    candidates = sorted(candidates, key=lambda pair: pair[0].sequence)
+    if not budgeted_snapshot:
+        candidates = candidates[-8:]
     messages, rows, scopes = [], [], []
     for index, (entry, text, scope) in enumerate(candidates):
         assistant = entry.kind == "conversation.converse"
-        messages.append({"role": "assistant" if assistant else "user", "content": text[:2000]})
+        messages.append(
+            {
+                "role": "assistant" if assistant else "user",
+                "content": text if budgeted_snapshot else text[:2000],
+            }
+        )
         scopes.append(scope)
         if assistant:
             rows.append(_delivery_row(entry, index, snapshot, info))
-    delivery = _block(rows) if rows else None
+    delivery = _block(rows, bounded=not budgeted_snapshot) if rows else None
     consumed_memory = any(
         entry.kind == "conversation.converse" and "memory_context" in entry.payload
         for entry, _text, _scope in candidates

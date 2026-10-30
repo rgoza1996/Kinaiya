@@ -21,6 +21,7 @@ from packages.contracts.models import (
 )
 from packages.providers.disclosure import combine_scopes, scope_allowed, source_scope
 from packages.providers.text import ProviderCleanupError, owned_http_stream_cleanup
+from services.converse.context_budget import ContextBudgetBuilder
 from services.converse.context_projection import ContextProjection
 from services.converse.history import typed_history_projection
 from services.converse.intent import ConverseIntent
@@ -187,12 +188,14 @@ class ConverseRuntime:
         personality=None,
         personality_scope=None,
         context_turns=12,
+        context_budgeted=False,
         intent=None,
         resources_managed=False,
         memory_adapters=None,
     ):
         self.journal, self.provider = journal, provider
         self.name, self.context_turns = name, context_turns
+        self.context_budgeted = context_budgeted
         custom_persona = personality is not None or name != "Kinaiya"
         if personality_scope is None:
             # The built-in Kinaiya persona is public code. Any custom
@@ -1176,6 +1179,18 @@ class ConverseRuntime:
         operation.content_scope = self._derived_reply_scope(
             compile_context(None).consumed_scopes, request_scope
         )
+        budget = (
+            ContextBudgetBuilder(
+                self.journal,
+                source,
+                provider,
+                personality=self.personality,
+                runtime_id=self._runtime_id,
+                current=lambda: self.provider is provider and self._text_current(operation),
+            )
+            if self.context_budgeted
+            else None
+        )
         chunker, index = SpeechChunker(), 0
         queue = operation.queue
 
@@ -1195,10 +1210,17 @@ class ConverseRuntime:
                         operation.cancel,
                         lambda: self.provider is provider and self._text_current(operation),
                         lambda lease: setattr(operation, "memory_lease", lease),
+                        budgeted_builder=budget.build if budget is not None else None,
                     )
                     operation.memory_lease = lease
                     if lease is not None:
                         lease.retain_cleanup(operation.cleanup, lambda: operation.cleanup_failed)
+                    if budget is not None:
+                        projection = (
+                            await lease.run(budget.finalize(projection))
+                            if lease is not None
+                            else await budget.finalize(projection)
+                        )
                     operation.content_scope = self._derived_reply_scope(
                         projection.consumed_scopes, request_scope
                     )
