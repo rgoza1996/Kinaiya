@@ -9,9 +9,10 @@ from typing import Annotated
 from anyio import CancelScope
 from fastapi import Depends, FastAPI, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
+from packages.contracts.converse_setup import ConverseSetup
 from packages.contracts.models import ContentScope, ConverseRequest, DeliveryRequest, SpeechWindow
 from packages.providers.speech import SpeechProviderError
 
@@ -96,7 +97,7 @@ class TypedTurnResponse(StreamingResponse):
                 await self.body_iterator.aclose()
 
 
-def create_app(runtime, auth, speech=None, window_controller=None):
+def create_app(runtime, auth, speech=None, window_controller=None, *, setup=None):
     from services.converse.memory_api import install_memory_controls
 
     app = FastAPI(title="Kinaiya Converse", version="1.0")
@@ -137,6 +138,20 @@ def create_app(runtime, auth, speech=None, window_controller=None):
         if binding is not None:
             result["managed_text"] = binding
         return result
+
+    @app.get("/v1/converse/setup", dependencies=owner, response_model=ConverseSetup)
+    async def model_setup():
+        from services.converse.setup import setup_state
+
+        try:
+            value = setup_state(runtime, setup)
+        except (ValueError, TypeError, AttributeError, UnicodeError):
+            raise HTTPException(
+                503,
+                "Converse setup declarations are unavailable",
+                headers={"Cache-Control": "no-store"},
+            ) from None
+        return JSONResponse(value.model_dump(), headers={"Cache-Control": "no-store"})
 
     @app.post("/v1/converse/turns", dependencies=owner)
     async def turn(request: ConverseRequest):
