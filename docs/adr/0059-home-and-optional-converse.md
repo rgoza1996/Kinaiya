@@ -86,8 +86,12 @@ those observations are stale. No location/weather access is added.
 Save/Cancel, narrow 2× text, merging preferences and stale reads.
 `penpot_navigation_test.dart` checks the retained owner, armed microphone,
 sessions, independent drafts, Agent pane and real appearance destination through
-Home/Converse navigation and hiding. Existing voice, disclosure, stop and
-settings regressions continue to exercise their original owners. Backend
+Home/Converse navigation and hiding. `home_sleep_test.dart` covers owner intent
+versus effective resource availability, malformed/obsolete observations,
+uncertain writes and guarded late responses, mic/playback cancellation and
+restoration without auto-arm. It also checks narrow sleeping layouts and custom
+presentation precedence. Existing voice, disclosure, stop and settings
+regressions continue to exercise their original owners. Backend
 contract tests cover authentication, bounded/redacted declarations, revision
 identity and absence of mutation/provider calls. Synthetic checks do not
 establish human voice quality, physical audible latency or mobile calling.

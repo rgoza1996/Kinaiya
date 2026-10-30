@@ -40,7 +40,7 @@ sprite animation or a demonstration of live TTS synchronization.
 
 | Page | Purpose and key boards | Design status |
 | --- | --- | --- |
-| **00 · Home & Converse · Updated** | Moonlit Home, optional close-up Converse, model/conversation setup, listening and connected sidebar destinations. | Current owner direction. Illustrative models, tasks and library contents remain examples. |
+| **00 · Home & Converse · Updated** | Moonlit Home, owner-off sleeping state, optional close-up Converse, model/conversation setup, listening and connected sidebar destinations. | Current owner direction. Illustrative models, tasks and library contents remain examples. |
 | **00 · Foundations** | Colors, typography and example controls used as a starting point for the design system. | Draft foundation; not a complete component library. |
 | **01 · Converse** | Moonlit home, listening state, and an Options copy for the Home flow. Call and end-conversation links demonstrate the voice entry flow. | Concept-based draft. The Home and gear icons link between the local Home and Options boards. |
 | **02 · Agent** | Agent workspace while a task runs and a review/approval state, based on the Agent concept. | Concept-based draft; task details and outcomes are examples. |
