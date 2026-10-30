@@ -16,12 +16,13 @@ void main() {
     expect(restored.showCaptions, isFalse);
     expect(restored.usePackPalette, isFalse);
     expect(restored.showConverseView, isTrue);
+    expect(restored.animateTransitions, isTrue);
     expect(restored.primaryOverride, '#123456');
     expect(restored.backgroundOverride, '#112233');
     expect(restored.valid, isTrue);
   });
 
-  test('new seven-key true/false roundtrip and copyWith', () {
+  test('new eight-key true/false roundtrip and copyWith', () {
     const base = PresentationPreferences();
     expect(base.showConverseView, isTrue);
 
@@ -36,7 +37,49 @@ void main() {
     expect(restoredTrue.showConverseView, isTrue);
     expect(base.toJson()['show_converse_view'], isTrue);
     expect(disabled.toJson()['show_converse_view'], isFalse);
+    final instant = disabled.copyWith(animateTransitions: false);
+    expect(instant.toJson().length, 8);
+    final restored = PresentationPreferences.fromJson(instant.toJson());
+    expect(restored.animateTransitions, isFalse);
+    expect(restored.showConverseView, isFalse);
+    expect(base.animateTransitions, isTrue);
   });
+
+  test('released seven-key snapshot retains visibility and enables fades', () {
+    final previous = const PresentationPreferences(
+      showConverseView: false,
+    ).toJson()..remove('animate_transitions');
+    final restored = PresentationPreferences.fromJson(previous);
+    expect(restored.showConverseView, isFalse);
+    expect(restored.animateTransitions, isTrue);
+  });
+
+  test(
+    'transition preference is strict and requires the complete new shape',
+    () {
+      final current = const PresentationPreferences().toJson();
+      for (final malformed in [null, 0, 'true', <String>[]]) {
+        expect(
+          () => PresentationPreferences.fromJson({
+            ...current,
+            'animate_transitions': malformed,
+          }),
+          throwsFormatException,
+        );
+      }
+      expect(
+        () =>
+            PresentationPreferences.fromJson({...current, 'unexpected': false}),
+        throwsFormatException,
+      );
+      final incomplete = Map<String, dynamic>.of(current)
+        ..remove('show_converse_view');
+      expect(
+        () => PresentationPreferences.fromJson(incomplete),
+        throwsFormatException,
+      );
+    },
+  );
 
   test('rejects unknown keys, missing old fields, non-boolean new field', () {
     final validOld = {

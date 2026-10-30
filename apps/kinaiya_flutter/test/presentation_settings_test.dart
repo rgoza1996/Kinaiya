@@ -6,7 +6,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kinaiya_flutter/presentation/controller.dart';
 import 'package:kinaiya_flutter/presentation/platform.dart';
+import 'package:kinaiya_flutter/config/options_catalog.dart';
 import 'package:kinaiya_flutter/ui/presentation_settings.dart';
+import 'package:kinaiya_flutter/ui/settings_hub.dart';
 import 'package:kinaiya_flutter/ui/visual_theme.dart';
 import 'package:kinaiya_flutter/ui/widgets.dart';
 
@@ -112,6 +114,80 @@ double contrast(Color a, Color b) {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  testWidgets(
+    'Options quick Animations control writes only on intent and persists',
+    (tester) async {
+      final storage = MemoryPresentationStorage();
+      final controller = await initialized(tester, storage: storage);
+      await controller.setPreferences(
+        controller.preferences.copyWith(showConverseView: false),
+      );
+      final before = storage.record;
+      tester.view.physicalSize = const Size(320, 740);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MediaQuery(
+            data: const MediaQueryData(
+              size: Size(320, 740),
+              textScaler: TextScaler.linear(2),
+            ),
+            child: SettingsHub(
+              availability: const SettingsAvailability(),
+              quickSettings: InterfaceTransitionsSwitch(controller: controller),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(storage.record, before);
+      await tester.ensureVisible(find.text('Animations'));
+      await tester.tap(find.text('Animations'));
+      await tester.pumpAndSettle();
+      expect(controller.preferences.animateTransitions, isFalse);
+      expect(controller.preferences.showConverseView, isFalse);
+      final saved = jsonDecode(storage.record!) as Map<String, Object?>;
+      final preferences = saved['preferences']! as Map<String, Object?>;
+      expect(preferences['animate_transitions'], isFalse);
+      expect(find.text('Off · Instant'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      final restored = await initialized(tester, storage: storage);
+      expect(restored.preferences.animateTransitions, isFalse);
+    },
+  );
+
+  testWidgets('quick Animations shows reduced motion and storage uncertainty', (
+    tester,
+  ) async {
+    final controller = await initialized(
+      tester,
+      storage: FailingPresentationStorage(),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MediaQuery(
+          data: const MediaQueryData(disableAnimations: true),
+          child: Material(
+            child: InterfaceTransitionsSwitch(controller: controller),
+          ),
+        ),
+      ),
+    );
+    expect(
+      find.text('Instant · Reduced motion takes priority'),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Animations'));
+    await tester.pumpAndSettle();
+    expect(controller.preferences.animateTransitions, isFalse);
+    expect(controller.notice, isNotNull);
+    expect(find.text(controller.notice!), findsOneWidget);
+    expect(find.textContaining('private-storage-error-marker'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 
   test('default colors preserve the established light and dark schemes', () {
     final light = kinaiyaTheme().colorScheme;
@@ -261,6 +337,7 @@ void main() {
       await mount(tester, controller, size: const Size(390, 844), textScale: 2);
       for (final label in [
         'Reduce motion',
+        'Interface transitions',
         'Show character',
         'Show captions',
         'Use character pack colors',
@@ -269,6 +346,7 @@ void main() {
         expect(tester.takeException(), isNull);
       }
       expect(controller.preferences.reducedMotion, isTrue);
+      expect(controller.preferences.animateTransitions, isFalse);
       expect(controller.preferences.showCharacter, isFalse);
       expect(controller.preferences.showCaptions, isFalse);
       expect(controller.preferences.usePackPalette, isFalse);
@@ -285,6 +363,12 @@ void main() {
     'palette validates exact hex, applies colors and clears overrides',
     (tester) async {
       final controller = await initialized(tester);
+      await controller.setPreferences(
+        controller.preferences.copyWith(
+          animateTransitions: false,
+          showConverseView: false,
+        ),
+      );
       await mount(tester, controller);
       final primary = find.widgetWithText(TextField, 'Primary color override');
       final background = find.widgetWithText(
@@ -303,6 +387,8 @@ void main() {
       await press(tester, 'Apply color overrides');
       expect(controller.preferences.primaryOverride, '#AABBCC');
       expect(controller.preferences.backgroundOverride, '#000001');
+      expect(controller.preferences.animateTransitions, isFalse);
+      expect(controller.preferences.showConverseView, isFalse);
       await press(tester, 'Clear color overrides');
       expect(controller.preferences.primaryOverride, isNull);
       expect(controller.preferences.backgroundOverride, isNull);

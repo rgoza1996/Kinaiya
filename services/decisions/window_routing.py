@@ -9,15 +9,22 @@ conversation generation, no transcript persistence here.
 import asyncio
 import hashlib
 import json
+import re
 import time
 
+import httpx
+from pydantic import ValidationError
+
+from core.policy import PolicyDenied
 from packages.contracts.models import (
     AppendRequest,
     InterruptRequest,
     JournalEntry,
     SpeechWindow,
     SteerRequest,
+    Task,
     TaskRequest,
+    TaskState,
     WindowDecision,
     new_id,
 )
@@ -42,6 +49,50 @@ MAX_ENTRY_CHARS = 2000
 MAX_TASKS = 8
 READ_LIMIT = 100
 MAX_QUEUED_DRAIN = 50
+
+
+class UnconfirmedAgentAcknowledgement(Exception):
+    """A successful transport did not confirm the requested native task."""
+
+
+def dispatch_failure(exc: Exception) -> dict:
+    """Normalize executor admission without interpreting an untrusted error body."""
+    if isinstance(exc, httpx.HTTPStatusError):
+        status = exc.response.status_code
+        if status in {403, 404, 409}:
+            return {"state": "rejected", "reason": "executor_rejected", "http_status": status}
+    elif isinstance(exc, (PolicyDenied, ValueError, KeyError)) and not isinstance(
+        exc, (ValidationError, json.JSONDecodeError)
+    ):
+        return {"state": "rejected", "reason": "executor_rejected"}
+    return {"state": "unknown", "reason": "executor_ack_unknown"}
+
+
+def acknowledged_task(
+    task,
+    source: JournalEntry,
+    target_task_id: str | None = None,
+    *,
+    submission_key: str | None = None,
+) -> dict:
+    """Bind positive receipts to the real executor response, never a request fallback."""
+    if (
+        not isinstance(task, Task)
+        or re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", task.task_id) is None
+        or (task.session_id, task.thread_id, task.epoch)
+        != (source.session_id, source.thread_id, source.epoch)
+        or (target_task_id is not None and task.task_id != target_task_id)
+        or (submission_key is not None and task.idempotency_key != submission_key)
+    ):
+        raise UnconfirmedAgentAcknowledgement("Executor task identity is unconfirmed")
+    # Revalidate model_copy/native adapters too; an arbitrary state must never
+    # become an affirmative UI receipt. No objective, summary or response text is copied.
+    try:
+        state = TaskState(task.state).value
+    except (TypeError, ValueError) as exc:
+        raise UnconfirmedAgentAcknowledgement("Executor task state is unconfirmed") from exc
+    return {"native_task_id": task.task_id, "native_task_state": state}
+
 
 _ALLOWED_SCOPES_LOCAL = {"local_only", "public_synthetic", "private_cloud_authorized"}
 _ALLOWED_SCOPES_META = {"public_synthetic"}
@@ -290,6 +341,7 @@ class WindowAgentDispatcher:
         reason: str,
         native_task_id: str | None = None,
         native_task_state: str | None = None,
+        http_status: int | None = None,
         suffix: str = "",
     ) -> None:
         payload: dict = {
@@ -300,6 +352,7 @@ class WindowAgentDispatcher:
             "state": state,
             "reason": reason,
             "source_sequence": decision.source_sequence,
+            "source_revision": decision.source_revision,
         }
         source = await self.journal.entry(decision.source_event_id)
         payload["semantic_key"] = self._semantic_key(source)
@@ -307,6 +360,8 @@ class WindowAgentDispatcher:
             payload["native_task_id"] = native_task_id
         if native_task_state is not None:
             payload["native_task_state"] = native_task_state
+        if http_status is not None:
+            payload["http_status"] = http_status
         key = f"window-dispatch:{decision.decision_id}:{state}{suffix}"
         try:
             await self.journal.append(
@@ -342,9 +397,14 @@ class WindowAgentDispatcher:
         return None
 
     async def _active_tasks(self, session_id: str, epoch: int) -> list:
-        tasks = await asyncio.wait_for(self.agent.status(), 0.3)
-        if not isinstance(tasks, list):
-            raise ValueError("Agent status is unavailable")
+        try:
+            tasks = await asyncio.wait_for(self.agent.status(), 0.3)
+            if not isinstance(tasks, list):
+                raise ValueError("Agent status is unavailable")
+        except Exception as exc:
+            self.last_error = type(exc).__name__
+            raise
+        self.last_error = None
         return [
             t
             for t in tasks
@@ -359,13 +419,14 @@ class WindowAgentDispatcher:
     async def _task_by_id(self, task_id: str):
         try:
             tasks = await asyncio.wait_for(self.agent.status(), 0.3)
-        except Exception:
-            return None
+        except Exception as exc:
+            self.last_error = type(exc).__name__
+            raise
         if isinstance(tasks, list):
+            self.last_error = None
             return next((t for t in tasks if getattr(t, "task_id", None) == task_id), None)
-        if getattr(tasks, "task_id", None) == task_id:
-            return tasks
-        return None
+        self.last_error = "invalid_agent_status"
+        raise ValueError("Agent status is unavailable")
 
     @staticmethod
     def _task_state_value(task) -> str:
@@ -444,7 +505,12 @@ class WindowAgentDispatcher:
         """Return (task, error_reason). None task with None reason means still waiting."""
         if decision.target_task_id is None:
             return None, "untargeted"
-        task = await self._task_by_id(decision.target_task_id)
+        try:
+            task = await self._task_by_id(decision.target_task_id)
+        except Exception:
+            # No mutation was attempted. An unavailable status cannot establish
+            # that the target vanished or permit a control with a guessed binding.
+            return None, "agent_status_unavailable"
         if task is None:
             return None, "unknown_target"
         if self._task_state_value(task) in {"succeeded", "failed", "cancelled"}:
@@ -458,7 +524,12 @@ class WindowAgentDispatcher:
     async def _dispatch_steer(self, decision, source, entry) -> None:
         task, error = await self._target_ready(decision)
         if error is not None or task is None:
-            await self._record(decision, entry, state="rejected", reason=error or "unknown_target")
+            await self._record(
+                decision,
+                entry,
+                state="not_applied" if error == "agent_status_unavailable" else "rejected",
+                reason=error or "unknown_target",
+            )
             return
         if (
             getattr(task, "session_id", None) != entry.session_id
@@ -479,35 +550,30 @@ class WindowAgentDispatcher:
             updated = await asyncio.wait_for(
                 self.agent.steer(decision.target_task_id, request, actor="decisions"), 1
             )
+            acknowledgement = acknowledged_task(updated, source, decision.target_task_id)
         except Exception as exc:
-            if type(exc).__name__ in {
-                "StaleRevision",
-                "TaskTerminal",
-                "PolicyDenied",
-                "ValueError",
-                "IdemConflict",
-                "KeyError",
-            }:
-                await self._record(
-                    decision, entry, state="rejected", reason="target_changed_during_dispatch"
-                )
-            else:
+            failure = dispatch_failure(exc)
+            if failure["state"] == "unknown":
                 self.last_error = type(exc).__name__
-                await self._record(decision, entry, state="unknown", reason="executor_ack_unknown")
+            await self._record(decision, entry, **failure)
             return
         await self._record(
             decision,
             entry,
             state="applied",
             reason="steered",
-            native_task_id=getattr(updated, "task_id", decision.target_task_id),
-            native_task_state=self._task_state_value(updated),
+            **acknowledgement,
         )
 
     async def _dispatch_interrupt(self, decision, source, entry) -> None:
         task, error = await self._target_ready(decision)
         if error is not None or task is None:
-            await self._record(decision, entry, state="rejected", reason=error or "unknown_target")
+            await self._record(
+                decision,
+                entry,
+                state="not_applied" if error == "agent_status_unavailable" else "rejected",
+                reason=error or "unknown_target",
+            )
             return
         if (
             getattr(task, "session_id", None) != entry.session_id
@@ -527,21 +593,12 @@ class WindowAgentDispatcher:
             updated = await asyncio.wait_for(
                 self.agent.interrupt(decision.target_task_id, request, actor="decisions"), 1
             )
+            acknowledgement = acknowledged_task(updated, source, decision.target_task_id)
         except Exception as exc:
-            if type(exc).__name__ in {
-                "StaleRevision",
-                "TaskTerminal",
-                "PolicyDenied",
-                "ValueError",
-                "IdemConflict",
-                "KeyError",
-            }:
-                await self._record(
-                    decision, entry, state="rejected", reason="target_changed_during_dispatch"
-                )
-            else:
+            failure = dispatch_failure(exc)
+            if failure["state"] == "unknown":
                 self.last_error = type(exc).__name__
-                await self._record(decision, entry, state="unknown", reason="executor_ack_unknown")
+            await self._record(decision, entry, **failure)
             return
         # An acknowledgment is never proof the work stopped; record only the
         # executor-reported state.
@@ -550,8 +607,7 @@ class WindowAgentDispatcher:
             entry,
             state="applied",
             reason="interrupt_requested",
-            native_task_id=getattr(updated, "task_id", decision.target_task_id),
-            native_task_state=self._task_state_value(updated),
+            **acknowledgement,
         )
 
     async def _submit_for_queue(self, decision, source, entry) -> None:
@@ -568,27 +624,21 @@ class WindowAgentDispatcher:
         )
         try:
             created = await asyncio.wait_for(self.agent.submit(request, actor="decisions"), 1)
+            acknowledgement = acknowledged_task(
+                created, source, submission_key=request.idempotency_key
+            )
         except Exception as exc:
-            if type(exc).__name__ in {
-                "StaleRevision",
-                "TaskTerminal",
-                "PolicyDenied",
-                "ValueError",
-                "IdemConflict",
-                "KeyError",
-            }:
-                await self._record(decision, entry, state="rejected", reason="submit_refused")
-            else:
+            failure = dispatch_failure(exc)
+            if failure["state"] == "unknown":
                 self.last_error = type(exc).__name__
-                await self._record(decision, entry, state="unknown", reason="executor_ack_unknown")
+            await self._record(decision, entry, **failure)
             return
         await self._record(
             decision,
             entry,
             state="applied",
             reason="queued_submitted",
-            native_task_id=getattr(created, "task_id", None),
-            native_task_state=self._task_state_value(created),
+            **acknowledgement,
             suffix=":submit",
         )
 
@@ -781,7 +831,10 @@ class WindowAgentDispatcher:
                 await self._maybe_drain_queue(decision, source, entry, receipts)
         except Exception as exc:
             self.last_error = type(exc).__name__
-        await self._drain_queues(entry.session_id)
+        try:
+            await self._drain_queues(entry.session_id)
+        except Exception as exc:
+            self.last_error = type(exc).__name__
         return decision
 
     async def tick(self) -> int:
@@ -815,8 +868,6 @@ class WindowAgentDispatcher:
                 try:
                     count = await self.tick()
                     if not self.enabled:
-                        self.last_error = None
-                    elif count:
                         self.last_error = None
                     if not count:
                         await asyncio.sleep(0.05)

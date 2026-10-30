@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -193,6 +194,99 @@ void main() {
         expect(requests.every((request) => request.method == 'GET'), isTrue);
         expect(state.converseEnabled, isTrue);
         expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+        state.dispose();
+        presentation.dispose();
+      },
+    );
+  }
+
+  for (final small in [false, true]) {
+    testWidgets(
+      'five glass bubbles expose only bounded read-only native declarations (small=$small)',
+      (tester) async {
+        await tester.binding.setSurfaceSize(
+          small ? const Size(320, 740) : const Size(1536, 1024),
+        );
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        final methods = <String>[];
+        final state = AppState()
+          ..client = KinaiyaClient(
+            sessionBase: 'http://synthetic',
+            agentBase: 'http://synthetic',
+            converseBase: 'http://synthetic',
+            ownerToken: 'synthetic-owner',
+            httpClient: MockClient((request) async {
+              methods.add(request.method);
+              return http.Response(jsonEncode(setupFixture()), 200);
+            }),
+          );
+        final presentation = PresentationController(storage: SetupStorage());
+        await tester.runAsync(presentation.initialize);
+        await tester.pumpWidget(
+          MaterialApp(
+            home: MediaQuery(
+              data: MediaQueryData(
+                size: small ? const Size(320, 740) : const Size(1536, 1024),
+                textScaler: TextScaler.linear(small ? 2 : 1),
+              ),
+              child: ModelSetupDialog(state: state, presentation: presentation),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        for (final section in [
+          'Model',
+          'Reasoning',
+          'Inputs',
+          'Speech',
+          'Decisions',
+        ]) {
+          final bubble = find.byKey(
+            ValueKey('setup-bubble-${section.toLowerCase()}'),
+          );
+          await tester.ensureVisible(bubble);
+          await tester.pumpAndSettle();
+          expect(bubble.hitTestable(), findsOneWidget);
+          await tester.tap(bubble);
+          await tester.pumpAndSettle();
+          final popover = find.byKey(const ValueKey('setup-popover'));
+          expect(popover, findsOneWidget);
+          await tester.ensureVisible(popover);
+          await tester.pumpAndSettle();
+          expect(find.text('$section settings'), findsOneWidget);
+          if (section == 'Inputs') {
+            expect(
+              tester
+                  .widget<FilterChip>(find.widgetWithText(FilterChip, 'Audio'))
+                  .onSelected,
+              isNull,
+            );
+          }
+          if (section == 'Reasoning') {
+            expect(
+              tester
+                  .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'High'))
+                  .onSelected,
+              isNull,
+            );
+          }
+          // Escape closes the popover and restores its invoking bubble focus,
+          // without dismissing the encompassing setup or changing any model.
+          await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+          await tester.pumpAndSettle();
+          expect(popover, findsNothing);
+          final invoker = tester.widget<InkWell>(
+            find.descendant(of: bubble, matching: find.byType(InkWell)),
+          );
+          expect(invoker.focusNode!.hasFocus, isTrue);
+          expect(find.byType(ModelSetupDialog), findsOneWidget);
+          expect(tester.takeException(), isNull);
+        }
+        expect(methods, ['GET']);
+        expect(state.converseSession, isNull);
+        expect(state.agentSession, isNull);
+        expect(state.converseHistory, isEmpty);
         await tester.pumpWidget(const SizedBox.shrink());
         state.dispose();
         presentation.dispose();

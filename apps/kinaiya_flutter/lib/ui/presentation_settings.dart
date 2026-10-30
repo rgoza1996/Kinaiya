@@ -7,6 +7,97 @@ import '../presentation/controller.dart';
 import '../presentation/platform.dart';
 import 'widgets.dart';
 
+/// The same local preference owner used by Appearance, exposed in Quick settings.
+class InterfaceTransitionsSwitch extends StatefulWidget {
+  const InterfaceTransitionsSwitch({super.key, required this.controller});
+  final PresentationController controller;
+
+  @override
+  State<InterfaceTransitionsSwitch> createState() =>
+      _InterfaceTransitionsSwitchState();
+}
+
+class _InterfaceTransitionsSwitchState
+    extends State<InterfaceTransitionsSwitch> {
+  bool _saving = false;
+  int _generation = 0;
+  String? _error;
+
+  @override
+  void didUpdateWidget(covariant InterfaceTransitionsSwitch oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.controller, widget.controller)) {
+      _generation++;
+      _saving = false;
+      _error = null;
+    }
+  }
+
+  Future<void> _set(bool enabled) async {
+    if (_saving || widget.controller.loading) return;
+    final controller = widget.controller;
+    final generation = ++_generation;
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      await controller.setPreferences(
+        controller.preferences.copyWith(animateTransitions: enabled),
+      );
+    } catch (_) {
+      if (mounted &&
+          generation == _generation &&
+          identical(controller, widget.controller)) {
+        setState(() => _error = 'Could not save interface transitions.');
+      }
+    } finally {
+      if (mounted &&
+          generation == _generation &&
+          identical(controller, widget.controller)) {
+        setState(() => _saving = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: widget.controller,
+    builder: (context, _) {
+      final controller = widget.controller;
+      final preferences = controller.preferences;
+      final reduced =
+          preferences.reducedMotion || MediaQuery.disableAnimationsOf(context);
+      return Material(
+        type: MaterialType.transparency,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Animations'),
+              subtitle: Text(
+                reduced
+                    ? 'Instant · Reduced motion takes priority'
+                    : preferences.animateTransitions
+                    ? 'On · Soft fade'
+                    : 'Off · Instant',
+              ),
+              value: preferences.animateTransitions,
+              onChanged: _saving || controller.loading ? null : _set,
+            ),
+            for (final notice in <String>{
+              if (controller.notice != null) controller.notice!,
+              if (_error != null) _error!,
+            })
+              Semantics(liveRegion: true, child: Text(notice)),
+          ],
+        ),
+      );
+    },
+  );
+}
+
 /// Local presentation controls. This dialog has no runtime or service access.
 class PresentationSettings extends StatefulWidget {
   const PresentationSettings({
@@ -185,9 +276,11 @@ class _PresentationSettingsState extends State<PresentationSettings> {
     _preferences(
       PresentationPreferences(
         reducedMotion: current.reducedMotion,
+        animateTransitions: current.animateTransitions,
         showCharacter: current.showCharacter,
         showCaptions: current.showCaptions,
         usePackPalette: current.usePackPalette,
+        showConverseView: current.showConverseView,
         primaryOverride: primary.isEmpty ? null : primary.toUpperCase(),
         backgroundOverride: background.isEmpty
             ? null
@@ -387,12 +480,25 @@ class _PresentationSettingsState extends State<PresentationSettings> {
                         contentPadding: EdgeInsets.zero,
                         title: const Text('Reduce motion'),
                         subtitle: const Text(
-                          'Keep character animation still. Your device’s reduced motion setting always applies.',
+                          'Keep character animation and interface transitions still. Your device’s reduced motion setting always applies.',
                         ),
                         value: preferences.reducedMotion,
                         onChanged: enabled
                             ? (value) => _preferences(
                                 preferences.copyWith(reducedMotion: value),
+                              )
+                            : null,
+                      ),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Interface transitions'),
+                        subtitle: const Text(
+                          'Fade between views and settings panels. Reduced motion always takes priority.',
+                        ),
+                        value: preferences.animateTransitions,
+                        onChanged: enabled
+                            ? (value) => _preferences(
+                                preferences.copyWith(animateTransitions: value),
                               )
                             : null,
                       ),

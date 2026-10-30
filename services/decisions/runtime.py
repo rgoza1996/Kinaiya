@@ -3,8 +3,6 @@
 import asyncio
 import json
 
-import httpx
-
 from packages.contracts.models import (
     AppendRequest,
     Decision,
@@ -14,6 +12,9 @@ from packages.contracts.models import (
 )
 from packages.providers.disclosure import combine_scopes, entry_allowed, source_scope
 from packages.providers.text import ProviderRefusal
+from services.decisions.window_routing import acknowledged_task, dispatch_failure
+
+DISPATCH_TIMEOUT = 15  # Match the existing Agent HTTP client's admission bound.
 
 
 class ModelClassifier:
@@ -120,6 +121,54 @@ class DecisionsWorker:
                     ),
                 }
             }
+        )
+
+    async def _dispatch_recorded(self, source, decision):
+        # The native cursor can lag a completed/uncertain dispatch after a crash.
+        # Search durable receipts before another executor call, including legacy
+        # rejections which predate explicit source identity fields.
+        after = source.sequence
+        while True:
+            receipts = await self.journal.read(
+                after=after,
+                session_id=source.session_id,
+                kinds=["routing.dispatch"],
+                limit=200,
+            )
+            if any(
+                e.origin == "decisions"
+                and e.thread_id == source.thread_id
+                and e.epoch == source.epoch
+                and source.event_id in e.causes
+                and e.payload.get("decision_id") == decision.decision_id
+                and e.payload.get("state") in {"accepted", "rejected", "unknown", "not_applied"}
+                for e in receipts
+            ):
+                return True
+            if len(receipts) < 200:
+                return False
+            after = receipts[-1].sequence
+
+    async def _record_dispatch(self, source, decision, original, **receipt):
+        await self.journal.append(
+            AppendRequest(
+                session_id=source.session_id,
+                thread_id=source.thread_id,
+                epoch=source.epoch,
+                kind="routing.dispatch",
+                payload={
+                    "decision_id": decision.decision_id,
+                    "source_event_id": original.event_id,
+                    "source_sequence": original.sequence,
+                    "source_revision": decision.source_revision,
+                    "route": decision.route,
+                    "target_task_id": decision.target_task_id,
+                    **receipt,
+                },
+                causes=[source.event_id],
+                task_refs=[decision.target_task_id] if decision.target_task_id else [],
+                idempotency_key=f"dispatch:{decision.decision_id}",
+            )
         )
 
     async def process(self, source):
@@ -239,39 +288,39 @@ class DecisionsWorker:
             )
         if not self.enabled or decision.route == "ignore":
             return decision
+        if await self._dispatch_recorded(source, decision):
+            return decision
+        original = (
+            source
+            if source.event_id == decision.source_event_ids[0]
+            else await self.journal.entry(decision.source_event_ids[0])
+        )
         try:
-            await self.dispatch(source, decision)
-        except (httpx.HTTPStatusError, ValueError) as exc:
-            # A task can finish or advance revisions during classification. Replaying
-            # that same stale control forever must not block later user messages.
-            if isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code not in {
-                403,
-                404,
-                409,
-            }:
-                raise
-            await self.journal.append(
-                AppendRequest(
-                    session_id=source.session_id,
-                    thread_id=source.thread_id,
-                    epoch=source.epoch,
-                    kind="routing.dispatch",
-                    payload={
-                        "decision_id": decision.decision_id,
-                        "state": "rejected",
-                        "reason": "source_or_target_changed",
-                        "target_task_id": decision.target_task_id,
-                        "error_type": type(exc).__name__,
-                    },
-                    causes=[source.event_id],
-                    idempotency_key=f"dispatch-rejected:{decision.decision_id}",
-                )
+            task = await asyncio.wait_for(self.dispatch(source, decision), timeout=DISPATCH_TIMEOUT)
+            acknowledgement = acknowledged_task(
+                task,
+                source,
+                decision.target_task_id if decision.route != "queue" else None,
+                submission_key=decision.idempotency_key if decision.route == "queue" else None,
+            )
+        except Exception as exc:
+            # Unconfirmed effects are durable terminal receipts. Neither a
+            # transport failure nor an invalid ACK proves non-application.
+            await self._record_dispatch(source, decision, original, **dispatch_failure(exc))
+        else:
+            await self._record_dispatch(
+                source,
+                decision,
+                original,
+                state="accepted",
+                reason="executor_accepted",
+                **acknowledgement,
             )
         return decision
 
     async def dispatch(self, source, decision):
         if decision.route == "queue":
-            await self.agent.submit(
+            return await self.agent.submit(
                 TaskRequest(
                     session_id=source.session_id,
                     thread_id=source.thread_id,
@@ -285,7 +334,7 @@ class DecisionsWorker:
                 actor="decisions",
             )
         elif decision.route == "steer":
-            await self.agent.steer(
+            return await self.agent.steer(
                 decision.target_task_id,
                 SteerRequest(
                     instruction=decision.instruction,
@@ -297,7 +346,7 @@ class DecisionsWorker:
                 actor="decisions",
             )
         else:
-            await self.agent.interrupt(
+            return await self.agent.interrupt(
                 decision.target_task_id,
                 InterruptRequest(
                     expected_objective_revision=decision.expected_objective_revision,
