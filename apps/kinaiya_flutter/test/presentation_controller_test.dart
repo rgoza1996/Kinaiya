@@ -311,4 +311,70 @@ void main() {
     expect(controller.preferences.showCharacter, isFalse);
     expect(controller.loading, isFalse);
   });
+
+  test('restores old six-key snapshot without rewriting on read', () async {
+    final oldPreferences = {
+      'reduced_motion': true,
+      'show_character': false,
+      'show_captions': true,
+      'use_pack_palette': false,
+      'primary_override': '#123456',
+      'background_override': '#112233',
+    };
+    final storage = _Storage()
+      ..value = jsonEncode({
+        'state_schema': 1,
+        'preferences': oldPreferences,
+        'package': jsonEncode(fixtures.packageFixture()),
+      });
+    final controller = PresentationController(
+      storage: storage,
+      defaultBundle: fixtures.defaultFixture(),
+    );
+    addTearDown(controller.dispose);
+    await controller.initialize();
+    expect(controller.preferences.reducedMotion, isTrue);
+    expect(controller.preferences.showCharacter, isFalse);
+    expect(controller.preferences.showConverseView, isTrue);
+    expect(controller.preferences.primaryOverride, '#123456');
+    expect(controller.preferences.backgroundOverride, '#112233');
+    expect(controller.preferences.usePackPalette, isFalse);
+    expect(controller.notice, isNull);
+    expect(storage.writes, isEmpty);
+  });
+
+  test('persists converse false and restores it with pack and colors', () async {
+    final storage = _Storage();
+    final controller = PresentationController(
+      storage: storage,
+      defaultBundle: fixtures.defaultFixture(),
+    );
+    addTearDown(controller.dispose);
+    await controller.initialize();
+    await controller.setPreferences(
+      const PresentationPreferences(
+        showConverseView: false,
+        showCharacter: false,
+        primaryOverride: '#123456',
+        backgroundOverride: '#112233',
+      ),
+    );
+    final saved = jsonDecode(storage.value!) as Map;
+    final savedPreferences = saved['preferences'] as Map;
+    expect(savedPreferences['show_converse_view'], isFalse);
+    expect(saved['state_schema'], 1);
+    expect(saved['package'], isNull);
+
+    final reader = PresentationController(
+      storage: storage,
+      defaultBundle: fixtures.defaultFixture(),
+    );
+    addTearDown(reader.dispose);
+    await reader.initialize();
+    expect(reader.preferences.showConverseView, isFalse);
+    expect(reader.preferences.showCharacter, isFalse);
+    expect(reader.preferences.primaryOverride, '#123456');
+    expect(reader.preferences.backgroundOverride, '#112233');
+    expect(reader.notice, isNull);
+  });
 }

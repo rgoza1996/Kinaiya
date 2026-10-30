@@ -6,6 +6,7 @@ class PresentationPreferences {
     this.showCharacter = true,
     this.showCaptions = true,
     this.usePackPalette = true,
+    this.showConverseView = true,
     this.primaryOverride,
     this.backgroundOverride,
   });
@@ -14,6 +15,9 @@ class PresentationPreferences {
   final bool showCharacter;
   final bool showCaptions;
   final bool usePackPalette;
+  // Optional navigation presentation only; never toggles runtime enabled,
+  // character visibility, captions, microphone, or provider state.
+  final bool showConverseView;
   final String? primaryOverride;
   final String? backgroundOverride;
 
@@ -22,6 +26,7 @@ class PresentationPreferences {
     bool? showCharacter,
     bool? showCaptions,
     bool? usePackPalette,
+    bool? showConverseView,
     String? primaryOverride,
     String? backgroundOverride,
     bool clearOverrides = false,
@@ -30,6 +35,7 @@ class PresentationPreferences {
     showCharacter: showCharacter ?? this.showCharacter,
     showCaptions: showCaptions ?? this.showCaptions,
     usePackPalette: usePackPalette ?? this.usePackPalette,
+    showConverseView: showConverseView ?? this.showConverseView,
     primaryOverride: clearOverrides
         ? null
         : primaryOverride ?? this.primaryOverride,
@@ -47,12 +53,16 @@ class PresentationPreferences {
     'show_character': showCharacter,
     'show_captions': showCaptions,
     'use_pack_palette': usePackPalette,
+    'show_converse_view': showConverseView,
     'primary_override': primaryOverride,
     'background_override': backgroundOverride,
   };
 
   static PresentationPreferences fromJson(Object? value) {
-    const keys = {
+    // No state schema bump: the new key is optional on read (old six-key
+    // snapshots default to true) and always written, so old readers/writers
+    // and new readers stay compatible under strict per-shape validation.
+    const oldKeys = {
       'reduced_motion',
       'show_character',
       'show_captions',
@@ -60,13 +70,25 @@ class PresentationPreferences {
       'primary_override',
       'background_override',
     };
-    if (value is! Map<String, dynamic> ||
-        value.length != keys.length ||
-        value.keys.any((key) => !keys.contains(key)) ||
+    const converseKey = 'show_converse_view';
+    if (value is! Map<String, dynamic>) {
+      throw const FormatException('Invalid presentation preferences.');
+    }
+    final isOldShape =
+        value.length == oldKeys.length &&
+        value.keys.every((key) => oldKeys.contains(key));
+    final isNewShape =
+        value.length == oldKeys.length + 1 &&
+        value.keys.every(
+          (key) => oldKeys.contains(key) || key == converseKey,
+        ) &&
+        value.containsKey(converseKey);
+    if ((!isOldShape && !isNewShape) ||
         value['reduced_motion'] is! bool ||
         value['show_character'] is! bool ||
         value['show_captions'] is! bool ||
         value['use_pack_palette'] is! bool ||
+        (isNewShape && value[converseKey] is! bool) ||
         (value['primary_override'] != null &&
             value['primary_override'] is! String) ||
         (value['background_override'] != null &&
@@ -78,6 +100,9 @@ class PresentationPreferences {
       showCharacter: value['show_character'] as bool,
       showCaptions: value['show_captions'] as bool,
       usePackPalette: value['use_pack_palette'] as bool,
+      showConverseView: isNewShape
+          ? value[converseKey] as bool
+          : true,
       primaryOverride: value['primary_override'] as String?,
       backgroundOverride: value['background_override'] as String?,
     );
