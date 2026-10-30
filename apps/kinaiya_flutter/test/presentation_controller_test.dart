@@ -336,6 +336,7 @@ void main() {
     expect(controller.preferences.reducedMotion, isTrue);
     expect(controller.preferences.showCharacter, isFalse);
     expect(controller.preferences.showConverseView, isTrue);
+    expect(controller.preferences.speechMouthMotion, isTrue);
     expect(controller.preferences.primaryOverride, '#123456');
     expect(controller.preferences.backgroundOverride, '#112233');
     expect(controller.preferences.usePackPalette, isFalse);
@@ -361,6 +362,7 @@ void main() {
         const PresentationPreferences(
           showConverseView: false,
           animateTransitions: false,
+          speechMouthMotion: false,
           showCharacter: false,
           primaryOverride: '#123456',
           backgroundOverride: '#112233',
@@ -370,6 +372,7 @@ void main() {
       final savedPreferences = saved['preferences'] as Map;
       expect(savedPreferences['show_converse_view'], isFalse);
       expect(savedPreferences['animate_transitions'], isFalse);
+      expect(savedPreferences['speech_mouth_motion'], isFalse);
       expect(saved['state_schema'], 1);
       expect(saved['package'], imported.packageJson);
 
@@ -382,6 +385,7 @@ void main() {
       expect(reader.selected!.pack.name, 'Local character');
       expect(reader.preferences.showConverseView, isFalse);
       expect(reader.preferences.animateTransitions, isFalse);
+      expect(reader.preferences.speechMouthMotion, isFalse);
       expect(reader.preferences.showCharacter, isFalse);
       expect(reader.preferences.primaryOverride, '#123456');
       expect(reader.preferences.backgroundOverride, '#112233');

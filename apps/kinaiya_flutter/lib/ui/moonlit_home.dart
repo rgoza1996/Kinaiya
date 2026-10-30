@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import 'anchored_moonlit_scene.dart';
+import 'converse_mouth.dart';
 import 'design_tokens.dart';
 
 /// Home presentation shares CharacterView's voice owner with optional Converse.
@@ -331,18 +332,25 @@ class _MoonlitHomeState extends State<MoonlitHome> {
   );
 }
 
-/// Unmodified native Penpot expression atlas. Cropping happens in the renderer;
-/// poses communicate observed listening/thinking/playback, not invented emotion.
+/// The approved atlas supplies a stable face while playback cues animate only
+/// the mouth. Thinking still selects the atlas' original thinking pose.
 class ConversePortrait extends StatelessWidget {
   const ConversePortrait({
     super.key,
     this.speaking = false,
     this.thinking = false,
+    this.mouthOpenness = 0,
+    this.viseme,
   });
   final bool speaking, thinking;
+  final double mouthOpenness;
+  final String? viseme;
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, bounds) {
+      final mouth = speaking && !MediaQuery.disableAnimationsOf(context)
+          ? converseMouthPose(mouthOpenness, viseme)
+          : ConverseMouthPose.closed;
       return Semantics(
         label: speaking
             ? 'Kinaiya speaking'
@@ -360,7 +368,7 @@ class ConversePortrait extends StatelessWidget {
                   children: [
                     Positioned(
                       left: thinking && !speaking ? -768 : 0,
-                      top: speaking ? -512 : 0,
+                      top: 0,
                       width: 1536,
                       height: 1024,
                       child: Image.asset(
@@ -369,6 +377,15 @@ class ConversePortrait extends StatelessWidget {
                         excludeFromSemantics: true,
                       ),
                     ),
+                    if (mouth != ConverseMouthPose.closed)
+                      Positioned.fill(
+                        child: ExcludeSemantics(
+                          child: CustomPaint(
+                            key: const ValueKey('converse-speech-mouth'),
+                            painter: ConverseMouthPainter(mouth),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),

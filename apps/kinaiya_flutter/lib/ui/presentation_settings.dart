@@ -277,6 +277,7 @@ class _PresentationSettingsState extends State<PresentationSettings> {
       PresentationPreferences(
         reducedMotion: current.reducedMotion,
         animateTransitions: current.animateTransitions,
+        speechMouthMotion: current.speechMouthMotion,
         showCharacter: current.showCharacter,
         showCaptions: current.showCaptions,
         usePackPalette: current.usePackPalette,
@@ -475,7 +476,7 @@ class _PresentationSettingsState extends State<PresentationSettings> {
                           ),
                         ),
                       ],
-                      _heading('Presentation'),
+                      _heading('Character & motion'),
                       SwitchListTile(
                         contentPadding: EdgeInsets.zero,
                         title: const Text('Reduce motion'),
@@ -499,6 +500,23 @@ class _PresentationSettingsState extends State<PresentationSettings> {
                         onChanged: enabled
                             ? (value) => _preferences(
                                 preferences.copyWith(animateTransitions: value),
+                              )
+                            : null,
+                      ),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Speech mouth movement'),
+                        subtitle: Text(
+                          preferences.reducedMotion || media.disableAnimations
+                              ? 'Still · Reduced motion takes priority. Your choice is saved for when motion is enabled.'
+                              : 'Move Kinaiya’s mouth with her spoken audio in the default Converse portrait. Turn off to keep her mouth still.',
+                        ),
+                        value: preferences.speechMouthMotion,
+                        onChanged: enabled
+                            ? (value) => _preferences(
+                                controller.preferences.copyWith(
+                                  speechMouthMotion: value,
+                                ),
                               )
                             : null,
                       ),

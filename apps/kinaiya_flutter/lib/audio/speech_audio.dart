@@ -3,6 +3,8 @@
 /// voice is unavailable and the UI degrades to text.
 library;
 
+export 'speech_mouth.dart';
+
 import 'speech_audio_stub.dart'
     if (dart.library.js_interop) 'speech_audio_web.dart'
     as impl;
