@@ -1,0 +1,118 @@
+{
+  "schema_version": "1.0",
+  "issue": 134,
+  "recorded_utc": "2026-10-30T14:12:07.384064+00:00",
+  "scope": "Public synthetic Session HTTP/ASGI journal -> real local native count/generation in typed/live Converse plus request-owned cancellation; no private journal, STT/TTS, cloud, loads or settings changes",
+  "native_source_head": "60730eb7e0ffe4a52c649a7fad5463a38538565c",
+  "source_sha256": {
+    "packages/providers/lmstudio.py": "9fe1d8e2d608ebf60e3f01ed8f18ed245e2a27853a8570867fc0c20a96f5c0b2",
+    "packages/providers/prompt_budget.py": "41924aff6df9f54901be6c2e18d12fbc85a4e706569847f84d167a02711f11b9",
+    "packages/contracts/context.py": "752082aba7487b87d17ef1dbf810ce71f6469dab7aea92e2702e524ee69422d9",
+    "packages/contracts/client.py": "ee2d7c4ac842e59e893cb3789703c228f83110007234bf53dfcadd261f49f013",
+    "services/session/store.py": "a302efa6d75d939062d4c688dc196629c68c308204266947ea6246144f01fc2e",
+    "services/session/api.py": "9c08eba266bbf7d498e03dee120a7e2a4637012d340190d951c5455caceea930",
+    "services/converse/context_budget.py": "b4fd196762655e182f8104d36bdf0b33411b34c6923ef093ee7e0ef300aea013",
+    "services/converse/delivery_context.py": "d82dfac18fef1c0ad440f0acf09dbe401a8e74eaaff5aa9a063c138dd5ffa432",
+    "services/converse/history.py": "febabbc8801454418aaad70efacd7bb0795e44de03ca9f1b68375acabb1afc3d",
+    "services/converse/memory.py": "7ef8e2cbd404fe1859de996ae083385f9709ca33e1d6d82efcc76e9467d79aa3",
+    "services/converse/runtime.py": "abea221296310aa7fbae947d54e75d34bb6cdb843464460a28f193735ac7de1f",
+    "services/converse/windows.py": "da86b9a21f38559e96e0a63cc7a28d894e042899abafc358c52b3d95f47140ba",
+    "services/converse/api.py": "cae7b87cf0dd0cc994b0054af9d4955d6681f31808f3da284d40daf9573390c5",
+    "services/launcher.py": "b8e5c91d1b2888ccfe6932c67672e615ce9006793a837fbfd8746c1c752f1e9b",
+    "tests/live/test_lmstudio_context.py": "9776177084ce9b31cd7775cb91ed1d716bdabb5df3fc1c6cbca25441bf10a744"
+  },
+  "runtime": {
+    "python": "3.12.3",
+    "websockets": "15.0.1",
+    "loaded_model": "Qwen3-0.6B-Q8_0",
+    "loaded_context_tokens": 2048,
+    "output_reservation_tokens": 128,
+    "backend": "llama.cpp-linux-x86_64-amd-rocm-avx2-2.65.1",
+    "gpu_pid_start_ticks": "31922860",
+    "gpu_instance_sha256": "b7c877a511cc67e857c4372fd8a0b2036ad01ab08e9065a6d52bb8be34d76560",
+    "amdgpu_resident_vram_kib": 1177024
+  },
+  "native_receipt": {
+    "source_head": "60730eb7e0ffe4a52c649a7fad5463a38538565c",
+    "typed": {
+      "history_messages": 24,
+      "input_tokens": 418,
+      "count": {
+        "version": 1,
+        "input_tokens": 418,
+        "context_tokens": 2048,
+        "reserved_output_tokens": 128,
+        "request_sha256": "3bc3294a410e285b611416ed2083a5273e793a52e28e9e07faee249bda5fc6c5",
+        "binding_sha256": "a8e5e0e879d5ef471c9010046f16301691c14b5818a81255773d563558883988"
+      },
+      "public_reply": "Hello! How can I assist you today?"
+    },
+    "live": {
+      "prompt_messages": 30,
+      "history_messages": 27,
+      "count": {
+        "version": 1,
+        "input_tokens": 864,
+        "context_tokens": 2048,
+        "reserved_output_tokens": 128,
+        "request_sha256": "ae858e270a3597ccd99d020a4da8f7b2e8bde0f336c691a72e042dcdc572979e",
+        "binding_sha256": "a8e5e0e879d5ef471c9010046f16301691c14b5818a81255773d563558883988"
+      }
+    },
+    "terminal_records": [
+      {
+        "stats": {
+          "stopReason": "eosFound",
+          "tokensPerSecond": 172.9472126674225,
+          "timeToFirstTokenSec": 0.011734999999999999,
+          "totalTimeSec": 0.063774,
+          "promptTokensCount": 418,
+          "predictedTokensCount": 10,
+          "totalTokensCount": 428
+        },
+        "instance_sha256": "b7c877a511cc67e857c4372fd8a0b2036ad01ab08e9065a6d52bb8be34d76560"
+      },
+      {
+        "stats": {
+          "stopReason": "eosFound",
+          "tokensPerSecond": 155.82796592561812,
+          "timeToFirstTokenSec": 0.11216,
+          "totalTimeSec": 0.131412,
+          "promptTokensCount": 864,
+          "predictedTokensCount": 4,
+          "totalTokensCount": 868
+        },
+        "instance_sha256": "b7c877a511cc67e857c4372fd8a0b2036ad01ab08e9065a6d52bb8be34d76560"
+      },
+      {
+        "stats": {
+          "stopReason": "userStopped"
+        },
+        "instance_sha256": "b7c877a511cc67e857c4372fd8a0b2036ad01ab08e9065a6d52bb8be34d76560"
+      }
+    ],
+    "cancellation_first_fragment_chars": 3,
+    "cancellation_cleanup_confirmed": true,
+    "only_public_synthetic": true,
+    "human_quality_not_asserted": true
+  },
+  "verification_before_final_ci": {
+    "native_live_test": "1 passed in 8.77s",
+    "provider_launcher_memory_group": "100 passed in 3.56s",
+    "unchanged_playback_health_cleanup_group": "161 passed in 27.34s",
+    "dependency_audit": "No known vulnerabilities found",
+    "independence": "Session/provider root changes independently reviewed; fixes for stable binding, split reasoning tags, live memory lease recovery, and malformed-record indexes checked separately"
+  },
+  "earlier_failures": [
+    "Native completion omitted inactive draft-model default: strict refusal; failed provider not reused, terminal/channel/native task release reconciled, narrow normalization added with positive/negative tests.",
+    "Public proof wrapper originally failed to own/close its inner generator on cancellation; failed attempt preserved, harness corrected with aclosing and provider.close, fresh final pytest journal used.",
+    "Initial broad run: 15 failed / 4023 passed / 6 skipped, including health-adapter regression, guarded-index regression and one timing-sensitive cleanup failure. Original expectations retained; focused affected group then passed. Final full regression and exact-head CI are separate release gates."
+  ],
+  "limits": [
+    "No assertion of semantic conversation quality or human acceptance.",
+    "No physical audible latency measurement.",
+    "Resident GPU continuity is not constrained-8GB hardware acceptance.",
+    "Unmanaged external LM Studio lifecycle/handoff remains refused.",
+    "Generic providers without exact counting refuse production history budgeting."
+  ]
+}

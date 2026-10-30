@@ -189,3 +189,30 @@ Errors distinguish unsupported counting, oversized protected input, stale model/
 conversation, and incomplete retrieval. Counters and page guards never write
 transcript text to logs. Memory use remains separately owner-selected; ordinary
 history budgeting does not enable DAG recall or change retention settings.
+
+## Native verification
+
+The [public synthetic receipt](../../evaluation/evidence/converse-context-window-2026-10-30.json)
+binds the tested source and relevant file digests. On the already resident GPU
+Qwen3-0.6B-Q8_0 instance, typed history retained 24 prior messages despite 350
+operational events; live history retained more than eight messages with native
+playback qualifications. Native terminal input counts matched the exact final
+measurements. Request-owned cancellation returned `userStopped`, channel closure
+and real transport cleanup without poisoning reuse. The process start identity
+and immutable instance remained unchanged; no load/unload/settings call occurred.
+This verifies prompt retention and lifecycle, not human dialogue quality.
+
+Reproduce only against the explicitly selected already-loaded local model:
+
+```bash
+KINAIYA_LIVE_LMSTUDIO_CONTEXT=1 \
+KINAIYA_LMSTUDIO_MODEL=kinaiya-converse-gpu \
+python -m pytest tests/live/test_lmstudio_context.py -q
+```
+
+`KINAIYA_LMSTUDIO_URL` may select another loopback server; no remote fallback is
+allowed. Each run uses a fresh public synthetic Session database. The fixture
+must fit within the selected loaded context. CI excludes live model calls.
+Earlier failed native and harness attempts remain in the local proof record;
+they are not counted as passing evidence. The full deterministic suite and all
+applicable exact-head GitHub jobs remain the release gate after source freeze.
