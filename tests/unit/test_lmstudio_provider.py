@@ -677,3 +677,31 @@ async def test_control_tags_split_across_native_fragments_refuse_before_reasonin
         async for fragment in provider(wire).stream(MESSAGES):
             emitted.append(fragment)
     assert "Private fixture reasoning" not in "".join(emitted)
+
+
+async def test_native_terminal_omits_inactive_draft_default_but_active_draft_refuses():
+    wire = NativeFixture()
+    original = wire.terminal
+
+    def terminal(ws, stop=None):
+        result = original(ws, stop)
+        result["predictionConfig"]["fields"] = [
+            field
+            for field in result["predictionConfig"]["fields"]
+            if field["key"] != "llm.prediction.speculativeDecoding.draftModel"
+        ]
+        return result
+
+    wire.terminal = terminal
+    assert await provider(wire).complete(MESSAGES) == "Public reply."
+
+    def active(ws, stop=None):
+        result = terminal(ws, stop)
+        result["predictionConfig"]["fields"].append(
+            {"key": "llm.prediction.speculativeDecoding.draftModel", "value": "unauthorized-draft"}
+        )
+        return result
+
+    wire.terminal = active
+    with pytest.raises(ProviderCleanupError):
+        await provider(wire).complete(MESSAGES)

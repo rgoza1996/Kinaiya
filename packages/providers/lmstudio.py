@@ -619,6 +619,11 @@ class LMStudioProvider:
         ):
             raise _refuse()
         effective = _fields(message["predictionConfig"])
+        # Native completion records omit the inactive draft-model default. The
+        # request still pins it explicitly; an active key or draft usage refuses.
+        draft_key = "llm.prediction.speculativeDecoding.draftModel"
+        if draft_key not in effective and snapshot["effective"].get(draft_key) == "":
+            effective[draft_key] = ""
         if any(effective.get(k) != v for k, v in snapshot["effective"].items()):
             raise _refuse()
         if stats.get("usedDraftModelKey") not in {None, ""}:
