@@ -6,6 +6,7 @@ library;
 
 class ConverseViewControls {
   Future<void> Function()? openVoiceOptions;
+  Future<void> Function()? openTextConversation;
 }
 
 class AgentViewControls {

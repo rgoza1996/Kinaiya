@@ -335,8 +335,10 @@ void main() {
       await finishIo(tester, () => drawn.evaluate().isNotEmpty);
       final painter =
           tester.widget<CustomPaint>(drawn).painter! as MascotFramePainter;
-      expect(painter.image.width, original.pack.sheets.values.first.width);
-      expect(painter.src, original.pack.sheets.values.first.frameRect(0));
+      final previewIdle = original.pack.animations['idle']!;
+      final previewSheet = original.pack.sheets[previewIdle.sheet]!;
+      expect(painter.image.width, previewSheet.width);
+      expect(painter.src, previewSheet.frameRect(previewIdle.frames.first));
       await tester.pump(const Duration(seconds: 1));
       expect(
         (tester.widget<CustomPaint>(drawn).painter! as MascotFramePainter).src,

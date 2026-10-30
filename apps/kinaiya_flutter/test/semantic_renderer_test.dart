@@ -160,6 +160,71 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets(
+    'actual default seated idle stays on frame zero with reduced motion',
+    (tester) async {
+      final pack = await tester.runAsync(() => loadCharacterPack());
+      expect(pack, isNotNull);
+      expect(pack!.fallback, isFalse, reason: pack.note);
+      final seated = pack.sheets['seated_idle'];
+      expect(seated, isNotNull);
+      final bytes = <String, Uint8List>{};
+      for (final sheet in pack.sheets.values) {
+        final data = await tester.runAsync(() => rootBundle.load(sheet.asset));
+        bytes[sheet.asset] = data!.buffer.asUint8List(
+          data.offsetInBytes,
+          data.lengthInBytes,
+        );
+      }
+      final bundle = RendererBundle(bytes);
+      await tester.pumpWidget(scene(pack, bundle, reduced: true));
+      await decoded(tester);
+      final image = currentFrame(tester).image;
+      expect(bundle.loads[seated!.asset], 1);
+      expect(currentFrame(tester).src, seated.frameRect(0));
+      expect(image.width, seated.width);
+      expect(image.height, seated.height);
+      await tester.pump(const Duration(seconds: 3));
+      expect(currentFrame(tester).image, same(image));
+      expect(currentFrame(tester).src, seated.frameRect(0));
+
+      await tester.pumpWidget(
+        scene(
+          pack,
+          bundle,
+          signals: const CharacterSignals(listening: true),
+          reduced: true,
+        ),
+      );
+      await decoded(tester);
+      expect(currentFrame(tester).src, pack.sheets['core']!.frameRect(4));
+      await tester.pumpWidget(scene(pack, bundle, reduced: true));
+      await decoded(tester);
+      expect(currentFrame(tester).src, seated.frameRect(0));
+      expect(bundle.loads[seated.asset], 1);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'actual default idle animates only the registered seated frames',
+    (tester) async {
+      final pack = await tester.runAsync(() => loadCharacterPack());
+      expect(pack, isNotNull);
+      expect(pack!.fallback, isFalse, reason: pack.note);
+      final seated = pack.sheets['seated_idle']!;
+      await tester.pumpWidget(scene(pack, rootBundle));
+      await decoded(tester);
+      final observed = <Rect>{currentFrame(tester).src};
+      for (var tick = 0; tick < 25; tick++) {
+        await tester.pump(const Duration(milliseconds: 110));
+        observed.add(currentFrame(tester).src);
+      }
+      expect(observed, {seated.frameRect(0), seated.frameRect(2)});
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
     'semantic inputs select and advance real frames without reloading a shared sheet',
     (tester) async {
       final (pack, bundle) = await fixture();

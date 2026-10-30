@@ -5,6 +5,7 @@ import 'package:kinaiya_flutter/config/connection.dart';
 import 'package:kinaiya_flutter/state/app_state.dart';
 
 import 'client_test.dart' show mockClient;
+import 'concept_layout_test.dart' show openConverseChat, navigateTo;
 
 AppState wiredState() {
   final state = AppState();
@@ -53,9 +54,14 @@ void main() {
     await tester.pumpWidget(KinaiyaApp(state: state));
     await tester.pump(const Duration(milliseconds: 200));
 
+    expect(find.byKey(const ValueKey('converse-input')), findsNothing);
+    expect(find.text('Call Kinaiya'), findsOneWidget);
+    expect(find.text('Tell Kinaiya'), findsOneWidget);
+    expect(find.text('Send task'), findsNothing);
+
+    await openConverseChat(tester);
     expect(find.text('Talk with Kinaiya'), findsOneWidget);
     expect(find.text('Send'), findsOneWidget);
-    expect(find.text('Send task'), findsNothing);
 
     await tester.enterText(find.byType(TextField), '/status do stuff');
     await tester.pump(const Duration(milliseconds: 100));
@@ -78,10 +84,10 @@ void main() {
     await tester.pumpWidget(KinaiyaApp(state: state));
     await tester.pump(const Duration(milliseconds: 200));
 
+    await openConverseChat(tester);
     await tester.enterText(find.byType(TextField), 'remember me');
     await tester.pump(const Duration(milliseconds: 100));
-    await tester.tap(find.text('Agent Chat'));
-    await tester.pump(const Duration(milliseconds: 300));
+    await navigateTo(tester, AppView.agent);
     expect(find.text('Send task'), findsOneWidget);
 
     await tester.enterText(find.byType(TextField), '/nope');
@@ -91,8 +97,15 @@ void main() {
     expect(state.agentNotice, contains('registry unavailable'));
     expect(state.agentHistory, isEmpty);
 
-    await tester.tap(find.text('Converse'));
-    await tester.pump(const Duration(milliseconds: 200));
+    await navigateTo(tester, AppView.character);
+    await openConverseChat(tester);
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const ValueKey('converse-input')))
+          .controller!
+          .text,
+      'remember me',
+    );
     expect(state.converseDraft, 'remember me');
   });
 }

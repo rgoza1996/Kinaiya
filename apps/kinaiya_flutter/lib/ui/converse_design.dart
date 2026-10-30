@@ -21,15 +21,10 @@ class ConverseVoiceActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
     return Container(
       key: const ValueKey('converse-voice-group'),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-      decoration: BoxDecoration(
-        color: colors.primaryContainer.withValues(alpha: .72),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: colors.outlineVariant),
-      ),
+
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -42,6 +37,7 @@ class ConverseVoiceActions extends StatelessWidget {
               icon: callIcon,
               onPressed: onCall,
               key: const ValueKey('call-kinaiya'),
+              copyKey: const ValueKey('call-kinaiya-copy'),
               description: 'Have a natural conversation',
             ),
           ),
@@ -55,6 +51,7 @@ class ConverseVoiceActions extends StatelessWidget {
               icon: tellIcon,
               onPressed: onTell,
               key: const ValueKey('tell-kinaiya'),
+              copyKey: const ValueKey('tell-kinaiya-copy'),
               description: 'Send a voice message',
             ),
           ),
@@ -66,6 +63,7 @@ class ConverseVoiceActions extends StatelessWidget {
   Widget _action(
     BuildContext context, {
     required Key key,
+    required Key copyKey,
     required bool filled,
     required String label,
     required String tooltip,
@@ -79,6 +77,13 @@ class ConverseVoiceActions extends StatelessWidget {
       maximumSize: const WidgetStatePropertyAll(Size.square(80)),
       padding: const WidgetStatePropertyAll(EdgeInsets.zero),
       shape: const WidgetStatePropertyAll(CircleBorder()),
+      backgroundColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.disabled)
+            ? Color.lerp(colors.surface, colors.onSurface, .12)
+            : filled
+            ? colors.primary
+            : colors.surface,
+      ),
     );
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -105,21 +110,34 @@ class ConverseVoiceActions extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 10),
-        Text(
-          label,
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-            color: colors.onPrimaryContainer,
-            fontWeight: FontWeight.w700,
+        Container(
+          key: copyKey,
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: BorderRadius.circular(12),
           ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          description,
-          textAlign: TextAlign.center,
-          style: Theme.of(
-            context,
-          ).textTheme.bodySmall?.copyWith(color: colors.onPrimaryContainer),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: colors.onPrimaryContainer,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                description,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: colors.onPrimaryContainer,
+                ),
+              ),
+            ],
+          ),
         ),
       ],
     );

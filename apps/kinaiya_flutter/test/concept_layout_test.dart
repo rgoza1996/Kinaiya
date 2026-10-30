@@ -9,7 +9,7 @@ import 'package:kinaiya_flutter/audio/speech_audio.dart';
 import 'package:kinaiya_flutter/config/connection.dart';
 import 'package:kinaiya_flutter/state/app_state.dart';
 import 'package:kinaiya_flutter/ui/character_view.dart';
-import 'package:kinaiya_flutter/ui/moonlit_scene.dart';
+import 'package:kinaiya_flutter/ui/anchored_moonlit_scene.dart';
 import 'package:kinaiya_flutter/ui/visual_theme.dart';
 
 import 'client_test.dart' show mockTransport;
@@ -149,6 +149,43 @@ Future<void> close(WidgetTester tester, AppState state) async {
   state.dispose();
 }
 
+Future<void> openConverseChat(WidgetTester tester) async {
+  if (find.byKey(const ValueKey('converse-input')).evaluate().isNotEmpty) {
+    return;
+  }
+  await tester.tap(find.byTooltip('Converse chat'));
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 300));
+  expect(find.byKey(const ValueKey('converse-input')), findsOneWidget);
+}
+
+Future<void> closeConverseChat(WidgetTester tester) async {
+  final closeChat = find.byTooltip('Close Converse chat').hitTestable();
+  if (closeChat.evaluate().isEmpty) return;
+  await tester.tap(closeChat);
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 300));
+}
+
+Future<void> navigateTo(WidgetTester tester, AppView view) async {
+  await closeConverseChat(tester);
+  final destination = find.byKey(
+    ValueKey(
+      view == AppView.agent ? 'navigation-agent' : 'navigation-converse',
+    ),
+  );
+  if (destination.hitTestable().evaluate().isEmpty) {
+    await tester.tap(find.byKey(const ValueKey('navigation-menu')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+  }
+  expect(destination.hitTestable(), findsOneWidget);
+  await tester.tap(destination.hitTestable());
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 300));
+  await settle(tester);
+}
+
 void main() {
   testWidgets(
     'navigation retains armed capture, sessions and separate drafts',
@@ -160,11 +197,12 @@ void main() {
       await tester.pumpWidget(KinaiyaApp(state: state, audio: audio));
       await settle(tester);
       final character = tester.state(find.byType(CharacterView));
+      await openConverseChat(tester);
       await tester.enterText(
         find.byKey(const ValueKey('converse-input')),
         'Conversation draft',
       );
-      // Focusing the input scrolls the taller stage's composer into view.
+      await closeConverseChat(tester);
       await tester.ensureVisible(
         find.byTooltip('Start Live listen (armed mic)'),
       );
@@ -177,8 +215,7 @@ void main() {
       await settle(tester);
       expect(audio.starts, 1);
       expect(audio.clips, 1);
-      await tester.tap(find.text('Agent Chat'));
-      await settle(tester);
+      await navigateTo(tester, AppView.agent);
       expect(find.text('Live microphone on'), findsOneWidget);
       expect(find.byTooltip('Start Live listen (armed mic)'), findsNothing);
       expect(audio.micStops, 0);
@@ -200,8 +237,15 @@ void main() {
       expect(audio.recordCancels, 1);
       expect(api.interrupts, 0);
       expect(api.fixtures.single.state, 'running');
-      await tester.tap(find.text('Converse'));
-      await settle(tester);
+      await navigateTo(tester, AppView.character);
+      await openConverseChat(tester);
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const ValueKey('converse-input')))
+            .controller!
+            .text,
+        'Conversation draft',
+      );
       expect(state.converseDraft, 'Conversation draft');
       expect(state.agentDraft, 'Agent draft');
       expect(identical(state.converseSession, converse), isTrue);
@@ -225,8 +269,7 @@ void main() {
     await tester.tap(find.byTooltip('Record voice'));
     await settle(tester);
     expect(audio.recordStarts, 1);
-    await tester.tap(find.text('Agent Chat'));
-    await settle(tester);
+    await navigateTo(tester, AppView.agent);
     expect(find.text('Recording a voice message'), findsOneWidget);
     await tester.tap(find.text('Stop microphone'));
     await settle(tester);
@@ -248,8 +291,7 @@ void main() {
     await settle(tester);
     await tester.tap(find.byTooltip('Start Live listen (armed mic)'));
     await settle(tester);
-    await tester.tap(find.text('Agent Chat'));
-    await settle(tester);
+    await navigateTo(tester, AppView.agent);
     audio.rejectStop = true;
     await tester.tap(find.text('Stop microphone'));
     await settle(tester);
@@ -273,8 +315,7 @@ void main() {
     await settle(tester);
     await tester.tap(find.byTooltip('Start Live listen (armed mic)'));
     await settle(tester);
-    await tester.tap(find.text('Agent Chat'));
-    await settle(tester);
+    await navigateTo(tester, AppView.agent);
     final firstStop = Completer<void>();
     audio.pendingStop = firstStop;
     await tester.tap(find.text('Stop microphone'));
@@ -317,8 +358,7 @@ void main() {
       await settle(tester);
       await tester.tap(find.byTooltip('Start Live listen (armed mic)'));
       await settle(tester);
-      await tester.tap(find.text('Agent Chat'));
-      await settle(tester);
+      await navigateTo(tester, AppView.agent);
       final firstStop = Completer<void>();
       audio.pendingPlaybackStop = firstStop;
       await tester.tap(find.text('Stop microphone'));
@@ -406,7 +446,7 @@ void main() {
         final state = wired(api);
         await tester.pumpWidget(KinaiyaApp(state: state, audio: LayoutAudio()));
         await settle(tester);
-        expect(find.byType(MoonlitScene), findsOneWidget);
+        expect(find.byType(AnchoredMoonlitScene), findsOneWidget);
         expect(tester.takeException(), isNull);
         state.setView(AppView.agent);
         await settle(tester);
@@ -431,6 +471,7 @@ void main() {
       final state = wired(LayoutApi())..setView(view);
       await tester.pumpWidget(KinaiyaApp(state: state, audio: LayoutAudio()));
       await settle(tester);
+      if (view == AppView.character) await openConverseChat(tester);
       final field = find.byKey(
         ValueKey(view == AppView.character ? 'converse-input' : 'agent-input'),
       );

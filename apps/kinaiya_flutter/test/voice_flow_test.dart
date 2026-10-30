@@ -7,6 +7,7 @@ import 'package:kinaiya_flutter/config/connection.dart';
 import 'package:kinaiya_flutter/state/app_state.dart';
 
 import 'client_test.dart' show mockClient;
+import 'concept_layout_test.dart' show openConverseChat, closeConverseChat;
 
 AppState wiredState() {
   final state = AppState();
@@ -116,6 +117,7 @@ void main() {
     // Silence/timing live behind Voice options; opening and closing the
     // sheet touches nothing.
     expect(find.text('Silence'), findsNothing);
+    await openConverseChat(tester);
     await tester.tap(find.byKey(const ValueKey('voice-options')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
@@ -128,6 +130,8 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('Silence'), findsNothing);
+    expect(find.byKey(const ValueKey('converse-input')), findsOneWidget);
+    await closeConverseChat(tester);
     // Capture must not look usable; text still works.
     expect(
       tester
@@ -142,7 +146,6 @@ void main() {
       isNull,
     );
     expect(find.byTooltip('Microphone unavailable here'), findsNWidgets(2));
-    expect(find.byKey(const ValueKey('converse-input')), findsOneWidget);
     expect(tester.takeException(), isNull);
     state.dispose();
   });

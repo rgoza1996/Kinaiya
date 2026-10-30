@@ -12,7 +12,16 @@ import 'package:kinaiya_flutter/ui/moonlit_scene.dart';
 import 'package:kinaiya_flutter/ui/widgets.dart';
 
 import 'concept_layout_test.dart'
-    show LayoutApi, LayoutAudio, wired, task, settle, close;
+    show
+        LayoutApi,
+        LayoutAudio,
+        wired,
+        task,
+        settle,
+        close,
+        openConverseChat,
+        closeConverseChat,
+        navigateTo;
 import 'mascot_sprites_test.dart' show makePng, buildV2, decoded, currentFrame;
 
 class MemoryPresentationStorage implements PresentationStorage {
@@ -90,6 +99,22 @@ class PresentationApi extends LayoutApi {
   }
 }
 
+void expectVoiceOnlyMain() {
+  final main = find.byType(CharacterView);
+  expect(
+    find.descendant(
+      of: main,
+      matching: find.byWidgetPredicate((widget) => widget is ButtonStyleButton),
+    ),
+    findsNWidgets(2),
+  );
+  expect(find.byKey(const ValueKey('call-kinaiya')), findsOneWidget);
+  expect(find.byKey(const ValueKey('tell-kinaiya')), findsOneWidget);
+  expect(find.byKey(const ValueKey('converse-input')), findsNothing);
+  expect(find.byKey(const ValueKey('voice-options')), findsNothing);
+  expect(find.byKey(const ValueKey('converse-memory')), findsNothing);
+}
+
 void main() {
   testWidgets(
     'live pack and palette replacement preserves capture and worker identity',
@@ -118,10 +143,12 @@ void main() {
       final agentState = tester.state(
         find.byType(AgentChat, skipOffstage: false),
       );
+      await openConverseChat(tester);
       await tester.enterText(
         find.byKey(const ValueKey('converse-input')),
         'Keep Converse draft',
       );
+      await closeConverseChat(tester);
       await tester.ensureVisible(
         find.byTooltip('Start Live listen (armed mic)'),
       );
@@ -144,6 +171,7 @@ void main() {
       await decoded(tester);
       expect(currentFrame(tester).image.width, 8);
       expect(currentFrame(tester).src.width, 4);
+      expectVoiceOnlyMain();
       final scene = tester.widget<MoonlitScene>(find.byType(MoonlitScene));
       expect(scene.primary, const Color(0xFF12693C));
       expect(scene.background, const Color(0xFFF4FFF5));
@@ -171,8 +199,43 @@ void main() {
         ).disableAnimations,
         isTrue,
       );
-      await tester.tap(find.text('Agent Chat'));
-      await settle(tester);
+      expectVoiceOnlyMain();
+      await openConverseChat(tester);
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const ValueKey('converse-input')))
+            .controller!
+            .text,
+        'Keep Converse draft',
+      );
+      expect(
+        find.byKey(const ValueKey('voice-options')).hitTestable(),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('converse-memory')).hitTestable(),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byType(Dialog),
+          matching: find.byKey(const ValueKey('call-kinaiya')),
+        ),
+        findsNothing,
+      );
+      expect(
+        find.descendant(
+          of: find.byType(Dialog),
+          matching: find.byKey(const ValueKey('tell-kinaiya')),
+        ),
+        findsNothing,
+      );
+      await closeConverseChat(tester);
+      expectVoiceOnlyMain();
+      expect(audio.starts, 1);
+      expect(audio.micStops, 0);
+      expect(api.transcriptions, 0);
+      await navigateTo(tester, AppView.agent);
       await tester.enterText(
         find.byKey(const ValueKey('agent-input')),
         'Keep Agent draft',
@@ -180,8 +243,7 @@ void main() {
       expect(find.text('Live microphone on'), findsOneWidget);
       expect(find.byTooltip('Appearance'), findsOneWidget);
       expect(state.approvals.single.approvalId, 'public-approval');
-      await tester.tap(find.text('Converse'));
-      await settle(tester);
+      await navigateTo(tester, AppView.character);
       expect(
         identical(tester.state(find.byType(CharacterView)), characterState),
         isTrue,

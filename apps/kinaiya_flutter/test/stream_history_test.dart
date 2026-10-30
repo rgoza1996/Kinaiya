@@ -11,6 +11,8 @@ import 'package:kinaiya_flutter/app.dart';
 import 'package:kinaiya_flutter/config/connection.dart';
 import 'package:kinaiya_flutter/state/app_state.dart';
 
+import 'concept_layout_test.dart' show openConverseChat, closeConverseChat;
+
 AppState wired(http.Client transport) {
   final state = AppState();
   state.connect(
@@ -74,6 +76,7 @@ void main() {
     );
     await tester.pumpWidget(KinaiyaApp(state: state));
     await tester.pump(const Duration(milliseconds: 200));
+    await openConverseChat(tester);
     for (var i = 0; i < 2; i++) {
       await tester.enterText(find.byType(TextField), 'turn $i');
       await tester.pump();
@@ -92,6 +95,7 @@ void main() {
       ['Sure thing. Here you go.', 'Sure thing. Here you go.'],
     );
     expect(state.converseHistory.where((m) => m.role == 'user').length, 2);
+    await closeConverseChat(tester);
     await tester.pumpWidget(const SizedBox.shrink());
     state.dispose();
   });

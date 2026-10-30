@@ -245,7 +245,8 @@ void main() {
         {
           'assets/character/kinaiya-core-v1.png',
           'assets/character/kinaiya-activity-v1.png',
-          'assets/character/kinaiya-activity-v1.prompts.md',
+          'assets/character/kinaiya-seated-idle-v1.png',
+          'assets/character/kinaiya-seated-idle-v1.prompts.md',
           'assets/mascot/kinaiya-mascot.png',
         },
       );

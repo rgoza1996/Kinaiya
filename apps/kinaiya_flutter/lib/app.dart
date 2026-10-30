@@ -166,11 +166,81 @@ class HomeShell extends StatefulWidget {
   State<HomeShell> createState() => _HomeShellState();
 }
 
+enum _ShellPage {
+  home('Home', Icons.home_outlined),
+  converse('Converse', Icons.graphic_eq_rounded),
+  agent('Agent Chat', Icons.chat_bubble_outline_rounded),
+  people('People', Icons.people_outline_rounded),
+  files('Files', Icons.folder_outlined),
+  documents('Documents', Icons.description_outlined),
+  gallery('Gallery', Icons.photo_library_outlined);
+
+  const _ShellPage(this.label, this.icon);
+  final String label;
+  final IconData icon;
+
+  String get heading => this == agent ? 'Agent' : label;
+}
+
 class _HomeShellState extends State<HomeShell> {
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
   final _voice = ValueNotifier(const VoiceActivity());
   final _converseControls = ConverseViewControls();
   final _agentControls = AgentViewControls();
   bool _settingsOpen = false;
+  bool _railExtended = false;
+  _ShellPage? _workspacePage;
+  late AppView _observedView;
+
+  @override
+  void initState() {
+    super.initState();
+    _observedView = widget.state.view;
+    widget.state.addListener(_viewChanged);
+  }
+
+  @override
+  void didUpdateWidget(covariant HomeShell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.state, widget.state)) {
+      oldWidget.state.removeListener(_viewChanged);
+      _observedView = widget.state.view;
+      _workspacePage = null;
+      widget.state.addListener(_viewChanged);
+    }
+  }
+
+  void _viewChanged() {
+    if (_observedView == widget.state.view) return;
+    _observedView = widget.state.view;
+    if (mounted && !_closing && _workspacePage != null) {
+      setState(() => _workspacePage = null);
+    }
+  }
+
+  void _selectPage(_ShellPage page) {
+    if (_closing) return;
+    _scaffoldKey.currentState?.closeDrawer();
+    if (page == _ShellPage.converse || page == _ShellPage.agent) {
+      setState(() => _workspacePage = null);
+      widget.state.setView(
+        page == _ShellPage.agent ? AppView.agent : AppView.character,
+      );
+    } else {
+      setState(() => _workspacePage = page);
+    }
+  }
+
+  void _openNavigation() {
+    if (!mounted || _closing) return;
+    FocusScope.of(context).unfocus();
+    _scaffoldKey.currentState?.openDrawer();
+  }
+
+  Future<void> _openConverseChat(AppState owner) async {
+    if (!mounted || _closing || !identical(widget.state, owner)) return;
+    await _converseControls.openTextConversation?.call();
+  }
 
   SettingsAvailability get _settingsAvailability => SettingsAvailability(
     voiceOptions: _converseControls.openVoiceOptions != null,
@@ -218,6 +288,7 @@ class _HomeShellState extends State<HomeShell> {
         await _converseControls.openVoiceOptions?.call();
       case SettingsAction.agentControls:
       case SettingsAction.mcp:
+        setState(() => _workspacePage = null);
         owner.setView(AppView.agent);
         await WidgetsBinding.instance.endOfFrame;
         if (!mounted ||
@@ -241,6 +312,7 @@ class _HomeShellState extends State<HomeShell> {
   @override
   void dispose() {
     _closing = true;
+    widget.state.removeListener(_viewChanged);
     _voice.dispose();
     super.dispose();
   }
@@ -258,7 +330,11 @@ class _HomeShellState extends State<HomeShell> {
   @override
   Widget build(BuildContext context) {
     final state = widget.state;
-    final isAgent = state.view == AppView.agent;
+    final page =
+        _workspacePage ??
+        (state.view == AppView.agent ? _ShellPage.agent : _ShellPage.converse);
+    final isAgent = page == _ShellPage.agent;
+    final isConverse = page == _ShellPage.converse;
     return LayoutBuilder(
       builder: (context, box) {
         final scale = MediaQuery.textScalerOf(context).scale(1);
@@ -266,12 +342,16 @@ class _HomeShellState extends State<HomeShell> {
         final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
         final compressedHeader = keyboardOpen || box.maxHeight < 360;
         return Scaffold(
+          key: _scaffoldKey,
+          drawer: rail ? null : _navigationDrawer(page),
           body: SafeArea(
             bottom: false,
             child: Row(
               children: [
                 if (rail)
                   NavigationRail(
+                    extended: _railExtended,
+                    scrollable: true,
                     backgroundColor:
                         widget.darkTheme.colorScheme.surfaceContainerLow,
                     indicatorColor: widget.darkTheme.colorScheme.primary,
@@ -281,8 +361,23 @@ class _HomeShellState extends State<HomeShell> {
                     unselectedIconTheme: IconThemeData(
                       color: widget.darkTheme.colorScheme.onSurfaceVariant,
                     ),
+                    selectedLabelTextStyle: widget
+                        .darkTheme
+                        .textTheme
+                        .labelLarge
+                        ?.copyWith(
+                          color: widget.darkTheme.colorScheme.onSurface,
+                        ),
+                    unselectedLabelTextStyle: widget
+                        .darkTheme
+                        .textTheme
+                        .labelLarge
+                        ?.copyWith(
+                          color: widget.darkTheme.colorScheme.onSurfaceVariant,
+                        ),
                     minWidth: 76,
-                    groupAlignment: -.65,
+                    minExtendedWidth: 248,
+                    groupAlignment: -1,
                     leading: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 20),
                       child: ExcludeSemantics(
@@ -293,18 +388,44 @@ class _HomeShellState extends State<HomeShell> {
                         ),
                       ),
                     ),
-                    selectedIndex: isAgent ? 1 : 0,
-                    onDestinationSelected: (i) => state.setView(
-                      i == 0 ? AppView.character : AppView.agent,
-                    ),
-                    destinations: const [
-                      NavigationRailDestination(
-                        icon: Icon(Icons.graphic_eq_rounded),
-                        label: Text('Converse'),
+                    trailingAtBottom: true,
+                    trailing: IconButton(
+                      key: const ValueKey('navigation-expand'),
+                      tooltip: _railExtended
+                          ? 'Collapse navigation'
+                          : 'Expand navigation',
+                      color: widget.darkTheme.colorScheme.onSurface,
+                      onPressed: () =>
+                          setState(() => _railExtended = !_railExtended),
+                      icon: Icon(
+                        _railExtended
+                            ? Icons.chevron_left
+                            : Icons.chevron_right,
                       ),
-                      NavigationRailDestination(
-                        icon: Icon(Icons.chat_bubble_outline_rounded),
-                        label: Text('Agent Chat'),
+                    ),
+                    selectedIndex: page.index,
+                    onDestinationSelected: (i) {
+                      if (i == _ShellPage.values.length) {
+                        _settings();
+                      } else {
+                        _selectPage(_ShellPage.values[i]);
+                      }
+                    },
+                    destinations: [
+                      for (final destination in _ShellPage.values)
+                        NavigationRailDestination(
+                          icon: Icon(
+                            destination.icon,
+                            key: ValueKey('navigation-${destination.name}'),
+                          ),
+                          label: Text(destination.label),
+                        ),
+                      const NavigationRailDestination(
+                        icon: Icon(
+                          Icons.settings_outlined,
+                          key: ValueKey('navigation-settings'),
+                        ),
+                        label: Text('Settings'),
                       ),
                     ],
                   ),
@@ -334,7 +455,7 @@ class _HomeShellState extends State<HomeShell> {
                                           ),
                                     ),
                                     Text(
-                                      isAgent ? 'Agent' : 'Converse',
+                                      page.heading,
                                       style: Theme.of(context)
                                           .textTheme
                                           .bodySmall
@@ -350,6 +471,18 @@ class _HomeShellState extends State<HomeShell> {
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     ConnectionDot(state: state),
+                                    if (!isAgent)
+                                      IconButton(
+                                        key: const ValueKey(
+                                          'converse-chat-open',
+                                        ),
+                                        tooltip: 'Converse chat',
+                                        icon: const Icon(
+                                          Icons.chat_bubble_outline,
+                                        ),
+                                        onPressed: () =>
+                                            _openConverseChat(state),
+                                      ),
                                     IconButton(
                                       key: const ValueKey('settings-open'),
                                       tooltip: 'Settings',
@@ -371,9 +504,18 @@ class _HomeShellState extends State<HomeShell> {
                                 if (compressedHeader) {
                                   return Row(
                                     children: [
+                                      if (!rail)
+                                        IconButton(
+                                          key: const ValueKey(
+                                            'navigation-menu',
+                                          ),
+                                          tooltip: 'Open navigation',
+                                          onPressed: _openNavigation,
+                                          icon: const Icon(Icons.menu),
+                                        ),
                                       Expanded(
                                         child: Text(
-                                          isAgent ? 'Agent' : 'Converse',
+                                          page.heading,
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           style: Theme.of(
@@ -388,6 +530,15 @@ class _HomeShellState extends State<HomeShell> {
                                 return compact
                                     ? Row(
                                         children: [
+                                          if (!rail)
+                                            IconButton(
+                                              key: const ValueKey(
+                                                'navigation-menu',
+                                              ),
+                                              tooltip: 'Open navigation',
+                                              onPressed: _openNavigation,
+                                              icon: const Icon(Icons.menu),
+                                            ),
                                           Expanded(child: title),
                                           actions,
                                         ],
@@ -396,7 +547,20 @@ class _HomeShellState extends State<HomeShell> {
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,
                                         children: [
-                                          title,
+                                          Row(
+                                            children: [
+                                              if (!rail)
+                                                IconButton(
+                                                  key: const ValueKey(
+                                                    'navigation-menu',
+                                                  ),
+                                                  tooltip: 'Open navigation',
+                                                  onPressed: _openNavigation,
+                                                  icon: const Icon(Icons.menu),
+                                                ),
+                                              Expanded(child: title),
+                                            ],
+                                          ),
                                           Align(
                                             alignment: Alignment.centerRight,
                                             child: actions,
@@ -433,14 +597,15 @@ class _HomeShellState extends State<HomeShell> {
                           fit: StackFit.expand,
                           children: [
                             Offstage(
-                              offstage: isAgent,
+                              offstage: !isConverse,
                               child: ExcludeFocus(
-                                excluding: isAgent,
+                                excluding: !isConverse,
                                 child: TickerMode(
-                                  enabled: !isAgent,
+                                  enabled: isConverse,
                                   child: Theme(
                                     data: widget.lightTheme,
                                     child: CharacterView(
+                                      voiceOnlyControls: true,
                                       useDesignScene:
                                           widget
                                                   .presentation
@@ -495,6 +660,8 @@ class _HomeShellState extends State<HomeShell> {
                                 ),
                               ),
                             ),
+                            if (!isConverse && !isAgent)
+                              _workspaceContent(page),
                           ],
                         ),
                       ),
@@ -504,26 +671,156 @@ class _HomeShellState extends State<HomeShell> {
               ],
             ),
           ),
-          bottomNavigationBar: rail || keyboardOpen
-              ? null
-              : NavigationBar(
-                  height: 80 + 32 * (scale - 1).clamp(0, 3),
-                  selectedIndex: isAgent ? 1 : 0,
-                  onDestinationSelected: (i) =>
-                      state.setView(i == 0 ? AppView.character : AppView.agent),
-                  destinations: const [
-                    NavigationDestination(
-                      icon: Icon(Icons.graphic_eq_rounded),
-                      label: 'Converse',
-                    ),
-                    NavigationDestination(
-                      icon: Icon(Icons.chat_bubble_outline_rounded),
-                      label: 'Agent Chat',
-                    ),
-                  ],
-                ),
         );
       },
+    );
+  }
+
+  Widget _navigationDrawer(_ShellPage page) => Theme(
+    data: widget.darkTheme,
+    child: Drawer(
+      backgroundColor: widget.darkTheme.colorScheme.surfaceContainerLow,
+      child: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Semantics(
+                      header: true,
+                      child: Text(
+                        'Navigation',
+                        style: widget.darkTheme.textTheme.titleMedium,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    key: const ValueKey('navigation-close'),
+                    tooltip: 'Close navigation',
+                    onPressed: () => _scaffoldKey.currentState?.closeDrawer(),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                children: [
+                  for (final destination in _ShellPage.values)
+                    ListTile(
+                      key: ValueKey('navigation-${destination.name}'),
+                      leading: Icon(destination.icon),
+                      title: Text(destination.label),
+                      selected: destination == page,
+                      onTap: () => _selectPage(destination),
+                    ),
+                  ListTile(
+                    key: const ValueKey('navigation-settings'),
+                    leading: const Icon(Icons.settings_outlined),
+                    title: const Text('Settings'),
+                    onTap: () {
+                      _scaffoldKey.currentState?.closeDrawer();
+                      _settings();
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+
+  Widget _workspaceContent(_ShellPage page) {
+    final home = page == _ShellPage.home;
+    final description = switch (page) {
+      _ShellPage.home =>
+        'Choose where you want to start. Your conversations stay open when you switch sections.',
+      _ShellPage.people =>
+        'Contacts and people management are planned. No contacts are loaded or shared from this app.',
+      _ShellPage.files =>
+        'Workspace file browsing is planned. Opening this page does not read files or grant Agent access.',
+      _ShellPage.documents =>
+        'A document library is planned. No documents are loaded by opening this page.',
+      _ShellPage.gallery =>
+        'A generated media gallery is planned. No media library is connected to this view.',
+      _ShellPage.converse || _ShellPage.agent => '',
+    };
+    return Theme(
+      data: widget.darkTheme,
+      child: Material(
+        color: widget.darkTheme.scaffoldBackgroundColor,
+        child: SingleChildScrollView(
+          key: ValueKey('workspace-${page.name}'),
+          padding: const EdgeInsets.all(24),
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 840),
+              child: DesignPanel(
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        page.icon,
+                        size: 32,
+                        color: widget.darkTheme.colorScheme.primary,
+                      ),
+                      const SizedBox(height: 16),
+                      Semantics(
+                        header: true,
+                        child: Text(
+                          page.label,
+                          style: widget.darkTheme.textTheme.headlineMedium,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        description,
+                        style: widget.darkTheme.textTheme.bodyLarge,
+                      ),
+                      const SizedBox(height: 24),
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        children: [
+                          if (home || page == _ShellPage.people)
+                            FilledButton.icon(
+                              onPressed: () => _selectPage(_ShellPage.converse),
+                              icon: const Icon(Icons.graphic_eq_rounded),
+                              label: const Text('Open Converse'),
+                            ),
+                          if (page != _ShellPage.people)
+                            OutlinedButton.icon(
+                              onPressed: () => _selectPage(_ShellPage.agent),
+                              icon: const Icon(
+                                Icons.chat_bubble_outline_rounded,
+                              ),
+                              label: const Text('Open Agent Chat'),
+                            ),
+                          if (home)
+                            OutlinedButton.icon(
+                              onPressed: _settings,
+                              icon: const Icon(Icons.settings_outlined),
+                              label: const Text('Open Options'),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
