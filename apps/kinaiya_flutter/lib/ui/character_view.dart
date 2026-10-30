@@ -214,7 +214,24 @@ class _CharacterViewState extends State<CharacterView> {
                         listenable: owner,
                         builder: (_, _) =>
                             mounted && identical(widget.state, owner)
-                            ? _conversationTools(expectedOwner: owner)
+                            ? Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (_s.converseHistory.isNotEmpty)
+                                    SizedBox(
+                                      height: 260,
+                                      child: Column(
+                                        children: [
+                                          _historyBar(),
+                                          Expanded(child: _transcript()),
+                                        ],
+                                      ),
+                                    )
+                                  else
+                                    const SizedBox.shrink(),
+                                  _conversationTools(expectedOwner: owner),
+                                ],
+                              )
                             : const SizedBox.shrink(),
                       ),
                     ),

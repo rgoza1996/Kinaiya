@@ -109,7 +109,7 @@ void expectVoiceOnlyMain() {
     findsNWidgets(2),
   );
   expect(find.byKey(const ValueKey('call-kinaiya')), findsOneWidget);
-  expect(find.byKey(const ValueKey('tell-kinaiya')), findsOneWidget);
+  expect(find.byKey(const ValueKey('home-setup')), findsOneWidget);
   expect(find.byKey(const ValueKey('converse-input')), findsNothing);
   expect(find.byKey(const ValueKey('voice-options')), findsNothing);
   expect(find.byKey(const ValueKey('converse-memory')), findsNothing);
@@ -228,7 +228,7 @@ void main() {
           of: find.byType(Dialog),
           matching: find.byKey(const ValueKey('tell-kinaiya')),
         ),
-        findsNothing,
+        findsOneWidget,
       );
       await closeConverseChat(tester);
       expectVoiceOnlyMain();

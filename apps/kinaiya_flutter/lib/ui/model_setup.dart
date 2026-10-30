@@ -22,7 +22,7 @@ class _ModelSetupDialogState extends State<ModelSetupDialog> {
   ConverseSetup? _setup;
   bool _loading = false, _saving = false;
   late bool _showConverse;
-  String? _error;
+  String? _error, _saveNotice;
   int _request = 0, _connection = -1;
 
   @override
@@ -47,6 +47,8 @@ class _ModelSetupDialogState extends State<ModelSetupDialog> {
     }
     if (!identical(oldWidget.presentation, widget.presentation)) {
       _showConverse = widget.presentation.preferences.showConverseView;
+      _saving = false;
+      _saveNotice = null;
     }
   }
 
@@ -100,10 +102,19 @@ class _ModelSetupDialogState extends State<ModelSetupDialog> {
     if (_saving) return;
     setState(() => _saving = true);
     // Merge against current preferences, not the snapshot from dialog open.
-    await widget.presentation.setPreferences(
-      widget.presentation.preferences.copyWith(showConverseView: _showConverse),
+    final presentation = widget.presentation;
+    await presentation.setPreferences(
+      presentation.preferences.copyWith(showConverseView: _showConverse),
     );
-    if (mounted) Navigator.of(context).pop();
+    if (!mounted || !identical(presentation, widget.presentation)) return;
+    if (presentation.persistent && presentation.notice != null) {
+      setState(() {
+        _saving = false;
+        _saveNotice = presentation.notice;
+      });
+      return;
+    }
+    Navigator.of(context).pop();
   }
 
   @override
@@ -197,6 +208,11 @@ class _ModelSetupDialogState extends State<ModelSetupDialog> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     if (_loading) const LinearProgressIndicator(),
+                    if (_saveNotice != null)
+                      Text(
+                        _saveNotice!,
+                        key: const ValueKey('setup-save-notice'),
+                      ),
                     if (_error != null)
                       Text(
                         _error!,
@@ -295,6 +311,10 @@ class _ModelSetupDialogState extends State<ModelSetupDialog> {
                     const Text(
                       'Optional mascot interaction · Open with the waveform icon. Home voice stays available when hidden.',
                     ),
+                    if (!widget.presentation.persistent)
+                      const Text(
+                        'This platform keeps the view preference for this session.',
+                      ),
                     const SizedBox(height: 12),
                     DecoratedBox(
                       decoration: BoxDecoration(

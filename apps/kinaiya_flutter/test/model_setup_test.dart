@@ -54,12 +54,16 @@ Map<String, Object?> setupFixture() => {
 
 class SetupStorage implements PresentationStorage {
   final writes = <String>[];
+  bool failWrites = false;
   @override
   bool get persistent => true;
   @override
   Future<String?> read() async => null;
   @override
-  Future<void> write(String value) async => writes.add(value);
+  Future<void> write(String value) async {
+    if (failWrites) throw StateError('private storage backend details');
+    writes.add(value);
+  }
 }
 
 void main() {
@@ -195,6 +199,42 @@ void main() {
       },
     );
   }
+
+  testWidgets('failed local persistence stays visibly unconfirmed', (
+    tester,
+  ) async {
+    final storage = SetupStorage()..failWrites = true;
+    final presentation = PresentationController(storage: storage);
+    final state = AppState();
+    await tester.runAsync(presentation.initialize);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ModelSetupDialog(state: state, presentation: presentation),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final toggle = find.byKey(const ValueKey('show-converse-view'));
+    await tester.ensureVisible(toggle);
+    await tester.pump();
+    await tester.tap(toggle);
+    final save = find.byKey(const ValueKey('save-model-setup'));
+    await tester.ensureVisible(save);
+    await tester.pump();
+    await tester.tap(save);
+    await tester.pumpAndSettle();
+    expect(presentation.preferences.showConverseView, isFalse);
+    expect(find.byType(ModelSetupDialog), findsOneWidget);
+    expect(
+      find.text(
+        'Presentation is active for this session, but saving locally is unconfirmed.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.textContaining('private storage'), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+    state.dispose();
+    presentation.dispose();
+  });
 
   testWidgets('late setup reply cannot replace disconnected state', (
     tester,
