@@ -1418,6 +1418,24 @@ class _CharacterViewState extends State<CharacterView> {
     ),
   );
 
+  // Captions and fallback notes can cross the moon's white pixels. An opaque
+  // theme surface keeps their ink readable independently of image/crop size.
+  Widget _sceneCopy(Widget child) =>
+      widget.useDesignScene && widget.showCharacter
+      ? Container(
+          key: const ValueKey('converse-scene-copy'),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.outlineVariant,
+            ),
+          ),
+          child: child,
+        )
+      : child;
+
   /// Pack fallback note; drawn on the moonlit scenery when the character is
   /// shown, otherwise on the surrounding theme surface.
   Widget _packNote(CharacterPack? pack) {
@@ -1426,12 +1444,14 @@ class _CharacterViewState extends State<CharacterView> {
     }
     return Padding(
       padding: const EdgeInsets.all(8),
-      child: Text(
-        pack.note,
-        style: TextStyle(
-          color: widget.showCharacter
-              ? kinaiyaWhite
-              : Theme.of(context).colorScheme.onSurface,
+      child: _sceneCopy(
+        Text(
+          pack.note,
+          style: TextStyle(
+            color: widget.showCharacter && !widget.useDesignScene
+                ? kinaiyaWhite
+                : Theme.of(context).colorScheme.onSurface,
+          ),
         ),
       ),
     );
@@ -1453,16 +1473,18 @@ class _CharacterViewState extends State<CharacterView> {
     return Padding(
       key: const ValueKey('current-caption'),
       padding: const EdgeInsets.only(top: 8),
-      child: Text(
-        '$speaker: ${latest.text}',
-        key: const ValueKey('current-caption-text'),
-        maxLines: 3,
-        overflow: TextOverflow.ellipsis,
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          color: widget.showCharacter
-              ? kinaiyaWhite
-              : Theme.of(context).colorScheme.onSurface,
+      child: _sceneCopy(
+        Text(
+          '$speaker: ${latest.text}',
+          key: const ValueKey('current-caption-text'),
+          maxLines: 3,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: widget.showCharacter && !widget.useDesignScene
+                ? kinaiyaWhite
+                : Theme.of(context).colorScheme.onSurface,
+          ),
         ),
       ),
     );

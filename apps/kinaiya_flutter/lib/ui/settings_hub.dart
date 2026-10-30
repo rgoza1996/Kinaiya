@@ -455,7 +455,7 @@ class _HubEntryTile extends StatelessWidget {
                 enabled ? 'Open' : 'Unavailable',
                 style: theme.textTheme.labelLarge?.copyWith(
                   color: enabled
-                      ? theme.colorScheme.primary
+                      ? theme.colorScheme.onSurface
                       : theme.colorScheme.onSurfaceVariant,
                 ),
               )

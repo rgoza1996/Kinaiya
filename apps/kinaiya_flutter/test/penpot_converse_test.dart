@@ -85,6 +85,33 @@ Future<AppState> designStage(
 }
 
 void main() {
+  testWidgets('scene caption has an opaque readable surface over moon pixels', (
+    tester,
+  ) async {
+    await designStage(
+      tester,
+      history: [ChatMsg(role: 'kinaiya', text: 'Caption over the moon')],
+    );
+    final text = tester.widget<Text>(
+      find.byKey(const ValueKey('current-caption-text')),
+    );
+    final surfaces = tester.widgetList<Container>(
+      find.byKey(const ValueKey('converse-scene-copy')),
+    );
+    expect(surfaces, isNotEmpty);
+    for (final surface in surfaces) {
+      final fill = (surface.decoration! as BoxDecoration).color!;
+      expect(fill.a, 1);
+      final a = fill.computeLuminance(),
+          b = text.style!.color!.computeLuminance();
+      expect(
+        (a > b ? a + .05 : b + .05) / (a > b ? b + .05 : a + .05),
+        greaterThanOrEqualTo(4.5),
+      );
+    }
+    expect(tester.takeException(), isNull);
+  });
+
   for (final sample in [
     (390.0, 844.0, 1.0, 0.0),
     (320.0, 568.0, 2.0, 0.0),
