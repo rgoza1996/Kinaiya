@@ -361,8 +361,37 @@ class Registry:
                         raise ValueError(
                             "Finish or stop active work before selecting another profile"
                         )
-                    runtime.provider = self.profiles[args[0]]()
-            return {"active": runtime.provider.info.model_dump(), "profiles": sorted(self.profiles)}
+                    settings = getattr(runtime, "model_settings", None)
+                    if settings is None:
+                        runtime.provider = self.profiles[args[0]]()
+                    else:
+                        from services.agent.model_settings import ModelSettingsChange
+
+                        operation_key = (
+                            "command:"
+                            + hashlib.sha256(
+                                (request.session_id + ":" + request.idempotency_key).encode()
+                            ).hexdigest()
+                        )
+                        prior = settings.receipt(operation_key)
+                        settings.change(
+                            ModelSettingsChange(
+                                schema_version="1.0",
+                                expected_revision=prior["revision"] - 1
+                                if prior is not None
+                                else settings.snapshot()["revision"],
+                                idempotency_key=operation_key,
+                                profile_id=args[0],
+                            )
+                        )
+                        runtime.provider = settings.selection(None)[0]
+            settings = getattr(runtime, "model_settings", None)
+            return {
+                "active": settings.default_info()
+                if settings is not None
+                else runtime.provider.info.model_dump(),
+                "profiles": sorted(self.profiles),
+            }
         if name in {"permissions", "yolo"}:
             if name == "yolo":
                 if args not in (["on"], ["off"]):

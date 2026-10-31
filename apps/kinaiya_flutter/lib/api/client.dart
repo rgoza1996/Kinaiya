@@ -209,6 +209,44 @@ class KinaiyaClient {
 
   // -- session service --------------------------------------------------
 
+  Future<Map<String, Object?>> agentOptions() async =>
+      (await _agentWorkspaceReader.get(agentBase, '/v1/agent/options') as Map)
+          .cast<String, Object?>();
+
+  Future<Map<String, Object?>> agentModelSelection(String? harness) async =>
+      (await _agentWorkspaceReader.get(
+                agentBase,
+                '/v1/agent/options/model-selection',
+                query: {if (harness != null) 'harness_version': harness},
+              )
+              as Map)
+          .cast<String, Object?>();
+
+  Future<Map<String, Object?>> saveAgentModels(Map<String, Object?> body) =>
+      _post(agentBase, '/v1/agent/options/models', body);
+
+  Future<Map<String, Object?>> agentTargetHealth(String? harness) async {
+    try {
+      final result = await agentModelSelection(harness);
+      if (result['schema_version'] != '1.0' ||
+          (harness != null && result['harness_version'] != harness)) {
+        throw const FormatException('Agent model selection identity changed');
+      }
+      return result;
+    } on WorkspaceReadFailure catch (error) {
+      if (error.status != 404) rethrow;
+      return agentHealth();
+    }
+  }
+
+  Future<Map<String, Object?>> agentModelReceipt(String key) async =>
+      (await _agentWorkspaceReader.get(
+                agentBase,
+                '/v1/agent/options/model-changes/${Uri.encodeComponent(key)}',
+              )
+              as Map)
+          .cast<String, Object?>();
+
   Future<AgentHarnessPage> agentHarnesses({String? after}) async =>
       AgentHarnessPage.fromJson(
         await _agentWorkspaceReader.get(

@@ -503,6 +503,35 @@ def serve(args):
             )
             for name, profile in config.get("agent_profiles", {}).items()
         }
+        from services.agent.model_settings import AgentModelSettings
+
+        def model_factory(profile):
+            def create(effort):
+                selected = dict(profile)
+                if effort is not None:
+                    selected["reasoning_effort"] = effort
+                return provider(
+                    {"providers": {"agent": selected}}, "agent", resource_state=resource_state
+                )
+
+            return create
+
+        runtime.model_settings = AgentModelSettings(
+            runtime.provider,
+            {
+                name: model_factory(profile)
+                for name, profile in config.get("agent_profiles", {}).items()
+            },
+            path=args.data_dir / "agent-models.sqlite",
+            reasoning_levels=config.get("agent_reasoning_options", {}),
+            host_factory=model_factory(config["providers"]["agent"]),
+        )
+        try:
+            runtime.provider = runtime.model_settings.selection(None)[0]
+        except ValueError:
+            # Preserve the control plane so the owner can repair a removed or
+            # unavailable saved profile. Task acceptance still refuses it.
+            pass
         commands = Registry(
             runtime, owner_journal, path=args.data_dir / "commands.sqlite", profiles=profiles
         )

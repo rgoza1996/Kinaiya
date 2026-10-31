@@ -18,12 +18,13 @@ class VoiceOptionsSheet extends StatelessWidget {
     required this.silenceChoices,
     required this.onSilenceChanged,
     required this.windowMode,
+    this.embedded = false,
   });
 
   final int endSilenceMs;
   final List<int> silenceChoices;
   final ValueChanged<int> onSilenceChanged;
-  final bool windowMode;
+  final bool windowMode, embedded;
 
   @override
   Widget build(BuildContext context) {
@@ -48,11 +49,12 @@ class VoiceOptionsSheet extends StatelessWidget {
                           : Theme.of(context).textTheme.titleLarge,
                     ),
                   ),
-                  IconButton(
-                    tooltip: 'Close voice options',
-                    icon: const Icon(Icons.close_rounded),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
+                  if (!embedded)
+                    IconButton(
+                      tooltip: 'Close voice options',
+                      icon: const Icon(Icons.close_rounded),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
                 ],
               ),
               Flexible(

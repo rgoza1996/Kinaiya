@@ -107,6 +107,7 @@ const List<int> endSilenceOptionsMs = <int>[800, 1500, 2500];
 class _CharacterViewState extends State<CharacterView> {
   ConverseViewControls? _registeredControls;
   Future<void> Function()? _registeredVoiceOptions;
+  Widget? Function()? _registeredVoicePanel;
   Future<void> Function()? _registeredTextConversation;
   bool _textConversationOpen = false;
   Route<void>? _textConversationRoute;
@@ -143,6 +144,11 @@ class _CharacterViewState extends State<CharacterView> {
         identical(controls.openTextConversation, _registeredTextConversation)) {
       controls.openTextConversation = null;
     }
+    if (controls != null &&
+        identical(controls.buildVoiceOptions, _registeredVoicePanel)) {
+      controls.buildVoiceOptions = null;
+    }
+    _registeredVoicePanel = null;
     _registeredControls = null;
     _registeredVoiceOptions = null;
     _registeredTextConversation = null;
@@ -166,6 +172,37 @@ class _CharacterViewState extends State<CharacterView> {
     _registeredControls = controls;
     _registeredVoiceOptions = open;
     controls.openVoiceOptions = open;
+    late final Widget? Function() panel;
+    panel = () {
+      if (!mounted ||
+          !identical(widget.state, owner) ||
+          !identical(widget.controls, controls) ||
+          !identical(controls.buildVoiceOptions, panel)) {
+        return null;
+      }
+      return StatefulBuilder(
+        builder: (_, update) => VoiceOptionsSheet(
+          embedded: true,
+          endSilenceMs: _endSilenceMs,
+          silenceChoices: endSilenceOptionsMs,
+          windowMode: _windowMode,
+          onSilenceChanged: (value) async {
+            if (!mounted ||
+                !identical(widget.state, owner) ||
+                !identical(controls.buildVoiceOptions, panel)) {
+              return;
+            }
+            update(() {
+              _endSilenceMs = value;
+            });
+            setState(() {});
+            await _audio.configureVad(endSilenceMs: value);
+          },
+        ),
+      );
+    };
+    _registeredVoicePanel = panel;
+    controls.buildVoiceOptions = panel;
     late final Future<void> Function() chat;
     chat = () async {
       if (!mounted ||

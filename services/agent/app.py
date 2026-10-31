@@ -52,8 +52,10 @@ def create_app(runtime: AgentRuntime, auth: Any, commands=None) -> FastAPI:
     from services.agent.plugin_controls import router as plugin_router
     from services.agent.skill_controls import router as skill_router
     from services.agent.workspace_api import router as workspace_router
+    from services.agent.options_api import router as options_router
 
     app.include_router(harness_router(runtime, auth))
+    app.include_router(options_router(runtime, auth))
     app.include_router(
         workspace_router(runtime, auth, getattr(commands, "journal", runtime.journal))
     )
@@ -72,7 +74,9 @@ def create_app(runtime: AgentRuntime, auth: Any, commands=None) -> FastAPI:
     async def health():
         return {
             "service": "agent",
-            "provider": runtime.provider.info.model_dump(),
+            "provider": runtime.model_settings.default_info()
+            if runtime.model_settings is not None
+            else runtime.provider.info.model_dump(),
             "status": "ready",
         }
 

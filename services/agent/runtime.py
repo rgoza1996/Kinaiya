@@ -232,6 +232,7 @@ def _authenticated_retirement(
 @dataclass
 class _Record:
     task: Task
+    provider: TextProvider | None = None
     worker: asyncio.Task[None] | None = None
     done: asyncio.Event = field(default_factory=asyncio.Event)
     resume: asyncio.Event = field(default_factory=asyncio.Event)
@@ -293,6 +294,7 @@ class AgentRuntime:
     ) -> None:
         self.journal = journal
         self.provider = provider
+        self.model_settings = None
         self.workspace = Path(workspace)
         self.policy = policy
         self.max_steps = max(1, int(max_steps))
@@ -317,6 +319,10 @@ class AgentRuntime:
         # sessions; restored by recover for terminal and paused tasks alike.
         self._submit_idem: dict[tuple[str, str], tuple[str, str]] = {}
         self._closed = False
+
+    def provider_for(self, rec=None):
+        """A task retains its native provider; owner defaults affect future work."""
+        return rec.provider if rec is not None and rec.provider is not None else self.provider
 
     # -- journal ------------------------------------------------------
     def _append_request(self, rec: _Record, kind: str, payload: dict[str, Any]) -> AppendRequest:
@@ -426,6 +432,7 @@ class AgentRuntime:
         epoch: int,
         source_revision: int | None,
         op: str,
+        provider_info=None,
     ) -> tuple[list[str], str]:
         """Resolve decisions-carried sources to exact authenticated user text.
 
@@ -491,7 +498,9 @@ class AgentRuntime:
                 raise PolicyDenied(f"decisions-routed {op} source {source_id!r} has no usable text")
             texts.append(text)
         scope = combine_scopes(*scopes) if scopes else "public_synthetic"
-        if not scope_allowed(self.provider.info, scope):
+        if not scope_allowed(
+            provider_info if provider_info is not None else self.provider.info, scope
+        ):
             raise PolicyDenied("Source disclosure does not permit the configured Agent provider")
         return texts, scope
 
@@ -548,7 +557,7 @@ class AgentRuntime:
                 await self._append(rec, "agent.command", {"op": "disclosure-narrowed"})
         # A steer or profile change can land while native reads above await.
         rec.task.content_scope = combine_scopes(rec.task.content_scope, scope)
-        if not scope_allowed(self.provider.info, rec.task.content_scope):
+        if not scope_allowed(self.provider_for(rec).info, rec.task.content_scope):
             raise PolicyDenied("Task disclosure does not permit the configured Agent provider")
 
     # -- interface: submit --------------------------------------------
@@ -591,6 +600,20 @@ class AgentRuntime:
                 f"submit targets thread {request.thread_id} epoch {request.epoch}; "
                 f"session is now thread {session.thread_id} epoch {session.epoch}"
             )
+        try:
+            prior = self._submit_idem.get((request.session_id, request.idempotency_key))
+            if prior is not None:
+                original = self._get(prior[1])
+                harness_version = original.task.harness_version
+                task_provider, model_pin = self.provider_for(original), original.task.model_pin
+            elif self.model_settings is not None:
+                harness_version = self.session_harness(session.harness_version)
+                task_provider, model_pin = self.model_settings.selection(harness_version)
+            else:
+                harness_version = self.session_harness(session.harness_version)
+                task_provider, model_pin = self.provider, None
+        except (HarnessError, OSError, ValueError, RuntimeError) as exc:
+            raise PolicyDenied("The session's harness or model selection is unavailable") from exc
         objective = request.objective
         source_scope = "public_synthetic"
         if request.source_event_ids:
@@ -601,6 +624,7 @@ class AgentRuntime:
                 epoch=request.epoch,
                 source_revision=request.source_revision,
                 op="submit",
+                provider_info=task_provider.info,
             )
             expected = "\n".join(texts)
             if actor == "decisions" and objective != expected:
@@ -611,7 +635,7 @@ class AgentRuntime:
             if actor == "decisions":
                 objective = expected
         content_scope = combine_scopes(request.content_scope, source_scope)
-        if not scope_allowed(self.provider.info, content_scope):
+        if not scope_allowed(task_provider.info, content_scope):
             raise PolicyDenied("Task disclosure does not permit the configured Agent provider")
         payload = {
             "session_id": request.session_id,
@@ -639,10 +663,6 @@ class AgentRuntime:
                 ):
                     raise IdemConflict("idempotency key reuses a conflicting submit payload")
             return self._copy(task_id)
-        try:
-            harness_version = self.session_harness(session.harness_version)
-        except (HarnessError, OSError, ValueError, RuntimeError) as exc:
-            raise PolicyDenied("The session's pinned harness is unavailable or unapproved") from exc
         task = Task(
             session_id=request.session_id,
             thread_id=request.thread_id,
@@ -654,8 +674,13 @@ class AgentRuntime:
             source_event_ids=list(request.source_event_ids),
             idempotency_key=request.idempotency_key,
             harness_version=harness_version,
+            model_pin=model_pin,
         )
-        rec = _Record(task=task, explicit_skill=explicit_skill)
+        rec = _Record(
+            task=task,
+            provider=task_provider if self.model_settings is not None else None,
+            explicit_skill=explicit_skill,
+        )
         if request.source_event_ids:
             rec.source_revisions = dict.fromkeys(request.source_event_ids, request.source_revision)
         self._tasks[task.task_id] = rec
@@ -677,6 +702,7 @@ class AgentRuntime:
                 "idempotency_key": request.idempotency_key,
                 "payload_digest": digest,
                 "harness_version": task.harness_version,
+                "model_pin": model_pin.model_dump(mode="json") if model_pin is not None else None,
                 "explicit_skill": explicit_skill,
             },
         )
@@ -699,6 +725,7 @@ class AgentRuntime:
                 epoch=rec.task.epoch,
                 source_revision=None,
                 op="steer",
+                provider_info=self.provider_for(rec).info,
             )
             expected = "\n".join(texts)
             if actor == "decisions" and instruction != expected:
@@ -753,7 +780,7 @@ class AgentRuntime:
         if request.expected_objective_revision != rec.task.objective_revision:
             raise StaleRevision("Task revision changed during steering disclosure validation")
         content_scope = combine_scopes(rec.task.content_scope, request.content_scope, source_scope)
-        if not scope_allowed(self.provider.info, content_scope):
+        if not scope_allowed(self.provider_for(rec).info, content_scope):
             raise PolicyDenied("Steering disclosure does not permit the configured Agent provider")
         rec.task.content_scope = content_scope
         rec.steer_idem[request.idempotency_key] = (digest, task_id)
@@ -792,6 +819,7 @@ class AgentRuntime:
                     epoch=rec.task.epoch,
                     source_revision=None,
                     op="steer",
+                    provider_info=self.provider_for(rec).info,
                 )
                 revision_changed = False
                 for source_id, revision in pending.get("source_revisions", {}).items():
@@ -900,6 +928,7 @@ class AgentRuntime:
                 epoch=rec.task.epoch,
                 source_revision=request.source_revision,
                 op="interrupt",
+                provider_info=self.provider_for(rec).info,
             )
         self._check_completion_open(rec)
         payload = {
@@ -1152,6 +1181,8 @@ class AgentRuntime:
         client, self.resource_client = self.resource_client, None
         if client is not None:
             await client.close()
+        if self.model_settings is not None:
+            await self.model_settings.close()
         artifact_store, self.artifact_store = self.artifact_store, None
         if artifact_store is not None:
             artifact_store.close()
@@ -1371,6 +1402,7 @@ class AgentRuntime:
                     source_event_ids=list(payload.get("source_event_ids", [])),
                     idempotency_key=payload.get("idempotency_key", task_id),
                     harness_version=payload.get("harness_version", "seed-v1"),
+                    model_pin=payload.get("model_pin"),
                 )
             rec = _Record(
                 task=task,
@@ -1551,13 +1583,13 @@ class AgentRuntime:
             rec.failed_work_effect = not ok
         rec.failed_effect = rec.failed_work_effect or rec.failed_artifact
 
-    def _mcp_server_ids(self) -> list[str] | None:
+    def _mcp_server_ids(self, rec=None) -> list[str] | None:
         """Enabled owner-configured server ids for the prompt, or None.
 
         Only ids, never secrets, endpoints, or schemas. An unavailable
         host reports no servers rather than failing the whole turn.
         """
-        host = self._model_mcp()
+        host = self._model_mcp(rec)
         if host is None:
             return None
         try:
@@ -1570,9 +1602,11 @@ class AgentRuntime:
             if isinstance(entry, dict) and entry.get("enabled")
         ]
 
-    def _model_mcp(self):
+    def _model_mcp(self, rec=None):
         return (
-            ModelScopedMCP(self.mcp_host, self.provider.info) if self.mcp_host is not None else None
+            ModelScopedMCP(self.mcp_host, self.provider_for(rec).info)
+            if self.mcp_host is not None
+            else None
         )
 
     async def _fail(
@@ -1651,7 +1685,20 @@ class AgentRuntime:
         or permits a stale proposal to execute. Source/catalog dependencies
         remain task-wide even when their original exchange leaves the prompt.
         """
-        provider, policy, journal = self.provider, self.policy, self.journal
+        provider, policy, journal = self.provider_for(rec), self.policy, self.journal
+        if rec.task.model_pin is not None and rec.provider is None:
+            raise PromptCountUnavailable("Recovered model pin cannot be rebound to a new provider")
+        if rec.task.model_pin is not None:
+            from services.agent.model_settings import AgentModelSettings
+
+            pin = rec.task.model_pin
+            if (pin.provider, pin.model, pin.local, pin.reasoning) != (
+                provider.info.provider,
+                provider.info.model,
+                provider.info.local,
+                AgentModelSettings.effort(provider),
+            ):
+                raise PromptCountUnavailable("Task model identity no longer matches its native pin")
         prepare = getattr(provider, "prepare_complete", None)
         if not callable(prepare):
             raise PromptCountUnavailable("Agent provider cannot measure complete requests")
@@ -1713,7 +1760,7 @@ class AgentRuntime:
                 rec.recovered
                 or rec.task.state != TaskState.RUNNING
                 or self._tasks.get(rec.task.task_id) is not rec
-                or self.provider is not provider
+                or self.provider_for(rec) is not provider
                 or provider.info != provider_info
                 or self.policy is not policy
                 or self.journal is not journal
@@ -1817,7 +1864,7 @@ class AgentRuntime:
             list(rec.task.source_event_ids),
             history,
             self._grants(),
-            self._mcp_server_ids(),
+            self._mcp_server_ids(rec),
             self.skill_service is not None,
             self.plugin_service is not None,
             self.artifact_store is not None,
@@ -1867,11 +1914,13 @@ class AgentRuntime:
                 # content already retained in this task's complete history.
                 if self.skill_service is not None:
                     await self.skill_service.validate_task(
-                        rec.task.task_id, self.provider.info, user_skill_id=rec.explicit_skill
+                        rec.task.task_id,
+                        self.provider_for(rec).info,
+                        user_skill_id=rec.explicit_skill,
                     )
                 if self.plugin_service is not None:
                     await self.plugin_service.validate_task(
-                        self._plugin_task(rec), self.provider.info
+                        self._plugin_task(rec), self.provider_for(rec).info
                     )
                 await self._task_scope(rec)
                 self._validate_catalog_history(rec)
@@ -2139,7 +2188,7 @@ class AgentRuntime:
                 return
         digest = self.policy.digest_for(tool, args, revision)
         if tool == "mcp_call" and self.mcp_host is not None:
-            self._model_mcp()._check(args.get("server_id", ""))
+            self._model_mcp(rec)._check(args.get("server_id", ""))
         sources = (
             await self._uncommitted_speech_sources(rec)
             if tool in {"write_file", "shell", "mcp_call", "publish_ui"}
@@ -2374,7 +2423,7 @@ class AgentRuntime:
                 )
             elif tool == "mcp_list":
                 out, evidence = await run_mcp_list(
-                    self._model_mcp(),
+                    self._model_mcp(rec),
                     args.get("server_id"),
                     revision,
                     after=args.get("after", 0),
@@ -2382,7 +2431,7 @@ class AgentRuntime:
                 )
             elif tool == "mcp_call":
                 out, evidence = await run_mcp_call(
-                    self._model_mcp(),
+                    self._model_mcp(rec),
                     self.policy,
                     args.get("server_id", ""),
                     args.get("tool", ""),
@@ -2608,14 +2657,14 @@ class AgentRuntime:
             if tool == "plugins_list":
                 if set(args) - {"plugin_id", "after"}:
                     raise ValueError("plugins_list accepts only plugin_id and after")
-                result = await service.catalog(self.provider.info, **args)
+                result = await service.catalog(self.provider_for(rec).info, **args)
                 evidence_kind = "external"
             else:
                 if set(args) != {"plugin_id", "arguments"}:
                     raise ValueError("plugin_call requires only plugin_id and arguments")
                 pinned_task = self._plugin_task(rec)
                 version_id, changed = await service.pin_task(
-                    pinned_task, args["plugin_id"], self.provider.info
+                    pinned_task, args["plugin_id"], self.provider_for(rec).info
                 )
                 if changed:
                     await self._append(
@@ -2624,7 +2673,7 @@ class AgentRuntime:
                         {"plugin_id": args["plugin_id"], "version_id": version_id},
                     )
                 result = await service.call_task(
-                    pinned_task, args["plugin_id"], args["arguments"], self.provider.info
+                    pinned_task, args["plugin_id"], args["arguments"], self.provider_for(rec).info
                 )
                 stale = await self._epoch_error(rec)
                 if stale is not None or rec.cancel_requested:
@@ -2651,7 +2700,7 @@ class AgentRuntime:
                 if set(args) - {"after"}:
                     raise ValueError("skills_list accepts only after")
                 result = await self.skill_service.catalog(
-                    self.provider.info, after=args.get("after", 0)
+                    self.provider_for(rec).info, after=args.get("after", 0)
                 )
             else:
                 if set(args) - {"skill_id", "resource"}:
@@ -2660,7 +2709,7 @@ class AgentRuntime:
                 result = await self.skill_service.load(
                     rec.task.task_id,
                     skill_id,
-                    self.provider.info,
+                    self.provider_for(rec).info,
                     invocation="user" if skill_id == rec.explicit_skill else "model",
                     resource=args.get("resource"),
                 )
@@ -2710,8 +2759,8 @@ class AgentRuntime:
                 scope = await context_scope(self.journal, entry)
             except Exception as exc:
                 raise PolicyDenied("Transcript context disclosure cannot be verified") from exc
-            if not entry_allowed(self.provider.info, entry) or not scope_allowed(
-                self.provider.info, scope
+            if not entry_allowed(self.provider_for(rec).info, entry) or not scope_allowed(
+                self.provider_for(rec).info, scope
             ):
                 if event_ids:
                     raise PolicyDenied(

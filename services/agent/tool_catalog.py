@@ -30,7 +30,7 @@ class CatalogGuard:
 
     def __init__(self, runtime, rec):
         self.runtime, self.rec = runtime, rec
-        self.provider = runtime.provider.info.model_dump()
+        self.provider = runtime.provider_for(rec).info.model_dump()
         self.snapshot = runtime.tool_snapshot(rec.task if rec is not None else None)
         self.context = self._context()
         self.sources = []
@@ -53,12 +53,12 @@ class CatalogGuard:
     def disclosure_current(self, *, retained=True):
         try:
             runtime, rec = self.runtime, self.rec
-            if runtime.provider.info.model_dump() != self.provider:
+            if runtime.provider_for(rec).info.model_dump() != self.provider:
                 return False
             for kind, service, rows, query in self.retained_sources if retained else self.sources:
                 if kind == "skill" and rows:
                     if service is not runtime.skill_service or not service.tool_metadata_current(
-                        runtime.provider.info,
+                        runtime.provider_for(rec).info,
                         rows,
                         task_id=rec.task.task_id if rec is not None else None,
                         invocation="model",
@@ -67,7 +67,7 @@ class CatalogGuard:
                         return False
                 elif kind == "plugin" and rows:
                     if service is not runtime.plugin_service or not service.tool_metadata_current(
-                        runtime.provider.info,
+                        runtime.provider_for(rec).info,
                         rows,
                         task=runtime._plugin_task(rec) if rec is not None else None,
                         retained=retained,
@@ -76,7 +76,7 @@ class CatalogGuard:
                 elif kind == "mcp":
                     if service is not runtime.mcp_host:
                         return False
-                    current = runtime._model_mcp().cached_tool_metadata(
+                    current = runtime._model_mcp(rec).cached_tool_metadata(
                         query.server_id, tool=query.name if query.selected else None
                     )
                     if retained:
@@ -218,7 +218,7 @@ def _native(runtime, task, query):
 async def _skills(runtime, rec, query, guard):
     service = runtime.skill_service
     rows = await service.tool_metadata(
-        runtime.provider.info,
+        runtime.provider_for(rec).info,
         skill_id=query.name if query.selected else None,
         task_id=rec.task.task_id if rec is not None else None,
         invocation="model",
@@ -267,7 +267,7 @@ async def _skills(runtime, rec, query, guard):
 
 async def _plugins(runtime, rec, query, guard):
     rows = await runtime.plugin_service.tool_metadata(
-        runtime.provider.info,
+        runtime.provider_for(rec).info,
         plugin_id=query.name if query.selected else None,
         task=runtime._plugin_task(rec) if rec is not None else None,
     )
@@ -302,7 +302,7 @@ async def _plugins(runtime, rec, query, guard):
 
 
 def _mcp(runtime, query, guard):
-    servers = runtime._model_mcp().cached_tool_metadata(
+    servers = runtime._model_mcp(guard.rec).cached_tool_metadata(
         query.server_id, tool=query.name if query.selected else None
     )
     guard.sources.append(("mcp", runtime.mcp_host, copy.deepcopy(servers), query))

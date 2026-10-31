@@ -253,17 +253,21 @@ voice recording/playback and independent Agent Chat. Its [design and browser evi
 describe the tested synthetic voice-to-file flow and Agent operation while Converse
 was unloaded. Native voice and the remaining M5 gates are unfinished.
 
-The owner app's [Settings hub](docs/adr/0053-options-catalog-and-settings-hub.md)
-groups existing connection/privacy, appearance, voice, memory, Agent and MCP
-controls without starting tasks or inference. The [options catalog](docs/options.md)
-separates working controls, host configuration and planned editors. Its stable
-semantics now use the [supplied Penpot presentation](docs/adr/0054-penpot-owner-interface.md):
-navy/blue panels, local Inter fonts, an illustrated Converse scene with its real
-animated mascot, and responsive Agent and Options layouts. Full provider/settings
-management remains unfinished. The [updated Home and optional Converse design](docs/adr/0059-home-and-optional-converse.md)
+The owner app's [Options workspace](docs/adr/0077-options-workspace-and-harness-models.md)
+uses persistent section navigation and embeds the existing appearance, voice,
+memory, connection and MCP editors. Models, Providers and Harness Customization
+are separate pages. Native revision-bound Agent defaults and per-harness model/
+reasoning overrides affect new tasks; accepted tasks retain their provider and
+inspectable model pin. The [owner API](docs/agent-options-api.md) persists settings
+and receipts without placing credentials in the client. Provider provisioning
+and Converse/STT/TTS/Decisions model editing remain host-managed. These new
+controls still require the runtime/concurrency acceptance described in the ADR.
+The [options catalog](docs/options.md) distinguishes implemented, host-managed
+and planned controls. Stable semantics use the [supplied Penpot presentation](docs/adr/0054-penpot-owner-interface.md).
+The [updated Home and optional Converse design](docs/adr/0059-home-and-optional-converse.md)
 shares one live conversation owner: Home keeps the seated water scene, while the
 optional interaction view adds close-up artwork, transcript and composer. Home's
-mascot/Setup opens model declarations and local view visibility. Model hot-swap,
+mascot/Setup opens model declarations and local view visibility. Converse model hot-swap,
 camera/direct-audio input and project/media libraries remain unavailable.
 The [setup bubbles](docs/adr/0063-floating-setup-bubbles.md) start in fresh random
 positions and drift slowly. Hover/focus holds only the affected bubble; dragging

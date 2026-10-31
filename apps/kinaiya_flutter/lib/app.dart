@@ -3,19 +3,15 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'audio/speech_audio.dart';
-import 'config/options_catalog.dart';
+import 'config/options_navigation.dart';
 import 'state/app_state.dart';
 import 'presentation/controller.dart';
-import 'ui/presentation_settings.dart';
 import 'ui/agent_chat.dart';
 import 'ui/decisions_view.dart';
 import 'ui/character_view.dart';
-import 'ui/setup_dialog.dart';
 import 'ui/settings_controls.dart';
-import 'ui/settings_hub.dart';
+import 'ui/options_workspace.dart';
 import 'ui/model_setup.dart';
-import 'ui/converse_memory.dart';
-import 'ui/mcp_settings.dart';
 import 'ui/visual_theme.dart';
 import 'ui/design_tokens.dart';
 
@@ -175,7 +171,8 @@ enum _ShellPage {
   decisions('Decisions', Icons.diamond_outlined),
   projects('Projects', Icons.folder_outlined),
   files('Files', Icons.description_outlined),
-  media('Media', Icons.photo_library_outlined);
+  media('Media', Icons.photo_library_outlined),
+  options('Options', Icons.settings_outlined);
 
   const _ShellPage(this.label, this.icon);
   final String label;
@@ -189,7 +186,9 @@ class _HomeShellState extends State<HomeShell> {
   final _voice = ValueNotifier(const VoiceActivity());
   final _converseControls = ConverseViewControls();
   final _agentControls = AgentViewControls();
-  bool _settingsOpen = false;
+  int _optionsNavigation = 0;
+  OptionsPage _optionsInitial = OptionsPage.overview;
+  _ShellPage? _beforeOptions;
   bool _modelSetupOpen = false;
   bool _converseVisible = true;
   bool _railExtended = false;
@@ -256,8 +255,9 @@ class _HomeShellState extends State<HomeShell> {
 
   List<_ShellPage> get _destinations => [
     for (final page in _ShellPage.values)
-      if (page != _ShellPage.converse ||
-          widget.presentation.preferences.showConverseView)
+      if (page != _ShellPage.options &&
+          (page != _ShellPage.converse ||
+              widget.presentation.preferences.showConverseView))
         page,
   ];
 
@@ -358,77 +358,26 @@ class _HomeShellState extends State<HomeShell> {
     }
   }
 
-  SettingsAvailability get _settingsAvailability => SettingsAvailability(
-    voiceOptions: _converseControls.openVoiceOptions != null,
-    agentControls:
-        widget.state.commandsAvailable && _agentControls.openCommands != null,
-    mcpConnections: widget.state.client != null,
-  );
+  void _settings([OptionsPage initial = OptionsPage.overview]) {
+    if (_closing) return;
+    _scaffoldKey.currentState?.closeDrawer();
+    setState(() {
+      if (_workspacePage != _ShellPage.options) _beforeOptions = _workspacePage;
+      _optionsInitial = initial;
+      _optionsNavigation++;
+      _workspacePage = _ShellPage.options;
+    });
+  }
 
-  Future<void> _settings() async {
-    if (_settingsOpen || _closing) return;
-    final owner = widget.state;
-    _settingsOpen = true;
-    SettingsAction? action;
-    try {
-      action = await showDialog<SettingsAction>(
-        context: context,
-        builder: (_) => ListenableBuilder(
-          listenable: owner,
-          builder: (_, _) => Theme(
-            data: widget.darkTheme,
-            child: SettingsHub(
-              availability: _settingsAvailability,
-              quickSettings: InterfaceTransitionsSwitch(
-                controller: widget.presentation,
-              ),
-            ),
-          ),
-        ),
-      );
-    } finally {
-      _settingsOpen = false;
-    }
-    if (!mounted ||
-        _closing ||
-        !identical(widget.state, owner) ||
-        action == null) {
-      return;
-    }
-    // The hub is dismissed before any real destination is opened. Availability
-    // is read now, never taken from the snapshot that rendered a selected row.
-    if (!_settingsAvailability.allows(action)) return;
-    switch (action) {
-      case SettingsAction.models:
-        await _modelSetup();
-      case SettingsAction.connection:
-        _setup();
-      case SettingsAction.appearance:
-        _appearance();
-      case SettingsAction.memory:
-        await showConverseMemoryDialog(context: context, state: owner);
-      case SettingsAction.voice:
-        await _converseControls.openVoiceOptions?.call();
-      case SettingsAction.agentControls:
-      case SettingsAction.mcp:
-        setState(() => _workspacePage = null);
-        owner.setView(AppView.agent);
-        await WidgetsBinding.instance.endOfFrame;
-        if (!mounted ||
-            _closing ||
-            !identical(widget.state, owner) ||
-            !_settingsAvailability.allows(action)) {
-          return;
-        }
-        if (action == SettingsAction.agentControls) {
-          _agentControls.openCommands?.call();
-        } else {
-          await showDialog<void>(
-            context: context,
-            builder: (_) => McpSettings(state: owner),
-          );
-        }
-    }
+  void _closeOptions() {
+    if (!mounted || _closing) return;
+    setState(() {
+      _workspacePage =
+          _beforeOptions == _ShellPage.converse &&
+              !widget.presentation.preferences.showConverseView
+          ? _ShellPage.home
+          : _beforeOptions;
+    });
   }
 
   bool _closing = false;
@@ -441,15 +390,9 @@ class _HomeShellState extends State<HomeShell> {
     super.dispose();
   }
 
-  void _setup() => showDialog<void>(
-    context: context,
-    builder: (_) => SetupDialog(state: widget.state),
-  );
+  void _setup() => _settings(OptionsPage.connection);
 
-  void _appearance() => showDialog<void>(
-    context: context,
-    builder: (_) => PresentationSettings(controller: widget.presentation),
-  );
+  void _appearance() => _settings(OptionsPage.appearance);
 
   @override
   Widget build(BuildContext context) {
@@ -529,7 +472,9 @@ class _HomeShellState extends State<HomeShell> {
                             : Icons.chevron_right,
                       ),
                     ),
-                    selectedIndex: destinations.indexOf(page),
+                    selectedIndex: page == _ShellPage.options
+                        ? destinations.length
+                        : destinations.indexOf(page),
                     onDestinationSelected: (i) {
                       if (i == destinations.length) {
                         _settings();
@@ -882,6 +827,7 @@ class _HomeShellState extends State<HomeShell> {
                     key: const ValueKey('navigation-settings'),
                     leading: const Icon(Icons.settings_outlined),
                     title: const Text('Options'),
+                    selected: page == _ShellPage.options,
                     onTap: () {
                       _scaffoldKey.currentState?.closeDrawer();
                       _settings();
@@ -897,6 +843,19 @@ class _HomeShellState extends State<HomeShell> {
   );
 
   Widget _workspaceContent(_ShellPage page) {
+    if (page == _ShellPage.options) {
+      return Theme(
+        data: widget.darkTheme,
+        child: OptionsWorkspace(
+          key: ValueKey(_optionsNavigation),
+          state: widget.state,
+          presentation: widget.presentation,
+          converseControls: _converseControls,
+          initialPage: _optionsInitial,
+          onClose: _closeOptions,
+        ),
+      );
+    }
     if (page == _ShellPage.decisions) {
       return Theme(
         data: widget.darkTheme,
@@ -917,7 +876,7 @@ class _HomeShellState extends State<HomeShell> {
         'Project management is not connected to this host yet. Existing Agent sessions remain available in Agent.',
       _ShellPage.media =>
         'A generated media library is not connected to this host yet. No example files are shown as your media.',
-      _ShellPage.converse || _ShellPage.agent => '',
+      _ShellPage.converse || _ShellPage.agent || _ShellPage.options => '',
     };
     return Theme(
       data: widget.darkTheme,
