@@ -432,7 +432,9 @@ class AgentRuntime:
             return "seed-v1"
         version = registry.active if pinned is None else pinned
         if registry.selection_eligibility(version) not in {
-            "active", "approved_baseline", "owner_promoted"
+            "active",
+            "approved_baseline",
+            "owner_promoted",
         }:
             raise ValueError("Pinned harness has no current owner-approved eligibility")
         return version
