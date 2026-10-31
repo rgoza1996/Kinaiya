@@ -1,7 +1,7 @@
 # Kinaiya implementation and acceptance ledger
 
 **As of:** October 30, 2026, America/Los_Angeles.<br>
-**Specification:** [Roadmap 0.3.0](../Roadmap.md) and [clarification.md](../clarification.md).<br>
+**Specification:** [Roadmap 0.3.1](../Roadmap.md) and [clarification.md](../clarification.md).<br>
 **Runtime source cutoff:** [`f92f6d10aa136a5d27a6d4b41af4389ece3ac828`](https://github.com/rgoza1996/Kinaiya/commit/f92f6d10aa136a5d27a6d4b41af4389ece3ac828), tree `1d6b27a87aa80dc992da7fa4c4fa2ac53bf95f41`.<br>
 **Reconciliation:** [#161](https://github.com/rgoza1996/Kinaiya/issues/161), documentation only; subsequent bounded client fixes [#151](https://github.com/rgoza1996/Kinaiya/issues/151) and [#163](https://github.com/rgoza1996/Kinaiya/issues/163) are recorded below. The subsequent bounded artifact slice is tracked by [#165](https://github.com/rgoza1996/Kinaiya/issues/165) and ADR0068.
 
@@ -11,7 +11,7 @@ The owner requested reconciliation before further feature work. Inputs were the 
 
 ## Milestone status
 
-The original [milestone exit gates](../Roadmap.md#24-milestone-roadmap) and AT01–AT48 remain unchanged. Additional owner-refinement tests AT49–AT61 supplement them. Links to tests describe existing coverage, not a new execution of those tests during documentation editing.
+The original [milestone exit gates](../Roadmap.md#24-milestone-roadmap) and AT01–AT48 remain unchanged. Additional owner-refinement scenarios AT49–AT61 supplement them; AT62–AT63 record the October 31 distinction between model choice, profile recommendations and architectural comparisons. These additions claim no new runtime behavior or passed acceptance. Links to tests describe existing coverage, not a new execution of those tests during documentation editing.
 
 | Milestone / tracking | Current evidence-backed scope | Remaining acceptance and limits |
 |---|---|---|

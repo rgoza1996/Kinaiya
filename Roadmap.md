@@ -1,7 +1,7 @@
 # Kinaiya — Product Specification, Technical Plan, and Roadmap
 
-**Specification version:** 0.3.0<br>
-**Decision baseline:** October 30, 2026; reconciles the October 26 baseline with subsequent owner decisions.<br>
+**Specification version:** 0.3.1<br>
+**Decision baseline:** October 31, 2026; retains the October 30 reconciliation and adds the owner's model-choice/performance clarification.<br>
 **Status:** Product specification with an experimental implementation. Requirements are not completion claims; see the [implementation and acceptance ledger](docs/implementation-status.md).<br>
 **Implementation evidence cutoff:** `f92f6d10aa136a5d27a6d4b41af4389ece3ac828`; see the [status ledger](docs/implementation-status.md#client-reliability) for the bounded client fixes after the reconciliation baseline. Later documentation changes do not qualify new runtime behavior.<br>
 **Repository:** `rgoza1996/Kinaiya`  
@@ -15,7 +15,7 @@ This document consolidates the product decisions, specifies the boundaries betwe
 
 Read this specification together with [clarification.md](./clarification.md), which defines the architectural intent for autonomous capability expansion. Kinaiya can acquire durable executable capabilities implemented by conventional programs, specialized models, external tools/services, or Agent-authored software; those capabilities need not use LLM inference. This is design intent, not a claim that acquisition is already implemented.
 
-This revision reconciles the owner's implementation chat and **Set up local Penpot for Kinaiya** design chat through October 30. It records accepted product decisions rather than publishing those conversations. The [status ledger](docs/implementation-status.md) separates merged behavior, experimental evidence, unverified acceptance and planned work. ADRs explain mechanisms; reviewed code, tests and actual observations establish only their stated scope. Penpot controls, generated images, compiled clients and green CI do not establish model quality, live media, broad compatibility or milestone completion.
+The October 30 revision reconciled the owner's implementation chat and **Set up local Penpot for Kinaiya** design chat. The October 31 clarification below records how user-selected stacks, recommendations and architectural performance research relate. These are accepted product decisions rather than published conversations. The [status ledger](docs/implementation-status.md) separates merged behavior, experimental evidence, unverified acceptance and planned work. ADRs explain mechanisms; reviewed code, tests and actual observations establish only their stated scope. Penpot controls, generated images, compiled clients and green CI do not establish model quality, live media, broad compatibility or milestone completion.
 
 ## Contents
 
@@ -142,6 +142,14 @@ These additions refine the baseline without changing the protected-core, permiss
 The Penpot concept is a visual/compositional reference, not an exhaustive options inventory or executable backend. Missing full-harness options belong in the same visual system once their contracts exist; [the options catalog](docs/options.md) distinguishes working controls, host configuration and planned editors. Latest design-chat artwork removes the hair's moon/star ornaments, uses a tiny chest mole and refines moonlit white hair highlights. Those reference refinements have not been integrated into the bundled pack at the evidence cutoff; preserve identity/style and review versioned assets before activation rather than silently replacing released sprites.
 
 **Proposed engineering defaults, not additional owner requirements:** Python for the initial host services, SQLite behind a single local storage service, JSON Schema for contracts, authenticated HTTP/WebSocket control transport, and a WebRTC-based mobile media layer. Specific libraries, versions, and endpoint names remain replaceable implementation choices.
+
+### 2.2 Owner clarification on October 31: model choice and responsiveness
+
+| ID | Accepted decision | Requirement and current boundary |
+|---|---|---|
+| D46 | Users choose their supported model stack; responsiveness depends on those models, their runtime, configuration and hardware. | Benchmarking produces hardware-specific stack recommendations and identifies architectural improvements. The 8 GB local target and proposed realtime latency targets qualify particular recommended profiles, not every supported choice. Rolling windows, adaptive VAD, chunked TTS and stage overlap improve orchestration without replacing the user's chosen models. |
+
+See [clarification.md §16](clarification.md#16-converse-model-choice-performance-and-stack-recommendations) and [§25.6](#256-stack-recommendations-and-architectural-comparisons) for measurement and recommendation rules. This clarification changes no implementation claim, permission boundary or resource-admission requirement.
 
 ## 3. Scope and non-goals
 
@@ -360,6 +368,8 @@ new conversation entries -> Decisions -> selected Agent attention
 ```
 
 STT, conversational generation, and TTS should overlap where their backends permit it. Do not wait for the entire response when usable, stable text chunks can already be synthesized. Chunking must preserve prosody and avoid splitting control tags, numbers, or incomplete phrases unnecessarily.
+
+Rolling audio/text windows and adaptive VAD/endpointing are architectural strategies to evaluate alongside chunking and stage overlap. They must preserve context, transcript revisions, interruption handling and playback truth. These strategies reduce avoidable waiting and keep available inference capacity busy; they cannot guarantee realtime conversation for an arbitrarily slow selected stack. A backend that only returns complete output must be described and measured as such.
 
 Retain a text-only mode. Keep the STT, response LLM, and TTS provider interfaces independently replaceable. Local models are preferred for the immediate personality loop; explicitly configured cloud alternatives must be labeled as transmitting data off-device.
 
@@ -650,6 +660,8 @@ Offer user-selectable profiles:
 - **Configured hybrid:** use only providers and data-disclosure scopes the user has authorized.
 
 These profiles govern behavior; they do not imply hardware-enforced GPU priority exists on every backend. Admission control and actual measurement are required. The broader 6–12 GB accessibility goal is now qualified by the owner's concrete **8 GB total VRAM smallest local Converse target**. That target covers GPU inference for STT + conversational LLM + TTS together, with concurrent Decisions, caches, buffers, renderer and headroom accounted for. CPU control/tokenization is normal; silently loading an inference model on CPU does not satisfy this GPU profile. Explicit CPU research/fallback profiles remain separately labeled and do not qualify it ([ADR 0056](docs/adr/0056-explicit-gpu-converse.md)).
+
+The 8 GB target describes a recommended small local stack, not a maximum supported configuration or a requirement to replace an owner's selected model. Higher-memory, slower, CPU or explicitly authorized cloud profiles remain valid choices when supported by their adapters and resource policy. Show measured limitations and unsupported capabilities honestly; do not silently swap models or providers to meet a recommendation. Recommendations are dated to the measured hardware/runtime and can change as hardware and implementations improve.
 
 Publish measured idle, loaded and representative peak whole-stack use on the same hardware/context settings when comparing 0.6B and 2B models. Distinguish model weights, KV cache, runtime reservations, other processes and device total; parameter count or model-file size alone cannot explain a 7 GB device observation. The accessible profile remains unqualified until actual aggregate memory, quality and latency evidence passes. Heavy Agent work and extensions declare separate resource needs and participate in scheduling/handoff or authorized offloading. Private data never silently migrates to cloud providers.
 
@@ -1287,11 +1299,15 @@ Do not confound a stronger model, different tools, more tokens, longer time limi
 
 Measure user-end-of-speech to audible response; endpointing delay; STT finalization; LLM time to first useful chunk; TTS first decoded chunk; first audible speech; full synthesis time; RTF; buffer underflow; cancellation latency; and p50/p95 distributions.
 
+Record LLM time to first token separately from time to a stable, useful synthesis chunk. Where observable, distinguish backend inference, transport, queueing, chunk assembly, synthesis and playback buffering with explicit timing boundaries. Report unavailable timings as unavailable; an HTTP duration or first decoded waveform does not establish first audible speech. Preserve chunk sizes, speech duration and generation/synthesis backlog so overlap benefits can be assessed.
+
 RTF is synthesis wall time divided by produced audio duration for the stated measurement boundary. First decoded waveform may contain silence. Buffered full-output latency is not streaming TTFA. Pipeline stage durations overlap, so do not sum them blindly into an end-to-end claim.
 
 Record cold start separately from warm inference. Use short acknowledgments, normal replies, long explanations, emotion changes, names/numbers, interruptions, and background noise. Include all four retained TTS candidates and concurrent Converse/Decisions loads.
 
 **Proposed reference-profile targets, not measured promises:** warm audible TTS onset below 250 ms median and 500 ms p95 for a realtime profile; end-of-user-speech to audible reply below 1 second median and 2 seconds p95; sustained RTF below 1 with no underflow during the defined test. RTF below 0.3 is a stretch/headroom target, not a requirement for every retained provider.
+
+These targets apply to a specified recommended realtime profile. A slower supported stack can operate without qualifying for that recommendation. Correct routing, consent, truthful playback, cancellation and bounded resource use remain requirements for every supported stack; missing a performance recommendation cannot justify weakening them or silently changing models.
 
 Cold starts and quality/buffered profiles are reported separately. Publish what hardware and backend meet each target. Collect enough repetitions to support percentile claims; three medium utterances are screening data, not a stable p95 characterization.
 
@@ -1314,6 +1330,16 @@ Evaluate capability expansion separately: record the newly available operation, 
 Evaluate naturalness, intelligibility, voice identity across emotions, appropriate pacing, interruption recovery, character/voice consistency, and whether visual waiting behavior helps or merely conceals unacceptable delay.
 
 Use blinded or randomized listening where feasible. Do not optimize personality for dependency, flattery, notification frequency, or time spent conversing. Include disagreement, silence, and respectful boundaries in qualitative evaluation.
+
+### 25.6 Stack recommendations and architectural comparisons
+
+Model screening has two deliverables: recommend combinations for stated hardware/budgets and identify changes to Kinaiya's orchestration worth testing. A Decisions-only score or memory sample cannot qualify a complete Converse stack.
+
+- **Stack recommendations:** record exact STT, Decisions, dialogue and TTS models/revisions, quantization, context/output limits, runtimes, devices, concurrency, memory headroom, privacy/cost settings, cold/warm timings and dialogue/listening results. Label screening evidence separately from representative whole-stack and human acceptance. Publish tradeoffs rather than a universal winning model or eligibility list.
+- **Architectural comparisons:** hold the models, hardware, runtime settings and workload constant while comparing serialized versus overlapping stages, sentence/phrase chunking, rolling windows or adaptive VAD. Preserve baseline and candidate measurements, quality/context losses, interruptions, backlog and failure cases. Attribute only the measured difference to the changed architecture; a simultaneous model/backend change is a separate comparison.
+- **Small local profiles:** screen the complete stack against 8 GB first and 12 GB if needed. If it fits either target, no 16 GB or 32 GB run is needed to establish that smaller recommendation. Higher-memory choices remain supported where the configured backend and resource policy allow them. A large development GPU's observed residency is evidence for sizing, not proof of operation on smaller hardware.
+
+A TTS RTF of 0.5 can allow synthesis and playback to overlap, provided usable text and audio chunks arrive promptly; waiting for a whole paragraph can waste that advantage. RTF 0.5 alone does not establish low onset latency. A TTS RTF of 5 or an LLM first-token delay of 10 seconds remains a limitation of that selected stack: orchestration can reduce additional waiting but cannot promise to remove those delays. Timings and recommendations must be revisited when models, backends or hardware change. None of these examples is a new benchmark result or a fixed product deadline.
 
 ## 26. Acceptance-test matrix
 
@@ -1380,8 +1406,12 @@ Use blinded or randomized listening where feasible. Do not optimize personality 
 | AT59 | Enable/select optional Converse memory, correct/forget a source, disable it or replace the runtime/backend during a pending operation. | Only compatible scoped complete memory context enters a measured local prompt; stale/invalid derived context is excluded. Off/unavailable memory preserves ordinary conversation, shared transcript and Agent independence. Curated recall does not establish automatic extraction or better human recall. |
 | AT60 | Play speech with silence, interrupt it, switch presentation or disable motion; review the default scene and a new artwork revision. | Mouth follows actual playback-clock audio, closes on silence/stop/stale output and keeps identity stable; optional visemes require real timing. Idle remains seated on water under the looming moon in the approved flat style. New reference edits require validated versioned pack integration, not an unreviewed asset substitution. |
 | AT61 | During a real call an intelligent artifact becomes relevant, is actively used or pinned, then recedes or the call ends. | Artifact can occupy the main stage with the mascot in a small side/corner frame; audio and accessible call controls persist. User pin/close/reopen takes precedence over a topic guess; artifact state survives hangup. A mockup or foreground invitation cannot pass this media/artifact gate. |
+| AT62 | An owner selects a supported stack outside a recommended memory or realtime latency profile. | Preserve the explicit model/provider choice under capability, consent and resource policy. Show actual limitations; do not silently replace it or claim the recommendation passed. Model-independent correctness, cancellation and playback requirements still apply. |
+| AT63 | Evaluate chunking, overlap, rolling windows or adaptive VAD for a fixed stack. | Compare the same models/hardware/runtime/workload; retain end-to-end and available stage/chunk timings, memory, quality, context/revision behavior, interruption and backlog evidence. A faster model or an isolated RTF measurement does not establish an architectural improvement or whole-stack acceptance. |
 
 AT01–AT48 are retained unchanged from version 0.2.2. AT49–AT61 add owner-refinement coverage; they do not retroactively mark the original tests passed or relax an exit gate. Live content-controlled timing also retains [clarification §10](clarification.md#10-decisions-real-time-converse-control-and-agent-routing)'s separate conversational/Agent outputs, no artificial live-silence requirement and actual cancellation acknowledgments.
+
+AT62–AT63 record the October 31 clarification: universal correctness requirements and qualification of a particular performance recommendation are distinct. The existing profile targets and their evidence requirements remain in force for claims about those profiles.
 
 Contract and deterministic safety tests should run in ordinary CI without paid APIs or GPUs. Hardware/provider tests run in a separate opt-in tier. Synthetic fixtures must remain clearly labeled. The [status ledger](docs/implementation-status.md) maps existing evidence and open qualification; a row in this requirements table is not a test result.
 

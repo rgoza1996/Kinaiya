@@ -2,7 +2,7 @@
 
 **Status:** Architectural design intent  
 **Scope:** Kinaiya Agent, Converse, Decisions, adaptive harnesses, executable extensions, skills, plugins, and external tools  
-**Related specifications:** `Roadmap.md`, Sections 8, 10–12, 14, and 31
+**Related specifications:** `Roadmap.md`, Sections 7–8, 10–12, 14, 25–26, and 31
 
 ## 1. Fundamental Principle
 
@@ -126,7 +126,7 @@ A specialized executable component may be faster, more deterministic, less expen
 
 Capabilities may use CPU execution, GPU acceleration, specialized model inference, external services, or hybrid approaches, subject to configured user permissions and resource policies.
 
-**The 6–12 GB VRAM target concerns the intended accessible conversational experience. It does not imply that every possible extension or simultaneous workload must fit within that same memory budget.**
+**The smallest recommended local Converse target is 8 GB total VRAM, with 12 GB screened if needed. It concerns the intended accessible conversational experience, not a maximum supported stack size. It does not imply that every selected model, extension or simultaneous workload must fit within that same memory budget.** Qualification of this GPU profile requires actual whole-stack GPU placement and memory evidence; separately selected CPU or larger profiles remain possible. See [Section 16](#16-converse-model-choice-performance-and-stack-recommendations).
 
 Heavy capabilities must declare their requirements and participate in resource scheduling, loading, unloading, or authorized offloading.
 
@@ -600,3 +600,28 @@ Formal assurance should not be confused with proving that generated harnesses ou
 Acceptance requires reproducible checking from pinned proof artifacts; rejection of disallowed axioms/holes; clear documentation of trust boundaries and assumptions; independently collected empirical benchmarks where improvement is claimed; correct failure/retry/revalidation; and no promotion based solely on a model's verbal assertion of proof success.
 
 **Interpretation rule:** Kinaiya may *use* formal verification as an optional tool-assisted research capability, but mathematical proof, correct software behavior, and empirical improvement are distinct claims. Trusted independent checkers and evaluation rules—not generated Agent conclusions—establish the evidence accepted by Core.
+
+## 16. Converse Model Choice, Performance, and Stack Recommendations
+
+**Owner clarification, October 31, 2026.** Converse responsiveness depends on the user's chosen STT, Decisions, dialogue and TTS stack, its configuration, the inference runtime, hardware and any network transport. Kinaiya should expose supported choices and their measured tradeoffs. Benchmark rankings and recommended configurations do not become mandatory model choices.
+
+### 16.1 Two purposes of model evaluation
+
+1. **Recommend useful stack combinations** for stated hardware, VRAM, quality, latency, privacy and cost preferences. Measure the complete concurrent stack before recommending its fit; a small Decisions model fitting alone does not qualify an 8 GB or 12 GB Converse configuration. Keep partial screening and human acceptance separate.
+2. **Find architectural improvements** to context handling, capture, scheduling, streaming, chunking and playback. Compare those changes with models, hardware, runtime settings and workload held constant so the measured benefit is attributable to the orchestration change.
+
+The current small-local evaluation starts at 8 GB and uses 12 GB if necessary. Once a complete stack fits either profile, testing 16 GB or 32 GB is unnecessary to establish that smaller recommendation. Users may still choose supported larger stacks. Recommendations identify their measurement date and configuration; advances in hardware and runtimes can make previously impractical choices useful.
+
+### 16.2 Optimize the pipeline without overriding the stack
+
+Rolling audio/text windows, dynamic VAD/endpointing, sentence/phrase-aware TTS chunks and overlapping pipeline stages can reduce avoidable waiting. They must preserve transcript revisions and context, appropriate chunk/prosody boundaries, interruption behavior and actual playback state. Their usefulness and availability depend on backend capabilities; a buffered-only provider cannot be advertised as streaming.
+
+For example, TTS with an RTF of 0.5 may synthesize subsequent chunks while earlier audio plays instead of waiting for the entire paragraph. That throughput does not by itself establish fast first audible output. Conversely, a selected TTS with RTF 5 or a dialogue model with 10-second time to first token cannot be made intrinsically realtime by adding chunking. Kinaiya can reduce its own overhead and overlap available work, while reporting the remaining delay honestly.
+
+RTF is synthesis wall time divided by produced audio duration and is dimensionless. Record its boundary separately from first-token time, first usable text chunk, first decoded audio, first audible speech, full output duration, queueing and playback backlog. Record cold and warm runs, distributions, memory and quality under representative concurrent load. Never add overlapping stage durations to manufacture an end-to-end latency claim.
+
+### 16.3 Choice and acceptance
+
+The roadmap's proposed latency targets qualify specified recommended realtime profiles, not every supported stack. Missing a recommendation does not authorize a silent model/provider substitution. Adapter compatibility, configured context/deadline/resource limits, disclosure policy, permissions, correct routing, cancellation and truthful playback remain requirements for all supported configurations. Exceeding a configured limit must produce a truthful bounded outcome rather than an invented response or unreported fallback.
+
+These are interpretation and evaluation requirements. They do not claim that every optimization is implemented, that current model screening proves live conversational quality, or that any stack has passed whole-system acceptance. See [Roadmap §25](Roadmap.md#25-research-and-performance-evaluation) and acceptance scenarios AT57 and AT62–AT63.
