@@ -8,6 +8,7 @@ import 'state/app_state.dart';
 import 'presentation/controller.dart';
 import 'ui/presentation_settings.dart';
 import 'ui/agent_chat.dart';
+import 'ui/decisions_view.dart';
 import 'ui/character_view.dart';
 import 'ui/setup_dialog.dart';
 import 'ui/settings_controls.dart';
@@ -171,7 +172,7 @@ enum _ShellPage {
   home('Home', Icons.home_outlined),
   converse('Converse', Icons.graphic_eq_rounded),
   agent('Agent Chat', Icons.chat_bubble_outline_rounded),
-  character('Character & motion', Icons.person_outline_rounded),
+  decisions('Decisions', Icons.diamond_outlined),
   projects('Projects', Icons.folder_outlined),
   files('Files', Icons.description_outlined),
   media('Media', Icons.photo_library_outlined);
@@ -260,10 +261,6 @@ class _HomeShellState extends State<HomeShell> {
   void _selectPage(_ShellPage page) {
     if (_closing) return;
     _scaffoldKey.currentState?.closeDrawer();
-    if (page == _ShellPage.character) {
-      _appearance();
-      return;
-    }
     if (page == _ShellPage.home ||
         page == _ShellPage.converse ||
         page == _ShellPage.agent) {
@@ -872,12 +869,17 @@ class _HomeShellState extends State<HomeShell> {
   );
 
   Widget _workspaceContent(_ShellPage page) {
+    if (page == _ShellPage.decisions) {
+      return Theme(
+        data: widget.darkTheme,
+        child: DecisionsView(state: widget.state),
+      );
+    }
     final home = page == _ShellPage.home;
     final description = switch (page) {
       _ShellPage.home =>
         'Choose where you want to start. Your conversations stay open when you switch sections.',
-      _ShellPage.character =>
-        'Character and motion settings are available from Appearance.',
+      _ShellPage.decisions => 'Inspect literal historical Decisions evidence.',
       _ShellPage.files =>
         'Workspace file browsing is planned. Opening this page does not read files or grant Agent access.',
       _ShellPage.projects =>
@@ -926,13 +928,13 @@ class _HomeShellState extends State<HomeShell> {
                         spacing: 12,
                         runSpacing: 12,
                         children: [
-                          if (home || page == _ShellPage.character)
+                          if (home)
                             FilledButton.icon(
                               onPressed: () => _selectPage(_ShellPage.converse),
                               icon: const Icon(Icons.graphic_eq_rounded),
                               label: const Text('Open Converse'),
                             ),
-                          if (page != _ShellPage.character)
+                          if (!home)
                             OutlinedButton.icon(
                               onPressed: () => _selectPage(_ShellPage.agent),
                               icon: const Icon(

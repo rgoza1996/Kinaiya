@@ -161,7 +161,7 @@ void main() {
       expect(f.state.converseDraft, 'Keep this new Converse draft');
       expect(f.state.agentDraft, 'Retained Agent draft');
       expect(f.dispatchedEffect, isFalse);
-      await tester.tap(find.byKey(const ValueKey('navigation-character')));
+      await tester.tap(find.byTooltip('Appearance'));
       await routePump(tester);
       expect(find.byType(PresentationSettings), findsOneWidget);
       await tester.tap(find.byTooltip('Close appearance settings'));

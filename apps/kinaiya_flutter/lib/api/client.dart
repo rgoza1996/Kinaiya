@@ -12,6 +12,7 @@ import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
 
 import 'memory_client.dart';
+import 'decisions_client.dart';
 import 'models.dart';
 import 'converse_setup.dart';
 
@@ -68,9 +69,11 @@ class KinaiyaClient {
     required String ownerToken,
     http.Client? httpClient,
     http.Client Function()? memoryClientFactory,
+    http.Client Function()? decisionsClientFactory,
   }) : _token = ownerToken,
        _http = _NoRedirectClient(httpClient ?? http.Client()),
-       _memoryClientFactory = memoryClientFactory ?? http.Client.new;
+       _memoryClientFactory = memoryClientFactory ?? http.Client.new,
+       _decisionsClientFactory = decisionsClientFactory ?? http.Client.new;
 
   final String sessionBase;
   final String agentBase;
@@ -78,6 +81,12 @@ class KinaiyaClient {
   final String _token;
   final http.Client _http;
   final http.Client Function() _memoryClientFactory;
+  final http.Client Function() _decisionsClientFactory;
+  late final DecisionsApi decisionInspections = DecisionsApi(
+    base: sessionBase,
+    ownerToken: _token,
+    clientFactory: _decisionsClientFactory,
+  );
 
   Future<ConverseSetup> converseSetup() async =>
       ConverseSetup.fromJson(await _get(converseBase, '/v1/converse/setup'));
@@ -98,9 +107,11 @@ class KinaiyaClient {
     required http.Client mockTransport,
     String label = 'mock',
     http.Client Function()? memoryClientFactory,
+    http.Client Function()? decisionsClientFactory,
   }) : _token = 'mock-token-not-a-credential',
        _http = _NoRedirectClient(mockTransport),
-       _memoryClientFactory = memoryClientFactory ?? http.Client.new {
+       _memoryClientFactory = memoryClientFactory ?? http.Client.new,
+       _decisionsClientFactory = decisionsClientFactory ?? http.Client.new {
     _mockLabel = label;
   }
 
@@ -625,6 +636,7 @@ class KinaiyaClient {
       _http.close();
     } finally {
       unawaited(memory.close());
+      decisionInspections.close();
     }
   }
 }
