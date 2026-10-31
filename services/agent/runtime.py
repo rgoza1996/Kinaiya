@@ -1694,6 +1694,7 @@ class AgentRuntime:
                 self._grants(),
                 policy.workspace,
                 policy.protected_roots,
+                policy.readonly_roots,
             )
 
         pinned = identity()

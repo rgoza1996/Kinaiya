@@ -73,7 +73,9 @@ class ToolPolicy:
     are never writable even when they overlap the workspace (core policy,
     owner goals, evaluator assets). ``yolo`` grants workspace file/shell
     actions without per-action approval but never lifts the workspace or
-    protected-root boundary and never grants core authority.
+    protected-root boundary and never grants core authority. ``readonly_roots``
+    remain readable/searchable but cannot be written, including with approvals.
+    Shell execution overmounts these references read-only.
     """
 
     def __init__(
@@ -84,6 +86,7 @@ class ToolPolicy:
         yolo: bool = False,
         network: bool = False,
         protected_roots: tuple[Path, ...] | list[Path] = (),
+        readonly_roots: tuple[Path, ...] | list[Path] = (),
     ) -> None:
         self.workspace = Path(workspace).resolve()
         self.allow_write = bool(allow_write)
@@ -91,6 +94,16 @@ class ToolPolicy:
         self.yolo = bool(yolo)
         self.network = bool(network)
         self.protected_roots = tuple(Path(p).resolve() for p in protected_roots)
+        references = []
+        for root in readonly_roots:
+            candidate = Path(root)
+            if not candidate.is_absolute():
+                candidate = self.workspace / candidate
+            resolved = candidate.resolve()
+            if resolved != Path(os.path.abspath(candidate)):
+                raise PolicyDenied("read-only roots must not use symlink aliases")
+            references.append(resolved)
+        self.readonly_roots = tuple(references)
         self._approvals: dict[str, Approval] = {}
 
     # -- ownership ------------------------------------------------------
@@ -167,6 +180,8 @@ class ToolPolicy:
     @contextmanager
     def scoped_parent(self, path: str | Path, *, create=False):
         """Walk with directory descriptors; a racing symlink cannot redirect host I/O."""
+        if create:
+            self._deny_readonly_write(path)
         resolved = self.resolve_path(path)
         parts = resolved.relative_to(self.workspace).parts
         if not parts:
@@ -198,6 +213,21 @@ class ToolPolicy:
             return self.workspace
         return self.resolve_path(path)
 
+    def _deny_readonly_write(self, path: str | Path) -> None:
+        if not self.readonly_roots:
+            return
+        candidate = Path(path)
+        if not candidate.is_absolute():
+            candidate = self.workspace / candidate
+        # Preserve the configured pathname if a reference was replaced by a
+        # symlink; also reject other symlinks resolving into the reference.
+        lexical = Path(os.path.abspath(candidate))
+        resolved = self.resolve_path(path)
+        for root in self.readonly_roots:
+            for observed in (lexical, resolved):
+                if observed == root or root in observed.parents or observed in root.parents:
+                    raise PolicyDenied("write touches a read-only reference")
+
     def check_write(
         self,
         path: str | Path,
@@ -207,6 +237,7 @@ class ToolPolicy:
         objective_revision: int = 1,
     ) -> Path:
         """Writes need a grant or a bound approval; scoping always applies."""
+        self._deny_readonly_write(path)
         resolved = self.resolve_path(path)
         if self.effective_write:
             return resolved
