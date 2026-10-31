@@ -842,8 +842,11 @@ class MetaResponsesProvider:
                         "mcp_tool": args["tool"],
                         "mcp_arguments_json": json.dumps(args["arguments"]),
                     }
-                elif action["tool"] == "mcp_list" and "tool" in args:
-                    args["mcp_tool"] = args.pop("tool")
+                elif action["tool"] == "mcp_list":
+                    if type(args) is not dict or set(args) - {"server_id", "after", "tool"}:
+                        raise ValueError("Malformed historical MCP listing arguments")
+                    if "tool" in args:
+                        args["mcp_tool"] = args.pop("tool")
                 elif action["tool"] == "plugin_call":
                     if type(args) is not dict or set(args) != {"plugin_id", "arguments"}:
                         raise ValueError("Malformed historical plugin arguments")
@@ -853,7 +856,7 @@ class MetaResponsesProvider:
                     }
                 elif action["tool"] == "publish_ui":
                     _ui_spec_object(json.dumps(args, ensure_ascii=False, allow_nan=False))
-                message["content"] = json.dumps(encode_action(action), ensure_ascii=False)
+                message["content"] = json.dumps(encode_action(action))
             except (ValueError, KeyError, TypeError, ProviderError):
                 # A historical clipped/refused action remains opaque history;
                 # never invent missing arguments or a successful tool result.

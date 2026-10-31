@@ -44,8 +44,8 @@ format and complete schema participate in exact streaming-prompt count binding.
 
 ## Verification and limitations
 
-The narrow combined suite passed 521 checks, including 181 pure-codec/native
-store checks, 71 actual adapter/native-runtime integration checks and existing
+The narrow combined suite passed 524 checks, including 181 pure-codec/native
+store checks, 74 actual adapter/native-runtime integration checks and existing
 provider/advertisement/count/history regressions. All 32 native selections and
 all nine UI types are exercised. Maximum emitted schema measurements are depth8,
 135 properties, 12 enum entries, 1610 aggregate naming characters and 1512
@@ -70,7 +70,11 @@ integration fixture attempted nonstream generation after an exact streaming
 count. Corrected the test inputs/path, with no validation or binding relaxation.
 Independent adapter review also caught unconditional disabled-UI hints,
 historical gateway key dropping and a new serializer mismatch; those changes
-were corrected with explicit regressions.
+were corrected with explicit regressions. Final independent delta review also
+caught MCP listing alias collisions and unsafe Unicode history serialization;
+the fixes preserve opaque malformed history and escaped transport-safe history.
+The reviewer confirmed those fixes with nine focused checks and found no
+remaining offline blocker. Real-provider admission remains a separate gate.
 
 This is a provider grammar, not the universal selected-operation schema/catalog
 or permission diagnostics still required by #171. It installs no tool, adds no

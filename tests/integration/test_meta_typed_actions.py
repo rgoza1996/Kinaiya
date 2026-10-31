@@ -392,6 +392,39 @@ async def test_historical_gateway_arguments_are_never_repaired_by_dropping_keys(
         await p.close()
 
 
+@pytest.mark.parametrize("logical_tool", [None, "calculate"])
+async def test_historical_mcp_listing_cannot_overwrite_or_accept_a_wire_alias(logical_tool):
+    args = {"server_id": "demo", "mcp_tool": "unexpected synthetic marker"}
+    if logical_tool is not None:
+        args["tool"] = logical_tool
+    original = json.dumps({"tool": "mcp_list", "arguments": args})
+    p = provider(lambda _: response(finish()))
+    try:
+        body = p.body([{"role": "assistant", "content": original}], False)
+        assert body["input"][-1]["content"] == original
+    finally:
+        await p.close()
+
+
+async def test_escaped_surrogate_history_cannot_create_invalid_utf8_transport_input():
+    original = json.dumps({"tool": "read_file", "arguments": {"path": "synthetic-\ud800"}})
+    observed = []
+
+    def send(request):
+        observed.append(json.loads(request.content))
+        return response(finish())
+
+    p = provider(send)
+    try:
+        await p.complete([{"role": "assistant", "content": original}])
+        content = observed[0]["input"][-1]["content"]
+        assert "\\ud800" in content
+        assert json.loads(content)["action"]["arguments"]["path"] == "synthetic-\ud800"
+        assert content.encode("utf-8")
+    finally:
+        await p.close()
+
+
 @pytest.mark.parametrize("tool", ["mcp_call", "plugin_call"])
 async def test_existing_gateway_json_text_conversion_stays_native(tool):
     args = {"server_id": "demo", "mcp_tool": "calculate", "mcp_arguments_json": '{"value":NaN}'}
