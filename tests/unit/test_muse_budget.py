@@ -1,5 +1,6 @@
 """Budget boundaries use synthetic upstreams; these tests make no Meta calls."""
 
+import base64
 import copy
 import http.client
 import importlib.util
@@ -96,6 +97,135 @@ def test_cache_discount_never_reduces_admission(budget):
     assert costs["contributor"] == pytest.approx(0.0000416)
     assert costs["admission"] == pytest.approx(0.00024)
     assert costs["comparison"] == pytest.approx(0.001675)
+
+
+def test_lower_owner_ceiling_preserves_prior_spend_and_uncertainty(budget):
+    module, _, _ = budget
+    module.audio_state(module.STATE)
+    module.STATE.update(
+        cache_aware_admission_estimated_usd=6,
+        reserved_usd=3,
+        audio_estimated_usd=0.5,
+        audio_reserved_usd=0.4,
+    )
+    before = copy.deepcopy(module.STATE)
+    assert module.lower_budget_limit(module.STATE, 10) == 10
+    assert {k: v for k, v in module.STATE.items() if k != "limit_usd"} == {
+        k: v for k, v in before.items() if k != "limit_usd"
+    }
+    assert module.admission_available(audio=0.1)
+    assert not module.admission_available(text=0.2)
+    assert module.lower_budget_limit(module.STATE, 25) == 10
+    for invalid in (0, -1, 26, True, float("nan"), float("inf")):
+        with pytest.raises(ValueError):
+            module.lower_budget_limit(module.STATE, invalid)
+    assert module.STATE["limit_usd"] == 10
+
+
+def media_body(*, generation):
+    if generation:
+        return {
+            "model": "muse-image-1.0",
+            "prompt": "One red square on white.",
+            "n": 1,
+            "response_format": "b64_json",
+        }
+    # Explicit synthetic PNG envelope: the upstream is mocked, not a decoder.
+    raw = (
+        b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
+        + (320).to_bytes(4, "big")
+        + (180).to_bytes(4, "big")
+        + b"\0" * 9
+    )
+    return {
+        "model": "sam-3.1",
+        "stream": False,
+        "store": False,
+        "input": [
+            {
+                "type": "message",
+                "role": "user",
+                "content": [
+                    {"type": "input_text", "text": "red square"},
+                    {
+                        "type": "input_image",
+                        "image_url": "data:image/png;base64," + base64.b64encode(raw).decode(),
+                    },
+                ],
+            }
+        ],
+    }
+
+
+@pytest.mark.parametrize("generation", [True, False])
+def test_media_smokes_require_explicit_enable_and_preserve_combined_ceiling(gateway, generation):
+    module, calls, result, client = gateway
+    route = "/v1/images/generations" if generation else "/v1/responses"
+    body = media_body(generation=generation)
+    assert client.post(route, json=body).status_code in {403, 405}
+    assert calls == []
+    module.MEDIA_SMOKE = True
+    module.lower_budget_limit(module.STATE, 10)
+    result.raw = json.dumps(
+        {"data": [{"b64_json": "synthetic"}]}
+        if generation
+        else {"status": "completed", "model": "sam-3.1", "output": []}
+    ).encode()
+    response = client.post(route, json=body, headers={"x-tbh-contributor-mode": "true"})
+    assert response.status_code == 200
+    assert len(calls) == 1
+    assert calls[0].full_url == "https://api.meta.ai" + route
+    assert not calls[0].has_header("X-tbh-contributor-mode")
+    reserve = module.MEDIA_RESERVATIONS[body["model"]]
+    assert module.STATE["media_estimated_usd"] == reserve
+    assert module.STATE["media_reserved_usd"] == 0
+    assert "red square" not in module.LEDGER.read_text()
+    module.STATE["reserved_usd"] = 9.999
+    assert client.post(route, json=body).status_code == 402
+    assert len(calls) == 1
+
+
+def test_malformed_media_and_unknown_results_never_refund(gateway):
+    module, calls, result, client = gateway
+    module.MEDIA_SMOKE = True
+    body = media_body(generation=True)
+    for extra in ({"n": 2}, {"n": True}, {"tools": []}, {"model": "unknown"}):
+        assert client.post("/v1/images/generations", json={**body, **extra}).status_code == 400
+    sam = media_body(generation=False)
+    for part in (
+        {"type": "input_image", "image_url": "https://example.com/image.png"},
+        {"type": "input_file", "file_id": "file-arbitrary"},
+        {"type": "input_image", "image_url": "data:image/png;base64,invalid"},
+    ):
+        invalid = copy.deepcopy(sam)
+        invalid["input"][0]["content"][1] = part
+        assert client.post("/v1/responses", json=invalid).status_code == 400
+    assert calls == []
+    result.raw = b'{"data":[]}'
+    assert client.post("/v1/images/generations", json=body).status_code == 200
+    assert module.STATE["media_reserved_usd"] == 0.02
+    assert module.STATE["media_calls"][0]["state"] == "uncertain_reservation_retained"
+    restored = copy.deepcopy(module.STATE)
+    module.media_state(restored)
+    assert restored["media_reserved_usd"] == 0.02
+    assert restored["media_estimated_usd"] == 0
+
+
+def test_budget_summary_is_bounded_numeric_and_omits_historical_calls(gateway):
+    module, calls, _, client = gateway
+    module.STATE["cache_aware_admission_estimated_usd"] = 2
+    module.STATE["reserved_usd"] = 3
+    module.STATE["calls"] = [{"private_label": "never expose this fixture"}]
+    result = client.get("/budget/summary")
+    assert result.status_code == 200
+    assert result.json()["accounted_with_reservations_usd"] == 5
+    assert result.json()["estimates_not_invoices"] is True
+    assert len(result.content) < 1024
+    assert "calls" not in result.json() and b"private_label" not in result.content
+    assert calls == []
+    module.STATE.pop("cache_aware_admission_estimated_usd")
+    module.STATE["admission_estimated_usd"] = 4
+    assert client.get("/budget/summary").json()["accounted_with_reservations_usd"] == 7
 
 
 def public_wav(seconds=1, rate=16000):

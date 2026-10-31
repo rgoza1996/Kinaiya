@@ -8,6 +8,8 @@ Run with the workspace Python; Muse --base-url points at this loopback listener.
 """
 
 import argparse
+import base64
+import binascii
 import email.policy
 import fcntl
 import json
@@ -36,6 +38,9 @@ VOICE_MODEL = "muse-voice-transcribe-1.0"
 VOICE_USD_PER_SECOND = 0.18 / 3600
 MAX_AUX_REQUESTS = 10000
 MAX_VOICE_BODY = 3_000_000
+MEDIA_SMOKE = False
+MEDIA_LIMIT_USD = 0.10
+MEDIA_RESERVATIONS = {"sam-3.1": 0.005, "muse-image-1.0": 0.02}
 
 
 def strict_json(raw):
@@ -199,8 +204,73 @@ def audio_state(state):
         raise ValueError("Invalid count audit counter")
 
 
-def admission_available(*, text=0, audio=0):
+def media_state(state):
+    calls = state.setdefault("media_calls", [])
+    if type(calls) is not list or len(calls) > MAX_AUX_REQUESTS:
+        raise ValueError("Invalid media ledger")
+    settled = unsettled = 0.0
+    for row in calls:
+        reservation = money(row["reservation_usd"])
+        if row["state"] == "completed":
+            settled += reservation
+        else:
+            unsettled += reservation
+    state["media_estimated_usd"] = max(money(state.get("media_estimated_usd", 0)), settled)
+    state["media_reserved_usd"] = max(money(state.get("media_reserved_usd", 0)), unsettled)
+
+
+def media_request(data, *, generation):
+    """One generated image or one inline PNG; never URLs, files or video."""
+    if generation:
+        if (
+            type(data) is not dict
+            or set(data) != {"model", "prompt", "n", "response_format"}
+            or data["model"] != "muse-image-1.0"
+            or type(data["prompt"]) is not str
+            or not 1 <= len(data["prompt"]) <= 1000
+            or type(data["n"]) is not int
+            or data["n"] != 1
+            or data["response_format"] != "b64_json"
+        ):
+            raise ValueError("Exactly one bounded image generation is required")
+        return data["model"]
+    if type(data) is not dict or set(data) != {"model", "input", "stream", "store"}:
+        raise ValueError("Exact SAM request required")
+    if data["model"] != "sam-3.1" or data["stream"] is not False or data["store"] is not False:
+        raise ValueError("Only buffered stateless SAM image segmentation is budgeted")
+    rows = data["input"]
+    if type(rows) is not list or len(rows) != 1 or type(rows[0]) is not dict:
+        raise ValueError("Exactly one SAM image input is required")
+    row = rows[0]
+    if set(row) != {"type", "role", "content"} or row["type"] != "message" or row["role"] != "user":
+        raise ValueError("Invalid SAM message")
+    parts = row["content"]
+    if type(parts) is not list or len(parts) != 2 or any(type(p) is not dict for p in parts):
+        raise ValueError("One text prompt and one PNG required")
+    text, image = parts
+    if (
+        set(text) != {"type", "text"}
+        or text["type"] != "input_text"
+        or type(text["text"]) is not str
+        or not 1 <= len(text["text"]) <= 200
+        or set(image) != {"type", "image_url"}
+        or image["type"] != "input_image"
+        or type(image["image_url"]) is not str
+        or not image["image_url"].startswith("data:image/png;base64,")
+    ):
+        raise ValueError("Invalid SAM input")
+    raw = base64.b64decode(image["image_url"].split(",", 1)[1], validate=True)
+    if not 33 <= len(raw) <= 2 * 1024 * 1024 or raw[:16] != b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR":
+        raise ValueError("Bounded PNG required")
+    width, height = struct.unpack(">II", raw[16:24])
+    if not 1 <= width <= 1024 or not 1 <= height <= 1024:
+        raise ValueError("SAM smoke image dimensions exceed bound")
+    return data["model"]
+
+
+def admission_available(*, text=0, audio=0, media=0):
     audio_state(STATE)
+    media_state(STATE)
     text_spent = money(
         STATE.get("cache_aware_admission_estimated_usd", STATE["admission_estimated_usd"])
     )
@@ -208,12 +278,52 @@ def admission_available(*, text=0, audio=0):
     billed = 0 if billed is None else money(billed)
     reserved = money(STATE["reserved_usd"])
     audio_spent, audio_reserved = STATE["audio_estimated_usd"], STATE["audio_reserved_usd"]
+    media_spent, media_reserved = STATE["media_estimated_usd"], STATE["media_reserved_usd"]
     return (
         (not text or max(text_spent, billed) + reserved + text <= 22)
         and audio_spent + audio_reserved + audio <= 3
-        and max(text_spent + audio_spent, billed) + reserved + audio_reserved + text + audio
+        and (not media or media_spent + media_reserved + media <= MEDIA_LIMIT_USD)
+        and max(text_spent + audio_spent + media_spent, billed)
+        + reserved
+        + audio_reserved
+        + media_reserved
+        + text
+        + audio
+        + media
         <= min(25, money(STATE["limit_usd"]))
     )
+
+
+def budget_summary():
+    """Bounded numeric inspection without exposing the historical call ledger."""
+    audio_state(STATE)
+    media_state(STATE)
+    keys = (
+        "limit_usd",
+        "cache_aware_admission_estimated_usd",
+        "reserved_usd",
+        "audio_estimated_usd",
+        "audio_reserved_usd",
+        "media_estimated_usd",
+        "media_reserved_usd",
+    )
+    result = {key: money(STATE.get(key, 0)) for key in keys}
+    result["cache_aware_admission_estimated_usd"] = money(
+        STATE.get("cache_aware_admission_estimated_usd", STATE.get("admission_estimated_usd", 0))
+    )
+    result["billing_reported_usd"] = STATE.get("billing_reported_usd")
+    settled = sum(
+        result[key]
+        for key in (
+            "cache_aware_admission_estimated_usd",
+            "audio_estimated_usd",
+            "media_estimated_usd",
+        )
+    )
+    result["accounted_with_reservations_usd"] = max(
+        settled, money(result["billing_reported_usd"] or 0)
+    ) + sum(result[key] for key in ("reserved_usd", "audio_reserved_usd", "media_reserved_usd"))
+    return {"schema_version": "1.0", "estimates_not_invoices": True, **result}
 
 
 def local_function_tools(tools):
@@ -385,6 +495,10 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(raw)
 
     def do_GET(self):
+        if self.path == "/budget/summary":
+            with LOCK:
+                self.local_json(200, budget_summary())
+            return
         if self.path == "/budget":
             with LOCK:
                 self.local_json(200, STATE)
@@ -395,6 +509,9 @@ class Handler(BaseHTTPRequestHandler):
         self.local_json(405, {"error": "Only model discovery and budget reads are supported"})
 
     def do_POST(self):
+        if self.path == "/v1/images/generations" and MEDIA_SMOKE:
+            self.forward_media(generation=True)
+            return
         if self.path in {"/v1/responses/input_tokens", "/v1/asr/transcribe"}:
             self.forward_auxiliary(voice=self.path == "/v1/asr/transcribe")
             return
@@ -402,6 +519,97 @@ class Handler(BaseHTTPRequestHandler):
             self.local_json(405, {"error": "Only the reserved Responses route is supported"})
             return
         self.forward()
+
+    def forward_media(self, *, generation, body=None, data=None):
+        try:
+            if body is None:
+                body = self.bounded_body(3_000_000)
+                data = strict_json(body)
+            model = media_request(data, generation=generation)
+        except (ValueError, binascii.Error, OSError):
+            self.local_json(400, {"error": "Invalid bounded media smoke request"})
+            return
+        reservation = MEDIA_RESERVATIONS[model]
+        with LOCK:
+            media_state(STATE)
+            if len(STATE["media_calls"]) >= MAX_AUX_REQUESTS or not admission_available(
+                media=reservation
+            ):
+                self.local_json(402, {"error": "Media smoke or combined budget limit reached"})
+                return
+            record = {
+                "id": len(STATE["media_calls"]) + 1,
+                "path": self.path,
+                "model": model,
+                "state": "in_flight",
+                "started_at": time.time(),
+                "reservation_usd": reservation,
+            }
+            STATE["media_calls"].append(record)
+            STATE["media_reserved_usd"] += reservation
+            save()
+
+        class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, *args):
+                return None
+
+        request = urllib.request.Request(
+            "https://api.meta.ai" + self.path,
+            data=body,
+            headers={
+                "Authorization": self.headers.get("Authorization", ""),
+                "Content-Type": "application/json",
+                "Accept-Encoding": "identity",
+            },
+            method="POST",
+        )
+        status, raw, completed = 502, b'{"error":"Unconfirmed media response"}', False
+        try:
+            with urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect).open(
+                request, timeout=120
+            ) as response:
+                raw = bounded_entity(response, 20 * 1024 * 1024)
+                status = response.status
+                payload = strict_json(raw)
+                if type(payload) is not dict:
+                    raise ValueError("Media response must be an object")
+                if generation:
+                    rows = payload.get("data")
+                    completed = (
+                        status == 200
+                        and type(rows) is list
+                        and len(rows) == 1
+                        and type(rows[0]) is dict
+                        and type(rows[0].get("b64_json")) is str
+                        and bool(rows[0]["b64_json"])
+                    )
+                else:
+                    completed = (
+                        status == 200
+                        and payload.get("status") == "completed"
+                        and payload.get("model", model) == model
+                        and type(payload.get("output")) is list
+                    )
+        except urllib.error.HTTPError as exc:
+            status, raw = exc.code, exc.read(65536)
+        except (ValueError, OSError, TimeoutError):
+            status, raw = 502, b'{"error":"Unconfirmed media response"}'
+        finally:
+            with LOCK:
+                if completed:
+                    record["state"] = "completed"
+                    STATE["media_reserved_usd"] -= reservation
+                    STATE["media_estimated_usd"] += reservation
+                else:
+                    record["state"] = "uncertain_reservation_retained"
+                save()
+        self.close_connection = True
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(raw)))
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.wfile.write(raw)
 
     def bounded_body(self, limit):
         lengths = self.headers.get_all("Content-Length", [])
@@ -586,6 +794,9 @@ class Handler(BaseHTTPRequestHandler):
             if not isinstance(data, dict):
                 self.local_json(400, {"error": "JSON object required"})
                 return
+            if data.get("model") == "sam-3.1" and MEDIA_SMOKE:
+                self.forward_media(generation=False, body=body, data=data)
+                return
             if data.get("model") != MODEL:
                 self.local_json(403, {"error": "This run authorizes Contributor only"})
                 return
@@ -745,13 +956,32 @@ class Handler(BaseHTTPRequestHandler):
                     )
 
 
+def lower_budget_limit(state, requested):
+    """An owner ceiling can only tighten a ledger, preserving all prior costs."""
+    if (
+        type(requested) not in {int, float}
+        or not math.isfinite(requested)
+        or not 0 < requested <= 25
+    ):
+        raise ValueError("Budget ceiling must be finite, positive and at most $25")
+    state["limit_usd"] = min(money(state["limit_usd"]), requested)
+    return state["limit_usd"]
+
+
 def main():
-    global STATE, LEDGER
+    global STATE, LEDGER, MEDIA_SMOKE
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=9790)
     parser.add_argument("--ledger", type=Path, default=LEDGER)
+    parser.add_argument("--limit-usd", type=float, help="Tighten the existing combined ceiling")
+    parser.add_argument(
+        "--enable-media-smoke",
+        action="store_true",
+        help="Enable bounded single-image tests with a $0.10 sublimit",
+    )
     args = parser.parse_args()
     LEDGER = args.ledger
+    MEDIA_SMOKE = args.enable_media_smoke
     with ledger_owner(LEDGER):
         STATE = (
             json.loads(LEDGER.read_text())
@@ -772,18 +1002,23 @@ def main():
         )
         reconcile(STATE)
         audio_state(STATE)
+        media_state(STATE)
+        if args.limit_usd is not None:
+            lower_budget_limit(STATE, args.limit_usd)
+        limit = min(25, money(STATE["limit_usd"]))
         STATE["admission_policy"] = (
             "2x verified Contributor cached/uncached settled cost; full uncached-context "
-            "future reservations; uncertain reserves retained; text $22/audio $3/combined $25"
+            f"future reservations; uncertain reserves retained; text $22/audio $3/combined ${limit:g}"
         )
         STATE["pricing_source"] = (
             "https://dev.meta.ai/docs/pricing-rate-limits; "
             "Contributor input 0.10/output 0.20/cached 0.002 USD per million; "
-            "Standard voice transcribe 0.18 USD/hour, conservative whole seconds"
+            "Standard voice transcribe 0.18 USD/hour, conservative whole seconds; "
+            "SAM image 0.0025 USD/image and Muse Image 0.01 USD/image, both reserved at 2x"
         )
         save()
         print(
-            f"Budget proxy listening on 127.0.0.1:{args.port}; text $22/audio $3/combined $25",
+            f"Budget proxy listening on 127.0.0.1:{args.port}; text $22/audio $3/combined ${limit:g}",
             flush=True,
         )
         ThreadingHTTPServer(("127.0.0.1", args.port), Handler).serve_forever()
