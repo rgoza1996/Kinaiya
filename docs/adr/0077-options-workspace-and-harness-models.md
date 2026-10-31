@@ -112,8 +112,11 @@ checks connection ownership before publishing into the current view.
 Implementation checks are recorded in the associated PR. Python compilation,
 static analysis and a Flutter release build do not establish runtime correctness,
 model quality, concurrency/recovery acceptance or physical audio behavior.
-Automated tests were not added or run in this implementation session; the
-owner's separate testing session can exercise this branch. Required cases are
+The existing navigation and consent fixtures now reflect the persistent
+workspace and explicit legacy-host metadata fallback. GitHub Actions runs the
+repository's deterministic regression suites and platform builds on this PR;
+the PR records each result and revision. No new test cases or local test runs
+were added in this implementation session. Further acceptance cases are
 native authentication, stale revisions, exact retries, lost responses, settings
 persistence, unavailable profiles, current harness eligibility, overlapping
 tasks with distinct model pins, steering/recovery, cloud disclosure and all

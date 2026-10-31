@@ -790,7 +790,20 @@ async def test_actual_launcher_configures_protected_storage_or_refuses_workspace
         registries.append(value)
         return value
 
-    monkeypatch.setattr(launcher, "load_config", lambda _: {"session_url": "http://synthetic"})
+    monkeypatch.setattr(
+        launcher,
+        "load_config",
+        lambda _: {
+            "session_url": "http://synthetic",
+            "providers": {
+                "agent": {
+                    "kind": "compatible",
+                    "model": "synthetic-model",
+                    "base_url": "http://127.0.0.1:9999/v1",
+                }
+            },
+        },
+    )
     monkeypatch.setattr(launcher, "load_or_create_tokens", lambda _: env.tokens)
     monkeypatch.setattr(launcher, "provider", lambda *args, **kwargs: ScriptedProvider([]))
     monkeypatch.setattr(

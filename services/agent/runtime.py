@@ -613,7 +613,9 @@ class AgentRuntime:
                 harness_version = self.session_harness(session.harness_version)
                 task_provider, model_pin = self.provider, None
         except (HarnessError, OSError, ValueError, RuntimeError) as exc:
-            raise PolicyDenied("The session's harness or model selection is unavailable") from exc
+            raise PolicyDenied(
+                "The session's pinned harness or model selection is unavailable"
+            ) from exc
         objective = request.objective
         source_scope = "public_synthetic"
         if request.source_event_ids:
