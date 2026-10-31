@@ -509,8 +509,8 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
     final category = _category, searching = _query.trim().isNotEmpty;
     return Material(
       color: Theme.of(context).colorScheme.surfaceContainerLow,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      child: ListView(
+        padding: EdgeInsets.zero,
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 24, 20, 18),
@@ -545,9 +545,10 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
             ),
           ),
           const SizedBox(height: 12),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.all(8),
+          Padding(
+            padding: const EdgeInsets.all(8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 if (searching) ...[
                   for (final item in optionsCategories)
