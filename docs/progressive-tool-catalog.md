@@ -97,7 +97,7 @@ they are not copied into task outcomes for other roles. Catalog inspection uses
 no new inference call. Tests use synthetic model transports; live capability or
 model-quality qualification is separate.
 
-Model history records the executed canonical logical action (at most8KiB) and
+Model history records the executed canonical logical action (at most 8 KiB) and
 its complete result as separate guarded units. Results identify the completed
 inspection explicitly. A real typed trial repeated discovery while the action
 trace was omitted; that observation alone does not establish a general cause.

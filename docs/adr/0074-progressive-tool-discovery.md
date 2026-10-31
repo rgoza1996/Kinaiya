@@ -2,7 +2,7 @@
 
 Status: accepted for the bounded remainder of #171.
 
-PR173 repaired native advertisement drift. It did not give Agent complete
+PR #173 repaired native advertisement drift. It did not give Agent complete
 selected logical schemas or a common bounded view of skills, MCP targets and
 compute plugins. Roadmap §§8, 31–32 and clarification §§3, 5, 7, 13 require
 capability discovery without confusing installation, availability or authority.
@@ -31,7 +31,7 @@ earlier metadata. Revocation stops the dependent task and narrows disclosure to
 local-only; deleting just the original catalog entry would leave derived text.
 Same-content task pin creation is a valid transition, not revocation.
 
-The snapshot remains protocol1.0 with an additive operation. Existing snapshot
+The snapshot remains protocol 1.0 with an additive operation. Existing snapshot
 constructors default discovery off; unbound Meta calls preserve their previous
 selection. Both flat-v1 and opt-in typed-v2 carry the new operation when the
 runtime advertises it. Strict evidence consumers must accept the additive kind;

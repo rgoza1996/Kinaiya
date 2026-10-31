@@ -7,9 +7,9 @@
     "Roadmap.md": "875f1bfba9aed0d4c2b408496fa278e948da546a020e48f03646dd34f3ce3988",
     "apps/kinaiya_flutter/lib/api/models.dart": "b34095bbe2e3fbe299523237c71cb3cc75b03a327f562b41a184df1c0746f47e",
     "apps/kinaiya_flutter/test/models_test.dart": "b69cf2d8a1ffdf0ce7ee072a8a626ba197af8b0953797a62d6b8f4784cbbc9f7",
-    "docs/adr/0074-progressive-tool-discovery.md": "987d75879491e9607146f1f5a45f6d4ef903715e51b887779979488074ad3100",
+    "docs/adr/0074-progressive-tool-discovery.md": "13c9df30093bac17083ebd3d7cdd1f9fb1edfd47597a1c0d11982844e5ee2a1a",
     "docs/native-tool-advertisement.md": "e01a6b22818662b34a5eb3b7f33d8825402fcae032996a1a46f0fa575598ea50",
-    "docs/progressive-tool-catalog.md": "99acb194969fa0c9179ab0ecb75f3205c1b6ef0ee10eebef0c30c6e0b317ffa9",
+    "docs/progressive-tool-catalog.md": "4f536d6a8eaa2ebe38ab944b780d9f18cea5289f083f04148f006da169f60465",
     "harnesses/seed/__init__.py": "f8d157e732835a13a2d9afb8fc33270aef468019ea6bab1f391f65f869a33d82",
     "packages/contracts/agent_tools.py": "524152e421f3fdda1ee0c18cf3836185a10f2748f0b958dccefc56a6020bfe24",
     "packages/contracts/models.py": "67594c9a48a8bc741baf468ab9397eee66b1bd35dfeccd8a4c33caaa7677044b",
@@ -78,7 +78,8 @@
       "elapsed_seconds": 7.46,
       "reproduced_derived_history_escape_fixed": true,
       "receipt_sha256": "00ad5a95dca6b06a9e72674ea955d10448007c09edb5dc314e0b9e893b655e43",
-      "reviewed_source_hashes_match": true
+      "reviewed_source_hashes_match": true,
+      "source_head": "96019358bbebbf39a52daf4b4b87177a0f110633"
     },
     "ruff_check": "passed",
     "ruff_format_check": "452 files already formatted",
@@ -190,6 +191,103 @@
       "elapsed_seconds": 9.04,
       "log_sha256": "4cf2e79db2a18ecf7dafe3aabe9c79857a3bd850f62a61dbba6041d54ed82909",
       "command": "PYTHONPATH=. python -m pytest tests/integration/test_progressive_tool_catalog.py tests/unit/test_seed_tool_snapshot.py tests/unit/test_seed_history.py tests/integration/test_agent_tool_advertising.py tests/unit/test_meta_tool_snapshot.py -q --tb=short"
+    },
+    "live_corrected_candidate": {
+      "source_head": "cadf20ccda195868c575770d2bc621de81fe0e36",
+      "cases": [
+        {
+          "mode": "flat-v1",
+          "state": "succeeded",
+          "passed": true,
+          "requests": 3,
+          "tool_order": [
+            "tool_catalog",
+            "read_file"
+          ],
+          "evidence_kinds": [
+            "inspection",
+            "read"
+          ],
+          "catalog_history_complete": true,
+          "catalog_metadata_omitted_from_evidence": true,
+          "elapsed_seconds": 18.739270192978438,
+          "provider_closed": true,
+          "workers_done": true
+        },
+        {
+          "mode": "typed-v2",
+          "state": "succeeded",
+          "passed": true,
+          "requests": 3,
+          "tool_order": [
+            "tool_catalog",
+            "read_file"
+          ],
+          "evidence_kinds": [
+            "inspection",
+            "read"
+          ],
+          "catalog_history_complete": true,
+          "catalog_metadata_omitted_from_evidence": true,
+          "elapsed_seconds": 16.656772060028743,
+          "provider_closed": true,
+          "workers_done": true
+        }
+      ],
+      "passed": true,
+      "before": {
+        "limit_usd": 25,
+        "admission_limit_usd": 22,
+        "billing_reported_usd": null,
+        "contributor_estimated_usd": 1.6378123400000026,
+        "reserved_usd": 2.23925145,
+        "cache_aware_admission_estimated_usd": 3.2756246800000053,
+        "last_call_id": 2422
+      },
+      "after": {
+        "limit_usd": 25,
+        "admission_limit_usd": 22,
+        "billing_reported_usd": null,
+        "contributor_estimated_usd": 1.6394438620000025,
+        "reserved_usd": 2.23925145,
+        "cache_aware_admission_estimated_usd": 3.278887724000005,
+        "last_call_id": 2428
+      },
+      "phase_contributor_estimate_usd": 0.0016315219999998298,
+      "phase_cache_aware_estimate_usd": 0.0032630439999996597,
+      "prompt_sha256": "363b4dcf570ff7da5e0e85e9a833ab5eb15b2f3376cb0e6c9291988473c8fcc7",
+      "general_model_quality_claim": false,
+      "voice_or_routing_claim": false,
+      "summary_sha256": "ea21f0795af3cba1366800514959945c005f1fd62defb2eba09f4287f373075d",
+      "harness_sha256": "7b9347c63aaa2bdd6f05b90446e8907b372d769b200288799a12436ba3e54c34",
+      "declaration_sha256": "8bb5ba442a06a03daffebe9f826f0bbe7a783934b4230c942b25e01b9b481be6",
+      "acceptance": "Both predeclared cases passed once on the corrected candidate; no output repair or automatic retry. Each used inspection, file read and finish within the three-step budget.",
+      "model": "muse-spark-1.3-contributor",
+      "requested_reasoning_effort": "xhigh",
+      "attempts_per_case": 1,
+      "max_steps": 3,
+      "max_output_tokens": 8192
+    },
+    "independent_history_correction_review": {
+      "source_head": "cadf20ccda195868c575770d2bc621de81fe0e36",
+      "targeted_tests_passed": 4,
+      "elapsed_seconds": 1.79,
+      "whole_action_bytes": {
+        "8192": "accepted",
+        "8193": "refused"
+      },
+      "native_guard_linkage_exported": false,
+      "largest_valid_query_ascii_bytes": 7776,
+      "live_calls": 0,
+      "result": "No code or wording blocker found; does not establish model reliability."
+    },
+    "corrected_focused": {
+      "source_head": "cadf20ccda195868c575770d2bc621de81fe0e36",
+      "passed": 1036,
+      "elapsed_seconds": 30.07,
+      "log_sha256": "b3cc01194e06a7fae16d319ec5a021a5948d12a71e0ee01814422c1ea87529b2",
+      "command": "PYTHONPATH=. /tmp/kinaiya134-verify-venv/bin/python -m pytest tests/unit/test_tool_catalog_contract.py tests/unit/test_agent_tools.py tests/unit/test_meta_tool_snapshot.py tests/unit/test_meta_typed_action_wire.py tests/unit/test_native_tool_schemas.py tests/unit/test_catalog_local_provider_guards.py tests/unit/test_seed_tool_snapshot.py tests/unit/test_seed_history.py tests/integration/test_agent_tool_advertising.py tests/integration/test_progressive_tool_catalog.py tests/integration/test_tool_catalog_metadata.py tests/integration/test_agent_seed.py tests/integration/test_intelligent_ui.py -q --tb=short",
+      "limitation": "Exact functional source; subsequent edits are evidence and documentation only. Required PR CI still qualifies the final head."
     }
   },
   "muse_delegation": {
