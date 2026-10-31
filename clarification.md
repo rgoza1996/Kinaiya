@@ -404,3 +404,85 @@ The DAG must be an **optional, replaceable Converse memory implementation behind
 The DAG supplements the authoritative shared transcript; it does not replace it. Disabling DAG memory must not disable transcript persistence, remove Agent's authorized access to retained history, or change Decisions' routing responsibilities (§10.3). Retrieved memories remain derived context subject to the user's privacy and retention settings; they cannot grant permissions or serve as authoritative execution evidence.
 
 **Interpretation rule:** Korina Memory DAG extends Converse's practical recall through optional external memory. It must not become mandatory platform infrastructure or an implicit memory system for Agent.
+
+## 13. Unified Providers & Models: Provider-First Configuration and Model Selection
+
+**Status:** Product and architectural design intent, not a claim of implemented UI or integrations.  
+**Scope:** Kinaiya settings, provider registry, model discovery, credential handling, and runtime role assignments.  
+**Relationship to existing architecture:** Preserve independent Converse, Agent, Decisions, STT, and TTS roles, protected Core authorization, explicit cloud disclosure, resource policy, and task-pinned execution. The existing read-only model/options experience may be superseded by this explicitly authorized owner-facing configuration workflow; read-only status displays must not silently become model-controlled write access.
+
+### 13.1 Organizing principle
+
+**Providers own connections and credentials; models expose capabilities; runtime roles determine where models are used. Manage all three in one coherent interface.**
+
+Do not require separate Provider and Model settings pages for the normal workflow. Use one **Providers & Models** settings page where each provider is a clickable, expandable row containing its discoverable model catalog. Supported initial provider families include Meta, OpenRouter, conventional OpenAI API, LM Studio, and Ollama; support other compatible endpoints through extensible adapters rather than hardcoding these five. An eligible ChatGPT-account sign-in flow, if officially available and authorized, is a **distinct authentication/inference integration**, not the same thing as a conventional OpenAI API key or a general promise that a ChatGPT subscription can be used as an API.
+
+The provider is the organizational parent of models in the UI; it is not necessarily the owner of model weights or proof that a model is currently runnable. Model identifiers are scoped to their provider and connection profile. Identical names under different providers are distinct selections.
+
+### 13.2 Provider dropdown behavior
+
+- A configured provider row shows its name, connection/health state, model count or discovery state, and an expand/collapse chevron. Clicking the row/name or chevron opens or closes its model list; expanding **does not** automatically change the active model.
+- Clicking an **unconfigured** provider initiates its setup wizard first. A successful verified connection enables model discovery and expansion. Do not show invented model choices or mark a provider connected merely because a key was entered.
+- A separate settings/gear affordance on a configured provider opens a contextual **provider settings sidebar**, preventing ambiguity between expand, configure, and select actions.
+- The model list supports search and, for large catalogs, filters and efficient/virtualized browsing. Users can filter by text/audio/image/video modalities, tool use, reasoning, context, or availability as metadata permits. Preserve a usable accessible keyboard and screen-reader flow; do not rely on color alone.
+- Loading, failed discovery, expired credentials, offline local servers, empty catalogs, and unknown capabilities have visible and recoverable states. Manual model-ID entry may be offered if the endpoint supports inference but does not support catalog discovery, with validation and an explicit unverified-capability label.
+
+### 13.3 Model cards and contextual model inspector
+
+For each model, show provider-qualified identity and, when **actually known from the endpoint**, useful metadata:
+
+- **Inputs:** text, image, audio, video, file, or other supported input modalities.
+- **Outputs:** text, audio, image, structured data, or other supported output modalities.
+- **Capabilities:** tool/function calling, reasoning controls, structured output/JSON, streaming, and relevant speech features.
+- **Limits and performance information:** context window, maximum output tokens, model/quantization variant, local loaded/unloaded state, and pricing where the provider supplies reliable data.
+- **Readiness:** available, loading, unavailable, incompatible with a particular role, or **unknown/unverified**.
+
+Model capabilities and *adapter/endpoint* capabilities are different. A model advertised as tool-capable is not sufficient if Kinaiya's selected transport cannot correctly deliver tools or parse results. Metadata is a hint, not proof: distinguish **supported**, **unsupported**, and **unknown**, and show tested/verified compatibility separately when available. Never assume absent metadata means false. Never invent context lengths, costs, input/output modalities, or reasoning controls.
+
+Clicking a model opens its own contextual detail/assignment inspector; it **does not silently activate** that model. Offer an explicit **Use for [role] / Assign** action after validating that the selected adapter and model support that role's necessary functions. Controls for reasoning effort, context, sampling, etc. must be offered only when genuinely supported and mapped to the underlying provider's protocol; disable unsupported controls visibly rather than silently ignoring them.
+
+### 13.4 Contextual provider settings sidebar and connection wizard
+
+For a configured provider, the sidebar may offer, as appropriate:
+
+- **API key(s) and authentication profiles:** add, label, select, rotate/replace, and remove multiple credentials or accounts; show masked identifiers or labels, never raw secrets after initial entry.
+- **Endpoint/base URL and connection profile:** supported local/cloud URLs, permitted network scopes, TLS requirements, health check, and model-discovery refresh.
+- **Provider-specific controls:** rate limits, spending/budget caps, model preferences, provider-specific flags, local runtime resource preferences, and availability diagnostics where supported.
+- **Forget provider:** an explicit, confirmed action that clears the local provider configuration and locally stored credential references, after displaying affected role assignments, sessions, and dependencies. Forgetting a provider **does not automatically revoke an external API key** at the provider's website; explain how to revoke it separately. Do not silently fail over to another cloud provider.
+
+For an unconfigured provider, the wizard must ask only for what the integration requires: API key or approved sign-in, or local server endpoint; test connectivity and authorization; and then discover models. Never confuse credential validity, server reachability, model listing, and successful inference—they are separate states. Connection setup, testing, and discovery must not transmit private conversation content by default.
+
+Secrets belong in protected OS/host credential storage or the existing guarded credential-reference mechanism, not source control, exported settings, frontend storage, logs, browser URLs, or publicly readable configuration. Never expose stored keys through read-only settings APIs. Multiple key profiles must not be automatically rotated to evade limits or bypass explicit user budgets/permissions. Remote/custom endpoint checks must enforce host/network allowlisting or equivalent SSRF protections, redirect controls, and the user's cloud/private-data authorization.
+
+### 13.5 Model discovery, provider adapters, and ownership
+
+Use a unified provider registry and normalized, versioned model-catalog contract with provider-specific adapters. Discovery can be refreshed or cached with staleness/last-checked information and should not require arbitrary inference requests to populate the UI. Different providers expose different catalogs, feature metadata, and authentication methods; adapters must preserve these differences rather than pretending all providers implement the same native operations.
+
+Provide ordinary inference interfaces independently from optional provider capabilities such as catalog discovery, model installation/download, local load/unload, and remote account management. For example, Ollama and LM Studio may expose local model lifecycle features; cloud providers generally do not expose those same operations. A provider may support text chat without supporting native tool calling, audio, or structured outputs in Kinaiya's chosen transport.
+
+Retain specialized providers, executable non-LLM components, and replaceable Decisions models. The UI must not imply that every Decisions or STT/TTS component is a text LLM, nor force them into an LLM-only interface. Explicit capability adapters govern compatible role options.
+
+### 13.6 Role assignment and runtime safety
+
+Support independent selections for **Converse dialogue, Agent execution, Decisions routing, STT, and TTS**, with capability-appropriate options for each. A model may be eligible for more than one role, but assignment is deliberate and role-specific. Decisions' model must remain independently replaceable, with Laya only a recommended option if configured as such, never a hardcoded requirement. The optional Converse memory DAG (§12) remains a separate toggle, not a side effect of choosing a provider.
+
+A role change must be an authenticated, owner-authorized configuration mutation with preflight validation, a preview of affected components, atomic application or rollback, and truthful success/failure feedback. Explicitly handle active Converse turns, Agent tasks, in-flight streams, and local load/unload constraints. Existing Agent jobs must retain their pinned model/provider/harness identity until a permitted and safely checkpointed migration; browsing the picker or switching UI tabs must not move them. Preserve current tasks, journal provenance, authorization decisions, and transcripts. New provider selection does not silently enable cloud disclosure, grant tool permissions, or override data-scope policy.
+
+When a selected provider fails, display the failure and permitted recovery options. Cross-provider fallback is a separate, explicit opt-in policy that must respect cost, privacy, credential boundaries, and role capability constraints; a failed call must not cause covert data export.
+
+### 13.7 Acceptance criteria and delivery
+
+1. The user can expand connected provider rows to inspect discoverable models without leaving the page or changing the active model.
+2. Clicking an unconfigured provider opens setup; failed/partial setup is reported as failed/partial, never as connected.
+3. Provider settings are accessible independently of the dropdown and expose masked credentials, profile controls, endpoint/health settings, and an explicitly confirmed Forget action.
+4. Model inputs, outputs, tools, reasoning, context, and readiness are shown only when supported by verified metadata; missing facts read **unknown**, not **no** or fabricated guesses.
+5. Search/filter works with large catalogs, and UI remains keyboard-accessible, responsive, and honest about loading/error states.
+6. Model selection requires explicit per-role assignment and rejects incompatible model/transport combinations before changing authoritative configuration.
+7. Switching never corrupts or silently rebinds in-flight Agent work, Converse sessions, Decisions routing, or retained provenance.
+8. Credentials never appear in repository files, regular settings responses, logs, or exported nonsecret profiles; custom endpoint verification cannot bypass cloud authorization or network policy.
+9. Removing a provider reports dependent roles and does not covertly reroute tasks, revoke external secrets by implication, or misrepresent removal success.
+10. Tests cover simulated provider discovery and auth failures, stale catalogs, inconsistent metadata, active task switching, role compatibility, permission boundaries, unsafe endpoints, and reconnect behavior.
+
+**Delivery order:** (A) registry, adapter contracts and catalog normalization; (B) authenticated connection and secrets lifecycle; (C) expandable provider list, search, and contextual sidebar; (D) validated role assignment and safe switching; (E) provider-specific lifecycle and advanced controls. Do not sacrifice existing Core safety guarantees for a faster-looking setup wizard.
+
+**Interpretation rule:** The desired UX is one provider-first **Providers & Models** workspace—not disconnected provider and model pages, not a flat unqualified model dropdown, and not automatic model activation on expansion. This section records **target design**, not existing implemented behavior.
