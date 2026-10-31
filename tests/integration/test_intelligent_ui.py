@@ -915,7 +915,7 @@ async def test_compute_plugin_publication_outcome_announces_only_native_ui_effec
         await converse.close()
 
 
-@pytest.mark.parametrize("invalid", ["path", "digest", "revision", "origin"])
+@pytest.mark.parametrize("invalid", ["path", "digest", "revision", "origin", "inspection"])
 async def test_converse_refuses_malformed_or_unauthenticated_artifact_receipts(env, invalid):
     task, _ = await publish(env)
     outcome = env.journal.read(task_id=task.task_id, kinds=["agent.outcome"])[-1]
@@ -927,6 +927,17 @@ async def test_converse_refuses_malformed_or_unauthenticated_artifact_receipts(e
         artifact["sha256"] = "not-a-native-digest"
     elif invalid == "revision":
         artifact["objective_revision"] = task.objective_revision + 1
+    elif invalid == "inspection":
+        # Even an authenticated succeeded envelope cannot turn metadata
+        # inspection into evidence of the requested UI/work effects.
+        payload["task"]["evidence"] = [
+            {
+                **artifact,
+                "kind": "inspection",
+                "path": None,
+                "output": '{"inspection_only":true,"metadata_omitted":true}',
+            }
+        ]
     modified = outcome.model_copy(
         update={
             "payload": payload,

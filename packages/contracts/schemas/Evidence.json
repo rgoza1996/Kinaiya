@@ -20,7 +20,8 @@
         "test",
         "extension",
         "external",
-        "artifact"
+        "artifact",
+        "inspection"
       ],
       "title": "Kind",
       "type": "string"

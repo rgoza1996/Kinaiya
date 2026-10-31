@@ -71,6 +71,7 @@ def assert_advertisement(body, snapshot):
         ("plugin_call", {"plugin_id", "plugin_arguments_json"}),
         ("mcp_call", {"server_id", "mcp_tool", "mcp_arguments_json"}),
         ("publish_ui", {"ui_spec_json"}),
+        ("tool_catalog", {"kind", "name", "query", "server_id"}),
     ):
         if snapshot.supports(tool):
             fields.update(names)
@@ -228,7 +229,7 @@ async def test_actual_read_finish_wire_prompt_snapshot_and_api_agree(env):
     final = await submit_and_wait(env)
     assert final.state == TaskState.SUCCEEDED, final.error
     assert len(env.calls) == 2
-    assert all(call.snapshot == native_tool_snapshot() for call in env.calls)
+    assert all(call.snapshot == native_tool_snapshot(catalog_available=True) for call in env.calls)
     assert [evidence.kind for evidence in final.evidence] == ["read"]
     assert final.evidence[0].sha256 == hashlib.sha256(env.content.encode()).hexdigest()
     assert (env.workspace / "facts.txt").read_text() == env.content
@@ -250,7 +251,9 @@ async def test_seed_task_keeps_its_tool_set_after_selector_metadata_is_configure
         assert env.runtime.tool_snapshot().supports("select_context")
         assert not env.runtime.tool_snapshot(task).supports("select_context")
         await assert_read_only_inspection(
-            env, task, generic_snapshot=native_tool_snapshot(selector_available=True)
+            env,
+            task,
+            generic_snapshot=native_tool_snapshot(selector_available=True, catalog_available=True),
         )
         generic = (await env.client.get("/v1/agents/capabilities")).json()
         assert generic["harness"] == active
@@ -263,7 +266,9 @@ async def test_seed_task_keeps_its_tool_set_after_selector_metadata_is_configure
     assert len(env.calls) == 2
     assert all(not call.snapshot.supports("select_context") for call in env.calls)
     await assert_read_only_inspection(
-        env, final, generic_snapshot=native_tool_snapshot(selector_available=True)
+        env,
+        final,
+        generic_snapshot=native_tool_snapshot(selector_available=True, catalog_available=True),
     )
 
 
@@ -302,7 +307,9 @@ async def test_unavailable_publication_never_executes_or_loses_required_effect_f
         )
 
     async def read_after_rejection(body):
-        expected = native_tool_snapshot(artifacts_available=change == "appears")
+        expected = native_tool_snapshot(
+            artifacts_available=change == "appears", catalog_available=True
+        )
         assert env.calls[-1].snapshot == expected
         observations = [
             message["content"] for message in body["input"] if message["role"] == "user"

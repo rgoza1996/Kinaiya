@@ -1,0 +1,153 @@
+{
+  "schema_version": 1,
+  "tracking_issue": 171,
+  "base_commit": "614a314ca00c61148c6bf0c4505b8e086c807986",
+  "scope": "Read-only progressive metadata/schema discovery; existing execution and installation brokers stay authoritative",
+  "source_sha256": {
+    "Roadmap.md": "875f1bfba9aed0d4c2b408496fa278e948da546a020e48f03646dd34f3ce3988",
+    "apps/kinaiya_flutter/lib/api/models.dart": "b34095bbe2e3fbe299523237c71cb3cc75b03a327f562b41a184df1c0746f47e",
+    "apps/kinaiya_flutter/test/models_test.dart": "b69cf2d8a1ffdf0ce7ee072a8a626ba197af8b0953797a62d6b8f4784cbbc9f7",
+    "docs/adr/0074-progressive-tool-discovery.md": "987d75879491e9607146f1f5a45f6d4ef903715e51b887779979488074ad3100",
+    "docs/native-tool-advertisement.md": "e01a6b22818662b34a5eb3b7f33d8825402fcae032996a1a46f0fa575598ea50",
+    "docs/progressive-tool-catalog.md": "42b67c86f2e52348b0e693952f4332f9f30a3e936a83063307ef877220ddc35b",
+    "harnesses/seed/__init__.py": "9faad668d54f9c68207623402a36fc4166269f11e236c08ee56af54f18f0b821",
+    "packages/contracts/agent_tools.py": "524152e421f3fdda1ee0c18cf3836185a10f2748f0b958dccefc56a6020bfe24",
+    "packages/contracts/models.py": "67594c9a48a8bc741baf468ab9397eee66b1bd35dfeccd8a4c33caaa7677044b",
+    "packages/contracts/native_tool_schemas.py": "96c9205626cd2caf29cc97c7809159099de71a81834375baa9b38ed645a43c78",
+    "packages/contracts/schemas/Evidence.json": "98078e5d87f5ae79c8fa5e7774c6aa9a419ff41e6284765ccd86303597e12645",
+    "packages/contracts/schemas/Task.json": "9b80a83a23b4ff74c385037c2cbbacfbb8d67463f408610ab38c9d9b47006eda",
+    "packages/contracts/schemas/ToolAction.json": "dcf8323dfcb06cbbfb32533275e689f7892d707fe2116866953e773a4317e0a2",
+    "packages/contracts/tool_catalog.py": "59623dccd896ad371a91e542ba7219201496907fec56f6fafbac17c709a4744f",
+    "packages/ecosystem/mcp_host.py": "f0ed6b6aa5546ad5861b0880cb0864bd349d620a79c20f4d6b8e82082f493b66",
+    "packages/providers/lmstudio.py": "f2236c4e35c080626b09cba55e981187d397155159bd8eddb518130e553dbfe6",
+    "packages/providers/meta_action_wire.py": "996f282db747b48abcfb2e9bd34cbfd488fd1ed4369b39c09aa6d7537ef271f5",
+    "packages/providers/qwen3.py": "45ab657db89a285a60da229d99daa784119a3038441aeeb7c39ace2008f1d796",
+    "packages/providers/text.py": "2388b078df82e07bf0eb328904c27a4abab83614428c58016695e66397d4eea3",
+    "services/agent/app.py": "1216baba1c1df9285f9502a478c0ca8637e167aadf38269a8ebd4c1722571a8b",
+    "services/agent/mcp_tools.py": "7fbc94f771ed7e028c0880c4ebae388b12d6ce87a98d17a104ad56586b52781e",
+    "services/agent/plugin_service.py": "7e274d65ee4246d047c11c9ac85912ba0d7bcfc62e5922b4a60a9f00333d64dd",
+    "services/agent/runtime.py": "87388e44a2fd4123858d3c14446e0e4b17f1e857126455f73cf7496bfe6a714e",
+    "services/agent/skill_service.py": "2077c28529b62074f720a6560d94210ebdef551fc80eb209624f2823d01eb68a",
+    "services/agent/tool_catalog.py": "1d94ea258bcd6d98f96c63f19fa6d98911160798379c4d14949d662874f47506",
+    "services/converse/runtime.py": "757ba315b448d34dff0e374eb23a703c48228997a59b9818ee0bc6336bcd8b9f",
+    "tests/integration/test_agent_seed.py": "9065fde58e7e46792d820d9a60f95bee8af8b1569485537c9a1bb35912b4bf66",
+    "tests/integration/test_agent_tool_advertising.py": "55f6dd2b202f52f362316cbc933f55c552aea126f7bce7e36b2d9d4af6e6bb38",
+    "tests/integration/test_intelligent_ui.py": "c8493e22f82dbafcd4507f88f75daa3d1f6819e4dd58e66b66b8ebdb21f6a8a8",
+    "tests/integration/test_progressive_tool_catalog.py": "6129c1d87b9d3ccde18acd0ddc0b9cefb30cbfaa150819570e501dd21a95b044",
+    "tests/integration/test_tool_catalog_metadata.py": "3f767d124b356b77ce6a08773472ac8f4f31a1646db639ae182ee942b2ed5144",
+    "tests/unit/test_agent_tools.py": "683548630817e8a9508774609cd9067784e7e8ccb19ad261ac920a0e20e6ce27",
+    "tests/unit/test_catalog_local_provider_guards.py": "9afaa1a65bef845f47235d07336efe76cdaa31b804fba3191de6a9ae20e71e61",
+    "tests/unit/test_meta_tool_snapshot.py": "ba4354ed4c01a866fe1e60fd1e1f26131d90d38c9f5e6b42b7efc355fe9f6303",
+    "tests/unit/test_meta_typed_action_wire.py": "e1303c25b8b53acd64339487bf96af278c03084b3b9c571f99b0cba18666c758",
+    "tests/unit/test_native_tool_schemas.py": "a477ad4eb89630088098657d6855e01cc6e3d31bb2d4bc56dfdc1963e3f5adb9",
+    "tests/unit/test_seed_tool_snapshot.py": "caed829758fea63ebb79325979ba75a0ae6433034d482072ffb09a8b2c944ed5",
+    "tests/unit/test_tool_catalog_contract.py": "117aadfa831d152b551ac5a398e11c5917cc3960a92a6a9657b5c3e0e745d538"
+  },
+  "requirements": {
+    "roadmap": [
+      "8",
+      "31",
+      "32"
+    ],
+    "clarification": [
+      "3",
+      "5",
+      "7",
+      "13"
+    ],
+    "process": "AGENTS.md",
+    "contract": "docs/progressive-tool-catalog.md",
+    "adr": "docs/adr/0074-progressive-tool-discovery.md"
+  },
+  "verification": {
+    "python": "3.12.3",
+    "focused": {
+      "passed": 1036,
+      "elapsed_seconds": 31.16,
+      "log_sha256": "77ba7226fcf1dd8899e064428fc3a2e286a890a05e8be200a45eab845ef1a2c5",
+      "command": "PYTHONPATH=. /tmp/kinaiya134-verify-venv/bin/python -m pytest tests/unit/test_tool_catalog_contract.py tests/unit/test_agent_tools.py tests/unit/test_meta_tool_snapshot.py tests/unit/test_meta_typed_action_wire.py tests/unit/test_native_tool_schemas.py tests/unit/test_catalog_local_provider_guards.py tests/unit/test_seed_tool_snapshot.py tests/unit/test_seed_history.py tests/integration/test_agent_tool_advertising.py tests/integration/test_progressive_tool_catalog.py tests/integration/test_tool_catalog_metadata.py tests/integration/test_agent_seed.py tests/integration/test_intelligent_ui.py -q --tb=short"
+    },
+    "flutter_models": {
+      "passed": 30,
+      "command": "flutter test --no-pub test/models_test.dart",
+      "analysis": "both edited Dart files passed scoped analysis",
+      "dependency_setup": "offline cache with existing lock; lock and analysis configuration unchanged"
+    },
+    "independent_integration_review": {
+      "progressive_tests_passed": 36,
+      "elapsed_seconds": 7.46,
+      "reproduced_derived_history_escape_fixed": true,
+      "receipt_sha256": "00ad5a95dca6b06a9e72674ea955d10448007c09edb5dc314e0b9e893b655e43",
+      "reviewed_source_hashes_match": true
+    },
+    "ruff_check": "passed",
+    "ruff_format_check": "452 files already formatted",
+    "contract_export": "generated Evidence, Task and ToolAction schemas updated",
+    "diff_check": "passed",
+    "prefinal_full_python": {
+      "passed": 5969,
+      "failed": 4,
+      "skipped": 6,
+      "deselected": 2,
+      "warnings": 1,
+      "elapsed_seconds": 830.76,
+      "log_sha256": "99c937f5d9b7b2054d7d8651444a0fccd9d01fa79318e54994ef67d82b4b32e8",
+      "final_source_qualification": false,
+      "notes": [
+        "Ran during continuing integration; not claimed as an exact final source qualification.",
+        "Three stale native-tool set assertions were updated for the additive operation; affected paths passed in the final1036-test run.",
+        "Unchanged WorkerManager refused test_inaccessible_proc_fails_closed startup with pre_command_mismatch / errno not_reported before the injected proc failure. No guard or threshold was weakened."
+      ]
+    },
+    "worker_investigation": {
+      "tracking_issue": 9,
+      "cause": "unresolved",
+      "affected_test_once": "passed in0.79s",
+      "predeclared_owned_starts": 32,
+      "starts_succeeded": 32,
+      "argv_comparisons_matching": 64,
+      "children_reaped": 32,
+      "fallback_signals": 0,
+      "sample_elapsed_seconds": 2.045806,
+      "result_sha256": "6755e5334a49bb0e55544b26e311195ea58f340f30abb752cde36d2c0cd27b8c",
+      "limitation": "Instrumentation can mask a timing race; passing checks do not establish the cause or a repair."
+    },
+    "required_exact_head_ci": "Must pass all five jobs before merge; authoritative run/head is recorded on the PR."
+  },
+  "muse_delegation": {
+    "real_cli": true,
+    "model": "muse-spark-1.3-contributor",
+    "requested_reasoning": "xhigh",
+    "backend_reasoning_report": "unreported",
+    "calls": 1,
+    "guard_call_id": 2418,
+    "process_exit": 0,
+    "direct_child_reaped": true,
+    "forced_termination": false,
+    "elapsed_seconds": 491.86057865200564,
+    "task": "pure query, identity, strict JSON and pagination helpers; no tools, full public inline contract",
+    "prompt_sha256": "7e5323f0237af84bd7bcdf26c3dc2753ca7e25e10f78e391a9ebdf0eebe18e61",
+    "original_source_sha256": "2c4af70ce7f10bc14ab36b8fa4e17ebb970c4379e02a6589b45b48ccd6e3b5a5",
+    "original_tests_sha256": "2bb7e75d301ebdadfc790f04f48c8f7e028ccb6d2ce2a79501552189c54e6e60",
+    "review_receipt_sha256": "a4b6dc3e59c9073bcaf4ed92e625957c9a7b4732f261352f8109f474c1fb892f",
+    "parent_contract_correction": "Frozen prompt used256namebound; existing264/265skill IDs require512. Terminal cursor/schema-key clarifications and original candidate remain retained.",
+    "review_corrections": [
+      "terminal cursor null at exhaustion",
+      "bounded JSON traversal/byte prescan",
+      "descriptive schema metadata allowed; actual schema payloads excluded from list rows",
+      "literal search NUL behavior",
+      "strict512namebound with existingID regressions"
+    ],
+    "phase_contributor_estimate_usd": 0.0143759,
+    "phase_cache_aware_admission_estimate_usd": 0.0287518,
+    "billing_reported_usd": null,
+    "budget_limit_usd": 25
+  },
+  "limitations": [
+    "No new live-tool or model-quality qualification; all integration responses are public synthetic fixtures.",
+    "MCP configured/definition digests are not remote implementation versions or task pins.",
+    "Existing legacy native coercions remain documented; logical schemas specify canonical calls.",
+    "Tool Library installation and formal proof engines remain separate design work.",
+    "No voice/GPU/mobile media or resource bootstrap fix is claimed; user checkout and preview configuration were preserved."
+  ]
+}

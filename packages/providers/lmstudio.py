@@ -16,6 +16,7 @@ from contextlib import aclosing, asynccontextmanager
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
+from packages.contracts.agent_tools import agent_export_permitted
 from packages.contracts.models import ProviderInfo
 from packages.providers.prompt_budget import (
     MAX_SAFE_COUNT,
@@ -92,6 +93,11 @@ _BASE_KEYS = {
 
 def _refuse():
     return ProviderRefusal("LM Studio native response or configuration refused")
+
+
+def _require_agent_export():
+    if not agent_export_permitted():
+        raise ProviderRefusal("Agent tool metadata disclosure changed")
 
 
 def _integer(value, minimum=0, maximum=MAX_SAFE_COUNT):
@@ -508,6 +514,7 @@ class LMStudioProvider:
         }
 
     async def _measure(self, op, history, snapshot):
+        _require_agent_export()
         history = _template_history(history)
         formatted = await self._rpc(
             op,
@@ -519,6 +526,7 @@ class LMStudioProvider:
                 "opts": {},
             },
         )
+        _require_agent_export()
         if (
             type(formatted) is not dict
             or set(formatted) != {"formatted"}
@@ -530,6 +538,7 @@ class LMStudioProvider:
             "countTokens",
             {"specifier": snapshot["specifier"], "inputString": formatted["formatted"]},
         )
+        _require_agent_export()
         if (
             type(count) is not dict
             or set(count) != {"tokenCount"}
@@ -677,6 +686,7 @@ class LMStudioProvider:
 
     async def stream(self, messages):
         try:
+            _require_agent_export()
             history, config = _history(messages), self._configuration()
             async with asyncio.timeout(self.timeout):
                 async with self._operation() as op:
@@ -703,6 +713,9 @@ class LMStudioProvider:
                             "creationParameter": creation,
                         }
                     )
+                    # Counting and model snapshots yield independently. The
+                    # request must still be disclosable at prediction admission.
+                    _require_agent_export()
                     op.snapshot = snapshot
                     op.channel_started = True
                     await self._send(

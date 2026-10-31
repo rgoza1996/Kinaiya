@@ -13,7 +13,10 @@ from typing import Literal, get_args
 from packages.contracts.models import SCHEMA_VERSION, ToolAction
 
 NATIVE_TOOL_ORDER: tuple[str, ...] = get_args(ToolAction.model_fields["tool"].annotation)
-MAX_NATIVE_TOOLS = 14
+MAX_NATIVE_TOOLS = 15
+# Unbound provider calls retain the pre-discovery protocol selection. Only a
+# trusted runtime snapshot can advertise the new operation to an inference.
+LEGACY_NATIVE_TOOL_ORDER = tuple(name for name in NATIVE_TOOL_ORDER if name != "tool_catalog")
 
 _BASE_TOOLS = ("read_file", "write_file", "search", "shell", "read_transcript", "finish")
 _OPTIONAL_GROUPS = (
@@ -22,6 +25,7 @@ _OPTIONAL_GROUPS = (
     ("skills_list", "skill_load"),
     ("plugins_list", "plugin_call"),
     ("publish_ui",),
+    ("tool_catalog",),
 )
 
 
@@ -83,6 +87,7 @@ def native_tool_snapshot(
     skills_available: bool = False,
     plugins_available: bool = False,
     artifacts_available: bool = False,
+    catalog_available: bool = False,
 ) -> NativeToolSnapshot:
     """Project trusted strict booleans; grants never remove base operations."""
     flags = (
@@ -91,6 +96,7 @@ def native_tool_snapshot(
         ("skills_available", skills_available),
         ("plugins_available", plugins_available),
         ("artifacts_available", artifacts_available),
+        ("catalog_available", catalog_available),
     )
     enabled = set(_BASE_TOOLS)
     for (flag, value), group in zip(flags, _OPTIONAL_GROUPS, strict=True):
@@ -102,20 +108,38 @@ def native_tool_snapshot(
 
 
 _agent_tools: ContextVar[NativeToolSnapshot | None] = ContextVar("agent_native_tools", default=None)
+_agent_export_guard: ContextVar[object] = ContextVar("agent_tool_export_guard", default=None)
 
 
 @contextmanager
-def agent_tool_scope(snapshot: NativeToolSnapshot) -> Iterator[NativeToolSnapshot]:
+def agent_tool_scope(
+    snapshot: NativeToolSnapshot, *, export_guard=None
+) -> Iterator[NativeToolSnapshot]:
     """Bind one request without modifying a provider or another task's scope."""
     if type(snapshot) is not NativeToolSnapshot:
         raise ValueError("Agent tool scope requires a native tool snapshot")
+    if export_guard is not None and not callable(export_guard):
+        raise ValueError("Agent tool export guard requires a native callable")
     token = _agent_tools.set(snapshot)
+    export_token = _agent_export_guard.set(export_guard)
     try:
         yield snapshot
     finally:
+        _agent_export_guard.reset(export_token)
         _agent_tools.reset(token)
 
 
 def current_agent_tools() -> NativeToolSnapshot | None:
     """Return native request context, or None when no Agent request is bound."""
     return _agent_tools.get()
+
+
+def agent_export_permitted() -> bool:
+    """Recheck native-only metadata disclosure immediately before export."""
+    guard = _agent_export_guard.get()
+    if guard is None:
+        return True
+    try:
+        return guard() is True
+    except Exception:
+        return False

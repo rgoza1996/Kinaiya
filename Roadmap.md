@@ -1572,6 +1572,8 @@ Updates show changed instructions/code/dependencies/permissions and preserve the
 
 Use progressive disclosure: bounded discovery metadata first, full instructions when selected, supporting resources when needed. Large catalogs need retrieval/pagination rather than an unlimited metadata dump. Apply the same principle to large MCP tool catalogs. Never inject every installed skill, tool schema, and reference into every model turn. This is independent of Decisions, whose role remains conversational routing. [S9] [S12]
 
+The bounded native implementation now shares `tool_catalog` and an authenticated inspection API across native operations, model-eligible skills, passive configured/cached MCP metadata and approved compute plugins. Four-row discovery precedes selected logical schemas and explicit permission/version facts. Inspection never installs, starts a server, executes, approves or creates a version pin. Its receipts cannot establish work completion; withdrawn metadata stops a dependent task with a local-only disclosure floor. Same-content pin transitions remain supported. See [ADR0074](docs/adr/0074-progressive-tool-discovery.md), the [catalog contract](docs/progressive-tool-catalog.md) and retained deterministic evidence. The optional conventional Tool Library and formal engines remain design work; this does not qualify live third-party workflows or complete their installation lifecycle.
+
 Skills may be selected naturally by Agent or invoked explicitly via slash commands. Respect invocation-only controls. Keep credentials in scoped secret references; do not ask users to paste API keys into the shared transcript or skill source.
 
 ### 31.5 MCP host requirements

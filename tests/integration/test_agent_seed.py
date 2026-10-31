@@ -242,6 +242,7 @@ async def test_http_task_lifecycle_and_capabilities(tmp_path):
                 "search",
                 "shell",
                 "read_transcript",
+                "tool_catalog",
                 "finish",
             ]
             assert body["approvals"] == {"digest_bound": True, "one_use": True, "expiring": True}

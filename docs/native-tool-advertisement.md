@@ -9,7 +9,8 @@ target is enabled, healthy or authorized.
 ## Native contract and request scope
 
 `packages/contracts/agent_tools.py` defines the version 1.0 snapshot, in stable
-protocol order, bounded to the fourteen known actions. Each descriptor has its
+protocol order, bounded to fifteen known actions including the separately
+advertised read-only `tool_catalog`. Each descriptor has its
 native name, `native:<name>` qualified identity, protocol version and `native`
 kind. Snapshots reject unknown/duplicate/unordered actions, missing base actions,
 partial optional gateway pairs, malformed versions and non-boolean flags.
@@ -26,8 +27,9 @@ Agent binds the snapshot with a `ContextVar` around each provider inference.
 Nested scopes and cancellation reset correctly; concurrent requests do not
 change shared provider tool state. Prompt counting hashes the resulting complete
 request, so a measurement for another snapshot cannot authorize generation.
-Generic adapter calls outside Agent retain the known-protocol behavior for
-compatibility; that is not a configured Agent availability declaration.
+Generic adapter calls outside Agent retain their previous fourteen-operation
+selection. The runtime explicitly enables catalog discovery; that is not a
+configured foreign-target readiness declaration.
 
 The seed projects its trusted static hints, not instructions supplied by a model
 or external catalog. The Meta adapter projects its enum, required nullable fields
@@ -66,20 +68,22 @@ adds a bounded `tool_catalog` projection:
 }
 ```
 
-The example omits other available rows. At most fourteen descriptors are returned,
+The example omits other available rows. At most fifteen descriptors are returned,
 so native inspection needs no unbounded listing or schema loading. Optional
 `task_id` is 1–128 characters and selects that actual task's harness pin and state;
 unknown IDs return the ordinary 404. Without it, the projection uses the host's
 active harness. Reads never start inference, execute tools or change tasks.
 The catalog does not authorize work on a terminal task.
 
-This identity projection does not supply a universal selected-operation schema
-or installation lifecycle. MCP, skill and plugin details continue through their
-existing bounded, disclosure-filtered gateways. Owner commands, installers,
+This identity projection remains intentionally small. The shared
+[progressive catalog](progressive-tool-catalog.md) now provides selected logical
+schemas, permission facts and disclosure-filtered native/skill/MCP/plugin metadata
+through `tool_catalog` and authenticated `GET /v1/agents/tool-catalog`.
+Existing execution brokers remain authoritative. Owner commands, installers,
 credential management and promotion are not model operations in this registry.
 The optional Tool Library and verification engines in clarification §§14–15
-remain separate work. #171's broader discovery/permission/schema obligations
-remain open; this slice repairs the confirmed advertisement drift.
+remain separate work. See ADR0074 for #171's discovery/schema extension and its
+inspection-only evidence and revocation boundaries.
 
 ## Verification
 

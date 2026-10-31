@@ -6,6 +6,7 @@ from contextlib import aclosing
 
 import httpx
 
+from packages.contracts.agent_tools import agent_export_permitted
 from packages.contracts.models import ProviderInfo
 from packages.providers.qwen3_ipc import (
     ERROR_CODES,
@@ -21,7 +22,12 @@ from packages.providers.qwen3_ipc import (
     validate_limits,
     validate_messages,
 )
-from packages.providers.text import ProviderError, _http_cleanup_owned, _OwnedHTTPStream
+from packages.providers.text import (
+    ProviderError,
+    ProviderRefusal,
+    _http_cleanup_owned,
+    _OwnedHTTPStream,
+)
 from services.resources.client import local_base
 
 PUBLIC_ERROR_CODES = ERROR_CODES | {"busy", "paused", "unavailable", "deadline", "disconnected"}
@@ -125,6 +131,8 @@ class ManagedQwen3Provider:
             total, text_bytes, sequence, terminal = 0, 0, 0, False
             pending = bytearray()
             async with asyncio.timeout(self.timeout + 5):
+                if not agent_export_permitted():
+                    raise ProviderRefusal("Agent tool metadata disclosure changed")
                 async with self.http.stream(
                     "POST", "/v1/converse/completions", json={"messages": messages}
                 ) as response:

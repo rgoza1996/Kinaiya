@@ -194,16 +194,17 @@ class AgentTask {
 
   bool get isTerminal => terminalStates.contains(state);
 
-  /// Grounded success: authoritative succeeded state with independent
-  /// native evidence at the current objective revision. MCP and compute
-  /// receipts alone never prove a task effect.
+  /// Grounded success needs native work or a native publication receipt at
+  /// the current revision. Publication proves UI publication only; inspection,
+  /// MCP and compute receipts alone never prove work or external effects.
   bool get isGroundedSuccess {
     final current = evidence.where(
       (e) => e.objectiveRevision == objectiveRevision,
     );
     final native = current.where(
-      (e) => !{'external', 'extension'}.contains(e.kind),
+      (e) => {'file', 'command', 'read', 'search', 'test'}.contains(e.kind),
     );
+    final published = current.any((e) => e._hasArtifactReceiptShape);
     final independent = native.any(
       (e) =>
           {'file', 'command', 'test'}.contains(e.kind) ||
@@ -211,9 +212,10 @@ class AgentTask {
     );
     return state == 'succeeded' &&
         remainingRequiredWork.isEmpty &&
-        native.isNotEmpty &&
+        (native.isNotEmpty || published) &&
         (!current.any((e) => {'external', 'extension'}.contains(e.kind)) ||
-            independent);
+            independent ||
+            published);
   }
 
   bool get hasUnverifiedExternalOnly =>
@@ -247,6 +249,8 @@ class Evidence {
       'test',
       'extension',
       'external',
+      'artifact',
+      'inspection',
     };
     final kind = json['kind'] as String? ?? '';
     if (!kinds.contains(kind)) {
@@ -270,6 +274,16 @@ class Evidence {
   final int? exitCode;
   final String output;
   final int objectiveRevision;
+
+  // The authoritative succeeded state comes from Agent. This shape check
+  // prevents a malformed artifact receipt from becoming supporting evidence;
+  // the client cannot independently verify the stored publication's bytes.
+  bool get _hasArtifactReceiptShape {
+    if (kind != 'artifact' || path == null || sha256 == null) return false;
+    final id = RegExp(r'artifact:[A-Za-z0-9_-]{1,128}').matchAsPrefix(path!);
+    final hash = RegExp(r'[a-f0-9]{64}').matchAsPrefix(sha256!);
+    return id?.end == path!.length && hash?.end == sha256!.length;
+  }
 }
 
 /// Approval request surfaced over the journal (approval.requested payload).

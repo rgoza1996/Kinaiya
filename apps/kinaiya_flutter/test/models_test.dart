@@ -10,6 +10,38 @@ Map<String, Object?> sessionJson(String channel) => <String, Object?>{
   'name': 'Kinaiya',
 };
 
+Map<String, Object?> evidenceJson(
+  String kind, {
+  int revision = 2,
+  String? path,
+  String? sha256,
+}) => {
+  'schema_version': '1.0',
+  'kind': kind,
+  'summary': 'Public synthetic receipt',
+  'objective_revision': revision,
+  'path': path,
+  'sha256': sha256,
+};
+
+AgentTask evidencedTask(
+  List<Map<String, Object?>> evidence, {
+  String state = 'succeeded',
+  List<String> remaining = const [],
+}) => AgentTask.fromJson({
+  'schema_version': '1.0',
+  'task_id': 'synthetic-task',
+  'session_id': 'synthetic-session',
+  'thread_id': 'synthetic-thread',
+  'epoch': 1,
+  'objective': 'Inspect public synthetic receipts',
+  'objective_revision': 2,
+  'state': state,
+  'idempotency_key': 'synthetic-key',
+  'evidence': evidence,
+  'remaining_required_work': remaining,
+});
+
 void main() {
   test('session parses snake_case and checks schema version', () {
     final s = SessionInfo.fromJson(sessionJson('converse'));
@@ -123,6 +155,139 @@ void main() {
       },
     );
   }
+
+  // Keep this closed set aligned with packages/contracts/models.py Evidence.
+  for (final kind in [
+    'file',
+    'command',
+    'read',
+    'search',
+    'test',
+    'extension',
+    'external',
+    'artifact',
+    'inspection',
+  ]) {
+    test('native $kind evidence parses inside a task response', () {
+      final task = evidencedTask([evidenceJson(kind)]);
+      expect(task.evidence.single.kind, kind);
+      expect(task.evidence.single.objectiveRevision, 2);
+    });
+  }
+
+  test('unknown evidence kinds still fail the closed native contract', () {
+    expect(
+      () => evidencedTask([evidenceJson('unknown-native-kind')]),
+      throwsFormatException,
+    );
+  });
+
+  test('inspection parses without becoming current work evidence', () {
+    final inspection = evidenceJson('inspection');
+    expect(evidencedTask([inspection]).isGroundedSuccess, isFalse);
+    expect(
+      evidencedTask([
+        inspection,
+        evidenceJson('file', revision: 1),
+      ]).isGroundedSuccess,
+      isFalse,
+    );
+    expect(
+      evidencedTask([inspection, evidenceJson('file')]).isGroundedSuccess,
+      isTrue,
+    );
+    for (final kind in ['external', 'extension']) {
+      final task = evidencedTask([inspection, evidenceJson(kind)]);
+      expect(task.isGroundedSuccess, isFalse);
+      expect(task.hasUnverifiedExternalOnly, isTrue);
+    }
+  });
+
+  final artifact = evidenceJson(
+    'artifact',
+    path: 'artifact:synthetic-ui_0123',
+    sha256: 'a' * 64,
+  );
+
+  test('current native artifact receipt grounds publication only', () {
+    expect(evidencedTask([artifact]).isGroundedSuccess, isTrue);
+    expect(
+      evidencedTask([evidenceJson('inspection'), artifact]).isGroundedSuccess,
+      isTrue,
+    );
+    expect(
+      evidencedTask([
+        {...artifact, 'objective_revision': 1},
+        evidenceJson('inspection'),
+      ]).isGroundedSuccess,
+      isFalse,
+    );
+    for (final kind in ['external', 'extension']) {
+      // This confirms persisted UI output, not the external data's truth or
+      // a remote side effect, matching the native completion predicate.
+      expect(
+        evidencedTask([evidenceJson(kind), artifact]).isGroundedSuccess,
+        isTrue,
+      );
+      expect(
+        evidencedTask([
+          evidenceJson(kind),
+          {...artifact, 'sha256': null},
+        ]).isGroundedSuccess,
+        isFalse,
+      );
+    }
+  });
+
+  final malformedArtifacts = <String, Map<String, Object?>>{
+    'missing path': {'path': null},
+    'missing hash': {'sha256': null},
+    'missing artifact prefix': {'path': 'synthetic-ui'},
+    'empty artifact ID': {'path': 'artifact:'},
+    'long artifact ID': {'path': 'artifact:${'x' * 129}'},
+    'non-native ID character': {'path': 'artifact:synthetic/other'},
+    'ID newline': {'path': 'artifact:synthetic\n'},
+    'short hash': {'sha256': 'a' * 63},
+    'nonhex hash': {'sha256': 'z' * 64},
+    'uppercase hash': {'sha256': 'A' * 64},
+    'hash newline': {'sha256': '${'a' * 64}\n'},
+  };
+  for (final malformed in malformedArtifacts.entries) {
+    test('artifact ${malformed.key} cannot ground success', () {
+      expect(
+        evidencedTask([
+          {...artifact, ...malformed.value},
+          evidenceJson('inspection'),
+        ]).isGroundedSuccess,
+        isFalse,
+      );
+    });
+  }
+
+  test(
+    'artifact ID boundary, task state and remaining work stay authoritative',
+    () {
+      expect(
+        evidencedTask([
+          {...artifact, 'path': 'artifact:${'x' * 128}'},
+        ]).isGroundedSuccess,
+        isTrue,
+      );
+      for (final state in ['accepted', 'running', 'failed', 'cancelled']) {
+        expect(
+          evidencedTask([artifact], state: state).isGroundedSuccess,
+          isFalse,
+        );
+      }
+      expect(
+        evidencedTask(
+          [artifact],
+          remaining: ['Unfinished work'],
+        ).isGroundedSuccess,
+        isFalse,
+      );
+    },
+  );
 
   test('approval expiry is honored', () {
     ApprovalRequest req(String? expires) => ApprovalRequest(

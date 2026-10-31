@@ -15,7 +15,12 @@ from urllib.parse import urlparse
 
 import httpx
 
-from packages.contracts.agent_tools import NATIVE_TOOL_ORDER, current_agent_tools
+from packages.contracts.agent_tools import (
+    LEGACY_NATIVE_TOOL_ORDER,
+    NATIVE_TOOL_ORDER,
+    agent_export_permitted,
+    current_agent_tools,
+)
 from packages.contracts.models import ProviderInfo
 
 
@@ -41,6 +46,7 @@ _ACTION_DECODE_MESSAGES = {
         ("ui_wire", "UI publication wire fields"),
         ("unavailable_action", "Unavailable native tool response"),
         ("typed_wire", "Typed action wire fields"),
+        ("catalog_wire", "Tool catalog wire fields"),
     )
     for reason in _ACTION_JSON_REASONS
 }
@@ -55,6 +61,7 @@ _ACTION_DECODE_MESSAGES.update(
         ("ui_wire", "unexpected_ui_field"): "ui_spec_json is only valid for publish_ui",
         ("unavailable_action", "field_shape"): "Unavailable tool response has undeclared fields",
         ("typed_wire", "schema"): "Typed action wire fields violate the declared action schema",
+        ("catalog_wire", "schema"): "Tool catalog wire fields violate the declared action schema",
     }
 )
 
@@ -564,7 +571,11 @@ class CompatibleTextProvider:
         body = copy.deepcopy(self._body(messages, False))
         client, info, headers = self.http, self.info.model_dump(), dict(self.http.headers)
         origin = str(client.base_url)
+        if not agent_export_permitted():
+            raise ProviderRefusal("Agent tool metadata disclosure changed")
         await capture_request(self, body, "chat_completions")
+        if not agent_export_permitted():
+            raise ProviderRefusal("Agent tool metadata disclosure changed")
         if (
             self.http is not client
             or self.info.model_dump() != info
@@ -591,6 +602,8 @@ class CompatibleTextProvider:
             raise ProviderError("Compatible provider transport failure") from exc
 
     async def stream(self, messages) -> AsyncIterator[str]:
+        if not agent_export_permitted():
+            raise ProviderRefusal("Agent tool metadata disclosure changed")
         try:
             async with self.http.stream(
                 "POST", "chat/completions", json=self._body(messages, True)
@@ -879,7 +892,7 @@ class MetaResponsesProvider:
 
     def body(self, messages, stream):
         snapshot = current_agent_tools()
-        tools = snapshot.available_tools if snapshot is not None else NATIVE_TOOL_ORDER
+        tools = snapshot.available_tools if snapshot is not None else LEGACY_NATIVE_TOOL_ORDER
         if self.structured_actions and self.action_format == "typed-v2":
             return self._typed_body(messages, stream, tools)
         if self.structured_actions:
@@ -997,6 +1010,18 @@ class MetaResponsesProvider:
                 if action not in tools:
                     for name in optional_fields:
                         fields.pop(name)
+            if "tool_catalog" in tools:
+                fields.update(
+                    {
+                        "kind": {
+                            "type": ["string", "null"],
+                            "enum": ["native", "mcp", "skill", "plugin", None],
+                        },
+                        "name": {"type": ["string", "null"], "minLength": 1, "maxLength": 512},
+                        "query": {"type": ["string", "null"], "maxLength": 80},
+                        "server_id": {"type": ["string", "null"]},
+                    }
+                )
             schema = {
                 "type": "object",
                 "additionalProperties": False,
@@ -1028,12 +1053,18 @@ class MetaResponsesProvider:
         from packages.providers.decision_capture import capture_request, capture_response
 
         snapshot = current_agent_tools()
-        request_tools = snapshot.available_tools if snapshot is not None else NATIVE_TOOL_ORDER
+        request_tools = (
+            snapshot.available_tools if snapshot is not None else LEGACY_NATIVE_TOOL_ORDER
+        )
         client, body = self._generation_request(messages, False)
         wire_name = body.get("text", {}).get("format", {}).get("name")
         body = copy.deepcopy(body)
         binding, headers, origin = self._count_binding(), dict(client.headers), str(client.base_url)
+        if not agent_export_permitted():
+            raise ProviderRefusal("Agent tool metadata disclosure changed")
         await capture_request(self, body, "responses")
+        if not agent_export_permitted():
+            raise ProviderRefusal("Agent tool metadata disclosure changed")
         if (
             self.http is not client
             or self._count_binding() != binding
@@ -1118,6 +1149,26 @@ class MetaResponsesProvider:
                     raise ActionDecodeError("ui_wire", "argument_fields")
                 action["arguments"] = _ui_spec_object(active["ui_spec_json"])
                 return json.dumps(action, ensure_ascii=False, allow_nan=False)
+            if action.get("tool") == "tool_catalog":
+                action = _closed_json_object(text, 16384, "catalog_wire")
+                fields = body["text"]["format"]["schema"]["properties"]["arguments"]["properties"]
+                if (
+                    set(action) != {"tool", "arguments"}
+                    or type(action["arguments"]) is not dict
+                    or set(action["arguments"]) - set(fields)
+                    or any(
+                        value is not None
+                        and key not in {"kind", "name", "server_id", "query", "after"}
+                        for key, value in action["arguments"].items()
+                    )
+                ):
+                    raise ActionDecodeError("catalog_wire", "schema")
+                action["arguments"] = {
+                    key: value for key, value in action["arguments"].items() if value is not None
+                }
+                # The shared strict parser validates combinations and real
+                # integer kinds at the native inspection boundary.
+                return json.dumps(action, ensure_ascii=False, allow_nan=False)
             if (
                 isinstance(action, dict)
                 and isinstance(action.get("arguments"), dict)
@@ -1132,6 +1183,8 @@ class MetaResponsesProvider:
 
     async def stream(self, messages):
         client, body = self._generation_request(messages, True)
+        if not agent_export_permitted():
+            raise ProviderRefusal("Agent tool metadata disclosure changed")
         terminal = False
         async with client.stream("POST", "responses", json=body) as response:
             if _http_cleanup_owned.get():

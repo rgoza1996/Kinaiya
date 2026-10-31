@@ -23,10 +23,11 @@ _FLAGS = (
     "skills_available",
     "plugins_available",
     "artifacts_available",
+    "catalog_available",
 )
 _SNAPSHOTS = tuple(
     native_tool_snapshot(**dict(zip(_FLAGS, flags, strict=True)))
-    for flags in itertools.product((False, True), repeat=5)
+    for flags in itertools.product((False, True), repeat=6)
 )
 _ALL_TOOLS = _SNAPSHOTS[-1].available_tools
 _BASE_TOOLS = _SNAPSHOTS[0].available_tools
@@ -86,6 +87,7 @@ def _update(kind):
 
 def _actions():
     return {
+        "tool_catalog": {"kind": "native", "name": "write_file"},
         "read_file": {"path": "fictional.txt"},
         "write_file": {"path": "fictional.txt", "content": ""},
         "search": {"pattern": ""},
@@ -248,7 +250,7 @@ def test_all_32_native_selections_emit_strict_closed_bounded_schemas(snapshot):
         assert decode_action(wire, snapshot.available_tools) == flat
 
 
-def test_all_fourteen_native_operations_are_covered_without_foreign_schema_decoding():
+def test_all_fifteen_native_operations_are_covered_without_foreign_schema_decoding():
     assert _ALL_TOOLS == NATIVE_TOOL_ORDER
     assert set(_actions()) == set(_ALL_TOOLS)
     for name in ("mcp_call", "plugin_call"):
