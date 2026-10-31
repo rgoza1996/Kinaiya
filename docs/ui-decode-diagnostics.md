@@ -25,7 +25,11 @@ failures do not acquire an invented decoding diagnosis.
 
 Stages are `ui_arguments` (the inner logical publication object), `ui_wire`
 (the strict transport wrapper), and `unavailable_action` (the bounded rejection
-envelope for a known operation outside the native advertisement).
+envelope for a known operation outside the native advertisement). The opt-in
+[typed Meta format](meta-typed-actions.md) adds `typed_wire` for its bounded
+wrapper and strict per-operation validation; `typed_wire/schema` reports a
+branch/field/type rejection with no Pydantic/input details. The original
+flat-format stages and messages remain unchanged.
 
 | Reason | Rejected condition |
 | --- | --- |

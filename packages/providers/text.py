@@ -40,6 +40,7 @@ _ACTION_DECODE_MESSAGES = {
         ("ui_arguments", "UI publication arguments"),
         ("ui_wire", "UI publication wire fields"),
         ("unavailable_action", "Unavailable native tool response"),
+        ("typed_wire", "Typed action wire fields"),
     )
     for reason in _ACTION_JSON_REASONS
 }
@@ -53,6 +54,7 @@ _ACTION_DECODE_MESSAGES.update(
         ("ui_wire", "argument_fields"): "UI publication requires only the ui_spec_json argument",
         ("ui_wire", "unexpected_ui_field"): "ui_spec_json is only valid for publish_ui",
         ("unavailable_action", "field_shape"): "Unavailable tool response has undeclared fields",
+        ("typed_wire", "schema"): "Typed action wire fields violate the declared action schema",
     }
 )
 
@@ -95,6 +97,9 @@ _UI_SPEC_MAX_BYTES = 48 * 1024
 # JSON string escaping can expand one UTF-8 byte to six wire bytes. This
 # envelope bound includes that expansion plus the other nullable wire fields.
 _UI_WIRE_MAX_BYTES = 6 * _UI_SPEC_MAX_BYTES + 8192
+# The largest ordinary native argument is a 256 KiB file write. Escaping may
+# expand its wire representation sixfold; this bound does not grant a write.
+_TYPED_WIRE_MAX_BYTES = 6 * 256 * 1024 + 8192
 
 
 def _closed_json_object(encoded, limit, stage):
@@ -143,6 +148,44 @@ def _ui_spec_object(encoded):
     ):
         raise ActionDecodeError("ui_arguments", "field_shape")
     return spec
+
+
+def _gateway_action_object(action):
+    """Retain the existing foreign-gateway mapping for both Meta formats."""
+    args = action["arguments"]
+    if action.get("tool") == "mcp_call":
+        encoded = args.get("mcp_arguments_json")
+        if not isinstance(encoded, str) or len(encoded) > 65536:
+            raise ProviderError("MCP arguments require bounded JSON object text")
+        try:
+            decoded = json.loads(encoded)
+        except (ValueError, RecursionError) as exc:
+            raise ProviderError("MCP arguments are invalid JSON") from exc
+        if not isinstance(decoded, dict):
+            raise ProviderError("MCP arguments must decode to an object")
+        action["arguments"] = {
+            "server_id": args.get("server_id"),
+            "tool": args.get("mcp_tool"),
+            "arguments": decoded,
+        }
+    elif action.get("tool") == "plugin_call":
+        encoded = args.get("plugin_arguments_json")
+        if not isinstance(encoded, str) or len(encoded) > 65536:
+            raise ProviderError("Plugin arguments require bounded JSON object text")
+        try:
+            decoded = json.loads(encoded)
+        except (ValueError, RecursionError) as exc:
+            raise ProviderError("Plugin arguments are invalid JSON") from exc
+        if not isinstance(decoded, dict):
+            raise ProviderError("Plugin arguments must decode to an object")
+        action["arguments"] = {"plugin_id": args.get("plugin_id"), "arguments": decoded}
+    elif action.get("tool") == "mcp_list":
+        action["arguments"] = {
+            key: value for key, value in args.items() if key in {"server_id", "after"}
+        }
+        if "mcp_tool" in args:
+            action["arguments"]["tool"] = args["mcp_tool"]
+    return action
 
 
 def _meta_credential():
@@ -593,11 +636,16 @@ class MetaResponsesProvider:
         max_tokens=2048,
         reasoning_effort="xhigh",
         structured_actions=False,
+        action_format="flat-v1",
         context_tokens=None,
         transport=None,
     ):
         if not allow_cloud:
             raise ProviderError("Meta requires explicit cloud disclosure authorization")
+        if type(action_format) is not str or action_format not in {"flat-v1", "typed-v2"}:
+            raise ProviderError("Unknown Meta action wire format")
+        if action_format == "typed-v2" and structured_actions is not True:
+            raise ProviderError("Typed Meta actions require structured action generation")
         _authorize_endpoint(base_url, True)
         if secret_ref == "muse":
             api_key = _meta_credential()
@@ -608,6 +656,7 @@ class MetaResponsesProvider:
         self.info = ProviderInfo(provider="meta", model=model, local=False, streaming=True)
         self.model, self.max_tokens, self.effort = model, max_tokens, reasoning_effort
         self.structured_actions = structured_actions
+        self.action_format = action_format
         if context_tokens is not None and (
             type(context_tokens) is not int
             or not 64 <= context_tokens <= 2**53 - 1
@@ -644,6 +693,7 @@ class MetaResponsesProvider:
             self.max_tokens,
             self.effort,
             self.structured_actions,
+            self.action_format,
             self.context_tokens,
             request_digest(self.info.model_dump()),
         )
@@ -748,9 +798,90 @@ class MetaResponsesProvider:
         except Exception as exc:
             raise PromptCountUnavailable("Meta generation measurement is missing or stale") from exc
 
+    def _typed_body(self, messages, stream, tools):
+        from packages.providers.meta_action_wire import action_schema, encode_action
+
+        messages = [dict(message) for message in messages]
+        wire = (
+            "\nTyped response wire serialization v2: Reply with exactly one object "
+            '{"action":{"tool":"<selected operation>","arguments":{...}}}. '
+            "Each operation has its own closed argument shape in the response schema. "
+            "Set declared optional fields to null when unused. Continue only work "
+            "the objective still requires; finish proposes completion with its current "
+            "objective_revision and actual verification evidence."
+        )
+        if "publish_ui" in tools:
+            wire += (
+                " For publish_ui, supply the create or update argument object directly; "
+                "do not JSON-encode it as a string. Publication accepts no task, session, "
+                "evidence or objective_revision metadata. Its native receipt proves "
+                "publication only."
+            )
+        if "mcp_call" in tools:
+            wire += (
+                " For mcp_call, use server_id, mcp_tool and the target input object encoded "
+                "in mcp_arguments_json. For mcp_list use nullable server_id, after, mcp_tool."
+            )
+        if "plugin_call" in tools:
+            wire += " For plugin_call use plugin_id and JSON-encode input in plugin_arguments_json."
+        if messages and messages[0].get("role") == "system":
+            messages[0]["content"] += wire
+        else:
+            messages.insert(0, {"role": "system", "content": wire.strip()})
+        for message in messages:
+            if message.get("role") != "assistant":
+                continue
+            try:
+                action = json.loads(message["content"])
+                args = action["arguments"]
+                if action["tool"] == "mcp_call":
+                    if type(args) is not dict or set(args) != {"server_id", "tool", "arguments"}:
+                        raise ValueError("Malformed historical MCP arguments")
+                    action["arguments"] = {
+                        "server_id": args["server_id"],
+                        "mcp_tool": args["tool"],
+                        "mcp_arguments_json": json.dumps(args["arguments"]),
+                    }
+                elif action["tool"] == "mcp_list":
+                    if type(args) is not dict or set(args) - {"server_id", "after", "tool"}:
+                        raise ValueError("Malformed historical MCP listing arguments")
+                    if "tool" in args:
+                        args["mcp_tool"] = args.pop("tool")
+                elif action["tool"] == "plugin_call":
+                    if type(args) is not dict or set(args) != {"plugin_id", "arguments"}:
+                        raise ValueError("Malformed historical plugin arguments")
+                    action["arguments"] = {
+                        "plugin_id": args["plugin_id"],
+                        "plugin_arguments_json": json.dumps(args["arguments"], allow_nan=False),
+                    }
+                elif action["tool"] == "publish_ui":
+                    _ui_spec_object(json.dumps(args, ensure_ascii=False, allow_nan=False))
+                message["content"] = json.dumps(encode_action(action))
+            except (ValueError, KeyError, TypeError, ProviderError):
+                # A historical clipped/refused action remains opaque history;
+                # never invent missing arguments or a successful tool result.
+                pass
+        return {
+            "model": self.model,
+            "input": messages,
+            "stream": stream,
+            "max_output_tokens": self.max_tokens,
+            "reasoning": {"effort": self.effort},
+            "text": {
+                "format": {
+                    "type": "json_schema",
+                    "name": "kinaiya_tool_action_v2",
+                    "strict": True,
+                    "schema": action_schema(tools),
+                }
+            },
+        }
+
     def body(self, messages, stream):
         snapshot = current_agent_tools()
         tools = snapshot.available_tools if snapshot is not None else NATIVE_TOOL_ORDER
+        if self.structured_actions and self.action_format == "typed-v2":
+            return self._typed_body(messages, stream, tools)
         if self.structured_actions:
             messages = [dict(message) for message in messages]
             wire = (
@@ -896,7 +1027,10 @@ class MetaResponsesProvider:
     async def complete(self, messages):
         from packages.providers.decision_capture import capture_request, capture_response
 
+        snapshot = current_agent_tools()
+        request_tools = snapshot.available_tools if snapshot is not None else NATIVE_TOOL_ORDER
         client, body = self._generation_request(messages, False)
+        wire_name = body.get("text", {}).get("format", {}).get("name")
         body = copy.deepcopy(body)
         binding, headers, origin = self._count_binding(), dict(client.headers), str(client.base_url)
         await capture_request(self, body, "responses")
@@ -931,6 +1065,30 @@ class MetaResponsesProvider:
         if not texts:
             raise ProviderError("Meta returned no output text")
         text = "".join(texts)
+        if wire_name == "kinaiya_tool_action_v2":
+            from packages.providers.meta_action_wire import TypedWireError, decode_action
+
+            envelope = _closed_json_object(text, _TYPED_WIRE_MAX_BYTES, "typed_wire")
+            try:
+                action = decode_action(envelope, request_tools)
+            except TypedWireError as exc:
+                raise ActionDecodeError("typed_wire", "schema") from exc
+            if action["tool"] not in request_tools:
+                # Preserve the existing native membership refusal without
+                # interpreting an unavailable gateway's argument payload.
+                return json.dumps(action)
+            if action["tool"] == "publish_ui":
+                action["arguments"] = _ui_spec_object(
+                    json.dumps(
+                        action["arguments"],
+                        ensure_ascii=False,
+                        allow_nan=False,
+                        separators=(",", ":"),
+                    )
+                )
+            # Foreign JSON-input strings retain their existing decoder and
+            # serialization semantics; native gateway validation still applies.
+            return json.dumps(_gateway_action_object(action))
         if self.structured_actions:
             try:
                 action = json.loads(text)
@@ -969,40 +1127,7 @@ class MetaResponsesProvider:
             action["arguments"] = {
                 key: value for key, value in action["arguments"].items() if value is not None
             }
-            args = action["arguments"]
-            if action.get("tool") == "mcp_call":
-                encoded = args.get("mcp_arguments_json")
-                if not isinstance(encoded, str) or len(encoded) > 65536:
-                    raise ProviderError("MCP arguments require bounded JSON object text")
-                try:
-                    decoded = json.loads(encoded)
-                except (ValueError, RecursionError) as exc:
-                    raise ProviderError("MCP arguments are invalid JSON") from exc
-                if not isinstance(decoded, dict):
-                    raise ProviderError("MCP arguments must decode to an object")
-                action["arguments"] = {
-                    "server_id": args.get("server_id"),
-                    "tool": args.get("mcp_tool"),
-                    "arguments": decoded,
-                }
-            elif action.get("tool") == "plugin_call":
-                encoded = args.get("plugin_arguments_json")
-                if not isinstance(encoded, str) or len(encoded) > 65536:
-                    raise ProviderError("Plugin arguments require bounded JSON object text")
-                try:
-                    decoded = json.loads(encoded)
-                except (ValueError, RecursionError) as exc:
-                    raise ProviderError("Plugin arguments are invalid JSON") from exc
-                if not isinstance(decoded, dict):
-                    raise ProviderError("Plugin arguments must decode to an object")
-                action["arguments"] = {"plugin_id": args.get("plugin_id"), "arguments": decoded}
-            elif action.get("tool") == "mcp_list":
-                action["arguments"] = {
-                    key: value for key, value in args.items() if key in {"server_id", "after"}
-                }
-                if "mcp_tool" in args:
-                    action["arguments"]["tool"] = args["mcp_tool"]
-            return json.dumps(action)
+            return json.dumps(_gateway_action_object(action))
         return text
 
     async def stream(self, messages):

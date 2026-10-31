@@ -87,6 +87,23 @@ automatic finish. Synthetic adapter/SQLite checks verify that distinction;
 the historical invalid value and repeated creation behavior remain unqualified
 under #169. See [ADR0071](adr/0071-constant-ui-decode-diagnostics.md).
 
+## Typed Meta action experiment
+
+An experimental explicit `typed-v2` Meta Agent profile is available for #169. It
+projects all native operations and the nine existing UI data shapes into closed
+per-action branches, preserving native permissions and completion authority.
+The compatibility default and running previews remain unchanged. See the
+[wire contract](meta-typed-actions.md) and [ADR0072](adr/0072-typed-meta-action-wire.md).
+At source `87f5307`, 524 targeted checks passed. Meta admitted the full protocol
+schema; the same six public tasks then produced five native successes and one
+output-budget failure. Independent artifact grading found three passes, two
+partial normalization examples with unexplained added data, and one failure
+without a deliverable. No repeated successful creates occurred in that run.
+The [retained evidence](../evaluation/evidence/meta-typed-actions-2026-10-31.json)
+records all 27 task calls, the separate admission, costs, failures and limits.
+These consumed development examples do not establish broad improvement or
+completion reliability; #169 stays open. Exact-head CI is tracked in the PR.
+
 ## Native tool advertisement
 
 The bounded [#171](https://github.com/rgoza1996/Kinaiya/issues/171) advertisement
