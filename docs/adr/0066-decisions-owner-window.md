@@ -1,6 +1,10 @@
 # ADR 0066: Read-only Decisions evidence window
 
-Status: Implementation candidate, tracked by #149.
+Status: Implemented experimental owner window and native capture/API, merged in
+[PR160](https://github.com/rgoza1996/Kinaiya/pull/160), closing
+[#149](https://github.com/rgoza1996/Kinaiya/issues/149). Integrated source:
+`d735125e7767fc1e5c4d94c6254364b5816adea4`. See the
+[acceptance ledger](../implementation-status.md#decisions-inspection) for scope.
 
 The owner requested the Decisions window in the October 30 Penpot master,
 including the actual submitted script and historical decision provenance.
@@ -37,5 +41,7 @@ paired cursors, exact Unicode questions and outputs, absent confidence, native
 Agent observations, source/call scope bindings, stale host responses, dialog-open
 race, cleared cross-host filters, expired/reused captures and populated 320 px
 layouts at twice the text scale. Navigation regression tests retain voice
-ownership, drafts and presentation access. Final native integration, complete
-suite, CI and browser release evidence are required before marking #149 complete.
+ownership, drafts and presentation access. Native integration, exact-content
+[CI](https://github.com/rgoza1996/Kinaiya/actions/runs/41154304593) and synthetic
+browser/release observations are recorded in PR160. This closes the bounded
+inspection issue, not all M3 routing, live-model quality or physical-device gates.

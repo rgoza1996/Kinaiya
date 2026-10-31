@@ -5,7 +5,10 @@ adds a Decisions window beside Converse and Agent. It replaces the Appearance
 sidebar destination; appearance controls remain in Options. Tracked in [#149](https://github.com/rgoza1996/Kinaiya/issues/149).
 The Python capture and owner retrieval implementation follows the
 [versioned inspection API](decisions-trace-api.md). The owner screen is a separate
-client of this read-only contract; this document records its intended behavior.
+client of this read-only contract; this document records its required behavior.
+The integrated native/API/Flutter implementation is merged in
+[PR160](https://github.com/rgoza1996/Kinaiya/pull/160), with actual scope and
+remaining qualifications in the [status ledger](implementation-status.md#decisions-inspection).
 
 Each inspection record must retain the actual source transcript or Agent event,
 including ignored inputs, and its native source/revision and session identity.
@@ -50,4 +53,6 @@ question types/choices, absent confidence, refusals/retries/reuse, source correc
 historical model changes, combined date/session filters, authorization and literal
 untrusted text rendering. No example rows from Penpot belong in a production
 timeline. Synthetic capture/retrieval regressions exercise these cases without
-provider inference; physical client inspection remains a separate acceptance gate.
+provider inference; native-backed browser observations are recorded in PR160.
+Broader real-user, provider/model-quality and physical-device qualification remain
+separate acceptance gates.
