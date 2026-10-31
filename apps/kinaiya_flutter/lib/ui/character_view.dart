@@ -319,8 +319,13 @@ class _CharacterViewState extends State<CharacterView> {
     final nonce = _s.turnNonce;
     final speechEpoch = _s.speechEpoch;
     _mouthReadPending = true;
+    // Future.timeout does not cancel the capability read. Keep its slot until
+    // the original future settles so a stalled adapter cannot accumulate reads.
+    final read = Future<SpeechMouthFrame>.sync(
+      () => (_audio as SpeechMouthAudio).mouthFrame(),
+    ).whenComplete(() => _mouthReadPending = false);
     try {
-      final frame = await (_audio as SpeechMouthAudio).mouthFrame().timeout(
+      final frame = await read.timeout(
         const Duration(milliseconds: 100),
         onTimeout: () => SpeechMouthFrame.closed,
       );
@@ -341,8 +346,6 @@ class _CharacterViewState extends State<CharacterView> {
       if (mounted && generation == _mouthGeneration && _canAnimateMouth) {
         _setMouthFrame(SpeechMouthFrame.closed);
       }
-    } finally {
-      _mouthReadPending = false;
     }
   }
 

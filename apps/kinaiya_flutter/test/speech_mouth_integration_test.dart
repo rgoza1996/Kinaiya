@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
 import 'package:kinaiya_flutter/api/client.dart';
 import 'package:kinaiya_flutter/api/models.dart';
 import 'package:kinaiya_flutter/audio/speech_audio.dart';
@@ -32,14 +34,74 @@ class MouthAudio extends CompletionAudio implements SpeechMouthAudio {
   }
 }
 
+/// A second authenticated synthetic entry uses its own NDJSON response, while
+/// the widget and audio capability keep the original pending mouth read.
+class _NextEntryTransport extends NdjsonPlaybackTransport {
+  bool nextEntry = false;
+  final nextFrames = StreamController<List<int>>();
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    if (nextEntry && request.url.path == '/v1/transcript') {
+      expect(request.headers['Authorization'], 'Bearer synthetic-owner');
+      return http.StreamedResponse(
+        Stream.value(
+          utf8.encode(
+            jsonEncode([
+              {
+                'schema_version': '1.0',
+                'event_id': 'synthetic-next-mouth-entry',
+                'sequence': 2,
+                'session_id': 'converse',
+                'thread_id': 'thread-converse',
+                'epoch': 1,
+                'kind': 'conversation.converse',
+                'origin': 'converse',
+                'idempotency_key': 'synthetic-next-mouth-notice',
+                'payload': {
+                  'text': 'A second public synthetic reply.',
+                  'chunk_id': 'synthetic-next-mouth-chunk',
+                  'generation_epoch': generation,
+                  'outcome_event_id': 'synthetic-next-verified-outcome',
+                  'delivery': 'generated',
+                },
+              },
+            ]),
+          ),
+        ),
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    }
+    if (nextEntry && request.url.path == '/v1/converse/speech') {
+      expect(request.headers['Authorization'], 'Bearer synthetic-owner');
+      final raw = await request.finalize().bytesToString();
+      speechRequests.add((jsonDecode(raw) as Map).cast<String, Object?>());
+      return http.StreamedResponse(
+        nextFrames.stream,
+        200,
+        headers: {'content-type': 'application/x-ndjson'},
+      );
+    }
+    return super.send(request);
+  }
+
+  @override
+  void close() {
+    if (!nextFrames.isClosed) unawaited(nextFrames.close());
+    super.close();
+  }
+}
+
 class _MouthFixture {
-  _MouthFixture(this.tester) {
+  _MouthFixture(this.tester, {NdjsonPlaybackTransport? transport})
+    : transport = transport ?? NdjsonPlaybackTransport() {
     final api = KinaiyaClient(
       sessionBase: 'http://fixture',
       agentBase: 'http://fixture',
       converseBase: 'http://fixture',
       ownerToken: 'synthetic-owner',
-      httpClient: transport,
+      httpClient: this.transport,
     );
     state = AppState()
       ..connect(ConnectionProfile.defaults(), injected: api)
@@ -52,7 +114,7 @@ class _MouthFixture {
   }
 
   final WidgetTester tester;
-  final transport = NdjsonPlaybackTransport();
+  final NdjsonPlaybackTransport transport;
   final audio = MouthAudio();
   late final AppState state;
 
@@ -109,6 +171,71 @@ class _MouthFixture {
 }
 
 void main() {
+  for (final failLate in [false, true]) {
+    testWidgets(
+      'a timed-out read stays owned and later playback recovers after late error=$failLate',
+      (tester) async {
+        final transport = _NextEntryTransport();
+        final fixture = _MouthFixture(tester, transport: transport);
+        await fixture.start();
+        final pending = await fixture.beginPendingSample();
+        final reads = fixture.audio.reads;
+        for (var frame = 0; frame < 120; frame++) {
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        expect(fixture.audio.reads, reads);
+        expect(fixture.portrait.mouthOpenness, 0);
+        expect(fixture.portrait.speaking, isTrue);
+        expect(fixture.audio.stops, 0);
+
+        final closed = transport.frames.close();
+        await pumpUntil(tester, () => fixture.audio.playbackWaits == 1);
+        await closed;
+        fixture.audio.ended.complete();
+        await pumpUntil(tester, () => !fixture.portrait.speaking);
+        transport.nextEntry = true;
+        await fixture.state.refreshNotices();
+        await pumpUntil(tester, () => transport.speechRequests.length == 2);
+        transport.nextFrames.add(
+          utf8.encode(
+            '${jsonEncode({...frame(24000, 2400, 1, 0), 'event_id': 'synthetic-next-mouth-entry', 'chunk_id': 'synthetic-next-mouth-chunk'})}\n',
+          ),
+        );
+        await pumpUntil(tester, () => fixture.audio.queued.length == 2);
+        await tester.pump(const Duration(milliseconds: 150));
+        expect(fixture.portrait.speaking, isTrue);
+        expect(fixture.portrait.mouthOpenness, 0);
+        expect(fixture.audio.reads, reads);
+
+        fixture.audio.pending = null;
+        fixture.audio.next = const SpeechMouthFrame(
+          openness: .35,
+          active: true,
+        );
+        if (failLate) {
+          pending.completeError(StateError('synthetic delayed mouth failure'));
+        } else {
+          pending.complete(
+            const SpeechMouthFrame(openness: 1, viseme: 'aa', active: true),
+          );
+        }
+        await tester.pump();
+        expect(fixture.portrait.mouthOpenness, 0);
+        expect(fixture.portrait.viseme, isNull);
+        await tester.pump(const Duration(milliseconds: 40));
+        await tester.pump();
+        expect(fixture.audio.reads, greaterThan(reads));
+        expect(fixture.portrait.mouthOpenness, .35);
+        expect(fixture.portrait.viseme, isNull);
+        expect(fixture.audio.stops, 0);
+        expect(transport.speechRequests, hasLength(2));
+        expect(transport.unexpected, isEmpty);
+        expect(tester.takeException(), isNull);
+        await fixture.dispose();
+      },
+    );
+  }
+
   testWidgets('natural source completion closes the mouth and stops sampling', (
     tester,
   ) async {
