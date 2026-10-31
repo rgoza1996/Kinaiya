@@ -39,6 +39,8 @@ EVAL_LIMITS = SandboxLimits(wall_timeout_s=5.0, cpu_s=10, memory_mb=256)
 RUN_LIMITS = SandboxLimits(wall_timeout_s=10.0, cpu_s=15, memory_mb=256)
 
 BASELINE_NAME = "baseline-keyword"
+MAX_SELECTION_AUDIT_BYTES = 4_000_000
+MAX_SELECTION_VERSIONS = 4096
 
 
 class EvaluationReport(BaseModel):
@@ -192,6 +194,77 @@ class Registry:
                 _, meta = self._verified_source(directory.name)
                 result.append(meta)
         return result
+
+    def _selection_promotions(self) -> dict[str, list[str]]:
+        """Only protected native promotion receipts can establish past approval."""
+        if not self._audit_file.exists():
+            return {}
+        with self._audit_file.open("rb") as stream:
+            raw = stream.read(MAX_SELECTION_AUDIT_BYTES + 1)
+        if len(raw) > MAX_SELECTION_AUDIT_BYTES:
+            raise IntegrityError("Harness selection audit exceeds its inspection bound")
+        result: dict[str, list[str]] = {}
+        try:
+            for line in raw.splitlines():
+                event = json.loads(line)
+                if not isinstance(event, dict):
+                    raise ValueError("Invalid promotion receipt")
+                if event.get("event") == "promote":
+                    version, report = event.get("active"), event.get("report_id")
+                    if not isinstance(version, str) or not isinstance(report, str):
+                        raise ValueError("Invalid promotion receipt")
+                    result.setdefault(version, []).append(report)
+        except (ValueError, UnicodeError) as exc:
+            raise IntegrityError("Harness promotion history is unavailable") from exc
+        return result
+
+    def _selection_eligibility(self, version_id, active, promotions) -> str:
+        self._verified_source(version_id)
+        if version_id == active:
+            return "active"
+        if version_id == self._baseline_id():
+            return "approved_baseline"
+        if promotions is None:
+            return "unavailable"
+        for report_id in reversed(promotions.get(version_id, [])):
+            try:
+                self._check_promotion_report(version_id, report_id)
+            except (OSError, ValueError, IntegrityError, PromotionError):
+                continue
+            return "owner_promoted"
+        return "unapproved"
+
+    def selection_eligibility(self, version_id: str) -> str:
+        with self._lock:
+            try:
+                promotions = self._selection_promotions()
+            except IntegrityError:
+                promotions = None
+            return self._selection_eligibility(version_id, self.active, promotions)
+
+    def selection_page(self, *, after: str | None = None, limit: int = 20) -> dict:
+        """Bounded owner metadata; this method neither evaluates nor activates."""
+        if type(limit) is not int or not 1 <= limit <= 50:
+            raise ValueError("Invalid harness page limit")
+        with self._lock:
+            names = []
+            for count, directory in enumerate(self._versions.iterdir()):
+                if count >= MAX_SELECTION_VERSIONS:
+                    raise IntegrityError("Harness catalog exceeds its inspection bound")
+                if directory.name.startswith("v-") and (after is None or directory.name > after):
+                    names.append(directory.name)
+            names.sort()
+            active = self.active
+            try:
+                promotions = self._selection_promotions()
+            except IntegrityError:
+                promotions = None
+            items = []
+            for version_id in names[:limit]:
+                _, meta = self._verified_source(version_id)
+                eligibility = self._selection_eligibility(version_id, active, promotions)
+                items.append({**meta, "eligibility": eligibility, "active": version_id == active})
+            return {"items": items, "next_cursor": names[limit - 1] if len(names) > limit else None}
 
     def _store(self, manifest: Manifest, raw: bytes, *, event: str) -> str:
         digest = _sha256(
@@ -383,6 +456,17 @@ class Registry:
             raise PromotionError("promotion requires actor='owner'")
         if reviewed is not True:
             raise PromotionError("promotion requires explicit reviewed=True")
+        report = self._check_promotion_report(version_id, report_id)
+        previous = self.active
+        self._write_active(
+            version_id,
+            previous=previous,
+            event="promote",
+            report_id=report.report_id,
+        )
+        return version_id
+
+    def _check_promotion_report(self, version_id: str, report_id: str) -> EvaluationReport:
         report = self._load_report(report_id)
         if report.candidate_version_id != version_id:
             raise PromotionError("report is not bound to this candidate version")
@@ -393,23 +477,18 @@ class Registry:
         _, meta = self._verified_source(version_id)
         if meta["source_sha256"] != report.candidate_source_sha256:
             raise PromotionError("candidate source changed since evaluation")
-        from evaluation.harness.policy import DEFAULT_POLICY
+        from evaluation.harness.policy import DEFAULT_POLICY, POLICY_VERSION
         from evaluation.harness.suite import suite_hash_of
 
         if suite_hash_of(self.suite_path) != report.suite_hash:
             raise PromotionError("suite changed since evaluation")
         if report.policy != dict(DEFAULT_POLICY):
             raise PromotionError("report policy is not the predeclared policy")
+        if report.policy_version != POLICY_VERSION:
+            raise PromotionError("report policy version is not current")
         if report.model_profile != self.model_profile:
             raise PromotionError("report model profile does not match this registry")
-        previous = self.active
-        self._write_active(
-            version_id,
-            previous=previous,
-            event="promote",
-            report_id=report.report_id,
-        )
-        return version_id
+        return report
 
     def rollback(self, *, actor: str = "owner") -> str:
         """Restore the previous known-good version; rejected versions stay out."""

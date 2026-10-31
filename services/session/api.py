@@ -1,9 +1,11 @@
 import asyncio
+from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from packages.contracts.agent_workspace import AgentSessionPageRequest
 from packages.contracts.context import (
     MAX_CONTEXT_REQUEST_BYTES,
     ContextHistoryPage,
@@ -57,6 +59,13 @@ def create_app(
     @app.get("/v1/sessions", dependencies=[Depends(auth.require("owner", "resources"))])
     async def sessions():
         return store.sessions()
+
+    @app.get("/v1/sessions/page", dependencies=[Depends(auth.require("owner"))])
+    async def sessions_page(query: Annotated[AgentSessionPageRequest, Depends()]):
+        try:
+            return store.sessions_page(**query.model_dump(exclude={"schema_version"}))
+        except ValueError as exc:
+            raise HTTPException(422, "Invalid Agent session page") from exc
 
     @app.get("/v1/sessions/{session_id}", dependencies=[Depends(auth.require())])
     async def session(session_id: str):

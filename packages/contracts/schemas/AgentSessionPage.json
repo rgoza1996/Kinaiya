@@ -1,0 +1,95 @@
+{
+  "$defs": {
+    "Session": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "session_id": {
+          "title": "Session Id",
+          "type": "string"
+        },
+        "thread_id": {
+          "title": "Thread Id",
+          "type": "string"
+        },
+        "channel": {
+          "enum": [
+            "converse",
+            "agent"
+          ],
+          "title": "Channel",
+          "type": "string"
+        },
+        "epoch": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Epoch",
+          "type": "integer"
+        },
+        "name": {
+          "default": "",
+          "title": "Name",
+          "type": "string"
+        },
+        "harness_version": {
+          "anyOf": [
+            {
+              "pattern": "^(seed-v1|v-[a-f0-9]{24})$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Harness Version"
+        }
+      },
+      "required": [
+        "channel"
+      ],
+      "title": "Session",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "items": {
+      "items": {
+        "$ref": "#/$defs/Session"
+      },
+      "maxItems": 20,
+      "title": "Items",
+      "type": "array"
+    },
+    "next_cursor": {
+      "anyOf": [
+        {
+          "pattern": "^[1-9][0-9]{0,18}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Next Cursor"
+    }
+  },
+  "required": [
+    "items"
+  ],
+  "title": "AgentSessionPage",
+  "type": "object"
+}

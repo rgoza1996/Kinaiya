@@ -1,0 +1,27 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "harness_version": {
+      "pattern": "^(seed-v1|v-[a-f0-9]{24})$",
+      "title": "Harness Version",
+      "type": "string"
+    },
+    "name": {
+      "default": "",
+      "maxLength": 200,
+      "title": "Name",
+      "type": "string"
+    }
+  },
+  "required": [
+    "harness_version"
+  ],
+  "title": "AgentSessionCreate",
+  "type": "object"
+}

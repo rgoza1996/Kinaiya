@@ -50,8 +50,10 @@ def create_app(runtime: AgentRuntime, auth: Any, commands=None) -> FastAPI:
     from services.agent.mcp_controls import router as mcp_router
     from services.agent.plugin_controls import router as plugin_router
     from services.agent.skill_controls import router as skill_router
+    from services.agent.workspace_api import router as workspace_router
 
     app.include_router(harness_router(runtime, auth))
+    app.include_router(workspace_router(runtime, auth, getattr(commands, "journal", runtime.journal)))
     app.include_router(mcp_router(runtime, auth))
     app.include_router(skill_router(runtime, auth))
     app.include_router(plugin_router(runtime, auth))
