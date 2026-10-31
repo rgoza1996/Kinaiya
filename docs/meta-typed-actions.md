@@ -11,6 +11,13 @@ profile. The existing `flat-v1` profile remains the compatibility default during
 qualification. No automatic profile fallback, extra inference, coercion of a
 rejected proposal, finish, or permission change is authorized by this format.
 
+For an explicitly selected Meta Agent profile in `providers.agent`, set
+`"action_format": "typed-v2"`. The existing launcher enables structured actions
+for Agent. Direct adapter construction also requires `structured_actions=True`.
+Do not apply this setting to ordinary Converse or Decisions generation. A change
+to an existing host profile follows its normal owner-controlled restart/task
+boundary; reading this document does not reconfigure a running host.
+
 ## Wire contract
 
 A plain closed root object contains exactly `action`. That value selects one
@@ -87,3 +94,11 @@ required before claiming this profile works with the service. Native success,
 semantic correctness, browser rendering and human voice quality are separate
 claims; earlier failed cases remain retained. #169 and the broader production
 acceptance gates remain open until their actual requirements are met.
+
+The [October 31 evidence](../evaluation/evidence/meta-typed-actions-2026-10-31.json)
+records successful real schema admission and a fixed six-case native task run
+at `87f5307`: five native successes, one output-budget failure; three semantic
+passes, two partial examples, one failure. No repeated successful create was
+observed. The compatibility default and both running previews were unchanged
+during qualification. This consumed development set is not a fresh holdout,
+statistical improvement, browser/control test or general reliability result.

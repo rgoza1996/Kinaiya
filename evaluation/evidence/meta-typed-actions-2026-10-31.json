@@ -1,0 +1,304 @@
+{
+  "schema_version": 1,
+  "recorded_date": "2026-10-31",
+  "issue": "https://github.com/rgoza1996/Kinaiya/issues/169",
+  "status": "Experimental opt-in provider format. Issue169 remains open; defaults and previews unchanged during qualification.",
+  "candidate_source": {
+    "commit": "87f5307e5d1be692cc9618c3b20a87124a6eacaf",
+    "tree": "5d4cf6395a2d656390bf7a63b7385bbe11ab37a4",
+    "module_sha256": {
+      "packages/providers/text.py": "2aca7c4798e669cde628543aa09dea3419001b61eadcffc120101fc878c785f0",
+      "packages/providers/meta_action_wire.py": "20b27f0ed991c81f14d3f470676cd04d8a57a0a9337d319ba0fb364543d1bde6",
+      "services/agent/runtime.py": "22aa4250ad58096b54d7c94451cc1b6455300017c13b542dd3d18a2b3c4663ed",
+      "services/converse/runtime.py": "abed795941d7d2f6ebe322e1b5c341ca577d8cc2c9bd67c7dbed7563912613e6",
+      "services/decisions/runtime.py": "baa9ea4e83c08e0a339ffeeb227cc1fbd0c2541323b450e2cd5587d21d5ab7ab",
+      "services/session/store.py": "1ccc866f45366bde71ccc4e5c7825fd94e560e430775be52f42eaddb156c2c95",
+      "services/agent/artifacts.py": "ec3fd4de564e8afba75376f2ff3dd96404ddda08e5c4a9d5d4e82f86d1070b5b"
+    }
+  },
+  "baseline_source": "dcd3eea87a3f97671c59b89d451869210138f17b",
+  "baseline_summary_sha256": "9c1e065fdf3b8b7a209742cab236dcfaa3ea0b509913ffedf1e45d7a159ee9ff",
+  "requirements": [
+    "Roadmap sections8,9,18,25; AT24 and evidence-backed completion",
+    "AGENTS.md: untrusted output, native authority, source-bound verification and retained failures",
+    "clarification sections3,5,7: capability expansion is distinct from provider grammar and harness optimization"
+  ],
+  "experiment": {
+    "agent": {
+      "model": "muse-spark-1.3-contributor",
+      "requested_reasoning_effort": "xhigh",
+      "max_output_tokens": 8192,
+      "max_steps": 12,
+      "action_format": "typed-v2"
+    },
+    "converse_decisions": {
+      "model": "muse-spark-1.3-contributor",
+      "requested_reasoning_effort": "minimal",
+      "max_output_tokens": 1024,
+      "action_format": "flat-v1"
+    },
+    "cases": [
+      [
+        "sales",
+        "Public synthetic example: Create an interactive sales view using these fictional monthly totals: January 20, February 35, March 28. Show a table and a bar chart so I can compare them. Label the numbers as fictional."
+      ],
+      [
+        "compact_database",
+        "Public synthetic example: Show me a compact interactive comparison of a fictional orders table before and after normalization. Use two data tables and a short explanation. Keep the example small; it is only a demonstration."
+      ],
+      [
+        "multiple_tables",
+        "Public synthetic example: Create an interactive illustration of normalizing a fictional store's data. Show one denormalized table, separate Customers, Orders, and OrderItems tables, and a relationship diagram. Use a few fictional rows and clearly label the example as simulated."
+      ]
+    ],
+    "repetitions": 2,
+    "topology": "Actual native Converse, Decisions and Agent with LocalJournal in one process; fresh session and empty workspace per case.",
+    "allowed_optional_brokers": [],
+    "write_shell_network_grants": false,
+    "case_observation_seconds": 300,
+    "external_hard_timeout_seconds": 3300,
+    "kill_after_seconds": 30,
+    "maximum_task_inference_calls": 84,
+    "fixture_sha256": {
+      "qualification.py": "1e175bd6c88f78854e4214a244825c3ede11a61f914fc6a17376945a1f4b7d83",
+      "wire_capture.py": "e87b8d146d910534b4962a302e8c670b4de1f5712c4ecdc45c8b56bed07caa25",
+      "guard_identity.py": "4d3c111c04d3bd48282412b64c56b016045f123a25cb5f74d933aa5a0be624c1"
+    },
+    "comparison": "Same three consumed public development prompts and prior model/output/step budgets. Observational comparison of changed provider contract; not a fresh holdout, controlled statistical improvement or overall harness benchmark.",
+    "semantic_rubric": "Exact sales values with comparable table/bar and fictional labels. Compact normalization preserves demonstrated facts and supports its explanation. Multi-table includes denormalized, Customers, Orders, OrderItems and coherent referenced relationships. Native completion, usable deliverables and semantic correctness are graded separately."
+  },
+  "schema_admission": {
+    "result": {
+      "live": true,
+      "native_execution": false,
+      "decoded_proposal": {
+        "tool": "finish",
+        "arguments": {
+          "summary": "Public synthetic schema admission only",
+          "objective_revision": 1
+        }
+      },
+      "expected_proposal": true,
+      "capture_errors": 0,
+      "pending_owned_tasks": 0,
+      "capture_count": 1,
+      "capture_complete": true,
+      "source_unchanged": true
+    },
+    "request_input_tokens": 5541,
+    "response_output_tokens": 206,
+    "elapsed_seconds": 2.6432527159922756,
+    "protocol_branches": 14,
+    "exec_session": 52093,
+    "exit_code": 0,
+    "native_execution": false
+  },
+  "execution": {
+    "exec_session": 41478,
+    "exit_code": 0,
+    "case_count": 6,
+    "native_success_count": 5,
+    "native_failure_count": 1,
+    "semantic_pass": 3,
+    "semantic_partial": 2,
+    "semantic_fail": 1,
+    "inference_calls": 27,
+    "roles": {
+      "agent": 15,
+      "converse": 6,
+      "decisions": 6
+    },
+    "actions": {
+      "read_transcript": 4,
+      "incomplete": 1,
+      "publish_ui": 5,
+      "finish": 5
+    },
+    "publication_kinds": {
+      "create": 5
+    },
+    "no_mid_run_changes_retries_repairs_or_extra_finish": true,
+    "all_captures_complete_and_cleanup_clear": true,
+    "source_and_fixture_hashes_unchanged": true
+  },
+  "cases": [
+    {
+      "case": "1-sales",
+      "task_id": "e538519f-2a61-4c70-a716-89a95ab867de",
+      "session_id": "5ef50e05-786b-4c12-bdbf-e223be72a8f5",
+      "native_state": "succeeded",
+      "artifact_count": 1,
+      "current_artifact_evidence_verified": true,
+      "semantic_grade": "pass",
+      "semantic_finding": "Exact fictional Jan20/Feb35/Mar28 table and bar chart.",
+      "cleanup_errors": [],
+      "converse_reply_nonempty_without_error_event": true
+    },
+    {
+      "case": "1-compact_database",
+      "task_id": "0acce0af-9b11-4bb3-9dfd-7c4790198b5e",
+      "session_id": "7da76169-b4a8-4b01-ad1c-84b6a1e83689",
+      "native_state": "failed",
+      "artifact_count": 0,
+      "current_artifact_evidence_verified": false,
+      "semantic_grade": "fail",
+      "semantic_finding": "No artifact; second Agent response incomplete/max_output_tokens8192.",
+      "cleanup_errors": [],
+      "converse_reply_nonempty_without_error_event": true
+    },
+    {
+      "case": "1-multiple_tables",
+      "task_id": "c52c7a08-838c-45b0-b39a-28032fc444e2",
+      "session_id": "c99f7676-0fd5-4d14-b548-b3c0ca673abe",
+      "native_state": "succeeded",
+      "artifact_count": 1,
+      "current_artifact_evidence_verified": true,
+      "semantic_grade": "pass",
+      "semantic_finding": "Four requested tables and coherent diagram; all original domain rows reconstruct.",
+      "cleanup_errors": [],
+      "converse_reply_nonempty_without_error_event": true
+    },
+    {
+      "case": "2-sales",
+      "task_id": "02678c3d-5755-4c6f-8550-44248453f4f0",
+      "session_id": "0f34eb9a-1691-45e1-a656-4a90d69fbf35",
+      "native_state": "succeeded",
+      "artifact_count": 1,
+      "current_artifact_evidence_verified": true,
+      "semantic_grade": "pass",
+      "semantic_finding": "Exact fictional Jan20/Feb35/Mar28 table and bar chart.",
+      "cleanup_errors": [],
+      "converse_reply_nonempty_without_error_event": true
+    },
+    {
+      "case": "2-compact_database",
+      "task_id": "a864240c-94e5-405c-b527-c5fbded655f5",
+      "session_id": "d41aac43-495f-42cc-8be2-fed668fdeeba",
+      "native_state": "succeeded",
+      "artifact_count": 1,
+      "current_artifact_evidence_verified": true,
+      "semantic_grade": "partial",
+      "semantic_finding": "Original facts project correctly across5itemlines, but After adds Qty[2,1,1,1,2] absentBefore and explanation overstates anomaly avoidance while customer/city repetition remains.",
+      "cleanup_errors": [],
+      "converse_reply_nonempty_without_error_event": true
+    },
+    {
+      "case": "2-multiple_tables",
+      "task_id": "a7b472c4-6f8d-4a7c-815c-a019ea9c715c",
+      "session_id": "18dc42fb-4509-414a-bafb-79b48c682a22",
+      "native_state": "succeeded",
+      "artifact_count": 1,
+      "current_artifact_evidence_verified": true,
+      "semantic_grade": "partial",
+      "semantic_finding": "Four tables/diagram/joins preserve original6itemlines, but After adds unit prices18/12/35/9 absentBefore without identifying that enrichment.",
+      "cleanup_errors": [],
+      "converse_reply_nonempty_without_error_event": true
+    }
+  ],
+  "independent_reviews": {
+    "final_code": "Codex backend confirmed fixes and no remaining offline blocker. Independently252 checks before last history fixes and9 focused checks after; root final524 checks.",
+    "driver": "Codex frontend compared baseline/final driver; no concrete blocker for declared workflow. Read-only; no model/network calls.",
+    "semantics": "Codex backend and root independently inspected all five delivered artifacts; reconciled grades against declared rubric.",
+    "muse": "Actual Muse CLI1.4.14 Contributor xhigh reviewed an inline public source snapshot before the final two history fixes. No static findings. It did not execute tests; later Codex delta review found and verified those fixes."
+  },
+  "local_verification": {
+    "python": "3.12.3",
+    "environment": "Existing pinned verification virtualenv; PYTHONPATH=. from candidate worktree. No packages installed.",
+    "targeted": {
+      "passed": 524,
+      "seconds": 22.57,
+      "command": "python -m pytest -q tests/unit/test_meta_typed_action_wire.py tests/integration/test_meta_typed_actions.py tests/unit/test_providers.py tests/unit/test_meta_prompt_count.py tests/unit/test_meta_action_diagnostics.py tests/unit/test_meta_tool_snapshot.py tests/integration/test_meta_context_budget.py tests/integration/test_meta_ui_actions.py tests/integration/test_agent_tool_advertising.py tests/unit/test_seed_history.py"
+    },
+    "fixture_checks_first": {
+      "passed": 57,
+      "failed": 1,
+      "seconds": 4.94,
+      "reason": "Existing one-second observation limit elapsed during mocked partial setup; cause unproved."
+    },
+    "fixture_checks_unchanged_rerun": {
+      "passed": 58,
+      "failed": 0,
+      "seconds": 2.91
+    },
+    "mock_admission_passed": true,
+    "mock_task_successes": 6,
+    "ruff_check": "passed",
+    "ruff_format_check": "439 files already formatted",
+    "git_diff_check": "passed"
+  },
+  "muse_cli_attempts": [
+    {
+      "purpose": "Pure module implementation candidate",
+      "cli": "1.4.14 (1.4.14-R7309.1)",
+      "model": "muse-spark-1.3-contributor",
+      "requested_reasoning_effort": "xhigh",
+      "backend_reasoning_effort": "unreported",
+      "exec_session": 70385,
+      "pid": 859628,
+      "exit_code": 0,
+      "elapsed_seconds": 136.154541,
+      "forced_termination": false,
+      "direct_child_reaped": true,
+      "public_fixture_head": "7695e60ba3cec1a4bacfcaca359d081b5cd872d7",
+      "prompt_sha256": "802e2f2ea022091f376445ed5796bf43e5b30f45bc9564cf50ed6c19e114d616",
+      "candidate_sha256": "7531718aad405eb056350ba0bbb7a9bb716686e23d7ef8766e183d7fc30aff84",
+      "calls": 2,
+      "outcome": "Rejected before import/integration. Empty preset had no source-reading tools despite file-referencing task; candidate lacked required context and used different UI/API shapes. No candidate code integrated.",
+      "estimated_delta_usd": 0.013619658
+    },
+    {
+      "purpose": "Corrected static review with all required public source inline",
+      "cli": "1.4.14 (1.4.14-R7309.1)",
+      "model": "muse-spark-1.3-contributor",
+      "requested_reasoning_effort": "xhigh",
+      "backend_reasoning_effort": "unreported",
+      "exec_session": 24657,
+      "pid": 917430,
+      "exit_code": 0,
+      "elapsed_seconds": 212.2943276379956,
+      "forced_termination": false,
+      "direct_child_reaped": true,
+      "public_fixture_head": "efd8a97d3f327b3220b54c5f75f4683641e84f93",
+      "prompt_sha256": "5e9064fb496b4456590d2685835fdcdd058280a63c8635d59c068aa7e6235629",
+      "events_sha256": "ab07c164858ac367b204afa715b3dfd35506702a612e6900c02e0fe28c115ed2",
+      "calls": 1,
+      "outcome": "No static findings in supplied snapshot. No tools or test execution. Snapshot precedes final alias/Unicode fixes independently found by Codex review.",
+      "estimated_delta_usd": 0.009509
+    }
+  ],
+  "retained_failures": [
+    "Rejected Muse candidate lacked requested source context because the empty preset exposed no tools. This orchestration failure does not establish model coding ability with adequate context.",
+    "Initial pure test collection preceded module existence. One negative fixture used valid text; one integration fixture requested nonstream generation after a stream count. Fixtures corrected without parser or count-binding relaxation.",
+    "Independent reviews found unconditional disabled-UI hints, historical key dropping, a serializer mismatch, listing alias collisions and unsafe Unicode history serialization. Corrected before real qualification with explicit regressions.",
+    "First offline fixture check:57 pass,1 observation timeout. Unchanged rerun:58 pass. Threshold and driver cleanup behavior were not weakened.",
+    "First post-run audit required explicit final phase; inspection confirmed valid unphased final messages handled by the existing adapter. Audit corrected to documented extraction; production unchanged.",
+    "Actual1-compact_database second Agent response incomplete/max_output_tokens8192; no artifact. No retry or settings change.",
+    "Two native successes have partial semantic content. All baseline failures remain retained."
+  ],
+  "budget": {
+    "actual_reported_billing_usd": null,
+    "guard_interval_task_estimate_delta_usd": 0.010339272,
+    "grammar_admission_estimate_delta_usd": 0.0005953,
+    "rejected_muse_candidate_estimate_delta_usd": 0.013619658,
+    "corrected_muse_review_estimate_delta_usd": 0.009509,
+    "contributor_text_estimate_after_usd": 1.6224893760000025,
+    "audio_estimate_after_usd": 0.018649999999999996,
+    "uncertain_reservations_preserved_usd": 2.23925145,
+    "cache_aware_admission_estimate_after_usd": 3.244978752000005,
+    "limit_usd": 25,
+    "text_admission_limit_usd": 22,
+    "guard_reset": false,
+    "invoices_unavailable": true
+  },
+  "limits": [
+    "Consumed public development examples, two repetitions of three prompts; no fresh held-out result, statistical improvement or broad completion/harness reliability claim.",
+    "Native success verifies current publication receipts. Schema-valid/native-success results can contain semantic errors; two examples add unexplained data.",
+    "No browser, HTTP-service topology, rendering/control behavior, voice, latency, GPU/memory or mobile-call qualification.",
+    "No default, production profile or preview change during qualification. Optional foreign brokers absent; no write/shell/network grants.",
+    "Provider grammar does not complete issue171 logical schemas, permission diagnostics or progressive capability discovery.",
+    "Restricted Muse CLI outputs are inspectable in retained terminal logs/tmux; app terminal visibility was not confirmed."
+  ],
+  "local_bundle": "ui169-typed-qualification-b8pdw4va",
+  "retained_bundle_summary_sha256": "e6d34cf66334155338c44113a78c7ff5d021407ac318fba80ab1e9a87b445f2a",
+  "capture_audit_sha256": "25384a255ed558ceca9988718b466a9e82839c0c902963d66b7928558caf9b39"
+}

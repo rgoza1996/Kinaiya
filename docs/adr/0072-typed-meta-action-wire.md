@@ -1,6 +1,6 @@
 # ADR0072: Typed Meta action wire
 
-Status: proposed; opt-in profile, default and production preview unchanged
+Status: experimental opt-in profile; default and production preview unchanged
 
 ## Context
 
@@ -49,9 +49,27 @@ store checks, 74 actual adapter/native-runtime integration checks and existing
 provider/advertisement/count/history regressions. All 32 native selections and
 all nine UI types are exercised. Maximum emitted schema measurements are depth8,
 135 properties, 12 enum entries, 1610 aggregate naming characters and 1512
-expanded JSON-value nodes. Full exact-head CI, independent review and actual
-provider/task qualification must be recorded with the final PR/evidence; no
-service acceptance or general reliability is inferred from these local checks.
+expanded JSON-value nodes. Exact-head CI is tracked in the associated PR.
+Independent code and driver reviews found no remaining offline blocker.
+
+At committed source `87f5307`, a separate real Contributor xhigh call admitted
+the complete fourteen-operation protocol schema and returned the requested
+proposal; it executed no task or tool. Then the same three public tasks ran
+twice through native Converse → Decisions → Agent, with unchanged model,
+reasoning, output and step budgets. Five tasks succeeded with one native view
+each; one compact example exhausted 8192 output tokens without publishing.
+There were five create proposals, five finish proposals, four transcript reads
+and one incomplete Agent response across 27 actual calls. Every capture had
+verified hashes, complete EOF/close and clear cleanup. Source and fixture hashes
+remained unchanged; no fallback, repair or extra finish was introduced.
+
+Independent artifact review found three passes, two partial results and one
+failure. The partial compact example introduces quantities absent Before and
+overstates anomaly avoidance; the partial larger example adds prices absent
+Before without identifying enrichment. Native success is not semantic proof.
+No repeated successful creation occurred in this run. This small consumed set
+does not prove a reliability improvement over the earlier three-success run.
+See [full evidence](../../evaluation/evidence/meta-typed-actions-2026-10-31.json).
 
 The initial Muse CLI candidate is retained but rejected before import or
 integration: it modeled unsupported UI types and a different publication API.
@@ -74,7 +92,18 @@ were corrected with explicit regressions. Final independent delta review also
 caught MCP listing alias collisions and unsafe Unicode history serialization;
 the fixes preserve opaque malformed history and escaped transport-safe history.
 The reviewer confirmed those fixes with nine focused checks and found no
-remaining offline blocker. Real-provider admission remains a separate gate.
+remaining offline blocker. The first external-fixture check exceeded its
+existing one-second observation threshold during mocked partial setup (57 pass,
+one failure); the unchanged rerun passed 58 checks. Both observations remain.
+One post-run audit initially assumed an explicit final phase; the provider also
+returns valid unphased final messages handled by the existing adapter. Corrected
+the audit to that documented extraction rule without changing production code.
+
+The task interval added an estimated $0.010339272; schema admission added
+$0.0005953. After the retained Muse attempts and these tests, the text estimate
+was $1.622489376 and the separate audio estimate $0.01865. Existing uncertain
+reservations of $2.23925145 and the combined $25 guard were preserved. Actual
+reported billing is unavailable; estimates are not invoices.
 
 This is a provider grammar, not the universal selected-operation schema/catalog
 or permission diagnostics still required by #171. It installs no tool, adds no
