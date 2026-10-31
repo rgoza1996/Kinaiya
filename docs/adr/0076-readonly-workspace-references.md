@@ -1,6 +1,6 @@
 # ADR 0076: Readable, immutable workspace references
 
-Status: proposed implementation; independent review and exact-head CI required.
+Status: experimental implementation (#183); exact-head release checks remain required.
 
 ## Requirement
 
@@ -20,8 +20,9 @@ with broad write grants and YOLO. Both the original lexical pathname and its
 canonical target are checked; descriptor walks recheck the scope when creating a
 write parent. Existing `protected_roots` continues to deny reads and writes.
 There are no model-set permissions, settings, API grants or approval changes.
-Runtime owners must include the new root tuple in their existing policy-currentness
-snapshot; this policy/tool change does not modify Runtime.
+Agent includes the new root tuple in its inference-currentness snapshot, so
+changing it in an awaited request hook refuses the previous count or generation
+before transport. This neither grants a write nor changes approval handling.
 
 For native shell execution, BWrap read-only mounts cover the selected references.
 A root containing the entire workspace covers the workspace mount; unrelated
@@ -33,6 +34,10 @@ and replacing the configured pathname, while unrelated files remain writable.
 All writable ancestor mounts precede protected/read-only overmounts. Redundant
 nested reference roots are coalesced. Missing/inaccessible sources and unsupported
 BWrap options fail closed; no less isolated command is attempted.
+The integration suite exercises the actual pinned reference mounts after checking
+basic BWrap availability. Missing reference-mount capabilities fail those tests;
+version numbers alone cannot establish that distribution backports expose the
+required options.
 
 A pre-existing hardlink outside a reference could bypass a read-only path mount;
 a symlink within a reference could target a writable subtree. Shell preparation
