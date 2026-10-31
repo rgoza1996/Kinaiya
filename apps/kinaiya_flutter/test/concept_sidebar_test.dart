@@ -140,12 +140,11 @@ void main() {
         expect(
           find.text(switch (page) {
             'decisions' => 'Trace what Kinaiya considered and decided',
-            'projects' =>
-              'Project management is not connected to this host yet. Existing Agent sessions remain available in Agent.',
+            'projects' => 'Organize Agent sessions into projects.',
             'files' =>
-              'Workspace file browsing is planned. Opening this page does not read files or grant Agent access.',
+              'Outputs recorded by Agent. Creation times use your local time.',
             _ =>
-              'A generated media library is not connected to this host yet. No example files are shown as your media.',
+              'Outputs recorded by Agent. Creation times use your local time.',
           }),
           findsOneWidget,
         );

@@ -8,6 +8,7 @@ import 'state/app_state.dart';
 import 'presentation/controller.dart';
 import 'ui/agent_chat.dart';
 import 'ui/decisions_view.dart';
+import 'ui/library_workspace.dart';
 import 'ui/character_view.dart';
 import 'ui/settings_controls.dart';
 import 'ui/options_workspace.dart';
@@ -170,8 +171,8 @@ enum _ShellPage {
   agent('Agent Chat', Icons.chat_bubble_outline_rounded),
   decisions('Decisions', Icons.diamond_outlined),
   projects('Projects', Icons.folder_outlined),
-  files('Files', Icons.description_outlined),
-  media('Media', Icons.photo_library_outlined),
+  files('Generated Documents', Icons.description_outlined),
+  media('Generated Media', Icons.photo_library_outlined),
   options('Options', Icons.settings_outlined);
 
   const _ShellPage(this.label, this.icon);
@@ -862,6 +863,25 @@ class _HomeShellState extends State<HomeShell> {
         child: DecisionsView(
           key: const ValueKey('workspace-decisions'),
           state: widget.state,
+        ),
+      );
+    }
+    if ({
+      _ShellPage.projects,
+      _ShellPage.files,
+      _ShellPage.media,
+    }.contains(page)) {
+      return Theme(
+        data: widget.darkTheme,
+        child: LibraryWorkspace(
+          key: ValueKey('workspace-${page.name}'),
+          state: widget.state,
+          section: switch (page) {
+            _ShellPage.projects => LibrarySection.projects,
+            _ShellPage.files => LibrarySection.documents,
+            _ => LibrarySection.media,
+          },
+          onOpenAgent: () => _selectPage(_ShellPage.agent),
         ),
       );
     }

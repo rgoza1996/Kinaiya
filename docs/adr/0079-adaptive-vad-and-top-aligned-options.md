@@ -1,4 +1,4 @@
-# ADR 0078: Adaptive microphone detection and top-aligned Options
+# ADR 0079: Adaptive microphone detection and top-aligned Options
 
 Status: Accepted implementation for #194; acoustic/model qualification remains separate.
 

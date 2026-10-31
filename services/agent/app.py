@@ -48,6 +48,7 @@ def create_app(runtime: AgentRuntime, auth: Any, commands=None) -> FastAPI:
     app = FastAPI(title="Kinaiya Seed Agent", version="0.1.0")
     from services.agent.artifact_api import router as artifact_router
     from services.agent.harness_api import router as harness_router
+    from services.agent.library_api import router as library_router
     from services.agent.mcp_controls import router as mcp_router
     from services.agent.options_api import router as options_router
     from services.agent.plugin_controls import router as plugin_router
@@ -56,6 +57,7 @@ def create_app(runtime: AgentRuntime, auth: Any, commands=None) -> FastAPI:
 
     app.include_router(harness_router(runtime, auth))
     app.include_router(options_router(runtime, auth))
+    app.include_router(library_router(runtime, auth, getattr(commands, "journal", runtime.journal)))
     app.include_router(
         workspace_router(runtime, auth, getattr(commands, "journal", runtime.journal))
     )

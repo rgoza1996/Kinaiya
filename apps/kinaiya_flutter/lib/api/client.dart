@@ -17,6 +17,7 @@ import 'models.dart';
 import 'converse_setup.dart';
 import 'agent_workspace.dart';
 import 'agent_workspace_client.dart';
+import 'library_models.dart';
 import 'artifact_client.dart';
 import '../config/service_root.dart';
 
@@ -255,6 +256,43 @@ class KinaiyaClient {
           query: {'limit': '50', if (after != null) 'after': after},
         ),
       );
+
+  Future<GeneratedOutputPage> generatedOutputs({
+    required String kind,
+    int after = 0,
+  }) async => GeneratedOutputPage.fromJson(
+    await _agentWorkspaceReader.get(
+      agentBase,
+      '/v1/agent/library',
+      query: {'kind': kind, 'after': '$after'},
+    ),
+    kind: kind,
+    after: after,
+  );
+
+  Future<AgentProjectPage> projects({String? after}) async =>
+      AgentProjectPage.fromJson(
+        await _agentWorkspaceReader.get(
+          agentBase,
+          '/v1/agent/projects',
+          query: {if (after != null) 'after': after},
+        ),
+      );
+
+  Future<Map<String, Object?>> changeProject(Map<String, Object?> body) =>
+      _post(
+        agentBase,
+        '/v1/agent/projects',
+        body,
+      ).timeout(const Duration(seconds: 8));
+
+  Future<Map<String, Object?>> projectReceipt(String key) async =>
+      (await _agentWorkspaceReader.get(
+                agentBase,
+                '/v1/agent/projects/changes/${Uri.encodeComponent(key)}',
+              )
+              as Map)
+          .cast<String, Object?>();
 
   Future<SessionInfo> createAgentSession(
     String harnessVersion, {

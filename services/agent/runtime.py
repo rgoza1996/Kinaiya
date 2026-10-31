@@ -295,6 +295,7 @@ class AgentRuntime:
         self.journal = journal
         self.provider = provider
         self.model_settings = None
+        self.projects = None
         self.workspace = Path(workspace)
         self.policy = policy
         self.max_steps = max(1, int(max_steps))
@@ -1188,6 +1189,9 @@ class AgentRuntime:
         artifact_store, self.artifact_store = self.artifact_store, None
         if artifact_store is not None:
             artifact_store.close()
+        projects, self.projects = self.projects, None
+        if projects is not None:
+            projects.close()
 
     # -- approvals ------------------------------------------------------
     async def pending_approvals(

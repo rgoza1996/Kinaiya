@@ -495,6 +495,12 @@ def serve(args):
                 config.get("resources_url", "http://127.0.0.1:8764"), tokens["owner"]
             )
         owner_journal = JournalClient(config["session_url"], tokens["owner"])
+        from services.agent.projects import Projects
+
+        project_path = args.data_dir.resolve() / "projects.sqlite"
+        if project_path.is_relative_to(workspace):
+            raise SystemExit("Owner project storage must stay outside the worker workspace")
+        runtime.projects = Projects(project_path)
         profiles = {
             name: (
                 lambda profile=profile: provider(
