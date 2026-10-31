@@ -61,6 +61,26 @@ class ModelScopedMCP:
     def list_servers(self):
         return [entry for entry in self.host.list_servers() if self._allowed(entry)]
 
+    def cached_tool_metadata(self, server_id=None, *, tool=None):
+        """Filter passive metadata on both sides of the host projection."""
+        try:
+            before = {entry["id"] for entry in self.list_servers()}
+            if server_id is not None and server_id not in before:
+                return []
+            rows = self.host.cached_tool_metadata(server_id, tool=tool)
+            after = {entry["id"] for entry in self.list_servers()}
+            return [
+                {
+                    key: value
+                    for key, value in row.items()
+                    if key not in {"content_scope", "credentialed"}
+                }
+                for row in rows
+                if row["id"] in before & after and self._allowed(row)
+            ]
+        except Exception:
+            raise ToolFailure("MCP metadata is unavailable") from None
+
     def _check(self, server):
         if not any(entry["id"] == server for entry in self.list_servers()):
             raise PolicyDenied("MCP server is unavailable under this model disclosure policy")

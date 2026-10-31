@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import hashlib
 import ipaddress
 import json
 import os
@@ -695,6 +696,7 @@ class _ServerActor:
         self._current: asyncio.Future | None = None
         self._task: asyncio.Task | None = None
         self._stopped = False
+        self._observed_tools: list[dict[str, Any]] | None = None
 
     def start(self) -> None:
         if self._task is None:
@@ -770,6 +772,7 @@ class _ServerActor:
             session = None
             connection_grants = None
             schemas = {}
+            self._observed_tools = None
             # Retain the previous connection secrets until error formatting has
             # finished. ensure() replaces them before the next connection.
             stderr_holder = [b""]
@@ -933,6 +936,7 @@ class _ServerActor:
                                 "allowed": tool.name in config.allowed_tools,
                             }
                         )
+                    self._observed_tools = copy.deepcopy(out)
                     if not fut.done():
                         fut.set_result(out)
                     return
@@ -1050,6 +1054,20 @@ class _ServerActor:
                         sess.list_tools(), timeout=config.timeout_seconds
                     )
                     schemas = _check_caps(list(result.tools or []), config.id)
+                    self._observed_tools = [
+                        {
+                            "name": entry.name,
+                            "description": _scrub_any(
+                                str(getattr(entry, "description", "") or "")[
+                                    :MAX_DESCRIPTION_CHARS
+                                ],
+                                current_secrets(),
+                            ),
+                            "inputSchema": _scrub_any(schemas[entry.name], current_secrets()),
+                            "allowed": entry.name in config.allowed_tools,
+                        }
+                        for entry in result.tools or []
+                    ]
                     schema = schemas.get(tool)
                 except asyncio.CancelledError:
                     try:
@@ -1358,6 +1376,104 @@ class MCPHost:
                 }
             )
         return copy.deepcopy(out)
+
+    def cached_tool_metadata(
+        self, server_id: str | None = None, *, tool: str | None = None
+    ) -> list[dict[str, Any]]:
+        """Passive configured/observed metadata; never initialize a server.
+
+        Cached definitions describe a previous tools/list response, not a
+        remote implementation version, task pin, or authorization to call.
+        """
+        try:
+            for value, maximum in ((server_id, 128), (tool, 512)):
+                if value is not None and (
+                    type(value) is not str or not value or len(value) > maximum or "\x00" in value
+                ):
+                    raise MCPError("MCP metadata is unavailable")
+                if value is not None:
+                    value.encode("utf-8")
+            if tool is not None and server_id is None:
+                raise MCPError("MCP metadata is unavailable")
+            if self._closed:
+                raise MCPError("MCP metadata is unavailable")
+            accessible = True
+            if self._access_guard is not None:
+                try:
+                    self._access_guard()
+                except Exception:
+                    accessible = False
+            ids = [server_id] if server_id is not None else sorted(self._configs)
+            rows = []
+            for identity in ids:
+                config = self._configs.get(identity)
+                if config is None:
+                    continue
+                actor = self._actors.get(identity)
+                observed = (
+                    actor._observed_tools
+                    if actor is not None and accessible and config.enabled
+                    else None
+                )
+                definitions = []
+                for entry in observed or []:
+                    if tool is not None and entry["name"] != tool:
+                        continue
+                    item = {
+                        "name": entry["name"],
+                        "description": entry["description"][:80],
+                        "allowed": entry["name"] in config.allowed_tools,
+                        "schema_state": "observed",
+                    }
+                    if tool is not None:
+                        item["input_schema"] = copy.deepcopy(entry["inputSchema"])
+                    definitions.append(item)
+                if tool is not None and not definitions:
+                    if tool not in config.allowed_tools:
+                        continue
+                    definitions.append(
+                        {
+                            "name": tool,
+                            "description": "",
+                            "allowed": True,
+                            "schema_state": "not_discovered",
+                        }
+                    )
+                config_bytes = json.dumps(
+                    config.model_dump(mode="json"), sort_keys=True, separators=(",", ":")
+                ).encode("utf-8")
+                definition_sha = None
+                if observed is not None:
+                    definition_bytes = json.dumps(
+                        observed, sort_keys=True, separators=(",", ":"), allow_nan=False
+                    ).encode("utf-8")
+                    definition_sha = hashlib.sha256(definition_bytes).hexdigest()
+                rows.append(
+                    {
+                        "id": identity,
+                        "transport": config.transport,
+                        "configured_enabled": config.enabled,
+                        "enabled": config.enabled and accessible,
+                        "access_state": "available" if accessible else "unavailable",
+                        "transport_grant": (
+                            self._policy.effective_shell
+                            if config.transport == "stdio"
+                            else self._policy.network
+                        ),
+                        "allow_remote": config.allow_remote,
+                        "allowed_tools": sorted(config.allowed_tools),
+                        "content_scope": config.content_scope,
+                        "credentialed": bool(config.env_secret_refs or config.header_secret_refs),
+                        "schema_state": "observed" if observed is not None else "not_discovered",
+                        "config_sha256": hashlib.sha256(config_bytes).hexdigest(),
+                        "definition_sha256": definition_sha,
+                        "server_version": None,
+                        "tools": definitions,
+                    }
+                )
+            return copy.deepcopy(rows)
+        except Exception:
+            raise MCPError("MCP metadata is unavailable") from None
 
     async def _submit(self, server_id: str, op: dict[str, Any], timeout: float) -> Any:
         async with self._host_lock:

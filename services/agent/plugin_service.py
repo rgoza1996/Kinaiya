@@ -5,6 +5,7 @@ The optional host is imported only when plugins are explicitly configured.
 """
 
 import asyncio
+import copy
 import hashlib
 import json
 import os
@@ -215,6 +216,87 @@ class PluginService:
             ],
             "next_after": after + 4 if after + 4 < len(allowed) else None,
         }
+
+    async def tool_metadata(self, provider_info, *, plugin_id=None, task=None):
+        """Read approved metadata for the actual task version without pinning.
+
+        Foreign manifests are never executed here. An existing task pin can
+        differ from the current active version; each disclosed version keeps
+        its own approval and disclosure checks.
+        """
+        try:
+            if plugin_id is not None and (
+                type(plugin_id) is not str or not PLUGIN_ID.fullmatch(plugin_id)
+            ):
+                raise PluginError("Plugin metadata is unavailable")
+            async with self._lock:
+                task_pins = {}
+                if task is not None:
+                    if (
+                        type(task.task_id) is not str
+                        or re.fullmatch(r"[A-Za-z0-9_-]{1,128}", task.task_id) is None
+                        or type(task.plugin_versions) is not dict
+                    ):
+                        raise PluginError("Plugin metadata is unavailable")
+                    task_pins = dict(task.plugin_versions)
+                    for identity, version in self._pins.get(task.task_id, {}).items():
+                        if identity in task_pins and task_pins[identity] != version:
+                            raise PluginError("Plugin metadata is unavailable")
+                        task_pins[identity] = version
+                    if len(task_pins) > 16 or any(
+                        type(identity) is not str
+                        or not PLUGIN_ID.fullmatch(identity)
+                        or type(version) is not str
+                        or re.fullmatch(r"v-[0-9a-f]{24}", version) is None
+                        for identity, version in task_pins.items()
+                    ):
+                        raise PluginError("Plugin metadata is unavailable")
+                # The registry's short read lock keeps approval/pointer reads
+                # together. No pin persistence or sandbox operation is called.
+                with self.registry._thread:
+                    ids = (
+                        [plugin_id]
+                        if plugin_id is not None
+                        else sorted({row["plugin_id"] for row in self.registry.versions()})
+                    )
+                    rows = []
+                    for identity in ids:
+                        active = self.registry.active(identity)
+                        if active is None:
+                            continue
+                        pinned = task_pins.get(identity)
+                        chosen = pinned if pinned is not None else active
+                        row = self.registry.inspect(chosen)
+                        if row["plugin_id"] != identity:
+                            raise PluginError("Plugin metadata is unavailable")
+                        try:
+                            self.registry._approval(
+                                row, self.registry._read_active_doc()["plugins"].get(identity)
+                            )
+                            self._check_disclosure(chosen, provider_info)
+                        except PluginError:
+                            continue
+                        visible_active = active
+                        try:
+                            self._check_disclosure(active, provider_info)
+                        except PluginError:
+                            visible_active = None
+                        manifest = row["manifest"]
+                        result = {
+                            "plugin_id": identity,
+                            "description": manifest.get("description", "")[:80],
+                            "version_id": chosen,
+                            "source_sha256": row["source_sha256"],
+                            "active_version": visible_active,
+                            "task_pinned_version": pinned,
+                        }
+                        if plugin_id is not None:
+                            result["input_schema"] = copy.deepcopy(manifest["input_schema"])
+                            result["output_schema"] = copy.deepcopy(manifest["output_schema"])
+                        rows.append(result)
+                    return rows
+        except Exception:
+            raise PluginError("Plugin metadata is unavailable") from None
 
     async def pin_task(self, task, plugin_id, provider_info):
         if not isinstance(plugin_id, str) or not PLUGIN_ID.fullmatch(plugin_id):
