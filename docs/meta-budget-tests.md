@@ -28,6 +28,11 @@ to every category. This gateway does not account for another provider's ledger;
 reconcile any earlier OpenRouter spend before authorizing additional paid tests
 there. The October 31 qualification did not make OpenRouter requests.
 
+`GET /budget/summary` returns a bounded numeric snapshot and estimate label,
+including the accounted total with reservations. It omits all historical call
+records. Use this for qualification and display; a large private audit ledger
+is unnecessary for deciding whether a new test fits its retained ceiling.
+
 ## Optional single-image tests
 
 `--enable-media-smoke` enables two additional bounded routes. It is off by

@@ -211,6 +211,23 @@ def test_malformed_media_and_unknown_results_never_refund(gateway):
     assert restored["media_estimated_usd"] == 0
 
 
+def test_budget_summary_is_bounded_numeric_and_omits_historical_calls(gateway):
+    module, calls, _, client = gateway
+    module.STATE["cache_aware_admission_estimated_usd"] = 2
+    module.STATE["reserved_usd"] = 3
+    module.STATE["calls"] = [{"private_label": "never expose this fixture"}]
+    result = client.get("/budget/summary")
+    assert result.status_code == 200
+    assert result.json()["accounted_with_reservations_usd"] == 5
+    assert result.json()["estimates_not_invoices"] is True
+    assert len(result.content) < 1024
+    assert "calls" not in result.json() and b"private_label" not in result.content
+    assert calls == []
+    module.STATE.pop("cache_aware_admission_estimated_usd")
+    module.STATE["admission_estimated_usd"] = 4
+    assert client.get("/budget/summary").json()["accounted_with_reservations_usd"] == 7
+
+
 def public_wav(seconds=1, rate=16000):
     output = io.BytesIO()
     with wave.open(output, "wb") as wav:

@@ -294,6 +294,38 @@ def admission_available(*, text=0, audio=0, media=0):
     )
 
 
+def budget_summary():
+    """Bounded numeric inspection without exposing the historical call ledger."""
+    audio_state(STATE)
+    media_state(STATE)
+    keys = (
+        "limit_usd",
+        "cache_aware_admission_estimated_usd",
+        "reserved_usd",
+        "audio_estimated_usd",
+        "audio_reserved_usd",
+        "media_estimated_usd",
+        "media_reserved_usd",
+    )
+    result = {key: money(STATE.get(key, 0)) for key in keys}
+    result["cache_aware_admission_estimated_usd"] = money(
+        STATE.get("cache_aware_admission_estimated_usd", STATE.get("admission_estimated_usd", 0))
+    )
+    result["billing_reported_usd"] = STATE.get("billing_reported_usd")
+    settled = sum(
+        result[key]
+        for key in (
+            "cache_aware_admission_estimated_usd",
+            "audio_estimated_usd",
+            "media_estimated_usd",
+        )
+    )
+    result["accounted_with_reservations_usd"] = max(
+        settled, money(result["billing_reported_usd"] or 0)
+    ) + sum(result[key] for key in ("reserved_usd", "audio_reserved_usd", "media_reserved_usd"))
+    return {"schema_version": "1.0", "estimates_not_invoices": True, **result}
+
+
 def local_function_tools(tools):
     """Accept bounded local function groups, never hosted billable tools.
 
@@ -463,6 +495,10 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(raw)
 
     def do_GET(self):
+        if self.path == "/budget/summary":
+            with LOCK:
+                self.local_json(200, budget_summary())
+            return
         if self.path == "/budget":
             with LOCK:
                 self.local_json(200, STATE)
