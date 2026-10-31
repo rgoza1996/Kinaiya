@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../api/client.dart';
 import '../api/models.dart';
+import '../config/options_navigation.dart';
 import '../state/app_state.dart';
 import 'agent_design.dart';
 import 'agent_workspace_sidebars.dart';
@@ -16,9 +17,15 @@ import 'widgets.dart';
 /// and cancel. Slash commands are Agent-only and registry-driven; Converse
 /// text is never routed here.
 class AgentChat extends StatefulWidget {
-  const AgentChat({super.key, required this.state, this.controls});
+  const AgentChat({
+    super.key,
+    required this.state,
+    this.controls,
+    this.onOpenOptions,
+  });
   final AppState state;
   final AgentViewControls? controls;
+  final ValueChanged<OptionsPage>? onOpenOptions;
 
   @override
   State<AgentChat> createState() => _AgentChatState();
@@ -567,6 +574,21 @@ class _AgentChatState extends State<AgentChat> {
       );
       _s.touch();
       if (_s.ownsConnection(generation, api)) await _refreshTasks();
+      if (name == 'voice' &&
+          out?['status'] == 'ok' &&
+          _s.ownsConnection(generation, api) &&
+          _s.ownsAgentSelection(selection, session) &&
+          mounted) {
+        final result = out?['result'];
+        if (result is Map && result['capture_changed'] == false) {
+          final page = switch (result['open_options']) {
+            'audio' => OptionsPage.audio,
+            'voice' => OptionsPage.voice,
+            _ => null,
+          };
+          if (page != null) widget.onOpenOptions?.call(page);
+        }
+      }
       if (name == 'resources' && _s.ownsConnection(generation, api)) {
         await _s.refreshResources(force: true);
       }

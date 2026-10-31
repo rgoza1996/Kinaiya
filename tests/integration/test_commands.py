@@ -31,9 +31,47 @@ async def test_registry_distinguishes_inference_from_owner_controls(env):
     _, _, runtime, registry = env
     definitions = {row["name"]: row for row in registry.definitions()["commands"]}
     assert definitions["skill"]["execution_type"] == "skill_invocation"
+    assert definitions["create-harness"]["execution_type"] == "task_invocation"
+    assert definitions["voice"]["execution_type"] == "runtime_control"
     for name in ("status", "stop", "permissions", "model", "skills", "resources"):
         assert definitions[name]["execution_type"] == "runtime_control"
     assert runtime.provider.calls == []
+
+
+@pytest.mark.parametrize(
+    "suffix,page", [("", "voice"), (" vad", "voice"), (" tts", "audio"), (" stt", "audio")]
+)
+async def test_voice_command_only_returns_known_options_destination(env, suffix, page):
+    _, session, runtime, registry = env
+    result = await registry.execute(request(session, "/voice" + suffix))
+    assert result["status"] == "ok"
+    assert result["result"]["open_options"] == page
+    assert result["result"]["capture_changed"] is False
+    assert runtime.provider.calls == []
+    assert await runtime.status() == []
+
+
+async def test_create_harness_submits_ordinary_candidate_work_and_replays(env):
+    _, session, runtime, registry = env
+    command = request(session, "/create-harness Create a harness for public spreadsheets")
+    result = await registry.execute(command)
+    assert result["status"] == "ok"
+    assert result["result"]["activation"] == "owner_review_required"
+    task = await runtime.status(result["result"]["accepted_task_id"])
+    assert "public spreadsheets" in task.objective
+    assert "context_selector.v1" in task.objective
+    assert task.session_id == session.session_id and task.content_scope == "local_only"
+    assert runtime.selector_registry is None
+    assert not runtime.policy.yolo and not runtime.policy.effective_write
+    assert await registry.execute(command) == result
+    assert len(await runtime.status()) == 1
+
+
+@pytest.mark.parametrize("text", ["/voice bad", "/voice tts unexpected", "/create-harness"])
+async def test_invalid_new_command_never_starts_inference(env, text):
+    _, session, runtime, registry = env
+    result = await registry.execute(request(session, text))
+    assert result["status"] == "error" and runtime.provider.calls == []
 
 
 @pytest.mark.parametrize(

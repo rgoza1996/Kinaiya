@@ -519,6 +519,9 @@ void main() {
     // backend; dynamic skills are skill_invocation.
     expect(def('skill', 'runtime_control').requiresInference, isTrue);
     expect(def('skill', 'skill_invocation').requiresInference, isTrue);
+    expect(def('create-harness', 'runtime_control').requiresInference, isTrue);
+    expect(def('create-harness', 'task_invocation').requiresInference, isTrue);
+    expect(def('voice', 'runtime_control').requiresInference, isFalse);
     // Unknown or missing classes fail closed to inference.
     for (final type in ['', 'weird', 'RUNTIME_CONTROL', 'runtime-control']) {
       expect(

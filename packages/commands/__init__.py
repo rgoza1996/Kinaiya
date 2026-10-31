@@ -27,6 +27,8 @@ DEFINITIONS = {
     "model": ("Inspect or select a configured Agent profile", [], "[profile]"),
     "permissions": ("Inspect current worker permissions", [], ""),
     "yolo": ("Change workspace grants until this service restarts", [], "on|off"),
+    "voice": ("Open Voice or speech model options without starting capture", [], "[tts|stt|vad]"),
+    "create-harness": ("Ask Agent to build a specialized harness candidate", [], "<request>"),
     "sessions": ("List Agent sessions", [], ""),
     "resume": ("Select an existing Agent session", [], "<session-id>"),
     "new": ("Create an Agent session without cancelling existing work", [], "[name]"),
@@ -88,7 +90,13 @@ class Registry:
                     "description": description,
                     "syntax": "/" + name + (" " + syntax if syntax else ""),
                     "arguments_schema": {"type": "array", "items": {"type": "string"}},
-                    "execution_type": "skill_invocation" if name == "skill" else "runtime_control",
+                    "execution_type": (
+                        "skill_invocation"
+                        if name == "skill"
+                        else "task_invocation"
+                        if name == "create-harness"
+                        else "runtime_control"
+                    ),
                     "origin": "kinaiya-core",
                     "surfaces": ["agent-chat", "agent-cli"],
                     "permissions": ["owner"],
@@ -304,6 +312,47 @@ class Registry:
 
     async def _dispatch(self, name, args, request):
         runtime = self.runtime
+        if name == "voice":
+            if len(args) > 1 or (args and args[0] not in {"tts", "stt", "vad"}):
+                raise ValueError("Usage: /voice [tts|stt|vad]")
+            return {
+                "open_options": "audio" if args and args[0] in {"tts", "stt"} else "voice",
+                "focus": args[0] if args else "vad",
+                "capture_changed": False,
+            }
+        if name == "create-harness":
+            if not args or not " ".join(args).strip():
+                raise ValueError("Usage: /create-harness <request>")
+            objective = (
+                "Create a specialized Kinaiya harness candidate for this owner request:\n\n"
+                + " ".join(args)
+                + "\n\nProduce the candidate source, manifest and usage notes in the granted "
+                "workspace. Inspect the available native extension contracts before choosing "
+                "an implementation. The current protected harness contract is context_selector.v1; "
+                "do not claim unsupported runtime capabilities. Check the candidate within existing "
+                "permissions. Creation does not authorize registration, evaluation-suite changes, "
+                "promotion or activation. Report the produced paths and any remaining owner steps."
+            )
+            if len(objective) > 16000:
+                raise ValueError("Harness request exceeds the supported task length")
+            task = await runtime.submit(
+                TaskRequest(
+                    session_id=request.session_id,
+                    thread_id=request.thread_id,
+                    epoch=request.epoch,
+                    objective=objective,
+                    content_scope=request.content_scope,
+                    idempotency_key="harness-command:"
+                    + hashlib.sha256(request.idempotency_key.encode()).hexdigest(),
+                ),
+                actor="owner",
+            )
+            return {
+                "accepted_task_id": task.task_id,
+                "state": task.state.value,
+                "workflow": "harness_candidate",
+                "activation": "owner_review_required",
+            }
         if name == "resources":
             return await self._resources_control(args, request)
         if name == "skill":
