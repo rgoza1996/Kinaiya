@@ -41,7 +41,8 @@
     "tests/unit/test_meta_typed_action_wire.py": "e1303c25b8b53acd64339487bf96af278c03084b3b9c571f99b0cba18666c758",
     "tests/unit/test_native_tool_schemas.py": "a477ad4eb89630088098657d6855e01cc6e3d31bb2d4bc56dfdc1963e3f5adb9",
     "tests/unit/test_seed_tool_snapshot.py": "caed829758fea63ebb79325979ba75a0ae6433034d482072ffb09a8b2c944ed5",
-    "tests/unit/test_tool_catalog_contract.py": "117aadfa831d152b551ac5a398e11c5917cc3960a92a6a9657b5c3e0e745d538"
+    "tests/unit/test_tool_catalog_contract.py": "117aadfa831d152b551ac5a398e11c5917cc3960a92a6a9657b5c3e0e745d538",
+    "docs/implementation-status.md": "624d297a83d853f07e2d66ec31ac3d7ed5508c7e182de3b2055e4f437bb8fcc1"
   },
   "requirements": {
     "roadmap": [
@@ -288,7 +289,8 @@
       "log_sha256": "b3cc01194e06a7fae16d319ec5a021a5948d12a71e0ee01814422c1ea87529b2",
       "command": "PYTHONPATH=. /tmp/kinaiya134-verify-venv/bin/python -m pytest tests/unit/test_tool_catalog_contract.py tests/unit/test_agent_tools.py tests/unit/test_meta_tool_snapshot.py tests/unit/test_meta_typed_action_wire.py tests/unit/test_native_tool_schemas.py tests/unit/test_catalog_local_provider_guards.py tests/unit/test_seed_tool_snapshot.py tests/unit/test_seed_history.py tests/integration/test_agent_tool_advertising.py tests/integration/test_progressive_tool_catalog.py tests/integration/test_tool_catalog_metadata.py tests/integration/test_agent_seed.py tests/integration/test_intelligent_ui.py -q --tb=short",
       "limitation": "Exact functional source; subsequent edits are evidence and documentation only. Required PR CI still qualifies the final head."
-    }
+    },
+    "post_trial_changes": "Documentation and evidence only; the ledger now distinguishes the original identity repair, bounded progressive discovery and remaining optional Tool Library/formal-engine design."
   },
   "muse_delegation": {
     "real_cli": true,
