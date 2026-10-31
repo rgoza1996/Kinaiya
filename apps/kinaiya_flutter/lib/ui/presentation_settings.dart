@@ -10,8 +10,13 @@ import 'settings_surface.dart';
 
 /// The same local preference owner used by Appearance, exposed in Quick settings.
 class InterfaceTransitionsSwitch extends StatefulWidget {
-  const InterfaceTransitionsSwitch({super.key, required this.controller});
+  const InterfaceTransitionsSwitch({
+    super.key,
+    required this.controller,
+    this.showStorageNotice = true,
+  });
   final PresentationController controller;
+  final bool showStorageNotice;
 
   @override
   State<InterfaceTransitionsSwitch> createState() =>
@@ -88,7 +93,8 @@ class _InterfaceTransitionsSwitchState
               onChanged: _saving || controller.loading ? null : _set,
             ),
             for (final notice in <String>{
-              if (controller.notice != null) controller.notice!,
+              if (widget.showStorageNotice && controller.notice != null)
+                controller.notice!,
               if (_error != null) _error!,
             })
               Semantics(liveRegion: true, child: Text(notice)),
@@ -582,7 +588,10 @@ class _PresentationSettingsState extends State<PresentationSettings> {
                                 )
                               : null,
                         ),
-                        InterfaceTransitionsSwitch(controller: controller),
+                        InterfaceTransitionsSwitch(
+                          controller: controller,
+                          showStorageNotice: false,
+                        ),
                         _heading('Colors'),
                         SwitchListTile(
                           contentPadding: EdgeInsets.zero,

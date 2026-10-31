@@ -73,9 +73,13 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
   void initState() {
     super.initState();
     _page = widget.initialPage;
+    _connection = widget.state.connectionGeneration;
     widget.state.addListener(_changed);
     widget.presentation.addListener(_presentationChanged);
-    _refresh();
+    // Catalog refresh notifies the shared shell, so start after this mount.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _refresh();
+    });
   }
 
   @override
@@ -85,7 +89,10 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
       oldWidget.state.removeListener(_changed);
       widget.state.addListener(_changed);
       _harness = null;
-      _refresh();
+      _connection = widget.state.connectionGeneration;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _refresh();
+      });
     }
     if (!identical(oldWidget.presentation, widget.presentation)) {
       oldWidget.presentation.removeListener(_presentationChanged);
@@ -313,7 +320,8 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
           operation.inFlight--;
           if (!identical(_modelChanges[endpoint], operation)) return;
           if (error is ApiException &&
-              const [400, 409, 422].contains(error.status)) {
+              const [400, 409, 422].contains(error.status) &&
+              operation.inFlight == 0) {
             if (identical(_modelChanges[endpoint], operation)) {
               _modelChanges.remove(endpoint);
             }
@@ -408,6 +416,8 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
                         Expanded(
                           child: Text(
                             _pageTitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: Theme.of(context).textTheme.headlineSmall
                                 ?.copyWith(fontWeight: FontWeight.w700),
                           ),
@@ -546,6 +556,7 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
                         _query.toLowerCase().trim(),
                       ))
                         ListTile(
+                          key: ValueKey('options-search-${page.name}'),
                           title: Text(page.label),
                           subtitle: Text(item.label),
                           leading: Icon(item.icon),

@@ -164,7 +164,7 @@ void main() {
       await tester.tap(find.byTooltip('Appearance'));
       await routePump(tester);
       expect(find.byType(PresentationSettings), findsOneWidget);
-      await tester.tap(find.byTooltip('Close appearance settings'));
+      await tester.tap(find.byTooltip('Close options'));
       await routePump(tester);
       expect(f.audio.arms, 1);
       expect(f.audio.armStops, 0);

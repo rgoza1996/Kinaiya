@@ -61,6 +61,11 @@ KinaiyaClient verifyClient({
     agentBase: 'http://127.0.0.1:8761',
     converseBase: 'http://127.0.0.1:8762',
     ownerToken: 'synthetic-token',
+    // This fixture represents a legacy host: only an explicit 404 permits
+    // the client to inspect its original Agent health endpoint.
+    agentWorkspaceClientFactory: () => MockClient(
+      (_) async => http.Response('Legacy host has no Options API', 404),
+    ),
     httpClient: MockClient((http.Request req) async {
       final path = req.url.path;
       if (req.method == 'GET' && path == '/v1/sessions') {
