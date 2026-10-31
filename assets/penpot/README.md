@@ -26,18 +26,17 @@ editable source and contains many more screens:
    edit them; use the **Prototype** tab and **View mode** to inspect linked flows.
 
 The current October 30 consolidated **Kinaiya — Master design** export contains
-12 pages and 159 top-level boards. Its SHA256 is
-`b31b2f5a92d29e31d8b538ae446ed5ba4fdf13a61ff1314e192806a6c5135be2`.
-The first page, **00 · Home & Converse · Updated**, contains 95 boards, including
+14 pages and 172 top-level boards. Its SHA256 is
+`6e35d43f04808bb793542c888e740c9b26692e3967e7985c508d9306d534e669`.
+The first page, **00 · Home & Converse · Updated**, contains 94 boards, including
 the Model/Reasoning/Inputs/Speech/Decisions bubbles, Decisions trace screens,
 and parallel fade/instant prototype routes. The Home, optional Converse and
-sleeping illustrations reflect the latest character design. The native export
-is preserved unchanged. Prototype choices are illustrative;
+sleeping illustrations reflect the latest character design. Prototype choices are illustrative;
 the app saves real interface-transition preferences independently of Penpot.
 The app implementation follows [ADR 0059](../../docs/adr/0059-home-and-optional-converse.md);
 the updated bubbles, transitions and speech behavior follow
 [ADR 0060](../../docs/adr/0060-converse-handoffs-and-motion.md).
-unsupported model switching, camera and library controls are not working runtime
+Unsupported model switching, camera and library controls are not working runtime
 features merely because they appear in this prototype.
 
 Text, interface shapes,
@@ -62,6 +61,8 @@ sprite animation or a demonstration of live TTS synchronization.
 | **08 · Projects & workspace** | Project overview, folder contents, file preview, and a new-project form. | Draft. Selected folder and preview paths are linked. |
 | **09 · Generated media** | Media gallery, image and audio previews, and an empty state. | Draft. Selected gallery-to-preview and back links are available. |
 | **10 · Mascot interaction** | Tell listening and Call listening, thinking, and speaking states using close-up character references. | Static reference boards; labeled preview controls step through selected Call states. |
+| **11 · Agent intelligent UI** | Market watcher, solar system, Las Vegas map, spreadsheet and graph, and database comparison shown inside Agent chat, with generated mockups alongside. | Editable concepts; example sessions and database comparison are linked. |
+| **12 · Converse intelligent UI** | The same five examples with a transcript mockup above Kinaiya’s corner portrait, plus normal conversation and database comparison states. | Editable concepts; the example selector, database comparison, and return to conversation are linked. |
 
 ## Prototype notes
 
@@ -71,6 +72,12 @@ navigation is scoped to the current page. On **01 · Converse**, the gear opens
 the Options copy and the Home icon returns to Converse Home. The canonical
 Options exploration remains on **07 · Options & menus**; edits to one copy do
 not automatically update the other.
+
+The intelligent UI pages include editable interface layers and separate raster
+reference boards. The Las Vegas maps are schematic, and transcripts, data and
+other controls are illustrative. The example selector, database comparison and
+return-to-conversation links demonstrate selected paths; the new links switch
+instantly and do not implement the motion preference.
 
 Additional responsive layouts, error and permission states, interaction links,
 and refined character animation remain design work. Keep sample labels and
