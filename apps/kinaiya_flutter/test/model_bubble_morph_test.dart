@@ -57,7 +57,7 @@ void main() {
   }
 
   testWidgets(
-    'seven bubbles replace fixed cards and expand from the clicked bounds',
+    'eight bubbles replace fixed cards and expand from the clicked bounds',
     (tester) async {
       await mount(tester);
       for (final name in [
@@ -68,6 +68,7 @@ void main() {
         'speech',
         'decisions',
         'view',
+        'close',
       ]) {
         expect(bubble(name).hitTestable(), findsOneWidget);
       }

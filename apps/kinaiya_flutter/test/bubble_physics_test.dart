@@ -223,7 +223,7 @@ void main() {
       );
       expect(
         () => BubblePhysics(
-          count: 8,
+          count: 9,
           size: kSize,
           diameter: kDiameter,
           random: Random(1),
