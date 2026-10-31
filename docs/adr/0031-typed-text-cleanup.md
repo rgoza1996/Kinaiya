@@ -109,3 +109,27 @@ strengthened to use a separate on-disk intent writer; all three scope-change
 cases passed again on both interpreters. Production source was unchanged.
 Ruff lint, formatting and `git diff --check` passed for the affected files.
 Independent final review passed 83 scoped cases and two actual ASGI 2.4 send-failure probes over the Compatible and Meta adapters. The integrated lead checkout passed the same 83 cases with imports bound to that checkout. All implementation and test bytes match the reviewed worker. Exact final-head CI remains required before merge; see the [verification record](../../evaluation/evidence/converse-typed-cleanup-2026-10-28.json).
+
+## October 31 shared-budget test repair
+
+[#207](https://github.com/rgoza1996/Kinaiya/issues/207) records a recurrence of
+the existing shared-budget test's 90 ms completion assertion after the earlier
+#85 entry synchronization. The failing Python 3.11 CI run retained 7,161 passes
+and six skips; Python 3.12 was cancelled, not passed. A controlled 75 ms delay
+after the old-release admission wait reproduces the original assertion failure
+without changing production source. This establishes a scheduling dependency;
+the exact unseen CI delay is unknown.
+
+The replacement checks that admission actually debits the turn's allowance and
+that terminal cleanup receives exactly the remaining allowance. Event handshakes
+retain both actual iterator-close owners; the real zero-wait cleanup path is
+used for inspection. Five-second waits are progress watchdogs, not the budget
+assertion. Other cleanup tests still exercise real bounded waits. The repair
+does not change the runtime's production deadline or permission/ownership rules.
+
+The same delayed probe passes the replacement. Removing the admission debit or
+restoring a full terminal allowance each makes it fail at the intended assertion.
+The cleanup module plus offline qualification modules passed 113 tests on local
+Python 3.12.3. The [retained probe record](../../evaluation/evidence/typed-cleanup-budget-2026-10-31/results.json)
+includes reproduction instructions and mutation evidence. Final exact-head CI
+is required again after this repair.

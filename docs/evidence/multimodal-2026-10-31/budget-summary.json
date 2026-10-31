@@ -1,0 +1,14 @@
+{
+  "schema_version": "1.0",
+  "estimates_not_invoices": true,
+  "limit_usd": 10.0,
+  "cache_aware_admission_estimated_usd": 3.413398284000005,
+  "reserved_usd": 2.23925145,
+  "audio_estimated_usd": 0.019549999999999994,
+  "audio_reserved_usd": 0.0,
+  "media_estimated_usd": 0.025,
+  "media_reserved_usd": 0.0,
+  "billing_reported_usd": null,
+  "accounted_with_reservations_usd": 5.697199734000005,
+  "recorded_at_utc": "2026-10-31T21:28:46.368184+00:00"
+}

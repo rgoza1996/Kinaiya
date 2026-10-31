@@ -1,0 +1,44 @@
+{
+  "synthetic_only": true,
+  "model": "muse-voice-transcribe-1.0",
+  "budget_limit_usd": 10,
+  "mode": "PUSH_TO_TALK",
+  "cases": [
+    {
+      "id": "speech",
+      "sha256": "de4b8fb5c57bbf29d81536eef734616ce96400b5fd160fcf52fe498d275146f4",
+      "expected": "Please make a spreadsheet with three columns. The red square moves to the right.",
+      "http_status": 200,
+      "transcript": "Please make a spreadsheet with three columns, the red square moves to the right.",
+      "audioDurationMs": 4320,
+      "turns": [],
+      "error": null,
+      "exact_words_match": true,
+      "elapsed_ms": 1973.33
+    },
+    {
+      "id": "beeps",
+      "sha256": "9dd472d8cf33e89ea9db252177b02dfc2407d971554b2e0a72a6f9ba639d9551",
+      "expected": "",
+      "http_status": 200,
+      "transcript": "",
+      "audioDurationMs": 3040,
+      "turns": [],
+      "error": null,
+      "exact_words_match": true,
+      "elapsed_ms": 1078.28
+    },
+    {
+      "id": "silence",
+      "sha256": "d303811b8c84619667cd0501342f84ec6cbe69f7aa3856dcf52fabda374c92b8",
+      "expected": "",
+      "http_status": 200,
+      "transcript": "",
+      "audioDurationMs": 3040,
+      "turns": [],
+      "error": null,
+      "exact_words_match": true,
+      "elapsed_ms": 1547.1
+    }
+  ]
+}

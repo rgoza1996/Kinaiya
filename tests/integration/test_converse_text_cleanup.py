@@ -768,7 +768,7 @@ async def test_typed_reservation_blocks_window_during_native_scope_revalidation(
         await runtime.close()
 
 
-async def test_admission_and_new_close_share_one_request_wait_budget(state):
+async def test_admission_and_new_close_share_one_request_wait_budget(state, monkeypatch):
     store, session = state
     releases = [asyncio.Event(), asyncio.Event()]
     closing = [asyncio.Event(), asyncio.Event()]
@@ -800,31 +800,45 @@ async def test_admission_and_new_close_share_one_request_wait_budget(state):
             return iterator
 
     runtime = ConverseRuntime(LocalJournal(store, "converse"), Provider())
-    runtime._text_cleanup_timeout = 0.12
+    # Assert the allowance passed to terminal cleanup, rather than assuming
+    # unrelated journal I/O finishes inside a sub-100 ms wall-clock window.
+    runtime._text_cleanup_timeout = 10
+    cleanup_allowances, admission_allowances = [], []
+    original_cleanup = runtime._wait_text_cleanup
+
+    async def observe_cleanup(cleanups, timeout):
+        cleanup_allowances.append(timeout)
+        # Exercise the real no-wait path; the actual iterator close stays owned.
+        await original_cleanup(cleanups, 0)
+
+    monkeypatch.setattr(runtime, "_wait_text_cleanup", observe_cleanup)
     pending = None
     try:
         await runtime.turn(request_for(session))
         first = runtime._text[session.session_id]
+        await asyncio.wait_for(closing[0].wait(), 5)
         assert closing[0].is_set() and not first.cleanup.done()
         admitting = asyncio.Event()
         original_admission = runtime._wait_text_admission
 
         async def observe_admission(*args):
+            turn = args[1]
+            before = turn.wait_remaining
             admitting.set()
-            return await original_admission(*args)
+            await original_admission(*args)
+            assert 0 <= turn.wait_remaining < before
+            admission_allowances.append(turn.wait_remaining)
 
         runtime._wait_text_admission = observe_admission
         pending = asyncio.create_task(runtime.turn(request_for(session, "next")))
-        # Time the intended old-cleanup wait after admission actually begins;
-        # scheduling or earlier journal work must not consume this fixture's
-        # 80 ms before the runtime starts accounting for that wait.
-        await asyncio.wait_for(admitting.wait(), 1)
-        await asyncio.sleep(0.08)
+        await asyncio.wait_for(admitting.wait(), 5)
         releases[0].set()
-        done, _ = await asyncio.wait({pending}, timeout=0.09)
-        assert done == {pending}
-        assert (await pending)["text"] == "Public synthetic reply."
+        assert (await asyncio.wait_for(pending, 5))["text"] == "Public synthetic reply."
+        assert len(cleanup_allowances) == 2 and len(admission_allowances) == 1
+        assert cleanup_allowances[1] == admission_allowances[0]
+        assert 0 < cleanup_allowances[1] < runtime._text_cleanup_timeout
         replacement = runtime._text[session.session_id]
+        await asyncio.wait_for(closing[1].wait(), 5)
         assert replacement is not first and closing[1].is_set() and not replacement.cleanup.done()
         assert first.cleanup.done() and runtime.provider.calls == 2
         releases[1].set()
@@ -835,6 +849,7 @@ async def test_admission_and_new_close_share_one_request_wait_budget(state):
             release.set()
         if pending is not None:
             await asyncio.gather(pending, return_exceptions=True)
+        monkeypatch.setattr(runtime, "_wait_text_cleanup", original_cleanup)
         await runtime.close()
 
 

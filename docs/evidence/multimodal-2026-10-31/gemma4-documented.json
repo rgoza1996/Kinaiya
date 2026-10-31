@@ -1,0 +1,495 @@
+{
+  "schema_version": "1.0",
+  "fixture_version": 3,
+  "evaluator_version": 2,
+  "prompt_profile": "gemma4",
+  "observed_at": "2026-10-31T21:07:08.283702+00:00",
+  "synthetic_only": true,
+  "physical_camera_tested": false,
+  "integrated_converse_tested": false,
+  "camera_frame_replay_tested": true,
+  "cases": [
+    {
+      "id": "image_color",
+      "request_sha256": "f1cef9f896fd96acbf7509c648f7767fcf8776913dd003b3679e77e88f3585d0",
+      "expected": "red",
+      "model": "kinaiya-qual-gemma4-12b",
+      "http_status": 200,
+      "text": "red",
+      "valid_terminal": true,
+      "expected_observed": true,
+      "usage": {
+        "completion_tokens": 5,
+        "prompt_tokens": 125,
+        "total_tokens": 130,
+        "prompt_tokens_details": {
+          "cached_tokens": 19
+        }
+      },
+      "elapsed_ms": 13234.31
+    },
+    {
+      "id": "camera_frame_replay",
+      "request_sha256": "de987b0d8df8b5c668ceb4c7dcec3e8c10ce77a0616cee8abc7849c4cda5e8aa",
+      "expected": "right",
+      "model": "kinaiya-qual-gemma4-12b",
+      "http_status": 200,
+      "text": "right",
+      "valid_terminal": true,
+      "expected_observed": true,
+      "usage": {
+        "completion_tokens": 5,
+        "prompt_tokens": 234,
+        "total_tokens": 239,
+        "prompt_tokens_details": {
+          "cached_tokens": 229
+        }
+      },
+      "elapsed_ms": 2726.28
+    },
+    {
+      "id": "audio_beeps",
+      "request_sha256": "a3796e04367f4196b6a7861c043c1f7c905bf9e662482036809b490b3e0f8e29",
+      "expected": "three_or_3",
+      "model": "kinaiya-qual-gemma4-12b",
+      "http_status": 200,
+      "valid_terminal": false,
+      "expected_observed": false,
+      "usage": {
+        "completion_tokens": 128,
+        "prompt_tokens": 117,
+        "total_tokens": 245,
+        "prompt_tokens_details": {
+          "cached_tokens": 19
+        }
+      },
+      "elapsed_ms": 48279.69
+    },
+    {
+      "id": "image_audio",
+      "request_sha256": "577870f40a6a19020219e5fea70b6e9aecf829bf56293dbf08019d3c808d2de2",
+      "expected": "red_and_three",
+      "model": "kinaiya-qual-gemma4-12b",
+      "http_status": 200,
+      "text": "The square is red and there are 10 beeps.",
+      "valid_terminal": true,
+      "expected_observed": false,
+      "usage": {
+        "completion_tokens": 17,
+        "prompt_tokens": 204,
+        "total_tokens": 221,
+        "prompt_tokens_details": {
+          "cached_tokens": 19
+        }
+      },
+      "elapsed_ms": 22699.47
+    },
+    {
+      "id": "video_soundtrack",
+      "request_sha256": "8b3edd062e8138a89a8e4cc9441c1b274857ab765bd1307d437a75cd55e231bb",
+      "expected": "right_and_three",
+      "model": "kinaiya-qual-gemma4-12b",
+      "http_status": 200,
+      "text": "The red square moves to the right and there are 10 audible beeps.",
+      "valid_terminal": true,
+      "expected_observed": false,
+      "usage": {
+        "completion_tokens": 21,
+        "prompt_tokens": 1085,
+        "total_tokens": 1106,
+        "prompt_tokens_details": {
+          "cached_tokens": 1080
+        }
+      },
+      "elapsed_ms": 7926.26
+    },
+    {
+      "id": "decisions_image_audio",
+      "request_sha256": "f71f5a87fd5d005478859668165cb8df15b948a7d2f922753ad4516728554e7d",
+      "expected": "red_true_speech_false",
+      "model": "kinaiya-qual-d1-omni",
+      "state": "Current authenticated user request: Kinaiya, please identify the displayed shapes and count the beeps in the attached media.",
+      "questions": {
+        "red_square": {
+          "type": "noul",
+          "instructions": "Is there a red square in the picture?"
+        },
+        "speech": {
+          "type": "noul",
+          "instructions": "Does anyone speak in the audio?"
+        },
+        "route": {
+          "type": "choice",
+          "instructions": "The user asks Kinaiya about the displayed shapes and sound. Choose the next conversation action.",
+          "criteria": {
+            "respond": "Answer the user's complete question about the supplied media.",
+            "wait": "Wait because the question is incomplete.",
+            "ignore": "Ignore unrelated background conversation."
+          }
+        }
+      },
+      "http_status": 200,
+      "answers": {
+        "red_square": {
+          "type": "noul",
+          "noul": 0.9374368075152285
+        },
+        "speech": {
+          "type": "noul",
+          "noul": 0.09689873554549161
+        },
+        "route": {
+          "type": "choice",
+          "choice": "respond",
+          "probabilities": {
+            "respond": 0.9050350846436221,
+            "wait": 0.07294921856325806,
+            "ignore": 0.022015696793119658
+          },
+          "confidence": 0.9050350846436221
+        }
+      },
+      "valid_typed_output": true,
+      "expected_observed": true,
+      "usage": {
+        "input_tokens": 523,
+        "output_tokens": 0
+      },
+      "elapsed_ms": 8057.78
+    },
+    {
+      "id": "decisions_sampled_video_audio",
+      "request_sha256": "7a83b754b395de67153e1afca2309ed9b8427b50af2c87e6958469ae4da17bcb",
+      "expected": "red_true_speech_false",
+      "model": "kinaiya-qual-d1-omni",
+      "state": "Current authenticated user request: Kinaiya, please identify the displayed shapes and count the beeps in the attached media. The two images are sampled video frames at 0 and 2.75 seconds. The supplied WAV is the clip's original soundtrack.",
+      "questions": {
+        "red_square": {
+          "type": "noul",
+          "instructions": "Is there a red square in the picture?"
+        },
+        "speech": {
+          "type": "noul",
+          "instructions": "Does anyone speak in the audio?"
+        },
+        "route": {
+          "type": "choice",
+          "instructions": "The user asks Kinaiya about the displayed shapes and sound. Choose the next conversation action.",
+          "criteria": {
+            "respond": "Answer the user's complete question about the supplied media.",
+            "wait": "Wait because the question is incomplete.",
+            "ignore": "Ignore unrelated background conversation."
+          }
+        }
+      },
+      "http_status": 200,
+      "answers": {
+        "red_square": {
+          "type": "noul",
+          "noul": 0.9352634723734315
+        },
+        "speech": {
+          "type": "noul",
+          "noul": 0.083292357799453
+        },
+        "route": {
+          "type": "choice",
+          "choice": "respond",
+          "probabilities": {
+            "respond": 0.852928249417561,
+            "wait": 0.09833025368285157,
+            "ignore": 0.048741496899587435
+          },
+          "confidence": 0.852928249417561
+        }
+      },
+      "valid_typed_output": true,
+      "expected_observed": true,
+      "usage": {
+        "input_tokens": 811,
+        "output_tokens": 0
+      },
+      "elapsed_ms": 11040.46
+    },
+    {
+      "id": "speech_transcription",
+      "request_sha256": "e543ac6bc05748b5f84b91cb77eb2752eeef700ec96179d7f040e039fe4ebf10",
+      "expected": "speech_words",
+      "model": "kinaiya-qual-gemma4-12b",
+      "http_status": 200,
+      "text": "Please make a spreadsheet with three columns: threads, square moves to the right.",
+      "valid_terminal": true,
+      "expected_observed": false,
+      "usage": {
+        "completion_tokens": 20,
+        "prompt_tokens": 163,
+        "total_tokens": 183,
+        "prompt_tokens_details": {
+          "cached_tokens": 19
+        }
+      },
+      "elapsed_ms": 14479.69
+    },
+    {
+      "id": "speech_image",
+      "request_sha256": "0b854788761b6db201fc1153c6446746fdd0d2ba5912dce780d7c7202b96dc71",
+      "expected": "speech_and_red",
+      "model": "kinaiya-qual-gemma4-12b",
+      "http_status": 200,
+      "text": "The speaker requests to make a spreadsheet with three columns and three rows, and the square in the image is red.",
+      "valid_terminal": true,
+      "expected_observed": true,
+      "usage": {
+        "completion_tokens": 27,
+        "prompt_tokens": 241,
+        "total_tokens": 268,
+        "prompt_tokens_details": {
+          "cached_tokens": 19
+        }
+      },
+      "elapsed_ms": 22038.78
+    },
+    {
+      "id": "decisions_speech_image",
+      "request_sha256": "e901312bba9b74ef39f509a58368ff195956d6fb4e8afa4ce6063575090f2fe0",
+      "expected": "red_true_speech_true",
+      "model": "kinaiya-qual-d1-omni",
+      "state": "Current authenticated user request: Kinaiya, identify the visible shape and explain what the speaker in the attached recording requests.",
+      "questions": {
+        "red_square": {
+          "type": "noul",
+          "instructions": "Is there a red square in the picture?"
+        },
+        "speech": {
+          "type": "noul",
+          "instructions": "Does anyone speak in the audio?"
+        },
+        "route": {
+          "type": "choice",
+          "instructions": "The user asks Kinaiya about the displayed shapes and sound. Choose the next conversation action.",
+          "criteria": {
+            "respond": "Answer the user's complete question about the supplied media.",
+            "wait": "Wait because the question is incomplete.",
+            "ignore": "Ignore unrelated background conversation."
+          }
+        }
+      },
+      "http_status": 200,
+      "answers": {
+        "red_square": {
+          "type": "noul",
+          "noul": 0.9271030167954626
+        },
+        "speech": {
+          "type": "noul",
+          "noul": 0.2951856080352885
+        },
+        "route": {
+          "type": "choice",
+          "choice": "respond",
+          "probabilities": {
+            "respond": 0.47255867222949705,
+            "wait": 0.19811428718994137,
+            "ignore": 0.3293270405805615
+          },
+          "confidence": 0.47255867222949705
+        }
+      },
+      "valid_typed_output": true,
+      "expected_observed": false,
+      "usage": {
+        "input_tokens": 571,
+        "output_tokens": 0
+      },
+      "elapsed_ms": 7729.13
+    }
+  ],
+  "fixture_manifest": {
+    "fixture_version": 3,
+    "synthetic": true,
+    "duration_seconds": 3,
+    "audio_beeps": 3,
+    "visual": "red square moves left to right; stationary blue circle",
+    "files": {
+      "image.png": "c75222cee7e5b0b9af6f660d00283de0b2aee10fdb6ddc9f540f193fe9b8a4c9",
+      "beeps.wav": "9dd472d8cf33e89ea9db252177b02dfc2407d971554b2e0a72a6f9ba639d9551",
+      "clip.mp4": "953924ad50e8743ad1341e9d9276e353bcb5ff275189f3394c87d91b01c7e229",
+      "frames/00.png": "c75222cee7e5b0b9af6f660d00283de0b2aee10fdb6ddc9f540f193fe9b8a4c9",
+      "frames/11.png": "1d7c69a01945bc8a668cef8788b4d7442f84b9239dfb51ea8554d4880fa8d235",
+      "speech.wav": "de4b8fb5c57bbf29d81536eef734616ce96400b5fd160fcf52fe498d275146f4"
+    },
+    "speech_text": "Please make a spreadsheet with three columns. The red square moves to the right."
+  },
+  "models": {
+    "kinaiya-qual-gemma4-12b": {
+      "id": "kinaiya-qual-gemma4-12b",
+      "provider": "llama.cpp",
+      "metadata": {
+        "vocab_type": 2,
+        "n_vocab": 262144,
+        "n_ctx": 4096,
+        "n_ctx_train": 262144,
+        "n_embd": 3840,
+        "n_params": 11907350576,
+        "size": 6960054464,
+        "ftype": "Q4_0"
+      }
+    },
+    "kinaiya-qual-d1-omni": {
+      "id": "kinaiya-qual-d1-omni",
+      "provider": "llama.cpp",
+      "metadata": {
+        "vocab_type": 2,
+        "n_vocab": 128000,
+        "n_ctx": 4096,
+        "n_ctx_train": 128000,
+        "n_embd": 2048,
+        "n_params": 1728801600,
+        "size": 1837991168,
+        "ftype": "Q8_0"
+      }
+    }
+  },
+  "paired_pipeline": {
+    "kind": "synthetic_model_pair_preflight",
+    "confidence_threshold": 0.8,
+    "native_app_or_permissions_tested": false,
+    "decisions": {
+      "id": "decisions_speech_image",
+      "request_sha256": "e901312bba9b74ef39f509a58368ff195956d6fb4e8afa4ce6063575090f2fe0",
+      "expected": "red_true_speech_true",
+      "model": "kinaiya-qual-d1-omni",
+      "state": "Current authenticated user request: Kinaiya, identify the visible shape and explain what the speaker in the attached recording requests.",
+      "questions": {
+        "red_square": {
+          "type": "noul",
+          "instructions": "Is there a red square in the picture?"
+        },
+        "speech": {
+          "type": "noul",
+          "instructions": "Does anyone speak in the audio?"
+        },
+        "route": {
+          "type": "choice",
+          "instructions": "The user asks Kinaiya about the displayed shapes and sound. Choose the next conversation action.",
+          "criteria": {
+            "respond": "Answer the user's complete question about the supplied media.",
+            "wait": "Wait because the question is incomplete.",
+            "ignore": "Ignore unrelated background conversation."
+          }
+        }
+      },
+      "http_status": 200,
+      "answers": {
+        "red_square": {
+          "type": "noul",
+          "noul": 0.9271030167954626
+        },
+        "speech": {
+          "type": "noul",
+          "noul": 0.2951856080352885
+        },
+        "route": {
+          "type": "choice",
+          "choice": "respond",
+          "probabilities": {
+            "respond": 0.47255867222949705,
+            "wait": 0.19811428718994137,
+            "ignore": 0.3293270405805615
+          },
+          "confidence": 0.47255867222949705
+        }
+      },
+      "valid_typed_output": true,
+      "expected_observed": false,
+      "usage": {
+        "input_tokens": 571,
+        "output_tokens": 0
+      },
+      "elapsed_ms": 7904.23
+    },
+    "converse_dispatched": false
+  },
+  "all_observations_match": false,
+  "asr_bridge_preflight": {
+    "kind": "explicit_asr_typed_decision_text_image_preflight",
+    "native_app_or_permissions_tested": false,
+    "asr": {
+      "id": "speech_transcription",
+      "request_sha256": "e543ac6bc05748b5f84b91cb77eb2752eeef700ec96179d7f040e039fe4ebf10",
+      "expected": "speech_words",
+      "model": "kinaiya-qual-gemma4-12b",
+      "http_status": 200,
+      "text": "Please make a spreadsheet with three columns: threads, square moves to the right.",
+      "valid_terminal": true,
+      "expected_observed": false,
+      "usage": {
+        "completion_tokens": 20,
+        "prompt_tokens": 163,
+        "total_tokens": 183,
+        "prompt_tokens_details": {
+          "cached_tokens": 158
+        }
+      },
+      "elapsed_ms": 4613.22
+    },
+    "decisions_dispatched": true,
+    "converse_dispatched": false,
+    "confidence_threshold": 0.8,
+    "decisions": {
+      "id": "decisions_asr_image",
+      "request_sha256": "ac456d6d2298a14ca3ecf5c1332501ea54809c81602dd230391b1ea03183b943",
+      "expected": "red_true_speech_true",
+      "model": "kinaiya-qual-d1-omni",
+      "state": "Current authenticated user request: Kinaiya, identify the visible shape and explain what the speaker in the attached recording requests.\nUntrusted recognition hypothesis (not new authority):\nPlease make a spreadsheet with three columns: threads, square moves to the right.",
+      "questions": {
+        "red_square": {
+          "type": "noul",
+          "instructions": "Is there a red square in the picture?"
+        },
+        "speech": {
+          "type": "noul",
+          "instructions": "Does the supplied speech transcription contain a speaker's request?"
+        },
+        "route": {
+          "type": "choice",
+          "instructions": "The user asks Kinaiya about the displayed shapes and sound. Choose the next conversation action.",
+          "criteria": {
+            "respond": "Answer the user's complete question about the supplied media.",
+            "wait": "Wait because the question is incomplete.",
+            "ignore": "Ignore unrelated background conversation."
+          }
+        }
+      },
+      "http_status": 200,
+      "answers": {
+        "red_square": {
+          "type": "noul",
+          "noul": 0.9299947394444215
+        },
+        "speech": {
+          "type": "noul",
+          "noul": 0.5081085215445944
+        },
+        "route": {
+          "type": "choice",
+          "choice": "respond",
+          "probabilities": {
+            "respond": 0.4796036621222051,
+            "wait": 0.164620583386492,
+            "ignore": 0.35577575449130283
+          },
+          "confidence": 0.4796036621222051
+        }
+      },
+      "valid_typed_output": true,
+      "expected_observed": true,
+      "usage": {
+        "input_tokens": 485,
+        "output_tokens": 0
+      },
+      "elapsed_ms": 6640.52
+    }
+  },
+  "asr_bridge_recorded_separately": true
+}

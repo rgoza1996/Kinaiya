@@ -1,0 +1,57 @@
+{
+  "runtime": "llama.cpp",
+  "runtime_commit": "ddf48f85c933c1f438212a02eb21e7b001d2d37d",
+  "cpu_only": true,
+  "threads_per_server": 4,
+  "context_tokens": 4096,
+  "parallel_slots_per_server": 1,
+  "offline_model_load": true,
+  "temperature": 0,
+  "max_output_tokens": 128,
+  "gemma_reasoning_budget": 0,
+  "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",
+  "cpu": "x86_64",
+  "models": [
+    {
+      "label": "LFM3 Q4_K_M",
+      "filename": "LFM3-Omni-2B-Q4_K_M.gguf",
+      "bytes": 1099630080,
+      "sha256": "9f8d30e9d4fd7a9349d586e077988229b3ca0a0e4ad730897563d1eccc9893e2"
+    },
+    {
+      "label": "LFM3 projector Q8_0",
+      "filename": "mmproj-LFM3-Omni-2B-Q8_0.gguf",
+      "bytes": 540892768,
+      "sha256": "720ff4fc09df0e026c4ec641d0c698bf27b5bcd50561944c88eda5e3dffe1839"
+    },
+    {
+      "label": "d1 Q8_0",
+      "filename": "d1-Omni-2B-Q8_0.gguf",
+      "bytes": 1846241184,
+      "sha256": "aedf1a7c341b4281979423dbc39e9c3d3ad1da8834156c8e75af5399ca3b0861"
+    },
+    {
+      "label": "d1 projector Q8_0",
+      "filename": "mmproj-d1-Omni-2B-Q8_0.gguf",
+      "bytes": 326104096,
+      "sha256": "31778160ac0ec70f9b59f296aa1c8e70cbd1eb7e3a3ff873d695aaa4c7b8d674"
+    },
+    {
+      "label": "Gemma 4 12B QAT Q4_0",
+      "filename": "gemma-4-12b-it-qat-q4_0.gguf",
+      "bytes": 6975877728,
+      "sha256": "faff1a63667fac17ac5e777f47114688fcefea96e220e211aaa8d62c2c4561f1"
+    },
+    {
+      "label": "Gemma 4 12B projector",
+      "filename": "mmproj-gemma-4-12b-it-qat-q4_0.gguf",
+      "bytes": 175115264,
+      "sha256": "e70b0e5cd80323d5d588b4ed06780356b7b1ba03995a4b8164c6ae9db0ff5989"
+    }
+  ],
+  "latency_note": "Observed CPU smoke times under concurrent local development load; not a latency benchmark.",
+  "python": "3.13.11",
+  "Pillow": "10.4.0",
+  "httpx": "0.28.1",
+  "ffmpeg": "ffmpeg version 6.1.1-3ubuntu5 Copyright (c) 2000-2023 the FFmpeg developers"
+}

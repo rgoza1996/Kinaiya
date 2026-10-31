@@ -1,0 +1,73 @@
+{
+  "issue": 207,
+  "scope": "test-only shared typed-cleanup budget observation; no production source change",
+  "baseline_head": "364ca4caa96f1b4b0f6b8b1af504e66ce65a1b4b",
+  "ci_failure": {
+    "run": 41251162206,
+    "job": 124684782318,
+    "python": "3.11",
+    "failed": 1,
+    "passed": 7161,
+    "skipped": 6,
+    "deselected": 2,
+    "python_3_12": "cancelled by fail-fast; not a pass",
+    "failure": "done == {pending} after a 90 ms observation window",
+    "exact_unseen_ci_schedule_known": false
+  },
+  "controlled_delay_seconds": 0.075,
+  "runtime_sha256_unchanged": "757ba315b448d34dff0e374eb23a703c48228997a59b9818ee0bc6336bcd8b9f",
+  "other_test_functions_ast_unchanged": 25,
+  "scoped_checks": {
+    "passed": 113,
+    "seconds": 10.24,
+    "paths": [
+      "tests/integration/test_converse_text_cleanup.py",
+      "tests/unit/test_multimodal_qualification.py",
+      "tests/unit/test_meta_multimodal_qualification.py"
+    ]
+  },
+  "probe_plugin_sha256": "8a1cdb9fc16746e6eba5dd4816a7b4de78aeadc4f83c3c9e722c51d25fff388c",
+  "probes": [
+    {
+      "scenario": "original_delayed",
+      "mode": "delay_after_admission",
+      "expected_exit": 1,
+      "actual_exit": 1,
+      "seconds": 1.065,
+      "log": "original_delayed.log",
+      "log_sha256": "6ae58b67660db666a2d0e46b9a517ddf0af2d3497e95b431685e3665d335bb0c"
+    },
+    {
+      "scenario": "corrected_delayed",
+      "mode": "delay_after_admission",
+      "expected_exit": 0,
+      "actual_exit": 0,
+      "seconds": 0.768,
+      "log": "corrected_delayed.log",
+      "log_sha256": "4237eb8d30ab4e25d028ca343d50bfba364b7f76a907b73390b9601a16e46fe1"
+    },
+    {
+      "scenario": "mutation_remove_debit",
+      "mode": "remove_admission_debit",
+      "expected_exit": 1,
+      "actual_exit": 1,
+      "seconds": 0.745,
+      "log": "mutation_remove_debit.log",
+      "log_sha256": "88f9f6d39e752565d7d3c61d431b4e513c5b8697ba0afc1bece706f37884bd50"
+    },
+    {
+      "scenario": "mutation_reset_allowance",
+      "mode": "reset_terminal_allowance",
+      "expected_exit": 1,
+      "actual_exit": 1,
+      "seconds": 0.723,
+      "log": "mutation_reset_allowance.log",
+      "log_sha256": "742c5e6c920c010a0e2f3304392e89cda70e4159af0d732f4ab0ec13ac53da87"
+    }
+  ],
+  "production_deadline_changed": false,
+  "provider_calls": 0,
+  "final_exact_head_ci": "required after repair",
+  "evidence_generation_python": "3.13.11",
+  "local_python": "3.12.3"
+}

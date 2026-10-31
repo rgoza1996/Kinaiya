@@ -1,0 +1,36 @@
+import asyncio
+import inspect
+import os
+import textwrap
+
+import pytest
+
+import services.converse.runtime as module
+
+
+@pytest.fixture(autouse=True)
+def controlled_runtime(monkeypatch):
+    mode = os.environ.get("CLEANUP207_PROBE")
+    original = module.ConverseRuntime._wait_text_admission
+    if mode == "delay_after_admission":
+        async def delayed(self, *args):
+            result = await original(self, *args)
+            if self.provider.calls == 1:
+                await asyncio.sleep(0.075)
+            return result
+        monkeypatch.setattr(module.ConverseRuntime, "_wait_text_admission", delayed)
+    elif mode == "remove_admission_debit":
+        async def no_debit(self, session_id, turn):
+            before = turn.wait_remaining
+            result = await original(self, session_id, turn)
+            turn.wait_remaining = before
+            return result
+        monkeypatch.setattr(module.ConverseRuntime, "_wait_text_admission", no_debit)
+    elif mode == "reset_terminal_allowance":
+        source = textwrap.dedent(inspect.getsource(module.ConverseRuntime.events))
+        before = "await self._wait_text_cleanup((operation.cleanup,), turn.wait_remaining)"
+        after = "await self._wait_text_cleanup((operation.cleanup,), self._text_cleanup_timeout)"
+        assert source.count(before) == 1
+        namespace = dict(vars(module))
+        exec(compile(source.replace(before, after), "<cleanup207-test-mutation>", "exec"), namespace)
+        monkeypatch.setattr(module.ConverseRuntime, "events", namespace["events"])

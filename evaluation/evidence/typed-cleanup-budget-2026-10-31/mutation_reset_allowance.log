@@ -1,0 +1,9 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+__________ test_admission_and_new_close_share_one_request_wait_budget __________
+tests/integration/test_converse_text_cleanup.py:838: in test_admission_and_new_close_share_one_request_wait_budget
+    assert cleanup_allowances[1] == admission_allowances[0]
+E   assert 10 == 9.987944197999695
+=========================== short test summary info ============================
+FAILED tests/integration/test_converse_text_cleanup.py::test_admission_and_new_close_share_one_request_wait_budget
+1 failed in 0.28s

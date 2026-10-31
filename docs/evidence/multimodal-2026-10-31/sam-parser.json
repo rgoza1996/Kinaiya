@@ -1,0 +1,22 @@
+{
+  "parser_commit": "9348a8a791d3e5b6417232227e32e10464cdf49f",
+  "text_sha256": "1b7ad26b7e9fe0299368112ad7b0b00d2b7ad4271fd28eab496ddf064150f715",
+  "diagnostics": 0,
+  "records": [
+    {
+      "kind": "box",
+      "left": 15,
+      "top": 65,
+      "right": 66,
+      "bottom": 116
+    },
+    {
+      "kind": "mask",
+      "width": 51,
+      "height": 51,
+      "foreground_pixels": 2601,
+      "raster_bytes": 2601,
+      "raster_sha256": "12cfc4fb042bf6b67717abdf52f794822c0702eea867380ebe9b08adf0939c40"
+    }
+  ]
+}

@@ -44,6 +44,42 @@ Map<String, Object?> modelsJson() => {
 };
 
 void main() {
+  testWidgets('selected auxiliary purpose survives editor refresh', (
+    tester,
+  ) async {
+    String? purpose;
+    var mount = 0;
+    Widget view() => MaterialApp(
+      home: Scaffold(
+        body: SingleChildScrollView(
+          child: OptionsAuxiliaryModels(
+            key: ValueKey(mount),
+            models: AgentModelsSnapshot.fromJson(modelsJson()),
+            initialPurpose: purpose,
+            onPurposeChanged: (value) => purpose = value,
+            busy: false,
+            onSave: (_, _, _) async {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpWidget(view());
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('auxiliary-task-analysis')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Context compression').last);
+    await tester.pumpAndSettle();
+    expect(purpose, 'compression');
+    mount++;
+    await tester.pumpWidget(view());
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('auxiliary-task-compression')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   test('auxiliary inheritance follows harness, task and Agent defaults', () {
     final models = AgentModelsSnapshot.fromJson(modelsJson());
     expect(models.effective(null, 'analysis').profileId, 'host-default');

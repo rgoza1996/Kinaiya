@@ -1,0 +1,111 @@
+{
+  "kind": "explicit_complete_owner_turn_routing_probe",
+  "production_app_tested": false,
+  "cases": [
+    {
+      "id": "transcribed_agent_request",
+      "state": "Please make a spreadsheet with three columns. The red square moves to the right.",
+      "questions": {
+        "route": {
+          "type": "choice",
+          "instructions": "Choose the next component for this authenticated, complete user turn. Classify intent only. This choice grants no permissions.",
+          "criteria": {
+            "converse": "The user asks a question or wants a conversational answer without carrying out workspace work.",
+            "agent": "The user requests creating, editing, analyzing or processing workspace artifacts or doing other work.",
+            "wait": "The user has not finished the request.",
+            "ignore": "This is unrelated background speech, not a user request."
+          }
+        }
+      },
+      "http_status": 200,
+      "expected_route": "agent",
+      "answers": {
+        "route": {
+          "type": "choice",
+          "choice": "agent",
+          "probabilities": {
+            "converse": 0.023361618766836227,
+            "agent": 0.5654412367427011,
+            "wait": 0.39478781107939304,
+            "ignore": 0.016409333411069586
+          },
+          "confidence": 0.5654412367427011
+        }
+      },
+      "usage": {
+        "input_tokens": 190,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "transcribed_agent_request_with_audio",
+      "state": "Please make a spreadsheet with three columns. The red square moves to the right.",
+      "questions": {
+        "route": {
+          "type": "choice",
+          "instructions": "Choose the next component for this authenticated, complete user turn. Classify intent only. This choice grants no permissions.",
+          "criteria": {
+            "converse": "The user asks a question or wants a conversational answer without carrying out workspace work.",
+            "agent": "The user requests creating, editing, analyzing or processing workspace artifacts or doing other work.",
+            "wait": "The user has not finished the request.",
+            "ignore": "This is unrelated background speech, not a user request."
+          }
+        }
+      },
+      "http_status": 200,
+      "expected_route": "agent",
+      "answers": {
+        "route": {
+          "type": "choice",
+          "choice": "agent",
+          "probabilities": {
+            "converse": 0.015174767371903772,
+            "agent": 0.6178667880760014,
+            "wait": 0.35711321150554487,
+            "ignore": 0.009845233046550038
+          },
+          "confidence": 0.6178667880760014
+        }
+      },
+      "usage": {
+        "input_tokens": 246,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "converse_question",
+      "state": "What color is the square in the attached image?",
+      "questions": {
+        "route": {
+          "type": "choice",
+          "instructions": "Choose the next component for this authenticated, complete user turn. Classify intent only. This choice grants no permissions.",
+          "criteria": {
+            "converse": "The user asks a question or wants a conversational answer without carrying out workspace work.",
+            "agent": "The user requests creating, editing, analyzing or processing workspace artifacts or doing other work.",
+            "wait": "The user has not finished the request.",
+            "ignore": "This is unrelated background speech, not a user request."
+          }
+        }
+      },
+      "http_status": 200,
+      "expected_route": "converse",
+      "answers": {
+        "route": {
+          "type": "choice",
+          "choice": "wait",
+          "probabilities": {
+            "converse": 0.42620853862727837,
+            "agent": 0.04889045264125807,
+            "wait": 0.5058695996553798,
+            "ignore": 0.019031409076083833
+          },
+          "confidence": 0.5058695996553798
+        }
+      },
+      "usage": {
+        "input_tokens": 184,
+        "output_tokens": 0
+      }
+    }
+  ]
+}

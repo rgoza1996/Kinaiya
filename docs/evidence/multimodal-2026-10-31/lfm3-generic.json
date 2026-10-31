@@ -1,0 +1,338 @@
+{
+  "schema_version": "1.0",
+  "fixture_version": 3,
+  "observed_at": "2026-10-31T20:48:58.527492+00:00",
+  "synthetic_only": true,
+  "physical_camera_tested": false,
+  "integrated_converse_tested": false,
+  "camera_frame_replay_tested": true,
+  "cases": [
+    {
+      "id": "image_color",
+      "request_sha256": "8e15aa417ed5ff868d29e29d7e4890c5661be238c142d6232fca63215b85e753",
+      "expected": "red",
+      "model": "kinaiya-qual-lfm3-omni",
+      "http_status": 200,
+      "text": "Red",
+      "valid_terminal": true,
+      "expected_observed": true,
+      "usage": {
+        "completion_tokens": 3,
+        "prompt_tokens": 106,
+        "total_tokens": 109,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "elapsed_ms": 1502.28
+    },
+    {
+      "id": "camera_frame_replay",
+      "request_sha256": "71faf911d825649d422cdd1d510ba5eaf92f1653eecc988b25cbe71149cd2913",
+      "expected": "right",
+      "model": "kinaiya-qual-lfm3-omni",
+      "http_status": 200,
+      "text": "Left.",
+      "valid_terminal": true,
+      "expected_observed": false,
+      "usage": {
+        "completion_tokens": 4,
+        "prompt_tokens": 196,
+        "total_tokens": 200,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "elapsed_ms": 2549.56
+    },
+    {
+      "id": "audio_beeps",
+      "request_sha256": "7403e314815630ceda71a21d8fca6271b6c621916f9f9aa7c363dc7fd02db89a",
+      "expected": "three_or_3",
+      "model": "kinaiya-qual-lfm3-omni",
+      "http_status": 200,
+      "text": "3",
+      "valid_terminal": true,
+      "expected_observed": true,
+      "usage": {
+        "completion_tokens": 3,
+        "prompt_tokens": 79,
+        "total_tokens": 82,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "elapsed_ms": 917.75
+    },
+    {
+      "id": "image_audio",
+      "request_sha256": "bdeae45ff3b58123385d1b6ac59dba88931d9455699047912af52b60b954136e",
+      "expected": "red_and_three",
+      "model": "kinaiya-qual-lfm3-omni",
+      "http_status": 200,
+      "text": "The square is red and there are 3 beeps.",
+      "valid_terminal": true,
+      "expected_observed": true,
+      "usage": {
+        "completion_tokens": 14,
+        "prompt_tokens": 147,
+        "total_tokens": 161,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "elapsed_ms": 2263.2
+    },
+    {
+      "id": "video_soundtrack",
+      "request_sha256": "b515f992cac757401dc03b7839a59430f593c569847211861942e78d9b627999",
+      "expected": "right_and_three",
+      "model": "kinaiya-qual-lfm3-omni",
+      "http_status": 200,
+      "text": "The red square moves from the left side of the screen toward the center, gradually expanding to fill most of the left half of the frame by the end of the clip. This motion occurs over the course of the video, with the square's position changing from a narrow strip on the left to a large block occupying the left portion of the image.\n\nThere are **2** audible beeps in the audio.",
+      "valid_terminal": true,
+      "expected_observed": false,
+      "usage": {
+        "completion_tokens": 84,
+        "prompt_tokens": 285,
+        "total_tokens": 369,
+        "prompt_tokens_details": {
+          "cached_tokens": 18
+        }
+      },
+      "elapsed_ms": 6733.48
+    },
+    {
+      "id": "decisions_image_audio",
+      "request_sha256": "f71f5a87fd5d005478859668165cb8df15b948a7d2f922753ad4516728554e7d",
+      "expected": "red_true_speech_false",
+      "model": "kinaiya-qual-d1-omni",
+      "state": "Current authenticated user request: Kinaiya, please identify the displayed shapes and count the beeps in the attached media.",
+      "questions": {
+        "red_square": {
+          "type": "noul",
+          "instructions": "Is there a red square in the picture?"
+        },
+        "speech": {
+          "type": "noul",
+          "instructions": "Does anyone speak in the audio?"
+        },
+        "route": {
+          "type": "choice",
+          "instructions": "The user asks Kinaiya about the displayed shapes and sound. Choose the next conversation action.",
+          "criteria": {
+            "respond": "Answer the user's complete question about the supplied media.",
+            "wait": "Wait because the question is incomplete.",
+            "ignore": "Ignore unrelated background conversation."
+          }
+        }
+      },
+      "http_status": 200,
+      "answers": {
+        "red_square": {
+          "type": "noul",
+          "noul": 0.9374368075152285
+        },
+        "speech": {
+          "type": "noul",
+          "noul": 0.09689873554549161
+        },
+        "route": {
+          "type": "choice",
+          "choice": "respond",
+          "probabilities": {
+            "respond": 0.9050350846436221,
+            "wait": 0.07294921856325806,
+            "ignore": 0.022015696793119658
+          },
+          "confidence": 0.9050350846436221
+        }
+      },
+      "valid_typed_output": true,
+      "expected_observed": true,
+      "usage": {
+        "input_tokens": 523,
+        "output_tokens": 0
+      },
+      "elapsed_ms": 6532.14
+    },
+    {
+      "id": "decisions_sampled_video_audio",
+      "request_sha256": "7a83b754b395de67153e1afca2309ed9b8427b50af2c87e6958469ae4da17bcb",
+      "expected": "red_true_speech_false",
+      "model": "kinaiya-qual-d1-omni",
+      "state": "Current authenticated user request: Kinaiya, please identify the displayed shapes and count the beeps in the attached media. The two images are sampled video frames at 0 and 2.75 seconds. The supplied WAV is the clip's original soundtrack.",
+      "questions": {
+        "red_square": {
+          "type": "noul",
+          "instructions": "Is there a red square in the picture?"
+        },
+        "speech": {
+          "type": "noul",
+          "instructions": "Does anyone speak in the audio?"
+        },
+        "route": {
+          "type": "choice",
+          "instructions": "The user asks Kinaiya about the displayed shapes and sound. Choose the next conversation action.",
+          "criteria": {
+            "respond": "Answer the user's complete question about the supplied media.",
+            "wait": "Wait because the question is incomplete.",
+            "ignore": "Ignore unrelated background conversation."
+          }
+        }
+      },
+      "http_status": 200,
+      "answers": {
+        "red_square": {
+          "type": "noul",
+          "noul": 0.9352634723734315
+        },
+        "speech": {
+          "type": "noul",
+          "noul": 0.083292357799453
+        },
+        "route": {
+          "type": "choice",
+          "choice": "respond",
+          "probabilities": {
+            "respond": 0.852928249417561,
+            "wait": 0.09833025368285157,
+            "ignore": 0.048741496899587435
+          },
+          "confidence": 0.852928249417561
+        }
+      },
+      "valid_typed_output": true,
+      "expected_observed": true,
+      "usage": {
+        "input_tokens": 811,
+        "output_tokens": 0
+      },
+      "elapsed_ms": 10400.75
+    }
+  ],
+  "fixture_manifest": {
+    "fixture_version": 3,
+    "synthetic": true,
+    "duration_seconds": 3,
+    "audio_beeps": 3,
+    "visual": "red square moves left to right; stationary blue circle",
+    "files": {
+      "image.png": "c75222cee7e5b0b9af6f660d00283de0b2aee10fdb6ddc9f540f193fe9b8a4c9",
+      "beeps.wav": "9dd472d8cf33e89ea9db252177b02dfc2407d971554b2e0a72a6f9ba639d9551",
+      "clip.mp4": "953924ad50e8743ad1341e9d9276e353bcb5ff275189f3394c87d91b01c7e229",
+      "frames/00.png": "c75222cee7e5b0b9af6f660d00283de0b2aee10fdb6ddc9f540f193fe9b8a4c9",
+      "frames/11.png": "1d7c69a01945bc8a668cef8788b4d7442f84b9239dfb51ea8554d4880fa8d235"
+    }
+  },
+  "models": {
+    "kinaiya-qual-lfm3-omni": {
+      "id": "kinaiya-qual-lfm3-omni",
+      "provider": "llama.cpp",
+      "metadata": {
+        "vocab_type": 2,
+        "n_vocab": 128000,
+        "n_ctx": 4096,
+        "n_ctx_train": 128000,
+        "n_embd": 2048,
+        "n_params": 1728801600,
+        "size": 1091380480,
+        "ftype": "Q4_K - Medium"
+      }
+    },
+    "kinaiya-qual-d1-omni": {
+      "id": "kinaiya-qual-d1-omni",
+      "provider": "llama.cpp",
+      "metadata": {
+        "vocab_type": 2,
+        "n_vocab": 128000,
+        "n_ctx": 4096,
+        "n_ctx_train": 128000,
+        "n_embd": 2048,
+        "n_params": 1728801600,
+        "size": 1837991168,
+        "ftype": "Q8_0"
+      }
+    }
+  },
+  "paired_pipeline": {
+    "kind": "synthetic_model_pair_preflight",
+    "confidence_threshold": 0.8,
+    "native_app_or_permissions_tested": false,
+    "decisions": {
+      "id": "decisions_image_audio",
+      "request_sha256": "f71f5a87fd5d005478859668165cb8df15b948a7d2f922753ad4516728554e7d",
+      "expected": "red_true_speech_false",
+      "model": "kinaiya-qual-d1-omni",
+      "state": "Current authenticated user request: Kinaiya, please identify the displayed shapes and count the beeps in the attached media.",
+      "questions": {
+        "red_square": {
+          "type": "noul",
+          "instructions": "Is there a red square in the picture?"
+        },
+        "speech": {
+          "type": "noul",
+          "instructions": "Does anyone speak in the audio?"
+        },
+        "route": {
+          "type": "choice",
+          "instructions": "The user asks Kinaiya about the displayed shapes and sound. Choose the next conversation action.",
+          "criteria": {
+            "respond": "Answer the user's complete question about the supplied media.",
+            "wait": "Wait because the question is incomplete.",
+            "ignore": "Ignore unrelated background conversation."
+          }
+        }
+      },
+      "http_status": 200,
+      "answers": {
+        "red_square": {
+          "type": "noul",
+          "noul": 0.9374368075152285
+        },
+        "speech": {
+          "type": "noul",
+          "noul": 0.09689873554549161
+        },
+        "route": {
+          "type": "choice",
+          "choice": "respond",
+          "probabilities": {
+            "respond": 0.9050350846436221,
+            "wait": 0.07294921856325806,
+            "ignore": 0.022015696793119658
+          },
+          "confidence": 0.9050350846436221
+        }
+      },
+      "valid_typed_output": true,
+      "expected_observed": true,
+      "usage": {
+        "input_tokens": 523,
+        "output_tokens": 0
+      },
+      "elapsed_ms": 6466.69
+    },
+    "converse_dispatched": true,
+    "converse": {
+      "id": "image_audio",
+      "request_sha256": "bdeae45ff3b58123385d1b6ac59dba88931d9455699047912af52b60b954136e",
+      "expected": "red_and_three",
+      "model": "kinaiya-qual-lfm3-omni",
+      "http_status": 200,
+      "text": "The square is red and there are 3 beeps.",
+      "valid_terminal": true,
+      "expected_observed": true,
+      "usage": {
+        "completion_tokens": 14,
+        "prompt_tokens": 147,
+        "total_tokens": 161,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "elapsed_ms": 2156.31
+    }
+  },
+  "all_observations_match": false
+}

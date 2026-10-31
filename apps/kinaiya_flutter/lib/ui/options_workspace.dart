@@ -56,6 +56,7 @@ class OptionsWorkspace extends StatefulWidget {
 class _OptionsWorkspaceState extends State<OptionsWorkspace> {
   late OptionsPage _page;
   String? _harness;
+  String? _auxiliaryPurpose;
   String _query = '';
   final _search = TextEditingController();
   final _scaffold = GlobalKey<ScaffoldState>();
@@ -797,16 +798,18 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
         'Connect to an updated Agent host to manage model profiles.',
       ),
     _role('decisions', 'Decisions'),
+    const Text(
+      'Decisions classifies typed questions. It has no conversational reasoning or voice setting.',
+    ),
     if (_models case final models?)
       OptionsAuxiliaryModels(
         models: models,
+        initialPurpose: _auxiliaryPurpose,
+        onPurposeChanged: (value) => _auxiliaryPurpose = value,
         busy: _pending != null,
         onSave: (purpose, profile, reasoning) =>
             _saveModel(profile, reasoning, auxiliaryTask: purpose),
       ),
-    const Text(
-      'Decisions classifies typed questions. It has no conversational reasoning or voice setting.',
-    ),
   ]);
 
   Widget _harnesses() {
@@ -849,6 +852,8 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
           OptionsAuxiliaryModels(
             key: ValueKey('harness-auxiliary-$_harness'),
             models: _models!,
+            initialPurpose: _auxiliaryPurpose,
+            onPurposeChanged: (value) => _auxiliaryPurpose = value,
             harness: _harness,
             busy: _pending != null,
             onSave: (purpose, profile, reasoning) =>
