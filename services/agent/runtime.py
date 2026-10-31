@@ -211,6 +211,7 @@ class _Record:
     done: asyncio.Event = field(default_factory=asyncio.Event)
     resume: asyncio.Event = field(default_factory=asyncio.Event)
     history: list[dict[str, str]] = field(default_factory=list)
+    catalog_guards: dict[str, Any] = field(default_factory=dict)
     pending: dict[str, Any] | None = None
     pending_steer: dict[str, Any] | None = None
     last_tool_ok: bool | None = None
@@ -1442,7 +1443,44 @@ class AgentRuntime:
             skills_available=self.skill_service is not None,
             plugins_available=self.plugin_service is not None,
             artifacts_available=self.artifact_store is not None,
+            catalog_available=True,
         )
+
+    async def inspect_tools(self, arguments: dict, *, task_id: str | None = None) -> dict:
+        """Authenticated API projection; never advance a task or create pins."""
+        from services.agent.tool_catalog import inspect_catalog
+
+        rec = self._get(task_id) if task_id is not None else None
+        return await inspect_catalog(self, arguments, rec=rec)
+
+    @staticmethod
+    def _catalog_export_current(rec: _Record, guards) -> bool:
+        if all(guard.disclosure_current() for guard in guards):
+            return True
+        # Outcomes or later tools can contain metadata derived from the old
+        # catalog. Preserve a sticky local floor when its disclosure is lost.
+        rec.task.content_scope = "local_only"
+        return False
+
+    @staticmethod
+    def _validate_catalog_history(rec: _Record) -> None:
+        # Inspection can expose an unpinned package. Pin validation alone is
+        # insufficient when an owner later withdraws its disclosure scope.
+        if not AgentRuntime._catalog_export_current(rec, rec.catalog_guards.values()):
+            # Later actions can quote earlier metadata. Deleting only the
+            # original unit cannot remove those derived data dependencies.
+            raise PolicyDenied("Tool catalog disclosure changed; task stopped")
+        for turn in rec.history:
+            if turn.get("context_kind") not in {"tool_catalog", "tool_catalog_action"}:
+                continue
+            key = (
+                turn.get("catalog_guard")
+                or hashlib.sha256(turn["content"].encode("utf-8")).hexdigest()
+            )
+            guard = rec.catalog_guards.get(key)
+            if guard is None:
+                rec.task.content_scope = "local_only"
+                raise PolicyDenied("Tool catalog history provenance is unavailable")
 
     async def _reject_unavailable_tool(self, rec: _Record, tool: str) -> None:
         rec.last_tool_ok = False
@@ -1588,6 +1626,7 @@ class AgentRuntime:
                         self._plugin_task(rec), self.provider.info
                     )
                 await self._task_scope(rec)
+                self._validate_catalog_history(rec)
                 revision_before = rec.task.objective_revision
                 tools = self.tool_snapshot(rec.task)
                 messages = build_messages(
@@ -1602,8 +1641,14 @@ class AgentRuntime:
                     self.artifact_store is not None,
                     tool_snapshot=tools,
                 )
+                export_guards = tuple(rec.catalog_guards.values())
                 try:
-                    with agent_tool_scope(tools):
+                    with agent_tool_scope(
+                        tools,
+                        export_guard=lambda guards=export_guards: self._catalog_export_current(
+                            rec, guards
+                        ),
+                    ):
                         text = await self.provider.complete(messages)
                 except asyncio.CancelledError:
                     raise
@@ -1617,6 +1662,7 @@ class AgentRuntime:
                     await self._cancel(rec)
                     return
                 await self._task_scope(rec)
+                self._validate_catalog_history(rec)
                 # A steer that landed while inference was in flight applies
                 # at this boundary, and the response inferred under the old
                 # revision is discarded, never executed under the new one.
@@ -1770,7 +1816,9 @@ class AgentRuntime:
             )
             return True
         current = [
-            e for e in rec.task.evidence if e.objective_revision == rec.task.objective_revision
+            e
+            for e in rec.task.evidence
+            if e.objective_revision == rec.task.objective_revision and e.kind != "inspection"
         ]
         if not current:
             await self._fail(rec, "finish with no current-revision evidence")
@@ -1815,6 +1863,7 @@ class AgentRuntime:
         if unverified is not None:
             await self._fail(rec, unverified)
             return True
+        self._validate_catalog_history(rec)
         summary = str(args.get("summary", "") or "").strip()
         await self._succeed(rec, summary or "done")
         return True
@@ -1845,6 +1894,7 @@ class AgentRuntime:
 
     async def _execute(self, rec: _Record, tool: str, args: dict[str, Any], raw: str) -> None:
         await self._task_scope(rec)
+        self._validate_catalog_history(rec)
         revision = rec.task.objective_revision
         if rec.cancel_requested:
             await self._cancel(rec)
@@ -1873,6 +1923,7 @@ class AgentRuntime:
         )
         if await self._discard_revised_action(rec, revision, raw):
             return
+        self._validate_catalog_history(rec)
         if sources:
             await self._await_approval(rec, tool, args, digest, raw, reason="uncommitted_speech")
             return
@@ -2022,6 +2073,7 @@ class AgentRuntime:
         if tool == "publish_ui" and stale is not None:
             await self._fail(rec, stale)
             return
+        self._validate_catalog_history(rec)
         if tool == "write_file":
             try:
                 validate_write_arguments(args, revision)
@@ -2052,7 +2104,7 @@ class AgentRuntime:
                 tool in {"write_file", "shell"} and not self.policy.needs_approval(tool)
             ):
                 self.policy.consume_approval(approval_id, digest, revision)
-        if raw and tool != "publish_ui":
+        if raw and tool not in {"publish_ui", "tool_catalog"}:
             rec.history.append({"role": "assistant", "content": raw[:2000]})
         if approval_id is not None:
             # One-use intent is now committed to this exact execution.
@@ -2121,6 +2173,39 @@ class AgentRuntime:
                 out, evidence = await self._plugin_result(rec, tool, args)
             elif tool == "publish_ui":
                 out, evidence = await self._publish_ui(rec, args)
+            elif tool == "tool_catalog":
+                from packages.contracts.tool_catalog import CatalogError, encode_catalog
+                from services.agent.tool_catalog import inspect_catalog
+
+                guards = []
+                try:
+                    result = await inspect_catalog(self, args, rec=rec, guard_sink=guards)
+                    out = encode_catalog(result)
+                except CatalogError as exc:
+                    raise ToolFailure("Tool catalog failed: " + exc.code) from exc
+                # Metadata awaits may yield to a steer, interrupt or reset.
+                # Recheck native authority before authoring an inspection receipt.
+                stale = await self._epoch_error(rec)
+                if await self._discard_revised_action(rec, revision, raw):
+                    return
+                if stale is not None:
+                    await self._fail(rec, stale)
+                    return
+                if rec.task.state != TaskState.RUNNING or rec.recovered or self._closed:
+                    raise ToolFailure("Tool catalog requires a current active task revision")
+                catalog_guard = guards[0]
+                if not catalog_guard.current():
+                    raise ToolFailure("Tool catalog failed: invalid_metadata")
+                evidence = Evidence(
+                    kind="inspection",
+                    summary="Tool catalog inspection only; no execution or permission proven",
+                    sha256=hashlib.sha256(out.encode("ascii")).hexdigest(),
+                    # Durable task outcomes can later be read by other roles.
+                    # Keep the inspected result's digest, not foreign metadata
+                    # whose disclosure may subsequently be withdrawn.
+                    output=json.dumps({"inspection_only": True, "metadata_omitted": True}),
+                    objective_revision=revision,
+                )
             else:
                 raise ToolFailure(f"unknown tool {tool!r}")
         except _PublicationUncertain as exc:
@@ -2176,7 +2261,35 @@ class AgentRuntime:
         self._effect_result(rec, tool, ok=True)
         if tool == "plugin_call":
             rec.failed_plugin = False
-        if tool == "publish_ui":
+        if tool == "tool_catalog":
+            # Journal confirmation can also yield to disclosure changes. The
+            # durable receipt remains honest inspection evidence; withdrawn
+            # metadata must not become a later model-history unit.
+            if catalog_guard.current():
+                catalog_guard.commit()
+                key = hashlib.sha256(out.encode("ascii")).hexdigest()
+                rec.catalog_guards[key] = catalog_guard
+                # Keep the executed logical action as well as its complete
+                # result. A real typed trial repeated inspection when that
+                # action trace was omitted. Neither unit is clipped.
+                action = encode_catalog({"tool": tool, "arguments": args}, max_bytes=8192)
+                rec.history.append(
+                    {
+                        "role": "assistant",
+                        "content": action,
+                        "context_kind": "tool_catalog_action",
+                        "catalog_guard": key,
+                    }
+                )
+                rec.history.append(
+                    {
+                        "role": "user",
+                        "content": out,
+                        "context_kind": "tool_catalog",
+                        "catalog_guard": key,
+                    }
+                )
+        elif tool == "publish_ui":
             # The admitted action may contain 48 KiB of UI data. Its verified
             # native receipt is the history unit; clipping/replaying the raw
             # assistant action would corrupt JSON or needlessly repeat data.

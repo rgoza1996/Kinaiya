@@ -28,6 +28,7 @@ FLAGS = (
     "skills_available",
     "plugins_available",
     "artifacts_available",
+    "catalog_available",
 )
 GROUPS = (
     ("select_context",),
@@ -35,6 +36,7 @@ GROUPS = (
     ("skills_list", "skill_load"),
     ("plugins_list", "plugin_call"),
     ("publish_ui",),
+    ("tool_catalog",),
 )
 
 
@@ -59,7 +61,7 @@ def messages(**kwargs):
     )
 
 
-@pytest.mark.parametrize("combination", tuple(itertools.product((False, True), repeat=5)))
+@pytest.mark.parametrize("combination", tuple(itertools.product((False, True), repeat=6)))
 def test_every_snapshot_projects_exact_enum_hints_and_optional_discovery(combination):
     snapshot = native_tool_snapshot(**dict(zip(FLAGS, combination, strict=True)))
     turns = messages(

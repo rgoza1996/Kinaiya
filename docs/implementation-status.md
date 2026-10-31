@@ -115,10 +115,26 @@ disclosure and selected-target brokers remain authoritative. The
 describe the bounded native identity projection, concurrent request scope and
 negative native refusal receipts. MockTransport/native integration checks are
 in [the advertising suite](../tests/integration/test_agent_tool_advertising.py).
-This does not complete #171's richer schema/permission and cross-catalog
-discovery obligations, or clarification §§14–15's optional Tool Library,
-installation lifecycle or formal verification. Gateway configuration is not
-proof that a foreign target is authorized, installed or working.
+That identity repair left #171's selected schema/permission facts and bounded
+cross-catalog discovery open. The subsequent [PR178](https://github.com/rgoza1996/Kinaiya/pull/178)
+implements that remainder: one read-only `tool_catalog` and authenticated API
+share native logical schemas, disclosure-filtered skills, passive MCP metadata
+and approved plugin metadata. Source/version and actual task-pin facts remain
+distinct. Inspection neither invokes nor installs a capability, and its receipts
+cannot ground task completion. Retained native guards stop dependent work when
+disclosure is withdrawn, including after prompt-history eviction.
+
+[ADR0074](adr/0074-progressive-tool-discovery.md), the
+[catalog contract](progressive-tool-catalog.md) and the
+[retained evidence](../evaluation/evidence/progressive-tool-catalog-2026-10-31.json)
+record 1,036 focused checks on the corrected functional source and two bounded
+real Contributor xhigh cases, one per wire format, that inspect a native schema,
+read a public synthetic file and finish with actual read evidence. Both earlier
+failed cases remain recorded; this is not general model-reliability or live
+foreign-target qualification. Exact final-head CI is recorded on the PR.
+Clarification §§14–15's optional Tool Library, installation lifecycle and formal
+verification remain design work. Gateway configuration is not proof that a
+foreign target is authorized, installed or working.
 
 ## Agent completion durability
 

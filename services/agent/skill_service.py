@@ -859,6 +859,225 @@ class SkillService:
                 }
             return copy.deepcopy(payload)
 
+    async def tool_metadata(
+        self,
+        provider_info: Any,
+        *,
+        skill_id: str | None = None,
+        task_id: str | None = None,
+        invocation: str = "model",
+    ) -> list[dict[str, Any]]:
+        """Inspect metadata without loading instructions or creating a pin.
+
+        Invocation and task identity come from the trusted supervisor. Hidden
+        and unknown selections both return no rows. Listing reads registered
+        metadata only; an unpinned exact selection additionally verifies bytes.
+        """
+        try:
+            if any(
+                value is not None and type(value) is not str
+                for value in (skill_id, task_id, invocation)
+            ):
+                raise _fail("Skill metadata is unavailable")
+            checked_id = _check_skill_id(skill_id) if skill_id is not None else None
+            checked_task = _check_task_id(task_id) if task_id is not None else None
+            checked_invocation = _check_invocation(invocation)
+            async with self._lock:
+                self._ensure_open()
+                flags = _provider_flags(provider_info)
+                ids = [checked_id] if checked_id is not None else sorted(self._manager._registry)
+                rows = []
+                for identity in ids:
+                    if identity not in self._manager._registry:
+                        continue
+                    record = self._current_record(identity)
+                    try:
+                        self._deny_unless_disclosable(
+                            record,
+                            self._effective_scope(identity),
+                            provider_info,
+                            invocation=checked_invocation,
+                        )
+                    except SkillServiceError:
+                        continue
+                    pin = self._pins.get((checked_task, identity))
+                    if pin is not None and (
+                        not _scope_allows(
+                            self._effective_scope(identity, pin.digest),
+                            local=flags[0],
+                            contributor=flags[1],
+                        )
+                        or not getattr(pin, f"{checked_invocation}_invocable")
+                    ):
+                        continue
+                    integrity = "pinned_snapshot" if pin is not None else "registered_only"
+                    if checked_id is not None and pin is None:
+                        self._manager.verify(record)
+                        integrity = "verified_current"
+                    rows.append(self._tool_metadata_row(record, pin, integrity))
+                return copy.deepcopy(rows)
+        except Exception:
+            raise _fail("Skill metadata is unavailable") from None
+
+    @staticmethod
+    def _tool_metadata_row(record, pin, integrity):
+        chosen = pin if pin is not None else record
+        source = chosen.source
+        kind = source.get("kind")
+        if kind not in {"local", "github", "clawhub"}:
+            raise _fail("Skill metadata is unavailable")
+        revision = None
+        if kind == "github" and isinstance(source.get("ref"), str):
+            if re.fullmatch(r"[0-9a-fA-F]{40}", source["ref"]):
+                revision = source["ref"]
+        elif kind == "clawhub" and isinstance(source.get("ref"), str):
+            revision = SourceRef._check_version(source["ref"], "source version")
+        return {
+            "id": record.id,
+            "name": chosen.name,
+            "description": chosen.description[:CATALOG_DESC_CHARS],
+            "version": chosen.version,
+            "digest": chosen.digest,
+            "source_kind": kind,
+            "source_revision": revision,
+            "active_version": {"version": record.version, "digest": record.digest},
+            "task_pinned_version": (
+                {"version": pin.version, "digest": pin.digest} if pin is not None else None
+            ),
+            "integrity": integrity,
+            "model_invocable": chosen.model_invocable,
+            "user_invocable": chosen.user_invocable,
+        }
+
+    def tool_metadata_current(
+        self, provider_info, rows, *, task_id=None, invocation="model", retained=False
+    ) -> bool:
+        """Synchronously fence retained native metadata after an await.
+
+        Rows are original broker projections, never model arguments. A busy
+        controller fails closed; this read cannot wait, load, or create pins.
+        Trusted retained history may acquire the same-content pin while its
+        originally disclosed active reference remains disclosable.
+        """
+        try:
+            if (
+                type(retained) is not bool
+                or self._lock.locked()
+                or type(rows) is not list
+                or len(rows) > 8192
+            ):
+                return False
+            if (task_id is not None and type(task_id) is not str) or type(invocation) is not str:
+                return False
+            self._ensure_open()
+            flags = _provider_flags(provider_info)
+            checked_task = _check_task_id(task_id) if task_id is not None else None
+            checked_invocation = _check_invocation(invocation)
+            seen = set()
+            string_fields = {
+                "id",
+                "name",
+                "description",
+                "version",
+                "digest",
+                "source_kind",
+                "integrity",
+            }
+            for row in rows:
+                if type(row) is not dict or any(type(key) is not str for key in row):
+                    return False
+                if set(row) != string_fields | {
+                    "source_revision",
+                    "active_version",
+                    "task_pinned_version",
+                    "model_invocable",
+                    "user_invocable",
+                }:
+                    return False
+                if any(type(row[key]) is not str for key in string_fields):
+                    return False
+                for key in string_fields:
+                    row[key].encode("utf-8")
+                if any(type(row[key]) is not bool for key in ("model_invocable", "user_invocable")):
+                    return False
+                if row["source_revision"] is not None and type(row["source_revision"]) is not str:
+                    return False
+                if row["source_revision"] is not None:
+                    row["source_revision"].encode("utf-8")
+                for field in ("active_version", "task_pinned_version"):
+                    value = row[field]
+                    if field == "task_pinned_version" and value is None:
+                        continue
+                    if (
+                        type(value) is not dict
+                        or any(type(key) is not str for key in value)
+                        or set(value) != {"version", "digest"}
+                        or any(type(value[key]) is not str for key in value)
+                    ):
+                        return False
+                    for part in value.values():
+                        part.encode("utf-8")
+                    SourceRef._check_version(value["version"], "metadata version")
+                    if re.fullmatch(r"sha256:[0-9a-f]{64}", value["digest"]) is None:
+                        return False
+                identity = _check_skill_id(row["id"])
+                if identity in seen or row["integrity"] not in {
+                    "registered_only",
+                    "verified_current",
+                    "pinned_snapshot",
+                }:
+                    return False
+                if row["task_pinned_version"] is not None and row["task_pinned_version"] != {
+                    "version": row["version"],
+                    "digest": row["digest"],
+                }:
+                    return False
+                if (row["integrity"] == "pinned_snapshot") != (
+                    row["task_pinned_version"] is not None
+                ):
+                    return False
+                seen.add(identity)
+                record = self._current_record(identity)
+                self._deny_unless_disclosable(
+                    record,
+                    self._effective_scope(identity),
+                    provider_info,
+                    invocation=checked_invocation,
+                )
+                pin = self._pins.get((checked_task, identity))
+                if pin is not None:
+                    if not _scope_allows(
+                        self._effective_scope(identity, pin.digest),
+                        local=flags[0],
+                        contributor=flags[1],
+                    ) or not getattr(pin, f"{checked_invocation}_invocable"):
+                        return False
+                    integrity = "pinned_snapshot"
+                elif row["integrity"] == "verified_current":
+                    self._manager.verify(record)
+                    integrity = "verified_current"
+                else:
+                    integrity = "registered_only"
+                expected = self._tool_metadata_row(record, pin, integrity)
+                compared = row
+                if retained:
+                    compared = dict(row)
+                    compared["task_pinned_version"] = expected["task_pinned_version"]
+                    compared["integrity"] = expected["integrity"]
+                    if row["active_version"] != expected["active_version"]:
+                        if not _scope_allows(
+                            self._effective_scope(identity, row["active_version"]["digest"]),
+                            local=flags[0],
+                            contributor=flags[1],
+                        ):
+                            return False
+                        expected["active_version"] = row["active_version"]
+                if compared != expected:
+                    return False
+            return True
+        except Exception:
+            return False
+
     # -- task pins --------------------------------------------------------------
     def _pin_key(self, task_id: str, skill_id: str) -> tuple[str, str]:
         return (task_id, skill_id)

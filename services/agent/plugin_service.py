@@ -5,8 +5,10 @@ The optional host is imported only when plugins are explicitly configured.
 """
 
 import asyncio
+import copy
 import hashlib
 import json
+import math
 import os
 import re
 import sqlite3
@@ -24,6 +26,39 @@ PLUGIN_ID = re.compile(r"[a-z][a-z0-9_-]{0,63}\Z")
 
 def _json(value):
     return json.dumps(value, ensure_ascii=False, sort_keys=True, allow_nan=False)
+
+
+def _metadata_json_shape(value):
+    """Reject malformed native guard inputs without invoking foreign methods."""
+    pending = [(value, 0)]
+    visits = 0
+    while pending:
+        item, depth = pending.pop()
+        visits += 1
+        if depth > 24 or visits > 16384:
+            return False
+        kind = type(item)
+        if kind is dict:
+            if len(pending) + 2 * len(item) > 16384 - visits:
+                return False
+            for key, child in item.items():
+                if type(key) is not str:
+                    return False
+                key.encode("utf-8")
+                visits += 1
+                pending.append((child, depth + 1))
+        elif kind is list:
+            if len(pending) + len(item) > 16384 - visits:
+                return False
+            pending.extend((child, depth + 1) for child in item)
+        elif kind is str:
+            item.encode("utf-8")
+        elif kind is float:
+            if not math.isfinite(item):
+                return False
+        elif kind not in {int, bool, type(None)}:
+            return False
+    return True
 
 
 def _atomic(path, value):
@@ -215,6 +250,192 @@ class PluginService:
             ],
             "next_after": after + 4 if after + 4 < len(allowed) else None,
         }
+
+    def _tool_metadata_pins(self, task):
+        pins = {}
+        if task is not None:
+            if (
+                type(task.task_id) is not str
+                or re.fullmatch(r"[A-Za-z0-9_-]{1,128}", task.task_id) is None
+                or type(task.plugin_versions) is not dict
+            ):
+                raise PluginError("Plugin metadata is unavailable")
+            pins = dict(task.plugin_versions)
+            for identity, version in self._pins.get(task.task_id, {}).items():
+                if identity in pins and pins[identity] != version:
+                    raise PluginError("Plugin metadata is unavailable")
+                pins[identity] = version
+            if len(pins) > 16 or any(
+                type(identity) is not str
+                or not PLUGIN_ID.fullmatch(identity)
+                or type(version) is not str
+                or re.fullmatch(r"v-[0-9a-f]{24}", version) is None
+                for identity, version in pins.items()
+            ):
+                raise PluginError("Plugin metadata is unavailable")
+        return pins
+
+    async def tool_metadata(self, provider_info, *, plugin_id=None, task=None):
+        """Read approved metadata for the actual task version without pinning.
+
+        Foreign manifests are never executed here. An existing task pin can
+        differ from the current active version; each disclosed version keeps
+        its own approval and disclosure checks.
+        """
+        try:
+            if plugin_id is not None and (
+                type(plugin_id) is not str or not PLUGIN_ID.fullmatch(plugin_id)
+            ):
+                raise PluginError("Plugin metadata is unavailable")
+            async with self._lock:
+                task_pins = self._tool_metadata_pins(task)
+                # The registry's short read lock keeps approval/pointer reads
+                # together. No pin persistence or sandbox operation is called.
+                with self.registry._thread:
+                    ids = (
+                        [plugin_id]
+                        if plugin_id is not None
+                        else sorted({row["plugin_id"] for row in self.registry.versions()})
+                    )
+                    rows = []
+                    for identity in ids:
+                        active = self.registry.active(identity)
+                        if active is None:
+                            continue
+                        pinned = task_pins.get(identity)
+                        chosen = pinned if pinned is not None else active
+                        row = self.registry.inspect(chosen)
+                        if row["plugin_id"] != identity:
+                            raise PluginError("Plugin metadata is unavailable")
+                        try:
+                            self.registry._approval(
+                                row, self.registry._read_active_doc()["plugins"].get(identity)
+                            )
+                            self._check_disclosure(chosen, provider_info)
+                        except PluginError:
+                            continue
+                        visible_active = active
+                        try:
+                            self._check_disclosure(active, provider_info)
+                        except PluginError:
+                            visible_active = None
+                        manifest = row["manifest"]
+                        result = {
+                            "plugin_id": identity,
+                            "description": manifest.get("description", "")[:80],
+                            "version_id": chosen,
+                            "source_sha256": row["source_sha256"],
+                            "active_version": visible_active,
+                            "task_pinned_version": pinned,
+                        }
+                        if plugin_id is not None:
+                            result["input_schema"] = copy.deepcopy(manifest["input_schema"])
+                            result["output_schema"] = copy.deepcopy(manifest["output_schema"])
+                        rows.append(result)
+                    return rows
+        except Exception:
+            raise PluginError("Plugin metadata is unavailable") from None
+
+    def tool_metadata_current(self, provider_info, rows, *, task=None, retained=False) -> bool:
+        """Fence native projections, allowing trusted same-content history pins."""
+        try:
+            if (
+                type(retained) is not bool
+                or self._lock.locked()
+                or type(rows) is not list
+                or len(rows) > 128
+            ):
+                return False
+            if (
+                type(provider_info.local) is not bool
+                or type(provider_info.provider) is not str
+                or not provider_info.provider
+                or type(provider_info.model) is not str
+                or not provider_info.model
+                or not _metadata_json_shape(rows)
+            ):
+                return False
+            with self.registry._thread:
+                self.registry._ensure_open()
+                task_pins = self._tool_metadata_pins(task)
+                seen = set()
+                fields = {
+                    "plugin_id",
+                    "description",
+                    "version_id",
+                    "source_sha256",
+                    "active_version",
+                    "task_pinned_version",
+                }
+                for row in rows:
+                    if type(row) is not dict or set(row) not in (
+                        fields,
+                        fields | {"input_schema", "output_schema"},
+                    ):
+                        return False
+                    identity = row["plugin_id"]
+                    if (
+                        type(identity) is not str
+                        or not PLUGIN_ID.fullmatch(identity)
+                        or identity in seen
+                    ):
+                        return False
+                    for field in ("version_id", "active_version", "task_pinned_version"):
+                        value = row[field]
+                        if value is None and field != "version_id":
+                            continue
+                        if type(value) is not str or re.fullmatch(r"v-[0-9a-f]{24}", value) is None:
+                            return False
+                    if (
+                        row["task_pinned_version"] is not None
+                        and row["task_pinned_version"] != row["version_id"]
+                    ):
+                        return False
+                    seen.add(identity)
+                    active = self.registry.active(identity)
+                    if active is None:
+                        return False
+                    pinned = task_pins.get(identity)
+                    chosen = pinned if pinned is not None else active
+                    stored = self.registry.inspect(chosen)
+                    if stored["plugin_id"] != identity:
+                        return False
+                    self.registry._approval(
+                        stored, self.registry._read_active_doc()["plugins"].get(identity)
+                    )
+                    self._check_disclosure(chosen, provider_info)
+                    visible_active = active
+                    try:
+                        self._check_disclosure(active, provider_info)
+                    except PluginError:
+                        visible_active = None
+                    expected = {
+                        "plugin_id": identity,
+                        "description": stored["manifest"].get("description", "")[:80],
+                        "version_id": chosen,
+                        "source_sha256": stored["source_sha256"],
+                        "active_version": visible_active,
+                        "task_pinned_version": pinned,
+                    }
+                    if "input_schema" in row:
+                        expected["input_schema"] = stored["manifest"]["input_schema"]
+                        expected["output_schema"] = stored["manifest"]["output_schema"]
+                    compared = row
+                    if retained:
+                        compared = dict(row)
+                        compared["task_pinned_version"] = expected["task_pinned_version"]
+                        if row["active_version"] != expected["active_version"]:
+                            original_active = row["active_version"]
+                            if original_active is not None:
+                                if self.registry.inspect(original_active)["plugin_id"] != identity:
+                                    return False
+                                self._check_disclosure(original_active, provider_info)
+                            expected["active_version"] = original_active
+                    if _json(compared) != _json(expected):
+                        return False
+            return True
+        except Exception:
+            return False
 
     async def pin_task(self, task, plugin_id, provider_info):
         if not isinstance(plugin_id, str) or not PLUGIN_ID.fullmatch(plugin_id):

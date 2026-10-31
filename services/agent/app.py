@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from core.policy import ApprovalError, PolicyDenied
@@ -166,6 +166,40 @@ def create_app(runtime: AgentRuntime, auth: Any, commands=None) -> FastAPI:
             "approvals": {"digest_bound": True, "one_use": True, "expiring": True},
             "max_steps": runtime.max_steps,
         }
+
+    @app.get("/v1/agents/tool-catalog")
+    async def tool_catalog(
+        request: Request,
+        actor: str = Depends(require_actor),
+    ) -> Any:
+        _ = actor
+        # Parse GET's string representation explicitly: Pydantic's ordinary
+        # integer coercions and query echo errors are not the catalog contract.
+        pairs = list(request.query_params.multi_items())
+        allowed = {"kind", "name", "server_id", "query", "after", "task_id"}
+        if len(pairs) != len({key for key, _ in pairs}) or any(
+            key not in allowed for key, _ in pairs
+        ):
+            raise HTTPException(400, "Tool catalog failed: invalid_query")
+        arguments = dict(pairs)
+        task_id = arguments.pop("task_id", None)
+        if task_id is not None and (not 1 <= len(task_id) <= 128 or "\x00" in task_id):
+            raise HTTPException(400, "Tool catalog failed: invalid_query")
+        if "after" in arguments:
+            after = arguments["after"]
+            if not 1 <= len(after) <= 7 or any(char not in "0123456789" for char in after):
+                raise HTTPException(400, "Tool catalog failed: invalid_query")
+            arguments["after"] = int(after)
+        try:
+            return await runtime.inspect_tools(arguments, task_id=task_id)
+        except Exception as exc:
+            from packages.contracts.tool_catalog import CatalogError
+
+            if isinstance(exc, CatalogError):
+                raise HTTPException(400, "Tool catalog failed: " + exc.code) from exc
+            if isinstance(exc, TaskNotFound):
+                raise HTTPException(404, "Task not found") from exc
+            raise HTTPException(503, "Tool catalog is unavailable") from exc
 
     @app.get("/v1/mcp/servers")
     async def mcp_servers(actor: str = Depends(require_owner)) -> Any:

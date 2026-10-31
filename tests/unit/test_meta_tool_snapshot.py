@@ -40,7 +40,7 @@ def response():
     )
 
 
-@pytest.mark.parametrize("flags", list(itertools.product((False, True), repeat=5)))
+@pytest.mark.parametrize("flags", list(itertools.product((False, True), repeat=6)))
 async def test_actual_meta_wire_uses_only_selected_native_operations(flags):
     snapshot = native_tool_snapshot(
         **dict(
@@ -51,6 +51,7 @@ async def test_actual_meta_wire_uses_only_selected_native_operations(flags):
                     "skills_available",
                     "plugins_available",
                     "artifacts_available",
+                    "catalog_available",
                 ),
                 flags,
                 strict=True,
@@ -85,6 +86,9 @@ async def test_actual_meta_wire_uses_only_selected_native_operations(flags):
             ("plugin_call", "plugin_arguments_json"),
             ("mcp_call", "mcp_arguments_json"),
             ("publish_ui", "ui_spec_json"),
+            ("tool_catalog", "kind"),
+            ("tool_catalog", "name"),
+            ("tool_catalog", "query"),
         ):
             assert (field in fields) == snapshot.supports(tool)
         for tool in ("plugin_call", "mcp_call", "publish_ui"):
@@ -141,6 +145,7 @@ async def test_concurrent_calls_on_one_adapter_keep_distinct_tool_schemas():
         "plugins_list",
         "plugin_call",
         "publish_ui",
+        "tool_catalog",
     ],
 )
 async def test_unadvertised_response_only_reaches_native_name_refusal(tool):

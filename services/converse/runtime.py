@@ -1508,7 +1508,11 @@ class ConverseRuntime:
             and isinstance(e.get("sha256"), str)
             and re.fullmatch(r"[a-f0-9]{64}", e["sha256"])
         ]
-        native = [e for e in current if e.get("kind") not in {"external", "extension", "artifact"}]
+        native = [
+            e
+            for e in current
+            if e.get("kind") not in {"external", "extension", "artifact", "inspection"}
+        ]
         work_evidence = any(
             e.get("kind") in {"file", "command", "test"}
             or (e.get("kind") == "read" and e.get("path") and e.get("sha256"))

@@ -109,7 +109,19 @@ class Evidence(WireModel):
     # cannot support completion.
     # A native artifact receipt proves only persisted UI publication. It is
     # never evidence for a claimed filesystem or external side effect.
-    kind: Literal["file", "command", "read", "search", "test", "extension", "external", "artifact"]
+    # Inspection receipts bind metadata observations only. They never count
+    # as work evidence in completion or Converse announcements.
+    kind: Literal[
+        "file",
+        "command",
+        "read",
+        "search",
+        "test",
+        "extension",
+        "external",
+        "artifact",
+        "inspection",
+    ]
     summary: str
     path: str | None = None
     sha256: str | None = None
@@ -329,6 +341,7 @@ class ToolAction(WireModel):
         "plugins_list",
         "plugin_call",
         "publish_ui",
+        "tool_catalog",
         "finish",
     ]
     arguments: dict[str, Any] = Field(default_factory=dict)

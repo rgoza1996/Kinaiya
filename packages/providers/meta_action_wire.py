@@ -29,9 +29,9 @@ class TypedWireError(ValueError):
 _CONFIG = ConfigDict(extra="forbid", strict=True, allow_inf_nan=False)
 
 
-def _object(name, **fields):
+def _object(model_name, **fields):
     # No defaults: even nullable optional fields are required in the wire.
-    return create_model(name, __config__=_CONFIG, **{k: (v, ...) for k, v in fields.items()})
+    return create_model(model_name, __config__=_CONFIG, **{k: (v, ...) for k, v in fields.items()})
 
 
 def _string(minimum=0, maximum=None, pattern=None):
@@ -156,6 +156,14 @@ _ARGUMENTS = {
         "PluginCall", plugin_id=StrictStr, plugin_arguments_json=_string(0, 65536)
     ),
     "publish_ui": _CREATE | _UPDATE,
+    "tool_catalog": _object(
+        "ToolCatalog",
+        kind=Literal["native", "mcp", "skill", "plugin"] | None,
+        name=_string(1, 512) | None,
+        server_id=_string(1, 128) | None,
+        query=_string(0, 80) | None,
+        after=Annotated[StrictInt, Field(ge=0, le=1_000_000)] | None,
+    ),
     "finish": _object("Finish", summary=StrictStr, objective_revision=StrictInt),
 }
 _ACTIONS = {
