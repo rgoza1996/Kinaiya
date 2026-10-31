@@ -32,7 +32,7 @@ from typing import Any
 
 from core.extensions import HarnessError
 from core.policy import ApprovalError, PolicyDenied, ToolPolicy
-from harnesses.seed import build_messages, observation_text, parse_action
+from harnesses.seed import ARTIFACT_RECEIPT_LIMIT, build_messages, observation_text, parse_action
 from packages.contracts.interfaces import Journal, TextProvider
 from packages.contracts.models import (
     AppendRequest,
@@ -94,6 +94,64 @@ TERMINAL = {TaskState.SUCCEEDED, TaskState.FAILED, TaskState.CANCELLED}
 def _payload_hash(payload: dict[str, Any]) -> str:
     raw = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
     return hashlib.sha256(raw.encode()).hexdigest()
+
+
+def _ui_publication_receipt(envelope: dict[str, Any]) -> str:
+    """Keep native pins and the complete manifest without replaying UI data."""
+    receipt = {
+        "history_kind": "ui_publication_receipt",
+        "tool": "publish_ui",
+        "ok": True,
+        "artifact_id": envelope["artifact_id"],
+        "revision": envelope["revision"],
+        "objective_revision": envelope["objective_revision"],
+        "content_sha256": envelope["content_sha256"],
+        "components": [
+            {"id": component["id"], "type": component["type"]}
+            for component in envelope["components"]
+        ],
+        "title_excerpt": "",
+        "summary_excerpt": "",
+        "payload_omitted": True,
+        "receipt_scope": "UI publication only; no filesystem or external effect proven",
+        "next_action": (
+            "Finish or update this artifact_id with expected_revision=revision; "
+            "do not repeat the create unless required by the objective."
+        ),
+    }
+
+    def encode() -> str:
+        return json.dumps(receipt, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
+
+    def fits() -> bool:
+        return len(encode().encode("utf-8")) <= ARTIFACT_RECEIPT_LIMIT
+
+    def excerpt(text: str, length: int) -> str:
+        return text[:length] + ("…" if 0 < length < len(text) else "")
+
+    # The validated 24-component manifest and native pins fit independently
+    # of optional excerpts. Never sacrifice a digest, revision or component ID.
+    if not fits():
+        raise ValueError("Native UI receipt manifest exceeds its history byte budget")
+    for key, text, maximum in (
+        ("title_excerpt", envelope["title"], 160),
+        ("summary_excerpt", envelope["summary"], 512),
+    ):
+        maximum = min(maximum, len(text))
+        receipt[key] = excerpt(text, maximum)
+        if fits():
+            continue
+        # Measure the final escaped JSON bytes, not just UTF-8 source text.
+        low, high = 0, maximum - 1
+        while low < high:
+            middle = (low + high + 1) // 2
+            receipt[key] = excerpt(text, middle)
+            if fits():
+                low = middle
+            else:
+                high = middle - 1
+        receipt[key] = excerpt(text, low)
+    return encode()
 
 
 # In-memory terminal summary for administratively retired recovered work.
@@ -1861,7 +1919,7 @@ class AgentRuntime:
                 tool in {"write_file", "shell"} and not self.policy.needs_approval(tool)
             ):
                 self.policy.consume_approval(approval_id, digest, revision)
-        if raw:
+        if raw and tool != "publish_ui":
             rec.history.append({"role": "assistant", "content": raw[:2000]})
         if approval_id is not None:
             # One-use intent is now committed to this exact execution.
@@ -1983,7 +2041,12 @@ class AgentRuntime:
         self._effect_result(rec, tool, ok=True)
         if tool == "plugin_call":
             rec.failed_plugin = False
-        if tool in {"skills_list", "skill_load", "plugins_list", "plugin_call"}:
+        if tool == "publish_ui":
+            # The admitted action may contain 48 KiB of UI data. Its verified
+            # native receipt is the history unit; clipping/replaying the raw
+            # assistant action would corrupt JSON or needlessly repeat data.
+            rec.history.append({"role": "user", "content": out, "context_kind": "artifact_receipt"})
+        elif tool in {"skills_list", "skill_load", "plugins_list", "plugin_call"}:
             context_kind = "plugin" if tool in {"plugins_list", "plugin_call"} else "skill"
             rec.history.append(
                 {
@@ -2033,6 +2096,7 @@ class AgentRuntime:
             )
             if not self.artifact_store.verify(evidence, rec.task):
                 raise ValueError("Unverified native receipt")
+            out = _ui_publication_receipt(envelope)
         except Exception as exc:
             raise _PublicationUncertain(
                 "UI publication was stored but its native receipt could not be verified; "
@@ -2062,17 +2126,7 @@ class AgentRuntime:
                 "task stopped without retry",
                 evidence,
             ) from exc
-        # The model receives native references and bounded metadata, not a
-        # second large copy of its components or presentation state.
-        return json.dumps(
-            {
-                "artifact_id": artifact_id,
-                "revision": content_revision,
-                "content_sha256": envelope["content_sha256"],
-                "summary": envelope["summary"],
-                "receipt_scope": "UI publication only; no filesystem or external effect proven",
-            }
-        ), evidence
+        return out, evidence
 
     async def _plugin_result(self, rec, tool, args):
         service = self.plugin_service

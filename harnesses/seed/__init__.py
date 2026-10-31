@@ -34,6 +34,9 @@ Grants describe pre-approved actions. A false grant means write/shell actions pa
 
 HISTORY_LIMIT = 8
 OBSERVATION_LIMIT = 2000
+# Native UI receipts keep their JSON structure and component manifest. This
+# bounded exception never admits the model's full publication payload.
+ARTIFACT_RECEIPT_LIMIT = 4096
 
 
 def _short(text: str, limit: int = OBSERVATION_LIMIT) -> str:
@@ -82,13 +85,19 @@ def build_messages(
         {"role": "user", "content": user},
     ]
     for turn in history[-HISTORY_LIMIT:]:
+        if turn.get("context_kind") == "artifact_receipt":
+            content = turn["content"]
+            if len(content.encode("utf-8")) > ARTIFACT_RECEIPT_LIMIT:
+                raise ValueError("Native UI receipt exceeds its history byte budget")
+        else:
+            content = _short(
+                turn["content"],
+                12000 if turn.get("context_kind") in {"skill", "plugin"} else OBSERVATION_LIMIT,
+            )
         messages.append(
             {
                 "role": turn["role"],
-                "content": _short(
-                    turn["content"],
-                    12000 if turn.get("context_kind") in {"skill", "plugin"} else OBSERVATION_LIMIT,
-                ),
+                "content": content,
             }
         )
     return messages

@@ -8,6 +8,7 @@ import jsonschema
 import pytest
 
 from core.policy import PolicyDenied, ToolPolicy
+from harnesses.seed import ARTIFACT_RECEIPT_LIMIT, OBSERVATION_LIMIT
 from packages.contracts.models import SessionRequest, TaskRequest, TaskState
 from packages.providers.text import MetaResponsesProvider, ProviderError
 from services.agent import AgentRuntime
@@ -99,9 +100,8 @@ def request(env, *, content_scope="public_synthetic"):
 
 
 @pytest.mark.parametrize("update", [False, True])
-async def test_actual_meta_wire_publishes_finishes_and_round_trips_logical_history(env, update):
+async def test_actual_meta_wire_publishes_finishes_and_retains_native_history(env, update):
     published = spec()
-    expected_specs = [published]
     env.replies.append(
         lambda body: response(
             wire_action(body, "publish_ui", ui_spec_json=json.dumps(published, ensure_ascii=False))
@@ -120,7 +120,6 @@ async def test_actual_meta_wire_publishes_finishes_and_round_trips_logical_histo
                 "expected_revision": 1,
                 "updates": [{"id": "summary", "data": {"text": "Verified synthetic value: 43"}}],
             }
-            expected_specs.append(patch)
             return response(wire_action(body, "publish_ui", ui_spec_json=json.dumps(patch)))
 
         env.replies.append(replace)
@@ -144,13 +143,179 @@ async def test_actual_meta_wire_publishes_finishes_and_round_trips_logical_histo
     assert set(schema["properties"]["arguments"]["required"]) == set(fields)
     assert "publish_ui" in schema["properties"]["tool"]["enum"]
     assert "arguments.ui_spec_json" in env.calls[0]["input"][0]["content"]
-    prior = [
+    assert not any(message["role"] == "assistant" for message in env.calls[-1]["input"])
+    receipts = [
         json.loads(message["content"])
         for message in env.calls[-1]["input"]
-        if message["role"] == "assistant"
+        if message["role"] == "user" and message["content"].startswith("{")
     ]
-    assert [set(item["arguments"]) for item in prior] == [{"ui_spec_json"}] * len(expected_specs)
-    assert [json.loads(item["arguments"]["ui_spec_json"]) for item in prior] == expected_specs
+    assert [item["revision"] for item in receipts] == ([1, 2] if update else [1])
+    assert receipts[-1]["artifact_id"] == final.evidence[-1].path.removeprefix("artifact:")
+    assert receipts[-1]["content_sha256"] == final.evidence[-1].sha256
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        spec(),
+        {
+            "artifact_id": "synthetic-native-id",
+            "expected_revision": 1,
+            "updates": [{"id": "summary", "data": {"text": "Synthetic replacement"}}],
+        },
+    ],
+)
+async def test_meta_still_remaps_logical_ui_actions_in_existing_history(env, arguments):
+    env.replies.append(
+        lambda body: response(
+            wire_action(body, "finish", summary="Synthetic", objective_revision=1)
+        )
+    )
+    await env.provider.complete(
+        [
+            {
+                "role": "assistant",
+                "content": json.dumps({"tool": "publish_ui", "arguments": arguments}),
+            }
+        ]
+    )
+    prior = json.loads(env.calls[0]["input"][-1]["content"])
+    assert prior["tool"] == "publish_ui"
+    assert set(prior["arguments"]) == {"ui_spec_json"}
+    assert json.loads(prior["arguments"]["ui_spec_json"]) == arguments
+
+
+@pytest.mark.parametrize("update", [False, True])
+async def test_meta_long_publication_keeps_bounded_native_receipt_history(env, update):
+    create_marker = "PUBLIC_SYNTHETIC_CREATE_PAYLOAD:"
+    update_marker = "PUBLIC_SYNTHETIC_UPDATE_PAYLOAD:"
+    published = {
+        "title": '"\\\t\n🌱' * 32,
+        "summary": '"\\\t\n🌱' * 400,
+        "components": [
+            {
+                "id": f"c{index:02d}" + "a" * 61,
+                "type": "text",
+                "data": {"text": create_marker + "c" * 7000 if index == 0 else "Synthetic"},
+            }
+            for index in range(24)
+        ],
+    }
+    assert len(json.dumps(published)) > OBSERVATION_LIMIT
+    env.replies.append(
+        lambda body: response(wire_action(body, "publish_ui", ui_spec_json=json.dumps(published)))
+    )
+
+    def receipt_from(body, revision):
+        # Exercise the exact request submitted by the real strict adapter,
+        # after both runtime retention and seed history assembly.
+        for message in body["input"]:
+            if message["role"] == "assistant":
+                action = json.loads(message["content"])
+                assert action["tool"] != "publish_ui"
+        serialized = json.dumps(body["input"], ensure_ascii=False)
+        assert create_marker not in serialized
+        assert update_marker not in serialized
+        receipts = []
+        for message in body["input"]:
+            if message["role"] != "user" or not message["content"].startswith("{"):
+                continue
+            value = json.loads(message["content"])
+            if value.get("history_kind") == "ui_publication_receipt":
+                assert len(message["content"]) > OBSERVATION_LIMIT
+                assert len(message["content"].encode("utf-8")) <= ARTIFACT_RECEIPT_LIMIT
+                receipts.append(value)
+        assert len(receipts) == revision
+        receipt = receipts[-1]
+        envelope = env.artifacts.get(
+            receipt["artifact_id"],
+            session_id=env.session.session_id,
+            thread_id=env.session.thread_id,
+            epoch=env.session.epoch,
+        )
+        assert receipt["revision"] == envelope["revision"] == revision
+        assert receipt["objective_revision"] == envelope["objective_revision"] == 1
+        assert receipt["content_sha256"] == envelope["content_sha256"]
+        assert receipt["components"] == [
+            {"id": component["id"], "type": component["type"]}
+            for component in envelope["components"]
+        ]
+        assert receipt["ok"] is True
+        assert receipt["payload_omitted"] is True
+        assert "publication only" in receipt["receipt_scope"]
+        assert (
+            len(receipt["summary_excerpt"]) < 512
+        )  # Final escaped bytes require adaptive trimming.
+        assert envelope["title"].startswith(receipt["title_excerpt"].removesuffix("…"))
+        assert envelope["summary"].startswith(receipt["summary_excerpt"].removesuffix("…"))
+        return receipt
+
+    if update:
+
+        def patch(body):
+            receipt = receipt_from(body, 1)
+            value = {
+                "artifact_id": receipt["artifact_id"],
+                "expected_revision": receipt["revision"],
+                "updates": [
+                    {
+                        "id": receipt["components"][0]["id"],
+                        "data": {"text": update_marker + "u" * 7000},
+                    }
+                ],
+            }
+            assert len(json.dumps(value)) > OBSERVATION_LIMIT
+            return response(wire_action(body, "publish_ui", ui_spec_json=json.dumps(value)))
+
+        env.replies.append(patch)
+
+    def finish(body):
+        receipt_from(body, 2 if update else 1)
+        return response(
+            wire_action(body, "finish", summary="Published the synthetic UI", objective_revision=1)
+        )
+
+    env.replies.append(finish)
+    task = await env.runtime.submit(request(env))
+    final = await env.runtime.wait(task.task_id, timeout=5)
+    assert final.state == TaskState.SUCCEEDED, final.error
+    assert len(env.calls) == (3 if update else 2)
+    assert len(final.evidence) == (2 if update else 1)
+    assert env.artifacts.verify(final.evidence[-1], final)
+    assert not list(env.workspace.iterdir())
+
+
+async def test_meta_rejected_long_publication_retains_error_without_a_native_receipt(env):
+    invalid = spec()
+    invalid["components"][0]["data"]["text"] = "x" * 8001
+    env.replies.append(
+        lambda body: response(wire_action(body, "publish_ui", ui_spec_json=json.dumps(invalid)))
+    )
+
+    def recover(body):
+        history = body["input"][2:]
+        assert len(history) == 1
+        assert history[0]["role"] == "user"
+        assert history[0]["content"].startswith("[error]")
+        assert "failed bounded schema validation" in history[0]["content"]
+        assert not env.artifacts.page(
+            session_id=env.session.session_id,
+            thread_id=env.session.thread_id,
+            epoch=env.session.epoch,
+        )["items"]
+        return response(wire_action(body, "publish_ui", ui_spec_json=json.dumps(spec())))
+
+    env.replies.append(recover)
+    env.replies.append(
+        lambda body: response(
+            wire_action(body, "finish", summary="Synthetic", objective_revision=1)
+        )
+    )
+    task = await env.runtime.submit(request(env))
+    final = await env.runtime.wait(task.task_id, timeout=5)
+    assert final.state == TaskState.SUCCEEDED, final.error
+    assert len(final.evidence) == 1
+    assert env.artifacts.verify(final.evidence[0], final)
 
 
 INVALID_SPECS = [
