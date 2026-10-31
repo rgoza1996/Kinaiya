@@ -224,7 +224,8 @@
     "mock_task_successes": 6,
     "ruff_check": "passed",
     "ruff_format_check": "439 files already formatted",
-    "git_diff_check": "passed"
+    "git_diff_check": "passed",
+    "retained_summary_annotation": "Frozen local summary incorrectly labeled the postprocessing interpreter3.13.11 as the verification Python. Actual targeted tests, admission and native cases explicitly used pinned Python3.12.3; published value is correct. The frozen summary and raw run data are unchanged; correction retained in summary-metadata-note.json."
   },
   "muse_cli_attempts": [
     {

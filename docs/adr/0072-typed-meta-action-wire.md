@@ -78,9 +78,11 @@ referencing source files. This delegation setup did not supply the requested
 context; it does not establish coding ability with adequate context. The lead
 implemented the native contract. Subsequent restricted review supplies all
 needed public source inline. That actual Contributor xhigh CLI review completed
-without static findings; it did not execute tests or contact the provider. Retain
-both attempts: the rejected candidate cost an estimated $0.013619658, and the
-corrected review cost $0.009509. These are guard estimates, not billing.
+without static findings. It used one review inference, with no separate schema
+probe, tool execution or runtime test. Its input snapshot preceded the final
+two history fixes found by the independent Codex delta review. Retain both Muse
+attempts: the rejected candidate cost an estimated $0.013619658, and the corrected
+review cost $0.009509. These are guard estimates, not billing.
 
 Initial test observations are retained: collection failed before the module
 existed; one negative pure fixture mistakenly used a valid text string; one new
@@ -98,6 +100,10 @@ one failure); the unchanged rerun passed 58 checks. Both observations remain.
 One post-run audit initially assumed an explicit final phase; the provider also
 returns valid unphased final messages handled by the existing adapter. Corrected
 the audit to that documented extraction rule without changing production code.
+The frozen local summary also mislabeled its postprocessing Python as the test
+runtime. The explicit test/native launch commands used pinned Python 3.12.3;
+published evidence records that runtime and explains the unchanged summary's
+annotation error.
 
 The task interval added an estimated $0.010339272; schema admission added
 $0.0005953. After the retained Muse attempts and these tests, the text estimate
