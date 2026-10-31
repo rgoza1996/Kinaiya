@@ -61,6 +61,13 @@ older clients show summary plus unsupported-content notice.
 
 The strict Meta response transport uses nullable `arguments.ui_spec_json` to carry the complete create or update object as JSON text. Its logical text is at most 48 KiB UTF-8; unused transport fields must be null. The adapter rejects duplicate keys, non-finite numbers, invalid Unicode, extra native metadata and mixed create/update fields. Native storage performs the final component validation.
 
+After successful publication, Agent history retains a native receipt rather than
+the original assistant payload. Its JSON is limited to 4096 UTF-8 bytes, with
+artifact ID, content/objective revisions, digest and every component ID/type
+preserved. Optional title/summary excerpts shrink to fit the escaped byte bound;
+UI data is omitted. This prevents the ordinary observation limit from clipping
+a large publication into malformed JSON. The receipt proves publication only.
+
 ## Persistence and API
 
 Agent's owner-only API uses its existing bearer auth, redirect/CORS policy:

@@ -1,0 +1,1123 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-10-31T06:07:54.615511+00:00",
+  "development_worker": {
+    "kind": "Genuine Muse CLI",
+    "model": "muse-spark-1.3-contributor",
+    "effort": "xhigh",
+    "scope": "Public synthetic artifact-store task only",
+    "exit_code": 0,
+    "reaped": true,
+    "elapsed_seconds": 118.23,
+    "terminal_visibility": "open_in_codex queued the terminal; actual app-pane visibility was not confirmed"
+  },
+  "scope": "Bounded native text-based Intelligent UI slice; not AT61 real-call or full M9 acceptance.",
+  "source_commit": "d0ddedc81e8c45a6fb254156a27e916c07857130",
+  "log_sha256": {
+    "intelligent-python-full.log": "2c74a6f026e8fe54d0f3e7cc3de9b21980a45dca72a0e11cae76b7848eec6a55",
+    "intelligent-python-cleanup-file.log": "2d00a40709cebd59f1c4d9687e4b65a0c98a38aa0ae35446e9063d16b0ac8c2c",
+    "intelligent-history-final.log": "0d26eebe9e7918547402c1ff399a2f5fbcadf18b4908130905e6933663d1ad1b",
+    "intelligent-final-full.log": "62010c171c8e353af08276267a44800e9f783b135b90ae3f81ddb8d5aa7d56d1",
+    "intelligent-final-bridge.log": "cd3242f2de63288a52a263826bc8dfcfcfa5ed97a592fb7ac81a43e9f2efefac",
+    "intelligent-final-format.log": "8eb44dcfe8bc7ad6287e5e610ae5d070669ecfe9b5480a643bff8b596bacac46",
+    "intelligent-final-analyze.log": "2ec450d82757968f39f44eb49f455e3cfdc80994d7588e6376c940e0aa3c4101",
+    "intelligent-final-owner-web.log": "ac59c1721c10b139e19f54aa6acfe5360d2a947f63308aa1f78b0da110c95930",
+    "intelligent-final-companion-web.log": "1844abf9ca5628f68c1f3692e428c7e498f290a0fecf8f8fe96edb08be403222"
+  },
+  "implementation_sha256": {
+    "services/agent/runtime.py": "be25c20bab7334c7f65cdebb9170aa2518d62cad98a43100058417099f08e987",
+    "services/agent/artifacts.py": "ec3fd4de564e8afba75376f2ff3dd96404ddda08e5c4a9d5d4e82f86d1070b5b",
+    "services/agent/artifact_api.py": "84a9efb2bad8a79c495e5999c94a369c909083e6f933e74a483993d7a093db46",
+    "services/converse/runtime.py": "abed795941d7d2f6ebe322e1b5c341ca577d8cc2c9bd67c7dbed7563912613e6",
+    "packages/providers/text.py": "8e0527218917727c668fce627b6f3e7f21fce70b1fff0fd3c1b43f2363efd825",
+    "apps/kinaiya_flutter/lib/state/artifact_state.dart": "b9eed6a12eb4b77a631411311668a8beac4edc29afc22d1bbab306520f0db439",
+    "apps/kinaiya_flutter/lib/ui/intelligent_converse_stage.dart": "58622af956430831651d2133491bfcfd15deb315ef26b8ded8a2cf3558efff6a"
+  },
+  "penpot": {
+    "file_id": "aed0c863-4a2a-8195-8008-defdd82e75a3",
+    "converse_page_id": "61dca688-9f58-8047-8008-df5bc312f8f9",
+    "export_commit": "289c3a310b3dc98dde5fcfad595acf3eedaedb85",
+    "export_sha256": "6e35d43f04808bb793542c888e740c9b26692e3967e7985c508d9306d534e669",
+    "reference_chat": "Set up local Penpot for Kinaiya",
+    "reference_chat_id": "01a18cf4-e759-7d21-afc4-a8acfa1ebff4"
+  },
+  "environment": {
+    "python": "Python 3.12.3",
+    "flutter": "3.47.8",
+    "frontend": "http://127.0.0.1:8782/",
+    "session_port": 9030,
+    "agent_port": 9031,
+    "converse_port": 9032,
+    "decisions_port": 9033,
+    "fresh_data": true,
+    "input_scope": "public_synthetic",
+    "filesystem_writes": false,
+    "shell": false,
+    "network_tools": false,
+    "voice_configured": false,
+    "gpu_residency_changed": false
+  },
+  "profiles": {
+    "converse": {
+      "model": "muse-spark-1.3-contributor",
+      "effort": "minimal",
+      "max_output_tokens": 1024
+    },
+    "agent": {
+      "model": "muse-spark-1.3-contributor",
+      "effort": "xhigh",
+      "max_output_tokens": 8192
+    },
+    "decisions": {
+      "model": "muse-spark-1.3-contributor",
+      "effort": "minimal",
+      "max_output_tokens": 1024
+    },
+    "transport": "Existing unchanged guarded Meta proxy; actual requests, not scripted model responses."
+  },
+  "tasks": [
+    {
+      "task_id": "548fd9f9-2967-4851-a94c-aa453a4e9d42",
+      "session_id": "5e9935ce-59dd-4240-856f-699224963ad6",
+      "objective": "Please make an interactive view of this fictional quarterly sales spreadsheet, with a sortable table and a bar chart. The data is Q1 sales 120 costs 70, Q2 sales 150 costs 85, Q3 sales 180 costs 100, Q4 sales 160 costs 90. Include calculated profit, a quarter selector, and a button to ask me about the selected quarter. Label all data fictional. Please have Agent build this view.",
+      "state": "failed",
+      "error": "step budget exhausted after 12 steps",
+      "source_event_ids": [
+        "c9962a46-f7e9-4e11-999e-6d85b15ed50d"
+      ],
+      "evidence": [
+        {
+          "evidence_id": "89cef3ae-92a7-42cf-baea-0f22eb64e603",
+          "kind": "read",
+          "sha256": null,
+          "artifact_id": null
+        },
+        {
+          "evidence_id": "f6d4c41f-93c2-49cb-8812-7590ede2c7da",
+          "kind": "search",
+          "sha256": null,
+          "artifact_id": null
+        }
+      ]
+    },
+    {
+      "task_id": "f5a07387-de04-4c5d-a3d1-22ebf7608136",
+      "session_id": "dfa2d340-943e-47e7-8f41-dd7e88445baa",
+      "objective": "Please have Agent create an interactive view comparing a fictional bookstore orders table before and after normalization. Show linked Customers, Orders, OrderItems and Books tables with sample keys, and let me select a table to read its explanation.",
+      "state": "failed",
+      "error": "provider error: Meta response did not complete within its token budget",
+      "source_event_ids": [
+        "697e5fcd-848e-4145-8caa-af29ac01d8b7"
+      ],
+      "evidence": [
+        {
+          "evidence_id": "31aee99f-c491-467a-95e3-e380d9dc924a",
+          "kind": "read",
+          "sha256": null,
+          "artifact_id": null
+        },
+        {
+          "evidence_id": "53e3a08b-3f1e-4a7f-8c3b-56350c846fd5",
+          "kind": "read",
+          "sha256": null,
+          "artifact_id": null
+        }
+      ]
+    },
+    {
+      "task_id": "9436634b-e969-4b86-a2a8-9cd36973a4b2",
+      "session_id": "dfa2d340-943e-47e7-8f41-dd7e88445baa",
+      "objective": "Create a new interactive view for fictional sales: Q1=120, Q2=150, Q3=180, Q4=160. Show a sortable table, a bar chart, a quarter selector, and a button to ask about a quarter. Publish the view here.",
+      "state": "succeeded",
+      "error": null,
+      "source_event_ids": [
+        "10b2348b-4efe-4c34-9826-e785709c7c9c"
+      ],
+      "evidence": [
+        {
+          "evidence_id": "589aa9cf-76c1-4cca-b49e-5771e9e25e3e",
+          "kind": "artifact",
+          "sha256": "b55d19eb16f4aa3240ee0208c37c66f665a0b8aa8f5a9e0c46c0ca42d35bfb78",
+          "artifact_id": "3e7f889e-3e4f-40c5-afc8-81050ecc4d8f"
+        }
+      ]
+    },
+    {
+      "task_id": "194f7777-9831-43f4-b03f-acf86e0beeba",
+      "session_id": "dfa2d340-943e-47e7-8f41-dd7e88445baa",
+      "objective": "Create a separate interactive database view for a fictional bookstore: Customers, Orders, OrderItems, and Books. Show a before example and a normalized diagram with key fields and an explanation for each selectable table. Publish a new view.",
+      "state": "failed",
+      "error": "provider error: Meta response did not complete within its token budget",
+      "source_event_ids": [
+        "7df7173c-6b20-4780-ad9a-3d1f04b0269b"
+      ],
+      "evidence": [
+        {
+          "evidence_id": "472ef510-4dd2-4649-98ca-9ca335f2ca45",
+          "kind": "artifact",
+          "sha256": "fa4d4c56c67b56bd8f1ffefd668913852a7d70276925fb69fdba4298a243eddc",
+          "artifact_id": "e3af562a-63ef-447c-ba4f-8e4c321c783a"
+        },
+        {
+          "evidence_id": "eb68cbd9-c200-4a1e-87c2-b12517ce7b26",
+          "kind": "artifact",
+          "sha256": "2977ac39ea7e130e6bee06af5919bb9a653de8dad362bf384d171732a6960e77",
+          "artifact_id": "b0f44bf4-6e67-4bc2-8c21-66f61a4e1585"
+        },
+        {
+          "evidence_id": "af48a055-6238-4b39-bb97-ede92eaa480c",
+          "kind": "artifact",
+          "sha256": "f203e3efb9fa149e4afd02fcf9aca49d1abbc1c8b22a4e068b7f1d56ea195250",
+          "artifact_id": "b7a12380-d994-45c8-99b2-f2bea97ed67b"
+        }
+      ]
+    },
+    {
+      "task_id": "448d6f33-4ed6-43e9-ae05-952b89fd837f",
+      "session_id": "dfa2d340-943e-47e7-8f41-dd7e88445baa",
+      "objective": "Create a new compact interactive view explaining a fictional bookstore database before and after normalization. Include a selectable diagram of Customers, Orders, OrderItems and Books, with primary and foreign key details, and one small sample table.",
+      "state": "failed",
+      "error": "provider error: UI publication arguments require a bounded UTF-8 JSON object",
+      "source_event_ids": [
+        "14d62a83-73b5-4eb7-abfe-44f6bce99da8"
+      ],
+      "evidence": [
+        {
+          "evidence_id": "2c2f9c14-0052-4887-83c5-819a0daac610",
+          "kind": "read",
+          "sha256": null,
+          "artifact_id": null
+        },
+        {
+          "evidence_id": "c8e76d4f-db1e-4ed1-b90f-f6570705aed0",
+          "kind": "artifact",
+          "sha256": "d987c4b7c79d05040ffcad72489eb15bbf44401df7e5c2a4026f82605965fbbf",
+          "artifact_id": "d01a6f81-aa1f-4545-8787-199491fae8c4"
+        },
+        {
+          "evidence_id": "e5548840-de1e-4322-9ae0-3096f87d8625",
+          "kind": "artifact",
+          "sha256": "d678fdaaa7d0e6319fec3fe106a9671e57b8a2d1318c67c41d6ea94b9bca7114",
+          "artifact_id": "2d37d24f-1340-4ea9-bbfc-1929a1ccdbcd"
+        },
+        {
+          "evidence_id": "c189dc04-fc3f-44ad-8eb9-3483819b4f3c",
+          "kind": "artifact",
+          "sha256": "7d8ae9a66738f3da8876f0905837e0f8482f8eb86d2e4b6cc043953038cda892",
+          "artifact_id": "cd5e340b-dedf-4d77-97fa-b4df02201793"
+        },
+        {
+          "evidence_id": "239f95bc-69f0-4954-99f8-7c04f9534f6d",
+          "kind": "artifact",
+          "sha256": "b5b2e6fd2170ed909d8467dec53994126083a62751ffe5e257d609adc4978f0f",
+          "artifact_id": "cec3a4c1-df22-48e8-82ba-892ff3ba9fd0"
+        }
+      ]
+    }
+  ],
+  "artifacts": [
+    {
+      "artifact_id": "3e7f889e-3e4f-40c5-afc8-81050ecc4d8f",
+      "task_id": "9436634b-e969-4b86-a2a8-9cd36973a4b2",
+      "objective_revision": 1,
+      "revision": 1,
+      "title": "Fictional Quarterly Sales - Interactive View",
+      "content_sha256": "b55d19eb16f4aa3240ee0208c37c66f665a0b8aa8f5a9e0c46c0ca42d35bfb78",
+      "content_scope": "public_synthetic",
+      "view_revision": 1,
+      "view_state": {
+        "quarterSelect": "Q3"
+      },
+      "task_submit_sequence": 51,
+      "components": [
+        {
+          "id": "introText",
+          "type": "text"
+        },
+        {
+          "id": "salesTable",
+          "type": "table"
+        },
+        {
+          "id": "salesChart",
+          "type": "chart"
+        },
+        {
+          "id": "quarterSelect",
+          "type": "select"
+        },
+        {
+          "id": "quarterAsk",
+          "type": "ask"
+        }
+      ]
+    },
+    {
+      "artifact_id": "e3af562a-63ef-447c-ba4f-8e4c321c783a",
+      "task_id": "194f7777-9831-43f4-b03f-acf86e0beeba",
+      "objective_revision": 1,
+      "revision": 1,
+      "title": "Bookstore DB - Before vs Normalized View",
+      "content_sha256": "fa4d4c56c67b56bd8f1ffefd668913852a7d70276925fb69fdba4298a243eddc",
+      "content_scope": "public_synthetic",
+      "view_revision": 0,
+      "view_state": {},
+      "task_submit_sequence": 63,
+      "components": [
+        {
+          "id": "intro",
+          "type": "text"
+        },
+        {
+          "id": "beforeExample",
+          "type": "table"
+        },
+        {
+          "id": "normDiagram",
+          "type": "diagram"
+        },
+        {
+          "id": "tablePicker",
+          "type": "select"
+        },
+        {
+          "id": "customersInfo",
+          "type": "text"
+        },
+        {
+          "id": "customersTable",
+          "type": "table"
+        },
+        {
+          "id": "ordersInfo",
+          "type": "text"
+        },
+        {
+          "id": "ordersTable",
+          "type": "table"
+        },
+        {
+          "id": "itemsInfo",
+          "type": "text"
+        },
+        {
+          "id": "itemsTable",
+          "type": "table"
+        },
+        {
+          "id": "booksInfo",
+          "type": "text"
+        },
+        {
+          "id": "booksTable",
+          "type": "table"
+        }
+      ]
+    },
+    {
+      "artifact_id": "b0f44bf4-6e67-4bc2-8c21-66f61a4e1585",
+      "task_id": "194f7777-9831-43f4-b03f-acf86e0beeba",
+      "objective_revision": 1,
+      "revision": 1,
+      "title": "Bookstore DB - Before vs Normalized (3NF)",
+      "content_sha256": "2977ac39ea7e130e6bee06af5919bb9a653de8dad362bf384d171732a6960e77",
+      "content_scope": "public_synthetic",
+      "view_revision": 0,
+      "view_state": {},
+      "task_submit_sequence": 63,
+      "components": [
+        {
+          "id": "intro",
+          "type": "text"
+        },
+        {
+          "id": "beforeExample",
+          "type": "table"
+        },
+        {
+          "id": "normDiagram",
+          "type": "diagram"
+        },
+        {
+          "id": "customersTable",
+          "type": "table"
+        },
+        {
+          "id": "customersExpl",
+          "type": "text"
+        },
+        {
+          "id": "ordersTable",
+          "type": "table"
+        },
+        {
+          "id": "ordersExpl",
+          "type": "text"
+        },
+        {
+          "id": "itemsTable",
+          "type": "table"
+        },
+        {
+          "id": "itemsExpl",
+          "type": "text"
+        },
+        {
+          "id": "booksTable",
+          "type": "table"
+        },
+        {
+          "id": "booksExpl",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "artifact_id": "b7a12380-d994-45c8-99b2-f2bea97ed67b",
+      "task_id": "194f7777-9831-43f4-b03f-acf86e0beeba",
+      "objective_revision": 1,
+      "revision": 1,
+      "title": "Bookstore DB - Before vs Normalized 3NF",
+      "content_sha256": "f203e3efb9fa149e4afd02fcf9aca49d1abbc1c8b22a4e068b7f1d56ea195250",
+      "content_scope": "public_synthetic",
+      "view_revision": 1,
+      "view_state": {
+        "normDiagram": "books"
+      },
+      "task_submit_sequence": 63,
+      "components": [
+        {
+          "id": "intro",
+          "type": "text"
+        },
+        {
+          "id": "beforeExample",
+          "type": "table"
+        },
+        {
+          "id": "normDiagram",
+          "type": "diagram"
+        },
+        {
+          "id": "customersTable",
+          "type": "table"
+        },
+        {
+          "id": "customersExplain",
+          "type": "text"
+        },
+        {
+          "id": "ordersTable",
+          "type": "table"
+        },
+        {
+          "id": "ordersExplain",
+          "type": "text"
+        },
+        {
+          "id": "itemsTable",
+          "type": "table"
+        },
+        {
+          "id": "itemsExplain",
+          "type": "text"
+        },
+        {
+          "id": "booksTable",
+          "type": "table"
+        },
+        {
+          "id": "booksExplain",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "artifact_id": "d01a6f81-aa1f-4545-8787-199491fae8c4",
+      "task_id": "448d6f33-4ed6-43e9-ae05-952b89fd837f",
+      "objective_revision": 1,
+      "revision": 1,
+      "title": "Bookstore Database: Before & After Normalization",
+      "content_sha256": "d987c4b7c79d05040ffcad72489eb15bbf44401df7e5c2a4026f82605965fbbf",
+      "content_scope": "public_synthetic",
+      "view_revision": 0,
+      "view_state": {},
+      "task_submit_sequence": 85,
+      "components": [
+        {
+          "id": "introText",
+          "type": "text"
+        },
+        {
+          "id": "tableSelect",
+          "type": "select"
+        },
+        {
+          "id": "erdDiagram",
+          "type": "diagram"
+        },
+        {
+          "id": "sampleTable",
+          "type": "table"
+        },
+        {
+          "id": "keyFacts",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "artifact_id": "2d37d24f-1340-4ea9-bbfc-1929a1ccdbcd",
+      "task_id": "448d6f33-4ed6-43e9-ae05-952b89fd837f",
+      "objective_revision": 1,
+      "revision": 1,
+      "title": "Bookstore Database: Before & After Normalization",
+      "content_sha256": "d678fdaaa7d0e6319fec3fe106a9671e57b8a2d1318c67c41d6ea94b9bca7114",
+      "content_scope": "public_synthetic",
+      "view_revision": 0,
+      "view_state": {},
+      "task_submit_sequence": 85,
+      "components": [
+        {
+          "id": "introText",
+          "type": "text"
+        },
+        {
+          "id": "tableSelect",
+          "type": "select"
+        },
+        {
+          "id": "erdDiagram",
+          "type": "diagram"
+        },
+        {
+          "id": "sampleTable",
+          "type": "table"
+        },
+        {
+          "id": "keyFacts",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "artifact_id": "cd5e340b-dedf-4d77-97fa-b4df02201793",
+      "task_id": "448d6f33-4ed6-43e9-ae05-952b89fd837f",
+      "objective_revision": 1,
+      "revision": 1,
+      "title": "Bookstore Database: Before & After Normalization",
+      "content_sha256": "7d8ae9a66738f3da8876f0905837e0f8482f8eb86d2e4b6cc043953038cda892",
+      "content_scope": "public_synthetic",
+      "view_revision": 0,
+      "view_state": {},
+      "task_submit_sequence": 85,
+      "components": [
+        {
+          "id": "introText",
+          "type": "text"
+        },
+        {
+          "id": "tableSelect",
+          "type": "select"
+        },
+        {
+          "id": "erdDiagram",
+          "type": "diagram"
+        },
+        {
+          "id": "sampleTable",
+          "type": "table"
+        },
+        {
+          "id": "keyFacts",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "artifact_id": "cec3a4c1-df22-48e8-82ba-892ff3ba9fd0",
+      "task_id": "448d6f33-4ed6-43e9-ae05-952b89fd837f",
+      "objective_revision": 1,
+      "revision": 1,
+      "title": "Bookstore Database: Before & After Normalization",
+      "content_sha256": "b5b2e6fd2170ed909d8467dec53994126083a62751ffe5e257d609adc4978f0f",
+      "content_scope": "public_synthetic",
+      "view_revision": 1,
+      "view_state": {
+        "erdDiagram": "orders"
+      },
+      "task_submit_sequence": 85,
+      "components": [
+        {
+          "id": "introText",
+          "type": "text"
+        },
+        {
+          "id": "tableSelect",
+          "type": "select"
+        },
+        {
+          "id": "erdDiagram",
+          "type": "diagram"
+        },
+        {
+          "id": "sampleTable",
+          "type": "table"
+        },
+        {
+          "id": "keyFacts",
+          "type": "text"
+        }
+      ]
+    }
+  ],
+  "native_events": [
+    {
+      "event_id": "1bc4d3d2-f6f9-46ea-bd95-7e21af644bc2",
+      "sequence": 37,
+      "kind": "routing.decided",
+      "origin": "decisions",
+      "payload": {
+        "source_event_ids": [
+          "697e5fcd-848e-4145-8caa-af29ac01d8b7"
+        ],
+        "source_revision": 1,
+        "route": "queue",
+        "reason_code": "work_request"
+      }
+    },
+    {
+      "event_id": "fa109206-da78-46e3-a0ab-f093d7b3eb56",
+      "sequence": 38,
+      "kind": "agent.command",
+      "origin": "agent-supervisor",
+      "payload": {
+        "task_id": "f5a07387-de04-4c5d-a3d1-22ebf7608136",
+        "state": "accepted",
+        "op": "submit",
+        "source_event_ids": [
+          "697e5fcd-848e-4145-8caa-af29ac01d8b7"
+        ],
+        "source_revision": 1,
+        "objective_revision": 1
+      }
+    },
+    {
+      "event_id": "85963134-2c75-45b3-b3e4-3b92117346e5",
+      "sequence": 39,
+      "kind": "routing.dispatch",
+      "origin": "decisions",
+      "payload": {
+        "state": "accepted",
+        "source_event_id": "697e5fcd-848e-4145-8caa-af29ac01d8b7",
+        "source_revision": 1,
+        "route": "queue",
+        "native_task_id": "f5a07387-de04-4c5d-a3d1-22ebf7608136",
+        "native_task_state": "accepted"
+      }
+    },
+    {
+      "event_id": "a4b5c338-f60a-4c04-8121-a62ad2e6d8c0",
+      "sequence": 41,
+      "kind": "routing.decided",
+      "origin": "decisions",
+      "payload": {
+        "source_event_ids": [
+          "b7c3ff73-907a-4e8c-bb83-50e2fd727ecf"
+        ],
+        "source_revision": 1,
+        "route": "ignore",
+        "reason_code": "assistant_has_no_user_authority"
+      }
+    },
+    {
+      "event_id": "8bc120b4-4769-47ad-83ef-4f1f30962cbc",
+      "sequence": 46,
+      "kind": "agent.outcome",
+      "origin": "agent-supervisor",
+      "payload": {
+        "task_id": "f5a07387-de04-4c5d-a3d1-22ebf7608136",
+        "state": "failed",
+        "source_event_ids": [
+          "697e5fcd-848e-4145-8caa-af29ac01d8b7"
+        ],
+        "objective_revision": 1,
+        "error": "provider error: Meta response did not complete within its token budget"
+      }
+    },
+    {
+      "event_id": "c146ca8d-33d3-4ac8-a224-2d01c4cf5aa0",
+      "sequence": 50,
+      "kind": "routing.decided",
+      "origin": "decisions",
+      "payload": {
+        "source_event_ids": [
+          "10b2348b-4efe-4c34-9826-e785709c7c9c"
+        ],
+        "source_revision": 1,
+        "route": "queue",
+        "reason_code": "explicit_request"
+      }
+    },
+    {
+      "event_id": "6a2f3508-78c9-40d7-a2c2-b4513cc6edff",
+      "sequence": 51,
+      "kind": "agent.command",
+      "origin": "agent-supervisor",
+      "payload": {
+        "task_id": "9436634b-e969-4b86-a2a8-9cd36973a4b2",
+        "state": "accepted",
+        "op": "submit",
+        "source_event_ids": [
+          "10b2348b-4efe-4c34-9826-e785709c7c9c"
+        ],
+        "source_revision": 1,
+        "objective_revision": 1
+      }
+    },
+    {
+      "event_id": "9031c923-3c0b-435c-b35d-56d86453b58a",
+      "sequence": 52,
+      "kind": "routing.dispatch",
+      "origin": "decisions",
+      "payload": {
+        "state": "accepted",
+        "source_event_id": "10b2348b-4efe-4c34-9826-e785709c7c9c",
+        "source_revision": 1,
+        "route": "queue",
+        "native_task_id": "9436634b-e969-4b86-a2a8-9cd36973a4b2",
+        "native_task_state": "accepted"
+      }
+    },
+    {
+      "event_id": "f12f7320-fb5c-4388-96d0-9df44727934d",
+      "sequence": 54,
+      "kind": "routing.decided",
+      "origin": "decisions",
+      "payload": {
+        "source_event_ids": [
+          "bd2b7eaf-2e28-4730-84e2-7e79f6db85d8"
+        ],
+        "source_revision": 1,
+        "route": "ignore",
+        "reason_code": "assistant_has_no_user_authority"
+      }
+    },
+    {
+      "event_id": "74223094-32f0-4fc4-a641-78a17a5bdf87",
+      "sequence": 55,
+      "kind": "artifact.updated",
+      "origin": "agent-supervisor",
+      "payload": {
+        "task_id": "9436634b-e969-4b86-a2a8-9cd36973a4b2",
+        "state": "running",
+        "artifact_id": "3e7f889e-3e4f-40c5-afc8-81050ecc4d8f",
+        "revision": 1,
+        "content_sha256": "b55d19eb16f4aa3240ee0208c37c66f665a0b8aa8f5a9e0c46c0ca42d35bfb78",
+        "objective_revision": 1
+      }
+    },
+    {
+      "event_id": "b17e1428-7e67-4714-9221-9d65225e3923",
+      "sequence": 57,
+      "kind": "agent.outcome",
+      "origin": "agent-supervisor",
+      "payload": {
+        "task_id": "9436634b-e969-4b86-a2a8-9cd36973a4b2",
+        "state": "succeeded",
+        "source_event_ids": [
+          "10b2348b-4efe-4c34-9826-e785709c7c9c"
+        ],
+        "objective_revision": 1
+      }
+    },
+    {
+      "event_id": "6ee9a402-3d14-40f8-922d-c2dfe48b3278",
+      "sequence": 59,
+      "kind": "routing.decided",
+      "origin": "decisions",
+      "payload": {
+        "source_event_ids": [
+          "56519ed3-f173-4003-819d-266ab583b7cf"
+        ],
+        "source_revision": 1,
+        "route": "ignore",
+        "reason_code": "outcome_feedback_loop_prevented"
+      }
+    },
+    {
+      "event_id": "283b3664-3a61-46bd-961b-ddc9431d12bd",
+      "sequence": 62,
+      "kind": "routing.decided",
+      "origin": "decisions",
+      "payload": {
+        "source_event_ids": [
+          "7df7173c-6b20-4780-ad9a-3d1f04b0269b"
+        ],
+        "source_revision": 1,
+        "route": "queue",
+        "reason_code": "explicit_work_request"
+      }
+    },
+    {
+      "event_id": "19845ea5-5bd4-4bb5-93e6-582d62de8e8a",
+      "sequence": 63,
+      "kind": "agent.command",
+      "origin": "agent-supervisor",
+      "payload": {
+        "task_id": "194f7777-9831-43f4-b03f-acf86e0beeba",
+        "state": "accepted",
+        "op": "submit",
+        "source_event_ids": [
+          "7df7173c-6b20-4780-ad9a-3d1f04b0269b"
+        ],
+        "source_revision": 1,
+        "objective_revision": 1
+      }
+    },
+    {
+      "event_id": "fbc13da1-da25-42d7-a260-745d1527217f",
+      "sequence": 64,
+      "kind": "routing.dispatch",
+      "origin": "decisions",
+      "payload": {
+        "state": "accepted",
+        "source_event_id": "7df7173c-6b20-4780-ad9a-3d1f04b0269b",
+        "source_revision": 1,
+        "route": "queue",
+        "native_task_id": "194f7777-9831-43f4-b03f-acf86e0beeba",
+        "native_task_state": "accepted"
+      }
+    },
+    {
+      "event_id": "e65b8420-cfd4-47c2-9d88-a32c156a7e17",
+      "sequence": 66,
+      "kind": "routing.decided",
+      "origin": "decisions",
+      "payload": {
+        "source_event_ids": [
+          "d683d934-fd2c-461a-a8ae-02319e3a1928"
+        ],
+        "source_revision": 1,
+        "route": "ignore",
+        "reason_code": "assistant_has_no_user_authority"
+      }
+    },
+    {
+      "event_id": "f4ab02a5-85ed-4955-b71d-728c1bb6a49f",
+      "sequence": 67,
+      "kind": "artifact.updated",
+      "origin": "agent-supervisor",
+      "payload": {
+        "task_id": "194f7777-9831-43f4-b03f-acf86e0beeba",
+        "state": "running",
+        "artifact_id": "e3af562a-63ef-447c-ba4f-8e4c321c783a",
+        "revision": 1,
+        "content_sha256": "fa4d4c56c67b56bd8f1ffefd668913852a7d70276925fb69fdba4298a243eddc",
+        "objective_revision": 1
+      }
+    },
+    {
+      "event_id": "a89d3ada-2e76-4efb-8bd7-54605241d561",
+      "sequence": 69,
+      "kind": "artifact.updated",
+      "origin": "agent-supervisor",
+      "payload": {
+        "task_id": "194f7777-9831-43f4-b03f-acf86e0beeba",
+        "state": "running",
+        "artifact_id": "b0f44bf4-6e67-4bc2-8c21-66f61a4e1585",
+        "revision": 1,
+        "content_sha256": "2977ac39ea7e130e6bee06af5919bb9a653de8dad362bf384d171732a6960e77",
+        "objective_revision": 1
+      }
+    },
+    {
+      "event_id": "7453ecd0-7edb-4b4d-868c-47e106947c43",
+      "sequence": 71,
+      "kind": "artifact.updated",
+      "origin": "agent-supervisor",
+      "payload": {
+        "task_id": "194f7777-9831-43f4-b03f-acf86e0beeba",
+        "state": "running",
+        "artifact_id": "b7a12380-d994-45c8-99b2-f2bea97ed67b",
+        "revision": 1,
+        "content_sha256": "f203e3efb9fa149e4afd02fcf9aca49d1abbc1c8b22a4e068b7f1d56ea195250",
+        "objective_revision": 1
+      }
+    },
+    {
+      "event_id": "6d786d79-6f67-4023-b6a0-d979ed7b6175",
+      "sequence": 73,
+      "kind": "agent.outcome",
+      "origin": "agent-supervisor",
+      "payload": {
+        "task_id": "194f7777-9831-43f4-b03f-acf86e0beeba",
+        "state": "failed",
+        "source_event_ids": [
+          "7df7173c-6b20-4780-ad9a-3d1f04b0269b"
+        ],
+        "objective_revision": 1,
+        "error": "provider error: Meta response did not complete within its token budget"
+      }
+    },
+    {
+      "event_id": "3c447a76-1df9-43e4-9841-5d6261c3ca4a",
+      "sequence": 76,
+      "kind": "routing.decided",
+      "origin": "decisions",
+      "payload": {
+        "source_event_ids": [
+          "2900cf19-3838-448e-b7dc-a7140fe25e6c"
+        ],
+        "source_revision": 1,
+        "route": "ignore",
+        "reason_code": "casual_dialogue"
+      }
+    },
+    {
+      "event_id": "acfb28ee-496f-4338-9cb4-9058a5846672",
+      "sequence": 78,
+      "kind": "routing.decided",
+      "origin": "decisions",
+      "payload": {
+        "source_event_ids": [
+          "11534d01-30c7-4f26-8228-2c40db17efeb"
+        ],
+        "source_revision": 1,
+        "route": "ignore",
+        "reason_code": "assistant_has_no_user_authority"
+      }
+    },
+    {
+      "event_id": "9188177c-fbee-4472-89d9-1a4d3e37ddcf",
+      "sequence": 80,
+      "kind": "routing.decided",
+      "origin": "decisions",
+      "payload": {
+        "source_event_ids": [
+          "b42929cd-fa3c-4f81-891a-675a1f5e07d9"
+        ],
+        "source_revision": 1,
+        "route": "ignore",
+        "reason_code": "assistant_has_no_user_authority"
+      }
+    },
+    {
+      "event_id": "642959a4-34d0-485b-a9d8-b6db231e556f",
+      "sequence": 84,
+      "kind": "routing.decided",
+      "origin": "decisions",
+      "payload": {
+        "source_event_ids": [
+          "14d62a83-73b5-4eb7-abfe-44f6bce99da8"
+        ],
+        "source_revision": 1,
+        "route": "queue",
+        "reason_code": "work_request"
+      }
+    },
+    {
+      "event_id": "7123d86e-f55c-4213-84cc-3180b3a38315",
+      "sequence": 85,
+      "kind": "agent.command",
+      "origin": "agent-supervisor",
+      "payload": {
+        "task_id": "448d6f33-4ed6-43e9-ae05-952b89fd837f",
+        "state": "accepted",
+        "op": "submit",
+        "source_event_ids": [
+          "14d62a83-73b5-4eb7-abfe-44f6bce99da8"
+        ],
+        "source_revision": 1,
+        "objective_revision": 1
+      }
+    },
+    {
+      "event_id": "a6185442-20ec-4e8d-b2eb-f6ca0cc830ac",
+      "sequence": 86,
+      "kind": "routing.dispatch",
+      "origin": "decisions",
+      "payload": {
+        "state": "accepted",
+        "source_event_id": "14d62a83-73b5-4eb7-abfe-44f6bce99da8",
+        "source_revision": 1,
+        "route": "queue",
+        "native_task_id": "448d6f33-4ed6-43e9-ae05-952b89fd837f",
+        "native_task_state": "accepted"
+      }
+    },
+    {
+      "event_id": "18da46c1-9701-4214-ae0e-191e161ccdaa",
+      "sequence": 88,
+      "kind": "routing.decided",
+      "origin": "decisions",
+      "payload": {
+        "source_event_ids": [
+          "1275baab-56a6-42b1-976a-49347de9b3b9"
+        ],
+        "source_revision": 1,
+        "route": "ignore",
+        "reason_code": "assistant_has_no_user_authority"
+      }
+    },
+    {
+      "event_id": "a54aeb02-c42e-4931-bee9-8c5dd6ab465c",
+      "sequence": 90,
+      "kind": "artifact.updated",
+      "origin": "agent-supervisor",
+      "payload": {
+        "task_id": "448d6f33-4ed6-43e9-ae05-952b89fd837f",
+        "state": "running",
+        "artifact_id": "d01a6f81-aa1f-4545-8787-199491fae8c4",
+        "revision": 1,
+        "content_sha256": "d987c4b7c79d05040ffcad72489eb15bbf44401df7e5c2a4026f82605965fbbf",
+        "objective_revision": 1
+      }
+    },
+    {
+      "event_id": "7de3daa5-a90d-4431-9135-3130207af2b5",
+      "sequence": 92,
+      "kind": "artifact.updated",
+      "origin": "agent-supervisor",
+      "payload": {
+        "task_id": "448d6f33-4ed6-43e9-ae05-952b89fd837f",
+        "state": "running",
+        "artifact_id": "2d37d24f-1340-4ea9-bbfc-1929a1ccdbcd",
+        "revision": 1,
+        "content_sha256": "d678fdaaa7d0e6319fec3fe106a9671e57b8a2d1318c67c41d6ea94b9bca7114",
+        "objective_revision": 1
+      }
+    },
+    {
+      "event_id": "9585b79f-35fa-4afe-9268-2a1c4cb48c07",
+      "sequence": 94,
+      "kind": "artifact.updated",
+      "origin": "agent-supervisor",
+      "payload": {
+        "task_id": "448d6f33-4ed6-43e9-ae05-952b89fd837f",
+        "state": "running",
+        "artifact_id": "cd5e340b-dedf-4d77-97fa-b4df02201793",
+        "revision": 1,
+        "content_sha256": "7d8ae9a66738f3da8876f0905837e0f8482f8eb86d2e4b6cc043953038cda892",
+        "objective_revision": 1
+      }
+    },
+    {
+      "event_id": "b5f847a9-5215-442e-a97d-21b2cf7c49db",
+      "sequence": 96,
+      "kind": "artifact.updated",
+      "origin": "agent-supervisor",
+      "payload": {
+        "task_id": "448d6f33-4ed6-43e9-ae05-952b89fd837f",
+        "state": "running",
+        "artifact_id": "cec3a4c1-df22-48e8-82ba-892ff3ba9fd0",
+        "revision": 1,
+        "content_sha256": "b5b2e6fd2170ed909d8467dec53994126083a62751ffe5e257d609adc4978f0f",
+        "objective_revision": 1
+      }
+    },
+    {
+      "event_id": "29c1a5ce-d6ce-4030-920a-dca13aa1f3fc",
+      "sequence": 98,
+      "kind": "agent.outcome",
+      "origin": "agent-supervisor",
+      "payload": {
+        "task_id": "448d6f33-4ed6-43e9-ae05-952b89fd837f",
+        "state": "failed",
+        "source_event_ids": [
+          "14d62a83-73b5-4eb7-abfe-44f6bce99da8"
+        ],
+        "objective_revision": 1,
+        "error": "provider error: UI publication arguments require a bounded UTF-8 JSON object"
+      }
+    }
+  ],
+  "browser_checks": {
+    "real_flutter_build": true,
+    "reconnect_recovered_existing_session": true,
+    "persisted_quarter": "Q3",
+    "persisted_diagram_node": "books",
+    "results_close_reopen": true,
+    "ask": "Prefills ordinary unsent composer; no model request until explicit Send. Empty public draft disclosure regression fixed; existing restricted drafts stay restricted.",
+    "optional_fallback": "Rich controls replace with readable text; draft and conversation retained.",
+    "portrait_and_transcript": "Stable corner portrait and collapsible real transcript; navy stage; normal composer and Call/Tell controls retained.",
+    "responsive": "390x844 viewport inspected; normal viewport restored.",
+    "voice": "No call or microphone started in these text tests."
+  },
+  "verification": [
+    {
+      "command": "PYTHONPATH=. python -m pytest -q tests/unit/test_seed_history.py tests/integration/test_meta_ui_actions.py tests/unit/test_providers.py tests/unit/test_meta_prompt_count.py tests/unit/test_intelligent_artifacts.py tests/integration/test_intelligent_ui.py tests/unit/test_agent_runtime.py tests/integration/test_agent_seed.py tests/integration/test_harness_agent.py",
+      "result": "186 passed in 27.95 seconds on final history repair source"
+    },
+    {
+      "command": "ruff check .",
+      "result": "passed"
+    },
+    {
+      "command": "ruff format --check .",
+      "result": "passed; 417 files formatted on final source"
+    },
+    {
+      "command": "PYTHONPATH=. pytest -m \"not live\" -q",
+      "result": "4640 passed, 1 failed, 6 skipped, 2 deselected before final Meta wire/history repairs",
+      "failure": "Existing retained-cleanup test timed out in its 2-second setup under concurrent Flutter load, before capacity/cleanup assertions. Original log retained; no timeout or expected result weakened."
+    },
+    {
+      "command": "PYTHONPATH=. pytest -q tests/integration/test_converse_text_cleanup.py",
+      "result": "75 passed, unchanged file after isolated failing case also passed"
+    },
+    {
+      "command": "flutter test --no-pub --reporter expanded",
+      "result": "849 passed on final Flutter source"
+    },
+    {
+      "command": "dart format --output=none --set-exit-if-changed lib test",
+      "result": "152 files, no changes"
+    },
+    {
+      "command": "flutter analyze --no-pub",
+      "result": "passed"
+    },
+    {
+      "command": "node --test web/audio_bridge.test.js",
+      "result": "33 passed"
+    },
+    {
+      "command": "flutter build web --release --no-pub; flutter build web --release --no-pub --target lib/companion_main.dart --output build/companion-web",
+      "result": "owner and companion built; existing CupertinoIcons font warning retained"
+    },
+    {
+      "command": "PYTHONPATH=. pytest -q tests/integration/test_meta_ui_actions.py tests/unit/test_providers.py tests/unit/test_meta_prompt_count.py",
+      "result": "86 passed before long-history regression was added"
+    }
+  ],
+  "negative_observations": [
+    "After bounded history repair, compact database task448d6f33-4ed6-43e9-ae05-952b89fd837f published four valid artifacts and then failed on invalid provider publication arguments. Repeated creation/finish reliability remains #169; no automatic finish or relaxed success criteria were added.",
+    "Initial Laya call lacked its dedicated environment credential; fixed only in isolated child configuration.",
+    "Authenticated Laya kinaiya-v4 correctly ignored greeting but ignored an explicit long new UI task and returned stale-target routing for a short new chart task. No native Agent task was submitted. Tracked in #168; not qualified by this run.",
+    "Pre-wire-fix tasks failed with step/token budgets and produced no artifacts. They had already failed when checked; no cancellation request was sent.",
+    "First post-wire database task produced three valid native artifacts, then failed on provider response budget. Large assistant publication history was confirmed truncated mid-JSON; repaired separately. That defect is not proof of why this individual model call exhausted its output budget."
+  ],
+  "budget": {
+    "limit_usd": 25,
+    "admission_limit_usd": 22,
+    "billing_reported_usd": null,
+    "contributor_estimated_usd": 1.5693045880000012,
+    "cache_aware_admission_estimated_usd": 3.1386091760000023,
+    "reserved_usd": 2.23925145
+  },
+  "budget_interpretation": "Shared development ledger snapshot, not exclusive task spend; billing report unavailable. Ordinary Spark comparison is not Contributor cost. Existing reservations and guard unchanged.",
+  "remaining": [
+    "Agent UI completion qualification #169",
+    "Laya new-task routing #168",
+    "Legacy non-artifact durable final outcome #167",
+    "Real-call AT61",
+    "General live subscriptions and maps/media/code viewers",
+    "Semantic relevance qualification",
+    "Broader Agent inline intelligent UI and new mascot pack design remain separate work"
+  ],
+  "review": {
+    "history_repair": "Independent Codex reviewer approved bounded native receipt and actual-adapter long history tests.",
+    "remaining_failure": "Independent read-only review found all four reconstructed receipts valid (861 UTF-8 bytes each), six history entries below the eight-entry Agent bound, and no confirmed remaining storage/history defect. Model repetition/invalid-output remains #169. Reconstruction is not a captured provider-request body."
+  }
+}

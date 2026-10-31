@@ -71,7 +71,13 @@ The latest Decisions desktop mockup is complete as a design; the design chat rep
 
 The main-stage transition keeps the same portrait, transcript, composer, drafts and keyboard focus; a collapsible transcript appears above the corner portrait, Call/Tell/Stop remain reachable, and narrow/reduced-motion layouts are tested. Pin, close, chooser reopen, active editing, late older-task ordering and connection/session/epoch changes have explicit ownership. Rich rendering has a saved optional fallback. This is a text-capable runtime slice; mobile calls, streaming subscriptions and automatic topic-based relevance are not implemented by it. AT61 and the parent M9 gate stay open.
 
-Verification and synthetic live results are recorded with the associated PR and retained evidence. The live test profile keeps Converse at Muse Spark 1.3 Contributor `minimal` and Agent independently at `xhigh`, through the existing development budget guard. Only fresh fictional public-synthetic inputs are used. Model quality and voice latency require separate human/media tests.
+Verification and synthetic live results are recorded in the [retained evidence](../evaluation/evidence/intelligent-ui-2026-10-30.json) and associated PR. The live text test keeps Converse and its explicitly selected Decisions provider at Muse Spark 1.3 Contributor `minimal`, and Agent independently at `xhigh`, through the unchanged development budget guard. The sales task completed with native publication evidence; a later database task published usable native views but failed on its provider response budget. Long publication history corruption exposed by that run is repaired with bounded native receipts. Laya's new-task routing misses remain open in [#168](https://github.com/rgoza1996/Kinaiya/issues/168). Browser checks cover persisted selectors, schema details, close/reopen, Ask drafts, readable fallback and narrow layout. Only fresh fictional public-synthetic inputs are used. Model quality and voice latency require separate human/media tests.
+
+The post-repair database test still repeated publication and failed on invalid
+model arguments; [#169](https://github.com/rgoza1996/Kinaiya/issues/169) retains
+that qualification gap. Native publication/display works independently of the
+truthfully failed task. General Agent completion reliability is not established
+by this slice.
 
 ## Client reliability
 
