@@ -1,0 +1,119 @@
+{
+  "schema_version": 1,
+  "tracking_issue": 169,
+  "scope": "Constant payload-free decoding diagnostics; terminal failure and validation are unchanged; no model-reliability qualification",
+  "base_commit": "62847f332c3df9126e85fca3f934c0ccf5cd384f",
+  "environment": {
+    "python": "3.12.3",
+    "dependencies": "Existing requirements-dev.lock verification environment; no installations or dependency changes"
+  },
+  "source_sha256": {
+    "packages/providers/text.py": "a833da3f3042b70bd691a147307bc362467dc3464cfdd26bcbd10e9b41fc6472",
+    "packages/providers/whistle_ipc.py": "028fcadc1a47a96362583f1435d4cd0719ea3e7978206c465f45bb69e6208389",
+    "services/agent/runtime.py": "22aa4250ad58096b54d7c94451cc1b6455300017c13b542dd3d18a2b3c4663ed",
+    "tests/unit/test_json_decode_diagnostics.py": "1779bd1482b8de2748183cb34622f59d0acc485ecc72d3013b72e0c56a5c368a",
+    "tests/unit/test_meta_action_diagnostics.py": "c1ee2d228842ff3f968c878907df8a12a045295ddab94fe22d7b1c91d4f7ef8b",
+    "tests/integration/test_meta_ui_actions.py": "5129696d0c0ab33bc4d74344d68c55db89abe0b5fe6ccdd2d365917977c28709"
+  },
+  "verification": {
+    "combined_focused": {
+      "passed": 509,
+      "elapsed_seconds": 33.73,
+      "command": "PYTHONPATH=. python -m pytest -q tests/unit/test_json_decode_diagnostics.py tests/unit/test_meta_action_diagnostics.py tests/unit/test_whistle_boundaries.py tests/unit/test_whistle_config.py tests/unit/test_whistle_stream_backend.py tests/unit/test_whistle_speech_selection.py tests/unit/test_whistle_transport.py tests/unit/test_whistle_native_boundary.py tests/unit/test_qwen3_ipc.py tests/unit/test_meta_tool_snapshot.py tests/unit/test_providers.py tests/unit/test_agent_runtime.py tests/unit/test_agent_completion_confirmation.py tests/integration/test_meta_ui_actions.py tests/integration/test_intelligent_ui.py tests/integration/test_agent_tool_advertising.py tests/integration/test_agent_seed.py tests/integration/test_agent_completion_recovery.py tests/integration/test_agent_completion_races.py"
+    },
+    "independent_review": {
+      "result": "No blockers in code or final docs",
+      "focused_passed": 198,
+      "elapsed_seconds": 9.69,
+      "baseline_acceptance_and_value_comparisons_passed": 102
+    },
+    "baseline": {
+      "result": "Expected assertion failure: diagnostics indistinguishable",
+      "exit_code": 1,
+      "mock_requests": 8,
+      "outer_responses_validated_against_actual_wire_schema": true,
+      "distinct_error_messages": 1,
+      "diagnostics_present": 0,
+      "source": {
+        "base_commit": "62847f332c3df9126e85fca3f934c0ccf5cd384f",
+        "baseline_text_sha256": "856e49999afad0ee7759e7f2d033288459bea95eabe6ce917c952ead0e793483",
+        "scope": "public synthetic mocked adapter only; no HTTP or model calls",
+        "baseline_whistle_ipc_sha256": "831b7916e533df28cffee4342975d57173cdb8e2699615f80547d8fbb8c6dafd",
+        "initial_fixture_note": "Initial rough mock omitted inactive nullable fields; retained as initial-*. Final comparison validates full outer schema."
+      }
+    },
+    "current_probe": {
+      "exit_code": 0,
+      "mock_requests": 8,
+      "distinct_reason_codes": 6,
+      "unchanged_error_message": true,
+      "cases": [
+        {
+          "case": "empty",
+          "stage": "ui_arguments",
+          "reason": "size_limit"
+        },
+        {
+          "case": "syntax",
+          "stage": "ui_arguments",
+          "reason": "json_syntax"
+        },
+        {
+          "case": "array",
+          "stage": "ui_arguments",
+          "reason": "not_object"
+        },
+        {
+          "case": "double_encoded",
+          "stage": "ui_arguments",
+          "reason": "not_object"
+        },
+        {
+          "case": "duplicate",
+          "stage": "ui_arguments",
+          "reason": "duplicate_key"
+        },
+        {
+          "case": "nonfinite",
+          "stage": "ui_arguments",
+          "reason": "non_finite"
+        },
+        {
+          "case": "unicode",
+          "stage": "ui_arguments",
+          "reason": "invalid_unicode"
+        },
+        {
+          "case": "bytes",
+          "stage": "ui_arguments",
+          "reason": "size_limit"
+        }
+      ]
+    },
+    "development_observations": [
+      "Initial shared JSON test assumed recursionlimit+10 exceeds the C parser limit; that value was accepted. Replaced fixture with depth10000 and independently asserted json.loads raises RecursionError. No production limit changed.",
+      "First new Meta diagnostic file run:108 passed and2 fixture failures. An actual inner-text surrogate fails the earlier wire boundary; depth2048 was accepted by the C parser. Corrected expected stage and used an actual depth10000 fixture. Final new-file run:110 passed.",
+      "Initial rough mock baseline omitted inactive nullable wire fields; retained as initial-* in local bundle. Final comparison validates every full outer response against the actual wire schema and loads both original codec/IPC sources.",
+      "Initial format check required formatting3 edited root files; final whole-tree formatting passed."
+    ],
+    "ruff": "Passed whole tree",
+    "format": "434 files already formatted",
+    "diff_check": "Passed",
+    "contract_export": "Passed; generated contract schemas unchanged",
+    "dependency_audit": "No local repeat: locked dependencies unchanged; predecessor exact-head CI passed. New PR CI must run its required audit.",
+    "full_exact_head_ci": "Required before merge; associated PR/GitHub Actions retain exact head and complete results"
+  },
+  "inference": {
+    "real_provider_calls": 0,
+    "network_model_calls": 0,
+    "transport": "httpx.MockTransport only",
+    "fixtures": "public synthetic",
+    "additional_meta_spend_usd": 0
+  },
+  "limits": [
+    "Historical invalid value and reason for repeated view creation are unknown",
+    "Unidentifiable initial outer syntax and final native component validation keep ordinary untyped paths",
+    "No retries, coercion, automatic completion, new grants, deployment or voice quality result",
+    "Issue169 and broader production gates remain open"
+  ]
+}

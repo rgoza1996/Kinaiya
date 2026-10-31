@@ -55,6 +55,7 @@ from packages.contracts.models import (
     TaskState,
 )
 from packages.providers.disclosure import combine_scopes, entry_allowed, scope_allowed, source_scope
+from packages.providers.text import ActionDecodeError
 from services.agent.artifacts import ArtifactConflict, ArtifactInvalid, ArtifactNotFound
 from services.agent.completion import append_completion
 from services.agent.mcp_tools import ModelScopedMCP, run_mcp_call, run_mcp_list
@@ -1492,7 +1493,9 @@ class AgentRuntime:
             ModelScopedMCP(self.mcp_host, self.provider.info) if self.mcp_host is not None else None
         )
 
-    async def _fail(self, rec: _Record, error: str) -> None:
+    async def _fail(
+        self, rec: _Record, error: str, *, decode_error: ActionDecodeError | None = None
+    ) -> None:
         if rec.completion_pending:
             self._pause_completion(rec)
             return
@@ -1500,12 +1503,21 @@ class AgentRuntime:
             return
         rec.task.state = TaskState.FAILED
         rec.task.error = error
+        extra: dict[str, Any] = {"error": error}
+        if decode_error is not None:
+            # Copy only a freshly validated constant pair. Parser exceptions
+            # can retain raw documents, keys and positions; none enter the
+            # native outcome or become additional work/completion evidence.
+            try:
+                extra["provider_diagnostic"] = ActionDecodeError(
+                    decode_error.stage, decode_error.reason
+                ).diagnostic
+            except Exception:
+                pass  # Optional diagnostics cannot prevent the ordinary failure outcome.
         try:
             # A reset/deletion intentionally rejects old-epoch publication. Local
             # waiters must still learn that execution stopped without a stale write.
-            await self._append(
-                rec, "agent.outcome", self._outcome_payload(rec, "failed", {"error": error})
-            )
+            await self._append(rec, "agent.outcome", self._outcome_payload(rec, "failed", extra))
         finally:
             rec.done.set()
 
@@ -1595,6 +1607,9 @@ class AgentRuntime:
                         text = await self.provider.complete(messages)
                 except asyncio.CancelledError:
                     raise
+                except ActionDecodeError as exc:
+                    await self._fail(rec, f"provider error: {exc}", decode_error=exc)
+                    return
                 except Exception as exc:  # provider failure is terminal, honest
                     await self._fail(rec, f"provider error: {exc}")
                     return

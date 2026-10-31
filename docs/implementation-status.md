@@ -79,6 +79,14 @@ that qualification gap. Native publication/display works independently of the
 truthfully failed task. General Agent completion reliability is not established
 by this slice.
 
+The bounded [decoding diagnostic repair](ui-decode-diagnostics.md) distinguishes
+constant JSON/wrapper rejection reasons in authenticated failed outcomes while
+preserving error text, parser guards, terminal failure and prior usable
+artifacts. It retains no raw model/parser content and performs no retry or
+automatic finish. Synthetic adapter/SQLite checks verify that distinction;
+the historical invalid value and repeated creation behavior remain unqualified
+under #169. See [ADR0071](adr/0071-constant-ui-decode-diagnostics.md).
+
 ## Native tool advertisement
 
 The bounded [#171](https://github.com/rgoza1996/Kinaiya/issues/171) advertisement
