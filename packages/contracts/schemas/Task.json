@@ -261,6 +261,23 @@
       ],
       "default": null
     },
+    "auxiliary_models": {
+      "additionalProperties": {
+        "$ref": "#/$defs/AgentModelPin"
+      },
+      "maxProperties": 5,
+      "propertyNames": {
+        "enum": [
+          "analysis",
+          "compression",
+          "title_generation",
+          "delegation",
+          "harness_design"
+        ]
+      },
+      "title": "Auxiliary Models",
+      "type": "object"
+    },
     "error": {
       "anyOf": [
         {
