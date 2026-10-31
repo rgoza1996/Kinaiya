@@ -159,7 +159,15 @@ See the [native foundation scope and toolchain](../../docs/adr/0048-native-app-f
 
 ## Agent interface
 
-The wide workspace searches and inspects actual tasks. Selecting a task changes the details panel, while new instructions retain the current Agent session. Task state, evidence, revision and approvals come from the backend; the concept's illustrative weather, harness versions and voice-context timeline are not fabricated. [Layout and lifecycle rationale](../../docs/adr/0024-concept-layout.md) records the tested scope.
+The Agent workspace has independently collapsible Harnesses and Workspace sidebars,
+with separate sheets on narrow screens. Harnesses shows the protected Core and real
+registered context selectors; Workspace lists the selected harness's native sessions,
+including empty sessions. Native eligibility controls New session. Session selection
+reads actual journal history and restores that session's draft; it starts no work or
+promotion. Historical null associations remain explicit. Task cards follow the
+selected session, while pending approvals remain global. Unsupported inspection,
+uncertain creation and unavailable versions are visible. See the
+[sidebar ownership and verification limits](../../docs/adr/0065-agent-sidebars.md).
 
 Agent Chat consumes the backend command registry, including canonical names, aliases, descriptions and argument hints. Only explicit single-line Agent command input dispatches controls. Quoted/code/path/escaped slash text stays literal; unknown commands never become inference tasks. Commands, new/resume sessions, actual task state and digest/revision-bound approvals use the real backend. Converse has no command UI or parser.
 

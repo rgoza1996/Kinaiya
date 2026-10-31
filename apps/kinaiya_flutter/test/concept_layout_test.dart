@@ -391,7 +391,7 @@ void main() {
   );
 
   testWidgets(
-    'desktop task search inspects without changing draft/session or claiming evidence',
+    'desktop task inspection preserves draft/session and truthful evidence',
     (tester) async {
       tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = const Size(1560, 1000);
@@ -408,13 +408,9 @@ void main() {
       expect(find.byType(NavigationRail), findsOneWidget);
       expect(find.text('Workspace'), findsOneWidget);
       expect(find.text('Task details'), findsOneWidget);
-      await tester.enterText(
-        find.widgetWithText(TextField, 'Search tasks'),
-        'two',
-      );
-      await tester.pump();
-      expect(find.byKey(const ValueKey('workspace-task-one')), findsNothing);
-      await tester.tap(find.byKey(const ValueKey('workspace-task-two')));
+      final inspect = find.widgetWithText(TextButton, 'Inspect task').last;
+      await tester.ensureVisible(inspect);
+      await tester.tap(inspect);
       await settle(tester);
       expect(
         find.text('Finished without independent completion evidence.'),

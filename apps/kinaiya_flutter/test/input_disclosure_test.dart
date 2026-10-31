@@ -601,6 +601,14 @@ void main() {
   ) async {
     final api = ScopeClient()..taskList = [cardTask()];
     final state = withClient(api, BackendProfile.privateCloudAuthorized);
+    // Task cards now belong to the explicitly selected native session.
+    final target = api.taskList.single;
+    state.agentSession = SessionInfo(
+      sessionId: target.sessionId,
+      threadId: target.threadId,
+      channel: 'agent',
+      epoch: target.epoch,
+    );
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
