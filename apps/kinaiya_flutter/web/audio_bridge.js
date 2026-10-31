@@ -4,8 +4,8 @@
  *
  * Calling semantics (important for the Dart JS-interop layer):
  * - Sync string returns: capabilities, cancelMic, stopAudio, playbackActive,
- *   pollEvents, playbackInfo, vadSample, vadConfigure, dispose.
- * - Async (Promise) returns: startMic, stopMic, queuePcm, awaitPlayback,
+ *   pollEvents, playbackInfo, mouthFrame, vadSample, vadConfigure, dispose.
+ * - Async (Promise) returns: startMic, stopMic, queuePcm, queuePcmWithVisemes, awaitPlayback,
  *   startArmed, stopArmed, beginClip, finishClip.
  * The Dart `_str` helper normalizes both shapes; see
  * `lib/audio/speech_audio_web.dart`. The Node test
@@ -16,6 +16,14 @@
 
   var BARGE_SUSTAIN_MS = 220; // sustained voice during playback => barge-in.
   var CLIP_CAP_MS = 60000; // hard 60s cap per voice clip.
+  var MOUTH_WINDOW_SECONDS = 0.020;
+  var MOUTH_MAX_WINDOWS = 1000;
+  var MOUTH_MAX_CHUNKS = 128;
+  var VISEME_OPENNESS = {
+    sil: 0, PP: 0, FF: 0.35, TH: 0.5, DD: 0.5, kk: 0.5,
+    CH: 0.5, SS: 0.4, nn: 0.3, RR: 0.5, aa: 1,
+    E: 0.7, ih: 0.5, oh: 0.8, ou: 0.6,
+  };
 
   var state = {
     stream: null,
@@ -27,6 +35,9 @@
     vadTimer: 0,
     sources: [],
     records: [], // {start, end, duration} per scheduled source.
+    // Compact RMS windows only: never retain a second copy of the PCM.
+    mouthRecords: [],
+    mouth: { openness: 0, pose: 0, lastTime: null },
     queueTime: 0,
     playing: false,
     events: [],
@@ -192,6 +203,103 @@
         /* ignore */
       }
     }
+  }
+
+  function resetMouth() {
+    state.mouth = { openness: 0, pose: 0, lastTime: null };
+  }
+
+  function pruneMouth(now) {
+    state.mouthRecords = state.mouthRecords.filter(function (record) {
+      return record.end > now && record.generation === state.generation;
+    });
+  }
+
+  function mouthEnvelope(samples, rate) {
+    var step = Math.max(1, Math.ceil(rate * MOUTH_WINDOW_SECONDS),
+      Math.ceil(samples.length / MOUTH_MAX_WINDOWS));
+    var levels = new Float32Array(Math.ceil(samples.length / step));
+    for (var i = 0; i < levels.length; i++) {
+      var end = Math.min(samples.length, (i + 1) * step);
+      var sum = 0;
+      for (var j = i * step; j < end; j++) sum += samples[j] * samples[j];
+      levels[i] = Math.sqrt(sum / (end - i * step));
+    }
+    return { levels: levels, step: step / rate };
+  }
+
+  // Optional, bounded provider metadata. Invalid lists are discarded as a whole
+  // so malformed timing cannot shift valid-looking cues onto different speech.
+  function parseVisemes(input, duration) {
+    if (typeof input === 'string') {
+      if (input.length > 65536) return [];
+      try { input = JSON.parse(input); } catch (e) { return []; }
+    }
+    if (!Array.isArray(input) || input.length > 256) return [];
+    var result = [];
+    var previousEnd = 0;
+    for (var i = 0; i < input.length; i++) {
+      var cue = input[i];
+      if (!cue || typeof cue !== 'object' || Array.isArray(cue) ||
+          typeof cue.start_ms !== 'number' || !Number.isFinite(cue.start_ms) ||
+          typeof cue.end_ms !== 'number' || !Number.isFinite(cue.end_ms) ||
+          cue.start_ms < previousEnd || cue.end_ms <= cue.start_ms ||
+          cue.end_ms > duration * 1000 + 0.001 ||
+          typeof cue.viseme !== 'string' ||
+          !Object.prototype.hasOwnProperty.call(VISEME_OPENNESS, cue.viseme)) return [];
+      result.push({ start: cue.start_ms / 1000, end: cue.end_ms / 1000, viseme: cue.viseme });
+      previousEnd = cue.end_ms;
+    }
+    return result;
+  }
+
+  function readMouthFrame() {
+    var closed = { openness: 0, viseme: null, active: false };
+    if (!state.ctx || state.ctx.state !== 'running') {
+      resetMouth();
+      return closed;
+    }
+    var now = state.ctx.currentTime;
+    pruneMouth(now);
+    var record = null;
+    for (var i = 0; i < state.mouthRecords.length; i++) {
+      var candidate = state.mouthRecords[i];
+      if (now >= candidate.start && now < candidate.end) { record = candidate; break; }
+    }
+    if (!record) { resetMouth(); return closed; }
+    var local = now - record.start;
+    var index = Math.min(record.levels.length - 1, Math.floor(local / record.step));
+    var rms = record.levels[index];
+    // A small silence gate closes immediately between words and keeps noise
+    // from driving the mouth. Hysteresis below avoids rapid pose changes.
+    if (rms < 0.008) {
+      resetMouth();
+      return { openness: 0, viseme: null, active: true };
+    }
+    var viseme = null;
+    for (var j = 0; j < record.visemes.length; j++) {
+      var cue = record.visemes[j];
+      if (local >= cue.start && local < cue.end) { viseme = cue.viseme; break; }
+    }
+    var mouth = state.mouth;
+    var target;
+    if (viseme !== null) {
+      target = VISEME_OPENNESS[viseme];
+    } else {
+      var pose = mouth.pose;
+      if (rms >= (pose === 1 ? 0.055 : 0.075)) pose = 1;
+      else if (rms >= (pose > 0 ? 0.008 : 0.012)) pose = 0.5;
+      else pose = 0;
+      mouth.pose = pose;
+      target = pose;
+    }
+    var dt = mouth.lastTime === null ? 1 / 30 : Math.max(0, Math.min(0.1, now - mouth.lastTime));
+    // Attack/release follow the playback clock, independent of UI poll rate.
+    var tau = target > mouth.openness ? 0.025 : 0.045;
+    mouth.openness += (target - mouth.openness) * (1 - Math.exp(-dt / tau));
+    if (target === 0 && mouth.openness < 0.01) mouth.openness = 0;
+    mouth.lastTime = now;
+    return { openness: mouth.openness, viseme: viseme, active: true };
   }
 
   function startRecorderOnStream() {
@@ -442,7 +550,7 @@
       return 'cancelled';
     },
 
-    queuePcm: function (base64, sampleRate) {
+    queuePcm: function (base64, sampleRate, visemes) {
       // Capture the generation before awaiting resume: stopAudio bumps it,
       // so a stop issued while suspended invalidates this entry and no
       // stale source is ever started.
@@ -481,15 +589,35 @@
           return 'stopped';
         }
         var rec = { start: start, end: start + buf.duration, duration: buf.duration };
+        pruneMouth(ctx.currentTime);
+        // Retain the next audible chunks when an unusually deep queue fills
+        // the metadata budget; playback acknowledgments remain independent.
+        var mouthRecord = null;
+        if (state.mouthRecords.length < MOUTH_MAX_CHUNKS) {
+          var envelope = mouthEnvelope(ch, rate);
+          mouthRecord = {
+            start: rec.start, end: rec.end, generation: gen, source: src,
+            levels: envelope.levels, step: envelope.step,
+            visemes: parseVisemes(visemes, buf.duration),
+          };
+          state.mouthRecords.push(mouthRecord);
+        }
         state.queueTime = rec.end;
         state.sources.push(src);
         state.records.push(rec);
         if (state.records.length > 128) state.records.shift();
         src.onended = function () {
           if (gen !== state.generation) return;
+          // Look up by source so expired envelope metadata is not retained by
+          // this callback while waiting for a delayed browser onended event.
+          state.mouthRecords = state.mouthRecords.filter(function (r) {
+            return r.source !== src;
+          });
           var i = state.sources.indexOf(src);
           if (i >= 0) state.sources.splice(i, 1);
           if (state.sources.length === 0) {
+            state.mouthRecords = [];
+            resetMouth();
             state.playing = false;
             state.queueTime = 0;
             if (state.ctx) {
@@ -509,6 +637,14 @@
         }
         return 'queued';
       });
+    },
+
+    queuePcmWithVisemes: function (base64, sampleRate, visemes) {
+      return api.queuePcm(base64, sampleRate, visemes);
+    },
+
+    mouthFrame: function () {
+      return JSON.stringify(readMouthFrame());
     },
 
     awaitPlayback: function () {
@@ -543,6 +679,8 @@
       }
       state.sources = [];
       state.records = [];
+      state.mouthRecords = [];
+      resetMouth();
       state.playing = false;
       state.queueTime = 0;
       if (state.ctx) {

@@ -52,6 +52,7 @@ function makeFakes(opts = {}) {
   }
   class FakeContext {
     constructor() {
+      seen.context = this;
       this.currentTime = 100;
       this.state = opts.suspended ? 'suspended' : 'running';
       this.destination = {};
@@ -83,7 +84,14 @@ function makeFakes(opts = {}) {
   const sandbox = {
     console,
     queueMicrotask, setTimeout, clearTimeout, setInterval, clearInterval,
-    Uint8Array, Float32Array, Array, Object, JSON, Math, Date: opts.clock ? class extends Date { static now() { return opts.clock.value; } } : Date, Promise,
+    Uint8Array,
+    Float32Array: opts.trackEnvelopes ? class extends Float32Array {
+      constructor(length) {
+        super(length);
+        (seen.envelopeSizes ??= []).push(this.length);
+      }
+    } : Float32Array,
+    Array, Object, JSON, Math, Date: opts.clock ? class extends Date { static now() { return opts.clock.value; } } : Date, Promise,
     Blob, atob: (s) => Buffer.from(s, 'base64').toString('binary'),
     btoa: (s) => Buffer.from(s, 'binary').toString('base64'),
     MediaRecorder: FakeMediaRecorder,
@@ -353,6 +361,156 @@ test('old source ended callback cannot complete a new generation playback', asyn
   assert.equal(ended,false);
   sources[1].onended();await waiter;
   assert.equal(ended,true);
+  api.dispose();
+});
+
+function pcmLevels(segments, rate = 1000) {
+  const samples = [];
+  for (const [milliseconds, level] of segments) {
+    for (let i = 0; i < Math.round(milliseconds * rate / 1000); i++) {
+      samples.push(Math.round(level * 32767));
+    }
+  }
+  return Buffer.from(new Int16Array(samples).buffer).toString('base64');
+}
+
+function mouthAt(api, seen, time) {
+  seen.context.currentTime = time;
+  return JSON.parse(api.mouthFrame());
+}
+
+test('mouth follows played PCM volume, closes in silence, and never opens the mic', async () => {
+  const {api, seen} = makeFakes();
+  assert.deepEqual(JSON.parse(api.mouthFrame()), {openness: 0, viseme: null, active: false});
+  await api.queuePcm(pcmLevels([[60, 0], [60, 0.035], [60, 0.25], [20, 0]]), 1000);
+  assert.deepEqual(mouthAt(api, seen, 100.01), {openness: 0, viseme: null, active: true});
+  const moderate = mouthAt(api, seen, 100.07);
+  assert.ok(moderate.openness > 0.3 && moderate.openness < 0.5);
+  assert.ok(mouthAt(api, seen, 100.11).openness < 0.51);
+  const loud = mouthAt(api, seen, 100.15);
+  assert.ok(loud.openness > 0.8 && loud.openness <= 1);
+  assert.equal(mouthAt(api, seen, 100.19).openness, 0, 'silence closes promptly between words');
+  assert.equal(seen.constraints, undefined, 'sampling playback does not request microphone access');
+  api.dispose();
+});
+
+test('queued future chunks and suspended context cannot animate ahead of played audio', async () => {
+  const {api, seen} = makeFakes();
+  await api.queuePcm(pcmLevels([[200, 0]]), 1000);
+  await api.queuePcmWithVisemes(pcmLevels([[200, 0.25]]), 1000,
+    [{start_ms: 0, end_ms: 200, viseme: 'aa'}]);
+  assert.equal(mouthAt(api, seen, 100.1).openness, 0);
+  assert.equal(mouthAt(api, seen, 100.21).viseme, 'aa');
+  seen.context.state = 'suspended';
+  assert.deepEqual(JSON.parse(api.mouthFrame()), {openness: 0, viseme: null, active: false});
+  seen.context.state = 'running';
+  assert.equal(mouthAt(api, seen, 100.25).viseme, 'aa');
+  api.dispose();
+});
+
+test('mouth smoothing uses playback time and hysteresis rather than poll frequency', async () => {
+  const {api, seen} = makeFakes();
+  await api.queuePcm(pcmLevels([[40, 0.25], [40, 0.065], [40, 0.04], [40, 0.009]]), 1000);
+  const first = mouthAt(api, seen, 100.01);
+  for (let i = 0; i < 10; i++) assert.deepEqual(mouthAt(api, seen, 100.01), first);
+  assert.ok(mouthAt(api, seen, 100.05).openness > first.openness,
+    'open pose persists while above its lower release threshold');
+  assert.ok(mouthAt(api, seen, 100.1).openness < 0.8,
+    'moderate audio moves toward half open');
+  assert.ok(mouthAt(api, seen, 100.15).openness > 0.4,
+    'small noise changes around a boundary do not repeatedly close an open mouth');
+  api.dispose();
+});
+
+test('valid visemes override volume, uncovered times use volume, silence stays closed', async () => {
+  const {api, seen} = makeFakes();
+  const audio = pcmLevels([[160, 0.25], [40, 0]]);
+  assert.equal(await api.queuePcmWithVisemes(audio, 1000, JSON.stringify([
+    {start_ms: 0, end_ms: 40, viseme: 'PP'},
+    {start_ms: 40, end_ms: 80, viseme: 'aa'},
+    {start_ms: 160, end_ms: 200, viseme: 'aa'},
+  ])), 'queued');
+  assert.deepEqual(mouthAt(api, seen, 100.01), {openness: 0, viseme: 'PP', active: true});
+  assert.equal(mouthAt(api, seen, 100.05).viseme, 'aa');
+  const uncovered = mouthAt(api, seen, 100.1);
+  assert.equal(uncovered.viseme, null);
+  assert.ok(uncovered.openness > 0.8);
+  assert.equal(mouthAt(api, seen, 100.18).openness, 0);
+  api.dispose();
+});
+
+test('malformed, overlapping, oversized and unsupported viseme lists fall back to PCM', async () => {
+  const badLists = [
+    'not JSON', {}, ' '.repeat(65537),
+    [{start_ms: -1, end_ms: 20, viseme: 'PP'}],
+    [{start_ms: '0', end_ms: 20, viseme: 'PP'}],
+    [{start_ms: 0, end_ms: 0, viseme: 'PP'}],
+    [{start_ms: 0, end_ms: NaN, viseme: 'PP'}],
+    [{start_ms: 0, end_ms: 2000, viseme: 'PP'}],
+    [{start_ms: 0, end_ms: 20, viseme: 'invented'}],
+    [{start_ms: 0, end_ms: 20, viseme: 'toString'}],
+    [{start_ms: 0, end_ms: 20, viseme: 'PP'}, {start_ms: 10, end_ms: 30, viseme: 'aa'}],
+    Array.from({length: 257}, (_, i) => ({start_ms: i, end_ms: i + 1, viseme: 'PP'})),
+  ];
+  for (const cues of badLists) {
+    const {api, seen} = makeFakes();
+    assert.equal(await api.queuePcmWithVisemes(pcmLevels([[1000, 0.25]]), 1000, cues), 'queued');
+    const frame = mouthAt(api, seen, 100.01);
+    assert.equal(frame.viseme, null);
+    assert.ok(frame.openness > 0.7, 'malformed cues never mute valid PCM amplitude');
+    api.dispose();
+  }
+});
+
+test('natural end closes the mouth before onended but never acknowledges playback early', async () => {
+  const {api, seen, sources} = makeFakes();
+  await api.queuePcm(pcmLevels([[100, 0.25]]), 1000);
+  assert.ok(mouthAt(api, seen, 100.01).openness > 0);
+  let ended = false;
+  const waiter = api.awaitPlayback().then(() => { ended = true; });
+  assert.deepEqual(mouthAt(api, seen, 100.11), {openness: 0, viseme: null, active: false});
+  await Promise.resolve();
+  assert.equal(ended, false);
+  sources[0].onended();
+  await waiter;
+  assert.equal(ended, true);
+  assert.equal(JSON.parse(api.mouthFrame()).active, false);
+  api.dispose();
+});
+
+test('stop, disposal and stale pending PCM clear mouth state across generations', async () => {
+  const {api, seen, sources} = makeFakes();
+  const audio = pcmLevels([[1000, 0.25]]);
+  await api.queuePcmWithVisemes(audio, 1000, [{start_ms: 0, end_ms: 1000, viseme: 'aa'}]);
+  assert.equal(mouthAt(api, seen, 100.01).viseme, 'aa');
+  api.stopAudio();
+  assert.deepEqual(JSON.parse(api.mouthFrame()), {openness: 0, viseme: null, active: false});
+  await api.queuePcm(audio, 1000);
+  sources[0].onended();
+  assert.equal(mouthAt(api, seen, 100.02).active, true, 'stale callback cannot clear new speech');
+  api.dispose();
+  assert.deepEqual(JSON.parse(api.mouthFrame()), {openness: 0, viseme: null, active: false});
+
+  const pending = makeFakes({suspended: true, holdResume: true});
+  const result = pending.api.queuePcmWithVisemes(audio, 1000,
+    [{start_ms: 0, end_ms: 1000, viseme: 'aa'}]);
+  pending.api.stopAudio();
+  pending.resumeGate.release();
+  assert.equal(await result, 'stopped');
+  assert.equal(JSON.parse(pending.api.mouthFrame()).active, false);
+  pending.api.dispose();
+});
+
+test('mouth metadata has bounded chunks/windows and expires after playback', async () => {
+  const {api, seen, sources} = makeFakes({trackEnvelopes: true});
+  const audio = pcmLevels([[30000, 0.25]]);
+  for (let i = 0; i < 140; i++) await api.queuePcm(audio, 1000);
+  assert.equal(seen.envelopeSizes.length, 128);
+  assert.ok(seen.envelopeSizes.every(size => size <= 1000));
+  for (const source of sources) source.onended();
+  assert.equal(JSON.parse(api.mouthFrame()).active, false);
+  await api.queuePcm(audio, 1000);
+  assert.equal(seen.envelopeSizes.length, 129, 'natural completion releases the metadata budget');
   api.dispose();
 });
 

@@ -47,6 +47,13 @@ Kinaiya** arms the existing live browser listener; **End conversation** stops
 that listener. The mascot and **Setup** open model/conversation settings.
 The optional **Converse** view uses the supplied close-up character art, complete
 scrollable transcript, text composer, microphone controls and model summary.
+The default portrait's mouth follows the played audio, closing during silence
+and when playback stops. Optional timed viseme cues select mouth shapes; current
+providers use the audio-volume fallback. **Speech mouth movement** in Character
+& motion controls this behavior; Reduce motion also keeps the mouth still.
+Imported packs retain their own speaking animation. The
+[mouth playback contract](../../docs/adr/0064-speech-mouth-playback.md) records
+cue format, timing, lifecycle and verification limits.
 **Tell Kinaiya** remains available in Converse and Converse chat for one recorded
 message. These browser controls do not implement mobile calling or signaling.
 

@@ -4,6 +4,7 @@ class PresentationPreferences {
   const PresentationPreferences({
     this.reducedMotion = false,
     this.animateTransitions = true,
+    this.speechMouthMotion = true,
     this.showCharacter = true,
     this.showCaptions = true,
     this.usePackPalette = true,
@@ -14,6 +15,7 @@ class PresentationPreferences {
 
   final bool reducedMotion;
   final bool animateTransitions;
+  final bool speechMouthMotion;
   final bool showCharacter;
   final bool showCaptions;
   final bool usePackPalette;
@@ -26,6 +28,7 @@ class PresentationPreferences {
   PresentationPreferences copyWith({
     bool? reducedMotion,
     bool? animateTransitions,
+    bool? speechMouthMotion,
     bool? showCharacter,
     bool? showCaptions,
     bool? usePackPalette,
@@ -36,6 +39,7 @@ class PresentationPreferences {
   }) => PresentationPreferences(
     reducedMotion: reducedMotion ?? this.reducedMotion,
     animateTransitions: animateTransitions ?? this.animateTransitions,
+    speechMouthMotion: speechMouthMotion ?? this.speechMouthMotion,
     showCharacter: showCharacter ?? this.showCharacter,
     showCaptions: showCaptions ?? this.showCaptions,
     usePackPalette: usePackPalette ?? this.usePackPalette,
@@ -55,6 +59,7 @@ class PresentationPreferences {
   Map<String, dynamic> toJson() => {
     'reduced_motion': reducedMotion,
     'animate_transitions': animateTransitions,
+    'speech_mouth_motion': speechMouthMotion,
     'show_character': showCharacter,
     'show_captions': showCaptions,
     'use_pack_palette': usePackPalette,
@@ -64,8 +69,8 @@ class PresentationPreferences {
   };
 
   static PresentationPreferences fromJson(Object? value) {
-    // Read the two released shapes without discarding their choices. New writes
-    // include both additive preferences; incomplete or unknown shapes fail closed.
+    // Accept each complete released shape without discarding its choices.
+    // Additive settings default on; incomplete or unknown shapes fail closed.
     const oldKeys = {
       'reduced_motion',
       'show_character',
@@ -76,6 +81,7 @@ class PresentationPreferences {
     };
     const converseKey = 'show_converse_view';
     const transitionsKey = 'animate_transitions';
+    const mouthMotionKey = 'speech_mouth_motion';
     if (value is! Map<String, dynamic>) {
       throw const FormatException('Invalid presentation preferences.');
     }
@@ -88,7 +94,7 @@ class PresentationPreferences {
           (key) => oldKeys.contains(key) || key == converseKey,
         ) &&
         value.containsKey(converseKey);
-    final isNewShape =
+    final isTransitionsShape =
         value.length == oldKeys.length + 2 &&
         value.keys.every(
           (key) =>
@@ -98,13 +104,30 @@ class PresentationPreferences {
         ) &&
         value.containsKey(converseKey) &&
         value.containsKey(transitionsKey);
-    if ((!isOldShape && !isConverseShape && !isNewShape) ||
+    final isNewShape =
+        value.length == oldKeys.length + 3 &&
+        value.keys.every(
+          (key) =>
+              oldKeys.contains(key) ||
+              key == converseKey ||
+              key == transitionsKey ||
+              key == mouthMotionKey,
+        ) &&
+        value.containsKey(converseKey) &&
+        value.containsKey(transitionsKey) &&
+        value.containsKey(mouthMotionKey);
+    if ((!isOldShape &&
+            !isConverseShape &&
+            !isTransitionsShape &&
+            !isNewShape) ||
         value['reduced_motion'] is! bool ||
         value['show_character'] is! bool ||
         value['show_captions'] is! bool ||
         value['use_pack_palette'] is! bool ||
         (!isOldShape && value[converseKey] is! bool) ||
-        (isNewShape && value[transitionsKey] is! bool) ||
+        ((isTransitionsShape || isNewShape) &&
+            value[transitionsKey] is! bool) ||
+        (isNewShape && value[mouthMotionKey] is! bool) ||
         (value['primary_override'] != null &&
             value['primary_override'] is! String) ||
         (value['background_override'] != null &&
@@ -113,7 +136,10 @@ class PresentationPreferences {
     }
     final preferences = PresentationPreferences(
       reducedMotion: value['reduced_motion'] as bool,
-      animateTransitions: isNewShape ? value[transitionsKey] as bool : true,
+      animateTransitions: isTransitionsShape || isNewShape
+          ? value[transitionsKey] as bool
+          : true,
+      speechMouthMotion: isNewShape ? value[mouthMotionKey] as bool : true,
       showCharacter: value['show_character'] as bool,
       showCaptions: value['show_captions'] as bool,
       usePackPalette: value['use_pack_palette'] as bool,

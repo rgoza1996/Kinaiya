@@ -717,6 +717,10 @@ class _HomeShellState extends State<HomeShell> {
                                     child: Material(
                                       type: MaterialType.transparency,
                                       child: CharacterView(
+                                        speechMouthMotion: widget
+                                            .presentation
+                                            .preferences
+                                            .speechMouthMotion,
                                         surface: isConverse
                                             ? CharacterSurface.interaction
                                             : CharacterSurface.home,

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:uuid/uuid.dart';
 
 import '../api/client.dart';
@@ -75,6 +76,7 @@ class CharacterView extends StatefulWidget {
     this.showConverseView = true,
     this.setupOpen = false,
     this.animateTransitions = true,
+    this.speechMouthMotion = true,
     this.scenePrimary = kinaiyaIndigo,
     this.sceneBackground = kinaiyaWhite,
   });
@@ -88,7 +90,7 @@ class CharacterView extends StatefulWidget {
   final bool voiceOnlyControls;
   final CharacterSurface surface;
   final VoidCallback? onModelSettings;
-  final bool showConverseView, setupOpen, animateTransitions;
+  final bool showConverseView, setupOpen, animateTransitions, speechMouthMotion;
   final Color scenePrimary, sceneBackground;
 
   @override
@@ -264,8 +266,99 @@ class _CharacterViewState extends State<CharacterView> {
   bool _micStopUnconfirmed = false;
   bool _micStopPending = false;
   bool _windowSpeechStopUnconfirmed = false;
+  final _mouthFrame = ValueNotifier<SpeechMouthFrame>(SpeechMouthFrame.closed);
+  Timer? _mouthTimer;
+  int _mouthGeneration = 0;
+  bool _mouthReadPending = false;
+  bool _mouthVisible = false;
+
+  void _setMouthFrame(SpeechMouthFrame frame) {
+    // Preferences and connection ownership can change during a parent build.
+    // Only the portrait subtree listens; defer notifications in that phase.
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      final generation = _mouthGeneration;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && generation == _mouthGeneration) {
+          _mouthFrame.value = frame;
+        }
+      });
+    } else {
+      _mouthFrame.value = frame;
+    }
+  }
+
+  bool get _canAnimateMouth =>
+      _speaking &&
+      _mouthVisible &&
+      widget.speechMouthMotion &&
+      widget.showCharacter &&
+      widget.character?.packageJson == null &&
+      widget.surface == CharacterSurface.interaction &&
+      _audio is SpeechMouthAudio;
+
+  void _syncMouthSampling() {
+    if (!_canAnimateMouth) {
+      _mouthTimer?.cancel();
+      _mouthTimer = null;
+      _mouthGeneration++;
+      if (_mouthFrame.value.active || _mouthFrame.value.openness != 0) {
+        _setMouthFrame(SpeechMouthFrame.closed);
+      }
+      return;
+    }
+    _mouthTimer ??= Timer.periodic(
+      const Duration(milliseconds: 33),
+      (_) => unawaited(_sampleMouth()),
+    );
+  }
+
+  Future<void> _sampleMouth() async {
+    if (!_canAnimateMouth || _mouthReadPending) return;
+    final generation = _mouthGeneration;
+    final nonce = _s.turnNonce;
+    final speechEpoch = _s.speechEpoch;
+    _mouthReadPending = true;
+    // Future.timeout does not cancel the capability read. Keep its slot until
+    // the original future settles so a stalled adapter cannot accumulate reads.
+    final read = Future<SpeechMouthFrame>.sync(
+      () => (_audio as SpeechMouthAudio).mouthFrame(),
+    ).whenComplete(() => _mouthReadPending = false);
+    try {
+      final frame = await read.timeout(
+        const Duration(milliseconds: 100),
+        onTimeout: () => SpeechMouthFrame.closed,
+      );
+      if (!mounted ||
+          generation != _mouthGeneration ||
+          nonce != _s.turnNonce ||
+          speechEpoch != _s.speechEpoch ||
+          !_canAnimateMouth) {
+        return;
+      }
+      final current = _mouthFrame.value;
+      if (current.openness != frame.openness ||
+          current.viseme != frame.viseme ||
+          current.active != frame.active) {
+        _setMouthFrame(frame);
+      }
+    } catch (_) {
+      if (mounted && generation == _mouthGeneration && _canAnimateMouth) {
+        _setMouthFrame(SpeechMouthFrame.closed);
+      }
+    }
+  }
+
+  Future<void> _stopLocalPlayback() {
+    _mouthGeneration++;
+    _mouthTimer?.cancel();
+    _mouthTimer = null;
+    _setMouthFrame(SpeechMouthFrame.closed);
+    return _audio.stopPlayback();
+  }
 
   void _publishVoiceActivity() {
+    _syncMouthSampling();
     if (_voiceReportScheduled || widget.onActivityChanged == null) return;
     _voiceReportScheduled = true;
     // Reconnect can update this widget during its parent's build. Activity is
@@ -415,9 +508,23 @@ class _CharacterViewState extends State<CharacterView> {
       _publishVoiceActivity();
       unawaited(_audio.stopArmed());
       unawaited(_audio.cancelRecording());
-      unawaited(_audio.stopPlayback());
+      unawaited(_stopLocalPlayback());
       unawaited(_refreshVoice());
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _syncMouthSampling();
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _mouthVisible =
+        TickerMode.valuesOf(context).enabled &&
+        !MediaQuery.of(context).disableAnimations;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _syncMouthSampling();
+    });
   }
 
   @override
@@ -425,6 +532,8 @@ class _CharacterViewState extends State<CharacterView> {
     _dismissTextConversation();
     _detachSettingsControls();
     _pollTimer?.cancel();
+    _mouthTimer?.cancel();
+    _mouthGeneration++;
     _noticeSubscription?.cancel();
     _windowSubscription?.cancel();
     _resourceSubscription?.cancel();
@@ -438,6 +547,7 @@ class _CharacterViewState extends State<CharacterView> {
     unawaited(_audio.cancelRecording());
     unawaited(_audio.stopPlayback());
     unawaited(_audio.dispose());
+    _mouthFrame.dispose();
     _input.dispose();
     super.dispose();
   }
@@ -512,7 +622,7 @@ class _CharacterViewState extends State<CharacterView> {
       _s.turnNonce++;
       _s.speechEpoch = epoch;
       _speechQueue = SpeechQueue();
-      await _audio.stopPlayback();
+      await _stopLocalPlayback();
       if (!mounted || !_armed) return;
       setState(() => _speaking = false);
       _publishVoiceActivity();
@@ -596,7 +706,7 @@ class _CharacterViewState extends State<CharacterView> {
 
     _s.busyConverse = true;
     _speechQueue = SpeechQueue();
-    await _audio.stopPlayback();
+    await _stopLocalPlayback();
     await _interruptBarrier;
     if (!stillAuthorized()) return;
     try {
@@ -832,7 +942,15 @@ class _CharacterViewState extends State<CharacterView> {
           base64Length: audio.length,
           sampleRate: rate,
         );
-        if (!await _audio.queuePcm(audio, rate)) return;
+        final mouthAudio = _audio;
+        final queued = mouthAudio is SpeechMouthAudio
+            ? await (mouthAudio as SpeechMouthAudio).queuePcmWithVisemes(
+                audio,
+                rate,
+                frame['visemes'],
+              )
+            : await _audio.queuePcm(audio, rate);
+        if (!queued) return;
         if (!turnOwnsCleanup(nonce, _s.turnNonce)) break;
         if (!_s.audioIsLive(nonce, epoch)) break;
         if (!started) {
@@ -959,7 +1077,7 @@ class _CharacterViewState extends State<CharacterView> {
     _s.speechEpoch++;
     _s.busyConverse = false;
     _speechQueue = SpeechQueue();
-    final stopped = _audio.stopPlayback();
+    final stopped = _stopLocalPlayback();
     if (mounted) {
       setState(() {
         _speaking = false;
@@ -1029,7 +1147,7 @@ class _CharacterViewState extends State<CharacterView> {
       await Future.wait([
         _audio.stopArmed(),
         _audio.cancelRecording(),
-        if (stopWindowSpeech) _audio.stopPlayback(),
+        if (stopWindowSpeech) _stopLocalPlayback(),
       ]).timeout(const Duration(seconds: 3));
       if (mounted && owner == _armOwner) {
         setState(() {
@@ -2411,9 +2529,14 @@ class _CharacterViewState extends State<CharacterView> {
                   pack?.fallback != true
               ? InkWell(
                   onTap: widget.onModelSettings,
-                  child: ConversePortrait(
-                    speaking: _speaking,
-                    thinking: _s.busyConverse && !_speaking,
+                  child: ValueListenableBuilder<SpeechMouthFrame>(
+                    valueListenable: _mouthFrame,
+                    builder: (context, frame, _) => ConversePortrait(
+                      speaking: _speaking,
+                      thinking: _s.busyConverse && !_speaking,
+                      mouthOpenness: _canAnimateMouth ? frame.openness : 0,
+                      viseme: _canAnimateMouth ? frame.viseme : null,
+                    ),
                   ),
                 )
               : LayoutBuilder(
