@@ -19,6 +19,8 @@ from packages.contracts.agent_tools import (
     LEGACY_NATIVE_TOOL_ORDER,
     NATIVE_TOOL_ORDER,
     agent_export_permitted,
+    capture_agent_export_admission,
+    capture_agent_export_check,
     current_agent_tools,
 )
 from packages.contracts.models import ProviderInfo
@@ -107,6 +109,9 @@ _UI_WIRE_MAX_BYTES = 6 * _UI_SPEC_MAX_BYTES + 8192
 # The largest ordinary native argument is a 256 KiB file write. Escaping may
 # expand its wire representation sixfold; this bound does not grant a write.
 _TYPED_WIRE_MAX_BYTES = 6 * 256 * 1024 + 8192
+# Prepared complete requests bound raw, identity-encoded response bytes to
+# 8 MiB. This is a native transport/memory limit, not a model context capacity.
+_COMPLETE_MAX_RAW_BYTES = 8 * 1024 * 1024
 
 
 def _closed_json_object(encoded, limit, stage):
@@ -290,6 +295,37 @@ class ScriptedProvider:
         if isinstance(value, Exception):
             raise value
         return value
+
+    async def prepare_complete(self, messages):
+        """An explicit non-inference fixture; never guess a tokenizer count."""
+        from packages.providers.completion_budget import PreparedComplete
+        from packages.providers.prompt_budget import PromptCountUnavailable, request_digest
+
+        owner, snapshot = asyncio.current_task(), current_agent_tools()
+        captured = capture_agent_export_check()
+        try:
+            detached = copy.deepcopy(messages)
+            stamp = request_digest(detached)
+        except Exception as exc:
+            raise PromptCountUnavailable("Fixture complete admission is invalid") from exc
+
+        async def generate():
+            try:
+                if (
+                    asyncio.current_task() is not owner
+                    or current_agent_tools() is not snapshot
+                    or request_digest(messages) != stamp
+                ):
+                    raise PromptCountUnavailable("Fixture complete admission changed")
+            except PromptCountUnavailable:
+                raise
+            except Exception as exc:
+                raise PromptCountUnavailable("Fixture complete admission changed") from exc
+            if not captured() or not agent_export_permitted():
+                raise ProviderRefusal("Agent tool metadata disclosure changed")
+            return await self.complete(detached)
+
+        return PreparedComplete(None, generate, fixture=True)
 
     async def stream(self, messages):
         yield await self.complete(messages)
@@ -653,6 +689,8 @@ class MetaResponsesProvider:
         context_tokens=None,
         transport=None,
     ):
+        from packages.providers.complete_http import RequestBoundAsyncClient
+
         if not allow_cloud:
             raise ProviderError("Meta requires explicit cloud disclosure authorization")
         if type(action_format) is not str or action_format not in {"flat-v1", "typed-v2"}:
@@ -674,7 +712,7 @@ class MetaResponsesProvider:
             type(context_tokens) is not int
             or not 64 <= context_tokens <= 2**53 - 1
             or type(max_tokens) is not int
-            or not 16 <= max_tokens <= 2048
+            or not 16 <= max_tokens <= 65536
             or max_tokens >= context_tokens
         ):
             raise ProviderError("Invalid explicit Meta context budget")
@@ -684,7 +722,7 @@ class MetaResponsesProvider:
         self._measurement_required = False
         self._measurement = None
         self._count_generation = 0
-        self.http = httpx.AsyncClient(
+        self.http = RequestBoundAsyncClient(
             base_url=base_url.rstrip("/") + "/",
             timeout=120,
             headers={"Authorization": f"Bearer {api_key}", "x-tbh-contributor-mode": "true"},
@@ -711,15 +749,172 @@ class MetaResponsesProvider:
             request_digest(self.info.model_dump()),
         )
 
-    async def measure_prompt(self, messages):
-        """Count this exact Responses request; this operation never generates."""
+    async def _input_tokens(self, client, body, check=None, admission=None):
+        """One actual count response, owned through EOF and real HTTP close."""
+        from packages.providers.complete_http import complete_stream
+        from packages.providers.prompt_budget import MAX_SAFE_COUNT, PromptCountUnavailable
+        from packages.providers.whistle_ipc import decode_json
+
+        async with asyncio.timeout(10):
+            context = (
+                client.stream("POST", "responses/input_tokens", json=body)
+                if check is None
+                else complete_stream(
+                    client,
+                    "responses/input_tokens",
+                    body,
+                    check,
+                    _OwnedHTTPStream,
+                    admission=admission,
+                    purpose="complete_count",
+                )
+            )
+            async with context as response:
+                if check is None:
+                    response.stream = _OwnedHTTPStream(response.stream)
+                if response.status_code != 200:
+                    raise PromptCountUnavailable("Meta prompt measurement is unavailable")
+                _reject_compressed_response(response)
+                raw = bytearray()
+                async for chunk in response.aiter_bytes():
+                    if len(raw) + len(chunk) > 4096:
+                        raise PromptCountUnavailable("Meta prompt measurement is invalid")
+                    raw.extend(chunk)
+        if check is not None:
+            check()
+        value = decode_json(bytes(raw), 4096)
+        if (
+            type(value) is not dict
+            or set(value) != {"object", "input_tokens"}
+            or value["object"] != "response.input_tokens"
+            or type(value["input_tokens"]) is not int
+            or not 1 <= value["input_tokens"] <= MAX_SAFE_COUNT
+        ):
+            raise PromptCountUnavailable("Meta prompt measurement is invalid")
+        return value["input_tokens"]
+
+    async def prepare_complete(self, messages):
+        """Count one exact nonstreaming request, with no shared Agent ticket."""
+        from packages.providers.completion_budget import PreparedComplete
         from packages.providers.prompt_budget import (
             MAX_SAFE_COUNT,
             PromptCountUnavailable,
             PromptTokenCount,
             request_digest,
         )
-        from packages.providers.whistle_ipc import decode_json
+
+        def limits_current():
+            return (
+                type(self.context_tokens) is int
+                and 64 <= self.context_tokens <= MAX_SAFE_COUNT
+                and type(self.max_tokens) is int
+                and 16 <= self.max_tokens <= 65536
+                and self.max_tokens < self.context_tokens
+            )
+
+        if not limits_current():
+            raise PromptCountUnavailable("Explicit Meta complete context limit is required")
+        owner, snapshot = asyncio.current_task(), current_agent_tools()
+        captured = capture_agent_export_check()
+        admission = capture_agent_export_admission()
+        request_tools = (
+            snapshot.available_tools if snapshot is not None else LEGACY_NATIVE_TOOL_ORDER
+        )
+        try:
+            body = json.loads(json.dumps(self.body(messages, False), allow_nan=False))
+            stamp, binding = request_digest(body), self._count_binding()
+            binding_stamp = request_digest(binding)
+            client = self.http
+            headers = request_digest(dict(client.headers))
+            transport, mounts = client._transport, tuple(client._mounts.items())
+
+            def configuration():
+                return (
+                    client.follow_redirects,
+                    client.trust_env,
+                    client.timeout.as_dict(),
+                    client._auth,
+                    tuple(client.params.multi_items()),
+                    tuple(
+                        (
+                            cookie.domain,
+                            cookie.path,
+                            cookie.name,
+                            cookie.value,
+                            cookie.secure,
+                            cookie.expires,
+                        )
+                        for cookie in client.cookies.jar
+                    ),
+                    tuple(
+                        (kind, tuple(hooks)) for kind, hooks in sorted(client.event_hooks.items())
+                    ),
+                )
+
+            client_config = configuration()
+        except Exception as exc:
+            raise PromptCountUnavailable("Meta complete prompt admission is invalid") from exc
+
+        def current(candidate=body):
+            if not captured() or not agent_export_permitted():
+                raise ProviderRefusal("Agent tool metadata disclosure changed")
+            try:
+                if (
+                    asyncio.current_task() is not owner
+                    or current_agent_tools() is not snapshot
+                    or not limits_current()
+                    or self.http is not client
+                    or client.is_closed
+                    or client._transport is not transport
+                    or tuple(client._mounts.items()) != mounts
+                    or configuration() != client_config
+                    or request_digest(dict(client.headers)) != headers
+                    or request_digest(self._count_binding()) != binding_stamp
+                    or request_digest(self.body(messages, False)) != stamp
+                    or request_digest(candidate) != stamp
+                ):
+                    raise PromptCountUnavailable("Meta complete prompt admission changed")
+            except PromptCountUnavailable:
+                raise
+            except Exception as exc:
+                raise PromptCountUnavailable("Meta complete prompt admission changed") from exc
+
+        try:
+            tokens = await self._input_tokens(client, body, current, admission)
+            current()
+            measured = PromptTokenCount(
+                tokens,
+                self.context_tokens,
+                self.max_tokens,
+                stamp,
+                request_digest(
+                    {
+                        "provider": "meta",
+                        "contract": "responses-complete-count-v1",
+                        "configuration": binding,
+                    }
+                ),
+            )
+        except (ProviderCleanupError, ProviderRefusal, asyncio.CancelledError):
+            raise
+        except Exception as exc:
+            raise PromptCountUnavailable("Meta complete prompt measurement is unavailable") from exc
+
+        async def generate():
+            current()
+            return await self._complete_request(
+                client, body, request_tools, check=current, admission=admission
+            )
+
+        return PreparedComplete(measured, generate)
+
+    async def measure_prompt(self, messages):
+        """Count this exact Responses request; this operation never generates."""
+        from packages.providers.prompt_budget import (
+            PromptCountUnavailable,
+            PromptTokenCount,
+            request_digest,
+        )
 
         # A failed/replaced count cannot leave a prior ticket usable. Ordinary
         # Agent calls that never opted into measurement retain their interface.
@@ -736,25 +931,9 @@ class MetaResponsesProvider:
             stamp = request_digest(body)
             client, headers = self.http, dict(self.http.headers)
             binding = self._count_binding()
-            async with asyncio.timeout(10):
-                async with client.stream("POST", "responses/input_tokens", json=body) as response:
-                    response.stream = _OwnedHTTPStream(response.stream)
-                    if response.status_code != 200:
-                        raise PromptCountUnavailable("Meta prompt measurement is unavailable")
-                    _reject_compressed_response(response)
-                    raw = bytearray()
-                    async for chunk in response.aiter_bytes():
-                        if len(raw) + len(chunk) > 4096:
-                            raise PromptCountUnavailable("Meta prompt measurement is invalid")
-                        raw.extend(chunk)
-            value = decode_json(bytes(raw), 4096)
+            tokens = await self._input_tokens(client, body)
             if (
-                type(value) is not dict
-                or set(value) != {"object", "input_tokens"}
-                or value["object"] != "response.input_tokens"
-                or type(value["input_tokens"]) is not int
-                or not 1 <= value["input_tokens"] <= MAX_SAFE_COUNT
-                or self.http is not client
+                self.http is not client
                 or client.is_closed
                 or dict(client.headers) != headers
                 or self._count_generation != generation
@@ -763,7 +942,7 @@ class MetaResponsesProvider:
             ):
                 raise PromptCountUnavailable("Meta prompt measurement is invalid or stale")
             measured = PromptTokenCount(
-                value["input_tokens"],
+                tokens,
                 self.context_tokens,
                 self.max_tokens,
                 stamp,
@@ -1056,18 +1235,24 @@ class MetaResponsesProvider:
         return body
 
     async def complete(self, messages):
-        from packages.providers.decision_capture import capture_request, capture_response
-
         snapshot = current_agent_tools()
         request_tools = (
             snapshot.available_tools if snapshot is not None else LEGACY_NATIVE_TOOL_ORDER
         )
         client, body = self._generation_request(messages, False)
+        return await self._complete_request(client, body, request_tools)
+
+    async def _complete_request(self, client, body, request_tools, *, check=None, admission=None):
+        from packages.providers.complete_http import complete_stream
+        from packages.providers.decision_capture import capture_request, capture_response
+
         wire_name = body.get("text", {}).get("format", {}).get("name")
         body = copy.deepcopy(body)
         binding, headers, origin = self._count_binding(), dict(client.headers), str(client.base_url)
         if not agent_export_permitted():
             raise ProviderRefusal("Agent tool metadata disclosure changed")
+        if check is not None:
+            check(body)
         await capture_request(self, body, "responses")
         if not agent_export_permitted():
             raise ProviderRefusal("Agent tool metadata disclosure changed")
@@ -1078,12 +1263,38 @@ class MetaResponsesProvider:
             or str(client.base_url) != origin
         ):
             raise ProviderRefusal("Meta capture transport binding changed")
-        response = await client.post("responses", json=body)
-        capture_response(response.content)
+        if check is None:
+            response = await client.post("responses", json=body)
+            raw = response.content
+        else:
+            check(body)
+            async with complete_stream(
+                client,
+                "responses",
+                body,
+                lambda: check(body),
+                _OwnedHTTPStream,
+                admission=admission,
+                purpose="complete_generation",
+            ) as response:
+                _reject_compressed_response(response)
+                collected = bytearray()
+                # Real HTTP streams are read as raw entity bytes. A preloaded
+                # response is supported for in-process transport fixtures.
+                chunks = (
+                    response.aiter_bytes() if response.is_stream_consumed else response.aiter_raw()
+                )
+                async for chunk in chunks:
+                    if len(collected) + len(chunk) > _COMPLETE_MAX_RAW_BYTES:
+                        raise ProviderError("Meta complete response exceeds its native byte bound")
+                    collected.extend(chunk)
+                raw = bytes(collected)
+            check(body)
+        capture_response(raw)
         if response.is_error:
             raise ProviderError(f"Meta HTTP {response.status_code}; no automatic provider fallback")
         try:
-            data = response.json()
+            data = json.loads(raw)
         except (ValueError, RecursionError) as exc:
             raise ProviderError("Meta returned invalid response JSON") from exc
         if data.get("status") in {"failed", "incomplete"}:

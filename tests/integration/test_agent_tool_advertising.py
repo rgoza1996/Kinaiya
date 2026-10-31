@@ -98,14 +98,26 @@ async def env(tmp_path):
     (workspace / "facts.txt").write_text(content)
     journal = Store(tmp_path / "journal.sqlite")
     session = journal.create_session(SessionRequest(channel="agent", harness_version="seed-v1"))
-    state = SimpleNamespace(calls=[], replies=[], stores=[], content=content)
+    state = SimpleNamespace(calls=[], counts=[], replies=[], stores=[], content=content)
 
     async def respond(request):
-        assert request.url == "https://synthetic.invalid/v1/responses"
+        assert str(request.url) in {
+            "https://synthetic.invalid/v1/responses",
+            "https://synthetic.invalid/v1/responses/input_tokens",
+        }
         body = json.loads(request.content)
         snapshot = current_agent_tools()
         assert snapshot is not None
         assert_advertisement(body, snapshot)
+        if request.url.path == "/v1/responses/input_tokens":
+            assert body["stream"] is False
+            state.counts.append(SimpleNamespace(body=body, snapshot=snapshot))
+            return httpx.Response(
+                200, json={"object": "response.input_tokens", "input_tokens": 123}
+            )
+        if state.counts:
+            assert body == state.counts[-1].body
+            assert snapshot is state.counts[-1].snapshot
         state.calls.append(SimpleNamespace(body=body, snapshot=snapshot))
         assert state.replies, "Unexpected synthetic inference request"
         action = await state.replies.pop(0)(body)
@@ -129,6 +141,7 @@ async def env(tmp_path):
         allow_cloud=True,
         structured_actions=True,
         reasoning_effort="minimal",
+        context_tokens=32768,  # Verified synthetic count fixture only.
         transport=httpx.MockTransport(respond),
     )
     runtime = AgentRuntime(
@@ -229,6 +242,7 @@ async def test_actual_read_finish_wire_prompt_snapshot_and_api_agree(env):
     final = await submit_and_wait(env)
     assert final.state == TaskState.SUCCEEDED, final.error
     assert len(env.calls) == 2
+    assert [call.body for call in env.counts] == [call.body for call in env.calls]
     assert all(call.snapshot == native_tool_snapshot(catalog_available=True) for call in env.calls)
     assert [evidence.kind for evidence in final.evidence] == ["read"]
     assert final.evidence[0].sha256 == hashlib.sha256(env.content.encode()).hexdigest()
@@ -322,12 +336,20 @@ async def test_unavailable_publication_never_executes_or_loses_required_effect_f
 
     env.replies.extend([propose_unavailable_publication, read_after_rejection, finish_action])
     final = await submit_and_wait(env)
-    assert len(env.calls) == 3, final.error
-    assert not env.replies
     assert final.state == TaskState.FAILED
-    assert "required effect failed" in final.error
-    assert [evidence.kind for evidence in final.evidence] == ["read"]
-    assert final.evidence[0].sha256 == hashlib.sha256(env.content.encode()).hexdigest()
+    if change == "unconfigured":
+        assert len(env.calls) == 3, final.error
+        assert not env.replies
+        assert "required effect failed" in final.error
+        assert [evidence.kind for evidence in final.evidence] == ["read"]
+        assert final.evidence[0].sha256 == hashlib.sha256(env.content.encode()).hexdigest()
+    else:
+        # Counted admission pins the service identity and advertisement. A
+        # mid-request change now stops this task before admitting its action.
+        assert len(env.calls) == len(env.counts) == 1
+        assert len(env.replies) == 2
+        assert final.error == "provider error: Agent tool metadata disclosure changed"
+        assert final.evidence == []
     native_publish.assert_not_awaited()
     if store is not None:
         assert (
@@ -348,11 +370,13 @@ async def test_unavailable_publication_never_executes_or_loses_required_effect_f
     assert all(
         entry.payload["ok"] is False and "evidence" not in entry.payload for entry in rejected
     )
-    if change != "disappears":
+    if change == "unconfigured":
         assert len(rejected) == 1
         assert rejected[0].origin == "agent-supervisor"
         assert rejected[0].payload["reason"] == "not_advertised"
         assert rejected[0].payload["effect_executed"] is False
+    else:
+        assert rejected == []  # No model action reached native tool admission.
     assert not any(evidence.kind == "artifact" for evidence in final.evidence)
     outcomes = [entry for entry in entries if entry.kind == "agent.outcome"]
     assert len(outcomes) == 1 and outcomes[0].payload["state"] == "failed"

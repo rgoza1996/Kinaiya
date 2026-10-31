@@ -22,6 +22,7 @@ Boundaries enforced here (not in prompts):
 from __future__ import annotations
 
 import asyncio
+import copy
 import hashlib
 import json
 import time
@@ -32,7 +33,13 @@ from typing import Any
 
 from core.extensions import HarnessError
 from core.policy import ApprovalError, PolicyDenied, ToolPolicy
-from harnesses.seed import ARTIFACT_RECEIPT_LIMIT, build_messages, observation_text, parse_action
+from harnesses.seed import (
+    ARTIFACT_RECEIPT_LIMIT,
+    build_messages,
+    history_exchanges,
+    observation_text,
+    parse_action,
+)
 from packages.contracts.agent_tools import (
     NativeToolSnapshot,
     agent_tool_scope,
@@ -53,11 +60,21 @@ from packages.contracts.models import (
     TaskRequest,
     TaskRetirement,
     TaskState,
+    new_id,
 )
-from packages.providers.disclosure import combine_scopes, entry_allowed, scope_allowed, source_scope
-from packages.providers.text import ActionDecodeError
+from packages.providers.disclosure import (
+    ContextScopeClosure,
+    combine_scopes,
+    context_scope,
+    entry_allowed,
+    scope_allowed,
+    source_scope,
+)
+from packages.providers.prompt_budget import PromptCountUnavailable
+from packages.providers.text import ActionDecodeError, ProviderCleanupError, ProviderRefusal
 from services.agent.artifacts import ArtifactConflict, ArtifactInvalid, ArtifactNotFound
 from services.agent.completion import append_completion
+from services.agent.history_budget import select_history
 from services.agent.mcp_tools import ModelScopedMCP, run_mcp_call, run_mcp_list
 from services.agent.tools import (
     RunningProc,
@@ -85,6 +102,14 @@ class IdemConflict(ValueError):
 
 class TaskTerminal(ValueError):
     pass
+
+
+class _InferenceRevised(Exception):
+    """An authenticated steer invalidated a request before action admission."""
+
+    def __init__(self, response: str | None = None):
+        self.response = response
+        super().__init__("Agent inference superseded by steering")
 
 
 class _PublicationUncertain(ToolFailure):
@@ -237,6 +262,7 @@ class _Record:
     recovered: bool = False
     submit_sequence: int = 0
     source_revisions: dict[str, int] = field(default_factory=dict)
+    context_event_ids: set[str] = field(default_factory=set)
     explicit_skill: str | None = None
     used_skills: set[str] = field(default_factory=set)
     plugin_versions: dict[str, str] = field(default_factory=dict)
@@ -495,6 +521,24 @@ class AgentRuntime:
                     self._check_completion_open(rec, require_active=True)
                 rec.task.content_scope = "local_only"
                 raise PolicyDenied("Task source disclosure cannot be verified") from exc
+        context_closure = ContextScopeClosure(
+            rec.task.session_id, rec.task.thread_id, rec.task.epoch
+        )
+        for event_id in sorted(rec.context_event_ids):
+            try:
+                entry = await self.journal.entry(event_id)
+                if (entry.session_id, entry.thread_id, entry.epoch) != (
+                    rec.task.session_id,
+                    rec.task.thread_id,
+                    rec.task.epoch,
+                ):
+                    raise ValueError("Wrong context scope")
+                scopes.append(await context_scope(self.journal, entry, closure=context_closure))
+            except Exception as exc:
+                if require_open:
+                    self._check_completion_open(rec, require_active=True)
+                rec.task.content_scope = "local_only"
+                raise PolicyDenied("Retained context disclosure cannot be verified") from exc
         if require_open:
             self._check_completion_open(rec, require_active=True)
         scope = combine_scopes(rec.task.content_scope, *scopes)
@@ -1599,6 +1643,209 @@ class AgentRuntime:
         await self._append(rec, "agent.outcome", self._outcome_payload(rec, "cancelled", {}))
         rec.done.set()
 
+    async def _complete(self, rec: _Record, tools: NativeToolSnapshot) -> str:
+        """Admit one exact request, preserving whole native history exchanges.
+
+        Counting is an external disclosure too. All selection attempts share
+        one frozen native authority snapshot; a count never grants permission
+        or permits a stale proposal to execute. Source/catalog dependencies
+        remain task-wide even when their original exchange leaves the prompt.
+        """
+        provider, policy, journal = self.provider, self.policy, self.journal
+        prepare = getattr(provider, "prepare_complete", None)
+        if not callable(prepare):
+            raise PromptCountUnavailable("Agent provider cannot measure complete requests")
+        services = (self.skill_service, self.plugin_service, self.mcp_host, self.artifact_store)
+        provider_info = copy.deepcopy(provider.info)
+        history = [dict(turn) for turn in rec.history]
+        guards = tuple(rec.catalog_guards.items())
+        retained_guards = []
+        if self.skill_service is not None:
+            retained_guards.append(
+                self.skill_service.capture_task_disclosure(
+                    rec.task.task_id,
+                    provider_info,
+                    user_skill_id=rec.explicit_skill,
+                    expected_skill_ids=frozenset(rec.used_skills),
+                )
+            )
+        if self.plugin_service is not None:
+            retained_guards.append(
+                self.plugin_service.capture_task_disclosure(self._plugin_task(rec), provider_info)
+            )
+
+        def identity():
+            task = rec.task
+            return (
+                task.task_id,
+                task.session_id,
+                task.thread_id,
+                task.epoch,
+                task.objective,
+                task.objective_revision,
+                task.harness_version,
+                tuple(task.source_event_ids),
+                tuple(sorted(rec.source_revisions.items())),
+                tuple(sorted(rec.context_event_ids)),
+                task.content_scope,
+                rec.explicit_skill,
+                frozenset(rec.used_skills),
+                tuple(sorted(rec.plugin_versions.items())),
+                self._grants(),
+                policy.workspace,
+                policy.protected_roots,
+            )
+
+        pinned = identity()
+        revision = rec.task.objective_revision
+        revised = False
+        text = None
+
+        def current():
+            nonlocal revised
+            if rec.cancel_requested or rec.closing or self._closed:
+                raise PolicyDenied("Agent inference stopped by native control")
+            if rec.pending_steer is not None or rec.task.objective_revision != revision:
+                revised = True
+                raise _InferenceRevised(text)
+            if (
+                rec.recovered
+                or rec.task.state != TaskState.RUNNING
+                or self._tasks.get(rec.task.task_id) is not rec
+                or self.provider is not provider
+                or provider.info != provider_info
+                or self.policy is not policy
+                or self.journal is not journal
+                or any(
+                    actual is not original
+                    for actual, original in zip(
+                        (
+                            self.skill_service,
+                            self.plugin_service,
+                            self.mcp_host,
+                            self.artifact_store,
+                        ),
+                        services,
+                        strict=True,
+                    )
+                )
+                or identity() != pinned
+                or rec.history != history
+                or tuple(rec.catalog_guards.items()) != guards
+                or self.tool_snapshot(rec.task) != tools
+            ):
+                raise PolicyDenied("Agent inference authority changed during context admission")
+            if not all(guard() for guard in retained_guards):
+                rec.task.content_scope = "local_only"
+                raise PolicyDenied("Retained tool disclosure changed; task stopped")
+            self._validate_catalog_history(rec)
+            if not scope_allowed(provider.info, rec.task.content_scope):
+                raise PolicyDenied("Task disclosure does not permit the configured Agent provider")
+            return True
+
+        async def check():
+            current()
+            if self.skill_service is not None:
+                await self.skill_service.validate_task(
+                    rec.task.task_id, provider.info, user_skill_id=rec.explicit_skill
+                )
+                current()
+            if self.plugin_service is not None:
+                await self.plugin_service.validate_task(self._plugin_task(rec), provider.info)
+                current()
+            await self._task_scope(rec)
+            current()
+            stale = await self._epoch_error(rec)
+            current()
+            if stale is not None:
+                raise PolicyDenied(stale)
+            # Source validation can yield after its first session read.
+            session = await self.journal.session(rec.task.session_id)
+            current()
+            stale = self._check_task_epoch(rec, session)
+            if stale is not None:
+                raise PolicyDenied(stale)
+
+        async def admit_export(purpose, request_sha256):
+            from packages.contracts.agent_export import AgentExportAdmission, AgentExportRequest
+
+            current()
+            admission = getattr(journal, "agent_export_admission", None)
+            if not callable(admission):
+                raise PromptCountUnavailable("Native Agent export admission is unavailable")
+            request = AgentExportRequest(
+                task_id=rec.task.task_id,
+                objective_revision=revision,
+                session_id=rec.task.session_id,
+                thread_id=rec.task.thread_id,
+                epoch=rec.task.epoch,
+                source_event_ids=list(rec.task.source_event_ids),
+                source_revisions=dict(rec.source_revisions),
+                context_event_ids=sorted(rec.context_event_ids),
+                content_scope=rec.task.content_scope,
+                provider=provider_info.model_dump(mode="json"),
+                request_sha256=request_sha256,
+                purpose=purpose,
+                request_nonce=new_id(),
+            )
+            try:
+                receipt = await admission(request)
+            except (asyncio.CancelledError, ProviderCleanupError):
+                raise
+            except Exception as exc:
+                # A native reply failure can also arrive after an accepted
+                # steer. Classify against current authority before changing
+                # the old revision's disclosure floor or failing its task.
+                current()
+                rec.task.content_scope = "local_only"
+                raise PromptCountUnavailable("Native Agent export admission was refused") from exc
+            current()
+            try:
+                if type(receipt) is not AgentExportAdmission:
+                    raise ValueError("Invalid native admission type")
+                receipt.validate_request(request)
+            except Exception as exc:
+                rec.task.content_scope = "local_only"
+                raise PromptCountUnavailable("Native Agent export admission is invalid") from exc
+            rec.task.content_scope = combine_scopes(rec.task.content_scope, receipt.effective_scope)
+            current()
+
+        messages = build_messages(
+            rec.task.objective,
+            revision,
+            list(rec.task.source_event_ids),
+            history,
+            self._grants(),
+            self._mcp_server_ids(),
+            self.skill_service is not None,
+            self.plugin_service is not None,
+            self.artifact_store is not None,
+            tool_snapshot=tools,
+        )
+        prepared = None
+        try:
+            with agent_tool_scope(tools, export_guard=current, export_admission=admit_export):
+                selection = await select_history(
+                    messages[:2], history_exchanges(messages[2:]), prepare, check
+                )
+                prepared = selection.prepared
+                # Stay in this Task and exact tool scope. A child task would
+                # invalidate the provider's request-local admission binding.
+                text = await prepared.complete()
+                await check()
+                return text
+        except ProviderCleanupError:
+            # Unconfirmed owned cleanup cannot authorize another request,
+            # including when steering happened at the same time.
+            raise
+        except (PromptCountUnavailable, ProviderRefusal) as exc:
+            if revised:
+                raise _InferenceRevised(text) from exc
+            raise
+        finally:
+            if prepared is not None:
+                prepared.discard()
+
     async def _run(self, rec: _Record) -> None:
         if rec.task.state == TaskState.ACCEPTED:
             rec.task.state = TaskState.RUNNING
@@ -1616,7 +1863,7 @@ class AgentRuntime:
                     return
                 await self._apply_steer(rec)
                 # Revocation applies before the next model request, including
-                # content already retained in this task's bounded history.
+                # content already retained in this task's complete history.
                 if self.skill_service is not None:
                     await self.skill_service.validate_task(
                         rec.task.task_id, self.provider.info, user_skill_id=rec.explicit_skill
@@ -1627,31 +1874,27 @@ class AgentRuntime:
                     )
                 await self._task_scope(rec)
                 self._validate_catalog_history(rec)
-                revision_before = rec.task.objective_revision
                 tools = self.tool_snapshot(rec.task)
-                messages = build_messages(
-                    rec.task.objective,
-                    rec.task.objective_revision,
-                    list(rec.task.source_event_ids),
-                    rec.history,
-                    self._grants(),
-                    self._mcp_server_ids(),
-                    self.skill_service is not None,
-                    self.plugin_service is not None,
-                    self.artifact_store is not None,
-                    tool_snapshot=tools,
-                )
-                export_guards = tuple(rec.catalog_guards.values())
                 try:
-                    with agent_tool_scope(
-                        tools,
-                        export_guard=lambda guards=export_guards: self._catalog_export_current(
-                            rec, guards
-                        ),
-                    ):
-                        text = await self.provider.complete(messages)
+                    text = await self._complete(rec, tools)
                 except asyncio.CancelledError:
                     raise
+                except _InferenceRevised as exc:
+                    await self._apply_steer(rec)
+                    if exc.response is not None:
+                        rec.history.append({"role": "assistant", "content": exc.response})
+                    rec.history.append(
+                        {
+                            "role": "user",
+                            "content": observation_text(
+                                False,
+                                "in-flight request discarded: the objective was revised "
+                                "during context admission or inference; re-plan under "
+                                "the current revision",
+                            ),
+                        }
+                    )
+                    continue
                 except ActionDecodeError as exc:
                     await self._fail(rec, f"provider error: {exc}", decode_error=exc)
                     return
@@ -1661,30 +1904,10 @@ class AgentRuntime:
                 if rec.cancel_requested or rec.closing:
                     await self._cancel(rec)
                     return
-                await self._task_scope(rec)
-                self._validate_catalog_history(rec)
-                # A steer that landed while inference was in flight applies
-                # at this boundary, and the response inferred under the old
-                # revision is discarded, never executed under the new one.
-                if rec.pending_steer is not None or rec.task.objective_revision != revision_before:
-                    await self._apply_steer(rec)
-                    rec.history.append({"role": "assistant", "content": text[:2000]})
-                    rec.history.append(
-                        {
-                            "role": "user",
-                            "content": observation_text(
-                                False,
-                                "in-flight response discarded: the objective was "
-                                "revised during inference; re-plan under the "
-                                "current revision",
-                            ),
-                        }
-                    )
-                    continue
                 try:
                     action = parse_action(text)
                 except ValueError as exc:
-                    rec.history.append({"role": "assistant", "content": text[:2000]})
+                    rec.history.append({"role": "assistant", "content": text})
                     rec.history.append(
                         {"role": "user", "content": observation_text(False, str(exc))}
                     )
@@ -1910,7 +2133,7 @@ class AgentRuntime:
                 rec.last_tool_ok = False
                 self._effect_result(rec, tool, ok=False)
                 if raw:
-                    rec.history.append({"role": "assistant", "content": raw[:2000]})
+                    rec.history.append({"role": "assistant", "content": raw})
                 rec.history.append({"role": "user", "content": observation_text(False, str(exc))})
                 return
         digest = self.policy.digest_for(tool, args, revision)
@@ -1947,7 +2170,7 @@ class AgentRuntime:
         if rec.pending_steer is None and rec.task.objective_revision == revision:
             return False
         await self._apply_steer(rec)
-        rec.history.append({"role": "assistant", "content": raw[:2000]})
+        rec.history.append({"role": "assistant", "content": raw})
         rec.history.append(
             {
                 "role": "user",
@@ -2004,7 +2227,7 @@ class AgentRuntime:
             # Steering at the boundary supersedes the narrow approval.
             if rec.pending_steer is not None:
                 rec.pending = None
-                rec.history.append({"role": "assistant", "content": raw[:2000]})
+                rec.history.append({"role": "assistant", "content": raw})
                 rec.history.append(
                     {
                         "role": "user",
@@ -2022,7 +2245,7 @@ class AgentRuntime:
                 continue
             if rec.task.objective_revision != approval.objective_revision:
                 rec.pending = None
-                rec.history.append({"role": "assistant", "content": raw[:2000]})
+                rec.history.append({"role": "assistant", "content": raw})
                 rec.history.append(
                     {
                         "role": "user",
@@ -2081,7 +2304,7 @@ class AgentRuntime:
                 rec.last_tool_ok = False
                 self._effect_result(rec, tool, ok=False)
                 if raw:
-                    rec.history.append({"role": "assistant", "content": raw[:2000]})
+                    rec.history.append({"role": "assistant", "content": raw})
                 rec.history.append({"role": "user", "content": observation_text(False, str(exc))})
                 return
         if sources:
@@ -2105,7 +2328,7 @@ class AgentRuntime:
             ):
                 self.policy.consume_approval(approval_id, digest, revision)
         if raw and tool not in {"publish_ui", "tool_catalog"}:
-            rec.history.append({"role": "assistant", "content": raw[:2000]})
+            rec.history.append({"role": "assistant", "content": raw})
         if approval_id is not None:
             # One-use intent is now committed to this exact execution.
             rec.pending = None
@@ -2121,8 +2344,8 @@ class AgentRuntime:
             elif tool == "read_file":
                 out, evidence = run_read(
                     self.policy,
-                    str(args.get("path", "")),
-                    int(args.get("max_bytes", 65536)),
+                    args.get("path", ""),
+                    args.get("max_bytes", 65536),
                     revision,
                 )
             elif tool == "write_file":
@@ -2466,6 +2689,8 @@ class AgentRuntime:
         )
 
     async def _read_transcript(self, rec, args):
+        from packages.contracts.agent_export import MAX_AGENT_CONTEXT_REFS
+
         event_ids = args.get("event_ids", [])
         limit = int(args.get("limit", 8))
         if not isinstance(event_ids, list) or len(event_ids) > 20 or not 1 <= limit <= 20:
@@ -2480,24 +2705,10 @@ class AgentRuntime:
             raise PolicyDenied("Transcript reference outside the task's current session epoch")
         selected, size = [], 0
         for entry in entries:
-            scope = entry.payload.get("content_scope", "local_only")
-            if entry.kind == "conversation.user":
-                scope = await self._source_scope(entry.event_id, entry)
-            elif entry.kind == "conversation.revision":
-                target_id = entry.payload.get("target_event_id")
-                scope = "local_only"
-                if isinstance(target_id, str):
-                    target = await self.journal.resolve(target_id)
-                    if (
-                        target.kind == "conversation.user"
-                        and target.origin == "authenticated-user"
-                        and (target.session_id, target.thread_id, target.epoch)
-                        == (entry.session_id, entry.thread_id, entry.epoch)
-                    ):
-                        scope = combine_scopes(
-                            entry.payload.get("content_scope", "local_only"),
-                            await self._source_scope(target_id, target),
-                        )
+            try:
+                scope = await context_scope(self.journal, entry)
+            except Exception as exc:
+                raise PolicyDenied("Transcript context disclosure cannot be verified") from exc
             if not entry_allowed(self.provider.info, entry) or not scope_allowed(
                 self.provider.info, scope
             ):
@@ -2511,6 +2722,11 @@ class AgentRuntime:
             size += len(text)
             if size > 12000:
                 break
+            if len(rec.context_event_ids | {entry.event_id}) > MAX_AGENT_CONTEXT_REFS:
+                raise ToolFailure("Transcript context provenance limit reached")
+            # These references remain disclosure dependencies even if the
+            # associated exchange later leaves the measured prompt suffix.
+            rec.context_event_ids.add(entry.event_id)
             selected.append(
                 {
                     "event_id": entry.event_id,

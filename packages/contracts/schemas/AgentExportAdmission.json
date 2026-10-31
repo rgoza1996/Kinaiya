@@ -1,0 +1,186 @@
+{
+  "$defs": {
+    "AgentExportProviderInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "provider": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Provider",
+          "type": "string"
+        },
+        "model": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Model",
+          "type": "string"
+        },
+        "local": {
+          "title": "Local",
+          "type": "boolean"
+        },
+        "streaming": {
+          "default": false,
+          "title": "Streaming",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "provider",
+        "model",
+        "local"
+      ],
+      "title": "AgentExportProviderInfo",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "task_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Task Id",
+      "type": "string"
+    },
+    "objective_revision": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Objective Revision",
+      "type": "integer"
+    },
+    "session_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Session Id",
+      "type": "string"
+    },
+    "thread_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Thread Id",
+      "type": "string"
+    },
+    "epoch": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Epoch",
+      "type": "integer"
+    },
+    "source_event_ids": {
+      "items": {
+        "maxLength": 128,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 32,
+      "title": "Source Event Ids",
+      "type": "array"
+    },
+    "source_revisions": {
+      "additionalProperties": {
+        "maximum": 9007199254740991,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "maxProperties": 32,
+      "propertyNames": {
+        "maxLength": 128,
+        "minLength": 1
+      },
+      "title": "Source Revisions",
+      "type": "object"
+    },
+    "context_event_ids": {
+      "items": {
+        "maxLength": 128,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "title": "Context Event Ids",
+      "type": "array"
+    },
+    "content_scope": {
+      "enum": [
+        "local_only",
+        "public_synthetic",
+        "private_cloud_authorized"
+      ],
+      "title": "Content Scope",
+      "type": "string"
+    },
+    "provider": {
+      "$ref": "#/$defs/AgentExportProviderInfo"
+    },
+    "request_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Request Sha256",
+      "type": "string"
+    },
+    "purpose": {
+      "enum": [
+        "complete_count",
+        "complete_generation"
+      ],
+      "title": "Purpose",
+      "type": "string"
+    },
+    "request_nonce": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Request Nonce",
+      "type": "string"
+    },
+    "binding_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Binding Sha256",
+      "type": "string"
+    },
+    "effective_scope": {
+      "enum": [
+        "local_only",
+        "public_synthetic",
+        "private_cloud_authorized"
+      ],
+      "title": "Effective Scope",
+      "type": "string"
+    },
+    "journal_sequence": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "title": "Journal Sequence",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "task_id",
+    "objective_revision",
+    "session_id",
+    "thread_id",
+    "epoch",
+    "source_event_ids",
+    "source_revisions",
+    "content_scope",
+    "provider",
+    "request_sha256",
+    "purpose",
+    "request_nonce",
+    "binding_sha256",
+    "effective_scope",
+    "journal_sequence"
+  ],
+  "title": "AgentExportAdmission",
+  "type": "object"
+}

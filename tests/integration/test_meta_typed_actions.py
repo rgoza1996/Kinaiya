@@ -119,17 +119,34 @@ async def env(tmp_path):
     session = store.create_session(SessionRequest(channel="converse"))
     artifacts = ArtifactStore(tmp_path / "artifacts.sqlite")
     state = SimpleNamespace(
-        replies=[], calls=[], workspace=workspace, store=store, session=session, artifacts=artifacts
+        replies=[],
+        calls=[],
+        counts=[],
+        workspace=workspace,
+        store=store,
+        session=session,
+        artifacts=artifacts,
     )
 
     def send(request):
         body = json.loads(request.content)
+        if request.url.path == "/v1/responses/input_tokens":
+            assert body["stream"] is False
+            state.counts.append(body)
+            return httpx.Response(
+                200, json={"object": "response.input_tokens", "input_tokens": 123}
+            )
+        assert request.url.path == "/v1/responses"
+        if state.counts:
+            assert body == state.counts[-1]
         state.calls.append(body)
         assert state.replies, "No undeclared inference allowed"
         item = state.replies.pop(0)
         return response(item(body) if callable(item) else item)
 
-    state.provider = provider(send, max_tokens=8192, reasoning_effort="xhigh")
+    state.provider = provider(
+        send, max_tokens=8192, reasoning_effort="xhigh", context_tokens=32768
+    )  # Verified synthetic count fixture, not a model capacity claim.
     state.agent = AgentRuntime(
         LocalJournal(store, "agent"),
         state.provider,
@@ -199,6 +216,7 @@ async def test_typed_actual_adapter_publishes_all_nine_types_and_explicitly_fini
     final = await env.agent.wait(initial.task_id, timeout=5)
     assert final.state == TaskState.SUCCEEDED, final.error
     assert len(env.calls) == (3 if update else 2)
+    assert env.counts == env.calls  # Exact typed complete bodies, including output reservation.
     assert len(final.evidence) == (2 if update else 1)
     assert env.artifacts.verify(final.evidence[-1], final)
     stored = page(env)[0]

@@ -39,6 +39,7 @@ from packages.contracts.models import (
     TaskState,
 )
 from packages.ecosystem.mcp_host import MCPConfig, MCPHost
+from packages.providers.completion_budget import PreparedComplete
 from services.agent import AgentRuntime, create_app
 from services.agent import tools as agent_tools
 from services.agent.mcp_tools import ModelScopedMCP, run_mcp_call, run_mcp_list
@@ -166,6 +167,10 @@ class ScriptedProvider:
         self.script = list(script)
         self.messages: list[list[dict[str, str]]] = []
         self.info = ProviderInfo(provider="fixture", model="scripted-mcp", local=True)
+
+    async def prepare_complete(self, messages):
+        """Explicit local test double; no tokenizer or inference claim."""
+        return PreparedComplete(None, lambda: self.complete(messages), fixture=True)
 
     async def complete(self, messages: list[dict[str, str]]) -> str:
         self.messages.append([dict(m) for m in messages])
@@ -341,7 +346,7 @@ async def test_approval_before_call_and_digest_binding(tmp_path) -> None:
             {"tool": "mcp_call", "arguments": args},
             {
                 "tool": "read_file",
-                "arguments": {"path": "synth_mcp_agent_server.py", "max_bytes": 64},
+                "arguments": {"path": "synth_mcp_agent_server.py"},
             },
             {"tool": "finish", "arguments": {"summary": "mcp work done", "objective_revision": 1}},
         ]
@@ -372,6 +377,10 @@ async def test_approval_before_call_and_digest_binding(tmp_path) -> None:
         assert final.state == TaskState.SUCCEEDED, final.error
         kinds = [e.kind for e in final.evidence if e.objective_revision == 1]
         assert kinds == ["external", "read"]
+        assert (
+            final.evidence[1].sha256
+            == hashlib.sha256((tmp_path / "synth_mcp_agent_server.py").read_bytes()).hexdigest()
+        )
         receipt = final.evidence[0]
         assert receipt.kind == "external"
         assert "synth" in receipt.summary and "echo" in receipt.summary

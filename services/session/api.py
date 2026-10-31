@@ -5,6 +5,12 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request, WebSocket, 
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from packages.contracts.agent_export import (
+    MAX_AGENT_EXPORT_BYTES,
+    AgentExportAdmission,
+    AgentExportRequest,
+    agent_export_json,
+)
 from packages.contracts.agent_workspace import AgentSessionPageRequest
 from packages.contracts.context import (
     MAX_CONTEXT_REQUEST_BYTES,
@@ -84,8 +90,31 @@ def create_app(
     async def append(request: AppendRequest, role=authenticated):
         return store.append(request, role)
 
+    @app.post(
+        "/v1/transcript/agent-export-admission",
+        response_model=AgentExportAdmission,
+        dependencies=[Depends(auth.require("agent"))],
+    )
+    async def agent_export_admission(request: Request):
+        if (
+            request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+            != "application/json"
+        ):
+            raise HTTPException(415, "Agent export admission requires JSON")
+        raw = bytearray()
+        async for chunk in request.stream():
+            if len(raw) + len(chunk) > MAX_AGENT_EXPORT_BYTES:
+                raise HTTPException(413, "Agent export admission exceeds its byte bound")
+            raw.extend(chunk)
+        try:
+            body = AgentExportRequest.model_validate(agent_export_json(bytes(raw)))
+        except (ValueError, RecursionError):
+            raise HTTPException(422, "Invalid Agent export admission request") from None
+        return store.agent_export_admission(body)
+
     @app.get("/v1/transcript", dependencies=[Depends(auth.require())])
     async def read(
+        request: Request,
         after: int = Query(0, ge=0),
         limit: int = Query(100, ge=1, le=200),
         session_id: str | None = None,
@@ -93,7 +122,18 @@ def create_app(
         kinds: str | None = None,
         task_id: str | None = None,
         search: str | None = None,
+        epoch: int | None = Query(default=None, ge=1, le=9_007_199_254_740_991),
+        utterance_id: str | None = Query(default=None, pattern=r"^[A-Za-z0-9_-]{1,128}$"),
+        window_index: int | None = Query(default=None, ge=0, le=1_000_000),
     ):
+        for key in ("epoch", "utterance_id", "window_index"):
+            if len(request.query_params.getlist(key)) > 1:
+                raise HTTPException(422, "Ambiguous exact window query")
+        for key in ("epoch", "window_index"):
+            if key in request.query_params:
+                raw = request.query_params[key]
+                if not raw.isascii() or not raw.isdigit() or (len(raw) > 1 and raw.startswith("0")):
+                    raise HTTPException(422, "Invalid exact window counter")
         return store.read(
             after=after,
             limit=limit,
@@ -102,6 +142,9 @@ def create_app(
             kinds=kinds.split(",") if kinds else None,
             task_id=task_id,
             search=search,
+            epoch=epoch,
+            utterance_id=utterance_id,
+            window_index=window_index,
         )
 
     @app.get("/v1/transcript/entries/{event_id}", dependencies=[Depends(auth.require())])

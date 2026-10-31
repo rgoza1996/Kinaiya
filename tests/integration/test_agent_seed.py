@@ -18,6 +18,7 @@ from packages.contracts.models import (
     TaskRequest,
     TaskState,
 )
+from packages.providers.completion_budget import PreparedComplete
 from services.agent import AgentRuntime, create_app
 from services.agent import tools as agent_tools
 from services.agent.tools import ShellUnavailable, ToolFailure, run_shell
@@ -83,6 +84,10 @@ class ScriptedProvider:
     def __init__(self, script: list) -> None:
         self.script = list(script)
         self.info = ProviderInfo(provider="fixture", model="scripted-seed", local=True)
+
+    async def prepare_complete(self, messages):
+        """Explicit local test double; no tokenizer or inference claim."""
+        return PreparedComplete(None, lambda: self.complete(messages), fixture=True)
 
     async def complete(self, messages: list[dict[str, str]]) -> str:
         _ = messages

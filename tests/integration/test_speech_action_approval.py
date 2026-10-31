@@ -297,13 +297,16 @@ async def test_pending_approval_api_is_owner_only_paged_and_cross_session(tmp_pa
 
 
 @pytest.mark.parametrize("boundary", ["before_request", "after_owner_approval"])
-async def test_steer_during_async_source_validation_discards_old_action(tmp_path, boundary):
+async def test_steer_during_async_source_validation_replans_without_old_effects(tmp_path, boundary):
     from packages.contracts.models import SteerRequest
 
     store, session, workspace, runtime = _make_env(
         tmp_path,
         [
-            _write_action(),
+            # Before-request validation now precedes inference. There is no
+            # old model action to consume in that case; after owner approval
+            # the original write proposal has already been generated.
+            *([_write_action()] if boundary == "after_owner_approval" else []),
             json.dumps({"tool": "read_file", "arguments": {"path": "note.txt"}}),
             json.dumps(
                 {
@@ -361,6 +364,11 @@ async def test_steer_during_async_source_validation_discards_old_action(tmp_path
         assert not any(e.kind in {"file", "command", "external"} for e in final.evidence)
         if boundary == "before_request":
             assert _approval_entry(store, task.task_id) is None
+            assert len(runtime.provider.calls) == 2
+            assert all(
+                "Keep the original file; only inspect it" in json.dumps(call)
+                for call in runtime.provider.calls
+            )
         else:
             assert not runtime.policy.peek_approval(entry.payload["approval_id"]).used
     finally:

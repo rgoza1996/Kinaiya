@@ -136,6 +136,39 @@ Clarification §§14–15's optional Tool Library, installation lifecycle and fo
 verification remain design work. Gateway configuration is not proof that a
 foreign target is authorized, installed or working.
 
+## Complete Agent context
+
+[#179](https://github.com/rgoza1996/Kinaiya/issues/179) repairs two observed
+Agent context losses: clipping complete file results to 2,000 characters and
+retaining only eight history messages. Successful native reads now return a
+whole stable bounded UTF-8 file or explicitly refuse it. Exact complete-request
+counts select chronological whole action/result exchanges while protecting
+instructions, the current objective/revision and the newest exchange. Native
+evidence, approvals, source/catalog disclosure floors and completion checks
+remain independent of the selected model history.
+
+[ADR0075](adr/0075-complete-agent-context.md) records the contract and native
+source admission before each count/generation. The immutable failed M1
+repository case remains a failure: 18 successful provider responses produced no
+edit or command; its [audit](../evaluation/evidence/agent-history-baseline-2026-10-31.json)
+is retained unchanged. Data loss is proven; its repair does not establish the sole
+cause of repeated reads or qualify general repository work. Source-bound
+[regressions](../tests/integration/test_agent_context_admission.py) exercise real
+file/journal/provider code through synthetic HTTP. Real provider counting,
+future repository cases and exact-head release checks remain separate evidence.
+Previously unmeasured Agent adapters now refuse explicitly until they implement
+complete-count admission; model names and approximate token estimates supply no
+capacity. Converse's separate budgeting interface is unchanged.
+
+Final upload fences also revalidate retained skill/plugin pins and native
+transcript provenance, including causal ancestors of retrieved assistant replies.
+These remain disclosure dependencies after prompt eviction and grant no task
+authority. Scope withdrawals in count/generation hooks and after generation are
+covered by [native regressions](../tests/integration/test_agent_retained_transcript.py)
+and [broker regressions](../tests/integration/test_agent_retained_disclosure.py).
+Missing or over-bound provenance refuses the request rather than dropping a
+dependency. This does not qualify general repository work or a new model default.
+
 ## Agent completion durability
 
 The bounded [#167](https://github.com/rgoza1996/Kinaiya/issues/167) repair uses

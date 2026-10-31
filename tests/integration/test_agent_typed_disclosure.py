@@ -19,6 +19,7 @@ from packages.contracts.models import (
     SteerRequest,
     TaskRequest,
 )
+from packages.providers.completion_budget import PreparedComplete
 from services.agent import AgentRuntime, create_app
 from services.agent.skill_service import SkillService
 from services.common.auth import Auth
@@ -34,6 +35,10 @@ class Spy:
         )
         self.calls = []
         self.responses = list(responses or [])
+
+    async def prepare_complete(self, messages):
+        """Explicit local test double; no tokenizer or inference claim."""
+        return PreparedComplete(None, lambda: self.complete(messages), fixture=True)
 
     async def complete(self, messages):
         self.calls.append(messages)

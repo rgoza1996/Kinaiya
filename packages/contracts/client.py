@@ -1,5 +1,13 @@
+import asyncio
+
 import httpx
 
+from packages.contracts.agent_export import (
+    MAX_AGENT_EXPORT_BYTES,
+    AgentExportAdmission,
+    AgentExportRequest,
+    agent_export_json,
+)
 from packages.contracts.agent_workspace import AgentSessionPage, AgentSessionPageRequest
 from packages.contracts.context import (
     MAX_CONTEXT_RESPONSE_BYTES,
@@ -11,6 +19,8 @@ from packages.contracts.context import (
 )
 from packages.contracts.models import JournalEntry, PlaybackGeneration, Session
 
+AGENT_EXPORT_TIMEOUT_S = 15
+
 
 class JournalClient:
     def __init__(self, url: str, token: str, *, transport=None):
@@ -19,6 +29,43 @@ class JournalClient:
             headers={"Authorization": f"Bearer {token}"},
             timeout=15,
             transport=transport,
+        )
+
+    async def agent_export_admission(self, request):
+        request = AgentExportRequest.model_validate(request)
+        async with (
+            asyncio.timeout(AGENT_EXPORT_TIMEOUT_S),
+            self.http.stream(
+                "POST",
+                "/v1/transcript/agent-export-admission",
+                content=request.model_dump_json().encode("utf-8"),
+                headers={"Content-Type": "application/json", "Accept-Encoding": "identity"},
+            ) as response,
+        ):
+            response.raise_for_status()
+            if (
+                response.headers.get("content-encoding", "identity").lower() not in {"", "identity"}
+                or response.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+                != "application/json"
+            ):
+                raise ValueError("Invalid Agent export admission response")
+            declared = response.headers.get("content-length")
+            if declared is not None and (
+                not declared.isascii()
+                or not declared.isdigit()
+                or len(declared) > 8
+                or int(declared) > MAX_AGENT_EXPORT_BYTES
+            ):
+                raise ValueError("Invalid Agent export admission response")
+            raw = bytearray()
+            async for chunk in response.aiter_bytes():
+                if len(raw) + len(chunk) > MAX_AGENT_EXPORT_BYTES:
+                    raise ValueError("Agent export admission exceeds its byte bound")
+                raw.extend(chunk)
+            if declared is not None and len(raw) != int(declared):
+                raise ValueError("Invalid Agent export admission response")
+        return AgentExportAdmission.model_validate(agent_export_json(bytes(raw))).validate_request(
+            request
         )
 
     async def append(self, request):

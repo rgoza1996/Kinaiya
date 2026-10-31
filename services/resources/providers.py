@@ -1,11 +1,14 @@
 """Resource policy constrains provider calls; it never chooses a fallback."""
 
+import asyncio
 import re
 from collections.abc import Mapping
 from pathlib import Path
 
+from packages.contracts.agent_tools import agent_export_scope
+from packages.providers.completion_budget import PreparedComplete
 from packages.providers.prompt_budget import PromptCountUnavailable, PromptTokenCount
-from packages.providers.text import ProviderCleanupError, ProviderError
+from packages.providers.text import ProviderCleanupError, ProviderError, ScriptedProvider
 from services.resources.state import read_record
 
 
@@ -152,6 +155,54 @@ class ResourceBoundProvider:
             raise
         except Exception as exc:
             raise PromptCountUnavailable("Prompt measurement is unavailable") from exc
+
+    async def prepare_complete(self, messages):
+        prepared = None
+        try:
+            state = self._check()
+            provider, role, state_path = self.provider, self.role, self.state_path
+            owner = asyncio.current_task()
+            prepare = getattr(provider, "prepare_complete", None)
+            if role != "agent" or not callable(prepare):
+                raise PromptCountUnavailable("Complete prompt measurement is unavailable")
+
+            def current():
+                try:
+                    return (
+                        asyncio.current_task() is owner
+                        and self.provider is provider
+                        and self.role == role
+                        and self.state_path == state_path
+                        and self._check() == state
+                    )
+                except Exception:
+                    return False
+
+            with agent_export_scope(current):
+                prepared = await prepare(messages)
+            if (
+                not current()
+                or type(prepared) is not PreparedComplete
+                or (prepared.fixture and not isinstance(provider, ScriptedProvider))
+            ):
+                raise PromptCountUnavailable("Complete prompt resource policy changed")
+
+            async def generate():
+                if not current():
+                    prepared.discard()
+                    raise PromptCountUnavailable("Complete prompt resource policy changed")
+                with agent_export_scope(current):
+                    return await prepared.complete()
+
+            return PreparedComplete(prepared.measurement, generate, fixture=prepared.fixture)
+        except (ProviderCleanupError, asyncio.CancelledError):
+            if isinstance(prepared, PreparedComplete):
+                prepared.discard()
+            raise
+        except Exception as exc:
+            if isinstance(prepared, PreparedComplete):
+                prepared.discard()
+            raise PromptCountUnavailable("Complete prompt measurement is unavailable") from exc
 
     async def complete(self, messages):
         self._check()

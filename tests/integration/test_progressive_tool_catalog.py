@@ -43,10 +43,25 @@ async def env(tmp_path):
     (workspace / "public.txt").write_text("Public synthetic value 42")
     store = Store(tmp_path / "journal.sqlite3")
     session = store.create_session(SessionRequest(channel="agent", harness_version="seed-v1"))
-    state = SimpleNamespace(replies=[], requests=[], mode="flat-v1")
+    state = SimpleNamespace(replies=[], requests=[], counts=[], mode="flat-v1")
 
     def send(request):
         body = json.loads(request.content)
+        if request.url.path == "/v1/responses/input_tokens":
+            assert body["stream"] is False
+            state.counts.append(body)
+            return httpx.Response(
+                200,
+                json={
+                    "object": "response.input_tokens",
+                    "input_tokens": state.count_input_tokens(body)
+                    if hasattr(state, "count_input_tokens")
+                    else 123,
+                },
+            )
+        assert request.url.path == "/v1/responses"
+        if state.counts:
+            assert body == state.counts[-1]
         state.requests.append(body)
         if getattr(state, "on_send", None) is not None:
             state.on_send(body, len(state.requests))
@@ -76,6 +91,7 @@ async def env(tmp_path):
         api_key="public-synthetic-fixture-key",
         allow_cloud=True,
         structured_actions=True,
+        context_tokens=32768,  # Verified synthetic count fixture only.
         transport=httpx.MockTransport(send),
     )
     runtime = AgentRuntime(LocalJournal(store, "agent"), provider, workspace, ToolPolicy(workspace))
@@ -236,6 +252,7 @@ async def test_catalog_schema_survives_model_history_and_terminal_api_without_ef
     assert response.json()["task_state"] == "succeeded"
     assert (await env.runtime.status(final.task_id)).model_dump(mode="json") == before
     assert len(env.requests) == 3 and len(list(env.runtime.workspace.iterdir())) == 1
+    assert env.counts == env.requests
 
 
 @pytest.mark.parametrize("failure", ["write_file", "publish_ui", "plugin_call"])
@@ -403,8 +420,16 @@ def fake_skill(row):
     async def validate(*args, **kwargs):
         service.validates += 1
 
+    def capture(task_id, provider_info, *, user_skill_id=None, expected_skill_ids=None):
+        # This fixture projects catalog metadata only and loads no skill pins.
+        # Real catalog guards still enforce its mutable public disclosure.
+        assert isinstance(task_id, str) and provider_info.local is False
+        assert user_skill_id is None and expected_skill_ids == frozenset()
+        return lambda: True
+
     service.tool_metadata, service.tool_metadata_current = metadata, current
     service.validate_task, service.release_task = validate, AsyncMock()
+    service.capture_task_disclosure = capture
     return service
 
 
@@ -468,13 +493,15 @@ async def test_withdrawn_unpinned_catalog_never_reaches_later_provider(env, monk
 
     async def append(rec, kind, payload, **kwargs):
         result = await native_append(rec, kind, payload, **kwargs)
-        if boundary == "journal" and kind == "agent.tool" and payload.get("tool") == "tool_catalog":
-            service.public = False
+        if kind == "agent.tool" and payload.get("tool") == "tool_catalog":
+            service.catalog_receipted = True
+            if boundary == "journal":
+                service.public = False
         return result
 
     async def validate(*args, **kwargs):
         service.validates += 1
-        if boundary == "next_turn" and service.validates >= 2:
+        if boundary == "next_turn" and getattr(service, "catalog_receipted", False):
             service.public = False
 
     service.tool_metadata, service.validate_task = metadata, validate
@@ -491,7 +518,10 @@ async def test_withdrawn_unpinned_catalog_never_reaches_later_provider(env, monk
         final = await submit(env)
         if boundary == "next_turn":
             assert final.state == TaskState.FAILED and final.content_scope == "local_only"
-            assert "catalog disclosure changed" in final.error
+            assert final.error in {
+                "runtime error: Tool catalog disclosure changed; task stopped",
+                "provider error: Agent tool metadata disclosure changed",
+            }
             assert len(env.requests) == 1
         else:
             assert final.state == TaskState.SUCCEEDED, final.error
@@ -528,7 +558,10 @@ async def test_derived_metadata_cannot_survive_catalog_revocation(env):
     try:
         final = await submit(env)
         assert final.state == TaskState.FAILED and final.content_scope == "local_only"
-        assert "catalog disclosure changed" in final.error
+        assert final.error in {
+            "runtime error: Tool catalog disclosure changed; task stopped",
+            "provider error: Agent tool metadata disclosure changed",
+        }
         assert len(env.requests) == 2
         assert [evidence.kind for evidence in final.evidence] == ["inspection"]
         rec = env.runtime._get(final.task_id)
@@ -549,6 +582,17 @@ async def test_catalog_guard_survives_prompt_history_window(env):
             )
             service.public = False
 
+    def counted_tokens(body):
+        # Force real measured eviction immediately before generation six,
+        # instead of relying on the removed eight-message history suffix.
+        has_catalog = any(
+            '"inspection_only":true' in message["content"] for message in body["input"]
+        )
+        if len(env.requests) == 5 and has_catalog:
+            return env.provider.context_tokens - env.provider.max_tokens + 1
+        return 123
+
+    env.count_input_tokens = counted_tokens
     env.on_send = revoke
     env.replies.append(("tool_catalog", {"kind": "skill", "name": row["id"]}))
     env.replies.extend(("read_file", {"path": "public.txt"}) for _ in range(5))
@@ -556,8 +600,14 @@ async def test_catalog_guard_survives_prompt_history_window(env):
     try:
         final = await submit(env)
         assert final.state == TaskState.FAILED and final.content_scope == "local_only"
-        assert "catalog disclosure changed" in final.error
+        assert final.error in {
+            "runtime error: Tool catalog disclosure changed; task stopped",
+            "provider error: Agent tool metadata disclosure changed",
+        }
         assert len(env.requests) == 6
+        assert len(env.counts) == 7  # Six generations plus one rejected full-history count.
+        assert any('"inspection_only":true' in m["content"] for m in env.counts[-2]["input"])
+        assert not any('"inspection_only":true' in m["content"] for m in env.counts[-1]["input"])
         assert env.runtime._get(final.task_id).catalog_guards
     finally:
         env.runtime.skill_service = None
