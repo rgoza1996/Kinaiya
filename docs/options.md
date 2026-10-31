@@ -133,8 +133,10 @@ remain separate from preparing these options.
 
 Keep everyday choices near their task and detailed controls in searchable
 sections. Advanced controls should explain units, scope and unsupported values;
-the main Converse bottom bar contains only Call and Tell. Global active capture
-and playback stops remain visible when needed; text input is available through
+the earlier scene concept requests a Call/Tell-only voice bar. Current Home has
+Talk with Kinaiya, Setup and separate Sleep/Wake controls after the Home/optional
+Converse split; aligning that placement with the earlier intent remains pending.
+Global active capture and playback stops remain visible when needed; text input is available through
 Converse chat in the header, and supporting options remain accessible in chat
 and Settings.
 The Penpot design can supply additional panels in its own style when it lacks a

@@ -680,7 +680,7 @@ Converse being off by user choice must not be overridden just because Agent want
 
 ### 15.1 Primary views
 
-**Home** is the moon-and-water surface with Kinaiya seated on the water beneath a looming moon. Its default bottom controls are only **Call Kinaiya** (live conversation) and **Tell Kinaiya** (one voice message). Text/transcript and supporting controls remain reachable through their explicit destinations; active capture/playback Stop stays reachable outside setup. Call/Tell do not establish that a mobile internet-call media path exists.
+**Home** is the moon-and-water surface with Kinaiya seated on the water beneath a looming moon. The earlier scene concept requested only **Call Kinaiya** (live conversation) and **Tell Kinaiya** (one voice message) in its ordinary voice bar. After the Home/optional-Converse split, current Home instead exposes **Talk with Kinaiya**, **Setup** and separate **Sleep/Wake** controls; Tell remains in other conversational controls. Reconciling that placement with the earlier Call/Tell-only intent remains a UI follow-up, not completed fidelity. Text/transcript and supporting controls remain reachable through their explicit destinations; active capture/playback Stop stays reachable outside setup. None of these labels establishes a mobile internet-call media path.
 
 **Converse** is the optional waveform-navigation interaction view, with a close-up mascot, transcript and composer, sharing Home's conversation/audio owner. A visibility preference hides only this presentation; it does not switch the runtime off, erase history or move drafts to Agent. A displayed activity waveform must not be described as measured audio amplitude unless it really is.
 
