@@ -46,6 +46,7 @@ void main() {
         ConnectionProfile.defaults(),
         injected: mockClient(commandsMissing: false),
       );
+      await state.ensureSession('agent', name: 'work');
       state.setView(AppView.agent);
       await tester.pumpWidget(KinaiyaApp(state: state));
       await tester.pump(const Duration(milliseconds: 200));

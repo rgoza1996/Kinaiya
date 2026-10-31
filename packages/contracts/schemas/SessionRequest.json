@@ -21,6 +21,19 @@
       "maxLength": 200,
       "title": "Name",
       "type": "string"
+    },
+    "harness_version": {
+      "anyOf": [
+        {
+          "pattern": "^(seed-v1|v-[a-f0-9]{24})$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Harness Version"
     }
   },
   "title": "SessionRequest",

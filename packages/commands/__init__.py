@@ -399,11 +399,29 @@ class Registry:
                     s.model_dump() for s in await self.journal.sessions() if s.channel == "agent"
                 ]
             if name == "new":
+                from core.extensions import HarnessError
                 from packages.contracts.models import SessionRequest
 
+                parent = await self.journal.session(request.session_id)
+                if parent.channel != "agent" or (parent.thread_id, parent.epoch) != (
+                    request.thread_id,
+                    request.epoch,
+                ):
+                    raise ValueError("New session requires the current invoking Agent identity")
+                if parent.harness_version is not None:
+                    try:
+                        self.runtime.session_harness(parent.harness_version)
+                    except (HarnessError, OSError, ValueError) as exc:
+                        raise ValueError(
+                            "Invoking session harness is unavailable or unapproved"
+                        ) from exc
                 return (
                     await self.journal.create_session(
-                        SessionRequest(channel="agent", name=" ".join(args))
+                        SessionRequest(
+                            channel="agent",
+                            name=" ".join(args),
+                            harness_version=parent.harness_version,
+                        )
                     )
                 ).model_dump()
             if len(args) != 1:

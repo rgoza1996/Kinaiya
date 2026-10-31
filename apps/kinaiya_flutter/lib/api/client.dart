@@ -15,6 +15,8 @@ import 'memory_client.dart';
 import 'decisions_client.dart';
 import 'models.dart';
 import 'converse_setup.dart';
+import 'agent_workspace.dart';
+import 'agent_workspace_client.dart';
 
 const _uuid = Uuid();
 
@@ -70,10 +72,16 @@ class KinaiyaClient {
     http.Client? httpClient,
     http.Client Function()? memoryClientFactory,
     http.Client Function()? decisionsClientFactory,
+    http.Client Function()? agentWorkspaceClientFactory,
   }) : _token = ownerToken,
        _http = _NoRedirectClient(httpClient ?? http.Client()),
        _memoryClientFactory = memoryClientFactory ?? http.Client.new,
-       _decisionsClientFactory = decisionsClientFactory ?? http.Client.new;
+       _decisionsClientFactory =
+           decisionsClientFactory ??
+           (httpClient == null ? http.Client.new : _decisionsInjectionRequired),
+       _agentWorkspaceClientFactory =
+           agentWorkspaceClientFactory ??
+           (httpClient == null ? http.Client.new : _workspaceInjectionRequired);
 
   final String sessionBase;
   final String agentBase;
@@ -82,10 +90,19 @@ class KinaiyaClient {
   final http.Client _http;
   final http.Client Function() _memoryClientFactory;
   final http.Client Function() _decisionsClientFactory;
+  static http.Client _decisionsInjectionRequired() =>
+      throw StateError('Decisions transport requires its own injected factory');
   late final DecisionsApi decisionInspections = DecisionsApi(
     base: sessionBase,
     ownerToken: _token,
     clientFactory: _decisionsClientFactory,
+  );
+  final http.Client Function() _agentWorkspaceClientFactory;
+  static http.Client _workspaceInjectionRequired() =>
+      throw StateError('Workspace transport requires its own injected factory');
+  late final AgentWorkspaceReader _agentWorkspaceReader = AgentWorkspaceReader(
+    ownerToken: _token,
+    clientFactory: _agentWorkspaceClientFactory,
   );
 
   Future<ConverseSetup> converseSetup() async =>
@@ -108,10 +125,14 @@ class KinaiyaClient {
     String label = 'mock',
     http.Client Function()? memoryClientFactory,
     http.Client Function()? decisionsClientFactory,
+    http.Client Function()? agentWorkspaceClientFactory,
   }) : _token = 'mock-token-not-a-credential',
        _http = _NoRedirectClient(mockTransport),
        _memoryClientFactory = memoryClientFactory ?? http.Client.new,
-       _decisionsClientFactory = decisionsClientFactory ?? http.Client.new {
+       _decisionsClientFactory =
+           decisionsClientFactory ?? _decisionsInjectionRequired,
+       _agentWorkspaceClientFactory =
+           agentWorkspaceClientFactory ?? _workspaceInjectionRequired {
     _mockLabel = label;
   }
 
@@ -165,6 +186,79 @@ class KinaiyaClient {
 
   // -- session service --------------------------------------------------
 
+  Future<AgentHarnessPage> agentHarnesses({String? after}) async =>
+      AgentHarnessPage.fromJson(
+        await _agentWorkspaceReader.get(
+          agentBase,
+          '/v1/agent/harnesses',
+          query: {'limit': '50', if (after != null) 'after': after},
+        ),
+      );
+
+  Future<SessionInfo> createAgentSession(
+    String harnessVersion, {
+    String name = '',
+  }) async => workspaceSession(
+    await _post(agentBase, '/v1/agent/sessions', {
+      'schema_version': schemaVersion,
+      'harness_version': harnessVersion,
+      'name': name,
+    }).timeout(const Duration(seconds: 10)),
+  );
+
+  Future<AgentSessionPage> agentSessions({
+    required String harnessVersion,
+    String? after,
+  }) async => AgentSessionPage.fromJson(
+    await _agentWorkspaceReader.get(
+      sessionBase,
+      '/v1/sessions/page',
+      query: {
+        'channel': 'agent',
+        'harness_version': harnessVersion,
+        'limit': '20',
+        if (after != null) 'after': after,
+      },
+    ),
+  );
+
+  Future<SessionInfo> agentWorkspaceSession(String id) async =>
+      workspaceSession(
+        await _agentWorkspaceReader.get(
+          sessionBase,
+          '/v1/sessions/${Uri.encodeComponent(id)}',
+        ),
+      );
+
+  Future<List<JournalEntry>> agentWorkspaceHistory({
+    required String sessionId,
+    int after = 0,
+  }) async {
+    final raw = await _agentWorkspaceReader.get(
+      sessionBase,
+      '/v1/transcript',
+      query: {'session_id': sessionId, 'after': '$after', 'limit': '200'},
+    );
+    final rows = raw is List
+        ? raw
+        : raw is Map
+        ? raw['entries']
+        : null;
+    if (rows is! List || rows.length > 200) {
+      throw const FormatException('Invalid workspace history page');
+    }
+    return rows.map((row) {
+      final entry = workspaceObject(row);
+      for (final key in ['sequence', 'epoch']) {
+        final n = entry[key];
+        if (n is! int || n < 1 || n > 9007199254740991) {
+          throw const FormatException('Invalid workspace history counter');
+        }
+      }
+      return JournalEntry.fromJson(entry);
+    }).toList();
+  }
+
   Future<SessionInfo> createSession(String channel, {String name = ''}) async {
     final json = await _post(sessionBase, '/v1/sessions', <String, Object?>{
       'schema_version': schemaVersion,
@@ -190,7 +284,9 @@ class KinaiyaClient {
   }
 
   Future<SessionInfo> getSession(String id) async {
-    return SessionInfo.fromJson(await _get(sessionBase, '/v1/sessions/$id'));
+    return SessionInfo.fromJson(
+      await _get(sessionBase, '/v1/sessions/${Uri.encodeComponent(id)}'),
+    );
   }
 
   Future<List<JournalEntry>> transcript({
@@ -637,6 +733,7 @@ class KinaiyaClient {
     } finally {
       unawaited(memory.close());
       decisionInspections.close();
+      unawaited(_agentWorkspaceReader.close());
     }
   }
 }

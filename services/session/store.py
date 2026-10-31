@@ -200,7 +200,9 @@ class Store:
             raise JournalError("Invalid Converse memory context provenance") from None
 
     def create_session(self, request: SessionRequest) -> Session:
-        session = Session(channel=request.channel, name=request.name)
+        session = Session(
+            channel=request.channel, name=request.name, harness_version=request.harness_version
+        )
         with self.lock, self.db:
             self.db.execute(
                 "INSERT INTO sessions VALUES (?,?)", (session.session_id, session.model_dump_json())
@@ -224,6 +226,35 @@ class Store:
                     "SELECT value FROM sessions ORDER BY rowid DESC LIMIT 200"
                 )
             ]
+
+    def sessions_page(self, **kwargs):
+        from packages.contracts.agent_workspace import AgentSessionPage, AgentSessionPageRequest
+
+        request = AgentSessionPageRequest(**kwargs)
+        clauses = ["json_extract(value, '$.channel') = ?"]
+        args = ["agent"]
+        if request.harness_version == "unassociated":
+            clauses.append("json_extract(value, '$.harness_version') IS NULL")
+        elif request.harness_version is not None:
+            clauses.append("json_extract(value, '$.harness_version') = ?")
+            args.append(request.harness_version)
+        if request.after is not None:
+            cursor = int(request.after)
+            if cursor > 9_223_372_036_854_775_807:
+                raise ValueError("Invalid session cursor")
+            clauses.append("rowid < ?")
+            args.append(cursor)
+        with self.lock:
+            rows = self.db.execute(
+                "SELECT rowid, value FROM sessions WHERE "
+                + " AND ".join(clauses)
+                + " ORDER BY rowid DESC LIMIT ?",
+                (*args, request.limit + 1),
+            ).fetchall()
+        return AgentSessionPage(
+            items=[Session.model_validate_json(row[1]) for row in rows[: request.limit]],
+            next_cursor=str(rows[request.limit - 1][0]) if len(rows) > request.limit else None,
+        ).validate_request(request)
 
     def playback_generation(self, session_id, thread_id, epoch) -> PlaybackGeneration:
         """Recover native allocation metadata, independent of conversational context.
@@ -1085,6 +1116,11 @@ class LocalJournal:
         if self.role not in {"owner", "resources"}:
             raise PermissionError("Listing sessions requires owner or resources")
         return self.store.sessions()
+
+    async def sessions_page(self, **kwargs):
+        if self.role != "owner":
+            raise PermissionError("Agent session inspection requires owner")
+        return self.store.sessions_page(**kwargs)
 
     async def create_session(self, request):
         if self.role != "owner":

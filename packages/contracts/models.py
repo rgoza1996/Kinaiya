@@ -25,6 +25,13 @@ class WireModel(BaseModel):
 class SessionRequest(WireModel):
     channel: Literal["converse", "agent"] = "converse"
     name: str = Field(default="", max_length=200)
+    harness_version: str | None = Field(default=None, pattern=r"^(seed-v1|v-[a-f0-9]{24})$")
+
+    @model_validator(mode="after")
+    def agent_harness_only(self):
+        if self.harness_version is not None and self.channel != "agent":
+            raise ValueError("Only Agent sessions may pin a harness")
+        return self
 
 
 class Session(WireModel):
@@ -33,6 +40,13 @@ class Session(WireModel):
     channel: Literal["converse", "agent"]
     epoch: int = Field(default=1, ge=1)
     name: str = ""
+    harness_version: str | None = Field(default=None, pattern=r"^(seed-v1|v-[a-f0-9]{24})$")
+
+    @model_validator(mode="after")
+    def agent_harness_only(self):
+        if self.harness_version is not None and self.channel != "agent":
+            raise ValueError("Only Agent sessions may pin a harness")
+        return self
 
 
 class PlaybackGeneration(WireModel):

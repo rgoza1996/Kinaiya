@@ -7,6 +7,7 @@ import '../api/client.dart';
 import '../api/models.dart';
 import '../state/app_state.dart';
 import 'agent_design.dart';
+import 'agent_workspace_sidebars.dart';
 import 'mcp_settings.dart';
 import 'settings_controls.dart';
 import 'widgets.dart';
@@ -59,13 +60,19 @@ class _AgentChatState extends State<AgentChat> {
   }
 
   late final TextEditingController _input;
-  final TextEditingController _search = TextEditingController();
+  bool _detailsInline = false;
+  bool _harnessCollapsed = false,
+      _sessionsCollapsed = false,
+      _showDetails = true;
+  int _lastSelection = 0;
+  String? _lastSessionScope;
   String? _selectedTaskId;
   final Map<String, TextEditingController> _steer = {};
   final Map<String, ContentScope> _steerScopes = {};
   Timer? _poll;
   KinaiyaClient? _lastClient;
   int _lastGeneration = 0;
+  bool _lastWorkspaceAuth = false;
   int _taskRead = 0;
 
   @override
@@ -78,6 +85,10 @@ class _AgentChatState extends State<AgentChat> {
     _s.addListener(_handleStateChange);
     _loadRegistry();
     unawaited(_refreshTasks());
+    _lastWorkspaceAuth = _s.sessionAuthenticated;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_s.refreshAgentHarnesses());
+    });
     _poll = Timer.periodic(const Duration(seconds: 4), (_) => _refreshTasks());
   }
 
@@ -95,6 +106,9 @@ class _AgentChatState extends State<AgentChat> {
       _syncConnectionDraft();
       _s.addListener(_handleStateChange);
       _loadRegistry();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_s.refreshAgentHarnesses());
+      });
     }
   }
 
@@ -104,7 +118,6 @@ class _AgentChatState extends State<AgentChat> {
     _poll?.cancel();
     _s.removeListener(_handleStateChange);
     _input.dispose();
-    _search.dispose();
     for (final c in _steer.values) {
       c.dispose();
     }
@@ -126,12 +139,28 @@ class _AgentChatState extends State<AgentChat> {
       _syncConnectionDraft();
       _loadRegistry();
       unawaited(_refreshTasks());
+      unawaited(_s.refreshAgentHarnesses());
+    }
+    if (_s.sessionAuthenticated && !_lastWorkspaceAuth) {
+      _lastWorkspaceAuth = true;
+      unawaited(_s.refreshAgentHarnesses());
+    } else if (!_s.sessionAuthenticated) {
+      _lastWorkspaceAuth = false;
+    }
+    final session = _s.agentSession;
+    final scope = session == null
+        ? null
+        : '${session.sessionId}/${session.threadId}/${session.epoch}';
+    if (_lastSelection != _s.agentSelectionGeneration ||
+        _lastSessionScope != scope) {
+      _lastSelection = _s.agentSelectionGeneration;
+      _lastSessionScope = scope;
+      _syncConnectionDraft();
     }
   }
 
   void _syncConnectionDraft() {
     _steerScopes.clear();
-    _search.clear();
     _selectedTaskId = null;
     if (_input.text != _s.agentDraft) _input.text = _s.agentDraft;
     for (final controller in _steer.values) {
@@ -255,15 +284,26 @@ class _AgentChatState extends State<AgentChat> {
   /// enabled without inference; natural text and skill invocations require
   /// Agent inference. Unknown registry state fails closed to inference.
   bool _canSubmitText(String text) {
-    if (text.trim().isEmpty || _s.busyAgent) return false;
-    if (!_s.sessionAuthenticated) return false;
-    if (!_isSlash(text)) return _s.agentCanInfer;
+    if (text.trim().isEmpty || _s.busyAgent || _s.agentIdentitySelecting) {
+      return false;
+    }
+    if (!_s.sessionAuthenticated || _s.agentSession == null) return false;
+    if (!_isSlash(text)) {
+      return _s.agentSession != null &&
+          _s.agentCanInfer &&
+          !_s.agentHistoryLoading &&
+          _s.agentHistoryError == null;
+    }
     final name = text.trim().split(RegExp(r'\s+')).first.substring(1);
     final registry = _s.commands;
     if (registry == null) return _s.agentCanInfer;
     final match = registry.where((c) => c.matches(name)).toList();
     if (match.isEmpty || !match.first.available) return false;
-    if (match.first.requiresInference) return _s.agentCanInfer;
+    if (match.first.requiresInference) {
+      return _s.agentCanInfer &&
+          !_s.agentHistoryLoading &&
+          _s.agentHistoryError == null;
+    }
     return true;
   }
 
@@ -272,10 +312,18 @@ class _AgentChatState extends State<AgentChat> {
     final api = _s.client;
     final generation = _s.connectionGeneration;
     final scope = _s.draftScope(AppView.agent);
-    if (text.isEmpty || api == null || _s.busyAgent) return;
+    if (text.isEmpty ||
+        api == null ||
+        _s.busyAgent ||
+        _s.agentIdentitySelecting) {
+      return;
+    }
     if (!_s.ownsConnection(generation, api)) return;
     if (!_s.sessionAuthenticated) return;
     final slash = _isSlash(text);
+    if (!slash && (_s.agentHistoryLoading || _s.agentHistoryError != null)) {
+      return;
+    }
     if (!slash && !_s.agentCanDisclose(scope)) {
       if (!_s.ownsConnection(generation, api)) return;
       _s.agentNotice = _s.agentCanInfer
@@ -284,6 +332,7 @@ class _AgentChatState extends State<AgentChat> {
       _s.touch();
       return;
     }
+    if (!slash && _s.agentSession == null) return;
     if (slash && !_s.sessionAuthenticated) return;
     _s.busyAgent = true;
     _s.touch();
@@ -311,6 +360,8 @@ class _AgentChatState extends State<AgentChat> {
           !_s.agentCanDisclose(scope)) {
         return;
       }
+      final selection = _s.agentSelectionGeneration;
+      if (!_s.ownsAgentSelection(selection, session)) return;
       final liveApi = _s.client;
       if (liveApi == null || !identical(liveApi, api)) return;
       final task = await liveApi.createTask(
@@ -323,7 +374,11 @@ class _AgentChatState extends State<AgentChat> {
       );
       // Already-sent requests cannot be recalled, but a stale completion
       // must not mutate the new connection's draft, history or busy state.
-      if (!mounted || !_s.ownsConnection(generation, api)) return;
+      if (!mounted ||
+          !_s.ownsConnection(generation, api) ||
+          !_s.ownsAgentSelection(selection, session)) {
+        return;
+      }
       // Clear only the draft that was actually sent; text typed during the
       // await (same or new connection) survives.
       if (_input.text.trim() == text) {
@@ -344,6 +399,11 @@ class _AgentChatState extends State<AgentChat> {
       _s.agentNotice = e.status == 409
           ? 'That request conflicts with current work. Refresh and try again.'
           : "Couldn't reach the Agent service. Check the connection.";
+      _s.touch();
+    } catch (_) {
+      if (!_s.ownsConnection(generation, api)) return;
+      _s.agentNotice =
+          'The Agent request was not confirmed. Inspect current sessions and tasks before trying again.';
       _s.touch();
     } finally {
       // Cleanup belongs to the originating connection only.
@@ -383,6 +443,10 @@ class _AgentChatState extends State<AgentChat> {
     // Skill invocations and unknown classes start inference; deterministic
     // runtime controls run without inference. Never invoke a skill just to
     // discover it was forbidden.
+    if (match.first.requiresInference &&
+        (_s.agentHistoryLoading || _s.agentHistoryError != null)) {
+      return;
+    }
     if (match.first.requiresInference && !_s.agentCanDisclose(scope)) {
       if (!_s.ownsConnection(generation, api)) return;
       _s.agentNotice = _s.agentCanInfer
@@ -392,6 +456,13 @@ class _AgentChatState extends State<AgentChat> {
       return;
     }
     try {
+      // A command never acquires an arbitrary destination while discovery is pending.
+      if (_s.agentSession == null) {
+        _s.agentNotice =
+            'Choose an existing session or create one from Workspace first.';
+        _s.touch();
+        return;
+      }
       // No session is created for blocked inference (checked above).
       SessionInfo? session = _s.agentSession;
       if (session == null) {
@@ -424,6 +495,8 @@ class _AgentChatState extends State<AgentChat> {
         _s.touch();
         return;
       }
+      final selection = _s.agentSelectionGeneration;
+      if (!_s.ownsAgentSelection(selection, session)) return;
       final liveApi = _s.client;
       if (liveApi == null || !identical(liveApi, api)) return;
       final hasModelArgs =
@@ -441,7 +514,11 @@ class _AgentChatState extends State<AgentChat> {
       );
       // Already-sent commands cannot be recalled, but the stale result
       // must not clear or append into the new connection.
-      if (!mounted || !_s.ownsConnection(generation, api)) return;
+      if (!mounted ||
+          !_s.ownsConnection(generation, api) ||
+          !_s.ownsAgentSelection(selection, session)) {
+        return;
+      }
       if (_input.text.trim() == text) {
         _input.clear();
         if (_s.agentDraft.trim() == text) _s.setDraft(AppView.agent, '');
@@ -450,9 +527,18 @@ class _AgentChatState extends State<AgentChat> {
         final result = (out!['result'] as Map).cast<String, Object?>();
         if (result['clear_view'] == true) _s.agentHistory.clear();
         if (out['command'] == 'new' || out['command'] == 'resume') {
-          _s.agentSession = SessionInfo.fromJson(result);
-          _s.agentHistory.clear();
-          _s.agentCursor = 0;
+          final next = SessionInfo.fromJson(result);
+          if (next.channel != 'agent' || next.sessionId.isEmpty) {
+            throw const FormatException('Invalid Agent command session');
+          }
+          await _s.selectAgentSession(next.sessionId);
+          if (!_s.ownsConnection(generation, api) ||
+              _s.agentSession?.sessionId != next.sessionId ||
+              _s.agentSession?.threadId != next.threadId ||
+              _s.agentSession?.epoch != next.epoch) {
+            return;
+          }
+          unawaited(_s.refreshAgentSessions());
         }
       }
       _s.agentHistory.add(
@@ -480,6 +566,11 @@ class _AgentChatState extends State<AgentChat> {
     } on ApiException {
       if (!_s.ownsConnection(generation, api)) return;
       _s.agentNotice = "Couldn't run that command. Check the connection.";
+      _s.touch();
+    } catch (_) {
+      if (!_s.ownsConnection(generation, api)) return;
+      _s.agentNotice =
+          'The command result was not confirmed. Inspect the selected session before trying again.';
       _s.touch();
     }
   }
@@ -654,6 +745,7 @@ class _AgentChatState extends State<AgentChat> {
             final input = TextField(
               controller: _input,
               key: const ValueKey('agent-input'),
+              enabled: !_s.agentIdentitySelecting,
               decoration: const InputDecoration(
                 labelText: 'Work for the agent, or /command',
               ),
@@ -706,118 +798,132 @@ class _AgentChatState extends State<AgentChat> {
     ),
   );
 
-  Widget _workspace(AgentTask? selected) {
-    final query = _search.text.trim().toLowerCase();
-    final tasks = _s.tasks.reversed.where(
-      (t) =>
-          query.isEmpty ||
-          '${t.objective} ${t.state} ${t.taskId}'.toLowerCase().contains(query),
-    );
-    final scheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-    return Container(
-      width: AgentDesign.workspaceWidth,
-      decoration: agentWorkspaceDecoration(context),
-      child: Material(
-        type: MaterialType.transparency,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
-              child: Text('Workspace', style: textTheme.titleLarge),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
+  Widget _harnessSidebar({bool sheet = false}) => AgentHarnessSidebar(
+    entries: [
+      for (final item in _s.agentHarnesses)
+        HarnessSidebarEntry(
+          id: item.versionId,
+          name: item.name,
+          kind: item.kind,
+          description: item.description,
+          active: item.active,
+          selectable: item.selectable,
+          eligibility: item.eligibility,
+        ),
+      const HarnessSidebarEntry(
+        id: 'unassociated',
+        name: 'Unassociated historical sessions',
+        kind: 'historical_sessions',
+        description: 'No harness association was recorded for these sessions.',
+        active: false,
+        selectable: false,
+        eligibility: 'historical',
+      ),
+      if (_s.selectedAgentHarness != null &&
+          _s.selectedAgentHarness != 'unassociated' &&
+          _s.selectedAgentHarnessInfo == null)
+        HarnessSidebarEntry(
+          id: _s.selectedAgentHarness!,
+          name: _s.selectedAgentHarness!,
+          kind: 'historical_sessions',
+          description:
+              'Recorded session harness; unavailable in the current catalog.',
+          active: false,
+          selectable: false,
+          eligibility: 'unavailable',
+        ),
+    ],
+    selectedId: _s.selectedAgentHarness,
+    collapsed: !sheet && _harnessCollapsed,
+    loading: _s.agentHarnessesLoading,
+    error: _s.agentHarnessError,
+    onToggle: () => sheet
+        ? Navigator.of(context).pop()
+        : setState(() => _harnessCollapsed = !_harnessCollapsed),
+    onRefresh: () => unawaited(_s.refreshAgentHarnesses()),
+    onSelect: (id) => unawaited(_s.selectAgentHarness(id)),
+  );
+
+  Widget _sessionSidebar({bool sheet = false}) => AgentSessionSidebar(
+    entries: [
+      for (final session in _s.agentWorkspaceSessions)
+        SessionSidebarEntry(
+          id: session.sessionId,
+          label: session.name.isEmpty ? session.sessionId : session.name,
+          harnessVersion: session.harnessVersion,
+          selected: _s.agentSession?.sessionId == session.sessionId,
+          subtitle: session.harnessVersion == null
+              ? 'Historical harness unknown'
+              : session.sessionId,
+        ),
+    ],
+    harnessLabel:
+        _s.selectedAgentHarnessInfo?.name ??
+        (_s.selectedAgentHarness == 'unassociated'
+            ? 'Historical harness unknown'
+            : _s.selectedAgentHarness ?? 'Select a harness'),
+    collapsed: !sheet && _sessionsCollapsed,
+    loading: _s.agentSessionsLoading || _s.agentSessionCreating,
+    error: _s.agentSessionsError,
+    canCreate: _s.canCreateAgentSession,
+    hasMore: _s.agentSessionsHaveMore,
+    onToggle: () => sheet
+        ? Navigator.of(context).pop()
+        : setState(() => _sessionsCollapsed = !_sessionsCollapsed),
+    onRefresh: () => unawaited(_s.refreshAgentSessions()),
+    onCreate: () => unawaited(_s.createSelectedAgentSession()),
+    onLoadMore: () => unawaited(_s.refreshAgentSessions(loadMore: true)),
+    onSelect: (id) => unawaited(_s.selectAgentSession(id)),
+    controls: Material(
+      type: MaterialType.transparency,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_s.agentCreationUncertain) ...[
+            const Padding(
+              padding: EdgeInsets.all(12),
               child: Text(
-                _s.agentSession?.name.isNotEmpty == true
-                    ? _s.agentSession!.name
-                    : 'New Agent session',
-                style: textTheme.titleSmall,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+                'Session creation is unconfirmed. Refresh and inspect sessions before creating another.',
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
-              child: Text(
-                'Direct instructions to Agent',
-                style: agentMutedStyle(context, textTheme.bodySmall),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: TextField(
-                controller: _search,
-                decoration: const InputDecoration(
-                  labelText: 'Search tasks',
-                  prefixIcon: Icon(Icons.search_rounded),
-                ),
-                onChanged: (_) => setState(() {}),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-              child: Text(
-                'Tasks · ${_s.tasks.length}',
-                style: textTheme.titleSmall,
-              ),
-            ),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-                children: [
-                  for (final task in tasks)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 2),
-                      child: ListTile(
-                        key: ValueKey('workspace-task-${task.taskId}'),
-                        selected: selected?.taskId == task.taskId,
-                        selectedTileColor: scheme.primaryContainer,
-                        selectedColor: scheme.onPrimaryContainer,
-                        shape: agentTileShape(),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 4,
-                        ),
-                        leading: Icon(agentTaskIcon(task)),
-                        title: Text(
-                          task.objective,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        subtitle: Text(
-                          '${task.state} · revision ${task.objectiveRevision}',
-                        ),
-                        onTap: () =>
-                            setState(() => _selectedTaskId = task.taskId),
-                      ),
-                    ),
-                  if (tasks.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Text(
-                        query.isEmpty ? 'No tasks yet.' : 'No matching tasks.',
-                        style: agentMutedStyle(context, textTheme.bodyMedium),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            const Divider(height: 1),
-            ListTile(
-              leading: const Icon(Icons.terminal_rounded),
-              title: const Text('Commands'),
-              enabled: _s.commandsAvailable,
-              onTap: _s.commandsAvailable ? _showCommands : null,
-            ),
-            ListTile(
-              leading: const Icon(Icons.hub_outlined),
-              title: const Text('Connections'),
-              enabled: _s.client != null,
-              onTap: _s.client == null ? null : _showMcp,
+            TextButton(
+              onPressed: _s.canAcknowledgeAgentCreation
+                  ? _s.acknowledgeAgentCreationUncertainty
+                  : null,
+              child: const Text('I checked sessions; allow another creation'),
             ),
           ],
+          ListTile(
+            leading: const Icon(Icons.terminal_rounded),
+            title: const Text('Commands'),
+            enabled: _s.commandsAvailable,
+            onTap: _s.commandsAvailable ? _showCommands : null,
+          ),
+          ListTile(
+            leading: const Icon(Icons.hub_outlined),
+            title: const Text('Connections'),
+            enabled: _s.client != null,
+            onTap: _s.client == null ? null : _showMcp,
+          ),
+        ],
+      ),
+    ),
+  );
+
+  void _showSidebar(bool harnesses) {
+    final owner = _s;
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) => SafeArea(
+        child: SizedBox(
+          height: MediaQuery.sizeOf(sheetContext).height * .9,
+          child: ListenableBuilder(
+            listenable: owner,
+            builder: (_, _) => harnesses
+                ? _harnessSidebar(sheet: true)
+                : _sessionSidebar(sheet: true),
+          ),
         ),
       ),
     );
@@ -855,7 +961,7 @@ class _AgentChatState extends State<AgentChat> {
         Text(
           task == null
               ? 'Select a task on the left or in the conversation.'
-              : 'Selected task inspection; new instructions stay unassigned.',
+              : 'Task inspection; new instructions use the selected session.',
           style: agentMutedStyle(
             context,
             Theme.of(context).textTheme.bodySmall,
@@ -870,6 +976,10 @@ class _AgentChatState extends State<AgentChat> {
           _detail('Objective revision', '${task.objectiveRevision}'),
           _detail('Task', task.taskId),
           _detail('Session', task.sessionId),
+          _detail(
+            'Recorded harness',
+            task.harnessVersion ?? 'Unknown historical harness',
+          ),
           _detail(
             'Evidence',
             task.evidence.isEmpty
@@ -901,6 +1011,7 @@ class _AgentChatState extends State<AgentChat> {
 
   Widget _conversation(bool wide, AgentTask? selected) {
     final tasksById = {for (final t in _s.tasks) t.taskId: t};
+    final sessionTasks = _s.selectedAgentTasks;
     return Column(
       children: [
         Padding(
@@ -920,7 +1031,9 @@ class _AgentChatState extends State<AgentChat> {
                 Text(
                   _s.agentSession?.name.isNotEmpty == true
                       ? 'Session: ${_s.agentSession!.name}'
-                      : 'New instructions use your Agent session.',
+                      : _s.agentHistoryLoading
+                      ? 'Verifying session…'
+                      : 'Choose a session or create one for the selected harness.',
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: agentMutedStyle(
@@ -959,6 +1072,12 @@ class _AgentChatState extends State<AgentChat> {
 
               for (final a in _s.approvals)
                 _approvalCard(a, tasksById[a.taskId]),
+              if (_s.agentHistoryLoading) const LinearProgressIndicator(),
+              if (_s.agentHistoryError != null)
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Text(_s.agentHistoryError!),
+                ),
               for (final m in _s.agentHistory)
                 MessageBubble(
                   role: m.role,
@@ -966,25 +1085,29 @@ class _AgentChatState extends State<AgentChat> {
                   note: m.note,
                   speaker: 'Agent',
                 ),
-              if (_s.tasks.isNotEmpty)
+              if (sessionTasks.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
                     vertical: 8,
                   ),
                   child: Text(
-                    'Worker tasks across sessions · newest first',
+                    'Tasks in this session · newest first',
                     style: agentMutedStyle(
                       context,
                       Theme.of(context).textTheme.bodySmall,
                     ),
                   ),
                 ),
-              if (wide && selected != null)
-                _taskCard(selected)
-              else
-                for (final task in _s.tasks.reversed) _taskCard(task),
-              if (_s.tasks.isEmpty && _s.agentHistory.isEmpty)
+              for (final task in sessionTasks.reversed) _taskCard(task),
+              if (_s.agentHistoryHasMore)
+                TextButton(
+                  onPressed: _s.agentHistoryLoading
+                      ? null
+                      : () => unawaited(_s.refreshAgentHistory()),
+                  child: const Text('Load more recorded history'),
+                ),
+              if (sessionTasks.isEmpty && _s.agentHistory.isEmpty)
                 Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 32,
@@ -1030,32 +1153,73 @@ class _AgentChatState extends State<AgentChat> {
       final width =
           box.maxWidth / MediaQuery.textScalerOf(context).scale(1).clamp(1, 2);
       final wide = width >= AgentDesign.wideBreakpoint;
-      final matches = _s.tasks.where((t) => t.taskId == _selectedTaskId);
-      final selected = matches.isNotEmpty
-          ? matches.first
-          : _s.tasks.isEmpty
-          ? null
-          : _s.tasks.last;
-      final panes = Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      _detailsInline = width >= AgentDesign.detailsBreakpoint && _showDetails;
+      final tasks = _s.selectedAgentTasks;
+      final matches = tasks.where((t) => t.taskId == _selectedTaskId);
+      final selected = matches.firstOrNull ?? tasks.lastOrNull;
+      final panes = Column(
         children: [
-          if (wide) _workspace(selected),
-          Expanded(
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(
-                  maxWidth: AgentDesign.conversationMaxWidth,
+          if (!wide)
+            Wrap(
+              spacing: 8,
+              children: [
+                TextButton.icon(
+                  key: const ValueKey('open-agent-harnesses'),
+                  onPressed: () => _showSidebar(true),
+                  icon: const Icon(Icons.account_tree_outlined),
+                  label: const Text('Harnesses'),
                 ),
-                child: _conversation(wide, selected),
+                TextButton.icon(
+                  key: const ValueKey('open-agent-workspace'),
+                  onPressed: () => _showSidebar(false),
+                  icon: const Icon(Icons.view_sidebar_outlined),
+                  label: const Text('Workspace'),
+                ),
+              ],
+            ),
+          if (wide)
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: () => setState(() => _showDetails = !_showDetails),
+                icon: const Icon(Icons.info_outline),
+                label: Text(_showDetails ? 'Hide details' : 'Show details'),
               ),
             ),
+          Expanded(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (wide)
+                  SizedBox(
+                    width: _harnessCollapsed ? 48 : 246,
+                    child: _harnessSidebar(),
+                  ),
+                if (wide)
+                  SizedBox(
+                    width: _sessionsCollapsed ? 48 : 260,
+                    child: _sessionSidebar(),
+                  ),
+                Expanded(
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        maxWidth: AgentDesign.conversationMaxWidth,
+                      ),
+                      child: _conversation(wide, selected),
+                    ),
+                  ),
+                ),
+                if (width >= AgentDesign.detailsBreakpoint && _showDetails)
+                  _details(selected),
+              ],
+            ),
           ),
-          if (width >= AgentDesign.detailsBreakpoint) _details(selected),
         ],
       );
       final minHeight = MediaQuery.textScalerOf(context).scale(1) >= 1.5
-          ? 560.0
-          : 420.0;
+          ? 760.0
+          : 500.0;
       return SingleChildScrollView(
         child: SizedBox(
           height: box.maxHeight < minHeight ? minHeight : box.maxHeight,
@@ -1064,6 +1228,22 @@ class _AgentChatState extends State<AgentChat> {
       );
     },
   );
+
+  void _inspectTask(AgentTask task) {
+    setState(() => _selectedTaskId = task.taskId);
+    if (!_detailsInline) {
+      showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        builder: (sheet) => SafeArea(
+          child: SizedBox(
+            height: MediaQuery.sizeOf(sheet).height * .85,
+            child: _details(task),
+          ),
+        ),
+      );
+    }
+  }
 
   Widget _taskCard(AgentTask task) {
     final grounded = task.isGroundedSuccess;
@@ -1088,6 +1268,11 @@ class _AgentChatState extends State<AgentChat> {
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 agentStatusChip(context, task),
+                TextButton.icon(
+                  onPressed: () => _inspectTask(task),
+                  icon: const Icon(Icons.info_outline),
+                  label: const Text('Inspect task'),
+                ),
                 if (!task.isTerminal)
                   TextButton.icon(
                     onPressed: () => _cancelTask(task),

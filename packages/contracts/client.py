@@ -1,5 +1,6 @@
 import httpx
 
+from packages.contracts.agent_workspace import AgentSessionPage, AgentSessionPageRequest
 from packages.contracts.context import (
     MAX_CONTEXT_RESPONSE_BYTES,
     ContextHistoryPage,
@@ -97,6 +98,17 @@ class JournalClient:
         response.raise_for_status()
         return Session.model_validate(response.json())
 
+    async def sessions_page(self, **kwargs) -> AgentSessionPage:
+        request = AgentSessionPageRequest(**kwargs)
+        response = await self.http.get(
+            "/v1/sessions/page",
+            params=request.model_dump(exclude_none=True, exclude={"schema_version"}),
+        )
+        response.raise_for_status()
+        if len(response.content) > 256_000:
+            raise ValueError("Agent session page exceeds response bound")
+        return AgentSessionPage.model_validate_json(response.content).validate_request(request)
+
     async def playback_generation(self, session_id, thread_id, epoch) -> PlaybackGeneration:
         response = await self.http.get(
             "/v1/transcript/playback/generation",
@@ -114,7 +126,7 @@ class JournalClient:
         return [Session.model_validate(s) for s in response.json()]
 
     async def create_session(self, request):
-        response = await self.http.post("/v1/sessions", json=request.model_dump())
+        response = await self.http.post("/v1/sessions", json=request.model_dump(exclude_none=True))
         response.raise_for_status()
         return Session.model_validate(response.json())
 
