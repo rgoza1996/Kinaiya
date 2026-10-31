@@ -26,6 +26,7 @@ class _AgentWorkspaceData {
   bool creationRefreshed = false;
   String? uncertainHarness;
   bool configured = false;
+  Future<void>? catalogRefresh;
   bool identitySelecting = false;
   bool historyMore = false;
   int catalogRead = 0, sessionRead = 0, selection = 0, historyRead = 0;
@@ -111,6 +112,7 @@ extension AgentWorkspaceState on AppState {
   void _invalidateAgentWorkspace({bool clear = false}) {
     final data = _agentWorkspace;
     data.catalogRead++;
+    data.catalogRefresh = null;
     data.sessionRead++;
     data.selection++;
     data.historyRead++;
@@ -131,11 +133,39 @@ extension AgentWorkspaceState on AppState {
     }
   }
 
-  Future<void> refreshAgentHarnesses() async {
+  Future<void> refreshAgentHarnesses() {
     final api = client,
         generation = connectionGeneration,
         data = _agentWorkspace;
-    if (api == null || !sessionAuthenticated) return;
+    if (api == null || !sessionAuthenticated) return Future<void>.value();
+    final pending = data.catalogRefresh;
+    if (pending != null) return pending;
+    // Publish ownership before touch(): connection/auth listeners may reenter
+    // synchronously. One refresh shares one bounded transport admission.
+    final done = Completer<void>();
+    data.catalogRefresh = done.future;
+    _readAgentHarnesses(api, generation, data).then(
+      (_) {
+        if (identical(data.catalogRefresh, done.future)) {
+          data.catalogRefresh = null;
+        }
+        done.complete();
+      },
+      onError: (Object error, StackTrace stack) {
+        if (identical(data.catalogRefresh, done.future)) {
+          data.catalogRefresh = null;
+        }
+        done.completeError(error, stack);
+      },
+    );
+    return done.future;
+  }
+
+  Future<void> _readAgentHarnesses(
+    KinaiyaClient api,
+    int generation,
+    _AgentWorkspaceData data,
+  ) async {
     final read = ++data.catalogRead;
     bool current() =>
         ownsConnection(generation, api) && read == data.catalogRead;

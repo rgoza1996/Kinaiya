@@ -38,6 +38,10 @@ snapshots. Drafts retain their original disclosure scope per exact
 session/thread/epoch. Selection re-reads the native Session and restores literal
 Agent submit/outcome records through bounded journal pages, accepting only
 `agent-supervisor` provenance. Each page rechecks native scope before publication.
+Same-connection catalog refreshes share one in-flight read, installed before any
+synchronous notification; connection invalidation immediately permits a new read.
+Chat records authentication transitions before callbacks and skips duplicate
+first-frame discovery. A completed or failed refresh still permits manual retry.
 Connection, selection and request generations fence late completions. Reset
 epochs do not reuse older drafts or project older transcript messages into the
 current chat. Read failures remain visible and never ask a model to reconstruct
