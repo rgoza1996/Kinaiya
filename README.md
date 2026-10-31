@@ -14,7 +14,7 @@ Kinaiya pairs a personable, real-time voice experience with an agent that can do
 
 The long-term product scope also includes resource-aware operation, provider choice, durable work, skills and MCP tools, mobile calling, and optional intelligent UI. Those are planned capabilities, not promises that every feature will ship in one release.
 
-The [Roadmap 0.3.0](Roadmap.md) reconciles owner decisions through October 30, 2026. The [implementation and acceptance ledger](docs/implementation-status.md) distinguishes implemented slices, experiments, unverified gates and planned work at source `d735125`; it is the consolidated progress record. Partial resource/ecosystem/mobile foundations do not establish completion of the full product scope above.
+The [Roadmap 0.3.0](Roadmap.md) reconciles owner decisions through October 30, 2026. The [implementation and acceptance ledger](docs/implementation-status.md) distinguishes implemented slices, experiments, unverified gates and planned work at source `f92f6d1`; it is the consolidated progress record. Partial resource/ecosystem/mobile foundations do not establish completion of the full product scope above.
 
 
 ## Mathematical foundations
