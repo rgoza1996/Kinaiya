@@ -12,6 +12,7 @@ import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
 
 import 'memory_client.dart';
+import 'decisions_client.dart';
 import 'models.dart';
 import 'converse_setup.dart';
 import 'agent_workspace.dart';
@@ -70,10 +71,14 @@ class KinaiyaClient {
     required String ownerToken,
     http.Client? httpClient,
     http.Client Function()? memoryClientFactory,
+    http.Client Function()? decisionsClientFactory,
     http.Client Function()? agentWorkspaceClientFactory,
   }) : _token = ownerToken,
        _http = _NoRedirectClient(httpClient ?? http.Client()),
        _memoryClientFactory = memoryClientFactory ?? http.Client.new,
+       _decisionsClientFactory =
+           decisionsClientFactory ??
+           (httpClient == null ? http.Client.new : _decisionsInjectionRequired),
        _agentWorkspaceClientFactory =
            agentWorkspaceClientFactory ??
            (httpClient == null ? http.Client.new : _workspaceInjectionRequired);
@@ -84,6 +89,14 @@ class KinaiyaClient {
   final String _token;
   final http.Client _http;
   final http.Client Function() _memoryClientFactory;
+  final http.Client Function() _decisionsClientFactory;
+  static http.Client _decisionsInjectionRequired() =>
+      throw StateError('Decisions transport requires its own injected factory');
+  late final DecisionsApi decisionInspections = DecisionsApi(
+    base: sessionBase,
+    ownerToken: _token,
+    clientFactory: _decisionsClientFactory,
+  );
   final http.Client Function() _agentWorkspaceClientFactory;
   static http.Client _workspaceInjectionRequired() =>
       throw StateError('Workspace transport requires its own injected factory');
@@ -111,10 +124,13 @@ class KinaiyaClient {
     required http.Client mockTransport,
     String label = 'mock',
     http.Client Function()? memoryClientFactory,
+    http.Client Function()? decisionsClientFactory,
     http.Client Function()? agentWorkspaceClientFactory,
   }) : _token = 'mock-token-not-a-credential',
        _http = _NoRedirectClient(mockTransport),
        _memoryClientFactory = memoryClientFactory ?? http.Client.new,
+       _decisionsClientFactory =
+           decisionsClientFactory ?? _decisionsInjectionRequired,
        _agentWorkspaceClientFactory =
            agentWorkspaceClientFactory ?? _workspaceInjectionRequired {
     _mockLabel = label;
@@ -716,6 +732,7 @@ class KinaiyaClient {
       _http.close();
     } finally {
       unawaited(memory.close());
+      decisionInspections.close();
       unawaited(_agentWorkspaceReader.close());
     }
   }

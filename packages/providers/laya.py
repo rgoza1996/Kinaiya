@@ -227,16 +227,25 @@ class LayaRoutingProvider:
 
     async def _request(self, method: str, path: str, **kwargs) -> dict:
         """Bound raw bytes before decoding; never buffer a compressed response."""
+        from packages.providers.decision_capture import (
+            capture_artifact,
+            capture_error_response,
+            capture_response,
+        )
+
         try:
             async with asyncio.timeout(self.timeout):
                 async with self.http.stream(method, path, **kwargs) as response:
                     if not 200 <= response.status_code < 300:
+                        await capture_error_response(response, MAX_RESPONSE_BYTES)
                         raise ProviderError(f"Laya endpoint returned HTTP {response.status_code}")
                     if (
                         self.expected_artifact_sha256 is not None
                         and response.headers.get(ARTIFACT_HEADER) != self.expected_artifact_sha256
                     ):
                         raise ProviderRefusal("Laya worker artifact identity mismatch")
+                    if method == "POST" and self.expected_artifact_sha256 is not None:
+                        capture_artifact(self.expected_artifact_sha256)
                     encoding = response.headers.get("content-encoding", "").strip().lower()
                     if encoding not in {"", "identity"}:
                         raise ProviderRefusal("Laya response used a non-identity encoding")
@@ -246,6 +255,8 @@ class LayaRoutingProvider:
                         if len(data) + len(chunk) > MAX_RESPONSE_BYTES:
                             raise ProviderRefusal("Laya response exceeded the bounded size")
                         data.extend(chunk)
+                    if method == "POST":
+                        capture_response(bytes(data))
         except asyncio.CancelledError:
             raise
         except TimeoutError as exc:
@@ -306,6 +317,8 @@ class LayaRoutingProvider:
         return result
 
     async def complete(self, messages) -> str:
+        from packages.providers.decision_capture import capture_request
+
         state, mode = self._parse_messages(messages)
         if mode == "window":
             questions = _window_questions(state["tasks"])
@@ -320,6 +333,16 @@ class LayaRoutingProvider:
             body["max_len"] = self.max_len
         if self.head_max_len is not None:
             body["head_max_len"] = self.head_max_len
+        client, info, headers = self.http, self.info.model_dump(), dict(self.http.headers)
+        origin = str(client.base_url)
+        await capture_request(self, body, "laya_systemone")
+        if (
+            self.http is not client
+            or self.info.model_dump() != info
+            or dict(client.headers) != headers
+            or str(client.base_url) != origin
+        ):
+            raise ProviderRefusal("Laya capture transport binding changed")
         payload = await self._request("POST", "v1/systemone", json=body)
         return json.dumps(self._map_answers(payload, state, mode, questions))
 

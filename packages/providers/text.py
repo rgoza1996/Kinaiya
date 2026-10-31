@@ -1,6 +1,7 @@
 """Replaceable text providers. Fixture behavior is explicit and never a live fallback."""
 
 import asyncio
+import copy
 import json
 import os
 import stat
@@ -396,13 +397,29 @@ class CompatibleTextProvider:
         return body
 
     async def complete(self, messages):
+        from packages.providers.decision_capture import (
+            capture_error_response,
+            capture_request,
+            capture_response,
+        )
+
+        body = copy.deepcopy(self._body(messages, False))
+        client, info, headers = self.http, self.info.model_dump(), dict(self.http.headers)
+        origin = str(client.base_url)
+        await capture_request(self, body, "chat_completions")
+        if (
+            self.http is not client
+            or self.info.model_dump() != info
+            or dict(client.headers) != headers
+            or str(client.base_url) != origin
+        ):
+            raise ProviderRefusal("Compatible capture transport binding changed")
         try:
-            async with self.http.stream(
-                "POST", "chat/completions", json=self._body(messages, False)
-            ) as response:
+            async with self.http.stream("POST", "chat/completions", json=body) as response:
                 if _http_cleanup_owned.get():
                     response.stream = _OwnedHTTPStream(response.stream)
                 if not response.is_success:
+                    await capture_error_response(response, _COMPAT_MAX_RAW_BYTES)
                     raise ProviderError(f"Provider HTTP {response.status_code}")
                 _reject_compressed_response(response)
                 raw = bytearray()
@@ -410,6 +427,7 @@ class CompatibleTextProvider:
                     if len(raw) + len(chunk) > _COMPAT_MAX_RAW_BYTES:
                         raise _refusal("wire bound")
                     raw.extend(chunk)
+                capture_response(bytes(raw))
                 return _validate_complete_payload(bytes(raw))
         except httpx.HTTPError as exc:
             raise ProviderError("Compatible provider transport failure") from exc
@@ -722,8 +740,21 @@ class MetaResponsesProvider:
         return body
 
     async def complete(self, messages):
+        from packages.providers.decision_capture import capture_request, capture_response
+
         client, body = self._generation_request(messages, False)
+        body = copy.deepcopy(body)
+        binding, headers, origin = self._count_binding(), dict(client.headers), str(client.base_url)
+        await capture_request(self, body, "responses")
+        if (
+            self.http is not client
+            or self._count_binding() != binding
+            or dict(client.headers) != headers
+            or str(client.base_url) != origin
+        ):
+            raise ProviderRefusal("Meta capture transport binding changed")
         response = await client.post("responses", json=body)
+        capture_response(response.content)
         if response.is_error:
             raise ProviderError(f"Meta HTTP {response.status_code}; no automatic provider fallback")
         data = response.json()

@@ -68,7 +68,7 @@ void main() {
       'home',
       'converse',
       'agent',
-      'character',
+      'decisions',
       'projects',
       'files',
       'media',
@@ -130,7 +130,7 @@ void main() {
     expect(fixture.audio.arms, 1);
     final requests = fixture.requests.length;
     final vad = fixture.audio.vadCalls;
-    for (final page in ['home', 'projects', 'files', 'media']) {
+    for (final page in ['home', 'decisions', 'projects', 'files', 'media']) {
       await _navigate(tester, page);
       if (page == 'home') {
         expect(find.byType(MoonlitHome), findsOneWidget);
@@ -139,6 +139,7 @@ void main() {
         expect(find.byKey(ValueKey('workspace-$page')), findsOneWidget);
         expect(
           find.text(switch (page) {
+            'decisions' => 'Trace what Kinaiya considered and decided',
             'projects' =>
               'Project management is not connected to this host yet. Existing Agent sessions remain available in Agent.',
             'files' =>
@@ -165,7 +166,8 @@ void main() {
         isTrue,
       );
     }
-    await _navigate(tester, 'character');
+    await tester.tap(find.byTooltip('Appearance'));
+    await routePump(tester);
     expect(find.byType(PresentationSettings), findsOneWidget);
     await tester.tap(find.byTooltip('Close appearance settings'));
     await routePump(tester);

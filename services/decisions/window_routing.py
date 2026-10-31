@@ -28,6 +28,7 @@ from packages.contracts.models import (
     WindowDecision,
     new_id,
 )
+from packages.providers.decision_capture import capture_sources
 from packages.providers.disclosure import combine_scopes, scope_allowed
 
 CONVERSATION_LABELS = (
@@ -233,6 +234,16 @@ class WindowClassifier:
         started = time.monotonic()
         body = self._request_body(source, context, tasks)
         context_used = json.loads(body)["context"]
+        capture_sources(
+            source,
+            [
+                entry
+                for entry in context[-MAX_CONTEXT_ENTRIES:]
+                if _entry_scope(entry) in _provider_scopes(self.provider)
+            ]
+            if context_used
+            else [],
+        )
         raw = await self.provider.complete(
             [
                 {"role": "system", "content": instructions},

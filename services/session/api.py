@@ -287,6 +287,9 @@ def create_app(
     from services.session.companion_api import install_companion
 
     install_companion(app, store, auth, clock=companion_clock)
+    from services.session.decisions_api import install_decisions
+
+    install_decisions(app, store, auth)
     if converse_memory:
         from services.session.memory_api import install_memory
 
