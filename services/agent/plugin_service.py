@@ -336,10 +336,15 @@ class PluginService:
         except Exception:
             raise PluginError("Plugin metadata is unavailable") from None
 
-    def tool_metadata_current(self, provider_info, rows, *, task=None) -> bool:
-        """Fence original native projections without an await or pin mutation."""
+    def tool_metadata_current(self, provider_info, rows, *, task=None, retained=False) -> bool:
+        """Fence native projections, allowing trusted same-content history pins."""
         try:
-            if self._lock.locked() or type(rows) is not list or len(rows) > 128:
+            if (
+                type(retained) is not bool
+                or self._lock.locked()
+                or type(rows) is not list
+                or len(rows) > 128
+            ):
                 return False
             if (
                 type(provider_info.local) is not bool
@@ -375,6 +380,17 @@ class PluginService:
                         or identity in seen
                     ):
                         return False
+                    for field in ("version_id", "active_version", "task_pinned_version"):
+                        value = row[field]
+                        if value is None and field != "version_id":
+                            continue
+                        if type(value) is not str or re.fullmatch(r"v-[0-9a-f]{24}", value) is None:
+                            return False
+                    if (
+                        row["task_pinned_version"] is not None
+                        and row["task_pinned_version"] != row["version_id"]
+                    ):
+                        return False
                     seen.add(identity)
                     active = self.registry.active(identity)
                     if active is None:
@@ -404,7 +420,18 @@ class PluginService:
                     if "input_schema" in row:
                         expected["input_schema"] = stored["manifest"]["input_schema"]
                         expected["output_schema"] = stored["manifest"]["output_schema"]
-                    if _json(row) != _json(expected):
+                    compared = row
+                    if retained:
+                        compared = dict(row)
+                        compared["task_pinned_version"] = expected["task_pinned_version"]
+                        if row["active_version"] != expected["active_version"]:
+                            original_active = row["active_version"]
+                            if original_active is not None:
+                                if self.registry.inspect(original_active)["plugin_id"] != identity:
+                                    return False
+                                self._check_disclosure(original_active, provider_info)
+                            expected["active_version"] = original_active
+                    if _json(compared) != _json(expected):
                         return False
             return True
         except Exception:

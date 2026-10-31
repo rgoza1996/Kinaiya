@@ -728,8 +728,9 @@ async def test_skill_current_guard_checks_pinned_author_flags_and_trusted_invoca
 
 
 @pytest.mark.parametrize("rows", [None, (), {}, [None], [{}], [{"id": "local/demo"}]])
-async def test_skill_current_guard_rejects_malformed_rows(skills, rows):
-    assert not skills.tool_metadata_current(META, rows)
+@pytest.mark.parametrize("retained", [False, True])
+async def test_skill_current_guard_rejects_malformed_rows(skills, rows, retained):
+    assert not skills.tool_metadata_current(META, rows, retained=retained)
 
 
 async def test_skill_current_guard_rejects_row_tampering_duplicates_and_invalid_provider(
@@ -814,8 +815,9 @@ async def test_plugin_current_guard_revalidates_approval_and_integrity(plugins):
 
 
 @pytest.mark.parametrize("rows", [None, (), {}, [None], [{}], [{"plugin_id": "demo"}]])
-async def test_plugin_current_guard_rejects_malformed_rows(plugins, rows):
-    assert not plugins.tool_metadata_current(META, rows)
+@pytest.mark.parametrize("retained", [False, True])
+async def test_plugin_current_guard_rejects_malformed_rows(plugins, rows, retained):
+    assert not plugins.tool_metadata_current(META, rows, retained=retained)
 
 
 async def test_plugin_current_guard_strict_schema_kinds_and_bad_provider(plugins):
@@ -832,3 +834,149 @@ async def test_plugin_current_guard_strict_schema_kinds_and_bad_provider(plugins
         assert not plugins.tool_metadata_current(META, modified)
     bad_provider = SimpleNamespace(local=1, provider="meta", model="fixture")
     assert not plugins.tool_metadata_current(bad_provider, rows)
+
+
+@pytest.mark.parametrize("selected", [False, True])
+async def test_skill_retained_guard_allows_actual_same_content_load_but_not_revocation(
+    skills, tmp_path, monkeypatch, selected
+):
+    identity = await install_skill(skills, skill_source(tmp_path / "source"))
+    rows = await skills.tool_metadata(META, skill_id=identity if selected else None, task_id="task")
+    assert skills.tool_metadata_current(META, rows, task_id="task")
+    loaded = await skills.load("task", identity, META)
+    assert loaded["digest"] == rows[0]["digest"]
+    trap_skill_effects(skills, monkeypatch)
+    assert not skills.tool_metadata_current(META, rows, task_id="task")
+    assert skills.tool_metadata_current(META, rows, task_id="task", retained=True)
+    for field, value in (
+        ("description", "different"),
+        ("version", "9.0"),
+        ("source_revision", "new"),
+    ):
+        changed = copy.deepcopy(rows)
+        changed[0][field] = value
+        assert not skills.tool_metadata_current(META, changed, task_id="task", retained=True)
+    await skills.mutate("scope", authority="owner", skill_id=identity, content_scope="local_only")
+    assert not skills.tool_metadata_current(META, rows, task_id="task", retained=True)
+
+
+async def test_skill_retained_guard_keeps_disclosed_historical_active_reference_and_exact_content(
+    skills, tmp_path
+):
+    identity = await install_skill(skills, skill_source(tmp_path / "v1"))
+    rows = await skills.tool_metadata(META, skill_id=identity, task_id="task")
+    await skills.load("task", identity, META)
+    await skills.mutate(
+        "update",
+        authority="owner",
+        skill_id=identity,
+        source=skill_source(tmp_path / "v2", version="2.0"),
+        content_scope="public_synthetic",
+    )
+    assert not skills.tool_metadata_current(META, rows, task_id="task")
+    assert skills.tool_metadata_current(META, rows, task_id="task", retained=True)
+    # Replacing the task's chosen bytes invalidates the original observation.
+    await skills.release_task("task")
+    await skills.load("task", identity, META)
+    assert not skills.tool_metadata_current(META, rows, task_id="task", retained=True)
+
+
+async def test_skill_retained_guard_cannot_ignore_withdrawn_unchosen_active_reference(
+    skills, tmp_path
+):
+    identity = await install_skill(skills, skill_source(tmp_path / "v1"))
+    await skills.load("task", identity, META)
+    await skills.mutate(
+        "update",
+        authority="owner",
+        skill_id=identity,
+        source=skill_source(tmp_path / "v2", version="2.0"),
+        content_scope="public_synthetic",
+    )
+    rows = await skills.tool_metadata(META, skill_id=identity, task_id="task")
+    # Owner update discards the unpinned active version's disclosure grant,
+    # while preserving the public pin used by this task.
+    await skills.mutate(
+        "update",
+        authority="owner",
+        skill_id=identity,
+        source=skill_source(tmp_path / "v3", version="3.0"),
+        content_scope="public_synthetic",
+    )
+    assert rows[0]["version"] == "1.0" and rows[0]["active_version"]["version"] == "2.0"
+    fresh = await skills.tool_metadata(META, skill_id=identity, task_id="task")
+    assert fresh[0]["version"] == "1.0" and fresh[0]["active_version"]["version"] == "3.0"
+    assert skills.tool_metadata_current(META, fresh, task_id="task", retained=True)
+    assert not skills.tool_metadata_current(META, rows, task_id="task", retained=True)
+
+
+@pytest.mark.parametrize("retained", [0, 1, None, "true"])
+async def test_skill_retained_flag_is_trusted_strict_boolean(skills, retained):
+    assert not skills.tool_metadata_current(META, [], retained=retained)
+
+
+@pytest.mark.parametrize("selected", [False, True])
+async def test_plugin_retained_guard_allows_actual_same_content_pin_but_not_revocation(
+    plugins, monkeypatch, selected
+):
+    version = await approve_fixture(plugins)
+    task = SimpleNamespace(task_id="task", plugin_versions={})
+    rows = await plugins.tool_metadata(META, plugin_id="demo" if selected else None, task=task)
+    pinned, changed = await plugins.pin_task(task, "demo", META)
+    assert pinned == version and changed
+    durable_pins = plugins.registry._pins_file.read_bytes()
+    trap_plugin_pins(plugins, monkeypatch)
+    assert not plugins.tool_metadata_current(META, rows, task=task)
+    assert plugins.tool_metadata_current(META, rows, task=task, retained=True)
+    assert plugins.registry._pins_file.read_bytes() == durable_pins
+    for field, value in (("description", "different"), ("version_id", "v-" + "0" * 24)):
+        modified = copy.deepcopy(rows)
+        modified[0][field] = value
+        assert not plugins.tool_metadata_current(META, modified, task=task, retained=True)
+    if selected:
+        modified = copy.deepcopy(rows)
+        modified[0]["input_schema"]["properties"].clear()
+        assert not plugins.tool_metadata_current(META, modified, task=task, retained=True)
+    await plugins.set_scope(version, "local_only", reviewed=True)
+    assert not plugins.tool_metadata_current(META, rows, task=task, retained=True)
+
+
+async def test_plugin_retained_guard_checks_historical_active_disclosure_separately(plugins):
+    first = await approve_fixture(plugins)
+    task = SimpleNamespace(task_id="task", plugin_versions={})
+    await plugins.pin_task(task, "demo", META)
+    initial = await plugins.tool_metadata(META, plugin_id="demo", task=task)
+    second = await approve_fixture(plugins, field="new")
+    assert plugins.tool_metadata_current(META, initial, task=task, retained=True)
+    rows = await plugins.tool_metadata(META, plugin_id="demo", task=task)
+    third = await approve_fixture(plugins, field="third")
+    assert first != second != third
+    assert rows[0]["version_id"] == first and rows[0]["active_version"] == second
+    assert not plugins.tool_metadata_current(META, rows, task=task)
+    assert plugins.tool_metadata_current(META, rows, task=task, retained=True)
+    await plugins.set_scope(second, "local_only", reviewed=True)
+    assert not plugins.tool_metadata_current(META, rows, task=task, retained=True)
+    assert plugins.tool_metadata_current(META, initial, task=task, retained=True)
+    # The same-content allowance never substitutes a different selected version.
+    await plugins.release_task(task.task_id)
+    task.plugin_versions.clear()
+    await plugins.pin_task(task, "demo", META)
+    assert task.plugin_versions["demo"] == third
+    assert not plugins.tool_metadata_current(META, initial, task=task, retained=True)
+
+
+async def test_plugin_retained_guard_can_keep_previously_hidden_active_reference_unknown(plugins):
+    await approve_fixture(plugins)
+    task = SimpleNamespace(task_id="task", plugin_versions={})
+    await plugins.pin_task(task, "demo", META)
+    await approve_fixture(plugins, field="new", scope="local_only")
+    rows = await plugins.tool_metadata(META, plugin_id="demo", task=task)
+    assert rows[0]["active_version"] is None
+    await approve_fixture(plugins, field="third")
+    assert not plugins.tool_metadata_current(META, rows, task=task)
+    assert plugins.tool_metadata_current(META, rows, task=task, retained=True)
+
+
+@pytest.mark.parametrize("retained", [0, 1, None, "true"])
+async def test_plugin_retained_flag_is_trusted_strict_boolean(plugins, retained):
+    assert not plugins.tool_metadata_current(META, [], retained=retained)

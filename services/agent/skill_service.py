@@ -950,15 +950,22 @@ class SkillService:
         }
 
     def tool_metadata_current(
-        self, provider_info, rows, *, task_id=None, invocation="model"
+        self, provider_info, rows, *, task_id=None, invocation="model", retained=False
     ) -> bool:
         """Synchronously fence retained native metadata after an await.
 
         Rows are original broker projections, never model arguments. A busy
         controller fails closed; this read cannot wait, load, or create pins.
+        Trusted retained history may acquire the same-content pin while its
+        originally disclosed active reference remains disclosable.
         """
         try:
-            if self._lock.locked() or type(rows) is not list or len(rows) > 8192:
+            if (
+                type(retained) is not bool
+                or self._lock.locked()
+                or type(rows) is not list
+                or len(rows) > 8192
+            ):
                 return False
             if (task_id is not None and type(task_id) is not str) or type(invocation) is not str:
                 return False
@@ -1010,12 +1017,24 @@ class SkillService:
                         return False
                     for part in value.values():
                         part.encode("utf-8")
+                    SourceRef._check_version(value["version"], "metadata version")
+                    if re.fullmatch(r"sha256:[0-9a-f]{64}", value["digest"]) is None:
+                        return False
                 identity = _check_skill_id(row["id"])
                 if identity in seen or row["integrity"] not in {
                     "registered_only",
                     "verified_current",
                     "pinned_snapshot",
                 }:
+                    return False
+                if row["task_pinned_version"] is not None and row["task_pinned_version"] != {
+                    "version": row["version"],
+                    "digest": row["digest"],
+                }:
+                    return False
+                if (row["integrity"] == "pinned_snapshot") != (
+                    row["task_pinned_version"] is not None
+                ):
                     return False
                 seen.add(identity)
                 record = self._current_record(identity)
@@ -1039,7 +1058,21 @@ class SkillService:
                     integrity = "verified_current"
                 else:
                     integrity = "registered_only"
-                if row != self._tool_metadata_row(record, pin, integrity):
+                expected = self._tool_metadata_row(record, pin, integrity)
+                compared = row
+                if retained:
+                    compared = dict(row)
+                    compared["task_pinned_version"] = expected["task_pinned_version"]
+                    compared["integrity"] = expected["integrity"]
+                    if row["active_version"] != expected["active_version"]:
+                        if not _scope_allows(
+                            self._effective_scope(identity, row["active_version"]["digest"]),
+                            local=flags[0],
+                            contributor=flags[1],
+                        ):
+                            return False
+                        expected["active_version"] = row["active_version"]
+                if compared != expected:
                     return False
             return True
         except Exception:
