@@ -1744,9 +1744,13 @@ class AgentRuntime:
             )
             try:
                 receipt = await admission(request)
-            except asyncio.CancelledError:
+            except (asyncio.CancelledError, ProviderCleanupError):
                 raise
             except Exception as exc:
+                # A native reply failure can also arrive after an accepted
+                # steer. Classify against current authority before changing
+                # the old revision's disclosure floor or failing its task.
+                current()
                 rec.task.content_scope = "local_only"
                 raise PromptCountUnavailable("Native Agent export admission was refused") from exc
             current()
