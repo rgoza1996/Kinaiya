@@ -97,6 +97,14 @@ they are not copied into task outcomes for other roles. Catalog inspection uses
 no new inference call. Tests use synthetic model transports; live capability or
 model-quality qualification is separate.
 
+Model history records the executed canonical logical action (at most8KiB) and
+its complete result as separate guarded units. Results identify the completed
+inspection explicitly. A real typed trial repeated discovery while the action
+trace was omitted; that observation alone does not establish a general cause.
+Flat serialization still rejects non-null fields
+outside the five catalog arguments, including `objective_revision`; its wire
+instructions make that restriction explicit. No malformed output is repaired.
+
 ## Source-specific facts
 
 - Native inspection uses the actual task-qualified snapshot and trusted logical

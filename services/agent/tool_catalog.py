@@ -377,6 +377,14 @@ async def inspect_catalog(runtime, arguments, *, rec=None, guard_sink=None):
     task = rec.task if rec is not None else None
     context = {
         "inspection_only": True,
+        "history_kind": "tool_catalog_result",
+        "tool": "tool_catalog",
+        "ok": True,
+        "next_action": (
+            "Inspection complete. Continue the requested work using the returned metadata. "
+            "Inspection cannot complete work. Inspect again only when another schema is needed "
+            "or metadata has changed."
+        ),
         "task_id": task.task_id if task is not None else None,
         "objective_revision": task.objective_revision if task is not None else None,
         "task_state": task.state.value if task is not None else None,

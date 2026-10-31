@@ -1471,9 +1471,12 @@ class AgentRuntime:
             # original unit cannot remove those derived data dependencies.
             raise PolicyDenied("Tool catalog disclosure changed; task stopped")
         for turn in rec.history:
-            if turn.get("context_kind") != "tool_catalog":
+            if turn.get("context_kind") not in {"tool_catalog", "tool_catalog_action"}:
                 continue
-            key = hashlib.sha256(turn["content"].encode("utf-8")).hexdigest()
+            key = (
+                turn.get("catalog_guard")
+                or hashlib.sha256(turn["content"].encode("utf-8")).hexdigest()
+            )
             guard = rec.catalog_guards.get(key)
             if guard is None:
                 rec.task.content_scope = "local_only"
@@ -2266,7 +2269,26 @@ class AgentRuntime:
                 catalog_guard.commit()
                 key = hashlib.sha256(out.encode("ascii")).hexdigest()
                 rec.catalog_guards[key] = catalog_guard
-                rec.history.append({"role": "user", "content": out, "context_kind": "tool_catalog"})
+                # Keep the executed logical action as well as its complete
+                # result. A real typed trial repeated inspection when that
+                # action trace was omitted. Neither unit is clipped.
+                action = encode_catalog({"tool": tool, "arguments": args}, max_bytes=8192)
+                rec.history.append(
+                    {
+                        "role": "assistant",
+                        "content": action,
+                        "context_kind": "tool_catalog_action",
+                        "catalog_guard": key,
+                    }
+                )
+                rec.history.append(
+                    {
+                        "role": "user",
+                        "content": out,
+                        "context_kind": "tool_catalog",
+                        "catalog_guard": key,
+                    }
+                )
         elif tool == "publish_ui":
             # The admitted action may contain 48 KiB of UI data. Its verified
             # native receipt is the history unit; clipping/replaying the raw

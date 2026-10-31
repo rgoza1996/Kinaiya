@@ -127,9 +127,12 @@ def build_messages(
         {"role": "user", "content": user},
     ]
     for turn in history[-HISTORY_LIMIT:]:
-        if turn.get("context_kind") == "tool_catalog":
+        if turn.get("context_kind") in {"tool_catalog", "tool_catalog_action"}:
             content = turn["content"]
-            if len(content.encode("utf-8")) > CATALOG_RECEIPT_LIMIT:
+            bound = (
+                8192 if turn.get("context_kind") == "tool_catalog_action" else CATALOG_RECEIPT_LIMIT
+            )
+            if len(content.encode("utf-8")) > bound:
                 raise ValueError("Native tool catalog exceeds its history byte budget")
         elif turn.get("context_kind") == "artifact_receipt":
             content = turn["content"]

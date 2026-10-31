@@ -212,10 +212,17 @@ async def test_catalog_schema_survives_model_history_and_terminal_api_without_ef
         message["content"] for message in second if message["content"].startswith('{"catalogs":')
     ]
     catalog = json.loads(catalog_text)
+    assert catalog["history_kind"] == "tool_catalog_result"
+    assert catalog["tool"] == "tool_catalog" and catalog["ok"] is True
+    assert "Inspection complete" in catalog["next_action"]
     assert catalog["item"]["name"] == "publish_ui"
     assert "invocation" not in catalog["item"]
     assert len(catalog_text) > 2000 and len(catalog_text) <= 32768
     assert "truncated" not in catalog_text
+    actions = [
+        json.loads(message["content"]) for message in second if message["role"] == "assistant"
+    ]
+    assert any((action.get("action", action))["tool"] == "tool_catalog" for action in actions)
     before = final.model_dump(mode="json")
     response = await env.client.get(
         "/v1/agents/tool-catalog",

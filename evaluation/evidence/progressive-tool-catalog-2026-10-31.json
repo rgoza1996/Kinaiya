@@ -9,8 +9,8 @@
     "apps/kinaiya_flutter/test/models_test.dart": "b69cf2d8a1ffdf0ce7ee072a8a626ba197af8b0953797a62d6b8f4784cbbc9f7",
     "docs/adr/0074-progressive-tool-discovery.md": "987d75879491e9607146f1f5a45f6d4ef903715e51b887779979488074ad3100",
     "docs/native-tool-advertisement.md": "e01a6b22818662b34a5eb3b7f33d8825402fcae032996a1a46f0fa575598ea50",
-    "docs/progressive-tool-catalog.md": "42b67c86f2e52348b0e693952f4332f9f30a3e936a83063307ef877220ddc35b",
-    "harnesses/seed/__init__.py": "9faad668d54f9c68207623402a36fc4166269f11e236c08ee56af54f18f0b821",
+    "docs/progressive-tool-catalog.md": "99acb194969fa0c9179ab0ecb75f3205c1b6ef0ee10eebef0c30c6e0b317ffa9",
+    "harnesses/seed/__init__.py": "f8d157e732835a13a2d9afb8fc33270aef468019ea6bab1f391f65f869a33d82",
     "packages/contracts/agent_tools.py": "524152e421f3fdda1ee0c18cf3836185a10f2748f0b958dccefc56a6020bfe24",
     "packages/contracts/models.py": "67594c9a48a8bc741baf468ab9397eee66b1bd35dfeccd8a4c33caaa7677044b",
     "packages/contracts/native_tool_schemas.py": "96c9205626cd2caf29cc97c7809159099de71a81834375baa9b38ed645a43c78",
@@ -22,18 +22,18 @@
     "packages/providers/lmstudio.py": "f2236c4e35c080626b09cba55e981187d397155159bd8eddb518130e553dbfe6",
     "packages/providers/meta_action_wire.py": "996f282db747b48abcfb2e9bd34cbfd488fd1ed4369b39c09aa6d7537ef271f5",
     "packages/providers/qwen3.py": "45ab657db89a285a60da229d99daa784119a3038441aeeb7c39ace2008f1d796",
-    "packages/providers/text.py": "2388b078df82e07bf0eb328904c27a4abab83614428c58016695e66397d4eea3",
+    "packages/providers/text.py": "20ea25cc63a17abb6459f4554a89fcef2e1f15135a753a99b476e4652d65af0f",
     "services/agent/app.py": "1216baba1c1df9285f9502a478c0ca8637e167aadf38269a8ebd4c1722571a8b",
     "services/agent/mcp_tools.py": "7fbc94f771ed7e028c0880c4ebae388b12d6ce87a98d17a104ad56586b52781e",
     "services/agent/plugin_service.py": "7e274d65ee4246d047c11c9ac85912ba0d7bcfc62e5922b4a60a9f00333d64dd",
-    "services/agent/runtime.py": "87388e44a2fd4123858d3c14446e0e4b17f1e857126455f73cf7496bfe6a714e",
+    "services/agent/runtime.py": "bbd7178ac6c381626868dbb49564d4ddf243b3d2b9865e0ba0e666024e8f4b9a",
     "services/agent/skill_service.py": "2077c28529b62074f720a6560d94210ebdef551fc80eb209624f2823d01eb68a",
-    "services/agent/tool_catalog.py": "1d94ea258bcd6d98f96c63f19fa6d98911160798379c4d14949d662874f47506",
+    "services/agent/tool_catalog.py": "021d362c439aade46bcdc64fdb34f000654514b69060fe85db546758699edbba",
     "services/converse/runtime.py": "757ba315b448d34dff0e374eb23a703c48228997a59b9818ee0bc6336bcd8b9f",
     "tests/integration/test_agent_seed.py": "9065fde58e7e46792d820d9a60f95bee8af8b1569485537c9a1bb35912b4bf66",
     "tests/integration/test_agent_tool_advertising.py": "55f6dd2b202f52f362316cbc933f55c552aea126f7bce7e36b2d9d4af6e6bb38",
     "tests/integration/test_intelligent_ui.py": "c8493e22f82dbafcd4507f88f75daa3d1f6819e4dd58e66b66b8ebdb21f6a8a8",
-    "tests/integration/test_progressive_tool_catalog.py": "6129c1d87b9d3ccde18acd0ddc0b9cefb30cbfaa150819570e501dd21a95b044",
+    "tests/integration/test_progressive_tool_catalog.py": "5be1c7ac0f1454342c23746828f25e88a15b719b3c414bd56f80134a664edce4",
     "tests/integration/test_tool_catalog_metadata.py": "3f767d124b356b77ce6a08773472ac8f4f31a1646db639ae182ee942b2ed5144",
     "tests/unit/test_agent_tools.py": "683548630817e8a9508774609cd9067784e7e8ccb19ad261ac920a0e20e6ce27",
     "tests/unit/test_catalog_local_provider_guards.py": "9afaa1a65bef845f47235d07336efe76cdaa31b804fba3191de6a9ae20e71e61",
@@ -112,7 +112,85 @@
       "result_sha256": "6755e5334a49bb0e55544b26e311195ea58f340f30abb752cde36d2c0cd27b8c",
       "limitation": "Instrumentation can mask a timing race; passing checks do not establish the cause or a repair."
     },
-    "required_exact_head_ci": "Must pass all five jobs before merge; authoritative run/head is recorded on the PR."
+    "required_exact_head_ci": "Must pass all five jobs before merge; authoritative run/head is recorded on the PR.",
+    "live_initial_candidate": {
+      "source_head": "96019358bbebbf39a52daf4b4b87177a0f110633",
+      "cases": [
+        {
+          "mode": "flat-v1",
+          "state": "failed",
+          "passed": false,
+          "requests": 1,
+          "tool_order": [],
+          "evidence_kinds": [],
+          "catalog_history_complete": false,
+          "catalog_metadata_omitted_from_evidence": true,
+          "elapsed_seconds": 4.8295399130438454,
+          "provider_closed": true,
+          "workers_done": true
+        },
+        {
+          "mode": "typed-v2",
+          "state": "failed",
+          "passed": false,
+          "requests": 3,
+          "tool_order": [
+            "tool_catalog",
+            "tool_catalog",
+            "tool_catalog"
+          ],
+          "evidence_kinds": [
+            "inspection",
+            "inspection",
+            "inspection"
+          ],
+          "catalog_history_complete": true,
+          "catalog_metadata_omitted_from_evidence": true,
+          "elapsed_seconds": 24.71681227895897,
+          "provider_closed": true,
+          "workers_done": true
+        }
+      ],
+      "passed": false,
+      "before": {
+        "limit_usd": 25,
+        "admission_limit_usd": 22,
+        "billing_reported_usd": null,
+        "contributor_estimated_usd": 1.6368652760000026,
+        "reserved_usd": 2.23925145,
+        "cache_aware_admission_estimated_usd": 3.2737305520000053,
+        "last_call_id": 2418
+      },
+      "after": {
+        "limit_usd": 25,
+        "admission_limit_usd": 22,
+        "billing_reported_usd": null,
+        "contributor_estimated_usd": 1.6378123400000026,
+        "reserved_usd": 2.23925145,
+        "cache_aware_admission_estimated_usd": 3.2756246800000053,
+        "last_call_id": 2422
+      },
+      "phase_contributor_estimate_usd": 0.0009470639999999975,
+      "phase_cache_aware_estimate_usd": 0.001894127999999995,
+      "prompt_sha256": "363b4dcf570ff7da5e0e85e9a833ab5eb15b2f3376cb0e6c9291988473c8fcc7",
+      "general_model_quality_claim": false,
+      "voice_or_routing_claim": false,
+      "summary_sha256": "7f6b9ced143a6466fedebd51b40556dd6eda411be31b9041587a57054ff6bd6a",
+      "harness_sha256": "337e421150ed661061842c98a38e9658dfa8045ebc6257e6061da415cd042a6b",
+      "acceptance": "both failed; each upstream schema accepted; no task/flow success claimed",
+      "diagnosis": [
+        "Flat proposed non-null objective_revision for tool_catalog, correctly refused by the closed wire decoder.",
+        "Typed repeated native inspection three times and exhausted the3-step budget; no fixture read occurred.",
+        "Recorded history omitted the prior assistant action. The revised candidate preserves complete action/result units and clarifies allowed flat fields; no output repair or retry was added."
+      ],
+      "model_quality_claim": false
+    },
+    "history_correction": {
+      "passed": 244,
+      "elapsed_seconds": 9.04,
+      "log_sha256": "4cf2e79db2a18ecf7dafe3aabe9c79857a3bd850f62a61dbba6041d54ed82909",
+      "command": "PYTHONPATH=. python -m pytest tests/integration/test_progressive_tool_catalog.py tests/unit/test_seed_tool_snapshot.py tests/unit/test_seed_history.py tests/integration/test_agent_tool_advertising.py tests/unit/test_meta_tool_snapshot.py -q --tb=short"
+    }
   },
   "muse_delegation": {
     "real_cli": true,
@@ -144,7 +222,7 @@
     "budget_limit_usd": 25
   },
   "limitations": [
-    "No new live-tool or model-quality qualification; all integration responses are public synthetic fixtures.",
+    "No live foreign-target or general model-quality qualification. The bounded real Meta native checks and all failed initial outcomes are retained separately from synthetic integration tests.",
     "MCP configured/definition digests are not remote implementation versions or task pins.",
     "Existing legacy native coercions remain documented; logical schemas specify canonical calls.",
     "Tool Library installation and formal proof engines remain separate design work.",

@@ -924,6 +924,12 @@ class MetaResponsesProvider:
                     "argument object into arguments.mcp_arguments_json. For mcp_list, use "
                     "server_id, optional after and optional mcp_tool for schema selection."
                 )
+            if "tool_catalog" in tools:
+                wire += (
+                    "\nFor tool_catalog, only kind, name, server_id, query and after may be non-null. "
+                    "Set every other argument field, including objective_revision, to null. "
+                    "Its native result acknowledges inspection; then continue the actual requested work."
+                )
             if messages and messages[0].get("role") == "system":
                 messages[0]["content"] += wire
             else:
