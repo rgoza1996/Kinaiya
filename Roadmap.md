@@ -718,6 +718,8 @@ Use local deterministic animation playback, not per-frame LLM calls. Keep speech
 
 Bake costumes/props into sheets for the initial implementation. Layered compositing and skeletal rendering are explicitly deferred. Approximate mouth-open/closed animation based on playback amplitude is acceptable where phoneme timing is unavailable; do not claim accurate lip synchronization.
 
+The bundled Converse close-up implements that playback-amplitude fallback with a small native mouth overlay and optional timed viseme cues ([ADR 0064](docs/adr/0064-speech-mouth-playback.md)). Imported pack animation and general layered/skeletal rendering retain their existing scope. Current speech providers do not supply phoneme timing.
+
 Validate atlas bounds, image dimensions, frame counts, transparency, anchor alignment, loop continuity, and maximum texture/memory budgets. Bad packs fall back to a known-good idle asset rather than crashing the app.
 
 ## 17. Image generation and asset expansion

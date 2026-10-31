@@ -18,7 +18,8 @@ import 'speech_audio.dart';
 @JS('kinaiyaAudio')
 external JSObject? get _bridge;
 
-class _WebSpeechAudio implements SpeechAudio, WindowSpeechAudio {
+class _WebSpeechAudio
+    implements SpeechAudio, WindowSpeechAudio, SpeechMouthAudio {
   bool get _ready => _bridge != null;
 
   JSAny _call0(String name) => _bridge!.callMethod<JSAny>(name.toJS);
@@ -28,6 +29,9 @@ class _WebSpeechAudio implements SpeechAudio, WindowSpeechAudio {
 
   JSAny _call2(String name, JSAny a, JSAny b) =>
       _bridge!.callMethod<JSAny>(name.toJS, a, b);
+
+  JSAny _call3(String name, JSAny a, JSAny b, JSAny c) =>
+      _bridge!.callMethod<JSAny>(name.toJS, a, b, c);
 
   /// Normalizes the bridge's dual sync/async calling semantics: a
   /// [JSPromise] is awaited, a plain value is read directly. Uses [isA],
@@ -121,6 +125,77 @@ class _WebSpeechAudio implements SpeechAudio, WindowSpeechAudio {
           'queued';
     } catch (_) {
       return false;
+    }
+  }
+
+  @override
+  Future<bool> queuePcmWithVisemes(
+    String base64,
+    int sampleRate,
+    Object? cues,
+  ) async {
+    if (!_ready) return false;
+    // Only a missing capability permits the legacy path. An exception after
+    // scheduling may have queued sound, so it must never replay the same PCM.
+    if (!_bridge!.has('queuePcmWithVisemes')) {
+      return queuePcm(base64, sampleRate);
+    }
+    String encoded;
+    try {
+      // Copy only bounded scalar cue fields, never arbitrary nested metadata.
+      final normalized = <Map<String, Object>>[];
+      var previousEnd = 0.0;
+      var valid = cues is List && cues.length <= 256;
+      if (cues is List && valid) {
+        for (final cue in cues) {
+          if (cue is! Map) {
+            valid = false;
+            break;
+          }
+          final start = cue['start_ms'];
+          final end = cue['end_ms'];
+          final viseme = cue['viseme'];
+          if (start is! num ||
+              !start.isFinite ||
+              start < previousEnd ||
+              end is! num ||
+              !end.isFinite ||
+              end <= start ||
+              viseme is! String ||
+              !speechVisemes.contains(viseme)) {
+            valid = false;
+            break;
+          }
+          normalized.add({'start_ms': start, 'end_ms': end, 'viseme': viseme});
+          previousEnd = end.toDouble();
+        }
+      }
+      encoded = valid ? jsonEncode(normalized) : '';
+    } catch (_) {
+      encoded = '';
+    }
+    try {
+      return await _strOf(
+            _call3(
+              'queuePcmWithVisemes',
+              base64.toJS,
+              sampleRate.toJS,
+              encoded.toJS,
+            ),
+          ) ==
+          'queued';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  @override
+  Future<SpeechMouthFrame> mouthFrame() async {
+    if (!_ready) return SpeechMouthFrame.closed;
+    try {
+      return SpeechMouthFrame.fromJson(jsonDecode(await _str0('mouthFrame')));
+    } catch (_) {
+      return SpeechMouthFrame.closed;
     }
   }
 

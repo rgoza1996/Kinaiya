@@ -49,6 +49,7 @@ Future<void> mount(
   Future<void> Function(String)? downloader,
   Size size = const Size(1000, 1100),
   double textScale = 1,
+  bool disableAnimations = true,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -60,7 +61,7 @@ Future<void> mount(
       builder: (context, child) => MediaQuery(
         data: MediaQuery.of(context).copyWith(
           textScaler: TextScaler.linear(textScale),
-          disableAnimations: true,
+          disableAnimations: disableAnimations,
         ),
         child: child!,
       ),
@@ -338,6 +339,7 @@ void main() {
       for (final label in [
         'Reduce motion',
         'Interface transitions',
+        'Speech mouth movement',
         'Show character',
         'Show captions',
         'Use character pack colors',
@@ -347,6 +349,7 @@ void main() {
       }
       expect(controller.preferences.reducedMotion, isTrue);
       expect(controller.preferences.animateTransitions, isFalse);
+      expect(controller.preferences.speechMouthMotion, isFalse);
       expect(controller.preferences.showCharacter, isFalse);
       expect(controller.preferences.showCaptions, isFalse);
       expect(controller.preferences.usePackPalette, isFalse);
@@ -366,6 +369,7 @@ void main() {
       await controller.setPreferences(
         controller.preferences.copyWith(
           animateTransitions: false,
+          speechMouthMotion: false,
           showConverseView: false,
         ),
       );
@@ -388,10 +392,72 @@ void main() {
       expect(controller.preferences.primaryOverride, '#AABBCC');
       expect(controller.preferences.backgroundOverride, '#000001');
       expect(controller.preferences.animateTransitions, isFalse);
+      expect(controller.preferences.speechMouthMotion, isFalse);
       expect(controller.preferences.showConverseView, isFalse);
       await press(tester, 'Clear color overrides');
       expect(controller.preferences.primaryOverride, isNull);
       expect(controller.preferences.backgroundOverride, isNull);
+      expect(controller.preferences.speechMouthMotion, isFalse);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'mouth movement saves and restores its own choice under reduced motion',
+    (tester) async {
+      final storage = MemoryPresentationStorage();
+      final controller = await initialized(tester, storage: storage);
+      await controller.setPreferences(
+        controller.preferences.copyWith(
+          reducedMotion: true,
+          showConverseView: false,
+          animateTransitions: false,
+          primaryOverride: '#123456',
+        ),
+      );
+      final before = storage.record;
+      await mount(tester, controller, disableAnimations: false);
+      expect(storage.record, before);
+      expect(controller.preferences.speechMouthMotion, isTrue);
+      await tester.ensureVisible(find.text('Speech mouth movement'));
+      expect(
+        find.textContaining('Still · Reduced motion takes priority.'),
+        findsOneWidget,
+      );
+      await press(tester, 'Speech mouth movement');
+      expect(controller.preferences.speechMouthMotion, isFalse);
+      expect(controller.preferences.reducedMotion, isTrue);
+      expect(controller.preferences.showConverseView, isFalse);
+      expect(controller.preferences.animateTransitions, isFalse);
+      expect(controller.preferences.primaryOverride, '#123456');
+      final saved = jsonDecode(storage.record!) as Map<String, Object?>;
+      final preferences = saved['preferences']! as Map<String, Object?>;
+      expect(preferences['speech_mouth_motion'], isFalse);
+      final restored = await initialized(tester, storage: storage);
+      expect(restored.preferences.speechMouthMotion, isFalse);
+      expect(restored.preferences.reducedMotion, isTrue);
+      await press(tester, 'Speech mouth movement');
+      expect(controller.preferences.speechMouthMotion, isTrue);
+      expect(controller.preferences.reducedMotion, isTrue);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'device reduced motion explains the saved mouth movement choice',
+    (tester) async {
+      final controller = await initialized(tester);
+      await mount(tester, controller);
+      await tester.ensureVisible(find.text('Speech mouth movement'));
+      expect(controller.preferences.reducedMotion, isFalse);
+      expect(controller.preferences.speechMouthMotion, isTrue);
+      expect(
+        find.textContaining('Still · Reduced motion takes priority.'),
+        findsOneWidget,
+      );
+      await press(tester, 'Speech mouth movement');
+      expect(controller.preferences.speechMouthMotion, isFalse);
+      expect(controller.preferences.reducedMotion, isFalse);
       expect(tester.takeException(), isNull);
     },
   );
