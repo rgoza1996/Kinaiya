@@ -17,6 +17,7 @@ import 'models.dart';
 import 'converse_setup.dart';
 import 'agent_workspace.dart';
 import 'agent_workspace_client.dart';
+import '../config/service_root.dart';
 
 const _uuid = Uuid();
 
@@ -65,15 +66,18 @@ class _NoRedirectClient extends http.BaseClient {
 
 class KinaiyaClient {
   KinaiyaClient({
-    required this.sessionBase,
-    required this.agentBase,
-    required this.converseBase,
+    required String sessionBase,
+    required String agentBase,
+    required String converseBase,
     required String ownerToken,
     http.Client? httpClient,
     http.Client Function()? memoryClientFactory,
     http.Client Function()? decisionsClientFactory,
     http.Client Function()? agentWorkspaceClientFactory,
-  }) : _token = ownerToken,
+  }) : sessionBase = normalizeServiceRoot(sessionBase),
+       agentBase = normalizeServiceRoot(agentBase),
+       converseBase = normalizeServiceRoot(converseBase),
+       _token = ownerToken,
        _http = _NoRedirectClient(httpClient ?? http.Client()),
        _memoryClientFactory = memoryClientFactory ?? http.Client.new,
        _decisionsClientFactory =
@@ -118,15 +122,18 @@ class KinaiyaClient {
 
   /// Test constructor wrapping a mock transport; always labeled.
   KinaiyaClient.mock({
-    required this.sessionBase,
-    required this.agentBase,
-    required this.converseBase,
+    required String sessionBase,
+    required String agentBase,
+    required String converseBase,
     required http.Client mockTransport,
     String label = 'mock',
     http.Client Function()? memoryClientFactory,
     http.Client Function()? decisionsClientFactory,
     http.Client Function()? agentWorkspaceClientFactory,
-  }) : _token = 'mock-token-not-a-credential',
+  }) : sessionBase = normalizeServiceRoot(sessionBase),
+       agentBase = normalizeServiceRoot(agentBase),
+       converseBase = normalizeServiceRoot(converseBase),
+       _token = 'mock-token-not-a-credential',
        _http = _NoRedirectClient(mockTransport),
        _memoryClientFactory = memoryClientFactory ?? http.Client.new,
        _decisionsClientFactory =

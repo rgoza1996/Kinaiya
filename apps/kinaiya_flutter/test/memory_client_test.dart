@@ -172,14 +172,14 @@ void main() {
         final c = mock
             ? KinaiyaClient.mock(
                 sessionBase: 'http://localhost:8761',
-                agentBase: 'unused',
+                agentBase: 'http://synthetic-agent',
                 converseBase: 'http://localhost:8763',
                 mockTransport: shared,
                 memoryClientFactory: () => owned,
               )
             : KinaiyaClient(
                 sessionBase: 'http://localhost:8761',
-                agentBase: 'unused',
+                agentBase: 'http://synthetic-agent',
                 converseBase: 'http://localhost:8763',
                 ownerToken: 'token',
                 httpClient: shared,
@@ -593,7 +593,7 @@ void main() {
       final own = OwnedClient((r) => held.future);
       final c = KinaiyaClient(
         sessionBase: 'http://localhost:8761',
-        agentBase: 'unused',
+        agentBase: 'http://synthetic-agent',
         converseBase: 'https://converse.example',
         ownerToken: 'token',
         httpClient: shared,
