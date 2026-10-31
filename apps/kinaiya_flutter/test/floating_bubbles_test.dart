@@ -296,7 +296,7 @@ void main() {
     await _frames(tester, count: 20);
     final field = tester.getRect(find.byType(FloatingBubbles));
     final circles = {
-      for (final name in ['Setup', ..._sections, 'View'])
+      for (final name in ['Setup', ..._sections, 'View', 'Close'])
         name: tester.getRect(_bubble(name)),
     };
     final obstacle = Rect.fromLTWH(

@@ -78,6 +78,22 @@ void expectValidLayout(BubblePhysics p, {List<Rect> obstacles = const []}) {
 }
 
 void main() {
+  test('eight floating controls remain bounded with a held Close body', () {
+    final p = BubblePhysics(
+      count: 8,
+      size: kSize,
+      diameter: kDiameter,
+      random: Random(154),
+    );
+    final close = p.positions[7];
+    p.launch(0, const Offset(600, -600));
+    for (var frame = 0; frame < 600; frame++) {
+      p.step(1 / 60, held: const {7});
+      expect(p.positions[7], close);
+      expectValidLayout(p);
+    }
+  });
+
   group('seven-body spawn + held stepping', () {
     test('seven seeds spawn valid layouts', () {
       final p = BubblePhysics(

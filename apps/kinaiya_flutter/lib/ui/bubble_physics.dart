@@ -24,7 +24,7 @@ import 'dart:ui';
 ///   time-based damping back toward ordinary drift (~10..20 px/sec).
 class BubblePhysics {
   /// Maximum bodies the engine is tuned for (see [step] bounded work).
-  static const int maxCount = 7;
+  static const int maxCount = 8;
 
   /// Upper bound on simulated time per [step] call (seconds).
   static const double maxDt = 0.1;
@@ -112,7 +112,7 @@ class BubblePhysics {
   /// with held circles as immovable surfaces. Throws [ArgumentError] for
   /// non-finite [seconds] or out-of-range [held] indices. Non-positive
   /// values are a no-op. Work per call is bounded: at most 12 substeps over
-  /// at most 7 bodies (21 pairs) and the obstacle list.
+  /// at most 8 bodies (28 pairs) and the obstacle list.
   void step(double seconds, {Set<int> held = const <int>{}}) {
     if (!seconds.isFinite) {
       throw ArgumentError.value(seconds, 'seconds', 'must be finite');
@@ -614,7 +614,7 @@ class BubblePhysics {
 
   void _resolvePairs(Set<int> held, Map<int, Set<int>> contacts) {
     // Two relaxation passes keep small stacks stable; still bounded
-    // (<= 21 pairs x 2 passes for 7 bodies).
+    // (<= 28 pairs x 2 passes for 8 bodies).
     for (int pass = 0; pass < 2; pass++) {
       for (int i = 0; i < _centers.length; i++) {
         for (int j = i + 1; j < _centers.length; j++) {

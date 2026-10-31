@@ -49,6 +49,7 @@ class _ModelSetupDialogState extends State<ModelSetupDialog>
     'Speech': Icons.record_voice_over_outlined,
     'Decisions': Icons.diamond_outlined,
     'View': Icons.visibility_outlined,
+    'Close': Icons.close_rounded,
   };
   final _bubbleKeys = {for (final name in _sections.keys) name: GlobalKey()};
 
@@ -314,6 +315,10 @@ class _ModelSetupDialogState extends State<ModelSetupDialog>
     return stage.globalToLocal(bubble.localToGlobal(Offset.zero)) & bubble.size;
   }
 
+  void _dismissSetup() {
+    if (mounted && !_saving) Navigator.of(context).pop();
+  }
+
   void _openSection(String section) {
     if (_section != null) return;
     final origin = _bubbleRect(section);
@@ -391,6 +396,7 @@ class _ModelSetupDialogState extends State<ModelSetupDialog>
   }
 
   String _value(String section) => switch (section) {
+    'Close' => 'Return to Kinaiya',
     'Setup' =>
       _loading
           ? 'Checking host'
@@ -461,6 +467,7 @@ class _ModelSetupDialogState extends State<ModelSetupDialog>
     final colors = Theme.of(context).colorScheme;
     return MouseRegion(
       key: _bubbleKeys[section],
+      hitTestBehavior: HitTestBehavior.deferToChild,
       onEnter: (_) => _hover(section, true),
       onExit: (_) => _hover(section, false),
       child: Listener(
@@ -468,11 +475,14 @@ class _ModelSetupDialogState extends State<ModelSetupDialog>
         onPointerUp: (event) => _press(event.pointer, null),
         onPointerCancel: (event) => _press(event.pointer, null),
         child: Semantics(
-          label: '$section settings',
+          label: section == 'Close' ? 'Close setup' : '$section settings',
+          enabled: section != 'Close' || !_saving,
           value: _value(section),
           button: true,
           child: Tooltip(
-            message: 'Inspect $section settings',
+            message: section == 'Close'
+                ? 'Close setup'
+                : 'Inspect $section settings',
             child: Material(
               key: ValueKey('setup-bubble-${section.toLowerCase()}'),
               shape: CircleBorder(
@@ -485,7 +495,9 @@ class _ModelSetupDialogState extends State<ModelSetupDialog>
                 customBorder: const CircleBorder(),
                 focusNode: _bubbleFocus[section],
                 canRequestFocus: _section == null,
-                onTap: () => _openSection(section),
+                onTap: section == 'Close'
+                    ? (_saving ? null : _dismissSetup)
+                    : () => _openSection(section),
                 child: ExcludeSemantics(
                   child: _bubbleFace(section, icon, diameter),
                 ),
@@ -706,7 +718,10 @@ class _ModelSetupDialogState extends State<ModelSetupDialog>
   }
 
   @override
-  Widget build(BuildContext context) => Dialog(
+  Widget build(BuildContext context) =>
+      PopScope(canPop: !_saving, child: _dialog(context));
+
+  Widget _dialog(BuildContext context) => Dialog(
     key: const ValueKey('model-setup-dialog'),
     backgroundColor: Colors.transparent,
     shadowColor: Colors.transparent,
@@ -762,12 +777,14 @@ class _ModelSetupDialogState extends State<ModelSetupDialog>
                     );
                     final columns = ((box.maxWidth + 16) / (diameter + 16))
                         .floor()
-                        .clamp(1, 7);
+                        .clamp(1, _sections.length);
                     final fieldHeight = wide
                         ? box.maxHeight
                         : math.max(
                             box.maxHeight,
-                            (7 / columns).ceil() * (diameter + 24) + 64,
+                            (_sections.length / columns).ceil() *
+                                    (diameter + 24) +
+                                64,
                           );
                     final field = SizedBox(
                       height: fieldHeight,
@@ -788,7 +805,6 @@ class _ModelSetupDialogState extends State<ModelSetupDialog>
                           onDragStarted: _dragChanged,
                           onDragEnded: _dragChanged,
                           obstacles: [
-                            const Rect.fromLTWH(0, 0, 56, 56),
                             if (wide)
                               Rect.fromLTWH(
                                 box.maxWidth / 2 - 110 * scale,
@@ -799,7 +815,7 @@ class _ModelSetupDialogState extends State<ModelSetupDialog>
                           ],
                           fallback: SingleChildScrollView(
                             child: Padding(
-                              padding: const EdgeInsets.only(top: 56),
+                              padding: const EdgeInsets.all(8),
                               child: flow(),
                             ),
                           ),
@@ -831,20 +847,26 @@ class _ModelSetupDialogState extends State<ModelSetupDialog>
                       clipBehavior: Clip.hardEdge,
                       children: [
                         Positioned.fill(
-                          child: IgnorePointer(
-                            ignoring: _section != null,
-                            child: ExcludeFocus(
-                              excluding: _section != null,
-                              child: ExcludeSemantics(
+                          child: GestureDetector(
+                            key: const ValueKey('setup-background-dismiss'),
+                            behavior: HitTestBehavior.opaque,
+                            excludeFromSemantics: true,
+                            onTap: _dismissSetup,
+                            child: IgnorePointer(
+                              ignoring: _section != null,
+                              child: ExcludeFocus(
                                 excluding: _section != null,
-                                child: wide
-                                    ? field
-                                    : SingleChildScrollView(
-                                        key: const ValueKey(
-                                          'setup-bubbles-narrow',
+                                child: ExcludeSemantics(
+                                  excluding: _section != null,
+                                  child: wide
+                                      ? field
+                                      : SingleChildScrollView(
+                                          key: const ValueKey(
+                                            'setup-bubbles-narrow',
+                                          ),
+                                          child: field,
                                         ),
-                                        child: field,
-                                      ),
+                                ),
                               ),
                             ),
                           ),
@@ -873,23 +895,6 @@ class _ModelSetupDialogState extends State<ModelSetupDialog>
                             ),
                             child: _popover(),
                           ),
-                        Positioned(
-                          top: 0,
-                          left: 0,
-                          child: Material(
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.surface.withValues(alpha: .96),
-                            shape: const CircleBorder(),
-                            child: IconButton(
-                              tooltip: 'Close setup',
-                              onPressed: _saving
-                                  ? null
-                                  : () => Navigator.of(context).pop(),
-                              icon: const Icon(Icons.close),
-                            ),
-                          ),
-                        ),
                       ],
                     );
                   },

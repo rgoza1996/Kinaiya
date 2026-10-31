@@ -305,7 +305,7 @@ class _FloatingBubblesState extends State<FloatingBubbles>
                           onPointerCancel: (event) =>
                               _pointerFinished(entries[i].key, physics, event),
                           child: GestureDetector(
-                            behavior: HitTestBehavior.translucent,
+                            behavior: HitTestBehavior.deferToChild,
                             onPanStart: (_) =>
                                 _startDrag(entries[i].key, physics),
                             onPanUpdate: (details) =>
