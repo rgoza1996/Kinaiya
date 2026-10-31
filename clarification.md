@@ -486,3 +486,117 @@ When a selected provider fails, display the failure and permitted recovery optio
 **Delivery order:** (A) registry, adapter contracts and catalog normalization; (B) authenticated connection and secrets lifecycle; (C) expandable provider list, search, and contextual sidebar; (D) validated role assignment and safe switching; (E) provider-specific lifecycle and advanced controls. Do not sacrifice existing Core safety guarantees for a faster-looking setup wizard.
 
 **Interpretation rule:** The desired UX is one provider-first **Providers & Models** workspace—not disconnected provider and model pages, not a flat unqualified model dropdown, and not automatic model activation on expansion. This section records **target design**, not existing implemented behavior.
+
+## 14. Optional Tool Library: Discovery, Installation, and Setup
+
+**Status:** Product and architectural design intent, not an implemented feature or authorization to install software.
+**Scope:** Optional conventional software tools, verification engines, developer utilities, media tools, and other non-model executable capabilities made available to Kinaiya Agent.
+**Relationship to existing architecture:** Complements the provider/model registry (§13), autonomous capability acquisition (§3), Agent Skills, plugins, MCP, and the protected Core; does not replace those mechanisms.
+
+### 14.1 General-purpose Tool Library, not a theorem-prover-only installer
+
+Provide a **Tool Library** within Kinaiya where users can discover, inspect, install, enable/disable, update, and remove recommended capabilities. The library is not limited to LLMs, proof assistants, or Agent Skills. It may catalog conventional programs and toolchains (for example, Lean 4, Coq/Rocq, Isabelle/HOL, FFmpeg, Ghidra, and Playwright), plus supported wrappers that expose those programs to Agent.
+
+Distinguish **models/providers** (§13), **tools and their executable dependencies**, **skills** (instructions or packages that may depend on tools), **plugins**, and **MCP integrations**. A catalog entry can reference a skill, plugin, or MCP adapter without implying those are interchangeable. Tools are independently useful executable capabilities; the Agent should discover suitable existing software before proposing to reimplement it.
+
+The catalog presents the tool's purpose, capability category, recommended/optional designation, supported platforms, deployment target, estimated download/disk requirements when known, licensing and dependencies, required permissions, source/provenance, supported version(s), install/detection status, adapter availability, and documented limitations. Do not invent metadata or imply that a listed program is installed or working.
+
+Suggested organization includes Formal Verification, Development/Automation, Media, Scientific/Analysis, and other extensible categories. Support search/filter and keyboard/screen-reader operation. Recommended indicates *curated relevance*, not automatic trust, installation, activation, or elevation.
+
+### 14.2 Optional setup step: default off, any combination permitted
+
+The initial Kinaiya setup wizard offers a skippable **Enhance Kinaiya's Capabilities / Optional Tools** step. All additional tools start **unselected/off**. Users may choose none, Lean only, Coq/Rocq only, Isabelle only, any pair, **all three**, or any other supported tool combination. Lean 4 may be highlighted as the **recommended starting verifier** without preselecting or downloading it.
+
+Explain why each choice may be useful, whether it is free/open-source, its estimated installation footprint, dependencies, compatibility, and requested host permissions. Present a final explicit install confirmation with the selected tools, destination host, size, and consequences before starting downloads. Skipping setup must not impair ordinary Converse or baseline Agent operation. Users can revisit the library after installation, including to install multiple verification engines or remove an unused one.
+
+Before offering a download, **detect compatible existing installations** and allow adoption through a verified adapter without unnecessarily installing duplicates. Show distinct states such as not installed, detected, installing, installed, adapter ready, incompatible, failed, update available, disabled, and removed. Installation success alone is not proof of an operational tool: perform a harmless capability/health test. A canceled or failed install should be recoverable and should not leave Kinaiya claiming that the capability is active.
+
+Tool installation belongs to the **host that executes Agent or the approved external worker**, not automatically to the Flutter/browser/phone client that displays the UI. If Agent runs remotely, display the actual installation destination and require appropriate owner authorization on that host.
+
+### 14.3 Manifest, registry, and lifecycle
+
+Use signed or otherwise authenticated, versioned, vetted tool manifests or similarly controlled catalog records. A manifest describes identity, supported platforms/architectures, official distribution/source, allowed installation mechanism, pinned version or compatibility range, hashes/signatures where available, licenses and attribution obligations, disk/resource requirements, dependency constraints, health checks, uninstall/rollback support, adapter contracts, exposure to Agent, and required permissions.
+
+Lifecycle: **discover -> inspect -> obtain consent -> install/detect -> validate -> register -> enable/use -> monitor -> update/disable/remove**. Installation is a privileged, separately authorized operation. Merely discovering a tool or receiving a model suggestion may not install or execute it. Downloads must use reviewed sources and verification where available, with bounded network access, least privilege, and isolated execution. Untrusted repositories, post-install scripts, build hooks, dependency installers, and tool subprocesses must not inherit protected Core permissions or unbounded access to secrets/filesystems.
+
+Persist installation provenance and real health/status, with truthful cleanup/rollback reporting. Show conflicts and dependencies before updates or removal; do not silently remove software that predates Kinaiya or is shared with other applications. If a package manager or external service owns an installation, use an appropriate integration instead of claiming Kinaiya owns its lifecycle. Respect each distribution's licensing, attribution, and redistribution requirements.
+
+The trusted Tool Registry exposes **typed, capability-scoped adapters** to Agent and permission-brokered operations. Installed tools do not gain autonomy or authority beyond explicitly granted scopes. User-installed tools, Agent-generated wrappers, and their outputs remain untrusted inputs for privileged decisions.
+
+### 14.4 Agent-guided capability acquisition
+
+When Agent identifies a capability gap, it should search the existing authorized Tool Library before writing replacement software. It may explain a tool, suggest a compatible installation, and request permission; it must not treat proactive recommendation as consent. After a successful installation and validation, the acquired capability should be durable and usable across compatible model changes (§5).
+
+Agent may install a previously authorized dependency as part of an explicitly scoped plan only if the owner policy permits that exact operation. The protected broker—not the language model, plugin, or tool manifest itself—enforces permissions and provenance. Tools do not grant additional tool permissions, cloud-disclosure rights, privileges, or permission to edit the protected Core.
+
+### 14.5 Tool Library acceptance criteria
+
+1. Ordinary initial setup succeeds with every optional tool left off; users may later select none, one, several, or all available compatible verification engines.
+2. Setup previews platform, target host, license, estimated downloads/storage and requested permissions before any install; nothing downloads until explicit approval.
+3. Detection of existing installs is distinct from newly downloaded installs; catalog, installation, enabled, and adapter-ready states are not conflated.
+4. Verified adapter health and availability—not a green download indicator—determine whether Agent may invoke the capability.
+5. No tool install/update/uninstall bypasses owner permission, protected Core isolation, installer integrity checks, or appropriate cleanup/provenance.
+6. Agent can discover and suggest tools without obtaining implicit installation permission or changing its own trust level.
+7. Installation and tool use remain optional, with safe failure/retry paths and no hard dependency on theorem provers for the core conversational experience.
+
+**Interpretation rule:** Tool Library is a general, opt-in capability catalog and lifecycle interface. Its contents are not assumed installed; catalog recommendations never confer permission or proof of safety.
+
+## 15. Formal Verification: Optional Engines, Trusted Checking, and Empirical Evidence
+
+**Status:** Research and architectural design intent, not a claim that formal proofs have been implemented or that Kinaiya's goals have already been proven.
+**Scope:** Agent-produced proof artifacts, trusted checking, specified invariants, harness promotion, Decisions/Agent coordination, and research evaluation.
+
+### 15.1 Why proof assistants are offered
+
+Lean 4, Coq/Rocq, and Isabelle/HOL are **free/open-source proof assistants** suitable for optional local use, subject to their actual license and bundled-component obligations. Offer them individually through the Tool Library (§14), with **Lean 4 recommended as the first implementation target**, not a mandatory dependency. A user who wants all three may install all three, subject to platform support and resource limits. They are separate proof languages/toolchains and must not be advertised as interchangeable drop-in proof files.
+
+Kinaiya's goal is **independent, machine-checkable evidence** for *specific formalized properties*, combined with empirical evaluation of actual capability acquisition, harness improvement, and conversational quality. The existence of a proof checker, a verified theorem, passing tests, or a strong benchmark alone does not establish that Kinaiya has generally achieved its research objectives.
+
+- **Formal correctness:** a theorem is valid relative to explicitly stated definitions, axioms, and assumptions.
+- **Implementation correspondence:** evidence must connect the formal model to the actual trusted controller, adapters, and deployment assumptions; a proof about an idealized state machine is not itself a proof about all Python, OS, sandbox, or network behavior.
+- **Empirical effectiveness:** controlled, independently evaluated measurements are required to support claims of improved task success, latency, capability breadth, efficiency, or practical generalization.
+
+Neither prover output nor an LLM evaluator is unconditional ground truth. Poorly chosen specifications and unmodeled runtime behavior remain sources of error.
+
+### 15.2 How Agent uses a prover
+
+Expose a replaceable **Verification Engine adapter** for each supported prover. Agent can detect a compatible installed engine, produce or revise proof source in a constrained workspace, invoke the corresponding compiler/checker, read structured diagnostics, and submit a candidate proof for final independent validation. Example extension interfaces include:
+
+- detect/list engines and versions;
+- check a proof file or project under explicit resource and time budgets;
+- report theorem identifiers, assumptions, toolchain/dependency versions, errors, and warnings;
+- submit a proof for trusted checking against a protected, pinned specification.
+
+Typical source types include **.lean** for Lean, **.v** for Coq/Rocq, and **.thy** for Isabelle, each checked with its compatible installed toolchain. Avoid pretending a generic compiler exit code alone is a verified invariant.
+
+A strict approval/checking path must reject or clearly flag unfinished holes, admitted theorems/axioms, unsafe trust escapes, permissive checker modes, incompatible dependencies, or other unapproved shortcuts. Check the actual proof obligations and allowed imports/axioms under a pinned toolchain; allow only the justified assumptions of the selected trusted theory. Build systems, macros/plugins, native code, and prover extensions may execute code: generated proof projects and their build hooks must run under constrained permissions, separate from the protected checking authority.
+
+The **trusted verification service** runs independently of Agent-controlled files and reports; Agent cannot forge success, edit its authoritative specification, alter the trusted checker, manipulate proof configuration, or overwrite the resulting attestation. Preserve a signed or otherwise tamper-evident record as appropriate with specification ID/hash, proof artifact hash, toolchain version, dependencies/assumptions, checker outcome, and evaluation run ID. A failed or partial proof is reported as failed or partial; no proof outcome is silently upgraded to a guarantee about real-world deployment.
+
+### 15.3 Initial theorem targets
+
+Start with properties where a small formal state transition system can be specified and then meaningfully linked to Kinaiya's actual code:
+
+1. **Protected Core integrity:** permitted extension/harness state transitions preserve specified protected state and authorization separation.
+2. **Permission broker:** privileged actions occur only after the required authorized grants under the modeled policy.
+3. **Harness promotion:** no candidate can be activated without the required owner authorization, validated artifacts, versioned evaluation records, and promotion policy checks.
+4. **Decisions and Agent routing:** *requested* steer/interrupt events cannot become *applied* events without actual supervisor/executor acknowledgment; stale or replayed requests cannot silently change the current task revision.
+5. **Converse memory DAG:** optional graph operations preserve stated acyclicity and provenance/independence invariants where formally specified; disabled DAG use does not affect the authoritative transcript.
+
+Formulate bounded, auditable theorems rather than claiming to prove all future generated code safe. A valid example is **Promoted(h) implies Authorized(h) and Validated(h) and PassedEvaluation(h)**, provided these predicates refer to protected, independently recorded decisions. The theorem proves the *admission rule*, not the correctness of arbitrary test or benchmark definitions.
+
+### 15.4 Proof-carrying extensions as a research direction
+
+Explore **proof-carrying capabilities**: an Agent-generated executable extension may be accompanied by independently checkable proofs of selected interface, state, resource, or security properties. The Agent may propose a proof, but a trusted specification owner and checker decide which properties count. A candidate that writes its own convenient specification and proves it has **not** established that it meets the protected acceptance criteria.
+
+Proof-carrying claims are only as strong as the implementation/refinement boundary that connects proofs to executable behavior. Sandbox isolation, OS capabilities, data exposure, adversarial validation, and rollback still require separate implementation and testing. Do not demand full correctness proofs for every arbitrary program: permit staged assurance levels, unverified tools with explicit labels, and fallback to conventional testing where formalization is impractical.
+
+Formal assurance should not be confused with proving that generated harnesses outperform baselines. Any performance or autonomous capability-improvement claim still needs **held-out tests, matched models/tools/budgets, repeatable runs, uncertainty reporting, independent evaluation, and disclosure of failures/adaptation cost**, as already required by the roadmap's research methodology.
+
+### 15.5 Delivery sequence and acceptance
+
+**Post-hackathon research sequence:** (A) define minimal trusted checker protocol and Lean 4 adapter; (B) specify/version protected invariants; (C) prove a small admission/routing invariant; (D) tie the formal model to real protected controller transitions and integration tests; (E) evaluate proof-carrying extension experiments; (F) optionally support Coq/Rocq and Isabelle with their own adapters and proof artifacts. Adding a prover should not block the existing hackathon-critical development path or ordinary user setup.
+
+Acceptance requires reproducible checking from pinned proof artifacts; rejection of disallowed axioms/holes; clear documentation of trust boundaries and assumptions; independently collected empirical benchmarks where improvement is claimed; correct failure/retry/revalidation; and no promotion based solely on a model's verbal assertion of proof success.
+
+**Interpretation rule:** Kinaiya may *use* formal verification as an optional tool-assisted research capability, but mathematical proof, correct software behavior, and empirical improvement are distinct claims. Trusted independent checkers and evaluation rules—not generated Agent conclusions—establish the evidence accepted by Core.
