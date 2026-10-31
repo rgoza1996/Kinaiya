@@ -16,10 +16,12 @@ process group.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import os
 import re
 import secrets
 import shutil
+import stat
 import subprocess
 from pathlib import Path
 
@@ -362,15 +364,109 @@ class _FailedWithEvidence(ToolFailure):
 def run_read(
     policy: ToolPolicy, path: str, max_bytes: int, objective_revision: int
 ) -> tuple[str, Evidence]:
-    resolved = policy.check_read(path)
-    if not resolved.is_file():
-        raise ToolFailure(f"read_file: not a file: {path!s}")
-    data = policy.read_bytes(resolved, READ_LIMIT * 4 + 1)
-    clipped = data[: max(1, min(int(max_bytes or READ_LIMIT), READ_LIMIT * 4))]
-    text = clipped.decode("utf-8", errors="replace")
-    note = "" if len(data) <= len(clipped) else f"…[truncated {len(data) - len(clipped)} bytes]"
-    evidence = read_evidence(resolved, data, objective_revision, f"read {resolved}")
-    return text + note, evidence
+    """Return a complete stable UTF-8 file or an explicit bounded refusal.
+
+    The larger native bound allows a small-request refusal to identify the
+    complete source bytes and suggest an exact larger request. Beyond that
+    bound only a stat-version token is available, never a partial content hash.
+    """
+    maximum = READ_LIMIT * 4
+    if type(max_bytes) is not int or not 1 <= max_bytes <= maximum:
+        raise ToolFailure("read_file max_bytes must be an integer from 1 to 262144")
+    try:
+        resolved = policy.check_read(path)
+        data, observed = _read_file_snapshot(policy, resolved, maximum)
+    except PolicyDenied:
+        raise PolicyDenied("read_file: path is outside the allowed file scope") from None
+    except (OSError, ValueError, TypeError, RuntimeError):
+        # Native errors may include host paths, invalid bytes or caller text.
+        raise ToolFailure("read_file: cannot observe a stable regular workspace file") from None
+    if data is None:
+        version = hashlib.sha256(repr(_read_stat_identity(observed)).encode("ascii")).hexdigest()
+        raise ToolFailure(
+            f"read_file: file exceeds native maximum {maximum} bytes; "
+            f"size_bytes={observed.st_size}; stat_version={version} "
+            "(observed metadata identity, not a content hash). "
+            "Choose an authorized source that fits this bound; paging and shell fallback "
+            "are unavailable."
+        )
+    if len(data) > max_bytes:
+        digest = hashlib.sha256(data).hexdigest()
+        raise ToolFailure(
+            f"read_file: complete file exceeds requested max_bytes={max_bytes}; "
+            f"size_bytes={len(data)}; source_sha256={digest}. "
+            f"Request max_bytes={len(data)} to read the complete file "
+            f"(native maximum {maximum})."
+        )
+    try:
+        text = data.decode("utf-8", errors="strict")
+    except UnicodeDecodeError:
+        raise ToolFailure("read_file: complete file is not valid UTF-8") from None
+    evidence = read_evidence(resolved, data, objective_revision, f"read complete file {resolved}")
+    return text, evidence
+
+
+def _read_stat_identity(observed):
+    """Observed identity/version only; these values are not content proof."""
+    return (
+        observed.st_dev,
+        observed.st_ino,
+        observed.st_mode,
+        observed.st_size,
+        observed.st_mtime_ns,
+        observed.st_ctime_ns,
+    )
+
+
+def _read_file_snapshot(policy, resolved, maximum):
+    """Read through scoped FDs and reject changes to the file or its binding."""
+    with policy.scoped_parent(resolved) as (parent, name, scoped):
+        if scoped != resolved:
+            raise ToolFailure("read_file: source changed during observation")
+        parent_before = os.fstat(parent)
+        descriptor = os.open(
+            name,
+            os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK,
+            dir_fd=parent,
+        )
+        try:
+            before = os.fstat(descriptor)
+            if not stat.S_ISREG(before.st_mode):
+                raise ToolFailure("read_file: source is not a regular file")
+            if before.st_size < 0:
+                raise ToolFailure("read_file: source changed during observation")
+            data = None
+            if before.st_size <= maximum:
+                collected = bytearray()
+                while len(collected) <= maximum:
+                    chunk = os.read(descriptor, min(READ_LIMIT, maximum + 1 - len(collected)))
+                    if not chunk:
+                        break
+                    collected.extend(chunk)
+                data = bytes(collected)
+            after = os.fstat(descriptor)
+            if _read_stat_identity(before) != _read_stat_identity(after):
+                raise ToolFailure("read_file: source changed during observation")
+            # Rewalk from the workspace, rather than trusting only the old
+            # parent FD if its directory was renamed/replaced during the read.
+            with policy.scoped_parent(resolved) as (current_parent, current_name, current_path):
+                parent_after = os.fstat(current_parent)
+                if (
+                    current_path != resolved
+                    or current_name != name
+                    or (parent_before.st_dev, parent_before.st_ino)
+                    != (parent_after.st_dev, parent_after.st_ino)
+                    or _read_stat_identity(before)
+                    != _read_stat_identity(
+                        os.stat(current_name, dir_fd=current_parent, follow_symlinks=False)
+                    )
+                ):
+                    raise ToolFailure("read_file: source changed during observation")
+            if data is not None and len(data) != before.st_size:
+                raise ToolFailure("read_file: source changed during observation")
+            return data, before
+        finally:
+            os.close(descriptor)
 
 
 def run_write(

@@ -227,7 +227,12 @@ _SCHEMAS = {
         _object(
             {
                 "path": _string(1, pattern=_IDENTITY_PATTERN),
-                "max_bytes": _integer(1, 262144, default=65536),
+                "max_bytes": _integer(
+                    1,
+                    262144,
+                    default=65536,
+                    description="Complete-file UTF-8 byte bound; oversized files are refused, never clipped.",
+                ),
             },
             ("path",),
         )
@@ -357,14 +362,17 @@ _INTEGER_KIND = "Native strict integer checks also reject integral floats; stand
 # configuration, approval, filesystem path or invocation data enters this table.
 _METADATA = {
     "read_file": {
-        "description": "Read a bounded text view of one workspace file.",
+        "description": "Read one complete bounded UTF-8 workspace file.",
         "source": ["services/agent/tools.py:run_read", "core/policy/__init__.py:ToolPolicy"],
         "requirements": ["workspace_scope", "protected_roots"],
         "constraints": [
-            "Path must resolve to an existing regular file inside the allowed workspace."
+            "Path must resolve to an existing regular file inside the allowed workspace.",
+            "Success returns the complete stable UTF-8 file and a digest of those exact bytes; no prefix success or replacement decoding.",
+            "The default byte bound is 65536 and the native maximum is 262144. A smaller-request refusal identifies the complete source and an allowed larger bound; beyond the native maximum only observed stat-version metadata is available, not a content hash.",
+            _INTEGER_KIND,
         ],
         "legacy_behavior": [
-            "Dispatch stringifies path and int-coerces max_bytes; zero selects 65536, other limits clamp to 1..262144; extra keys are ignored."
+            "Former prefix, replacement-decoding and limit-clamping read behavior is deliberately replaced by whole-file success or explicit refusal. Native bounds are not model context-capacity claims."
         ],
     },
     "write_file": {
