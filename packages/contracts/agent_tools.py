@@ -13,10 +13,12 @@ from typing import Literal, get_args
 from packages.contracts.models import SCHEMA_VERSION, ToolAction
 
 NATIVE_TOOL_ORDER: tuple[str, ...] = get_args(ToolAction.model_fields["tool"].annotation)
-MAX_NATIVE_TOOLS = 15
+MAX_NATIVE_TOOLS = 16
 # Unbound provider calls retain the pre-discovery protocol selection. Only a
 # trusted runtime snapshot can advertise the new operation to an inference.
-LEGACY_NATIVE_TOOL_ORDER = tuple(name for name in NATIVE_TOOL_ORDER if name != "tool_catalog")
+LEGACY_NATIVE_TOOL_ORDER = tuple(
+    name for name in NATIVE_TOOL_ORDER if name not in {"tool_catalog", "consult_model"}
+)
 
 _BASE_TOOLS = ("read_file", "write_file", "search", "shell", "read_transcript", "finish")
 _OPTIONAL_GROUPS = (
@@ -25,6 +27,7 @@ _OPTIONAL_GROUPS = (
     ("skills_list", "skill_load"),
     ("plugins_list", "plugin_call"),
     ("publish_ui",),
+    ("consult_model",),
     ("tool_catalog",),
 )
 
@@ -87,6 +90,7 @@ def native_tool_snapshot(
     skills_available: bool = False,
     plugins_available: bool = False,
     artifacts_available: bool = False,
+    auxiliary_available: bool = False,
     catalog_available: bool = False,
 ) -> NativeToolSnapshot:
     """Project trusted strict booleans; grants never remove base operations."""
@@ -96,6 +100,7 @@ def native_tool_snapshot(
         ("skills_available", skills_available),
         ("plugins_available", plugins_available),
         ("artifacts_available", artifacts_available),
+        ("auxiliary_available", auxiliary_available),
         ("catalog_available", catalog_available),
     )
     enabled = set(_BASE_TOOLS)

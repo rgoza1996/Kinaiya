@@ -22,6 +22,7 @@
         "plugins_list",
         "plugin_call",
         "publish_ui",
+        "consult_model",
         "tool_catalog",
         "finish"
       ],

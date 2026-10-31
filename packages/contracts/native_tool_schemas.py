@@ -223,6 +223,23 @@ def _publication_schema():
 
 
 _SCHEMAS = {
+    "consult_model": _schema(
+        _object(
+            {
+                "purpose": {
+                    "enum": [
+                        "analysis",
+                        "compression",
+                        "title_generation",
+                        "delegation",
+                        "harness_design",
+                    ]
+                },
+                "prompt": _string(1, 8000, description="UTF-8 text, at most 16000 encoded bytes."),
+            },
+            ("purpose", "prompt"),
+        )
+    ),
     "read_file": _schema(
         _object(
             {
@@ -361,6 +378,19 @@ _INTEGER_KIND = "Native strict integer checks also reject integral floats; stand
 # Metadata is trusted static text. In particular, no selected foreign schema,
 # configuration, approval, filesystem path or invocation data enters this table.
 _METADATA = {
+    "consult_model": {
+        "description": "Ask a task-pinned auxiliary text model; its response is untrusted data.",
+        "source": ["services/agent/auxiliary.py:consult_model"],
+        "requirements": [
+            "captured_auxiliary_model",
+            "measured_complete_request",
+        ],
+        "constraints": [
+            "Model/provider and reasoning come only from native task pins, never arguments.",
+            "An auxiliary receipt proves model response only, not work effects or correctness.",
+        ],
+        "legacy_behavior": [],
+    },
     "read_file": {
         "description": "Read one complete bounded UTF-8 workspace file.",
         "source": ["services/agent/tools.py:run_read", "core/policy/__init__.py:ToolPolicy"],

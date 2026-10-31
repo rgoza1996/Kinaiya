@@ -34,6 +34,15 @@ Accepted tasks keep their captured model. The host persists revision-bound
 settings and native operation receipts; an unconfirmed save remains visible
 across close/reopen, and an explicit retry uses the identical request.
 
+Models and each harness editor also contain **Auxiliary models**. Choose an
+analysis, compression, title generation, delegated reasoning or harness design
+purpose, then inherit or save a supported profile/reasoning choice. Harness
+purpose overrides take priority over global purpose defaults and primary model
+inheritance. These are explicit bounded text side calls through `consult_model`;
+they do not run tools, replace protected history or create a child Agent.
+Only host-declared measured text adapters are offered; unavailable routes refuse
+without a hidden fallback. Accepted tasks retain their native purpose pins.
+
 Provider credentials and model profile definitions stay on the host. The
 provider page includes Meta Model API and LM Studio information; Meta account
 sign-in is not implemented. Converse/STT/TTS/Decisions model editing still uses

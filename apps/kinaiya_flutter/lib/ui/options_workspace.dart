@@ -247,6 +247,7 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
         result['idempotency_key'] == body['idempotency_key'] &&
         result['revision'] == (body['expected_revision'] as int) + 1 &&
         result['harness_version'] == body['harness_version'] &&
+        result['auxiliary_task'] == body['auxiliary_task'] &&
         (body['profile_id'] == null
             ? binding == null
             : binding is Map &&
@@ -254,7 +255,11 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
                   binding['reasoning'] == body['reasoning']);
   }
 
-  Future<void> _saveModel(String? profile, String? reasoning) async {
+  Future<void> _saveModel(
+    String? profile,
+    String? reasoning, {
+    String? auxiliaryTask,
+  }) async {
     final endpoint = _endpoint, models = _models;
     if (endpoint == null || models == null || _pending != null) {
       return;
@@ -273,6 +278,7 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
       'harness_version': _page == OptionsPage.harnesses ? _harness : null,
       'profile_id': profile,
       'reasoning': reasoning,
+      if (auxiliaryTask != null) 'auxiliary_task': auxiliaryTask,
     });
     _modelChanges[endpoint] = operation;
     await _sendModel(endpoint, operation);
@@ -791,6 +797,13 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
         'Connect to an updated Agent host to manage model profiles.',
       ),
     _role('decisions', 'Decisions'),
+    if (_models case final models?)
+      OptionsAuxiliaryModels(
+        models: models,
+        busy: _pending != null,
+        onSave: (purpose, profile, reasoning) =>
+            _saveModel(profile, reasoning, auxiliaryTask: purpose),
+      ),
     const Text(
       'Decisions classifies typed questions. It has no conversational reasoning or voice setting.',
     ),
@@ -831,6 +844,15 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
             harness?.selectable == false
                 ? 'This harness is not approved for new work. Model settings cannot promote it.'
                 : 'Refresh the native harness catalog and model profiles.',
+          ),
+        if (_models != null && harness != null && harness.selectable)
+          OptionsAuxiliaryModels(
+            key: ValueKey('harness-auxiliary-$_harness'),
+            models: _models!,
+            harness: _harness,
+            busy: _pending != null,
+            onSave: (purpose, profile, reasoning) =>
+                _saveModel(profile, reasoning, auxiliaryTask: purpose),
           ),
       ]);
     }

@@ -9,6 +9,9 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 SCHEMA_VERSION = "1.0"
 ContentScope = Literal["local_only", "public_synthetic", "private_cloud_authorized"]
+AuxiliaryTask = Literal[
+    "analysis", "compression", "title_generation", "delegation", "harness_design"
+]
 # Flutter web/JSON numbers represent every integer only through this value.
 MAX_PLAYBACK_GENERATION = 9_007_199_254_740_991
 
@@ -157,6 +160,7 @@ class Task(WireModel):
     idempotency_key: str
     harness_version: str = "seed-v1"
     model_pin: AgentModelPin | None = None
+    auxiliary_models: dict[AuxiliaryTask, AgentModelPin] = Field(default_factory=dict, max_length=5)
     error: str | None = None
 
 
@@ -353,6 +357,7 @@ class ToolAction(WireModel):
         "plugins_list",
         "plugin_call",
         "publish_ui",
+        "consult_model",
         "tool_catalog",
         "finish",
     ]
