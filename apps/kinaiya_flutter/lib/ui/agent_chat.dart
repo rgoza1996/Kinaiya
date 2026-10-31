@@ -82,13 +82,11 @@ class _AgentChatState extends State<AgentChat> {
     _input = TextEditingController(text: widget.state.agentDraft);
     _lastClient = _s.client;
     _lastGeneration = _s.connectionGeneration;
+    _lastWorkspaceAuth = _s.sessionAuthenticated;
     _s.addListener(_handleStateChange);
     _loadRegistry();
     unawaited(_refreshTasks());
-    _lastWorkspaceAuth = _s.sessionAuthenticated;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) unawaited(_s.refreshAgentHarnesses());
-    });
+    _scheduleWorkspaceRefresh();
     _poll = Timer.periodic(const Duration(seconds: 4), (_) => _refreshTasks());
   }
 
@@ -103,13 +101,28 @@ class _AgentChatState extends State<AgentChat> {
       oldWidget.state.removeListener(_handleStateChange);
       _lastClient = _s.client;
       _lastGeneration = _s.connectionGeneration;
+      _lastWorkspaceAuth = _s.sessionAuthenticated;
       _syncConnectionDraft();
       _s.addListener(_handleStateChange);
       _loadRegistry();
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) unawaited(_s.refreshAgentHarnesses());
-      });
+      _scheduleWorkspaceRefresh();
     }
+  }
+
+  void _scheduleWorkspaceRefresh() {
+    final owner = _s;
+    final generation = owner.connectionGeneration;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted ||
+          !identical(widget.state, owner) ||
+          owner.connectionGeneration != generation ||
+          owner.agentHarnessesLoading ||
+          owner.agentHarnesses.isNotEmpty ||
+          owner.agentHarnessError != null) {
+        return;
+      }
+      unawaited(owner.refreshAgentHarnesses());
+    });
   }
 
   @override
@@ -132,20 +145,22 @@ class _AgentChatState extends State<AgentChat> {
   /// [AppState.refreshCommands].
   void _handleStateChange() {
     if (!mounted) return;
-    if (!identical(_lastClient, _s.client) ||
-        _lastGeneration != _s.connectionGeneration) {
+    final connectionChanged =
+        !identical(_lastClient, _s.client) ||
+        _lastGeneration != _s.connectionGeneration;
+    final becameAuthenticated = _s.sessionAuthenticated && !_lastWorkspaceAuth;
+    // Record auth before callbacks notify synchronously. A reconnect can also
+    // authenticate in the same notification and needs only one catalog refresh.
+    _lastWorkspaceAuth = _s.sessionAuthenticated;
+    if (connectionChanged) {
       _lastClient = _s.client;
       _lastGeneration = _s.connectionGeneration;
       _syncConnectionDraft();
       _loadRegistry();
       unawaited(_refreshTasks());
-      unawaited(_s.refreshAgentHarnesses());
     }
-    if (_s.sessionAuthenticated && !_lastWorkspaceAuth) {
-      _lastWorkspaceAuth = true;
+    if (connectionChanged || becameAuthenticated) {
       unawaited(_s.refreshAgentHarnesses());
-    } else if (!_s.sessionAuthenticated) {
-      _lastWorkspaceAuth = false;
     }
     final session = _s.agentSession;
     final scope = session == null

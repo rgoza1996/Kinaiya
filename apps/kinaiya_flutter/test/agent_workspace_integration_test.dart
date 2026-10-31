@@ -1,14 +1,18 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:kinaiya_flutter/api/client.dart';
+import 'package:kinaiya_flutter/config/connection.dart';
 import 'package:kinaiya_flutter/api/models.dart';
 import 'package:kinaiya_flutter/api/agent_workspace.dart';
 import 'package:kinaiya_flutter/state/app_state.dart';
 import 'package:kinaiya_flutter/ui/agent_chat.dart';
 
 import 'agent_workspace_state_test.dart'
-    show WorkspaceApi, wired, entry, catalog;
+    show WorkspaceApi, wired, entry, catalog, harnessJson;
 
 class WorkspaceUiApi extends WorkspaceApi {
   List<AgentTask> fixtures = [];
@@ -60,6 +64,67 @@ class WorkspaceUiApi extends WorkspaceApi {
   }
 }
 
+// Exercises real reader admission; transport bytes and identities are synthetic.
+class HeldCatalogClient extends http.BaseClient {
+  final response = Completer<http.StreamedResponse>();
+  int closes = 0;
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) {
+    expect(request.url.path, '/v1/agent/harnesses');
+    expect(request.followRedirects, isFalse);
+    return response.future;
+  }
+
+  @override
+  void close() => closes++;
+  void complete({String name = 'Synthetic seed', int status = 200}) {
+    response.complete(
+      http.StreamedResponse(
+        Stream.value(
+          utf8.encode(
+            jsonEncode({
+              'schema_version': '1.0',
+              'configured': false,
+              'items': [
+                {...harnessJson('seed-v1', active: true), 'name': name},
+              ],
+              'next_cursor': null,
+            }),
+          ),
+        ),
+        status,
+        headers: {'content-type': 'application/json'},
+      ),
+    );
+  }
+}
+
+class TransportWorkspaceUiApi extends WorkspaceUiApi {
+  TransportWorkspaceUiApi() {
+    transport = KinaiyaClient(
+      sessionBase: 'http://127.0.0.1',
+      agentBase: 'http://127.0.0.1',
+      converseBase: 'http://127.0.0.1',
+      ownerToken: 'synthetic',
+      agentWorkspaceClientFactory: () {
+        final client = HeldCatalogClient();
+        clients.add(client);
+        return client;
+      },
+    );
+  }
+  final clients = <HeldCatalogClient>[];
+  late final KinaiyaClient transport;
+  @override
+  Future<AgentHarnessPage> agentHarnesses({String? after}) =>
+      transport.agentHarnesses(after: after);
+  @override
+  void close() {
+    transport.close();
+    super.close();
+  }
+}
+
 Widget host(AppState state) => MaterialApp(
   home: Scaffold(
     body: ListenableBuilder(
@@ -79,6 +144,63 @@ Future<void> close(WidgetTester tester, AppState state) async {
 }
 
 void main() {
+  testWidgets(
+    'connection listener and simultaneous refresh share one real reader admission',
+    (tester) async {
+      final state = AppState();
+      final api = TransportWorkspaceUiApi();
+      // Connect immediately before AgentChat's own first-frame callback, using
+      // its actual synchronous connection/auth listener and the real reader.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        state.connect(ConnectionProfile.defaults(), injected: api);
+      });
+      await tester.pumpWidget(host(state));
+      await tester.pump();
+      expect(api.clients.length, 1);
+      final refreshes = List.generate(5, (_) => state.refreshAgentHarnesses());
+      expect(api.clients.length, 1);
+      expect(state.agentHarnessError, isNull);
+      api.clients.single.complete();
+      await Future.wait(refreshes);
+      await settle(tester);
+      expect(state.agentHarnesses.single.name, 'Synthetic seed');
+      expect(state.agentHarnessError, isNull);
+      expect(state.agentHarnessesLoading, isFalse);
+      expect(tester.takeException(), isNull);
+      await close(tester, state);
+    },
+  );
+
+  testWidgets(
+    'manual retry works after failure and reconnect cannot join old catalog',
+    (tester) async {
+      final old = TransportWorkspaceUiApi();
+      final state = wired(old);
+      await tester.pumpWidget(host(state));
+      await tester.pump();
+      expect(old.clients.length, 1);
+      final next = TransportWorkspaceUiApi();
+      state.connect(ConnectionProfile.defaults(), injected: next);
+      await tester.pump();
+      expect(next.clients.length, 1);
+      old.clients.single.complete(name: 'Old catalog');
+      await tester.pump();
+      expect(state.agentHarnessesLoading, isTrue);
+      next.clients.single.complete(status: 503);
+      await settle(tester);
+      expect(state.agentHarnessError, isNotNull);
+      final retry = state.refreshAgentHarnesses();
+      expect(next.clients.length, 2);
+      next.clients.last.complete(name: 'New catalog');
+      await retry;
+      await settle(tester);
+      expect(state.agentHarnesses.single.name, 'New catalog');
+      expect(state.agentHarnessError, isNull);
+      expect(tester.takeException(), isNull);
+      await close(tester, state);
+    },
+  );
+
   testWidgets(
     'pending selected identity blocks queued inference and deterministic slash commands',
     (tester) async {
