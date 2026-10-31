@@ -196,6 +196,24 @@ class _HomeShellState extends State<HomeShell> {
   _ShellPage? _workspacePage;
   late AppView _observedView;
 
+  Future<void> _setRichArtifacts(bool enabled) async {
+    try {
+      await widget.presentation.setPreferences(
+        widget.presentation.preferences.copyWith(intelligentUi: enabled),
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'The view preference could not be confirmed as saved.',
+            ),
+          ),
+        );
+      }
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -717,6 +735,12 @@ class _HomeShellState extends State<HomeShell> {
                                     child: Material(
                                       type: MaterialType.transparency,
                                       child: CharacterView(
+                                        richArtifactsEnabled: widget
+                                            .presentation
+                                            .preferences
+                                            .intelligentUi,
+                                        onRichArtifactsEnabled:
+                                            _setRichArtifacts,
                                         speechMouthMotion: widget
                                             .presentation
                                             .preferences

@@ -32,7 +32,7 @@ from typing import Any
 
 from core.extensions import HarnessError
 from core.policy import ApprovalError, PolicyDenied, ToolPolicy
-from harnesses.seed import build_messages, observation_text, parse_action
+from harnesses.seed import ARTIFACT_RECEIPT_LIMIT, build_messages, observation_text, parse_action
 from packages.contracts.interfaces import Journal, TextProvider
 from packages.contracts.models import (
     AppendRequest,
@@ -50,6 +50,7 @@ from packages.contracts.models import (
     TaskState,
 )
 from packages.providers.disclosure import combine_scopes, entry_allowed, scope_allowed, source_scope
+from services.agent.artifacts import ArtifactConflict, ArtifactInvalid, ArtifactNotFound
 from services.agent.mcp_tools import ModelScopedMCP, run_mcp_call, run_mcp_list
 from services.agent.tools import (
     RunningProc,
@@ -79,12 +80,78 @@ class TaskTerminal(ValueError):
     pass
 
 
+class _PublicationUncertain(ToolFailure):
+    """A possible persisted publication must never be blindly retried."""
+
+    def __init__(self, message: str, evidence: Evidence | None = None):
+        super().__init__(message)
+        self.evidence = evidence
+
+
 TERMINAL = {TaskState.SUCCEEDED, TaskState.FAILED, TaskState.CANCELLED}
 
 
 def _payload_hash(payload: dict[str, Any]) -> str:
     raw = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
     return hashlib.sha256(raw.encode()).hexdigest()
+
+
+def _ui_publication_receipt(envelope: dict[str, Any]) -> str:
+    """Keep native pins and the complete manifest without replaying UI data."""
+    receipt = {
+        "history_kind": "ui_publication_receipt",
+        "tool": "publish_ui",
+        "ok": True,
+        "artifact_id": envelope["artifact_id"],
+        "revision": envelope["revision"],
+        "objective_revision": envelope["objective_revision"],
+        "content_sha256": envelope["content_sha256"],
+        "components": [
+            {"id": component["id"], "type": component["type"]}
+            for component in envelope["components"]
+        ],
+        "title_excerpt": "",
+        "summary_excerpt": "",
+        "payload_omitted": True,
+        "receipt_scope": "UI publication only; no filesystem or external effect proven",
+        "next_action": (
+            "Finish or update this artifact_id with expected_revision=revision; "
+            "do not repeat the create unless required by the objective."
+        ),
+    }
+
+    def encode() -> str:
+        return json.dumps(receipt, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
+
+    def fits() -> bool:
+        return len(encode().encode("utf-8")) <= ARTIFACT_RECEIPT_LIMIT
+
+    def excerpt(text: str, length: int) -> str:
+        return text[:length] + ("…" if 0 < length < len(text) else "")
+
+    # The validated 24-component manifest and native pins fit independently
+    # of optional excerpts. Never sacrifice a digest, revision or component ID.
+    if not fits():
+        raise ValueError("Native UI receipt manifest exceeds its history byte budget")
+    for key, text, maximum in (
+        ("title_excerpt", envelope["title"], 160),
+        ("summary_excerpt", envelope["summary"], 512),
+    ):
+        maximum = min(maximum, len(text))
+        receipt[key] = excerpt(text, maximum)
+        if fits():
+            continue
+        # Measure the final escaped JSON bytes, not just UTF-8 source text.
+        low, high = 0, maximum - 1
+        while low < high:
+            middle = (low + high + 1) // 2
+            receipt[key] = excerpt(text, middle)
+            if fits():
+                low = middle
+            else:
+                high = middle - 1
+        receipt[key] = excerpt(text, low)
+    return encode()
 
 
 # In-memory terminal summary for administratively retired recovered work.
@@ -140,11 +207,14 @@ class _Record:
     pending: dict[str, Any] | None = None
     pending_steer: dict[str, Any] | None = None
     last_tool_ok: bool | None = None
-    # Set when a required effect (write/shell) fails in the current
-    # revision; cleared by a later successful write/shell or by steering.
+    # Aggregate failure of required work or UI publication in this revision.
     # Reads/searches never clear it, so an unrelated read cannot hide a
     # failed effect from finish.
     failed_effect: bool = False
+    # Publication cannot recover a failed filesystem/external effect (or the
+    # reverse). Keep each failure class until its own successful operation.
+    failed_work_effect: bool = False
+    failed_artifact: bool = False
     failed_plugin: bool = False
     cancel_requested: bool = False
     closing: bool = False
@@ -181,6 +251,7 @@ class AgentRuntime:
         resource_client: Any | None = None,
         plugin_service: Any | None = None,
         mcp_controller: Any | None = None,
+        artifact_store: Any | None = None,
     ) -> None:
         self.journal = journal
         self.provider = provider
@@ -200,6 +271,9 @@ class AgentRuntime:
         self.skill_service = skill_service
         self.resource_client = resource_client
         self.plugin_service = plugin_service
+        # Native presentation storage is optional for direct/test runtimes.
+        # The actual launcher supplies a protected operator data path.
+        self.artifact_store = artifact_store
         self._tasks: dict[str, _Record] = {}
         # Scoped (session_id, idempotency_key) so keys never collide across
         # sessions; restored by recover for terminal and paused tasks alike.
@@ -222,7 +296,7 @@ class AgentRuntime:
                 rec.task.content_scope, payload.get("content_scope", "public_synthetic")
             ),
         }
-        await self.journal.append(
+        entry = await self.journal.append(
             AppendRequest(
                 session_id=rec.task.session_id,
                 thread_id=rec.task.thread_id,
@@ -233,6 +307,8 @@ class AgentRuntime:
                 idempotency_key=f"agent:{rec.task.task_id}:{kind}:{rec.journal_seq}",
             )
         )
+        if kind == "agent.command" and payload.get("op") == "submit":
+            rec.submit_sequence = entry.sequence
 
     def _outcome_payload(self, rec: _Record, state: str, extra: dict[str, Any]) -> dict[str, Any]:
         """Complete task snapshot for a terminal/awaiting outcome entry."""
@@ -690,6 +766,8 @@ class AgentRuntime:
         rec.task.objective_revision = new_revision
         rec.last_tool_ok = None
         rec.failed_effect = False
+        rec.failed_work_effect = False
+        rec.failed_artifact = False
         rec.failed_plugin = False
         rec.history.append(
             {
@@ -1003,6 +1081,9 @@ class AgentRuntime:
         client, self.resource_client = self.resource_client, None
         if client is not None:
             await client.close()
+        artifact_store, self.artifact_store = self.artifact_store, None
+        if artifact_store is not None:
+            artifact_store.close()
 
     # -- approvals ------------------------------------------------------
     async def pending_approvals(
@@ -1295,6 +1376,14 @@ class AgentRuntime:
             f"network={self.policy.network}"
         )
 
+    @staticmethod
+    def _effect_result(rec: _Record, tool: str, *, ok: bool) -> None:
+        if tool == "publish_ui":
+            rec.failed_artifact = not ok
+        elif tool in {"write_file", "shell", "mcp_call"}:
+            rec.failed_work_effect = not ok
+        rec.failed_effect = rec.failed_work_effect or rec.failed_artifact
+
     def _mcp_server_ids(self) -> list[str] | None:
         """Enabled owner-configured server ids for the prompt, or None.
 
@@ -1394,6 +1483,7 @@ class AgentRuntime:
                     self._mcp_server_ids(),
                     self.skill_service is not None,
                     self.plugin_service is not None,
+                    self.artifact_store is not None,
                 )
                 try:
                     text = await self.provider.complete(messages)
@@ -1501,6 +1591,29 @@ class AgentRuntime:
                 )
         return None
 
+    def _verify_finish_artifacts(self, rec: _Record) -> str | None:
+        """Verify each final publication receipt against protected storage."""
+        latest: dict[str, Evidence] = {}
+        for evidence in rec.task.evidence:
+            if (
+                evidence.objective_revision == rec.task.objective_revision
+                and evidence.kind == "artifact"
+            ):
+                if not evidence.path or not evidence.path.startswith("artifact:"):
+                    return "finish verification failed: invalid UI publication receipt"
+                latest[evidence.path] = evidence
+        for evidence in latest.values():
+            try:
+                if self.artifact_store is None or not self.artifact_store.verify(
+                    evidence, rec.task
+                ):
+                    return (
+                        "finish verification failed: UI publication no longer matches its receipt"
+                    )
+            except Exception:
+                return "finish verification failed: UI artifact storage is unavailable"
+        return None
+
     async def _finish(self, rec: _Record, args: dict[str, Any], raw: str) -> None:
         await self._task_scope(rec)
         _ = raw
@@ -1524,8 +1637,13 @@ class AgentRuntime:
         if not current:
             await self._fail(rec, "finish with no current-revision evidence")
             return
+        unverified_artifact = self._verify_finish_artifacts(rec)
+        if unverified_artifact is not None:
+            await self._fail(rec, unverified_artifact)
+            return
         if any(e.kind in {"external", "extension"} for e in current) and not any(
-            e.kind in {"file", "command", "test"} or (e.kind == "read" and e.path and e.sha256)
+            e.kind in {"file", "command", "test", "artifact"}
+            or (e.kind == "read" and e.path and e.sha256)
             for e in current
         ):
             await self._fail(
@@ -1552,7 +1670,21 @@ class AgentRuntime:
             await self._fail(rec, unverified)
             return
         summary = str(args.get("summary", "") or "").strip()
-        await self._succeed(rec, summary or "done")
+        try:
+            await self._succeed(rec, summary or "done")
+        except Exception:
+            if not any(e.kind == "artifact" for e in current):
+                raise
+            # _succeed prepares the snapshot before its awaited journal
+            # response. That response may fail after commit; neither local
+            # success nor an automatic publication retry is justified.
+            rec.task.state = TaskState.FAILED
+            rec.task.summary = ""
+            rec.task.error = (
+                "UI publication was stored but completion journaling is unconfirmed; "
+                "task stopped without retry"
+            )
+            rec.done.set()
 
     async def _uncommitted_speech_sources(self, rec: _Record) -> list[str]:
         """A tool grant is not authority to act on unfinished recognition (AT11)."""
@@ -1593,7 +1725,7 @@ class AgentRuntime:
                 validate_write_arguments(args, revision)
             except ToolFailure as exc:
                 rec.last_tool_ok = False
-                rec.failed_effect = True
+                self._effect_result(rec, tool, ok=False)
                 if raw:
                     rec.history.append({"role": "assistant", "content": raw[:2000]})
                 rec.history.append({"role": "user", "content": observation_text(False, str(exc))})
@@ -1603,7 +1735,7 @@ class AgentRuntime:
             self._model_mcp()._check(args.get("server_id", ""))
         sources = (
             await self._uncommitted_speech_sources(rec)
-            if tool in {"write_file", "shell", "mcp_call"}
+            if tool in {"write_file", "shell", "mcp_call", "publish_ui"}
             else []
         )
         if await self._discard_revised_action(rec, revision, raw):
@@ -1737,17 +1869,32 @@ class AgentRuntime:
             return
         sources = (
             await self._uncommitted_speech_sources(rec)
-            if tool in {"write_file", "shell", "mcp_call"}
+            if tool in {"write_file", "shell", "mcp_call", "publish_ui"}
             else []
         )
+        if tool == "publish_ui":
+            # Speech authority may have yielded after the earlier epoch/source
+            # check. Re-read pinned revisions, then session identity after all
+            # of those source awaits. The local discard below is the final
+            # cancellation/steering fence before synchronous publication.
+            stale = await self._epoch_error(rec)
+            if stale is None:
+                try:
+                    session = await self.journal.session(rec.task.session_id)
+                    stale = self._check_task_epoch(rec, session)
+                except Exception:
+                    stale = "Session authority unavailable before UI publication"
         if await self._discard_revised_action(rec, revision, raw):
+            return
+        if tool == "publish_ui" and stale is not None:
+            await self._fail(rec, stale)
             return
         if tool == "write_file":
             try:
                 validate_write_arguments(args, revision)
             except ToolFailure as exc:
                 rec.last_tool_ok = False
-                rec.failed_effect = True
+                self._effect_result(rec, tool, ok=False)
                 if raw:
                     rec.history.append({"role": "assistant", "content": raw[:2000]})
                 rec.history.append({"role": "user", "content": observation_text(False, str(exc))})
@@ -1768,9 +1915,11 @@ class AgentRuntime:
             # approval, including under YOLO. No derived permit is needed.
             # There is no await between this grant check and the broker's
             # matching synchronous permission check.
-            if tool in {"write_file", "shell"} and not self.policy.needs_approval(tool):
+            if tool == "publish_ui" or (
+                tool in {"write_file", "shell"} and not self.policy.needs_approval(tool)
+            ):
                 self.policy.consume_approval(approval_id, digest, revision)
-        if raw:
+        if raw and tool != "publish_ui":
             rec.history.append({"role": "assistant", "content": raw[:2000]})
         if approval_id is not None:
             # One-use intent is now committed to this exact execution.
@@ -1835,8 +1984,19 @@ class AgentRuntime:
                 out, evidence = await self._skill_result(rec, tool, args)
             elif tool in {"plugins_list", "plugin_call"}:
                 out, evidence = await self._plugin_result(rec, tool, args)
+            elif tool == "publish_ui":
+                out, evidence = await self._publish_ui(rec, args)
             else:
                 raise ToolFailure(f"unknown tool {tool!r}")
+        except _PublicationUncertain as exc:
+            rec.last_tool_ok = False
+            self._effect_result(rec, tool, ok=False)
+            if exc.evidence is not None:
+                rec.task.evidence.append(exc.evidence)
+            # Storage or journal confirmation may have failed after commit.
+            # End this task instead of asking the model to create a duplicate.
+            await self._fail(rec, str(exc))
+            return
         except _FailedWithEvidence as exc:
             # Honest failure that still produced supervisor evidence
             # (e.g. a nonzero shell exit with its exit code recorded).
@@ -1847,32 +2007,46 @@ class AgentRuntime:
                 {"tool": tool, "ok": False, "evidence": exc.evidence.model_dump(mode="json")},
             )
             rec.last_tool_ok = False
-            if tool in ("write_file", "shell", "mcp_call"):
-                rec.failed_effect = True
+            self._effect_result(rec, tool, ok=False)
             if tool == "plugin_call":
                 rec.failed_plugin = True
             rec.history.append({"role": "user", "content": observation_text(False, str(exc))})
             return
         except (ToolFailure, PolicyDenied, ApprovalError, OSError) as exc:
             rec.last_tool_ok = False
-            if tool in ("write_file", "shell", "mcp_call"):
-                rec.failed_effect = True
+            self._effect_result(rec, tool, ok=False)
             if tool == "plugin_call":
                 rec.failed_plugin = True
             rec.history.append({"role": "user", "content": observation_text(False, str(exc))})
             return
         rec.task.evidence.append(evidence)
-        await self._append(
-            rec,
-            "agent.tool",
-            {"tool": tool, "ok": True, "evidence": evidence.model_dump(mode="json")},
-        )
+        try:
+            await self._append(
+                rec,
+                "agent.tool",
+                {"tool": tool, "ok": True, "evidence": evidence.model_dump(mode="json")},
+            )
+        except Exception:
+            if tool != "publish_ui":
+                raise
+            rec.last_tool_ok = False
+            self._effect_result(rec, tool, ok=False)
+            await self._fail(
+                rec,
+                "UI publication was stored but its tool receipt could not be journaled; "
+                "task stopped without retry",
+            )
+            return
         rec.last_tool_ok = True
-        if tool in ("write_file", "shell", "mcp_call"):
-            rec.failed_effect = False
+        self._effect_result(rec, tool, ok=True)
         if tool == "plugin_call":
             rec.failed_plugin = False
-        if tool in {"skills_list", "skill_load", "plugins_list", "plugin_call"}:
+        if tool == "publish_ui":
+            # The admitted action may contain 48 KiB of UI data. Its verified
+            # native receipt is the history unit; clipping/replaying the raw
+            # assistant action would corrupt JSON or needlessly repeat data.
+            rec.history.append({"role": "user", "content": out, "context_kind": "artifact_receipt"})
+        elif tool in {"skills_list", "skill_load", "plugins_list", "plugin_call"}:
             context_kind = "plugin" if tool in {"plugins_list", "plugin_call"} else "skill"
             rec.history.append(
                 {
@@ -1883,6 +2057,76 @@ class AgentRuntime:
             )
         else:
             rec.history.append({"role": "user", "content": observation_text(True, out)})
+
+    async def _publish_ui(self, rec: _Record, args: dict[str, Any]) -> tuple[str, Evidence]:
+        if self.artifact_store is None:
+            raise ToolFailure("unknown tool 'publish_ui': UI artifacts are not configured")
+        # All asynchronous authority reads completed before this point. No
+        # await separates this final task check from the native transaction.
+        if (
+            self._closed
+            or rec.recovered
+            or rec.cancel_requested
+            or rec.closing
+            or rec.pending_steer is not None
+            or rec.task.state != TaskState.RUNNING
+        ):
+            raise ToolFailure("UI publication requires the current active task revision")
+        try:
+            envelope = self.artifact_store.publish(rec.task, args)
+        except ArtifactConflict as exc:
+            raise ToolFailure("UI publication conflicts with its task or content revision") from exc
+        except ArtifactInvalid as exc:
+            raise ToolFailure("UI publication arguments failed bounded schema validation") from exc
+        except ArtifactNotFound as exc:
+            raise ToolFailure("UI publication target was not found") from exc
+        except Exception as exc:
+            raise _PublicationUncertain(
+                "UI publication storage outcome is unconfirmed; task stopped without retry"
+            ) from exc
+        try:
+            artifact_id = envelope["artifact_id"]
+            content_revision = envelope["revision"]
+            evidence = Evidence(
+                kind="artifact",
+                summary=f"Published UI artifact {artifact_id} revision {content_revision}; publication only",
+                path=f"artifact:{artifact_id}",
+                sha256=envelope["content_sha256"],
+                objective_revision=rec.task.objective_revision,
+            )
+            if not self.artifact_store.verify(evidence, rec.task):
+                raise ValueError("Unverified native receipt")
+            out = _ui_publication_receipt(envelope)
+        except Exception as exc:
+            raise _PublicationUncertain(
+                "UI publication was stored but its native receipt could not be verified; "
+                "task stopped without retry"
+            ) from exc
+        try:
+            await self._append(
+                rec,
+                "artifact.updated",
+                {
+                    "artifact_id": artifact_id,
+                    "task_submit_sequence": rec.submit_sequence,
+                    "session_id": rec.task.session_id,
+                    "thread_id": rec.task.thread_id,
+                    "epoch": rec.task.epoch,
+                    "objective_revision": rec.task.objective_revision,
+                    "revision": content_revision,
+                    "content_sha256": envelope["content_sha256"],
+                    "title": envelope["title"],
+                    "summary": envelope["summary"],
+                    "content_scope": envelope["content_scope"],
+                },
+            )
+        except Exception as exc:
+            raise _PublicationUncertain(
+                "UI publication was stored but its update could not be journaled; "
+                "task stopped without retry",
+                evidence,
+            ) from exc
+        return out, evidence
 
     async def _plugin_result(self, rec, tool, args):
         service = self.plugin_service

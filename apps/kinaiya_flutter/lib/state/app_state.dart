@@ -17,10 +17,13 @@ import 'package:flutter/foundation.dart';
 import '../api/client.dart';
 import '../api/models.dart';
 import '../api/agent_workspace.dart';
+import '../api/artifact_client.dart';
+import '../artifacts/models.dart';
 import '../config/connection.dart';
 import 'converse_handoff.dart';
 
 part 'agent_workspace_state.dart';
+part 'artifact_state.dart';
 
 enum AppView { character, agent }
 
@@ -46,6 +49,9 @@ class ChatMsg {
 }
 
 class AppState extends ChangeNotifier {
+  AppState({DateTime Function()? artifactNow})
+    : _artifactNow = artifactNow ?? DateTime.now;
+  final DateTime Function() _artifactNow;
   KinaiyaClient Function(ConnectionProfile profile)? clientFactory;
 
   ConnectionProfile? connection;
@@ -115,6 +121,7 @@ class AppState extends ChangeNotifier {
   SessionInfo? converseSession;
   SessionInfo? agentSession;
   final _agentWorkspace = _AgentWorkspaceData();
+  final _artifacts = _ArtifactData();
 
   final List<ChatMsg> converseHistory = [];
   final List<ChatMsg> agentHistory = [];
@@ -297,6 +304,7 @@ class AppState extends ChangeNotifier {
   bool get converseCanInfer => sessionAuthenticated && converseInferenceAllowed;
 
   void connect(ConnectionProfile profile, {KinaiyaClient? injected}) {
+    _resetArtifacts();
     _saveAgentWorkspace();
     final previous = connection;
     final backendChanged = previous != null && !_sameBackend(previous, profile);
@@ -591,6 +599,7 @@ class AppState extends ChangeNotifier {
   Future<void> refreshNotices() async {
     final api = client, session = converseSession;
     if (api == null || session == null || _pollingNotices) return;
+    unawaited(refreshArtifacts());
     _pollingNotices = true;
     final generation = _connectionGeneration;
     try {
@@ -618,6 +627,7 @@ class AppState extends ChangeNotifier {
           continue;
         }
         _observeHandoff(entry, session);
+        _observeArtifact(entry);
         if (entry.sequence > _noticeCursor) _noticeCursor = entry.sequence;
         if (entry.epoch == session.epoch &&
             (entry.kind == 'conversation.window' ||
@@ -1273,6 +1283,7 @@ class AppState extends ChangeNotifier {
   }
 
   void disconnect() {
+    _resetArtifacts();
     _saveAgentWorkspace();
     _invalidateAgentWorkspace();
     _connectionGeneration++;

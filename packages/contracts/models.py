@@ -107,7 +107,9 @@ class Evidence(WireModel):
     # "external" is a broker receipt for untrusted MCP/skill content.
     # It binds the observed payload, never proves task effects, and alone
     # cannot support completion.
-    kind: Literal["file", "command", "read", "search", "test", "extension", "external"]
+    # A native artifact receipt proves only persisted UI publication. It is
+    # never evidence for a claimed filesystem or external side effect.
+    kind: Literal["file", "command", "read", "search", "test", "extension", "external", "artifact"]
     summary: str
     path: str | None = None
     sha256: str | None = None
@@ -326,6 +328,7 @@ class ToolAction(WireModel):
         "skill_load",
         "plugins_list",
         "plugin_call",
+        "publish_ui",
         "finish",
     ]
     arguments: dict[str, Any] = Field(default_factory=dict)

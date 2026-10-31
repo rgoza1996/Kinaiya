@@ -15,6 +15,9 @@ class ControlledApi extends KinaiyaClient {
         agentBase: 'http://fixture',
         converseBase: 'http://fixture',
         ownerToken: 'synthetic',
+        artifactClientFactory: () => throw StateError(
+          'UI artifacts are unavailable in this synthetic capture fixture',
+        ),
       );
   final transcription = Completer<Map<String, Object?>>();
   int interrupts = 0;

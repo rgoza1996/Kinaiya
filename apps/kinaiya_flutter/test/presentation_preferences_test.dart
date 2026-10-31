@@ -18,12 +18,13 @@ void main() {
     expect(restored.showConverseView, isTrue);
     expect(restored.animateTransitions, isTrue);
     expect(restored.speechMouthMotion, isTrue);
+    expect(restored.intelligentUi, isTrue);
     expect(restored.primaryOverride, '#123456');
     expect(restored.backgroundOverride, '#112233');
     expect(restored.valid, isTrue);
   });
 
-  test('new nine-key true/false roundtrip and copyWith', () {
+  test('new ten-key true/false roundtrip and copyWith', () {
     const base = PresentationPreferences();
     expect(base.showConverseView, isTrue);
     expect(base.speechMouthMotion, isTrue);
@@ -43,7 +44,7 @@ void main() {
       animateTransitions: false,
       speechMouthMotion: false,
     );
-    expect(instant.toJson().length, 9);
+    expect(instant.toJson().length, 10);
     final restored = PresentationPreferences.fromJson(instant.toJson());
     expect(restored.animateTransitions, isFalse);
     expect(restored.speechMouthMotion, isFalse);
@@ -58,7 +59,8 @@ void main() {
     final previous =
         const PresentationPreferences(showConverseView: false).toJson()
           ..remove('animate_transitions')
-          ..remove('speech_mouth_motion');
+          ..remove('speech_mouth_motion')
+          ..remove('intelligent_ui');
     final restored = PresentationPreferences.fromJson(previous);
     expect(restored.showConverseView, isFalse);
     expect(restored.animateTransitions, isTrue);
@@ -68,12 +70,15 @@ void main() {
   test(
     'released eight-key snapshot retains choices and enables mouth motion',
     () {
-      final previous = const PresentationPreferences(
-        animateTransitions: false,
-        showConverseView: false,
-        showCharacter: false,
-        reducedMotion: true,
-      ).toJson()..remove('speech_mouth_motion');
+      final previous =
+          const PresentationPreferences(
+              animateTransitions: false,
+              showConverseView: false,
+              showCharacter: false,
+              reducedMotion: true,
+            ).toJson()
+            ..remove('speech_mouth_motion')
+            ..remove('intelligent_ui');
       final restored = PresentationPreferences.fromJson(previous);
       expect(restored.animateTransitions, isFalse);
       expect(restored.showConverseView, isFalse);

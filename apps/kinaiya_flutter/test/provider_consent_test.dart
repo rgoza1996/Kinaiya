@@ -120,6 +120,9 @@ class ConsentClient extends KinaiyaClient {
         agentBase: 'http://127.0.0.1:8761',
         converseBase: 'http://127.0.0.1:8762',
         ownerToken: 'synthetic',
+        artifactClientFactory: () => throw StateError(
+          'UI artifacts are unavailable in this synthetic consent fixture',
+        ),
         agentWorkspaceClientFactory: () => throw StateError(
           'Workspace reads are unavailable in this synthetic legacy fixture',
         ),

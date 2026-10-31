@@ -1491,25 +1491,42 @@ class ConverseRuntime:
         ):
             raise ValueError("Only evidenced successful runtime outcomes may announce completion")
         # MCP and compute receipts identify a response/computation, not an
-        # independently verified task effect.
+        # independently verified task effect. Native publication receipts
+        # arrive only in the authenticated supervisor snapshot, just like
+        # file evidence; they prove UI publication, never remote effects.
         current = [
             e
             for e in (task.get("evidence") or [])
             if isinstance(e, dict) and e.get("objective_revision") == task.get("objective_revision")
         ]
-        native = [e for e in current if e.get("kind") not in {"external", "extension"}]
-        independent = any(
+        artifacts = [
+            e
+            for e in current
+            if e.get("kind") == "artifact"
+            and isinstance(e.get("path"), str)
+            and re.fullmatch(r"artifact:[A-Za-z0-9_-]{1,128}", e["path"])
+            and isinstance(e.get("sha256"), str)
+            and re.fullmatch(r"[a-f0-9]{64}", e["sha256"])
+        ]
+        native = [e for e in current if e.get("kind") not in {"external", "extension", "artifact"}]
+        work_evidence = any(
             e.get("kind") in {"file", "command", "test"}
             or (e.get("kind") == "read" and e.get("path") and e.get("sha256"))
             for e in native
         )
-        if not native or (
-            any(e.get("kind") in {"external", "extension"} for e in current) and not independent
+        if not (native or artifacts) or (
+            any(e.get("kind") in {"external", "extension"} for e in current)
+            and not (work_evidence or artifacts)
         ):
             raise ValueError(
                 "Only unverified tool/computation receipts support this outcome; "
                 "independent native evidence is required"
             )
+        notice_text = (
+            "The Agent published a verified UI result. Its receipt confirms UI publication only."
+            if artifacts and not work_evidence
+            else "The Agent reports a verified result: " + task.get("summary", "Task completed.")
+        )
         session = await self.journal.session(outcome.session_id)
         if session.epoch != outcome.epoch or session.channel != "converse" or not self.enabled:
             return None
@@ -1541,8 +1558,7 @@ class ConverseRuntime:
                 epoch=session.epoch,
                 kind="conversation.converse",
                 payload={
-                    "text": "The Agent reports a verified result: "
-                    + task.get("summary", "Task completed."),
+                    "text": notice_text,
                     "final": True,
                     "revision": 1,
                     "generation_epoch": playback.generation,

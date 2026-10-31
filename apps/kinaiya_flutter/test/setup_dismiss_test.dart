@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -63,6 +64,28 @@ Offset emptyPoint(WidgetTester tester) {
   throw StateError('No empty point in the setup viewport');
 }
 
+Offset transparentCornerPoint(WidgetTester tester) {
+  final field = tester.getRect(background);
+  final model = tester.getRect(bubble('Model'));
+  final bodies = [for (final name in names) tester.getRect(bubble(name))];
+  // A rectangle corner can lie inside a neighbouring circle. Select a point
+  // that actually exercises the intended transparent hit-test region.
+  for (final point in [
+    model.topLeft + const Offset(2, 2),
+    model.topRight + const Offset(-2, 2),
+    model.bottomLeft + const Offset(2, -2),
+    model.bottomRight + const Offset(-2, -2),
+  ]) {
+    if (field.contains(point) &&
+        bodies.every(
+          (body) => (body.center - point).distance > body.width / 2 + 2,
+        )) {
+      return point;
+    }
+  }
+  throw StateError('No unoccupied transparent Model corner');
+}
+
 Future<Host> mount(
   WidgetTester tester, {
   bool small = false,
@@ -121,6 +144,7 @@ Future<Host> mount(
               context: context,
               builder: (_) => ModelSetupDialog(
                 state: host.state,
+                bubbleRandom: math.Random(165),
                 presentation: host.presentation,
                 voiceControls: TextButton(
                   key: const ValueKey('test-stop'),
@@ -166,7 +190,7 @@ void main() {
       (tester) async {
         final host = await mount(tester);
         final point = corner
-            ? tester.getTopLeft(bubble('Model')) + const Offset(2, 2)
+            ? transparentCornerPoint(tester)
             : emptyPoint(tester);
         await tester.tapAt(point);
         await pumpSetupFrames(tester);
@@ -258,7 +282,7 @@ void main() {
       expect(scroll(), greaterThan(initial));
       await tester.ensureVisible(bubble('Model'));
       await tester.pump();
-      final corner = tester.getTopLeft(bubble('Model')) + const Offset(2, 2);
+      final corner = transparentCornerPoint(tester);
       final beforeCorner = scroll();
       final down = position().extentAfter > 120;
       await tester.dragFrom(corner, Offset(0, down ? -80 : 80));
