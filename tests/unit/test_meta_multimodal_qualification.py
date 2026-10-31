@@ -111,3 +111,8 @@ def test_unknown_duplicate_cases_and_remote_image_results_refuse(directory):
     assert not qual.observe("voice-speech", {"transcript": "spreadsheet three columns"}, directory)[
         "expected_observed"
     ]
+    assert not qual.observe("voice-beeps", {"transcript": "", "audioDurationMs": None}, directory)[
+        "expected_observed"
+    ]
+    with pytest.raises(ValueError, match="incomplete"):
+        qual.observe("sam-image", {"status": "incomplete", "model": "sam-3.1"}, directory)

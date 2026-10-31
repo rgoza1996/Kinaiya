@@ -18,6 +18,7 @@ from scripts.qualify_local_multimodal import (
     create_fixtures,
     decode,
     encoded,
+    media_bytes,
     transcript_words,
 )
 
@@ -136,11 +137,14 @@ def budget_check(client):
 def observe(name, payload, directory):
     if name.startswith("voice-"):
         text = payload.get("transcript")
+        duration = payload.get("audioDurationMs")
         expected = SPEECH_TEXT if name == "voice-speech" else ""
         return {
             "transcript": text,
             "audioDurationMs": payload.get("audioDurationMs"),
-            "expected_observed": type(text) is str
+            "expected_observed": type(duration) is int
+            and 1 <= duration <= 60000
+            and type(text) is str
             and transcript_words(text) == transcript_words(expected),
         }
     if name.startswith("spark-"):
@@ -171,6 +175,8 @@ def observe(name, payload, directory):
             "check_scope": "required facts only; inspect additional claims separately",
         }
     if name == "sam-image":
+        if payload.get("status") != "completed" or payload.get("model") != "sam-3.1":
+            raise ValueError("SAM result is incomplete or has an unconfirmed model")
         text = "".join(
             part.get("text", "")
             for item in payload.get("output", [])
@@ -241,7 +247,7 @@ def run(directory, selected, *, transport=None, credential=None):
             started = time.monotonic()
             try:
                 if "file" in spec:
-                    audio = (directory / spec["file"]).read_bytes()
+                    audio = media_bytes(directory / spec["file"])
                     row["audio_sha256"] = hashlib.sha256(audio).hexdigest()
                     kwargs = {
                         "files": {

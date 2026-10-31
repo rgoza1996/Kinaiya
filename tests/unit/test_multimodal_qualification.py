@@ -220,6 +220,9 @@ def test_source_media_read_is_bounded(tmp_path):
     path.write_bytes(b"x" * (2 * 1024 * 1024 + 1))
     with pytest.raises(ValueError, match="exceeds"):
         qual.encoded(path)
+    (tmp_path / "manifest.json").write_bytes(b" " * 65537)
+    with pytest.raises(ValueError, match="manifest exceeds"):
+        qual.run(tmp_path, "http://127.0.0.1", "c", "d", native=True)
 
 
 def test_transcription_must_match_words_not_merely_contain_keywords(directory):

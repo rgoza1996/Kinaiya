@@ -84,6 +84,7 @@ def local_root(value):
 def create_fixtures(directory, *, speech=False):
     from PIL import Image, ImageDraw
 
+    directory = directory.resolve()
     directory.mkdir(parents=True, exist_ok=True)
     frames = directory / "frames"
     frames.mkdir(exist_ok=True)
@@ -144,7 +145,7 @@ def create_fixtures(directory, *, speech=False):
                 "-f",
                 "lavfi",
                 "-i",
-                f"flite=textfile={directory / 'speech.txt'}:voice=slt",
+                "flite=textfile=speech.txt:voice=slt",
                 "-ar",
                 "16000",
                 "-ac",
@@ -155,6 +156,7 @@ def create_fixtures(directory, *, speech=False):
             ],
             check=True,
             timeout=30,
+            cwd=directory,
         )
         # Normalize to the same canonical 44-byte PCM WAV used by the native
         # buffered voice admission, without ffmpeg's optional metadata chunks.
@@ -184,12 +186,16 @@ def create_fixtures(directory, *, speech=False):
     return manifest
 
 
-def encoded(path):
+def media_bytes(path):
     with path.open("rb") as stream:
         raw = stream.read(2 * 1024 * 1024 + 1)
     if len(raw) > 2 * 1024 * 1024:
         raise ValueError("Synthetic media exceeds the qualification bound")
-    return base64.b64encode(raw).decode("ascii")
+    return raw
+
+
+def encoded(path):
+    return base64.b64encode(media_bytes(path)).decode("ascii")
 
 
 def cases(directory, converse, decisions, *, include_speech=False, prompt_profile="generic"):
@@ -555,17 +561,19 @@ def run(
         "cases": [],
         "complete": False,
     }
-    manifest = decode((directory / "manifest.json").read_bytes())
+    with (directory / "manifest.json").open("rb") as source:
+        raw_manifest = source.read(65537)
+    if len(raw_manifest) > 65536:
+        raise ValueError("Fixture manifest exceeds bound")
+    manifest = decode(raw_manifest)
     if manifest.get("synthetic") is not True or type(manifest.get("files")) is not dict:
         raise ValueError("Synthetic fixture manifest required")
     for name in ("image.png", "beeps.wav", "clip.mp4", "frames/11.png"):
-        if hashlib.sha256((directory / name).read_bytes()).hexdigest() != manifest["files"].get(
-            name
-        ):
+        if hashlib.sha256(media_bytes(directory / name)).hexdigest() != manifest["files"].get(name):
             raise ValueError("Fixture bytes changed after manifest creation")
     include_speech = manifest.get("speech_text") == SPEECH_TEXT
     if include_speech and hashlib.sha256(
-        (directory / "speech.wav").read_bytes()
+        media_bytes(directory / "speech.wav")
     ).hexdigest() != manifest["files"].get("speech.wav"):
         raise ValueError("Speech bytes changed after manifest creation")
     report["fixture_manifest"] = manifest
