@@ -5,6 +5,7 @@ not evidence of evaluating the synthetic plugin or of sandbox readiness.
 """
 
 import asyncio
+import copy
 import hashlib
 import json
 from contextlib import asynccontextmanager
@@ -247,14 +248,16 @@ def plugins(tmp_path, monkeypatch):
     service.controls.close()
 
 
-async def approve_fixture(service, *, field="old", scope="public_synthetic"):
+async def approve_fixture(service, *, field="old", scope="public_synthetic", input_schema=None):
     manifest = {
         "plugin_id": "demo",
         "name": "Synthetic fixture",
         "description": field * 80,
         "author": "fixture",
         "license": "MIT",
-        "input_schema": {"type": "object", "properties": {field: {"type": "string"}}},
+        "input_schema": input_schema
+        if input_schema is not None
+        else {"type": "object", "properties": {field: {"type": "string"}}},
         "output_schema": {"type": "object"},
     }
     version = service.registry.register_bytes(b"def run(a):\n    return a\n", manifest)
@@ -634,3 +637,198 @@ def test_mcp_projection_failure_is_constant_and_cancellation_propagates():
     host.cached_tool_metadata = cancelled
     with pytest.raises(asyncio.CancelledError):
         ModelScopedMCP(host, META).cached_tool_metadata("public")
+
+
+async def test_skill_current_guard_no_loading_pinning_and_scope_revocation(
+    skills, tmp_path, monkeypatch
+):
+    identity = await install_skill(skills, skill_source(tmp_path / "source"))
+    listed = await skills.tool_metadata(META)
+    selected = await skills.tool_metadata(META, skill_id=identity)
+    trap_skill_effects(skills, monkeypatch)
+    assert skills.tool_metadata_current(META, listed)
+    assert skills.tool_metadata_current(META, selected)
+    assert skills.tool_metadata_current(META, [])
+    async with skills._lock:
+        assert not skills.tool_metadata_current(META, selected)
+        assert not skills.tool_metadata_current(META, [])
+    await skills.mutate("scope", authority="owner", skill_id=identity, content_scope="local_only")
+    assert not skills.tool_metadata_current(META, listed)
+    assert not skills.tool_metadata_current(META, selected)
+    local = await skills.tool_metadata(LOCAL, skill_id=identity)
+    assert skills.tool_metadata_current(LOCAL, local)
+    assert not skills.tool_metadata_current(META, local)
+    assert not skills._pins and skills._pinned_bytes == 0
+
+
+async def test_skill_current_guard_distinguishes_active_and_old_pinned_metadata(
+    skills, tmp_path, monkeypatch
+):
+    identity = await install_skill(skills, skill_source(tmp_path / "old"))
+    await skills.load("task", identity, META)
+    original = await skills.tool_metadata(META, skill_id=identity, task_id="task")
+    await skills.mutate(
+        "update",
+        authority="owner",
+        skill_id=identity,
+        source=skill_source(tmp_path / "new", version="2.0"),
+        content_scope="public_synthetic",
+    )
+    assert not skills.tool_metadata_current(META, original, task_id="task")
+    current = await skills.tool_metadata(META, skill_id=identity, task_id="task")
+    trap_skill_effects(skills, monkeypatch)
+    assert current[0]["version"] == "1.0" and current[0]["active_version"]["version"] == "2.0"
+    assert skills.tool_metadata_current(META, current, task_id="task")
+    assert not skills.tool_metadata_current(META, current)
+    # A current grant cannot authorize an old pin after its separate grant is removed.
+    await skills.mutate("scope", authority="owner", skill_id=identity, content_scope="local_only")
+    await skills.mutate(
+        "scope", authority="owner", skill_id=identity, content_scope="public_synthetic"
+    )
+    assert not skills.tool_metadata_current(META, current, task_id="task")
+
+
+async def test_skill_current_guard_rejects_version_author_and_verified_byte_changes(
+    skills, tmp_path
+):
+    identity = await install_skill(skills, skill_source(tmp_path / "source"))
+    listed = await skills.tool_metadata(META)
+    selected = await skills.tool_metadata(META, skill_id=identity)
+    record = skills._manager._record(identity)
+    installed = skills._manager._install_dir(record) / "SKILL.md"
+    original = installed.read_text()
+    installed.write_text(original + "changed bytes\n")
+    assert skills.tool_metadata_current(META, listed)  # Still registered-only metadata.
+    assert not skills.tool_metadata_current(META, selected)
+    installed.write_text(original)
+    await skills.mutate(
+        "update",
+        authority="owner",
+        skill_id=identity,
+        source=skill_source(
+            tmp_path / "version2", version="2.0", extra="disable-model-invocation: true\n"
+        ),
+        content_scope="public_synthetic",
+    )
+    assert not skills.tool_metadata_current(META, listed)
+
+
+async def test_skill_current_guard_checks_pinned_author_flags_and_trusted_invocation(
+    skills, tmp_path
+):
+    identity = await install_skill(
+        skills, skill_source(tmp_path / "source", extra="manual-only: true\n")
+    )
+    await skills.load("task", identity, META, invocation="user")
+    rows = await skills.tool_metadata(META, skill_id=identity, task_id="task", invocation="user")
+    assert skills.tool_metadata_current(META, rows, task_id="task", invocation="user")
+    assert not skills.tool_metadata_current(META, rows, task_id="task")
+    skills._pins[("task", identity)].user_invocable = False
+    assert not skills.tool_metadata_current(META, rows, task_id="task", invocation="user")
+
+
+@pytest.mark.parametrize("rows", [None, (), {}, [None], [{}], [{"id": "local/demo"}]])
+async def test_skill_current_guard_rejects_malformed_rows(skills, rows):
+    assert not skills.tool_metadata_current(META, rows)
+
+
+async def test_skill_current_guard_rejects_row_tampering_duplicates_and_invalid_provider(
+    skills, tmp_path
+):
+    identity = await install_skill(skills, skill_source(tmp_path / "source"))
+    rows = await skills.tool_metadata(META, skill_id=identity)
+    assert not skills.tool_metadata_current(META, rows + rows)
+    for key, value in (
+        ("digest", "sha256:" + "0" * 64),
+        ("source_revision", "invented"),
+        ("model_invocable", 1),
+        ("description", "\ud800"),
+        ("active_version", None),
+    ):
+        changed = copy.deepcopy(rows)
+        changed[0][key] = value
+        assert not skills.tool_metadata_current(META, changed)
+    assert not skills.tool_metadata_current(
+        {"local": 1, "provider": "meta", "model": "fixture"}, rows
+    )
+
+
+async def test_plugin_current_guard_scope_disable_and_held_lock(plugins, monkeypatch):
+    version = await approve_fixture(plugins)
+    listed = await plugins.tool_metadata(META)
+    selected = await plugins.tool_metadata(META, plugin_id="demo")
+    trap_plugin_pins(plugins, monkeypatch)
+    assert plugins.tool_metadata_current(META, listed)
+    assert plugins.tool_metadata_current(META, selected)
+    assert plugins.tool_metadata_current(META, [])
+    async with plugins._lock:
+        assert not plugins.tool_metadata_current(META, selected)
+        assert not plugins.tool_metadata_current(META, [])
+    await plugins.set_scope(version, "local_only", reviewed=True)
+    assert not plugins.tool_metadata_current(META, selected)
+    local = await plugins.tool_metadata(LOCAL, plugin_id="demo")
+    assert plugins.tool_metadata_current(LOCAL, local)
+    assert not plugins.tool_metadata_current(META, local)
+    await plugins.set_scope(version, "public_synthetic", reviewed=True)
+    assert plugins.tool_metadata_current(META, selected)
+    plugins.registry.disable("demo")
+    assert not plugins.tool_metadata_current(META, selected)
+    assert plugins.registry._read_pins() == {}
+
+
+async def test_plugin_current_guard_preserves_public_old_pin_and_active_version_parity(
+    plugins, monkeypatch
+):
+    first = await approve_fixture(plugins)
+    task = SimpleNamespace(task_id="task", plugin_versions={"demo": first})
+    original = await plugins.tool_metadata(META, plugin_id="demo", task=task)
+    second = await approve_fixture(plugins, field="new", scope="local_only")
+    assert not plugins.tool_metadata_current(META, original, task=task)
+    current = await plugins.tool_metadata(META, plugin_id="demo", task=task)
+    trap_plugin_pins(plugins, monkeypatch)
+    assert current[0]["version_id"] == first and current[0]["active_version"] is None
+    assert plugins.tool_metadata_current(META, current, task=task)
+    assert not plugins.tool_metadata_current(META, current)
+    await plugins.set_scope(second, "public_synthetic", reviewed=True)
+    assert not plugins.tool_metadata_current(META, current, task=task)
+    public = await plugins.tool_metadata(META, plugin_id="demo", task=task)
+    assert plugins.tool_metadata_current(META, public, task=task)
+    await plugins.set_scope(first, "local_only", reviewed=True)
+    assert not plugins.tool_metadata_current(META, public, task=task)
+
+
+async def test_plugin_current_guard_revalidates_approval_and_integrity(plugins):
+    version = await approve_fixture(plugins)
+    rows = await plugins.tool_metadata(META, plugin_id="demo")
+    assert plugins.tool_metadata_current(META, rows)
+    report = plugins.registry._reports / "rep-old.json"
+    original = report.read_text()
+    data = json.loads(original)
+    data["passed"] = False
+    report.write_text(json.dumps(data))
+    assert not plugins.tool_metadata_current(META, rows)
+    report.write_text(original)
+    source = plugins.registry._versions / version / "source.py"
+    source.write_bytes(source.read_bytes() + b"# tampered\n")
+    assert not plugins.tool_metadata_current(META, rows)
+
+
+@pytest.mark.parametrize("rows", [None, (), {}, [None], [{}], [{"plugin_id": "demo"}]])
+async def test_plugin_current_guard_rejects_malformed_rows(plugins, rows):
+    assert not plugins.tool_metadata_current(META, rows)
+
+
+async def test_plugin_current_guard_strict_schema_kinds_and_bad_provider(plugins):
+    await approve_fixture(plugins, input_schema={"type": "object", "maxProperties": 1})
+    rows = await plugins.tool_metadata(META, plugin_id="demo")
+    assert plugins.tool_metadata_current(META, rows)
+    assert not plugins.tool_metadata_current(META, rows + rows)
+    modified = copy.deepcopy(rows)
+    modified[0]["input_schema"]["maxProperties"] = True
+    assert not plugins.tool_metadata_current(META, modified)
+    for value in (float("nan"), object(), "\ud800"):
+        modified = copy.deepcopy(rows)
+        modified[0]["input_schema"]["enum"] = [value]
+        assert not plugins.tool_metadata_current(META, modified)
+    bad_provider = SimpleNamespace(local=1, provider="meta", model="fixture")
+    assert not plugins.tool_metadata_current(bad_provider, rows)
