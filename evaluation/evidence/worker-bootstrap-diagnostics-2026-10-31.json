@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "issue": 176,
+  "scope": "Constant observations of existing pre-grant worker ownership refusals; no predicate, grant, retry or timing change",
+  "base_commit": "dcd3eea87a3f97671c59b89d451869210138f17b",
+  "runtime_and_regression_sha256": {
+    "packages/resources/processes.py": "184f4474c16a2bb86851f19d1cc9a646c86877670ab0a29d99e9ce37c57d72d3",
+    "tests/unit/test_worker_bootstrap_diagnostics.py": "db2e140631f72edb077b5f8354c9b81b854b1132c63eb6cd184a20fb0d928801"
+  },
+  "retained_ci_failure": {
+    "url": "https://github.com/rgoza1996/Kinaiya/actions/runs/41193077939/job/124513666156",
+    "run_number": 231,
+    "pr": 175,
+    "head": "f725def8098e4dacfd33933e1e2ae5cd0c306225",
+    "test_merge": "e0c74a62dbdbed8bebb862a91e3d8f1f095cda7b",
+    "tested_tree": "f7a27c5064abd105efd82ed8800dbc740f32aae0",
+    "environment": "Hosted Python 3.12.15",
+    "test": "tests/integration/test_resource_processes.py::test_start_stop_restart_memory",
+    "observation": "ownership-unverified before grant; individual refusal predicate and errno unavailable",
+    "passed": 5408,
+    "failed": 1,
+    "skipped": 6,
+    "deselected": 2,
+    "warnings": 1,
+    "elapsed_seconds": 410.56,
+    "retained_log_sha256": "9d4f5329196144d6e3c0acb6ebff321d62c3d47caa8f2cd9311ffd596ae0caec",
+    "worker_source_unchanged_in_PR175": true,
+    "cause": "unestablished; no failing individual predicate retained",
+    "earlier_related_observations": [
+      "Issue #9 / CI154",
+      "evaluation/evidence/converse-window-recovery-2026-10-28.json"
+    ],
+    "retry_before_diagnostic_change": false
+  },
+  "local_unchanged_baseline_observations": {
+    "environment": "Linux; pinned Python 3.12.3",
+    "exact_memory_case": {
+      "command": "PYTHONPATH=. /tmp/kinaiya134-verify-venv/bin/python -m pytest -q tests/integration/test_resource_processes.py::test_start_stop_restart_memory",
+      "passed": 1,
+      "elapsed_seconds": 0.52
+    },
+    "bootstrap_only_probe": {
+      "starts": 100,
+      "verified": 100,
+      "elapsed_seconds": 11.195,
+      "description": "Independent local probe of immediate-readiness synthetic bootstrap starts; not 100 memory lifecycle runs",
+      "cleanup": "all started processes closed",
+      "outcome_override": false
+    },
+    "failure_reproduced": false
+  },
+  "verification": {
+    "environment": "Linux; pinned /tmp/kinaiya134-verify-venv Python 3.12.3; PYTHONPATH=. in this worktree",
+    "new_diagnostic_fault_tests": {
+      "command": "PYTHONPATH=. /tmp/kinaiya134-verify-venv/bin/python -m pytest -q tests/unit/test_worker_bootstrap_diagnostics.py",
+      "independent_author_run": "107 passed in 0.25s",
+      "integrator_run": "107 passed in 0.21s",
+      "coverage_claim": "17 closed reasons, errno categories, accepted/refused tuples, read and close ordering, multiple faults, payload exclusion and ordinary diagnostic failures; no structural coverage claim"
+    },
+    "unchanged_actual_lifecycle_and_boundary_tests": {
+      "command": "PYTHONPATH=. /tmp/kinaiya134-verify-venv/bin/python -m pytest -q tests/integration/test_resource_processes.py tests/integration/test_resource_boundaries.py tests/integration/test_resource_parent.py",
+      "passed": 48,
+      "elapsed_seconds": 17.53
+    },
+    "related_resource_regressions": {
+      "command": "PYTHONPATH=. /tmp/kinaiya134-verify-venv/bin/python -m pytest -q -m 'not live' tests/integration/test_converse_owner_processes.py tests/integration/test_gguf_resource_config.py tests/integration/test_managed_laya_launcher.py tests/integration/test_managed_qwen3.py tests/integration/test_managed_whistle.py tests/integration/test_qwen3_resource_config.py tests/integration/test_qwen3_resources.py tests/integration/test_qwen3_worker.py tests/integration/test_resource_handoff.py tests/integration/test_voice_resource_config.py tests/integration/test_whistle_startup_ordering.py tests/integration/test_worker_identity.py",
+      "passed": 311,
+      "elapsed_seconds": 74.89,
+      "description": "Existing offline synthetic/configuration/ownership fixtures; no real model weights, GPU load or paid provider qualification"
+    },
+    "independent_verifier_review": {
+      "reviewer": "Independent Codex subagent; no production edits",
+      "result": "No blocker in bounded source and differential inspection",
+      "comparisons": 56,
+      "description": "28 injected scenarios with working and failing logging; original/new tuples, exception types and ordered native operations matched, including simultaneous faults and handle closure",
+      "interpreter": "Pinned Python 3.12.3",
+      "retention": "Originally run inline; exact script and stdout retained afterwards from the independent tool result, without rerunning",
+      "retained_script_sha256": "1b660954212572cddd484f10916fd10fb13429346662937c49fa861a3974529e",
+      "retained_receipt_sha256": "a594f4f3697f49fa359afa53cad5ff9aa1bd8c3707c8ea7d049fb0c5f0a9558b",
+      "not_established": "CI cause, exhaustive equivalence or formal proof"
+    },
+    "ruff_check": "/tmp/kinaiya134-verify-venv/bin/ruff check . passed",
+    "ruff_format": "/tmp/kinaiya134-verify-venv/bin/ruff format --check . passed; 436 files formatted",
+    "diff_check": "git diff --check passed",
+    "existing_tests_changed": false,
+    "full_ci": "Required on tested PR source before merge; see linked GitHub Actions rather than inferred local results"
+  },
+  "limitations": [
+    "The ownership failure was not reproduced and its historical cause remains unknown",
+    "Passing local starts do not prove scheduling pressure, PID reuse, readiness or memory was the cause",
+    "No retry, timeout, ownership predicate, handle lifecycle, grant or permission was relaxed",
+    "No live provider, voice, GPU, browser, Android or iOS qualification in this local slice",
+    "No new paid inference calls or software installs for this diagnostic slice",
+    "General startup reliability, issue #9 and the M6 acceptance gate remain open"
+  ]
+}

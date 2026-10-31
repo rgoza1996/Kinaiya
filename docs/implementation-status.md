@@ -138,6 +138,19 @@ M1/M6 production gates. Exact execution evidence is recorded with the PR/CI.
 The [bounded verification record](../evaluation/evidence/agent-completion-2026-10-31.json)
 preserves the failing prior baseline and independent checks.
 
+## Worker ownership diagnostics
+
+[#176](https://github.com/rgoza1996/Kinaiya/issues/176) adds constant observations
+to the existing pre-grant worker verifier after CI231 refused ownership in the
+memory lifecycle test. It preserves every ownership predicate, read/close order,
+grant boundary and legacy outcome. No retry or timing relaxation is introduced.
+The [contract](worker-bootstrap-diagnostics.md),
+[ADR0073](adr/0073-worker-bootstrap-refusal-diagnostics.md) and
+[bounded evidence](../evaluation/evidence/worker-bootstrap-diagnostics-2026-10-31.json)
+retain the failure and verification scope. The cause was not reproduced locally;
+this diagnostic slice does not fix general startup reliability or close
+[#9](https://github.com/rgoza1996/Kinaiya/issues/9) or the M6 gate.
+
 ## Client reliability
 
 The owner prioritized the intermittent bubble CI failure and trailing-slash connection failure before further features. [#163](https://github.com/rgoza1996/Kinaiya/issues/163) replaces a randomized, net-displacement test with fixed initial positions/velocities, a measured forward release gesture and frame-by-frame stationary-pointer re-entry/escape checks. Production physics and fresh random layout remain unchanged. A deliberate sticky-hover mutation fails the replacement test. The original failing CI runs and the pinned Flutter velocity diagnosis remain documented in [ADR0063](adr/0063-floating-setup-bubbles.md#deterministic-release-regression-163); the exact random layout responsible for either CI failure was not retained.
