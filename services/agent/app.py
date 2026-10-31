@@ -127,25 +127,40 @@ def create_app(runtime: AgentRuntime, auth: Any, commands=None) -> FastAPI:
             raise _http(exc) from exc
 
     @app.get("/v1/agents/capabilities")
-    async def capabilities(actor: str = Depends(require_actor)) -> Any:
+    async def capabilities(
+        task_id: str | None = Query(default=None, min_length=1, max_length=128),
+        actor: str = Depends(require_actor),
+    ) -> Any:
         _ = actor
-        tools = ["read_file", "write_file", "search", "shell", "read_transcript", "finish"]
-        if runtime.selector_registry:
-            tools.append("select_context")
-        if runtime.mcp_host is not None:
-            # MCP tools exist only when owner-configured servers are present.
-            tools += ["mcp_list", "mcp_call"]
-        if runtime.skill_service is not None:
-            tools += ["skills_list", "skill_load"]
-        if runtime.plugin_service is not None:
-            tools += ["plugins_list", "plugin_call"]
-        if runtime.artifact_store is not None:
-            tools.append("publish_ui")
+        try:
+            task = await runtime.status(task_id) if task_id is not None else None
+        except Exception as exc:
+            raise _http(exc) from exc
+        snapshot = runtime.tool_snapshot(task)
         return {
-            "harness": runtime.selector_registry.active if runtime.selector_registry else "seed-v1",
+            "harness": task.harness_version
+            if task is not None
+            else runtime.selector_registry.active
+            if runtime.selector_registry
+            else "seed-v1",
             "event_protocol": "1.0",
             "contract_schema": "1.0",
-            "tools": tools,
+            "tools": list(snapshot.available_tools),
+            "tool_catalog": {
+                "schema_version": snapshot.schema_version,
+                "scope": "native_gateways",
+                "task_id": task_id,
+                "task_state": task.state.value if task is not None else None,
+                "items": [
+                    {
+                        "name": descriptor.name,
+                        "qualified_id": descriptor.qualified_id,
+                        "protocol_version": descriptor.protocol_version,
+                        "kind": descriptor.kind,
+                    }
+                    for descriptor in snapshot.descriptors
+                ],
+            },
             "steering": "safe-boundary",
             "cancellation": True,
             "approvals": {"digest_bound": True, "one_use": True, "expiring": True},

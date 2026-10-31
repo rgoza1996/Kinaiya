@@ -15,7 +15,8 @@ from urllib.parse import urlparse
 
 import httpx
 
-from packages.contracts.models import ProviderInfo, ToolAction
+from packages.contracts.agent_tools import NATIVE_TOOL_ORDER, current_agent_tools
+from packages.contracts.models import ProviderInfo
 
 
 class ProviderError(RuntimeError):
@@ -667,24 +668,37 @@ class MetaResponsesProvider:
             raise PromptCountUnavailable("Meta generation measurement is missing or stale") from exc
 
     def body(self, messages, stream):
+        snapshot = current_agent_tools()
+        tools = snapshot.available_tools if snapshot is not None else NATIVE_TOOL_ORDER
         if self.structured_actions:
             messages = [dict(message) for message in messages]
             wire = (
-                "\nFor plugin_call, put the approved id in plugin_id and JSON-encode the input object in plugin_arguments_json. "
-                "\nFor publish_ui, JSON-encode the complete logical publication argument object "
-                "into arguments.ui_spec_json (at most 48 KiB in UTF-8). Create uses title, "
-                "summary, components and optional layout; update uses artifact_id, expected_revision "
-                "and updates. Put no native metadata or evidence in that object. All other "
-                "arguments fields must be null for publish_ui. "
-                "\nStrict response wire serialization: for mcp_call, put the configured server id "
-                "in arguments.server_id, the exact tool name in arguments.mcp_tool, and JSON-encode "
-                "the target argument object into arguments.mcp_arguments_json. For mcp_list, use "
-                "server_id, optional after and optional mcp_tool for schema selection. "
+                "\nStrict response wire serialization: "
                 "The adapter converts these fields into the logical tool arguments. Set unused "
                 "nullable fields to null. For finish, summary and objective_revision are required "
                 "and the revision must equal the current objective revision. Continue tool work "
                 "until the objective has actual verification evidence."
             )
+            if "plugin_call" in tools:
+                wire += (
+                    "\nFor plugin_call, put the approved id in plugin_id and JSON-encode "
+                    "the input object in plugin_arguments_json."
+                )
+            if "publish_ui" in tools:
+                wire += (
+                    "\nFor publish_ui, JSON-encode the complete logical publication argument object "
+                    "into arguments.ui_spec_json (at most 48 KiB in UTF-8). Create uses title, "
+                    "summary, components and optional layout; update uses artifact_id, expected_revision "
+                    "and updates. Put no native metadata or evidence in that object. All other "
+                    "arguments fields must be null for publish_ui."
+                )
+            if "mcp_call" in tools:
+                wire += (
+                    "\nFor mcp_call, put the configured server id in arguments.server_id, "
+                    "the exact tool name in arguments.mcp_tool, and JSON-encode the target "
+                    "argument object into arguments.mcp_arguments_json. For mcp_list, use "
+                    "server_id, optional after and optional mcp_tool for schema selection."
+                )
             if messages and messages[0].get("role") == "system":
                 messages[0]["content"] += wire
             else:
@@ -761,13 +775,23 @@ class MetaResponsesProvider:
                 "maxLength": _UI_SPEC_MAX_BYTES,
                 "description": "For publish_ui only: JSON-encode its complete create or update argument object, at most 48 KiB UTF-8. All other argument fields must be null. Native storage validates the publication schema.",
             }
+            for action, optional_fields in (
+                ("select_context", ("max_chars",)),
+                ("skill_load", ("skill_id", "resource")),
+                ("plugin_call", ("plugin_id", "plugin_arguments_json")),
+                ("mcp_call", ("server_id", "mcp_tool", "mcp_arguments_json")),
+                ("publish_ui", ("ui_spec_json",)),
+            ):
+                if action not in tools:
+                    for name in optional_fields:
+                        fields.pop(name)
             schema = {
                 "type": "object",
                 "additionalProperties": False,
                 "properties": {
                     "tool": {
                         "type": "string",
-                        "enum": ToolAction.model_json_schema()["properties"]["tool"]["enum"],
+                        "enum": list(tools),
                     },
                     "arguments": {
                         "type": "object",
@@ -833,6 +857,17 @@ class MetaResponsesProvider:
                 raise ProviderError("Meta returned invalid structured action JSON") from exc
             if not isinstance(action, dict) or not isinstance(action.get("arguments"), dict):
                 raise ProviderError("Meta structured action requires an arguments object")
+            allowed = body["text"]["format"]["schema"]["properties"]["tool"]["enum"]
+            if action.get("tool") in NATIVE_TOOL_ORDER and action["tool"] not in allowed:
+                # This is a rejection envelope for the native membership fence,
+                # never a decoded executable action. Do not process unavailable
+                # gateway arguments or accidentally turn them into other tools.
+                rejected = _closed_json_object(
+                    text, _UI_WIRE_MAX_BYTES, "Unavailable native tool response"
+                )
+                if set(rejected) != {"tool", "arguments"}:
+                    raise ProviderError("Unavailable tool response has undeclared fields")
+                return json.dumps({"tool": rejected["tool"], "arguments": {}})
             if isinstance(action, dict) and action.get("tool") == "publish_ui":
                 action = _closed_json_object(text, _UI_WIRE_MAX_BYTES, "UI publication wire fields")
                 if set(action) != {"tool", "arguments"} or type(action["arguments"]) is not dict:

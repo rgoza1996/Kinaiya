@@ -8,7 +8,9 @@ the filesystem, the network, permissions, or task state. The runtime
 from __future__ import annotations
 
 import json
+from types import MappingProxyType
 
+from packages.contracts.agent_tools import NativeToolSnapshot, native_tool_snapshot
 from packages.contracts.models import ToolAction
 
 SYSTEM_PROMPT = """You are a bounded work agent in a sandbox. You MUST reply with exactly one JSON object per turn, no other text.
@@ -38,6 +40,27 @@ OBSERVATION_LIMIT = 2000
 # bounded exception never admits the model's full publication payload.
 ARTIFACT_RECEIPT_LIMIT = 4096
 
+# Project only trusted static protocol hints. User/model text and prior tool
+# observations never contribute names or argument descriptions to this table.
+_PROTOCOL_LINES = tuple(SYSTEM_PROMPT.splitlines())
+_TOOL_ARGUMENT_HINTS = MappingProxyType(
+    {line[2:].split(":", 1)[0]: line for line in _PROTOCOL_LINES if line.startswith("- ")}
+)
+_PROTOCOL_RULES = tuple(line for line in _PROTOCOL_LINES if line.startswith(("Rules:", "Grants ")))
+
+
+def _system_prompt(snapshot: NativeToolSnapshot) -> str:
+    tools = "|".join(json.dumps(name) for name in snapshot.available_tools)
+    return "\n".join(
+        (
+            _PROTOCOL_LINES[0],
+            f'Schema: {{"tool": {tools}, "arguments": {{...}}}}.',
+            "Arguments:",
+            *(_TOOL_ARGUMENT_HINTS[name] for name in snapshot.available_tools),
+            *_PROTOCOL_RULES,
+        )
+    )
+
 
 def _short(text: str, limit: int = OBSERVATION_LIMIT) -> str:
     text = str(text)
@@ -56,32 +79,49 @@ def build_messages(
     skills_available: bool = False,
     plugins_available: bool = False,
     artifacts_available: bool = False,
+    *,
+    tool_snapshot: NativeToolSnapshot | None = None,
 ) -> list[dict[str, str]]:
     """Build one bounded provider request. Source refs only, no transcript pull.
 
     ``mcp_servers`` carries only configured server ids, never secrets,
     credentials, or full tool schemas. Server descriptions are untrusted
-    and are never forwarded into the prompt.
+    and are never forwarded into the prompt. An explicit snapshot is the sole
+    advertisement authority for this call; legacy flags cannot broaden it.
+    Legacy calls cannot establish task-qualified selector eligibility.
     """
+    if tool_snapshot is not None and type(tool_snapshot) is not NativeToolSnapshot:
+        raise ValueError("Seed prompt requires a native tool snapshot")
+    snapshot = (
+        tool_snapshot
+        if tool_snapshot is not None
+        else native_tool_snapshot(
+            mcp_available=mcp_servers is not None,
+            skills_available=skills_available,
+            plugins_available=plugins_available,
+            artifacts_available=artifacts_available,
+        )
+    )
     refs = ", ".join(source_event_ids) if source_event_ids else "none"
-    servers = ", ".join(sorted(mcp_servers)) if mcp_servers else "none configured"
+    servers = (
+        ", ".join(sorted(mcp_servers))
+        if snapshot.supports("mcp_list") and mcp_servers
+        else "unavailable for this request"
+        if mcp_servers
+        else "none configured"
+    )
     user = (
         f"Objective revision {objective_revision}: {objective}\n"
         f"Source refs: {refs}\n"
         f"Grants: {grants}\n"
         f"MCP servers: {servers}\n"
-        f"Skills: {'configured; discover selected skills with skills_list' if skills_available else 'not configured'}\n"
-        f"Compute plugins: {'configured; discover with plugins_list' if plugins_available else 'not configured'}\n"
-        f"UI artifacts: {'configured; publish bounded results with publish_ui' if artifacts_available else 'not configured; publish_ui is unavailable'}\n"
+        f"Skills: {'configured; discover selected skills with skills_list' if snapshot.supports('skills_list') else 'not configured'}\n"
+        f"Compute plugins: {'configured; discover with plugins_list' if snapshot.supports('plugins_list') else 'not configured'}\n"
+        f"UI artifacts: {'configured; publish bounded results with publish_ui' if snapshot.supports('publish_ui') else 'not configured'}\n"
         "Reply with exactly one JSON ToolAction now."
     )
-    prompt = SYSTEM_PROMPT
-    if not artifacts_available:
-        prompt = "\n".join(
-            line for line in prompt.splitlines() if not line.startswith("- publish_ui:")
-        ).replace('|"publish_ui"', "")
     messages: list[dict[str, str]] = [
-        {"role": "system", "content": prompt},
+        {"role": "system", "content": _system_prompt(snapshot)},
         {"role": "user", "content": user},
     ]
     for turn in history[-HISTORY_LIMIT:]:

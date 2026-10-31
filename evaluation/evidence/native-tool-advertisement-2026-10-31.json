@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "tracking_issue": 171,
+  "scope": "Bounded native tool-advertisement drift repair; broader registry/library obligations remain open",
+  "base_commit": "d2edd477498b25886a4582129b59e68437f918ed",
+  "source_sha256": {
+    "packages/contracts/agent_tools.py": "d8b724dcaa323de085c20fb0f16dcda9ef77ff96a6f64c2b919746cc90a6d8fe",
+    "harnesses/seed/__init__.py": "3a9b75f4507504aff4b23d979a4424bfd0aae3a5d88863121595d89c44332990",
+    "packages/providers/text.py": "856e49999afad0ee7759e7f2d033288459bea95eabe6ce917c952ead0e793483",
+    "services/agent/runtime.py": "c878832da66ecd173f5f166448805f8bd45256b3e3fbd2bb4e66a3f905e3b1df",
+    "services/agent/app.py": "872327365f027060fbb2866bbc024d34370ac1ec504826bf1ad879f632573c39",
+    "tests/unit/test_agent_tools.py": "bff6fc0902d3d66b332d99ab5e4b5a248d128ac4920012ae9bc37ae01a299650",
+    "tests/unit/test_seed_tool_snapshot.py": "98375c186b3dd210cbee656a642a4240456068039dd1de4ec881ca4d9f570949",
+    "tests/unit/test_meta_tool_snapshot.py": "f774dc43ed006b126697904553924b60438b3cee29e16d52f16233ab5574c3b2",
+    "tests/integration/test_agent_tool_advertising.py": "48f26639c417f78a0c239c881fa47afc084438d4d370be2581d11e0894ce0fe4"
+  },
+  "verification": {
+    "combined_focused": {
+      "passed": 435,
+      "elapsed_seconds": 54.63,
+      "command": "PYTHONPATH=. python -m pytest -q tests/unit/test_agent_tools.py tests/unit/test_seed_tool_snapshot.py tests/unit/test_seed_history.py tests/unit/test_meta_tool_snapshot.py tests/unit/test_providers.py tests/unit/test_meta_prompt_count.py tests/integration/test_agent_tool_advertising.py tests/integration/test_intelligent_ui.py tests/unit/test_agent_runtime.py tests/integration/test_agent_seed.py tests/integration/test_mcp_agent.py tests/integration/test_skills_agent.py tests/integration/test_compute_plugin_agent.py"
+    },
+    "independent_review": {
+      "result": "no blockers reported",
+      "focused_passed": 84,
+      "scope": "Immutable/request-local projection, task pins, count-ticket binding, native refusal/taint, audit, permission/disclosure preservation and phase-limited docs"
+    },
+    "baseline": {
+      "commit": "d2edd477498b25886a4582129b59e68437f918ed",
+      "result": "expected assertion failure",
+      "exit_code": 1,
+      "observed_unavailable_publish_ui": true,
+      "observed_enum_count": 14,
+      "method": "Original Meta.body under copied new native base-only request scope; no HTTP requests"
+    },
+    "development_observations": [
+      "Source inspection found unavailable UI decoding would fail before native refusal; decoder repair preceded first integration execution, so no failed red test execution is claimed for it",
+      "Intermediate run: 2 failed and 58 passed after adding explicit negative audit; tests incorrectly equated any agent.tool event with execution. Corrected to require ok=false, reason=not_advertised, effect_executed=false and no evidence/artifact event, while preserving execution trap and failed-effect assertions"
+    ],
+    "ruff": "passed",
+    "format": "passed",
+    "contract_export": "passed; generated schemas unchanged",
+    "dependency_audit": "no known vulnerabilities found",
+    "full_exact_head_ci": "Required before merge; see associated PR/GitHub Actions"
+  },
+  "inference": {
+    "real_provider_calls": 0,
+    "transport": "httpx.MockTransport",
+    "fixtures": "public synthetic only",
+    "model_quality_claim": false,
+    "additional_meta_spend_usd": 0
+  },
+  "remaining": [
+    "Full native selected-operation schemas and permission diagnostics",
+    "Unified cross-catalog discovery and richer unavailable-target states",
+    "Optional conventional Tool Library install/detect/consent/lifecycle",
+    "Formal verification engines and trusted proof checking",
+    "Live model/routing/voice quality and full production milestones"
+  ]
+}
