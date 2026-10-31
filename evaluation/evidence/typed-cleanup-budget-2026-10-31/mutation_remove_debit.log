@@ -1,0 +1,23 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+__________ test_admission_and_new_close_share_one_request_wait_budget __________
+tests/integration/test_converse_text_cleanup.py:836: in test_admission_and_new_close_share_one_request_wait_budget
+    assert (await asyncio.wait_for(pending, 5))["text"] == "Public synthetic reply."
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.12/asyncio/tasks.py:520: in wait_for
+    return await fut
+           ^^^^^^^^^
+services/converse/runtime.py:1407: in turn
+    events = [event async for event in self.events(request)]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+services/converse/runtime.py:1066: in events
+    async for event in events:
+services/converse/runtime.py:1143: in _events
+    await self._wait_text_admission(request.session_id, turn)
+tests/integration/test_converse_text_cleanup.py:829: in observe_admission
+    assert 0 <= turn.wait_remaining < before
+E   assert 9.998089494999931 < 9.998089494999931
+E    +  where 9.998089494999931 = TextTurn(wait_remaining=9.998089494999931, operation=None, reserved=True).wait_remaining
+=========================== short test summary info ============================
+FAILED tests/integration/test_converse_text_cleanup.py::test_admission_and_new_close_share_one_request_wait_budget
+1 failed in 0.32s
