@@ -25,18 +25,19 @@ FLAGS = (
     "skills_available",
     "plugins_available",
     "artifacts_available",
+    "auxiliary_available",
     "catalog_available",
 )
 
 
 def test_known_actions_preserve_the_native_protocol_order_and_bound():
     assert NATIVE_TOOL_ORDER == tuple(ToolAction.model_json_schema()["properties"]["tool"]["enum"])
-    assert len(NATIVE_TOOL_ORDER) == len(set(NATIVE_TOOL_ORDER)) == MAX_NATIVE_TOOLS == 15
+    assert len(NATIVE_TOOL_ORDER) == len(set(NATIVE_TOOL_ORDER)) == MAX_NATIVE_TOOLS == 16
 
 
-@pytest.mark.parametrize("combination", tuple(itertools.product((False, True), repeat=6)))
+@pytest.mark.parametrize("combination", tuple(itertools.product((False, True), repeat=7)))
 def test_every_optional_service_combination(combination):
-    selector, mcp, skills, plugins, artifacts, catalog = combination
+    selector, mcp, skills, plugins, artifacts, auxiliary, catalog = combination
     snapshot = native_tool_snapshot(**dict(zip(FLAGS, combination, strict=True)))
     expected = set(BASE)
     if selector:
@@ -49,6 +50,8 @@ def test_every_optional_service_combination(combination):
         expected.update(("plugins_list", "plugin_call"))
     if artifacts:
         expected.add("publish_ui")
+    if auxiliary:
+        expected.add("consult_model")
     if catalog:
         expected.add("tool_catalog")
     assert snapshot.available_tools == tuple(name for name in NATIVE_TOOL_ORDER if name in expected)

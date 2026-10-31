@@ -511,14 +511,25 @@ def serve(args):
         }
         from services.agent.model_settings import AgentModelSettings
 
-        def model_factory(profile):
+        def model_factory(profile, *, auxiliary=False):
             def create(effort):
                 selected = dict(profile)
                 if effort is not None:
                     selected["reasoning_effort"] = effort
-                return provider(
-                    {"providers": {"agent": selected}}, "agent", resource_state=resource_state
+                role = "auxiliary" if auxiliary else "agent"
+                if auxiliary and selected.get("kind") == "meta":
+                    selected["structured_actions"] = False
+                    selected["action_format"] = "flat-v1"
+                result = provider(
+                    {"providers": {role: selected}},
+                    role,
+                    resource_state=None if auxiliary else resource_state,
                 )
+                if auxiliary and resource_state is not None:
+                    from services.resources.providers import ResourceBoundProvider
+
+                    result = ResourceBoundProvider(result, resource_state, "agent")
+                return result
 
             return create
 
@@ -531,6 +542,11 @@ def serve(args):
             path=args.data_dir / "agent-models.sqlite",
             reasoning_levels=config.get("agent_reasoning_options", {}),
             host_factory=model_factory(config["providers"]["agent"]),
+            auxiliary_factories={
+                name: model_factory(profile, auxiliary=True)
+                for name, profile in config.get("agent_profiles", {}).items()
+            },
+            auxiliary_host_factory=model_factory(config["providers"]["agent"], auxiliary=True),
         )
         try:
             runtime.provider = runtime.model_settings.selection(None)[0]

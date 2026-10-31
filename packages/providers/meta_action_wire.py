@@ -19,6 +19,7 @@ from pydantic import (
 )
 
 from packages.contracts.agent_tools import NATIVE_TOOL_ORDER, NativeToolSnapshot
+from packages.contracts.models import AuxiliaryTask
 
 
 class TypedWireError(ValueError):
@@ -156,6 +157,7 @@ _ARGUMENTS = {
         "PluginCall", plugin_id=StrictStr, plugin_arguments_json=_string(0, 65536)
     ),
     "publish_ui": _CREATE | _UPDATE,
+    "consult_model": _object("ConsultModel", purpose=AuxiliaryTask, prompt=_string(1, 8000)),
     "tool_catalog": _object(
         "ToolCatalog",
         kind=Literal["native", "mcp", "skill", "plugin"] | None,

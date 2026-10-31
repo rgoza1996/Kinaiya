@@ -90,6 +90,7 @@ def _arguments(name):
             "arguments": {"count": 0, "nullable": None, "enabled": False},
         },
         "publish_ui": _create(),
+        "consult_model": {"purpose": "analysis", "prompt": "Synthetic task text"},
         "finish": {"summary": "", "objective_revision": 1},
         "tool_catalog": {},
     }[name]

@@ -23,11 +23,12 @@ _FLAGS = (
     "skills_available",
     "plugins_available",
     "artifacts_available",
+    "auxiliary_available",
     "catalog_available",
 )
 _SNAPSHOTS = tuple(
     native_tool_snapshot(**dict(zip(_FLAGS, flags, strict=True)))
-    for flags in itertools.product((False, True), repeat=6)
+    for flags in itertools.product((False, True), repeat=7)
 )
 _ALL_TOOLS = _SNAPSHOTS[-1].available_tools
 _BASE_TOOLS = _SNAPSHOTS[0].available_tools
@@ -108,6 +109,7 @@ def _actions():
             "plugin_arguments_json": '{ "count": 0, "nullable": null, "enabled": false }',
         },
         "publish_ui": _create("text")["arguments"],
+        "consult_model": {"purpose": "analysis", "prompt": "Synthetic task text"},
         "finish": {"summary": "Synthetic evidence was inspected", "objective_revision": 1},
     }
 
@@ -204,7 +206,7 @@ def _schema_stats(schema):
 @pytest.mark.parametrize(
     "snapshot", _SNAPSHOTS, ids=lambda snapshot: "-".join(snapshot.available_tools)
 )
-def test_all_32_native_selections_emit_strict_closed_bounded_schemas(snapshot):
+def test_all_128_native_selections_emit_strict_closed_bounded_schemas(snapshot):
     schema = action_schema(snapshot.available_tools)
     Draft202012Validator.check_schema(schema)
     assert schema["type"] == "object"
@@ -250,7 +252,7 @@ def test_all_32_native_selections_emit_strict_closed_bounded_schemas(snapshot):
         assert decode_action(wire, snapshot.available_tools) == flat
 
 
-def test_all_fifteen_native_operations_are_covered_without_foreign_schema_decoding():
+def test_all_sixteen_native_operations_are_covered_without_foreign_schema_decoding():
     assert _ALL_TOOLS == NATIVE_TOOL_ORDER
     assert set(_actions()) == set(_ALL_TOOLS)
     for name in ("mcp_call", "plugin_call"):

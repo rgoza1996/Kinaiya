@@ -92,3 +92,32 @@ The additive Task `model_pin` field is native output, never a TaskRequest field.
 It contains schema version, profile ID, provider, model, locality, reasoning and
 settings revision. Old tasks may have null/missing pins. Future settings or
 profile names must not be projected backward as historical identities.
+
+## Auxiliary tasks
+
+[ADR0082](adr/0082-task-pinned-auxiliary-models.md) adds five text purposes:
+`analysis`, `compression`, `title_generation`, `delegation`, and `harness_design`.
+The snapshot includes `auxiliary_tasks` (ID/label pairs), `auxiliary` (global
+purpose bindings), `harness_auxiliary` (exact harness to purpose bindings), and
+`profiles[].auxiliary_selectable`. Legacy snapshots without them remain valid.
+Only adapters supporting measured, bounded text completion are selectable for
+these purposes. A primary Agent adapter's availability alone is insufficient.
+
+To set a purpose, add `"auxiliary_task": "analysis"` to the same owner change
+request. Null `harness_version` sets the global purpose default; a harness ID
+sets that harness's purpose override. Null `profile_id` and `reasoning` remove
+the selected purpose override. Resolution is: harness purpose override, global
+purpose default, harness primary model, Agent default. The purpose is echoed in
+the exact persisted receipt; all scopes share one revision and receipt store.
+Legacy request digests and receipts stay unchanged.
+
+At acceptance, Task `auxiliary_models` captures the available purpose pins.
+Later defaults cannot rebind them. `consult_model` accepts exactly `purpose`
+and bounded `prompt`; it cannot select a provider, run tools, start a child
+Agent, edit protected history, or grant permission. Its returned text and
+receipt remain untrusted external evidence, not proof of a work effect.
+Disclosure, measured prompt admission, resource policy, cancellation and
+session/revision fences apply independently to each call. Unavailable or
+forbidden routes refuse without silently using another model. Retained foreign
+tool/skill/plugin context currently requires a local auxiliary route rather
+than reusing a disclosure granted to the primary cloud route.

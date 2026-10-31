@@ -262,13 +262,20 @@ inspectable model pin. The [owner API](docs/agent-options-api.md) persists setti
 and receipts without placing credentials in the client. Provider provisioning
 and Converse/STT/TTS/Decisions model editing remain host-managed. These new
 controls still require the runtime/concurrency acceptance described in the ADR.
+Global and per-harness [auxiliary text models](docs/adr/0082-task-pinned-auxiliary-models.md)
+support explicit analysis, compression, title, delegated reasoning and harness
+design side calls. Native task pins, measured admission and disclosure remain
+authoritative; these calls cannot execute tools or grant permissions.
 The [options catalog](docs/options.md) distinguishes implemented, host-managed
 and planned controls. Stable semantics use the [supplied Penpot presentation](docs/adr/0054-penpot-owner-interface.md).
 The [updated Home and optional Converse design](docs/adr/0059-home-and-optional-converse.md)
 shares one live conversation owner: Home keeps the seated water scene, while the
 optional interaction view adds close-up artwork, transcript and composer. Home's
 mascot/Setup opens model declarations and local view visibility. Converse model hot-swap,
-camera/direct-audio input and project/media libraries remain unavailable.
+camera/direct-audio input remain unavailable in the production app. Owner
+Projects group Agent sessions; Generated Documents and Generated Media list
+native output receipts with time, type and source session. These libraries do
+not scan workspace folders or grant file access.
 The [setup bubbles](docs/adr/0063-floating-setup-bubbles.md) start in fresh random
 positions and drift slowly. Hover/focus holds only the affected bubble; dragging
 and bounded flinging, bubble-to-modal growth, a floating Close control and

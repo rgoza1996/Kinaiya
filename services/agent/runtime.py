@@ -265,6 +265,8 @@ class _Record:
     source_revisions: dict[str, int] = field(default_factory=dict)
     context_event_ids: set[str] = field(default_factory=set)
     explicit_skill: str | None = None
+    auxiliary_providers: dict[str, TextProvider] = field(default_factory=dict)
+    foreign_context: bool = False
     used_skills: set[str] = field(default_factory=set)
     plugin_versions: dict[str, str] = field(default_factory=dict)
     legacy_submit_scope: bool = False
@@ -679,10 +681,17 @@ class AgentRuntime:
             harness_version=harness_version,
             model_pin=model_pin,
         )
+        auxiliary_providers, auxiliary_pins = (
+            self.model_settings.auxiliary_selection(harness_version)
+            if self.model_settings is not None
+            else ({}, {})
+        )
+        task.auxiliary_models = auxiliary_pins
         rec = _Record(
             task=task,
             provider=task_provider if self.model_settings is not None else None,
             explicit_skill=explicit_skill,
+            auxiliary_providers=auxiliary_providers,
         )
         if request.source_event_ids:
             rec.source_revisions = dict.fromkeys(request.source_event_ids, request.source_revision)
@@ -706,6 +715,9 @@ class AgentRuntime:
                 "payload_digest": digest,
                 "harness_version": task.harness_version,
                 "model_pin": model_pin.model_dump(mode="json") if model_pin is not None else None,
+                "auxiliary_models": {
+                    key: value.model_dump(mode="json") for key, value in auxiliary_pins.items()
+                },
                 "explicit_skill": explicit_skill,
             },
         )
@@ -1409,6 +1421,7 @@ class AgentRuntime:
                     idempotency_key=payload.get("idempotency_key", task_id),
                     harness_version=payload.get("harness_version", "seed-v1"),
                     model_pin=payload.get("model_pin"),
+                    auxiliary_models=payload.get("auxiliary_models", {}),
                 )
             rec = _Record(
                 task=task,
@@ -1525,6 +1538,15 @@ class AgentRuntime:
             skills_available=self.skill_service is not None,
             plugins_available=self.plugin_service is not None,
             artifacts_available=self.artifact_store is not None,
+            auxiliary_available=(
+                bool(task.auxiliary_models)
+                if task is not None
+                else self.model_settings is not None
+                and any(
+                    self.model_settings.auxiliary_available(name)
+                    for name in self.model_settings.base
+                )
+            ),
             catalog_available=True,
         )
 
@@ -2452,6 +2474,10 @@ class AgentRuntime:
                 out, evidence = await self._plugin_result(rec, tool, args)
             elif tool == "publish_ui":
                 out, evidence = await self._publish_ui(rec, args)
+            elif tool == "consult_model":
+                from services.agent.auxiliary import consult_model
+
+                out, evidence = await consult_model(self, rec, args)
             elif tool == "tool_catalog":
                 from packages.contracts.tool_catalog import CatalogError, encode_catalog
                 from services.agent.tool_catalog import inspect_catalog
@@ -2519,6 +2545,15 @@ class AgentRuntime:
             rec.history.append({"role": "user", "content": observation_text(False, str(exc))})
             return
         rec.task.evidence.append(evidence)
+        if tool in {
+            "mcp_list",
+            "mcp_call",
+            "skills_list",
+            "skill_load",
+            "plugins_list",
+            "plugin_call",
+        }:
+            rec.foreign_context = True
         try:
             await self._append(
                 rec,
