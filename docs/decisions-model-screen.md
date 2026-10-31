@@ -206,3 +206,31 @@ Agent task success, actual audio/STT/overlap and browser behavior remain separat
 unqualified gates. Native SystemOne adapters and any production setting/default
 promotion remain pending. These measurements add evidence; they do not add or
 relax a qualification gate.
+
+### Separate single-request physical-batch refusal
+
+A separately frozen boundary diagnostic issued exactly **one** additional public
+synthetic SystemOne POST, without replaying the protocol probe or 48-case set.
+The unchanged model/backend and context/batch/ubatch **8192/1024/1024** reached
+native readiness. Its 4508-byte request received the literal **HTTP 500** error:
+`input (2130 tokens) is too large to process. increase the physical batch size (current batch size: 1024)`.
+The capture retains `model_http_status_refused`, observed EOF and confirmed owned
+close; the native refusal is not relabelled as HTTP success. The
+[separate capsule](../evaluation/evidence/decisions-d1-overflow-2026-10-31.json)
+publishes the exact synthetic request and error bytes, hashes and relative wire
+intervals. The error wrapper, starting before payload construction and HTTP
+preparation, took **56.313016ms** through validation; actual HTTP request start
+through error validation was **38.416791ms**. Both are error-path measurements,
+**not decision latency**. Startup including empty warmup was separately
+**2306.539096ms**.
+
+The 91 retained telemetry samples include four pre-ready gaps and one initial
+missing owned-process reading. Maximum sampled owned VRAM was **2,132,496,384
+bytes**; missing readings remain null with conservative reservation, not zero.
+Cleanup, native return code 0, owned-child reaping, HTTP close, temporary key-file
+removal and recorded peer/owner-policy preservation were confirmed. Independent
+raw-artifact review passed; prior attempt 06 and the frozen fixture remain
+unchanged. This establishes the reported physical-batch refusal for this one
+request/profile/install. It does not independently verify the native token
+count, effective 8192-token head capacity, universal absence of truncation,
+quality, native dispatch, a default change or an 8GB/12GB full stack.
