@@ -77,6 +77,9 @@ new tasks, including later tasks in an existing session. Accepted, running,
 approval-waiting and steered tasks retain their pin. Submit retries retain the
 original pin. Historical tasks without a pin remain historically unknown;
 recovery never replays a task using a replacement model.
+An exact accepted-submit retry reads the retained task before current provider
+admission, while retaining native source authority and request identity checks;
+see the [task receipt contract](../agent-options-api.md#existing-task-receipts).
 
 Prompt counting/generation, native source admissions, transcript reads, skill,
 plugin and MCP disclosure checks all use the task's provider. Changing the

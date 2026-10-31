@@ -426,7 +426,7 @@ class AgentRuntime:
                 )
         return None
 
-    async def _validated_source_texts(
+    async def _source_authority_texts(
         self,
         source_event_ids: list[str],
         *,
@@ -435,13 +435,13 @@ class AgentRuntime:
         epoch: int,
         source_revision: int | None,
         op: str,
-        provider_info=None,
     ) -> tuple[list[str], str]:
-        """Resolve decisions-carried sources to exact authenticated user text.
+        """Resolve authenticated source authority without provider disclosure.
 
         Sources are finalized user messages or retained semantic speech windows,
         bound to this session/thread/epoch and their current revision. Window
-        disclosure is checked again at the native execution boundary.
+        supersession and interruption are checked here; export disclosure is
+        enforced separately by the caller.
         """
         resolve = getattr(self.journal, "resolve", None)
         if resolve is None:
@@ -501,6 +501,33 @@ class AgentRuntime:
                 raise PolicyDenied(f"decisions-routed {op} source {source_id!r} has no usable text")
             texts.append(text)
         scope = combine_scopes(*scopes) if scopes else "public_synthetic"
+        return texts, scope
+
+    async def _validated_source_texts(
+        self,
+        source_event_ids: list[str],
+        *,
+        session_id: str,
+        thread_id: str,
+        epoch: int,
+        source_revision: int | None,
+        op: str,
+        provider_info=None,
+    ) -> tuple[list[str], str]:
+        """Resolve decisions-carried sources to exact authenticated user text.
+
+        Sources are finalized user messages or retained semantic speech windows,
+        bound to this session/thread/epoch and their current revision. Window
+        disclosure is checked again at the native execution boundary.
+        """
+        texts, scope = await self._source_authority_texts(
+            source_event_ids,
+            session_id=session_id,
+            thread_id=thread_id,
+            epoch=epoch,
+            source_revision=source_revision,
+            op=op,
+        )
         if not scope_allowed(
             provider_info if provider_info is not None else self.provider.info, scope
         ):
@@ -593,7 +620,7 @@ class AgentRuntime:
     ) -> Task:
         self._check_actor(actor, list(request.source_event_ids), "submit")
         if explicit_skill is not None:
-            if actor != "owner" or self.skill_service is None:
+            if actor != "owner":
                 raise PolicyDenied("Explicit skill invocation requires owner and configured skills")
             if not isinstance(explicit_skill, str) or not 1 <= len(explicit_skill) <= 256:
                 raise ValueError("Invalid explicit skill id")
@@ -603,33 +630,16 @@ class AgentRuntime:
                 f"submit targets thread {request.thread_id} epoch {request.epoch}; "
                 f"session is now thread {session.thread_id} epoch {session.epoch}"
             )
-        try:
-            prior = self._submit_idem.get((request.session_id, request.idempotency_key))
-            if prior is not None:
-                original = self._get(prior[1])
-                harness_version = original.task.harness_version
-                task_provider, model_pin = self.provider_for(original), original.task.model_pin
-            elif self.model_settings is not None:
-                harness_version = self.session_harness(session.harness_version)
-                task_provider, model_pin = self.model_settings.selection(harness_version)
-            else:
-                harness_version = self.session_harness(session.harness_version)
-                task_provider, model_pin = self.provider, None
-        except (HarnessError, OSError, ValueError, RuntimeError) as exc:
-            raise PolicyDenied(
-                "The session's pinned harness or model selection is unavailable"
-            ) from exc
         objective = request.objective
         source_scope = "public_synthetic"
         if request.source_event_ids:
-            texts, source_scope = await self._validated_source_texts(
+            texts, source_scope = await self._source_authority_texts(
                 list(request.source_event_ids),
                 session_id=request.session_id,
                 thread_id=request.thread_id,
                 epoch=request.epoch,
                 source_revision=request.source_revision,
                 op="submit",
-                provider_info=task_provider.info,
             )
             expected = "\n".join(texts)
             if actor == "decisions" and objective != expected:
@@ -639,9 +649,6 @@ class AgentRuntime:
                 )
             if actor == "decisions":
                 objective = expected
-        content_scope = combine_scopes(request.content_scope, source_scope)
-        if not scope_allowed(task_provider.info, content_scope):
-            raise PolicyDenied("Task disclosure does not permit the configured Agent provider")
         payload = {
             "session_id": request.session_id,
             "thread_id": request.thread_id,
@@ -668,6 +675,30 @@ class AgentRuntime:
                 ):
                     raise IdemConflict("idempotency key reuses a conflicting submit payload")
             return self._copy(task_id)
+        # Genuinely new work only: configured skills, harness/model choice,
+        # and full export disclosure gates. Receipt reads return above
+        # without consulting providers, settings, or harness eligibility.
+        if explicit_skill is not None and self.skill_service is None:
+            raise PolicyDenied("Explicit skill invocation requires owner and configured skills")
+        try:
+            if self.model_settings is not None:
+                harness_version = self.session_harness(session.harness_version)
+                task_provider, model_pin = self.model_settings.selection(harness_version)
+            else:
+                harness_version = self.session_harness(session.harness_version)
+                task_provider, model_pin = self.provider, None
+        except (HarnessError, OSError, ValueError, RuntimeError) as exc:
+            raise PolicyDenied(
+                "The session's pinned harness or model selection is unavailable"
+            ) from exc
+        if request.source_event_ids:
+            if not scope_allowed(task_provider.info, source_scope):
+                raise PolicyDenied(
+                    "Source disclosure does not permit the configured Agent provider"
+                )
+        content_scope = combine_scopes(request.content_scope, source_scope)
+        if not scope_allowed(task_provider.info, content_scope):
+            raise PolicyDenied("Task disclosure does not permit the configured Agent provider")
         task = Task(
             session_id=request.session_id,
             thread_id=request.thread_id,
