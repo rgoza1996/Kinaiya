@@ -67,6 +67,41 @@ or prove that repairing it qualifies M1.
    refusal. Native observation text and accepted logical action JSON are kept
    complete in history, separate from concise durable evidence output.
 
+## Native source admission at disclosure
+
+Independent review reproduced revocation during the last journal await before
+measurement. Checking cached task scope after that await did not prevent the
+count request from exporting a newly revoked source. Adding another sequential
+read would only move this race. Token counting is a disclosure, not a harmless
+local estimate.
+
+Every prepared Meta count and generation therefore invokes a native admission
+after HTTPX request/auth hooks and before forwarding the frozen upload. The
+Agent-only `/v1/transcript/agent-export-admission` reads the current session,
+source identities/revisions and complete bounded disclosure chains together
+under the journal Store lock. The receipt binds the native task/revision,
+provider facts, actual uploaded body SHA256, count/generation purpose and fresh
+nonce. It contains no prompt or source text. A missing capability, malformed or
+mismatched receipt, unverified chain or denied scope refuses the upload. A
+one-use native dispatch latch prevents admission reuse; a rejected or uncertain
+attempt is not replayed. The local task/provider/tool/catalog guards run again
+after admission awaits. Fixture-only generation acquires no external admission.
+
+The atomic native admission is the linearization point for that one upload.
+Later revocation can stop subsequent requests and action admission, but cannot
+recall an already admitted in-flight disclosure. This is not a distributed
+transaction or a new tool/effect permission. Native source scope now also folds
+all bounded revisions of one exact speech-window slot, retaining an intermediate
+restrictive scope; unrelated slots do not taint or exhaust that chain.
+
+Prepared transports are tested against pinned HTTPX 0.28.1. They bind method,
+URL, raw headers, immutable upload stream, body, extensions and selected
+transport. Trusted hooks still run; this mechanism does not sandbox them.
+Response-close ownership starts before response hooks. Prepared generation
+accepts only identity encoding and at most 8 MiB of raw response bytes; this is
+a native transport resource limit, not a model context limit. Cleanup failure
+remains terminal even when steering arrives concurrently.
+
 ## Verification and compatibility
 
 Source-bound tests must cover native file-to-actual-request tail delivery above

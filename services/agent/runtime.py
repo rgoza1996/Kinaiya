@@ -1625,7 +1625,7 @@ class AgentRuntime:
         or permits a stale proposal to execute. Source/catalog dependencies
         remain task-wide even when their original exchange leaves the prompt.
         """
-        provider, policy = self.provider, self.policy
+        provider, policy, journal = self.provider, self.policy, self.journal
         prepare = getattr(provider, "prepare_complete", None)
         if not callable(prepare):
             raise PromptCountUnavailable("Agent provider cannot measure complete requests")
@@ -1674,6 +1674,7 @@ class AgentRuntime:
                 or self.provider is not provider
                 or provider.info != provider_info
                 or self.policy is not policy
+                or self.journal is not journal
                 or any(
                     actual is not original
                     for actual, original in zip(
@@ -1725,7 +1726,7 @@ class AgentRuntime:
             from packages.contracts.agent_export import AgentExportAdmission, AgentExportRequest
 
             current()
-            admission = getattr(self.journal, "agent_export_admission", None)
+            admission = getattr(journal, "agent_export_admission", None)
             if not callable(admission):
                 raise PromptCountUnavailable("Native Agent export admission is unavailable")
             request = AgentExportRequest(

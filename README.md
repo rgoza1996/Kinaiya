@@ -411,6 +411,16 @@ this host path; a compatible HTTP endpoint alone is insufficient. Embedded
 runtime compatibility remains separately identified in health. Conversation
 quality and physical latency still require human testing.
 
+Agent's [complete-context admission](docs/adr/0075-complete-agent-context.md)
+preserves complete native file observations and selects whole action/result
+exchanges using an exact count of the complete proposed request. The trusted
+instructions, current objective/revision and newest exchange remain protected.
+Meta Agent profiles need an explicitly verified `context_tokens` value and the
+native count endpoint; unsupported complete-count providers refuse visibly.
+Generic compatible HTTP alone does not establish this capability. Every count
+and generation also needs a fresh native source admission. These mechanisms
+do not establish general Agent task reliability or complete the M1 gate.
+
 An optional [whole-chat prompt measurement](docs/adr/0050-converse-prompt-measurement.md)
 uses only an already resident managed GGUF worker, without generating a reply or
 loading a model. Its result binds the complete chat request and protected profile

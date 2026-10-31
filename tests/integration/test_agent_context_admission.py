@@ -9,7 +9,11 @@ import pytest
 from core.policy import ToolPolicy
 from packages.contracts.models import SessionRequest, SteerRequest, TaskRequest, TaskState
 from packages.providers.meta_action_wire import encode_action
-from packages.providers.text import CompatibleTextProvider, MetaResponsesProvider
+from packages.providers.text import (
+    CompatibleTextProvider,
+    MetaResponsesProvider,
+    ProviderCleanupError,
+)
 from services.agent import AgentRuntime
 from services.session.store import LocalJournal, Store
 
@@ -47,7 +51,14 @@ async def env(tmp_path):
         calls=[],
     )
 
-    async def start(actions, *, action_format="typed-v2", count=None, context_tokens=32768):
+    async def start(
+        actions,
+        *,
+        action_format="typed-v2",
+        count=None,
+        context_tokens=32768,
+        journal_type=LocalJournal,
+    ):
         remaining = list(actions)
 
         async def send(request):
@@ -81,7 +92,7 @@ async def env(tmp_path):
             transport=httpx.MockTransport(send),
         )
         agent = AgentRuntime(
-            LocalJournal(store, "agent"), provider, workspace, ToolPolicy(workspace), max_steps=12
+            journal_type(store, "agent"), provider, workspace, ToolPolicy(workspace), max_steps=12
         )
         state.providers.append(provider)
         state.agents.append(agent)
@@ -268,3 +279,55 @@ async def test_unsupported_complete_measurement_fails_before_any_http(env):
     assert final.state == TaskState.FAILED
     assert "cannot measure complete requests" in final.error
     assert final.evidence == []
+
+
+@pytest.mark.parametrize("cleanup_uncertain", [False, True])
+async def test_steer_during_failed_native_admission_is_fenced_without_replaying_old_request(
+    env, cleanup_uncertain
+):
+    (env.workspace / "current.txt").write_text("Public synthetic current revision")
+    admissions = []
+
+    class SteerFailureJournal(LocalJournal):
+        async def agent_export_admission(self, request):
+            admissions.append(request.objective_revision)
+            if request.objective_revision == 1:
+                await env.agent.steer(
+                    env.task_id,
+                    SteerRequest(
+                        instruction="Read current.txt under the new revision",
+                        expected_objective_revision=1,
+                        idempotency_key="synthetic-admission-steer",
+                        content_scope="public_synthetic",
+                    ),
+                )
+                if cleanup_uncertain:
+                    raise ProviderCleanupError("Native admission cleanup is unconfirmed")
+                raise RuntimeError("Old native admission reply was unavailable")
+            return await super().agent_export_admission(request)
+
+    task = await env.start([read("current.txt"), finish(2)], journal_type=SteerFailureJournal)
+    if cleanup_uncertain:
+        assert task.state == TaskState.FAILED
+        assert "cleanup" in task.error
+        assert admissions == [1]
+        assert env.counts == env.calls == []
+    else:
+        assert task.state == TaskState.SUCCEEDED, task.error
+        assert task.objective_revision == 2
+        assert admissions == [1, 2, 2, 2, 2]
+        assert len(env.counts) == len(env.calls) == 2
+        assert all("Objective revision 2:" in body["input"][1]["content"] for body in env.calls)
+
+
+async def test_journal_replacement_during_native_admission_blocks_external_transport(env):
+    class ReplacingJournal(LocalJournal):
+        async def agent_export_admission(self, request):
+            receipt = await super().agent_export_admission(request)
+            env.agent.journal = LocalJournal(env.store, "agent")
+            return receipt
+
+    task = await env.start([read("unused")], journal_type=ReplacingJournal)
+    assert task.state == TaskState.FAILED
+    assert env.counts == env.calls == []
+    assert task.evidence == []

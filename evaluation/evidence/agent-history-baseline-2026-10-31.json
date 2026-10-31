@@ -1,0 +1,37 @@
+{
+  "tracking_issues": [
+    2,
+    179
+  ],
+  "source_head": "579722106f7cc979f8ae35005bc36432a7125396",
+  "equivalent_main_merge": "b199a93aa9dfd42da1bbc67139407c137712ad0c",
+  "result": "failed/unqualified",
+  "captured_requests_verified": 18,
+  "all_response_hashes_verified": true,
+  "native_tools": {
+    "read_file": 14,
+    "search": 4
+  },
+  "approvals": 0,
+  "edits": 0,
+  "commands": 0,
+  "candidate": false,
+  "heldout_not_run": true,
+  "workspace_and_original_fixtures_unchanged": true,
+  "cleanup_confirmed": true,
+  "receipt_sha256": "6a3f1cf8faba9687f374cfb58313731c8cc234bfdf28e4d956617d3589697ba7",
+  "deterministic_replay": {
+    "source_characters": 2814,
+    "first_observation_characters": 2027,
+    "provider_message_characters": 2021,
+    "delivered_file_characters": 1995,
+    "missing_file_characters": 819,
+    "misleading_last_truncation_marker_characters": 27,
+    "actual_request04_exact_match": true
+  },
+  "independent_audit": "All18 body hashes/profile/statuses and native reads/searches verified; clipping reproduced; no harness output replacement found.",
+  "sole_cause_claim": false,
+  "model_retry": false,
+  "phase_guard_estimate_delta_usd": 0.005305383999999691,
+  "actual_reported_billing_usd": null
+}
