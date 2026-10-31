@@ -139,6 +139,9 @@ class Store:
                 "Unsupported database version; preserve the database before migration"
             )
         self.db.commit()
+        from services.session.decisions_store import DecisionsInspectionStore
+
+        self.decisions = DecisionsInspectionStore(self)
 
     def register_converse_context_validator(self, implementation_id, callback):
         """Trusted startup only; registration never imports a memory backend."""
@@ -1043,6 +1046,16 @@ class LocalJournal:
 
     async def append(self, request):
         return self.store.append(request, self.role)
+
+    async def decisions_call_start(self, request):
+        if self.role != "decisions":
+            raise PermissionError("Decisions capture requires Decisions")
+        return self.store.decisions.start(request)
+
+    async def decisions_call_finish(self, call_id, request):
+        if self.role != "decisions":
+            raise PermissionError("Decisions capture requires Decisions")
+        return self.store.decisions.finish(call_id, request)
 
     async def read(self, **kwargs):
         return self.store.read(**kwargs)

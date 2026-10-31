@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 import httpx
 
 from packages.contracts.models import AppendRequest, SpeechWindow, WindowDecision
+from packages.providers.decision_capture import CaptureNativeUnavailable, decision_attempt
 from packages.providers.text import ProviderError, ProviderRefusal
 
 MAX_PENDING = 32
@@ -152,17 +153,33 @@ class WindowDecisionsWorker:
         reused = cached is not None and cached[:2] == (hypothesis(source), task_binding)
         if reused:
             labels = dict(cached[2])
+            original_call = cached[3]
+            if original_call is not None:
+                async with decision_attempt(
+                    self.journal,
+                    source,
+                    getattr(self.classifier, "provider", None),
+                    attempt=attempt,
+                    reused_from=original_call,
+                ) as capture:
+                    capture.validated_output = labels
         elif window.text.strip():
-            labels = await asyncio.wait_for(
-                self.classifier.classify(source, context, tasks), self.timeout
-            )
+            async with decision_attempt(
+                self.journal, source, getattr(self.classifier, "provider", None), attempt=attempt
+            ) as capture:
+                labels = await asyncio.wait_for(
+                    self.classifier.classify(source, context, tasks), self.timeout
+                )
+                capture.validated_output = labels
+            original_call = capture.call_id if capture.started else None
         else:
             labels = {
                 "conversation": "IGNORE",
                 "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
                 "reason_code": "no_transcript_text",
             }
-        self.outputs[key] = (hypothesis(source), task_binding, dict(labels))
+            original_call = None
+        self.outputs[key] = (hypothesis(source), task_binding, dict(labels), original_call)
         self.outputs.move_to_end(key)
         if len(self.outputs) > 128:
             self.outputs.popitem(last=False)
@@ -230,7 +247,7 @@ class WindowDecisionsWorker:
                     await asyncio.sleep(RETRY_DELAY)
         except asyncio.CancelledError:
             raise
-        except JournalUnavailable:
+        except (JournalUnavailable, CaptureNativeUnavailable):
             # A failed read/append cannot prove classification failed or that a
             # result did not commit. Leave native backlog/receipts unchanged;
             # the next bounded query reconciles them before another admission.

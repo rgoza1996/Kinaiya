@@ -27,6 +27,20 @@ class JournalClient:
         response.raise_for_status()
         return JournalEntry.model_validate(response.json())
 
+    async def decisions_call_start(self, request):
+        response = await self.http.post(
+            "/v1/decisions/calls/start", json=request.model_dump(mode="json")
+        )
+        response.raise_for_status()
+        return response.json()
+
+    async def decisions_call_finish(self, call_id, request):
+        response = await self.http.post(
+            f"/v1/decisions/calls/{call_id}/finish", json=request.model_dump(mode="json")
+        )
+        response.raise_for_status()
+        return response.json()
+
     async def read(self, **kwargs):
         params = {k: v for k, v in kwargs.items() if v is not None}
         if "kinds" in params:

@@ -1,10 +1,11 @@
-# Decisions traceability — planned owner inspection
+# Decisions traceability — owner inspection
 
 The October 30 owner-approved [Penpot master](http://localhost:9001/#/workspace?team-id=aed0c863-4a2a-8195-8008-de835100d87c&file-id=aed0c863-4a2a-8195-8008-defdd82e75a3&page-id=1521d820-51cc-4a49-a496-12d9c823c47e&board-id=c9c2ccf2-0799-4652-a4e7-dc95e0968b06)
 adds a Decisions window beside Converse and Agent. It replaces the Appearance
 sidebar destination; appearance controls remain in Options. Tracked in [#149](https://github.com/rgoza1996/Kinaiya/issues/149).
-This document records
-the requested behavior, not implemented capture, retrieval or UI capabilities.
+The Python capture and owner retrieval implementation follows the
+[versioned inspection API](decisions-trace-api.md). The owner screen is a separate
+client of this read-only contract; this document records its intended behavior.
 
 Each inspection record must retain the actual source transcript or Agent event,
 including ignored inputs, and its native source/revision and session identity.
@@ -30,16 +31,23 @@ refusals and no-inference dispositions need explicit labels. Reused classificati
 link to their original inference. Keep a routing decision separate from the
 Agent's acceptance, execution and completion evidence.
 
-The current Laya adapter builds the rendered request in `complete()` but does not
-retain it as an inspection record. Answer validation drops window confidence and
-does not attach historical model/provider identity to every disposition. Existing
-journal identity and ignored finalized routes are useful foundations; status and
-handoff views do not meet this design. Full request retention also needs bounded
-storage, owner-only retrieval and the existing privacy/deletion policy. Never
-backfill historical scripts, scores or model identities from current settings.
+Laya now captures the actual body built in `complete()` and its bounded raw
+response before answer mapping; compatible and Meta Decisions calls use the same
+attempt-scoped capture boundary. Window confidence/distributions remain in the
+actual response rather than being invented as a native route confidence. Native
+overrides and executor receipts stay separate. Existing records without capture
+retain unavailable fields; there is no historical prompt or identity backfill.
+
+Session-owned private tables keep capture outside generic transcript readers and
+event streams. Owner reads page actual source events; Agent observations explicitly
+have no Decisions inference. Payloads share a256MiB quota with oldest payload
+expiration and explicit markers; session deletion cascades metadata and content.
+Reset retains historical epochs. Captures are bounded and idempotent, and capture
+failure cannot change routing permissions or claim retained evidence.
 
 Required synthetic verification includes ignored inputs, actual Agent observations,
 question types/choices, absent confidence, refusals/retries/reuse, source corrections,
 historical model changes, combined date/session filters, authorization and literal
 untrusted text rendering. No example rows from Penpot belong in a production
-timeline. The feature remains a separate implementation gate.
+timeline. Synthetic capture/retrieval regressions exercise these cases without
+provider inference; physical client inspection remains a separate acceptance gate.
