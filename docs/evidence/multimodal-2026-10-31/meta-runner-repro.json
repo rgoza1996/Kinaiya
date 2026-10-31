@@ -1,0 +1,46 @@
+{
+  "synthetic_only": true,
+  "physical_camera_tested": false,
+  "production_app_tested": false,
+  "provider": "meta",
+  "cases": [
+    {
+      "id": "voice-speech",
+      "model": "muse-voice-transcribe-1.0",
+      "audio_sha256": "de4b8fb5c57bbf29d81536eef734616ce96400b5fd160fcf52fe498d275146f4",
+      "http_status": 200,
+      "response_sha256": "4cac9f79648efc7b77a639a6d5c4c4188d48ab4637a0db4b09023d237ef14c1c",
+      "usage": null,
+      "transcript": "please make a spreadsheet with three columns, the red square moves to the right..",
+      "audioDurationMs": 4320,
+      "expected_observed": true,
+      "elapsed_ms": 1843.93
+    }
+  ],
+  "budget_before": {
+    "schema_version": "1.0",
+    "estimates_not_invoices": true,
+    "limit_usd": 10.0,
+    "cache_aware_admission_estimated_usd": 3.413398284000005,
+    "reserved_usd": 2.23925145,
+    "audio_estimated_usd": 0.019299999999999994,
+    "audio_reserved_usd": 0.0,
+    "media_estimated_usd": 0.025,
+    "media_reserved_usd": 0.0,
+    "billing_reported_usd": null,
+    "accounted_with_reservations_usd": 5.696949734000004
+  },
+  "budget_after": {
+    "schema_version": "1.0",
+    "estimates_not_invoices": true,
+    "limit_usd": 10.0,
+    "cache_aware_admission_estimated_usd": 3.413398284000005,
+    "reserved_usd": 2.23925145,
+    "audio_estimated_usd": 0.019549999999999994,
+    "audio_reserved_usd": 0.0,
+    "media_estimated_usd": 0.025,
+    "media_reserved_usd": 0.0,
+    "billing_reported_usd": null,
+    "accounted_with_reservations_usd": 5.697199734000005
+  }
+}

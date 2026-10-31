@@ -281,10 +281,14 @@ class OptionsAuxiliaryModels extends StatefulWidget {
     required this.busy,
     required this.onSave,
     this.harness,
+    this.initialPurpose,
+    this.onPurposeChanged,
   });
   final AgentModelsSnapshot models;
   final bool busy;
   final String? harness;
+  final String? initialPurpose;
+  final ValueChanged<String>? onPurposeChanged;
   final Future<void> Function(
     String purpose,
     String? profile,
@@ -301,7 +305,8 @@ class _OptionsAuxiliaryModelsState extends State<OptionsAuxiliaryModels> {
   Widget build(BuildContext context) {
     final tasks = widget.models.auxiliaryTasks;
     if (tasks.isEmpty) return const SizedBox.shrink();
-    final purpose = tasks.containsKey(_purpose) ? _purpose! : tasks.keys.first;
+    final selected = _purpose ?? widget.initialPurpose;
+    final purpose = tasks.containsKey(selected) ? selected! : tasks.keys.first;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -329,7 +334,11 @@ class _OptionsAuxiliaryModelsState extends State<OptionsAuxiliaryModels> {
           ],
           onChanged: widget.busy
               ? null
-              : (value) => setState(() => _purpose = value),
+              : (value) {
+                  if (value == null) return;
+                  setState(() => _purpose = value);
+                  widget.onPurposeChanged?.call(value);
+                },
         ),
         const SizedBox(height: 16),
         OptionsModelEditor(

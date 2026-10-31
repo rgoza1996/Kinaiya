@@ -1,0 +1,13 @@
+{
+  "estimates_not_invoices": true,
+  "text_calls": 5,
+  "text_admission_estimate_usd": "0.0004290",
+  "voice_processed_seconds_ceil": 18,
+  "voice_admission_estimate_usd": "0.00090",
+  "media_admission_estimate_usd": "0.025",
+  "new_test_total_admission_estimate_usd": "0.0263290",
+  "local_model_api_cost_usd": "0",
+  "openrouter_requests": 0,
+  "earlier_history_not_reset": true,
+  "basis": "2x reported Contributor token rates; buffered voice whole seconds rounded upward; single images reserved at 2x published rates. Shared-ledger changes from other callers are not attributed to this test."
+}

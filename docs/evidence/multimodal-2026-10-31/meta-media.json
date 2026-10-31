@@ -1,0 +1,58 @@
+{
+  "synthetic_only": true,
+  "combined_budget_usd": 10,
+  "media_sublimit_usd": 0.1,
+  "conservative_max_new_reservation_usd": 0.025,
+  "cases": [
+    {
+      "id": "sam_image",
+      "model": "sam-3.1",
+      "request_sha256": "100b5639b26cb4c69bbf4459793ef3491e539fcdd490512ca55768aa33918193",
+      "http_status": 200,
+      "status": "completed",
+      "usage": {
+        "input_tokens": 0,
+        "input_tokens_details": {
+          "cached_tokens": 0
+        },
+        "output_tokens": 0,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 0,
+        "images_processed": 1
+      },
+      "error": null,
+      "response_sha256": "6a64ac7e0d074d17286fbce8fa020dd431fa59a21d1dd3f5b4ecacb62f216b88",
+      "output_types": [
+        "message"
+      ],
+      "message_content_types": [
+        "output_text"
+      ],
+      "elapsed_ms": 996.97
+    },
+    {
+      "id": "muse_image",
+      "request_sha256": "25aff8b8f30decc73187f247e8586b56c96be3e4688d68baa71cec64b02f65d8",
+      "http_status": 200,
+      "status": null,
+      "usage": {
+        "input_tokens": 9501,
+        "output_tokens": 393,
+        "total_tokens": 9894
+      },
+      "error": null,
+      "response_sha256": "b1a96ef1266e19f0a18fa7d6d74a61ad99d45fbf3b208de85df967cb4308b56f",
+      "output_types": [],
+      "images_returned": 1,
+      "image_bytes": 21646,
+      "image_sha256": "b784ce5663a5b897fdeefe6becd2c93370a5b9d96f0d73234598f005c4cda327",
+      "elapsed_ms": 5703.07,
+      "requested_model": "muse-image-1.0",
+      "response_model": null,
+      "image_file": "muse-image-result.webp",
+      "manual_visual_check": "One red square centered on white; inspected locally."
+    }
+  ]
+}

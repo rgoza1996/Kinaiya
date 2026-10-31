@@ -1,0 +1,87 @@
+{
+  "schema_version": "1.0",
+  "synthetic_only": true,
+  "physical_camera_tested": false,
+  "integrated_converse_tested": false,
+  "cases": [
+    {
+      "id": "image_color",
+      "request_sha256": "8e15aa417ed5ff868d29e29d7e4890c5661be238c142d6232fca63215b85e753",
+      "expected": "red",
+      "model": "kinaiya-qual-lfm3-omni",
+      "http_status": 200,
+      "text": "Red",
+      "valid_terminal": true,
+      "expected_observed": true,
+      "usage": {
+        "prompt_tokens": 106,
+        "completion_tokens": 3,
+        "total_tokens": 109,
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        }
+      },
+      "elapsed_ms": 702.06
+    },
+    {
+      "id": "audio_beeps",
+      "request_sha256": "7403e314815630ceda71a21d8fca6271b6c621916f9f9aa7c363dc7fd02db89a",
+      "expected": "three_or_3",
+      "model": "kinaiya-qual-lfm3-omni",
+      "http_status": 400,
+      "error": "Invalid 'content': 'content' objects must have a 'type' field that is either 'text' or 'image_url'.",
+      "elapsed_ms": 5.71
+    },
+    {
+      "id": "image_audio",
+      "request_sha256": "bdeae45ff3b58123385d1b6ac59dba88931d9455699047912af52b60b954136e",
+      "expected": "red_and_three",
+      "model": "kinaiya-qual-lfm3-omni",
+      "http_status": 400,
+      "error": "Invalid 'content': 'content' objects must have a 'type' field that is either 'text' or 'image_url'.",
+      "elapsed_ms": 8.1
+    },
+    {
+      "id": "video_soundtrack",
+      "request_sha256": "b515f992cac757401dc03b7839a59430f593c569847211861942e78d9b627999",
+      "expected": "right_and_three",
+      "model": "kinaiya-qual-lfm3-omni",
+      "http_status": 400,
+      "error": "Invalid 'content': 'content' objects must have a 'type' field that is either 'text' or 'image_url'.",
+      "elapsed_ms": 2.77
+    },
+    {
+      "id": "decisions_image_audio",
+      "request_sha256": "bc6b2e82050fac77a7cbe5a7e4ddb85a83565ae5dbed15b3c9f3a3b483daf8b5",
+      "expected": "red_true_speech_false",
+      "model": "kinaiya-qual-d1-omni",
+      "http_status": 400,
+      "error": "{'message': '- request.state: Invalid input', 'type': 'invalid_request_error', 'param': 'state', 'code': 'invalid_value'}",
+      "elapsed_ms": 3.57
+    }
+  ],
+  "models": {
+    "kinaiya-qual-lfm3-omni": {
+      "key": "lfm3-omni-2b",
+      "publisher": "LiquidAI",
+      "architecture": "lfm3",
+      "format": "gguf",
+      "quantization": {
+        "name": "Q4_K_M",
+        "bits_per_weight": 4
+      },
+      "size_bytes": 1640522848
+    },
+    "kinaiya-qual-d1-omni": {
+      "key": "d1-omni-2b",
+      "publisher": "LiquidAI",
+      "architecture": "lfm3",
+      "format": "gguf",
+      "quantization": {
+        "name": "Q8_0",
+        "bits_per_weight": 8
+      },
+      "size_bytes": 2172345280
+    }
+  }
+}

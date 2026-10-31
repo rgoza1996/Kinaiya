@@ -276,6 +276,11 @@ camera/direct-audio input remain unavailable in the production app. Owner
 Projects group Agent sessions; Generated Documents and Generated Media list
 native output receipts with time, type and source session. These libraries do
 not scan workspace folders or grant file access.
+The [synthetic multimodal qualification](docs/adr/0083-synthetic-multimodal-qualification.md)
+records local LFM3/Gemma/d1 and Meta API observations, exact inputs and failed
+checks. Those probes do not enable camera capture or establish production
+multimodal readiness; [the remaining gates](https://github.com/rgoza1996/Kinaiya/issues/204)
+include actual owner-armed transport and a labelled routing/quality matrix.
 The [setup bubbles](docs/adr/0063-floating-setup-bubbles.md) start in fresh random
 positions and drift slowly. Hover/focus holds only the affected bubble; dragging
 and bounded flinging, bubble-to-modal growth, a floating Close control and

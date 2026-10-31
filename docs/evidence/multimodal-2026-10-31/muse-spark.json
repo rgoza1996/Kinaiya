@@ -1,0 +1,128 @@
+{
+  "initial_beep_probes": {
+    "synthetic_only": true,
+    "provider": "meta",
+    "model": "muse-spark-1.3-contributor",
+    "budget_proxy": "http://127.0.0.1:9790",
+    "cases": [
+      {
+        "id": "image",
+        "question": "What color is the square? Answer with one color.",
+        "request_sha256": "9402b9310418cbc22a8f28ffac3f387bf7da92384d3753f6f80e52e37ccd0a76",
+        "http_status": 200,
+        "model": "muse-spark-1.3-contributor",
+        "status": "completed",
+        "usage": {
+          "input_tokens": 87,
+          "input_tokens_details": {
+            "cached_tokens": 0
+          },
+          "output_tokens": 75,
+          "output_tokens_details": {
+            "reasoning_tokens": 65
+          },
+          "total_tokens": 162
+        },
+        "error": null,
+        "text": "Red",
+        "elapsed_ms": 2238.76
+      },
+      {
+        "id": "audio",
+        "question": "How many beeps are heard? Answer with a number.",
+        "request_sha256": "8f3c5b9ad8b9063ba9a55dfd6766bec08bc79a1f784509300b87b6edbd717850",
+        "http_status": 200,
+        "model": "muse-spark-1.3-contributor",
+        "status": "completed",
+        "usage": {
+          "input_tokens": 60,
+          "input_tokens_details": {
+            "cached_tokens": 0
+          },
+          "output_tokens": 180,
+          "output_tokens_details": {
+            "reasoning_tokens": 170
+          },
+          "total_tokens": 240
+        },
+        "error": null,
+        "text": "0",
+        "elapsed_ms": 2812.14
+      },
+      {
+        "id": "image_audio",
+        "question": "State the square color and number of beeps. Answer briefly.",
+        "request_sha256": "a1069044f8be7aa75fa1ee86f42a8e23019429eec70fe23de590e8e5380c9307",
+        "http_status": 200,
+        "model": "muse-spark-1.3-contributor",
+        "status": "completed",
+        "usage": {
+          "input_tokens": 129,
+          "input_tokens_details": {
+            "cached_tokens": 0
+          },
+          "output_tokens": 236,
+          "output_tokens_details": {
+            "reasoning_tokens": 223
+          },
+          "total_tokens": 365
+        },
+        "error": null,
+        "text": "Red, 0",
+        "elapsed_ms": 4996.18
+      }
+    ]
+  },
+  "speech_followup": {
+    "synthetic_only": true,
+    "provider": "meta",
+    "model": "muse-spark-1.3-contributor",
+    "budget_proxy": "http://127.0.0.1:9790",
+    "cases": [
+      {
+        "id": "speech",
+        "question": "Transcribe the spoken words.",
+        "request_sha256": "04308c5d4a6d3ce261ffc11d11b7461386c01e667aaab129da31bac61247c20f",
+        "http_status": 200,
+        "model": "muse-spark-1.3-contributor",
+        "status": "completed",
+        "usage": {
+          "input_tokens": 70,
+          "input_tokens_details": {
+            "cached_tokens": 0
+          },
+          "output_tokens": 164,
+          "output_tokens_details": {
+            "reasoning_tokens": 140
+          },
+          "total_tokens": 234
+        },
+        "error": null,
+        "text": "Please make a spreadsheet with three columns. The red square moves to the right",
+        "elapsed_ms": 2649.21
+      },
+      {
+        "id": "speech_image",
+        "question": "What task does the speaker request, and what color is the square in the image?",
+        "request_sha256": "ecc09b94cad58ef3e6d64742db8a2ee73238e66e77172ef5dd68ea7c9823caf2",
+        "http_status": 200,
+        "model": "muse-spark-1.3-contributor",
+        "status": "completed",
+        "usage": {
+          "input_tokens": 149,
+          "input_tokens_details": {
+            "cached_tokens": 0
+          },
+          "output_tokens": 170,
+          "output_tokens_details": {
+            "reasoning_tokens": 121
+          },
+          "total_tokens": 319
+        },
+        "error": null,
+        "text": "The speaker requests:\n\n**\"Please make a spreadsheet with three columns.\"**\n\nThe square in the image is **red** - on the left side of the image.\n\nThe red square moves to the right",
+        "elapsed_ms": 2974.71
+      }
+    ]
+  }
+}
