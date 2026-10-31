@@ -51,6 +51,7 @@ from packages.contracts.models import (
 )
 from packages.providers.disclosure import combine_scopes, entry_allowed, scope_allowed, source_scope
 from services.agent.artifacts import ArtifactConflict, ArtifactInvalid, ArtifactNotFound
+from services.agent.completion import append_completion
 from services.agent.mcp_tools import ModelScopedMCP, run_mcp_call, run_mcp_list
 from services.agent.tools import (
     RunningProc,
@@ -233,6 +234,10 @@ class _Record:
     used_skills: set[str] = field(default_factory=set)
     plugin_versions: dict[str, str] = field(default_factory=dict)
     legacy_submit_scope: bool = False
+    # Once a final success append may have committed, only its exact native
+    # confirmation or restart recovery can settle it. Never append a competing
+    # cancellation/failure or accept another revision while it is uncertain.
+    completion_pending: bool = False
 
 
 class AgentRuntime:
@@ -281,7 +286,7 @@ class AgentRuntime:
         self._closed = False
 
     # -- journal ------------------------------------------------------
-    async def _append(self, rec: _Record, kind: str, payload: dict[str, Any]) -> None:
+    def _append_request(self, rec: _Record, kind: str, payload: dict[str, Any]) -> AppendRequest:
         rec.journal_seq += 1
         # Every entry carries the task reference and top-level state so
         # observers (Converse grounding, Decisions routing) can find the
@@ -296,17 +301,18 @@ class AgentRuntime:
                 rec.task.content_scope, payload.get("content_scope", "public_synthetic")
             ),
         }
-        entry = await self.journal.append(
-            AppendRequest(
-                session_id=rec.task.session_id,
-                thread_id=rec.task.thread_id,
-                epoch=rec.task.epoch,
-                kind=kind,
-                payload=payload,
-                task_refs=[rec.task.task_id],
-                idempotency_key=f"agent:{rec.task.task_id}:{kind}:{rec.journal_seq}",
-            )
+        return AppendRequest(
+            session_id=rec.task.session_id,
+            thread_id=rec.task.thread_id,
+            epoch=rec.task.epoch,
+            kind=kind,
+            payload=payload,
+            task_refs=[rec.task.task_id],
+            idempotency_key=f"agent:{rec.task.task_id}:{kind}:{rec.journal_seq}",
         )
+
+    async def _append(self, rec: _Record, kind: str, payload: dict[str, Any]) -> None:
+        entry = await self.journal.append(self._append_request(rec, kind, payload))
         if kind == "agent.command" and payload.get("op") == "submit":
             rec.submit_sequence = entry.sequence
 
@@ -459,7 +465,7 @@ class AgentRuntime:
     async def _source_scope(self, source_id, resolved):
         return await source_scope(self.journal, source_id, resolved)
 
-    async def _task_scope(self, rec, *, persist=True):
+    async def _task_scope(self, rec, *, persist=True, require_open=False):
         """Recheck source floors and the actual target provider at each continuation."""
         scopes = [rec.task.content_scope]
         for source_id in rec.task.source_event_ids:
@@ -478,8 +484,12 @@ class AgentRuntime:
                 scopes.append(await self._source_scope(source_id, source))
             except Exception as exc:
                 # Missing provenance must never become a new export grant.
+                if require_open:
+                    self._check_completion_open(rec, require_active=True)
                 rec.task.content_scope = "local_only"
                 raise PolicyDenied("Task source disclosure cannot be verified") from exc
+        if require_open:
+            self._check_completion_open(rec, require_active=True)
         scope = combine_scopes(rec.task.content_scope, *scopes)
         if scope != rec.task.content_scope:
             rec.task.content_scope = scope
@@ -626,6 +636,8 @@ class AgentRuntime:
     async def steer(self, task_id: str, request: SteerRequest, actor: str = "owner") -> Task:
         rec = self._get(task_id)
         self._check_actor(actor, list(request.source_event_ids), "steer")
+        if request.idempotency_key not in rec.steer_idem:
+            self._check_completion_open(rec, require_active=True)
         instruction = request.instruction
         source_scope = "public_synthetic"
         if request.source_event_ids:
@@ -645,6 +657,8 @@ class AgentRuntime:
                 )
             if actor == "decisions":
                 instruction = expected
+        if request.idempotency_key not in rec.steer_idem:
+            self._check_completion_open(rec, require_active=True)
         payload = {
             "instruction": instruction,
             "expected_objective_revision": request.expected_objective_revision,
@@ -673,7 +687,14 @@ class AgentRuntime:
         stale = self._check_task_epoch(rec, await self._require_session(rec.task.session_id))
         if stale is not None:
             raise StaleRevision(stale)
-        await self._task_scope(rec)
+        await self._task_scope(rec, require_open=True)
+        source_revisions = {
+            source_id: (await self.journal.resolve(source_id)).payload.get("revision", 1)
+            for source_id in request.source_event_ids
+        }
+        # Source/session reads may have overlapped the final completion fence.
+        # No record mutation or command append may follow a stale admission.
+        self._check_completion_open(rec, require_active=True)
         if rec.pending_steer is not None:
             raise StaleRevision(
                 "Another steering revision is pending; wait for its applied acknowledgment"
@@ -690,10 +711,7 @@ class AgentRuntime:
             "actor": actor,
             "content_scope": content_scope,
             "source_event_ids": list(request.source_event_ids),
-            "source_revisions": {
-                source_id: (await self.journal.resolve(source_id)).payload.get("revision", 1)
-                for source_id in request.source_event_ids
-            },
+            "source_revisions": source_revisions,
         }
         # Wake an approval wait so steering applies promptly at the boundary.
         rec.resume.set()
@@ -810,6 +828,7 @@ class AgentRuntime:
         if self._closed:
             raise ValueError("Agent is closing")
         rec = self._get(task_id)
+        self._check_completion_open(rec)
         if rec.recovered and rec.task.state == TaskState.PAUSED and rec.worker is None:
             if actor != "owner":
                 raise PolicyDenied(f"retiring recovered work requires owner, got {actor!r}")
@@ -831,6 +850,7 @@ class AgentRuntime:
                 source_revision=request.source_revision,
                 op="interrupt",
             )
+        self._check_completion_open(rec)
         payload = {
             "expected_objective_revision": request.expected_objective_revision,
             "reason": request.reason,
@@ -1355,6 +1375,26 @@ class AgentRuntime:
     def _copy(self, task_id: str) -> Task:
         return self._get(task_id).task.model_copy(deep=True)
 
+    @staticmethod
+    def _check_completion_open(rec: _Record, *, require_active: bool = False) -> None:
+        if rec.completion_pending:
+            raise TaskTerminal(
+                "Task completion confirmation is in progress or unconfirmed; "
+                "no new task action accepted. Recover journal state before retrying."
+            )
+        if require_active and rec.task.state in TERMINAL:
+            raise TaskTerminal(f"task {rec.task.task_id} is already {rec.task.state}")
+
+    @staticmethod
+    def _pause_completion(rec: _Record) -> None:
+        rec.task.state = TaskState.PAUSED
+        rec.task.summary = ""
+        rec.task.error = (
+            "Task completion journaling is unconfirmed; work stopped without retry. "
+            "Recover journal state before starting further work."
+        )
+        rec.done.set()
+
     def plugin_dependents(self, version_id):
         return [
             rec.task.task_id
@@ -1409,6 +1449,9 @@ class AgentRuntime:
         )
 
     async def _fail(self, rec: _Record, error: str) -> None:
+        if rec.completion_pending:
+            self._pause_completion(rec)
+            return
         if rec.task.state in TERMINAL:
             return
         rec.task.state = TaskState.FAILED
@@ -1424,21 +1467,37 @@ class AgentRuntime:
 
     async def _succeed(self, rec: _Record, summary: str) -> None:
         rec.task.state = TaskState.VERIFYING
-        if rec.cancel_requested:
-            rec.task.state = TaskState.CANCELLED
-            await self._append(rec, "agent.outcome", self._outcome_payload(rec, "cancelled", {}))
-            rec.done.set()
-            return
-        rec.task.state = TaskState.SUCCEEDED
-        rec.task.summary = summary
-        await self._append(
+        # No await separates the final authority check in _finish from this
+        # fence and frozen snapshot. The visible task is not successful yet.
+        snapshot = rec.task.model_copy(
+            deep=True, update={"state": TaskState.SUCCEEDED, "summary": summary, "error": None}
+        )
+        body = self._append_request(
             rec,
             "agent.outcome",
-            self._outcome_payload(rec, "succeeded", {"summary": summary}),
+            self._outcome_payload(
+                rec, "succeeded", {"summary": summary, "task": snapshot.model_dump(mode="json")}
+            ),
         )
+        rec.completion_pending = True
+        try:
+            confirmed = await append_completion(self.journal, body, after=rec.submit_sequence)
+        except (Exception, asyncio.CancelledError):
+            # The POST may have committed. A stop/shutdown or unavailable
+            # read-back cannot authorize another, contradictory outcome.
+            self._pause_completion(rec)
+            return
+        if not confirmed:
+            self._pause_completion(rec)
+            return
+        rec.task = snapshot
+        rec.completion_pending = False
         rec.done.set()
 
     async def _cancel(self, rec: _Record) -> None:
+        if rec.completion_pending:
+            self._pause_completion(rec)
+            return
         if rec.task.state in TERMINAL:
             return
         rec.task.state = TaskState.CANCELLED
@@ -1523,21 +1582,26 @@ class AgentRuntime:
                     )
                     continue
                 if action.tool == "finish":
-                    await self._finish(rec, action.arguments, text)
-                    return
+                    if await self._finish(rec, action.arguments, text):
+                        return
+                    continue
                 await self._execute(rec, action.tool, dict(action.arguments), text)
                 if rec.task.state in TERMINAL:
                     return
             await self._fail(rec, f"step budget exhausted after {self.max_steps} steps")
         except asyncio.CancelledError:
-            if rec.closing:
+            if rec.completion_pending:
+                self._pause_completion(rec)
+            elif rec.closing:
                 if rec.task.state not in TERMINAL:
                     rec.task.state = TaskState.PAUSED
                 rec.done.set()
             else:
                 await self._cancel(rec)
         except Exception as exc:  # never leave waiters hanging
-            if rec.closing:
+            if rec.completion_pending:
+                self._pause_completion(rec)
+            elif rec.closing:
                 if rec.task.state not in TERMINAL:
                     rec.task.state = TaskState.PAUSED
                 rec.done.set()
@@ -1614,33 +1678,42 @@ class AgentRuntime:
                 return "finish verification failed: UI artifact storage is unavailable"
         return None
 
-    async def _finish(self, rec: _Record, args: dict[str, Any], raw: str) -> None:
+    async def _finish(self, rec: _Record, args: dict[str, Any], raw: str) -> bool:
         await self._task_scope(rec)
         _ = raw
         if rec.cancel_requested:
             await self._cancel(rec)
-            return
+            return True
+        if rec.pending_steer is not None:
+            await self._apply_steer(rec)
+            return False
         stale = await self._epoch_error(rec)
+        if rec.cancel_requested or rec.closing:
+            await self._cancel(rec)
+            return True
+        if rec.pending_steer is not None:
+            await self._apply_steer(rec)
+            return False
         if stale is not None:
             await self._fail(rec, stale)
-            return
+            return True
         revision = args.get("objective_revision")
         if revision != rec.task.objective_revision:
             await self._fail(
                 rec,
                 f"stale finish revision {revision!r}; current is {rec.task.objective_revision}",
             )
-            return
+            return True
         current = [
             e for e in rec.task.evidence if e.objective_revision == rec.task.objective_revision
         ]
         if not current:
             await self._fail(rec, "finish with no current-revision evidence")
-            return
+            return True
         unverified_artifact = self._verify_finish_artifacts(rec)
         if unverified_artifact is not None:
             await self._fail(rec, unverified_artifact)
-            return
+            return True
         if any(e.kind in {"external", "extension"} for e in current) and not any(
             e.kind in {"file", "command", "test", "artifact"}
             or (e.kind == "read" and e.path and e.sha256)
@@ -1651,40 +1724,35 @@ class AgentRuntime:
                 "finish with only unverified external content receipts; "
                 "independent native evidence is required to report success",
             )
-            return
+            return True
         if rec.failed_plugin:
             await self._fail(rec, "finish while a required plugin computation failed")
-            return
+            return True
         if rec.failed_effect:
             await self._fail(
                 rec,
                 "finish while a required effect failed in this revision; "
                 "a later unrelated read cannot hide it",
             )
-            return
+            return True
         if rec.last_tool_ok is not True:
             await self._fail(rec, "finish while a required tool has failed; not reporting success")
-            return
+            return True
         unverified = await self._verify_finish_files(rec)
+        # A steer/cancel can land during source and epoch verification. It
+        # wins if admitted before the final success append was reserved.
+        if rec.cancel_requested or rec.closing:
+            await self._cancel(rec)
+            return True
+        if rec.pending_steer is not None:
+            await self._apply_steer(rec)
+            return False
         if unverified is not None:
             await self._fail(rec, unverified)
-            return
+            return True
         summary = str(args.get("summary", "") or "").strip()
-        try:
-            await self._succeed(rec, summary or "done")
-        except Exception:
-            if not any(e.kind == "artifact" for e in current):
-                raise
-            # _succeed prepares the snapshot before its awaited journal
-            # response. That response may fail after commit; neither local
-            # success nor an automatic publication retry is justified.
-            rec.task.state = TaskState.FAILED
-            rec.task.summary = ""
-            rec.task.error = (
-                "UI publication was stored but completion journaling is unconfirmed; "
-                "task stopped without retry"
-            )
-            rec.done.set()
+        await self._succeed(rec, summary or "done")
+        return True
 
     async def _uncommitted_speech_sources(self, rec: _Record) -> list[str]:
         """A tool grant is not authority to act on unfinished recognition (AT11)."""
