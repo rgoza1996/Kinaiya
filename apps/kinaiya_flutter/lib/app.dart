@@ -762,6 +762,7 @@ class _HomeShellState extends State<HomeShell> {
                                     child: AgentChat(
                                       state: state,
                                       controls: _agentControls,
+                                      onOpenOptions: _settings,
                                     ),
                                   ),
                                 ),

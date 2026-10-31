@@ -410,12 +410,15 @@ class CommandDef {
   /// deterministic owner-authenticated handler without model inference;
   /// `skill_invocation` starts normal Agent work. Unknown or missing
   /// classes fail closed to inference so they cannot bypass consent.
+  /// `create-harness` always starts ordinary Agent work, even if stale metadata
+  /// calls it a deterministic control.
   /// The `skill` entry is always inference even when a stale backend still
   /// labels it `runtime_control` (Lead corrects it to `skill_invocation`).
   final String executionType;
 
   bool get isDeterministic =>
-      executionType == 'runtime_control' && name != 'skill';
+      executionType == 'runtime_control' &&
+      !const {'skill', 'create-harness'}.contains(name);
 
   bool get requiresInference => !isDeterministic;
 
