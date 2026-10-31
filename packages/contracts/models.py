@@ -130,6 +130,17 @@ class Evidence(WireModel):
     objective_revision: int = Field(default=1, ge=1)
 
 
+class AgentModelPin(WireModel):
+    """Native model selection for one accepted task; never request authority."""
+
+    profile_id: str = Field(min_length=1, max_length=80)
+    provider: str = Field(min_length=1, max_length=128)
+    model: str = Field(min_length=1, max_length=256)
+    local: bool
+    reasoning: str | None = Field(default=None, max_length=16)
+    settings_revision: int = Field(ge=0)
+
+
 class Task(WireModel):
     task_id: str = Field(default_factory=new_id)
     session_id: str
@@ -145,6 +156,7 @@ class Task(WireModel):
     source_event_ids: list[str] = Field(default_factory=list)
     idempotency_key: str
     harness_version: str = "seed-v1"
+    model_pin: AgentModelPin | None = None
     error: str | None = None
 
 

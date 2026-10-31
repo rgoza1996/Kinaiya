@@ -4,8 +4,11 @@
 /// detach only that same closure; stale holders cannot operate a replacement.
 library;
 
+import 'package:flutter/widgets.dart';
+
 class ConverseViewControls {
   Future<void> Function()? openVoiceOptions;
+  Widget? Function()? buildVoiceOptions;
   Future<void> Function()? openTextConversation;
 }
 

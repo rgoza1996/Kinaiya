@@ -8,8 +8,14 @@ import '../state/app_state.dart';
 /// Connection setup: service URLs plus an owner access token password field.
 /// Everything stays in memory; nothing is persisted, logged or URL-encoded.
 class SetupDialog extends StatefulWidget {
-  const SetupDialog({super.key, required this.state});
+  const SetupDialog({
+    super.key,
+    required this.state,
+    this.embedded = false,
+    this.privacyOnly = false,
+  });
   final AppState state;
+  final bool embedded, privacyOnly;
 
   @override
   State<SetupDialog> createState() => _SetupDialogState();
@@ -48,7 +54,14 @@ class _SetupDialogState extends State<SetupDialog> {
       sessionUrl: _session.text,
       agentUrl: _agent.text,
       converseUrl: _converse.text,
-      ownerToken: _token.text,
+      ownerToken:
+          _token.text.isEmpty &&
+              widget.embedded &&
+              _session.text == widget.state.connection?.sessionUrl &&
+              _agent.text == widget.state.connection?.agentUrl &&
+              _converse.text == widget.state.connection?.converseUrl
+          ? widget.state.connection!.ownerToken
+          : _token.text,
       backendProfile: _profile,
     );
     final problem = profile.validate();
@@ -57,18 +70,21 @@ class _SetupDialogState extends State<SetupDialog> {
       return;
     }
     widget.state.connect(profile);
-    Navigator.of(context).pop();
+    if (!widget.embedded) {
+      Navigator.of(context).pop();
+    } else {
+      setState(() => _error = null);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Connect to Kinaiya services'),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+    final form = SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (!widget.privacyOnly) ...[
             TextField(
               controller: _session,
               decoration: const InputDecoration(
@@ -112,39 +128,60 @@ class _SetupDialogState extends State<SetupDialog> {
                 icon: const Icon(Icons.folder_open),
                 label: const Text('Load local access token'),
               ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<BackendProfile>(
-              initialValue: _profile,
-              decoration: const InputDecoration(
-                labelText: 'Inference disclosure',
-              ),
-              items: BackendProfile.values
-                  .map((p) => DropdownMenuItem(value: p, child: Text(p.label)))
-                  .toList(),
-              onChanged: (p) =>
-                  setState(() => _profile = p ?? BackendProfile.clean),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                _profile.note,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ),
-            if (_error != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Semantics(
-                  liveRegion: true,
-                  child: Text(
-                    _error!,
-                    style: const TextStyle(color: Colors.red),
-                  ),
-                ),
-              ),
           ],
-        ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<BackendProfile>(
+            initialValue: _profile,
+            decoration: const InputDecoration(
+              labelText: 'Inference disclosure',
+            ),
+            items: BackendProfile.values
+                .map((p) => DropdownMenuItem(value: p, child: Text(p.label)))
+                .toList(),
+            onChanged: (p) =>
+                setState(() => _profile = p ?? BackendProfile.clean),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              _profile.note,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Semantics(
+                liveRegion: true,
+                child: Text(_error!, style: const TextStyle(color: Colors.red)),
+              ),
+            ),
+        ],
       ),
+    );
+    if (widget.embedded) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(child: form),
+          const SizedBox(height: 16),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: FilledButton(
+              onPressed: _connect,
+              child: Text(
+                widget.privacyOnly ? 'Apply disclosure choice' : 'Connect',
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(widget.state.connectionError ?? 'Not connected'),
+        ],
+      );
+    }
+    return AlertDialog(
+      title: const Text('Connect to Kinaiya services'),
+      content: form,
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),

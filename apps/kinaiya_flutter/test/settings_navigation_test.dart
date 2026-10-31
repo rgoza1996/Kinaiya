@@ -8,7 +8,8 @@ import 'package:http/testing.dart';
 import 'package:kinaiya_flutter/api/client.dart';
 import 'package:kinaiya_flutter/app.dart';
 import 'package:kinaiya_flutter/config/connection.dart';
-import 'package:kinaiya_flutter/config/options_catalog.dart';
+import 'package:kinaiya_flutter/config/options_navigation.dart';
+import 'package:kinaiya_flutter/ui/options_workspace.dart';
 import 'package:kinaiya_flutter/presentation/controller.dart';
 import 'package:kinaiya_flutter/ui/converse_memory.dart';
 import 'package:kinaiya_flutter/ui/mcp_settings.dart';
@@ -22,6 +23,7 @@ import 'package:kinaiya_flutter/ui/character_view.dart';
 import 'package:kinaiya_flutter/ui/settings_controls.dart';
 
 import 'converse_stage_test.dart' show StageAudio;
+import 'model_setup_test.dart' show setupFixture;
 
 Future<CharacterSelection> selection(WidgetTester tester) async =>
     (await tester.runAsync(() => loadDefaultCharacterSelection(rootBundle)))!;
@@ -75,6 +77,7 @@ class NavigationFixture {
     ownerToken: 'public-synthetic-owner',
     httpClient: transport,
     memoryClientFactory: () => MockClient(respond),
+    agentWorkspaceClientFactory: () => MockClient(respond),
   );
   Map<String, Object?> get binding => {
     'schema_version': '1.0',
@@ -103,6 +106,44 @@ class NavigationFixture {
           'local': true,
           'streaming': true,
         },
+      };
+    } else if (path == '/v1/converse/setup') {
+      body = setupFixture();
+    } else if (path == '/v1/agent/options/model-selection') {
+      body = {
+        'schema_version': '1.0',
+        'harness_version':
+            request.url.queryParameters['harness_version'] ?? 'seed-v1',
+        'provider': {
+          'provider': 'fixture',
+          'model': 'synthetic',
+          'local': true,
+        },
+      };
+    } else if (path == '/v1/agent/harnesses') {
+      body = {
+        'schema_version': '1.0',
+        'configured': true,
+        'items': [],
+        'next_cursor': null,
+      };
+    } else if (path == '/v1/agent/options') {
+      body = {
+        'schema_version': '1.0',
+        'provider': {
+          'provider': 'fixture',
+          'model': 'synthetic',
+          'local': true,
+        },
+        'permissions': {
+          'allow_write': false,
+          'allow_shell': false,
+          'network': false,
+          'yolo': false,
+        },
+        'max_steps': 8,
+        'tools': ['workspace.read'],
+        'models': null,
       };
     } else if (path == '/v1/commands') {
       body = {
@@ -217,20 +258,23 @@ Future<void> openSettings(WidgetTester tester) async {
   expect(find.byKey(const ValueKey('settings-close')), findsOneWidget);
 }
 
-Future<void> chooseSettings(WidgetTester tester, SettingsAction action) async {
-  final target = find.byKey(ValueKey('settings-entry-${action.name}'));
-  final title = find.descendant(
-    of: target,
-    matching: find.text(
-      settingsEntries.singleWhere((entry) => entry.action == action).title,
-    ),
-  );
-  await tester.ensureVisible(title);
+Future<void> chooseSettings(WidgetTester tester, OptionsPage page) async {
+  final search = find.byKey(const ValueKey('settings-search'));
+  if (search.hitTestable().evaluate().isEmpty) {
+    await tester.tap(find.byTooltip('Options navigation'));
+    await routePump(tester);
+  }
+  await tester.enterText(search, page.label);
   await tester.pump();
-  expect(title.hitTestable(), findsOneWidget);
-  await tester.tap(title);
+  final target = find.byKey(ValueKey('options-search-${page.name}'));
+  await tester.ensureVisible(target);
+  await tester.pump();
+  expect(target.hitTestable(), findsOneWidget);
+  await tester.tap(target);
   await routePump(tester);
-  expect(find.byKey(const ValueKey('settings-close')), findsNothing);
+  expect(find.byKey(const ValueKey('settings-close')), findsOneWidget);
+  expect(find.byType(OptionsWorkspace), findsOneWidget);
+  expect(find.byType(Dialog), findsNothing);
 }
 
 void main() {
@@ -440,7 +484,7 @@ void main() {
     second.dispose();
   });
   testWidgets(
-    'hub dismissal keeps armed capture panes drafts and tasks intact',
+    'Options dismissal keeps armed capture panes drafts and tasks intact',
     (tester) async {
       await tester.binding.setSurfaceSize(const Size(1000, 900));
       addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -464,7 +508,16 @@ void main() {
       expect(find.byTooltip('Connection setup'), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('settings-close')));
       await routePump(tester);
-      expect(f.requests.length, before);
+      expect(
+        f.requests.skip(before),
+        everyElement(
+          isIn({
+            'GET /v1/converse/setup',
+            'GET /v1/agent/options',
+            'GET /v1/agent/harnesses',
+          }),
+        ),
+      );
       expect(f.audio.vadCalls, vad);
       expect(f.audio.arms, 1);
       expect(f.audio.disposals, 0);
@@ -489,32 +542,48 @@ void main() {
   );
 
   testWidgets(
-    'hub routes real Connection Appearance Memory and Voice destinations',
+    'Options embeds Connection Appearance Memory and Voice owners in place',
     (tester) async {
       final f = NavigationFixture();
       await f.mount(tester);
       await openSettings(tester);
-      await chooseSettings(tester, SettingsAction.connection);
+      await chooseSettings(tester, OptionsPage.connection);
       expect(find.byType(SetupDialog), findsOneWidget);
-      await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+      expect(
+        tester.widget<SetupDialog>(find.byType(SetupDialog)).embedded,
+        isTrue,
+      );
+      await tester.tap(find.byTooltip('Close options'));
       await routePump(tester);
       await openSettings(tester);
-      await chooseSettings(tester, SettingsAction.appearance);
+      await chooseSettings(tester, OptionsPage.appearance);
       expect(find.byType(PresentationSettings), findsOneWidget);
-      await tester.tap(find.byTooltip('Close appearance settings'));
+      expect(
+        tester
+            .widget<PresentationSettings>(find.byType(PresentationSettings))
+            .embedded,
+        isTrue,
+      );
+      await tester.tap(find.byTooltip('Close options'));
       await routePump(tester);
       await openSettings(tester);
-      await chooseSettings(tester, SettingsAction.memory);
+      await chooseSettings(tester, OptionsPage.memory);
       expect(find.byType(ConverseMemoryDialog), findsOneWidget);
-      await tester.tap(find.widgetWithText(TextButton, 'CLOSE'));
+      expect(
+        tester
+            .widget<ConverseMemoryDialog>(find.byType(ConverseMemoryDialog))
+            .embedded,
+        isTrue,
+      );
+      await tester.tap(find.byTooltip('Close options'));
       await routePump(tester);
       await openSettings(tester);
-      await chooseSettings(tester, SettingsAction.voice);
+      await chooseSettings(tester, OptionsPage.voice);
       expect(
         find.text('Call for live listening · Tell for one message'),
         findsOneWidget,
       );
-      await tester.tap(find.byTooltip('Close voice options'));
+      await tester.tap(find.byTooltip('Close options'));
       await routePump(tester);
       expect(f.storage.writes, 0);
       expect(f.audio.vadCalls, 0);
@@ -526,7 +595,7 @@ void main() {
   );
 
   testWidgets(
-    'Agent and MCP routing stay Agent scoped without inference gates',
+    'Agent and MCP Options preserve the selected workspace without inference',
     (tester) async {
       final f = NavigationFixture();
       await f.mount(tester);
@@ -536,18 +605,19 @@ void main() {
       await tester.pump();
       expect(f.state.commandsAvailable, true);
       await openSettings(tester);
-      await chooseSettings(tester, SettingsAction.agentControls);
-      expect(f.state.view, AppView.agent);
-      expect(find.text('/status'), findsOneWidget);
-      await tester.tap(find.text('/status'));
-      await routePump(tester);
-      expect(f.state.agentDraft, '/status ');
+      await chooseSettings(tester, OptionsPage.agent);
+      expect(f.state.view, AppView.character);
+      expect(find.text('Task step limit'), findsOneWidget);
+      expect(f.state.agentDraft, 'Retained Agent draft');
       expect(f.state.converseDraft, 'Retained conversation draft');
       await openSettings(tester);
-      await chooseSettings(tester, SettingsAction.mcp);
-      expect(f.state.view, AppView.agent);
-      expect(find.byType(McpSettings), findsOneWidget);
-      await tester.tap(find.byTooltip('Close MCP settings'));
+      await chooseSettings(tester, OptionsPage.integrations);
+      expect(f.state.view, AppView.character);
+      expect(
+        tester.widget<McpSettings>(find.byType(McpSettings)).embedded,
+        isTrue,
+      );
+      await tester.tap(find.byTooltip('Close options'));
       await routePump(tester);
       expect(f.dispatchedEffect, false);
       expect(f.audio.disposals, 0);
@@ -557,23 +627,18 @@ void main() {
   );
 
   testWidgets(
-    'hub availability follows disconnect and rechecks selected results',
+    'Options clears metadata on disconnect and rereads after reconnect',
     (tester) async {
       final f = NavigationFixture();
       await f.mount(tester);
       await openSettings(tester);
       f.state.disconnect();
-      await tester.pump();
+      await routePump(tester);
+      await chooseSettings(tester, OptionsPage.models);
       expect(
-        find.text('Connect and load the Agent controls first.'),
+        find.text('Connect to your host to inspect models and services.'),
         findsOneWidget,
       );
-      expect(find.text('Connect to the owner service first.'), findsOneWidget);
-      await tester.ensureVisible(
-        find.byKey(const ValueKey('settings-entry-mcp')),
-      );
-      await tester.tap(find.byKey(const ValueKey('settings-entry-mcp')));
-      await tester.pump();
       expect(find.byKey(const ValueKey('settings-close')), findsOneWidget);
       final next = NavigationFixture();
       f.state.connect(
@@ -587,12 +652,12 @@ void main() {
       );
       await routePump(tester);
       expect(f.state.commandsAvailable, true);
-      // Pop a result, then revoke availability before HomeShell's await resumes.
-      Navigator.of(
-        tester.element(find.byKey(const ValueKey('settings-close'))),
-      ).pop(SettingsAction.agentControls);
-      f.state.setCommands(null);
-      await routePump(tester);
+      await chooseSettings(tester, OptionsPage.agent);
+      expect(find.text('synthetic'), findsOneWidget);
+      expect(
+        find.text('Connect to your host to inspect models and services.'),
+        findsNothing,
+      );
       expect(f.state.view, AppView.character);
       expect(find.text('/status'), findsNothing);
       expect(f.dispatchedEffect, false);
@@ -604,7 +669,7 @@ void main() {
   );
 
   testWidgets(
-    'Settings and real voice destination remain reachable at320px2x',
+    'Options navigation and embedded Voice remain reachable at320px2x',
     (tester) async {
       await tester.binding.setSurfaceSize(const Size(320, 480));
       tester.platformDispatcher.textScaleFactorTestValue = 2;
@@ -616,10 +681,10 @@ void main() {
       await f.mount(tester);
       await openSettings(tester);
       expect(tester.takeException(), isNull);
-      await chooseSettings(tester, SettingsAction.voice);
-      expect(find.byTooltip('Close voice options'), findsOneWidget);
+      await chooseSettings(tester, OptionsPage.voice);
+      expect(find.byTooltip('Close options'), findsOneWidget);
       expect(tester.takeException(), isNull);
-      await tester.tap(find.byTooltip('Close voice options'));
+      await tester.tap(find.byTooltip('Close options'));
       await routePump(tester);
       expect(f.audio.vadCalls, 0);
       expect(f.dispatchedEffect, false);

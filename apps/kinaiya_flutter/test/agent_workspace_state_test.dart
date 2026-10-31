@@ -96,6 +96,15 @@ class WorkspaceApi extends KinaiyaClient {
   int creates = 0;
   final pageReads = <String>[];
   @override
+  Future<Map<String, Object?>> agentCapabilities() async => {};
+  @override
+  Future<Map<String, Object?>> agentModelSelection(String? harness) async => {
+    'schema_version': '1.0',
+    'harness_version': harness ?? 'seed-v1',
+    'provider': {'provider': 'fixture', 'model': 'synthetic', 'local': true},
+    'pin': null,
+  };
+  @override
   Future<AgentHarnessPage> agentHarnesses({String? after}) async =>
       catalogHook == null ? catalog() : catalogHook!();
   @override

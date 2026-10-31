@@ -1,0 +1,61 @@
+{
+  "additionalProperties": false,
+  "description": "Native model selection for one accepted task; never request authority.",
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "profile_id": {
+      "maxLength": 80,
+      "minLength": 1,
+      "title": "Profile Id",
+      "type": "string"
+    },
+    "provider": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Provider",
+      "type": "string"
+    },
+    "model": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Model",
+      "type": "string"
+    },
+    "local": {
+      "title": "Local",
+      "type": "boolean"
+    },
+    "reasoning": {
+      "anyOf": [
+        {
+          "maxLength": 16,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Reasoning"
+    },
+    "settings_revision": {
+      "minimum": 0,
+      "title": "Settings Revision",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "profile_id",
+    "provider",
+    "model",
+    "local",
+    "settings_revision"
+  ],
+  "title": "AgentModelPin",
+  "type": "object"
+}
