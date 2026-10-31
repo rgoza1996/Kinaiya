@@ -1,4 +1,4 @@
-# ADR 0063: Mouth movement follows speech playback
+# ADR 0064: Mouth movement follows speech playback
 
 Status: Accepted
 
@@ -45,7 +45,8 @@ configuration or server protocol change is required.
 
 Flutter reads the optional `SpeechMouthAudio` capability every 33 ms only while
 the default interaction portrait is visible and speech is playing. Reads time out
-after 100 ms and are fenced by presentation generation, turn nonce, speech epoch
+after 100 ms; the underlying read retains its slot until it settles, preventing
+a stalled bridge from accumulating reads. Results are fenced by presentation generation, turn nonce, speech epoch
 and mounted state. Hidden panes, Home, hidden characters, imported packs and
 reduced motion do not poll. The portrait alone listens for mouth updates.
 

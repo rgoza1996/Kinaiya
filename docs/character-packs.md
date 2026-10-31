@@ -55,7 +55,7 @@ closed during silence, half/open with audio volume, and optional timed viseme
 shapes when supplied by a provider. **Speech mouth movement** turns this off;
 local or device reduced motion also keeps its mouth still. Imported packs retain
 their declared speaking animation and do not receive this mouth overlay. The
-[playback contract](adr/0063-speech-mouth-playback.md) describes the bounded cue
+[playback contract](adr/0064-speech-mouth-playback.md) describes the bounded cue
 format and current provider limitations.
 
 Colors follow explicit owner overrides, selected pack colors when enabled, then Kinaiya's exact default `#141091` / `#FFFFFF`. Light/dark foregrounds and containers adapt for readability. **Clear color overrides** restores the selected pack/default precedence. **Reduce motion** freezes decorative animation and skips transitions; the device's reduced-motion setting also applies. **Show character** can be turned off without removing transcript or task controls. Captions remain available and the non-character fallback always retains text.
