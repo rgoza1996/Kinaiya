@@ -213,7 +213,10 @@ class DecisionDetail {
         : null;
     if (source['kind'] != summary.kind ||
         source['origin'] != summary.origin ||
-        source['created_at'] != summary.createdAt ||
+        !(DateTime.tryParse(
+              _text(source['created_at'], max: 64),
+            )?.isAtSameMomentAs(DateTime.parse(summary.createdAt)) ??
+            false) ||
         revision != summary.revision ||
         (summary.isAgent &&
             (summary.disposition != 'no_inference' ||

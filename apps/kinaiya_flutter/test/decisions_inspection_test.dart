@@ -582,4 +582,20 @@ void main() {
       expect(find.textContaining('Source: source-original'), findsOneWidget);
     },
   );
+  test(
+    'native JSON Z and stored summary UTC offset identify the same instant',
+    () {
+      final d = detail();
+      d['summary'] = {
+        ...(d['summary'] as Map),
+        'created_at': '2026-10-30T12:00:00+00:00',
+      };
+      expect(DecisionDetail.fromJson(d).summary.eventId, 'source-2');
+      d['summary'] = {
+        ...(d['summary'] as Map),
+        'created_at': '2026-10-30T12:00:01+00:00',
+      };
+      expect(() => DecisionDetail.fromJson(d), throwsFormatException);
+    },
+  );
 }
