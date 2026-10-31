@@ -23,6 +23,66 @@ class ProviderError(RuntimeError):
     pass
 
 
+_ACTION_JSON_REASONS = (
+    "text_type",
+    "size_limit",
+    "json_syntax",
+    "duplicate_key",
+    "non_finite",
+    "invalid_unicode",
+    "nesting_limit",
+    "not_object",
+    "decode_limit",
+)
+_ACTION_DECODE_MESSAGES = {
+    (stage, reason): f"{label} require a bounded UTF-8 JSON object"
+    for stage, label in (
+        ("ui_arguments", "UI publication arguments"),
+        ("ui_wire", "UI publication wire fields"),
+        ("unavailable_action", "Unavailable native tool response"),
+    )
+    for reason in _ACTION_JSON_REASONS
+}
+_ACTION_DECODE_MESSAGES.update(
+    {
+        ("ui_arguments", "field_shape"): (
+            "UI publication arguments require exactly the create or update fields"
+        ),
+        ("ui_wire", "field_shape"): "UI publication requires only tool and arguments wire fields",
+        ("ui_wire", "unknown_fields"): "UI publication forbids undeclared wire fields",
+        ("ui_wire", "argument_fields"): "UI publication requires only the ui_spec_json argument",
+        ("ui_wire", "unexpected_ui_field"): "ui_spec_json is only valid for publish_ui",
+        ("unavailable_action", "field_shape"): "Unavailable tool response has undeclared fields",
+    }
+)
+
+
+class ActionDecodeError(ProviderError):
+    """A constant diagnostic, never a copy of untrusted model/parser content."""
+
+    def __init__(self, stage: str, reason: str):
+        if (
+            type(stage) is not str
+            or type(reason) is not str
+            or (stage, reason) not in _ACTION_DECODE_MESSAGES
+        ):
+            raise ValueError("Unknown structured action diagnostic")
+        self._stage, self._reason = stage, reason
+        super().__init__(_ACTION_DECODE_MESSAGES[stage, reason])
+
+    @property
+    def stage(self) -> str:
+        return self._stage
+
+    @property
+    def reason(self) -> str:
+        return self._reason
+
+    @property
+    def diagnostic(self) -> dict[str, str]:
+        return {"stage": self.stage, "reason": self.reason}
+
+
 class ProviderRefusal(ProviderError):
     """A rejected input/result must be surfaced rather than retried as a decision."""
 
@@ -37,30 +97,51 @@ _UI_SPEC_MAX_BYTES = 48 * 1024
 _UI_WIRE_MAX_BYTES = 6 * _UI_SPEC_MAX_BYTES + 8192
 
 
-def _closed_json_object(encoded, limit, label):
+def _closed_json_object(encoded, limit, stage):
     """Decode one bounded UTF-8 object, rejecting duplicates and non-finite data."""
-    from packages.providers.whistle_ipc import decode_json
+    from packages.providers.whistle_ipc import JsonProtocolError, decode_json
 
+    if type(encoded) is not str:
+        raise ActionDecodeError(stage, "text_type")
+    if not 1 <= len(encoded) <= limit:
+        raise ActionDecodeError(stage, "size_limit")
     try:
-        if type(encoded) is not str or not 1 <= len(encoded) <= limit:
-            raise ValueError("Expected JSON text")
         decoded = decode_json(encoded.encode("utf-8"), limit)
+    except JsonProtocolError as exc:
+        raise ActionDecodeError(stage, exc.reason) from exc
+    except json.JSONDecodeError as exc:
+        raise ActionDecodeError(stage, "json_syntax") from exc
+    except UnicodeError as exc:
+        raise ActionDecodeError(stage, "invalid_unicode") from exc
+    except RecursionError as exc:
+        raise ActionDecodeError(stage, "nesting_limit") from exc
+    except (TypeError, ValueError) as exc:
+        raise ActionDecodeError(stage, "decode_limit") from exc
+    try:
         # parse_constant rejects NaN/Infinity; serialization also catches
         # exponent overflow (1e999) and escaped unpaired Unicode surrogates.
         json.dumps(decoded, ensure_ascii=False, allow_nan=False).encode("utf-8")
-        return decoded
-    except (TypeError, ValueError, RecursionError) as exc:
-        raise ProviderError(f"{label} require a bounded UTF-8 JSON object") from exc
+    except UnicodeError as exc:
+        raise ActionDecodeError(stage, "invalid_unicode") from exc
+    except RecursionError as exc:
+        raise ActionDecodeError(stage, "nesting_limit") from exc
+    except ValueError as exc:
+        # Parsed JSON has no arbitrary Python objects or cycles. With this
+        # encoder configuration only non-finite numbers fail this check.
+        raise ActionDecodeError(stage, "non_finite") from exc
+    except TypeError as exc:
+        raise ActionDecodeError(stage, "decode_limit") from exc
+    return decoded
 
 
 def _ui_spec_object(encoded):
-    spec = _closed_json_object(encoded, _UI_SPEC_MAX_BYTES, "UI publication arguments")
+    spec = _closed_json_object(encoded, _UI_SPEC_MAX_BYTES, "ui_arguments")
     keys = set(spec)
     if not (
         {"title", "summary", "components"} <= keys <= {"title", "summary", "components", "layout"}
         or keys == {"artifact_id", "expected_revision", "updates"}
     ):
-        raise ProviderError("UI publication arguments require exactly the create or update fields")
+        raise ActionDecodeError("ui_arguments", "field_shape")
     return spec
 
 
@@ -862,25 +943,21 @@ class MetaResponsesProvider:
                 # This is a rejection envelope for the native membership fence,
                 # never a decoded executable action. Do not process unavailable
                 # gateway arguments or accidentally turn them into other tools.
-                rejected = _closed_json_object(
-                    text, _UI_WIRE_MAX_BYTES, "Unavailable native tool response"
-                )
+                rejected = _closed_json_object(text, _UI_WIRE_MAX_BYTES, "unavailable_action")
                 if set(rejected) != {"tool", "arguments"}:
-                    raise ProviderError("Unavailable tool response has undeclared fields")
+                    raise ActionDecodeError("unavailable_action", "field_shape")
                 return json.dumps({"tool": rejected["tool"], "arguments": {}})
             if isinstance(action, dict) and action.get("tool") == "publish_ui":
-                action = _closed_json_object(text, _UI_WIRE_MAX_BYTES, "UI publication wire fields")
+                action = _closed_json_object(text, _UI_WIRE_MAX_BYTES, "ui_wire")
                 if set(action) != {"tool", "arguments"} or type(action["arguments"]) is not dict:
-                    raise ProviderError(
-                        "UI publication requires only tool and arguments wire fields"
-                    )
+                    raise ActionDecodeError("ui_wire", "field_shape")
                 wire_args = action["arguments"]
                 fields = body["text"]["format"]["schema"]["properties"]["arguments"]["properties"]
                 if set(wire_args) - set(fields):
-                    raise ProviderError("UI publication forbids undeclared wire fields")
+                    raise ActionDecodeError("ui_wire", "unknown_fields")
                 active = {key: value for key, value in wire_args.items() if value is not None}
                 if set(active) != {"ui_spec_json"}:
-                    raise ProviderError("UI publication requires only the ui_spec_json argument")
+                    raise ActionDecodeError("ui_wire", "argument_fields")
                 action["arguments"] = _ui_spec_object(active["ui_spec_json"])
                 return json.dumps(action, ensure_ascii=False, allow_nan=False)
             if (
@@ -888,7 +965,7 @@ class MetaResponsesProvider:
                 and isinstance(action.get("arguments"), dict)
                 and action["arguments"].get("ui_spec_json") is not None
             ):
-                raise ProviderError("ui_spec_json is only valid for publish_ui")
+                raise ActionDecodeError("ui_wire", "unexpected_ui_field")
             action["arguments"] = {
                 key: value for key, value in action["arguments"].items() if value is not None
             }

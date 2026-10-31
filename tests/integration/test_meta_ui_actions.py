@@ -10,7 +10,7 @@ import pytest
 from core.policy import PolicyDenied, ToolPolicy
 from harnesses.seed import ARTIFACT_RECEIPT_LIMIT, OBSERVATION_LIMIT
 from packages.contracts.models import SessionRequest, TaskRequest, TaskState
-from packages.providers.text import MetaResponsesProvider, ProviderError
+from packages.providers.text import ActionDecodeError, MetaResponsesProvider, ProviderError
 from services.agent import AgentRuntime
 from services.agent.artifacts import ArtifactStore
 from services.session.store import LocalJournal, Store
@@ -416,6 +416,89 @@ async def test_meta_ui_spec_is_not_a_wire_argument_for_other_tools(env):
     )
     with pytest.raises(ProviderError, match="only valid for publish_ui"):
         await env.provider.complete([])
+
+
+@pytest.mark.parametrize(
+    "prior_publication,encoded,reason",
+    [
+        (False, '{"PRIVATE_MODEL_MARKER":', "json_syntax"),
+        (False, '{"PRIVATE_MODEL_MARKER":1,"PRIVATE_MODEL_MARKER":2}', "duplicate_key"),
+        (True, '{"PRIVATE_MODEL_MARKER":"\\ud800"}', "invalid_unicode"),
+    ],
+)
+async def test_decode_diagnostic_is_native_failed_evidence_without_payload_or_retry(
+    env, prior_publication, encoded, reason
+):
+    if prior_publication:
+        env.replies.append(
+            lambda body: response(wire_action(body, "publish_ui", ui_spec_json=json.dumps(spec())))
+        )
+    env.replies.append(lambda body: response(wire_action(body, "publish_ui", ui_spec_json=encoded)))
+    # A queued finish proposal is an execution trap: decoding failure remains
+    # terminal even if earlier native publication produced a usable artifact.
+    env.replies.append(
+        lambda body: response(
+            wire_action(body, "finish", summary="Must not be requested", objective_revision=1)
+        )
+    )
+    task = await env.runtime.submit(request(env))
+    final = await env.runtime.wait(task.task_id, timeout=5)
+    assert final.state == TaskState.FAILED
+    assert final.summary == ""
+    assert final.error == (
+        "provider error: UI publication arguments require a bounded UTF-8 JSON object"
+    )
+    assert len(env.calls) == (2 if prior_publication else 1)
+    assert len(env.replies) == 1
+    assert len(final.evidence) == int(prior_publication)
+    if prior_publication:
+        assert env.artifacts.verify(final.evidence[0], final)
+    entries = env.journal.read(session_id=env.session.session_id, limit=200)
+    outcomes = [entry for entry in entries if entry.kind == "agent.outcome"]
+    assert len(outcomes) == 1
+    outcome = outcomes[0]
+    assert outcome.origin == "agent-supervisor"
+    assert outcome.payload["state"] == "failed"
+    assert outcome.payload["provider_diagnostic"] == {
+        "stage": "ui_arguments",
+        "reason": reason,
+    }
+    assert "PRIVATE_MODEL_MARKER" not in json.dumps(
+        [entry.model_dump(mode="json") for entry in entries]
+    )
+    assert not list(env.workspace.iterdir())
+
+
+async def test_corrupt_optional_diagnostic_cannot_block_the_native_failure(env):
+    error = ActionDecodeError("ui_arguments", "json_syntax")
+    error._stage = "PRIVATE_MODEL_MARKER"
+
+    def fail(_):
+        raise error
+
+    env.replies.append(fail)
+    task = await env.runtime.submit(request(env))
+    final = await env.runtime.wait(task.task_id, timeout=5)
+    assert final.state == TaskState.FAILED
+    assert len(env.calls) == 1
+    outcome = env.journal.read(
+        session_id=env.session.session_id, kinds=["agent.outcome"], limit=10
+    )[0]
+    assert "provider_diagnostic" not in outcome.payload
+    assert "PRIVATE_MODEL_MARKER" not in json.dumps(outcome.model_dump(mode="json"))
+
+
+async def test_ordinary_provider_failure_does_not_invent_a_decode_diagnostic(env):
+    env.replies.append(lambda _: httpx.Response(503))
+    task = await env.runtime.submit(request(env))
+    final = await env.runtime.wait(task.task_id, timeout=5)
+    assert final.state == TaskState.FAILED
+    assert final.error == "provider error: Meta HTTP 503; no automatic provider fallback"
+    assert len(env.calls) == 1
+    outcome = env.journal.read(
+        session_id=env.session.session_id, kinds=["agent.outcome"], limit=10
+    )[0]
+    assert "provider_diagnostic" not in outcome.payload
 
 
 async def test_meta_ui_json_bound_is_utf8_bytes_and_accepts_exact_limit(env):

@@ -13,6 +13,24 @@ MAX_RESPONSE_BYTES = 128 * 1024
 VERSION = 1
 
 
+class JsonProtocolError(ValueError):
+    """Existing bounded JSON rejection with a constant, payload-free reason."""
+
+    _MESSAGES = {
+        "size_limit": "Whistle IPC message exceeds its bound",
+        "duplicate_key": "Duplicate IPC field",
+        "non_finite": "Non-finite IPC number",
+        "nesting_limit": "Whistle IPC nesting exceeds its bound",
+        "not_object": "Whistle IPC requires an object",
+    }
+
+    def __init__(self, reason):
+        if type(reason) is not str or reason not in self._MESSAGES:
+            raise ValueError("Unknown JSON protocol rejection reason")
+        self.reason = reason
+        super().__init__(self._MESSAGES[reason])
+
+
 def socket_path(directory, pid):
     path = Path(directory) / f"{pid}.sock"
     if len(os.fsencode(path)) > 100:
@@ -50,24 +68,24 @@ def _pairs(items):
     result = {}
     for key, value in items:
         if key in result:
-            raise ValueError("Duplicate IPC field")
+            raise JsonProtocolError("duplicate_key")
         result[key] = value
     return result
 
 
 def decode_json(raw, limit=MAX_CONTROL_BYTES):
     if not isinstance(raw, bytes) or not 1 <= len(raw) <= limit:
-        raise ValueError("Whistle IPC message exceeds its bound")
+        raise JsonProtocolError("size_limit")
 
     def invalid(value):
-        raise ValueError("Non-finite IPC number")
+        raise JsonProtocolError("non_finite")
 
     try:
         result = json.loads(raw.decode("utf-8"), object_pairs_hook=_pairs, parse_constant=invalid)
     except RecursionError as exc:
-        raise ValueError("Whistle IPC nesting exceeds its bound") from exc
+        raise JsonProtocolError("nesting_limit") from exc
     if not isinstance(result, dict):
-        raise ValueError("Whistle IPC requires an object")
+        raise JsonProtocolError("not_object")
     return result
 
 

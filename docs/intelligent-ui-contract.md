@@ -61,6 +61,11 @@ older clients show summary plus unsupported-content notice.
 
 The strict Meta response transport uses nullable `arguments.ui_spec_json` to carry the complete create or update object as JSON text. Its logical text is at most 48 KiB UTF-8; unused transport fields must be null. The adapter rejects duplicate keys, non-finite numbers, invalid Unicode, extra native metadata and mixed create/update fields. Native storage performs the final component validation.
 
+Rejected JSON/wrapper proposals can retain a constant decoding stage and reason
+in the authenticated failed outcome, without raw model text or parser details.
+The [diagnostic contract](ui-decode-diagnostics.md) preserves guard order, error
+text and terminal failure; it adds no automatic repair, retry or completion.
+
 After successful publication, Agent history retains a native receipt rather than
 the original assistant payload. Its JSON is limited to 4096 UTF-8 bytes, with
 artifact ID, content/objective revisions, digest and every component ID/type
