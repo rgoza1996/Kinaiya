@@ -180,7 +180,7 @@ class _OptionsModelEditorState extends State<OptionsModelEditor> {
               for (final level in levels)
                 DropdownMenuItem(value: level, child: Text(level)),
             ],
-          onChanged: editable && (levels.isNotEmpty || _reasoning != null)
+            onChanged: editable && (levels.isNotEmpty || _reasoning != null)
                 ? (value) => setState(
                     () => _reasoning = value == 'profile' ? null : value,
                   )
