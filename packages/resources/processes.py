@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import errno
 import inspect
 import json
 import logging
@@ -333,6 +334,52 @@ def _cmdline_has(pid: int, nonce: str, bootstrap: str) -> bool:
     return nonce in texts and bootstrap in texts
 
 
+_BOOTSTRAP_REASONS = frozenset(
+    {
+        "pre_stat_unavailable",
+        "pre_not_live",
+        "pre_parent_mismatch",
+        "pre_group_mismatch",
+        "pre_session_mismatch",
+        "pre_command_mismatch",
+        "pidfd_open_failed",
+        "post_observation_error",
+        "post_stat_unavailable",
+        "pidfd_binding_unavailable",
+        "pidfd_binding_mismatch",
+        "post_command_mismatch",
+        "post_not_live",
+        "post_parent_mismatch",
+        "post_group_mismatch",
+        "post_session_mismatch",
+        "post_starttime_mismatch",
+    }
+)
+_BOOTSTRAP_ERRNOS = {
+    errno.EACCES: "access_denied",
+    errno.EPERM: "operation_denied",
+    errno.ESRCH: "process_missing",
+    errno.EMFILE: "process_fd_limit",
+    errno.ENFILE: "system_fd_limit",
+    errno.ENOSYS: "not_supported",
+    errno.EINVAL: "invalid_argument",
+    errno.ENOMEM: "memory_unavailable",
+}
+
+
+def _bootstrap_refused(reason: str, error: OSError | None = None) -> tuple[None, None]:
+    """Best-effort constant observation; diagnostics cannot grant or block refusal."""
+    try:
+        label = reason if type(reason) is str and reason in _BOOTSTRAP_REASONS else "unknown"
+        code = getattr(error, "errno", None) if label == "pidfd_open_failed" else None
+        category = _BOOTSTRAP_ERRNOS.get(code, "other") if type(code) is int else "not_reported"
+        LOG.warning("worker bootstrap refused: reason=%s errno=%s", label, category)
+    except Exception:
+        # An unavailable/broken logging sink must not change ownership authority.
+        pass
+    return None, None
+
+
 def _verify_bootstrap(pid: int, nonce: str, bootstrap: str) -> tuple[int | None, int | None]:
     """Verify pre-grant bootstrap identity; return (pidfd, starttime) or (None, None).
 
@@ -340,43 +387,65 @@ def _verify_bootstrap(pid: int, nonce: str, bootstrap: str) -> tuple[int | None,
     with an fdinfo bind-back. A foreign handle is closed without signalling.
     """
     before = _proc_stat_full(pid)
-    if before is None or before[0] in _ZOMBIE_STATES:
-        return None, None
+    if before is None:
+        return _bootstrap_refused("pre_stat_unavailable")
+    if before[0] in _ZOMBIE_STATES:
+        return _bootstrap_refused("pre_not_live")
     _, ppid, pgrp, sess, start = before
-    if ppid != os.getpid() or pgrp != pid or sess != pid:
-        return None, None
+    if ppid != os.getpid():
+        return _bootstrap_refused("pre_parent_mismatch")
+    if pgrp != pid:
+        return _bootstrap_refused("pre_group_mismatch")
+    if sess != pid:
+        return _bootstrap_refused("pre_session_mismatch")
     if not _cmdline_has(pid, nonce, bootstrap):
-        return None, None
+        return _bootstrap_refused("pre_command_mismatch")
     try:
         fd = os.pidfd_open(pid, 0)
-    except OSError:
-        return None, None
+    except OSError as exc:
+        return _bootstrap_refused("pidfd_open_failed", exc)
+    observation_error = False
     try:
         after = _proc_stat_full(pid)
         bound = _pidfd_pid(fd)
         cmd_ok = _cmdline_has(pid, nonce, bootstrap)
     except Exception:
         after, bound, cmd_ok = None, None, False
+        observation_error = True
     if after is None or bound != pid or not cmd_ok:
         try:
             os.close(fd)
         except OSError:
             pass
-        return None, None
+        if observation_error:
+            reason = "post_observation_error"
+        elif after is None:
+            reason = "post_stat_unavailable"
+        elif bound is None:
+            reason = "pidfd_binding_unavailable"
+        elif bound != pid:
+            reason = "pidfd_binding_mismatch"
+        else:
+            reason = "post_command_mismatch"
+        return _bootstrap_refused(reason)
     a_state, a_ppid, a_pgrp, a_sess, a_start = after
-    if (
-        a_state in _ZOMBIE_STATES
-        or a_ppid != os.getpid()
-        or a_pgrp != pid
-        or a_sess != pid
-        or a_start != start
-    ):
-        try:
-            os.close(fd)
-        except OSError:
-            pass
-        return None, None
-    return fd, start
+    if a_state in _ZOMBIE_STATES:
+        reason = "post_not_live"
+    elif a_ppid != os.getpid():
+        reason = "post_parent_mismatch"
+    elif a_pgrp != pid:
+        reason = "post_group_mismatch"
+    elif a_sess != pid:
+        reason = "post_session_mismatch"
+    elif a_start != start:
+        reason = "post_starttime_mismatch"
+    else:
+        return fd, start
+    try:
+        os.close(fd)
+    except OSError:
+        pass
+    return _bootstrap_refused(reason)
 
 
 def _mem_available_bytes() -> int | None:
