@@ -8,12 +8,15 @@ import jsonschema
 import pytest
 
 from core.policy import PolicyDenied, ToolPolicy
-from harnesses.seed import ARTIFACT_RECEIPT_LIMIT, OBSERVATION_LIMIT
+from harnesses.seed import ARTIFACT_RECEIPT_LIMIT
 from packages.contracts.models import SessionRequest, TaskRequest, TaskState
 from packages.providers.text import ActionDecodeError, MetaResponsesProvider, ProviderError
 from services.agent import AgentRuntime
 from services.agent.artifacts import ArtifactStore
 from services.session.store import LocalJournal, Store
+
+# Regression threshold of the removed seed clip; no current production limit.
+LEGACY_OBSERVATION_LIMIT = 2000
 
 
 def spec():
@@ -55,11 +58,19 @@ async def env(tmp_path):
     journal = Store(tmp_path / "journal.sqlite")
     session = journal.create_session(SessionRequest(channel="converse"))
     artifacts = ArtifactStore(tmp_path / "artifacts.sqlite3")
-    state = SimpleNamespace(calls=[], replies=[])
+    state = SimpleNamespace(calls=[], counts=[], replies=[])
 
     def respond(request):
-        assert request.url.path == "/v1/responses"
         body = json.loads(request.content)
+        if request.url.path == "/v1/responses/input_tokens":
+            assert body["stream"] is False
+            state.counts.append(body)
+            return httpx.Response(
+                200, json={"object": "response.input_tokens", "input_tokens": 123}
+            )
+        assert request.url.path == "/v1/responses"
+        if state.counts:
+            assert body == state.counts[-1]
         state.calls.append(body)
         assert state.replies, "Unexpected model request"
         reply = state.replies.pop(0)
@@ -71,6 +82,7 @@ async def env(tmp_path):
         allow_cloud=True,
         structured_actions=True,
         reasoning_effort="minimal",
+        context_tokens=32768,  # Verified synthetic count fixture, not a model capacity claim.
         transport=httpx.MockTransport(respond),
     )
     runtime = AgentRuntime(
@@ -135,6 +147,7 @@ async def test_actual_meta_wire_publishes_finishes_and_retains_native_history(en
     assert env.artifacts.verify(final.evidence[-1], final)
     assert not list(env.workspace.iterdir())
     assert len(env.calls) == (3 if update else 2)
+    assert env.counts == env.calls  # Each complete body counted before generation.
     schema = env.calls[0]["text"]["format"]["schema"]
     fields = schema["properties"]["arguments"]["properties"]
     assert fields["ui_spec_json"]["type"] == ["string", "null"]
@@ -201,7 +214,7 @@ async def test_meta_long_publication_keeps_bounded_native_receipt_history(env, u
             for index in range(24)
         ],
     }
-    assert len(json.dumps(published)) > OBSERVATION_LIMIT
+    assert len(json.dumps(published)) > LEGACY_OBSERVATION_LIMIT
     env.replies.append(
         lambda body: response(wire_action(body, "publish_ui", ui_spec_json=json.dumps(published)))
     )
@@ -222,7 +235,7 @@ async def test_meta_long_publication_keeps_bounded_native_receipt_history(env, u
                 continue
             value = json.loads(message["content"])
             if value.get("history_kind") == "ui_publication_receipt":
-                assert len(message["content"]) > OBSERVATION_LIMIT
+                assert len(message["content"]) > LEGACY_OBSERVATION_LIMIT
                 assert len(message["content"].encode("utf-8")) <= ARTIFACT_RECEIPT_LIMIT
                 receipts.append(value)
         assert len(receipts) == revision
@@ -264,7 +277,7 @@ async def test_meta_long_publication_keeps_bounded_native_receipt_history(env, u
                     }
                 ],
             }
-            assert len(json.dumps(value)) > OBSERVATION_LIMIT
+            assert len(json.dumps(value)) > LEGACY_OBSERVATION_LIMIT
             return response(wire_action(body, "publish_ui", ui_spec_json=json.dumps(value)))
 
         env.replies.append(patch)

@@ -39,6 +39,7 @@ from packages.contracts.models import (
     TaskState,
 )
 from packages.ecosystem.mcp_host import MCPConfig, MCPHost
+from packages.providers.completion_budget import PreparedComplete
 from services.agent import AgentRuntime, create_app
 from services.agent import tools as agent_tools
 from services.agent.mcp_tools import ModelScopedMCP, run_mcp_call, run_mcp_list
@@ -166,6 +167,10 @@ class ScriptedProvider:
         self.script = list(script)
         self.messages: list[list[dict[str, str]]] = []
         self.info = ProviderInfo(provider="fixture", model="scripted-mcp", local=True)
+
+    async def prepare_complete(self, messages):
+        """Explicit local test double; no tokenizer or inference claim."""
+        return PreparedComplete(None, lambda: self.complete(messages), fixture=True)
 
     async def complete(self, messages: list[dict[str, str]]) -> str:
         self.messages.append([dict(m) for m in messages])

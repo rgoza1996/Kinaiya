@@ -8,6 +8,7 @@ import pytest
 from core.policy import ToolPolicy
 from packages.commands import Registry, parse
 from packages.contracts.models import CommandRequest, ProviderInfo, SessionRequest, TaskRequest
+from packages.providers.completion_budget import PreparedComplete
 from packages.providers.text import ScriptedProvider
 from services.agent import AgentRuntime, create_app
 from services.common.auth import Auth
@@ -158,6 +159,10 @@ async def test_status_stop_do_not_wait_for_hung_provider(env):
 
     class Hung:
         info = ProviderInfo(provider="fixture", model="hung", local=True)
+
+        async def prepare_complete(self, messages):
+            """Explicit local test double; no tokenizer or inference claim."""
+            return PreparedComplete(None, lambda: self.complete(messages), fixture=True)
 
         async def complete(self, messages):
             entered.set()

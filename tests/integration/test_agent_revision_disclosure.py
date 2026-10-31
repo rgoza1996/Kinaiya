@@ -6,6 +6,7 @@ import pytest
 
 from core.policy import ToolPolicy
 from packages.contracts.models import AppendRequest, ProviderInfo, SessionRequest, TaskRequest
+from packages.providers.completion_budget import PreparedComplete
 from services.agent import AgentRuntime
 from services.session.store import LocalJournal, Store
 
@@ -20,6 +21,10 @@ class RecordingProvider:
             {"tool": "read_file", "arguments": {"path": "public.txt"}},
             {"tool": "finish", "arguments": {"objective_revision": 1}},
         ]
+
+    async def prepare_complete(self, messages):
+        """Explicit local test double; no tokenizer or inference claim."""
+        return PreparedComplete(None, lambda: self.complete(messages), fixture=True)
 
     async def complete(self, messages):
         self.calls.append(messages)

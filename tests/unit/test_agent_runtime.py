@@ -21,6 +21,7 @@ from packages.contracts.models import (
     TaskRequest,
     TaskState,
 )
+from packages.providers.completion_budget import PreparedComplete
 from services.agent.runtime import (
     AgentRuntime,
     IdemConflict,
@@ -122,6 +123,10 @@ class ScriptedProvider:
         self.script = list(script)
         self.calls: list[list[dict[str, str]]] = []
         self.info = ProviderInfo(provider="fixture", model="scripted-seed", local=True)
+
+    async def prepare_complete(self, messages):
+        """Explicit local test double; no tokenizer or inference claim."""
+        return PreparedComplete(None, lambda: self.complete(messages), fixture=True)
 
     async def complete(self, messages: list[dict[str, str]]) -> str:
         self.calls.append(messages)

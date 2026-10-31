@@ -14,6 +14,7 @@ from packages.contracts.models import (
     SessionRequest,
     TaskRequest,
 )
+from packages.providers.completion_budget import PreparedComplete
 from services.agent import AgentRuntime
 from services.agent.tools import ToolFailure, run_shell, run_write
 from services.session.store import LocalJournal, Store
@@ -24,6 +25,10 @@ class Provider:
 
     def __init__(self, responses):
         self.responses, self.calls = list(responses), 0
+
+    async def prepare_complete(self, messages):
+        """Explicit local test double; no tokenizer or inference claim."""
+        return PreparedComplete(None, lambda: self.complete(messages), fixture=True)
 
     async def complete(self, messages):
         self.calls += 1

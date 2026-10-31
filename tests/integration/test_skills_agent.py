@@ -16,6 +16,7 @@ from packages.contracts.models import (
     SessionRequest,
     TaskRequest,
 )
+from packages.providers.completion_budget import PreparedComplete
 from packages.providers.text import ScriptedProvider
 from services.agent import AgentRuntime, create_app
 from services.agent.skill_service import SkillService, SkillServiceError
@@ -231,6 +232,10 @@ async def test_revocation_blocks_next_model_request_and_cancellation_releases_pi
         info = ProviderInfo(provider="meta", model="alias", local=False)
         calls = 0
 
+        async def prepare_complete(self, messages):
+            """Explicit local test double; no tokenizer or inference claim."""
+            return PreparedComplete(None, lambda: self.complete(messages), fixture=True)
+
         async def complete(self, messages):
             self.calls += 1
             entered.set()
@@ -257,6 +262,10 @@ async def test_cancel_hung_inference_releases_pinned_skill(env):
 
     class Hung:
         info = ProviderInfo(provider="fixture", model="local", local=True)
+
+        async def prepare_complete(self, messages):
+            """Explicit local test double; no tokenizer or inference claim."""
+            return PreparedComplete(None, lambda: self.complete(messages), fixture=True)
 
         async def complete(self, messages):
             entered.set()

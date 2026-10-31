@@ -17,6 +17,7 @@ from packages.contracts.models import (
     TaskRequest,
     TaskState,
 )
+from packages.providers.completion_budget import PreparedComplete
 from services.agent.runtime import AgentRuntime
 
 SESSION = Session(session_id="s1", thread_id="t1", channel="agent", epoch=1)
@@ -92,6 +93,10 @@ class ScriptedProvider:
     def __init__(self, script):
         self.script = list(script)
         self.info = ProviderInfo(provider="fixture", model="seed", local=True)
+
+    async def prepare_complete(self, messages):
+        """Explicit local test double; no tokenizer or inference claim."""
+        return PreparedComplete(None, lambda: self.complete(messages), fixture=True)
 
     async def complete(self, messages):
         import json as _j

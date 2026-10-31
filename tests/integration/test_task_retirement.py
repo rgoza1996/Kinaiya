@@ -14,6 +14,7 @@ from packages.contracts.models import (
     TaskRequest,
     TaskRetirement,
 )
+from packages.providers.completion_budget import PreparedComplete
 from services.agent import AgentRuntime, IdemConflict
 from services.session.store import JournalError, LocalJournal, Store
 
@@ -24,6 +25,10 @@ class HungFixture:
     def __init__(self):
         self.calls = 0
         self.entered = asyncio.Event()
+
+    async def prepare_complete(self, messages):
+        """Explicit local test double; no tokenizer or inference claim."""
+        return PreparedComplete(None, lambda: self.complete(messages), fixture=True)
 
     async def complete(self, messages):
         self.calls += 1
@@ -39,6 +44,10 @@ class QuietFixture:
 
     def __init__(self):
         self.calls = 0
+
+    async def prepare_complete(self, messages):
+        """Explicit local test double; no tokenizer or inference claim."""
+        return PreparedComplete(None, lambda: self.complete(messages), fixture=True)
 
     async def complete(self, messages):
         self.calls += 1

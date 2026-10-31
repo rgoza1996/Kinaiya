@@ -21,6 +21,7 @@ from packages.contracts.models import (
     TaskRetirement,
     TaskState,
 )
+from packages.providers.completion_budget import PreparedComplete
 from services.agent import AgentRuntime
 from services.agent.mcp_controls import MCPManagementBusy, apply_mcp_control
 from services.session.store import JournalError, LocalJournal, Store
@@ -28,6 +29,10 @@ from services.session.store import JournalError, LocalJournal, Store
 
 class NoInferenceFixture:
     info = ProviderInfo(provider="synthetic-fixture", model="no-inference", local=True)
+
+    async def prepare_complete(self, messages):
+        """Explicit local test double; no tokenizer or inference claim."""
+        return PreparedComplete(None, lambda: self.complete(messages), fixture=True)
 
     async def complete(self, messages):
         raise AssertionError("Recovery/retirement must not invoke inference")
