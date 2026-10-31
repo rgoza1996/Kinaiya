@@ -377,15 +377,11 @@ class ConversePortrait extends StatelessWidget {
                         excludeFromSemantics: true,
                       ),
                     ),
-                    if (mouth != ConverseMouthPose.closed)
-                      Positioned.fill(
-                        child: ExcludeSemantics(
-                          child: CustomPaint(
-                            key: const ValueKey('converse-speech-mouth'),
-                            painter: ConverseMouthPainter(mouth),
-                          ),
-                        ),
+                    Positioned.fill(
+                      child: ExcludeSemantics(
+                        child: ConverseMouthOverlay(pose: mouth),
                       ),
+                    ),
                   ],
                 ),
               ),

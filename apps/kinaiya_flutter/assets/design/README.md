@@ -12,10 +12,23 @@ Reduced motion stops the character's decorative animation through the existing p
 from the owner's October 30 connected-sidebar Penpot export (media ID
 `f3612cd1-c69e-4cc2-8250-1640b509b740`). SHA256:
 `ca82097c4401cabfbb290fefb5c4387a918941003afc98315114c18992f3b989`.
-The optional Converse view crops the original neutral/thinking/speaking cells in
+The optional Converse view uses the original neutral/thinking cells in
 Flutter. It does not bake controls into the artwork or alter the imported pack,
 voice, personality or permission settings. These static poses are not phoneme
 alignment evidence. Home retains the existing seated sprite animation.
+
+`kinaiya-speech-mouth-portraits-v1.png` is a six-pose sheet generated with the
+built-in image generation tool on 2026-10-30, using that approved expression
+atlas as the identity/style reference. The owner requested more natural mouth
+art after inspecting the procedural open-mouth pose. The PNG is retained
+unmodified at 1881×836, a 3×2 grid of 627×418 cells. SHA256:
+`d7aedd4fd20d44daac5c81ee43d4ffa70a5f74ba2c9b7f8ae188112004703585`.
+Only small mouth regions are sampled over the original neutral portrait; its
+head, eyes, hair, body and background stay fixed. Closed/reduced-motion/loading
+states keep the original mouth. Imported packs are unaffected. The exact prompt,
+input provenance and actual output geometry are in
+[`kinaiya-speech-mouth-portraits-v1.prompts.md`](kinaiya-speech-mouth-portraits-v1.prompts.md).
+
 `kinaiya-sleeping-home-v1.png` is the unmodified 1536×1024 sleeping artwork
 from the owner's October 30 **Kinaiya — Home & Converse · Sleeping state**
 Penpot file. SHA256:

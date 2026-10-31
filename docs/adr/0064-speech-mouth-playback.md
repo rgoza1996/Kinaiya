@@ -50,8 +50,12 @@ a stalled bridge from accumulating reads. Results are fenced by presentation gen
 and mounted state. Hidden panes, Home, hidden characters, imported packs and
 reduced motion do not poll. The portrait alone listens for mouth updates.
 
-The supplied neutral face stays fixed. A native painter changes only a small
-mouth region, with half/open, rounded, pursed and teeth shapes. Imported character
+The supplied neutral face stays fixed. A native painter samples image-generated
+half/open, rounded, pursed and teeth poses into a small mouth region. The generated
+full portrait frames are never swapped, preventing head/eye/hair drift. The
+versioned sprite sheet, actual geometry, checksums and exact generation prompt
+live under `assets/design/kinaiya-speech-mouth-portraits-v1.*`. Missing or invalid
+sprite assets retain the original closed mouth. Imported character
 packs retain their existing speaking animation. The new saved
 `speech_mouth_motion` preference defaults on; older strict 6/7/8-field preference
 records migrate to that default, while new 9-field records require a boolean.
@@ -96,3 +100,24 @@ real Web Audio PCM playback, silence and Stop, volume shapes, synthetic timed
 `oh` cues, and reduced motion at 1280×720. No provider or microphone was used.
 Independent code reviews found no blocking defect. Native/device latency and
 provider-supplied timing remain unverified as scoped above.
+
+### Generated artwork revision, 2026-10-30
+
+The owner found the procedural fully open mouth unnatural and requested
+image-generated poses. The built-in image generation tool produced the versioned
+six-pose atlas from the approved expression reference. The raw output, checksum,
+actual cell geometry and exact prompt are preserved alongside the asset.
+Only registered lip rectangles are rendered, at a common scale with per-pose
+anchors. A small skin mask clears the original lips; the generated head, jaw,
+eyes, hair and body are never substituted. Source rectangles were tightened after
+visual inspection found a jaw edge in the initial pursed crop.
+
+The isolated preview adds explicitly static pose inspection, separate from its
+actual playback diagnostics. Browser inspection covered half/open, rounded,
+pursed and teeth poses, then real local PCM playback and natural completion back
+to the original closed mouth. No browser errors were reported. The main,
+companion and isolated-preview web release builds passed, as did static analysis,
+formatting and whitespace checks. The builds retain the font warning recorded
+above. The existing rendering helper was updated to preload the new atlas;
+automated tests were not rerun for this artwork revision. Earlier test counts
+above apply to the initial implementation.

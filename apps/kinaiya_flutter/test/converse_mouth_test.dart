@@ -10,6 +10,9 @@ import 'package:kinaiya_flutter/ui/moonlit_home.dart';
 
 const _boundary = ValueKey('portrait-render-proof');
 const _atlas = AssetImage('assets/design/kinaiya-expression-reference.png');
+const _mouthAtlas = AssetImage(
+  'assets/design/kinaiya-speech-mouth-portraits-v1.png',
+);
 
 Widget _scene({
   bool speaking = true,
@@ -44,9 +47,13 @@ ConverseMouthPose _pose(WidgetTester tester) =>
         .pose;
 
 Future<void> _decode(WidgetTester tester) async {
-  await tester.runAsync(
-    () => precacheImage(_atlas, tester.element(find.byType(ConversePortrait))),
-  );
+  await tester.runAsync(() async {
+    final context = tester.element(find.byType(ConversePortrait).first);
+    await Future.wait([
+      precacheImage(_atlas, context),
+      precacheImage(_mouthAtlas, context),
+    ]);
+  });
   await tester.pumpAndSettle();
 }
 
@@ -270,13 +277,7 @@ void main() {
           ),
         ),
       );
-      await tester.runAsync(
-        () => precacheImage(
-          _atlas,
-          tester.element(find.byType(ConversePortrait).first),
-        ),
-      );
-      await tester.pumpAndSettle();
+      await _decode(tester);
       final image = await _capture(tester);
       final data = await tester.runAsync(
         () => image.toByteData(format: ui.ImageByteFormat.png),
