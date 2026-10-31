@@ -10,8 +10,6 @@ import pytest
 
 from harnesses.seed import (
     ARTIFACT_RECEIPT_LIMIT,
-    HISTORY_LIMIT,
-    OBSERVATION_LIMIT,
     SYSTEM_PROMPT,
     build_messages,
 )
@@ -222,12 +220,12 @@ def receipt_at_byte_limit():
 
 
 @pytest.mark.parametrize("artifacts_available", [False, True])
-def test_projection_preserves_history_caps_and_complete_native_receipts(artifacts_available):
+def test_projection_preserves_complete_history_and_native_receipt_bounds(artifacts_available):
     receipt = receipt_at_byte_limit()
     history = [
-        {"role": "user", "content": "discarded oldest"},
-        *[{"role": "user", "content": "bounded old turn"} for _ in range(HISTORY_LIMIT - 4)],
-        {"role": "user", "content": "a" * (OBSERVATION_LIMIT + 100)},
+        {"role": "user", "content": "retained oldest"},
+        *[{"role": "user", "content": "bounded old turn"} for _ in range(9)],
+        {"role": "user", "content": "a" * 2100},
         {"role": "user", "content": "s" * 12001, "context_kind": "skill"},
         {"role": "user", "content": "p" * 12001, "context_kind": "plugin"},
         {"role": "user", "content": receipt, "context_kind": "artifact_receipt"},
@@ -240,11 +238,11 @@ def test_projection_preserves_history_caps_and_complete_native_receipts(artifact
         "write=False shell=False",
         tool_snapshot=native_tool_snapshot(artifacts_available=artifacts_available),
     )
-    assert len(turns) == 2 + HISTORY_LIMIT
-    assert all(turn["content"] != "discarded oldest" for turn in turns)
-    assert turns[-4]["content"] == "a" * OBSERVATION_LIMIT + "…[truncated 100 chars]"
-    assert turns[-3]["content"] == "s" * 12000 + "…[truncated 1 chars]"
-    assert turns[-2]["content"] == "p" * 12000 + "…[truncated 1 chars]"
+    assert len(turns) == 2 + len(history)
+    assert turns[2]["content"] == "retained oldest"
+    assert turns[-4]["content"] == "a" * 2100
+    assert turns[-3]["content"] == "s" * 12001
+    assert turns[-2]["content"] == "p" * 12001
     assert turns[-1] == {"role": "user", "content": receipt}
     assert len(receipt.encode("utf-8")) == ARTIFACT_RECEIPT_LIMIT
     assert json.loads(turns[-1]["content"]) == json.loads(receipt)
