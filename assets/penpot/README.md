@@ -25,28 +25,28 @@ editable source and contains many more screens:
 3. Open the imported file and choose a page in the left sidebar. Select layers to
    edit them; use the **Prototype** tab and **View mode** to inspect linked flows.
 
-The current October 31 consolidated **Kinaiya — Master design** export contains
-14 pages and 247 top-level boards. Its SHA256 is
-`7356fdad4a04841ab7ff76a4d4adb4da59aea0d9ca9f244d2d1ba2927d8eaddd`.
-The first page, **00 · Home & Converse · Updated**, contains 169 boards, including
-the model, reasoning, inputs, speech and Decisions bubbles; Decisions trace
-screens; the redesigned Options experience; and parallel fade and instant
-prototype routes. The Home, optional Converse and sleeping illustrations
-reflect the current character design.
+The consolidated **Kinaiya — Master design** export contains the current
+Options overview with Kinaiya cradling a gear in front of the moon, together
+with the linked Home, Converse, Agent and Decisions designs. The Options
+artwork is a replaceable image; surrounding labels and navigation remain
+editable Penpot layers.
 
 The Options overview opens paired sections as separate screens with a Back link:
 Models and Providers, Voice and Audio, Agent and Permissions, Tools and
 Integrations, Memory and Data, Tasks and Resources, and Appearance and Character.
-The Models screens illustrate defaults and per-harness model assignments. The
-provider catalog includes Meta Model API, an illustrative Meta account sign-in
-path, LM Studio and other local or cloud providers. The Meta account sign-in
-option is a design proposal whose compatibility requires confirmation; a
-[Muse Code subscription](https://dev.meta.ai/docs/muse-code/subscriptions) is
+**Models & providers** contains separate Models, Providers and Harness
+Customization pages. The harness list opens dedicated Seed Agent, Research and
+Code review editors, with example inherited and custom model settings. The
+model dropdown demonstrates changing a selection in each harness. Values are
+prototype examples and do not save application settings.
+
+The provider catalog includes Meta Model API, an illustrative Meta account
+sign-in path, LM Studio and other local or cloud providers. The Meta account
+sign-in option is a design proposal whose compatibility requires confirmation;
+a [Muse Code subscription](https://dev.meta.ai/docs/muse-code/subscriptions) is
 for Muse Code. LM Studio shows its local endpoint and an optional token.
 The linked examples include direct audio and speech-to-text alternatives, and
 the motion preference switches between fade and instant prototype routes.
-Form entries, searches, provider connections and Save buttons are illustrations,
-not working application settings.
 
 The app implementation follows [ADR 0059](../../docs/adr/0059-home-and-optional-converse.md);
 the updated bubbles, transitions and speech behavior follow
@@ -84,8 +84,10 @@ sprite animation or a demonstration of live TTS synchronization.
 Prototype links demonstrate selected paths rather than every control. On
 **00 · Home & Converse · Updated**, the Options gear opens the current overview.
 Selecting a paired category opens its first section; the submenu switches
-sections or returns to the overview. The prototype also links selected harness
-assignments, provider setup choices, audio modes and motion preferences. The
+sections or returns to the overview. Harness Customization opens an individual
+editor for each example harness, with linked inherited and custom states and a
+model selection example. The prototype also links provider setup choices, audio
+modes and motion preferences. The
 earlier Options copies on **01 · Converse** and **07 · Options & menus** remain
 historical drafts and do not update automatically.
 
