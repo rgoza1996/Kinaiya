@@ -14,6 +14,13 @@ The device bearer grants only `companion_control`. It is never inserted into Aut
 
 All responses use the existing 1.0 wire version with strict extra-forbidden companion models in `packages/contracts/companion.py`. New schemas are exported alongside existing schemas. IDs are at most 128 ASCII letters/digits/underscore/dot/colon/hyphen; idempotency keys are at most 128 printable nonspace ASCII characters. Names/labels/titles are nonblank, at most 120 Unicode characters / 480 UTF-8 bytes without controls. Timestamps are integer Unix seconds, revisions/cursors are strict finite integers within the JavaScript-safe range.
 
+Owner pairing builders explicitly project the Session's `session_id`, `thread_id`
+and `epoch`, then add `label` and the wire version. They must not spread the full
+Session response into a pairing request: `channel`, `name`, and additive Agent
+`harness_version` metadata are outside the companion contract, even when null.
+The ordinary Session API retains the harness association; projecting a pairing
+binding neither hides that association nor makes an Agent session pairable.
+
 Owner Bearer routes:
 
 - POST `/v1/companion/pairings`: `{session_id,thread_id,epoch,label}` -> binding/label/`pairing_code,expires_at`.
