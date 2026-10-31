@@ -308,7 +308,7 @@ async def test_unconfigured_store_exposes_no_tool_and_does_not_create_storage(en
     assert final.state == TaskState.FAILED
     assert final.error == "finish with no current-revision evidence"
     assert not final.evidence
-    assert "publish_ui is unavailable" in env.provider.calls[0][1]["content"]
+    assert "UI artifacts: not configured" in env.provider.calls[0][1]["content"]
     assert "publish_ui" not in env.provider.calls[0][0]["content"]
     assert not list(env.workspace.iterdir())
 

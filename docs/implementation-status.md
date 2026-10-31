@@ -79,6 +79,22 @@ that qualification gap. Native publication/display works independently of the
 truthfully failed task. General Agent completion reliability is not established
 by this slice.
 
+## Native tool advertisement
+
+The bounded [#171](https://github.com/rgoza1996/Kinaiya/issues/171) advertisement
+repair shares one immutable per-inference tool snapshot across the seed prompt,
+Meta wire schema, native membership checks and capability inspection. Actual
+task harness pins qualify selector availability; existing action approvals,
+disclosure and selected-target brokers remain authoritative. The
+[contract](native-tool-advertisement.md) and [ADR0070](adr/0070-task-qualified-tool-advertisement.md)
+describe the bounded native identity projection, concurrent request scope and
+negative native refusal receipts. MockTransport/native integration checks are
+in [the advertising suite](../tests/integration/test_agent_tool_advertising.py).
+This does not complete #171's richer schema/permission and cross-catalog
+discovery obligations, or clarification §§14–15's optional Tool Library,
+installation lifecycle or formal verification. Gateway configuration is not
+proof that a foreign target is authorized, installed or working.
+
 ## Agent completion durability
 
 The bounded [#167](https://github.com/rgoza1996/Kinaiya/issues/167) repair uses

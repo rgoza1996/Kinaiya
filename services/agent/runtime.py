@@ -33,6 +33,11 @@ from typing import Any
 from core.extensions import HarnessError
 from core.policy import ApprovalError, PolicyDenied, ToolPolicy
 from harnesses.seed import ARTIFACT_RECEIPT_LIMIT, build_messages, observation_text, parse_action
+from packages.contracts.agent_tools import (
+    NativeToolSnapshot,
+    agent_tool_scope,
+    native_tool_snapshot,
+)
 from packages.contracts.interfaces import Journal, TextProvider
 from packages.contracts.models import (
     AppendRequest,
@@ -1416,6 +1421,45 @@ class AgentRuntime:
             f"network={self.policy.network}"
         )
 
+    def tool_snapshot(self, task: Task | None = None) -> NativeToolSnapshot:
+        """Native gateways, independently of action approval/target readiness."""
+        harness = (
+            task.harness_version
+            if task is not None
+            else self.selector_registry.active
+            if self.selector_registry is not None
+            else "seed-v1"
+        )
+        return native_tool_snapshot(
+            selector_available=(
+                self.selector_registry is not None
+                and isinstance(harness, str)
+                and bool(harness)
+                and harness != "seed-v1"
+            ),
+            mcp_available=self.mcp_host is not None,
+            skills_available=self.skill_service is not None,
+            plugins_available=self.plugin_service is not None,
+            artifacts_available=self.artifact_store is not None,
+        )
+
+    async def _reject_unavailable_tool(self, rec: _Record, tool: str) -> None:
+        rec.last_tool_ok = False
+        self._effect_result(rec, tool, ok=False)
+        if tool == "plugin_call":
+            rec.failed_plugin = True
+        rec.history.append(
+            {
+                "role": "user",
+                "content": observation_text(False, f"Tool {tool!r} is unavailable for this task"),
+            }
+        )
+        await self._append(
+            rec,
+            "agent.tool",
+            {"tool": tool, "ok": False, "reason": "not_advertised", "effect_executed": False},
+        )
+
     @staticmethod
     def _effect_result(rec: _Record, tool: str, *, ok: bool) -> None:
         if tool == "publish_ui":
@@ -1533,6 +1577,7 @@ class AgentRuntime:
                     )
                 await self._task_scope(rec)
                 revision_before = rec.task.objective_revision
+                tools = self.tool_snapshot(rec.task)
                 messages = build_messages(
                     rec.task.objective,
                     rec.task.objective_revision,
@@ -1543,9 +1588,11 @@ class AgentRuntime:
                     self.skill_service is not None,
                     self.plugin_service is not None,
                     self.artifact_store is not None,
+                    tool_snapshot=tools,
                 )
                 try:
-                    text = await self.provider.complete(messages)
+                    with agent_tool_scope(tools):
+                        text = await self.provider.complete(messages)
                 except asyncio.CancelledError:
                     raise
                 except Exception as exc:  # provider failure is terminal, honest
@@ -1580,6 +1627,9 @@ class AgentRuntime:
                     rec.history.append(
                         {"role": "user", "content": observation_text(False, str(exc))}
                     )
+                    continue
+                if not tools.supports(action.tool):
+                    await self._reject_unavailable_tool(rec, action.tool)
                     continue
                 if action.tool == "finish":
                     if await self._finish(rec, action.arguments, text):
@@ -1993,6 +2043,8 @@ class AgentRuntime:
             # One-use intent is now committed to this exact execution.
             rec.pending = None
         try:
+            if not self.tool_snapshot(rec.task).supports(tool):
+                raise ToolFailure(f"Tool {tool!r} is unavailable for this task")
             if tool == "read_transcript":
                 out, evidence = await self._read_transcript(rec, args)
             elif tool == "select_context":
