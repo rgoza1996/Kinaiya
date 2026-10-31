@@ -88,7 +88,32 @@ receipt. A 404 means no committed receipt is currently visible; it does not
 prove an earlier request cannot still commit. Exact-key retry is safe, and a
 different change requires reconciliation first.
 
+## Existing task receipts
+
 The additive Task `model_pin` field is native output, never a TaskRequest field.
 It contains schema version, profile ID, provider, model, locality, reasoning and
 settings revision. Old tasks may have null/missing pins. Future settings or
 profile names must not be projected backward as historical identities.
+
+For [#192](https://github.com/rgoza1996/Kinaiya/issues/192), an exact retry of an
+accepted `POST /v1/agent/tasks` returns the retained task and its original pin,
+including after restart. Unlike the Options routes, task submission permits
+the authenticated owner or Decisions actor; Decisions still requires native
+source references. Every retry rechecks the current session/thread/epoch,
+authenticated finalized sources, revisions, speech-window supersession and
+interruption, and literal Decisions objective equality. The request digest
+still binds the objective, source IDs/revision and requested content scope;
+the existing pre-scope legacy exception permits only `local_only`.
+
+An exact receipt read does not select or construct a provider, resolve current
+harness eligibility, change model settings, append journal entries or restart
+work. A recovered paused task stays paused. Original explicit-skill identity
+remains part of the digest, owner-only and label-validated; its exact receipt
+can be read after the optional skill service is removed. New work still
+requires that service when invoking a skill, native harness/model admission,
+and both source and combined task disclosure checks. Recovery never rebinds
+execution to a replacement model.
+
+This does not resolve an uncertain initial submit append
+([#199](https://github.com/rgoza1996/Kinaiya/issues/199)); an in-memory
+idempotency-cache entry alone is not proof of durable native acceptance.
