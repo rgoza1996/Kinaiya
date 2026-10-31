@@ -876,7 +876,10 @@ class _HomeShellState extends State<HomeShell> {
     if (page == _ShellPage.decisions) {
       return Theme(
         data: widget.darkTheme,
-        child: DecisionsView(state: widget.state),
+        child: DecisionsView(
+          key: const ValueKey('workspace-decisions'),
+          state: widget.state,
+        ),
       );
     }
     final home = page == _ShellPage.home;
