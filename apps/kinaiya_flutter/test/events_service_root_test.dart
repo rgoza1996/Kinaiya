@@ -109,17 +109,31 @@ void main() {
         expect(hellos.length, 4);
         expect(failures, isEmpty);
       } finally {
-        for (final api in clients) {
-          await api.close().timeout(const Duration(seconds: 1));
+        // Attempt every close even if one fails, and always tear down the
+        // listener. A failing transport assertion must not leak a test server.
+        try {
+          await Future.wait([
+            for (final api in clients)
+              api.close().timeout(const Duration(seconds: 1)),
+            for (final socket in serverSockets)
+              socket.close().timeout(const Duration(seconds: 1)),
+          ], eagerError: false);
+        } finally {
+          try {
+            await Future.wait([
+              for (final subscription in subscriptions)
+                subscription.cancel().timeout(const Duration(seconds: 1)),
+            ], eagerError: false);
+          } finally {
+            try {
+              await server
+                  .close(force: true)
+                  .timeout(const Duration(seconds: 1));
+            } finally {
+              await listener.cancel().timeout(const Duration(seconds: 1));
+            }
+          }
         }
-        for (final socket in serverSockets) {
-          await socket.close().timeout(const Duration(seconds: 1));
-        }
-        for (final subscription in subscriptions) {
-          await subscription.cancel();
-        }
-        await server.close(force: true);
-        await listener.cancel();
       }
     },
     timeout: const Timeout(Duration(seconds: 5)),
