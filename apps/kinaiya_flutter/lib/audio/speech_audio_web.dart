@@ -19,8 +19,41 @@ import 'speech_audio.dart';
 external JSObject? get _bridge;
 
 class _WebSpeechAudio
-    implements SpeechAudio, WindowSpeechAudio, SpeechMouthAudio {
+    implements
+        SpeechAudio,
+        WindowSpeechAudio,
+        SpeechMouthAudio,
+        AdaptiveVadAudio {
   bool get _ready => _bridge != null;
+
+  @override
+  bool get supportsVadSettings {
+    final method = _bridge?.getProperty<JSAny?>('vadRecalibrate'.toJS);
+    return method != null && method.isA<JSFunction>();
+  }
+
+  @override
+  Future<VadSettings> configureVadSettings(VadSettings settings) async {
+    if (!supportsVadSettings || !settings.valid) {
+      throw StateError('Microphone settings unavailable');
+    }
+    final result = VadSettings.fromBridge(
+      jsonDecode(
+        await _str1('vadConfigure', jsonEncode(settings.toBridge()).toJS),
+      ),
+    );
+    if (jsonEncode(result.toBridge()) != jsonEncode(settings.toBridge())) {
+      throw StateError('Microphone settings were not confirmed');
+    }
+    return result;
+  }
+
+  @override
+  Future<void> recalibrateVad() async {
+    if (!supportsVadSettings || await _str0('vadRecalibrate') != 'queued') {
+      throw StateError('Noise calibration unavailable');
+    }
+  }
 
   JSAny _call0(String name) => _bridge!.callMethod<JSAny>(name.toJS);
 

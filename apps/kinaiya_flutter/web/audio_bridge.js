@@ -54,6 +54,13 @@
     return {
       epoch: 0,
       noise: 0.015,
+      adaptive: true,
+      sensitivity: 'balanced',
+      noiseSamples: [],
+      idleNoiseSamples: [],
+      calibrationPending: true,
+      calibratingUntil: null,
+      lastIdleRecalibration: null,
       speaking: false,
       voiceSince: 0,
       lastVoice: 0,
@@ -63,7 +70,70 @@
       capFired: false,
       endSilenceMs: 1500,
       minSpeechMs: 300,
+      bargeMs: BARGE_SUSTAIN_MS,
     };
+  }
+
+  function clamp(value, low, high) {
+    return Math.max(low, Math.min(high, value));
+  }
+
+  function queueNoiseCalibration(vad) {
+    vad.calibrationPending = true;
+    vad.calibratingUntil = null;
+    vad.lastIdleRecalibration = null;
+    vad.noiseSamples = [];
+    vad.idleNoiseSamples = [];
+  }
+
+  function percentileNoise(samples) {
+    var sorted = samples.slice().sort(function (a, b) { return a - b; });
+    return clamp(sorted[Math.floor(sorted.length * 0.60)], 0.002, 0.035);
+  }
+
+  // Adapted from Korina-Agent 9db02e6, Korina/js/vad.js.
+  // Copyright (c) 2026 rgoza1996. MIT notice: KORINA_VAD_LICENSE.txt.
+  // Keep only bounded RMS observations; never retain or export microphone PCM.
+  // Kinaiya owns capture and playback separately from the prototype's UI state.
+  function updateNoise(vad, level, now) {
+    if (!vad.adaptive) return;
+    var idle = !vad.speaking && !state.windows.speaking && !state.playing;
+    var quiet = level < Math.max(vad.noise * 2.2 + 0.006, vad.noise * 2 + 0.008);
+    if (!idle || (!quiet && !vad.calibrationPending && vad.calibratingUntil === null)) {
+      vad.idleNoiseSamples = [];
+      // Pause calibration once speech or local playback is active.
+      if (vad.calibratingUntil !== null) queueNoiseCalibration(vad);
+      return;
+    }
+    if (vad.calibrationPending) {
+      vad.calibrationPending = false;
+      vad.calibratingUntil = now + 900;
+      vad.lastIdleRecalibration = now;
+    }
+    if (vad.calibratingUntil !== null && now < vad.calibratingUntil) {
+      vad.noiseSamples.push(level);
+      if (vad.noiseSamples.length > 240) vad.noiseSamples.shift();
+      vad.noise = percentileNoise(vad.noiseSamples);
+      return;
+    }
+    vad.calibratingUntil = null;
+    vad.noiseSamples = [];
+    vad.idleNoiseSamples.push(level);
+    if (vad.idleNoiseSamples.length > 240) vad.idleNoiseSamples.shift();
+    if (now - vad.lastIdleRecalibration >= 10000 && vad.idleNoiseSamples.length >= 30) {
+      vad.noise = clamp(vad.noise * 0.70 + percentileNoise(vad.idleNoiseSamples) * 0.30, 0.002, 0.035);
+      vad.idleNoiseSamples = [];
+      vad.lastIdleRecalibration = now;
+    }
+  }
+
+  function resetVadActivity(vad) {
+    vad.epoch++;
+    vad.speaking = false;
+    vad.voiceSince = vad.lastVoice = vad.bargeSince = 0;
+    vad.barged = false;
+    vad.clipStart = nowMs();
+    vad.capFired = false;
   }
 
   function nowMs() {
@@ -749,38 +819,59 @@
         }
       }
       cfg = cfg || {};
-      if (typeof cfg.endSilenceMs === 'number') {
-        state.vad.endSilenceMs = Math.min(
-          5000,
-          Math.max(400, cfg.endSilenceMs | 0),
-        );
+      if (typeof cfg !== 'object' || Array.isArray(cfg) ||
+          Object.keys(cfg).some(function (key) {
+            return ['adaptive', 'sensitivity', 'endSilenceMs', 'minSpeechMs', 'bargeMs'].indexOf(key) < 0;
+          }) ||
+          ('adaptive' in cfg && typeof cfg.adaptive !== 'boolean') ||
+          ('sensitivity' in cfg && ['low', 'balanced', 'high'].indexOf(cfg.sensitivity) < 0) ||
+          ['endSilenceMs', 'minSpeechMs', 'bargeMs'].some(function (key) {
+            return key in cfg && (typeof cfg[key] !== 'number' || !Number.isFinite(cfg[key]));
+          })) return 'invalid';
+      var vad = state.vad;
+      if ('endSilenceMs' in cfg) vad.endSilenceMs = clamp(Math.round(cfg.endSilenceMs), 400, 5000);
+      if ('minSpeechMs' in cfg) vad.minSpeechMs = clamp(Math.round(cfg.minSpeechMs), 100, 2000);
+      if ('bargeMs' in cfg) vad.bargeMs = clamp(Math.round(cfg.bargeMs), 100, 2000);
+      if ('sensitivity' in cfg) vad.sensitivity = cfg.sensitivity;
+      if ('adaptive' in cfg && cfg.adaptive !== vad.adaptive) {
+        vad.adaptive = cfg.adaptive;
+        queueNoiseCalibration(vad);
       }
-      if (typeof cfg.minSpeechMs === 'number') {
-        state.vad.minSpeechMs = Math.min(
-          2000,
-          Math.max(100, cfg.minSpeechMs | 0),
-        );
+      if (Object.keys(cfg).length) {
+        // A changed threshold must earn fresh speech/barge confirmation.
+        vad.voiceSince = vad.bargeSince = 0;
       }
       return JSON.stringify({
-        endSilenceMs: state.vad.endSilenceMs,
-        minSpeechMs: state.vad.minSpeechMs,
-        bargeMs: BARGE_SUSTAIN_MS,
+        schemaVersion: 1,
+        adaptive: vad.adaptive,
+        sensitivity: vad.sensitivity,
+        endSilenceMs: vad.endSilenceMs,
+        minSpeechMs: vad.minSpeechMs,
+        bargeMs: vad.bargeMs,
         clipCapMs: CLIP_CAP_MS,
       });
+    },
+
+    // Queues calibration for quiet local samples; never starts a microphone,
+    // stops playback, resets a capture epoch, or changes a conversation turn.
+    vadRecalibrate: function () {
+      if (!state.vad.adaptive) return 'unavailable';
+      queueNoiseCalibration(state.vad);
+      return 'queued';
     },
 
     vadSample: function (rms, tMs, epoch) {
       var now = typeof tMs === 'number' ? tMs : nowMs();
       if (typeof epoch === 'number' && epoch !== state.vad.epoch) return '';
       if (!state.armed) return '';
-      var r = typeof rms === 'number' ? rms : 0;
+      if (typeof rms !== 'number' || !Number.isFinite(rms) || !Number.isFinite(now)) return '';
+      var r = clamp(rms, 0, 1);
       var vad = state.vad;
       // Distinct speech/silence thresholds prevent noisy state flapping.
-      if (!vad.speaking && !state.playing && r < vad.noise * 2) {
-        vad.noise = Math.max(0.002, Math.min(0.035, 0.98 * vad.noise + 0.02 * r));
-      }
-      var speech = Math.max(vad.noise * 3.4 + 0.012, 0.026);
-      var silence = Math.max(vad.noise * 2.2 + 0.006, 0.012);
+      updateNoise(vad, r, now);
+      var factor = vad.sensitivity === 'high' ? 0.75 : vad.sensitivity === 'low' ? 1.25 : 1;
+      var silence = (vad.adaptive ? clamp(vad.noise * 2.2 + 0.006, 0.012, 0.045) : 0.022) * factor;
+      var speech = (vad.adaptive ? clamp(Math.max(silence / factor + 0.010, vad.noise * 3.4 + 0.012), 0.026, 0.085) : 0.035) * factor;
       var voice = r > speech || (vad.speaking && r >= silence);
       if(state.windows.enabled){
         state.windows.speaking=voice;
@@ -791,7 +882,7 @@
       if (state.playing && !vad.barged) {
         if (r > speech) {
           if (!vad.bargeSince) vad.bargeSince = now;
-          if (now - vad.bargeSince >= BARGE_SUSTAIN_MS) {
+          if (now - vad.bargeSince >= vad.bargeMs) {
             vad.barged = true;
             api.stopAudio(); // Immediate local stop, before any Dart/HTTP await.
             return JSON.stringify({type: 'barge', epoch: vad.epoch});
@@ -847,14 +938,8 @@
           if (micOwner !== state.micGeneration) {stream.getTracks().forEach(function(t){t.stop();}); return 'unavailable';}
           state.stream = stream;
           state.armed = true;
-          state.vad.epoch++;
-          state.vad.speaking = false;
-          state.vad.voiceSince = 0;
-          state.vad.lastVoice = 0;
-          state.vad.bargeSince = 0;
-          state.vad.barged = false;
-          state.vad.clipStart = nowMs();
-          state.vad.capFired = false;
+          resetVadActivity(state.vad);
+          queueNoiseCalibration(state.vad);
           pumpStart();
           if(state.windows.enabled && !(await startWindowCapture())){
             state.armed=false;pumpStop();stopTracks();return 'unavailable';
@@ -905,13 +990,7 @@
       } catch (e) {
         return Promise.resolve('unavailable');
       }
-      var old = state.vad;
-      state.vad = freshVad();
-      state.vad.epoch = old.epoch + 1;
-      state.vad.noise = old.noise;
-      state.vad.endSilenceMs = old.endSilenceMs;
-      state.vad.minSpeechMs = old.minSpeechMs;
-      state.vad.clipStart = nowMs();
+      resetVadActivity(state.vad);
       state.clip = { recording: true, startMs: nowMs() };
       return Promise.resolve('clip-recording');
     },

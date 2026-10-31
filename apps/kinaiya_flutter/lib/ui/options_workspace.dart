@@ -485,6 +485,7 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
                         24,
                       ),
                       child: UiFadeTransition(
+                        alignment: Alignment.topLeft,
                         enabled:
                             widget
                                 .presentation
