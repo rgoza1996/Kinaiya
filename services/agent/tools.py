@@ -23,6 +23,7 @@ import secrets
 import shutil
 import stat
 import subprocess
+from contextlib import contextmanager
 from pathlib import Path
 
 from core.policy import ApprovalError, PolicyDenied, ToolPolicy
@@ -107,8 +108,96 @@ def _sandbox_path(policy: ToolPolicy, host_path: Path) -> Path:
     return Path("/workspace") / host_path.relative_to(policy.workspace)
 
 
+def _workspace_readonly_roots(policy: ToolPolicy):
+    roots = sorted(
+        {
+            policy.workspace if root in policy.workspace.parents else root
+            for root in policy.readonly_roots
+            if root == policy.workspace
+            or policy.workspace in root.parents
+            or root in policy.workspace.parents
+        },
+        key=lambda root: (len(root.parts), str(root)),
+    )
+    return tuple(
+        root
+        for index, root in enumerate(roots)
+        if not any(parent == root or parent in root.parents for parent in roots[:index])
+    )
+
+
+@contextmanager
+def _readonly_bindings(policy: ToolPolicy):
+    """Pin reference sources and ancestor mountpoints until BWrap owns them."""
+    roots = _workspace_readonly_roots(policy)
+    if not roots:
+        yield (), ()
+        return
+    descriptors = []
+    opened = {}
+    flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK
+    try:
+        workspace = os.open(policy.workspace, flags | os.O_DIRECTORY)
+        descriptors.append(workspace)
+        opened[policy.workspace] = workspace
+        for root in roots:
+            current, parent = policy.workspace, workspace
+            for part in root.relative_to(policy.workspace).parts:
+                current = current / part
+                if current not in opened:
+                    descriptor = os.open(part, flags, dir_fd=parent)
+                    descriptors.append(descriptor)
+                    opened[current] = descriptor
+                parent = opened[current]
+        # Existing hardlink aliases could write through the workspace mount;
+        # symlink targets could leave the read-only subtree. Refuse both.
+        remaining = 4096
+
+        def validate(descriptor, depth=0):
+            nonlocal remaining
+            remaining -= 1
+            if remaining < 0 or depth > 32:
+                raise PolicyDenied("shell read-only reference exceeds its structural bound")
+            info = os.fstat(descriptor)
+            if stat.S_ISREG(info.st_mode):
+                if info.st_nlink != 1:
+                    raise PolicyDenied("shell read-only reference has a hardlink alias")
+            elif stat.S_ISDIR(info.st_mode):
+                with os.scandir(descriptor) as entries:
+                    for entry in entries:
+                        child = os.open(entry.name, flags, dir_fd=descriptor)
+                        try:
+                            validate(child, depth + 1)
+                        finally:
+                            os.close(child)
+            else:
+                raise PolicyDenied("shell read-only reference is not regular")
+
+        for root in roots:
+            validate(opened[root])
+        # Writable self-binds keep ancestor pathnames from being renamed and
+        # replaced while preserving unrelated workspace write permissions.
+        ancestors = sorted(
+            (path for path in opened if path not in roots),
+            key=lambda path: (len(path.parts), str(path)),
+        )
+        bindings = tuple(
+            ("--bind-fd", opened[path], _sandbox_path(policy, path)) for path in ancestors
+        )
+        bindings += tuple(
+            ("--ro-bind-fd", opened[root], _sandbox_path(policy, root)) for root in roots
+        )
+    except (OSError, ValueError) as exc:
+        raise PolicyDenied("shell read-only reference cannot be pinned") from exc
+    else:
+        yield bindings, tuple(descriptors)
+    finally:
+        for descriptor in reversed(descriptors):
+            os.close(descriptor)
+
+
 def build_bwrap_args(
-    policy: ToolPolicy, command: str, network_allowed: bool
+    policy: ToolPolicy, command: str, network_allowed: bool, *, readonly_bindings=()
 ) -> tuple[list[str], bool]:
     """Bubblewrap argv plus whether the network namespace is isolated.
 
@@ -116,7 +205,7 @@ def build_bwrap_args(
     namespace unless ``network_allowed`` is an explicit grant. PID isolation
     is mandatory even when networking is granted, so ``/proc`` inside the
     sandbox cannot expose host supervisor environments or ``/proc/PID/root``.
-    Nested protected roots are over-mounted read-only; a nested protected
+    Nested protected roots and read-only references are over-mounted read-only; a nested protected
     root that cannot be covered (missing on the host) rejects shell
     construction instead of running with it writable.
     """
@@ -144,6 +233,12 @@ def build_bwrap_args(
         str(policy.workspace),
         "/workspace",
     ]
+    nested_readonly = bool(_workspace_readonly_roots(policy))
+    if nested_readonly and not readonly_bindings:
+        raise PolicyDenied("shell read-only references require pinned mount sources")
+    for kind, descriptor, destination in readonly_bindings:
+        if kind == "--bind-fd":
+            args += [kind, str(descriptor), str(destination)]
     # A protected root nested inside the workspace would otherwise be
     # writable through the workspace bind. Cover each one read-only; the
     # later mount wins over the earlier bind in bubblewrap.
@@ -159,6 +254,9 @@ def build_bwrap_args(
                 "so it cannot be over-mounted read-only"
             )
         args += ["--ro-bind", str(root), str(_sandbox_path(policy, root))]
+    for kind, descriptor, destination in readonly_bindings:
+        if kind == "--ro-bind-fd":
+            args += [kind, str(descriptor), str(destination)]
     args += [
         "--tmpfs",
         "/tmp",
@@ -265,14 +363,18 @@ async def run_shell(
     policy.check_shell(
         approval_id=approval_id, digest=digest, objective_revision=objective_revision
     )
-    argv, isolated = build_bwrap_args(policy, command, policy.network)
     try:
-        proc = await asyncio.create_subprocess_exec(
-            *argv,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT,
-            start_new_session=True,
-        )
+        with _readonly_bindings(policy) as (bindings, descriptors):
+            argv, isolated = build_bwrap_args(
+                policy, command, policy.network, readonly_bindings=bindings
+            )
+            proc = await asyncio.create_subprocess_exec(
+                *argv,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,
+                start_new_session=True,
+                pass_fds=descriptors,
+            )
     except FileNotFoundError as exc:
         raise ShellUnavailable(f"shell unavailable: {exc}") from exc
     handle = RunningProc(proc)
