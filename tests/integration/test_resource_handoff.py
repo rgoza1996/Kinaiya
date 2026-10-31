@@ -5,11 +5,13 @@ models. Live voice/physical memory evidence is collected separately.
 """
 
 import asyncio
+import hashlib
 import io
 import json
 import sys
 import tempfile
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import httpx
 import pytest
@@ -20,11 +22,11 @@ from packages.providers.voice_worker import create_app as voice_app
 from packages.resources import WorkerManager, WorkerSpec
 from services.common.auth import Auth
 from services.converse.api import create_app as converse_app
-from services.converse.intent import ConverseIntent
+from services.converse.intent import ConverseIntent, IntentRecord
 from services.converse.runtime import ConverseRuntime
 from services.resources.api import ResourceAction, create_app
 from services.resources.client import ConverseControl, ResourceClient, local_base
-from services.resources.coordinator import ResourceCoordinator
+from services.resources.coordinator import ResourceCoordinator, WhistleAdmissionError
 from services.resources.providers import ResourceBoundProvider
 from services.resources.state import ResourceState
 from services.session.store import LocalJournal, Store
@@ -33,7 +35,7 @@ AUTH = Auth({"owner": "o" * 32, "resources": "r" * 32, "converse": "c" * 32, "ag
 MiB = 1024 * 1024
 
 
-async def make_coordinated(tmp_path):
+async def make_coordinated(tmp_path, *, worker_id="voice"):
     ready = tmp_path / "ready"
     script = tmp_path / "worker.py"
     script.write_text(
@@ -44,7 +46,7 @@ async def make_coordinated(tmp_path):
         return ready.exists() and ready.read_text() == str(process.pid)
 
     manager = WorkerManager(
-        [WorkerSpec("voice", (sys.executable, str(script)), tmp_path)], readiness=probe
+        [WorkerSpec(worker_id, (sys.executable, str(script)), tmp_path)], readiness=probe
     )
     state = ResourceState(tmp_path / "control/resources-state.json")
     store = Store(tmp_path / "journal.sqlite")
@@ -535,6 +537,479 @@ async def test_uncertain_resource_action_is_not_replayed(coordinated):
     coordinator.db.commit()
     result = await coordinator.action(payload)
     assert result["uncertain"] and not result["ok"]
+
+
+def cas_payload(key, enabled, revision):
+    return {
+        "operation": "converse",
+        "idempotency_key": key,
+        "enabled": enabled,
+        "expected_owner_intent_revision": revision,
+    }
+
+
+def spy_resource_effects(monkeypatch, coordinator):
+    spies = []
+    for owner, name in (
+        (coordinator.manager, "start"),
+        (coordinator.manager, "stop"),
+        (coordinator.converse, "health"),
+        (coordinator.converse, "enabled"),
+        (coordinator, "_save"),
+        (coordinator, "_publish"),
+    ):
+        spy = AsyncMock(wraps=getattr(owner, name))
+        monkeypatch.setattr(owner, name, spy)
+        spies.append(spy)
+    return spies
+
+
+@pytest.mark.parametrize("revision", [None, 0, (1 << 63) - 1])
+def test_cas_resource_action_accepts_only_a_converse_revision(revision):
+    payload = cas_payload("canonical-cas", False, revision)
+    assert ResourceAction.model_validate(payload).model_dump(exclude_unset=True) == payload
+
+
+@pytest.mark.parametrize("revision", [True, False, -1, 1 << 63, "0", 0.0, [], {}])
+def test_cas_resource_action_rejects_coerced_or_unbounded_revision(revision):
+    with pytest.raises(ValueError):
+        ResourceAction.model_validate(cas_payload("malformed-cas", True, revision))
+
+
+@pytest.mark.parametrize(
+    "fields",
+    [
+        {"operation": "restore"},
+        {"operation": "handoff", "required_bytes": 128 * MiB},
+        {"operation": "profile", "profile": "local_work_priority"},
+        {"operation": "task_finished", "task_id": "synthetic-task"},
+    ],
+)
+@pytest.mark.parametrize("revision", [None, 0])
+def test_cas_resource_action_rejects_revision_on_other_operations(fields, revision):
+    with pytest.raises(ValueError):
+        ResourceAction.model_validate(
+            {
+                **fields,
+                "idempotency_key": "wrong-operation",
+                "expected_owner_intent_revision": revision,
+            }
+        )
+
+
+@pytest.mark.parametrize("off_writes", [1, 2])
+async def test_cas_stale_native_off_is_side_effect_free_and_replay_is_original(
+    coordinated, monkeypatch, off_writes
+):
+    coordinator, runtime, _ = coordinated
+    old_revision = coordinator.status()["policy"]["owner_intent_revision"]
+    for _ in range(off_writes):
+        off = await legacy_choice(runtime, False)
+    observed = {"enabled": False, "revision": off["owner_intent_revision"]}
+    assert observed["revision"] == old_revision + off_writes
+    before_policy = coordinator.state.path.read_bytes()
+    before_record = coordinator.state.record.model_dump()
+    before_intent = coordinator.intent.path.read_bytes()
+    before_pid = coordinator.status()["workers"]["voice"]["owned_pid"]
+    spies = spy_resource_effects(monkeypatch, coordinator)
+    payload = cas_payload("stale-restore", True, old_revision)
+    refused = await coordinator.action(payload)
+    assert refused["ok"] is False
+    assert refused["owner_intent_conflict"] is True
+    assert "owner_intent_change" not in refused
+    assert refused["observed_owner_intent"] == observed
+    assert refused["policy"] == {
+        **before_record,
+        "desired_converse": False,
+        "owner_intent_revision": observed["revision"],
+    }
+    assert coordinator.state.path.read_bytes() == before_policy
+    assert coordinator.state.record.model_dump() == before_record
+    assert coordinator.intent.path.read_bytes() == before_intent
+    assert coordinator.status()["workers"]["voice"]["owned_pid"] == before_pid
+    assert not runtime.enabled
+    for spy in spies:
+        spy.assert_not_awaited()
+
+    # A later owner choice cannot rewrite a durable conflict's observation.
+    on = await legacy_choice(runtime, True)
+    assert await coordinator.action(payload) == refused
+    assert coordinator.intent.read() == IntentRecord(True, on["owner_intent_revision"])
+    for changed in (
+        {**payload, "enabled": False},
+        {**payload, "expected_owner_intent_revision": on["owner_intent_revision"]},
+    ):
+        with pytest.raises(ValueError, match="idempotency key conflicts"):
+            await coordinator.action(changed)
+    for spy in spies:
+        spy.assert_not_awaited()
+
+
+async def test_cas_api_get_then_independent_off_refuses_stale_restore_and_accepts_fresh(
+    coordinated, monkeypatch
+):
+    coordinator, runtime, _ = coordinated
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=create_app(coordinator, AUTH)),
+        base_url="http://test",
+        headers={"Authorization": "Bearer " + "o" * 32},
+    ) as client:
+        response = await client.get("/v1/resources")
+        assert response.status_code == 200
+        revision = response.json()["policy"]["owner_intent_revision"]
+        off = await legacy_choice(runtime, False)
+        before_policy = coordinator.state.path.read_bytes()
+        payload = cas_payload("http-stale", True, revision)
+        conflict = await client.post("/v1/resources/actions", json=payload)
+        assert conflict.status_code == 200, conflict.text
+        receipt = conflict.json()
+        assert receipt["owner_intent_conflict"] and not receipt["ok"]
+        assert "owner_intent_change" not in receipt
+        assert receipt["observed_owner_intent"] == {
+            "enabled": False,
+            "revision": off["owner_intent_revision"],
+        }
+        assert coordinator.state.path.read_bytes() == before_policy
+        assert (await client.post("/v1/resources/actions", json=payload)).json() == receipt
+        changed = {**payload, "expected_owner_intent_revision": off["owner_intent_revision"]}
+        assert (await client.post("/v1/resources/actions", json=changed)).status_code == 409
+        fresh = await client.post(
+            "/v1/resources/actions",
+            json={**changed, "idempotency_key": "http-fresh"},
+        )
+        assert fresh.status_code == 200, fresh.text
+        accepted = fresh.json()
+        assert accepted["ok"] and runtime.enabled
+        assert accepted["owner_intent_change"] == {
+            "enabled": True,
+            "revision": off["owner_intent_revision"] + 1,
+        }
+
+        spies = spy_resource_effects(monkeypatch, coordinator)
+        before_policy = coordinator.state.path.read_bytes()
+        before_intent = coordinator.intent.path.read_bytes()
+        before_ledger = coordinator.db.execute("SELECT * FROM actions ORDER BY key").fetchall()
+        for bad in (True, -1, 1 << 63, "0", 0.0):
+            rejected = await client.post(
+                "/v1/resources/actions", json=cas_payload("malformed-http", False, bad)
+            )
+            assert rejected.status_code == 422
+        assert coordinator.intent.path.read_bytes() == before_intent
+        assert coordinator.state.path.read_bytes() == before_policy
+        assert (
+            coordinator.db.execute("SELECT * FROM actions ORDER BY key").fetchall() == before_ledger
+        )
+        for spy in spies:
+            spy.assert_not_awaited()
+
+
+@pytest.mark.parametrize("control_fails", [False, True])
+async def test_cas_receipt_keeps_accepted_transition_before_await_and_newer_off_wins(
+    coordinated, monkeypatch, control_fails
+):
+    coordinator, runtime, _ = coordinated
+    old_revision = coordinator.intent.read().revision
+    entered, release = asyncio.Event(), asyncio.Event()
+    original_publish = coordinator._publish
+    publications = 0
+
+    async def held_first_publish():
+        nonlocal publications
+        publications += 1
+        if publications == 1:
+            entered.set()
+            await release.wait()
+        await original_publish()
+
+    monkeypatch.setattr(coordinator, "_publish", held_first_publish)
+    if control_fails:
+        monkeypatch.setattr(
+            coordinator.converse,
+            "enabled",
+            AsyncMock(side_effect=httpx.ConnectError("synthetic control acknowledgment lost")),
+        )
+    pending = asyncio.create_task(coordinator.action(cas_payload("held-cas", True, old_revision)))
+    try:
+        await asyncio.wait_for(entered.wait(), 1)
+        accepted = coordinator.intent.read()
+        assert accepted == IntentRecord(True, old_revision + 1)
+        # The native owner write does not wait for the held resource publication.
+        off = await asyncio.wait_for(legacy_choice(runtime, False), 1)
+        newer = IntentRecord(False, off["owner_intent_revision"])
+        assert newer.revision == accepted.revision + 1
+        assert not pending.done()
+        release.set()
+        result = await asyncio.wait_for(pending, 4)
+        assert result["ok"] is (not control_fails)
+        assert result["owner_intent_change"] == {
+            "enabled": accepted.enabled,
+            "revision": accepted.revision,
+        }
+        assert coordinator.intent.read() == newer
+        assert result["policy"]["desired_converse"] is False
+        assert result["policy"]["owner_intent_revision"] == newer.revision
+        assert not runtime.enabled
+        assert coordinator.status()["workers"]["voice"]["state"] == "stopped"
+        assert await coordinator.action(cas_payload("held-cas", True, old_revision)) == result
+        assert coordinator.intent.read() == newer
+        assert (await action(coordinator, "restore", key="after-held-cas"))["policy"][
+            "desired_converse"
+        ] is False
+        assert coordinator.intent.read() == newer
+    finally:
+        release.set()
+        await asyncio.wait_for(asyncio.gather(pending, return_exceptions=True), 5)
+
+
+async def test_cas_lost_ack_restart_replay_never_performs_a_second_owner_update(tmp_path):
+    coordinator, runtime, store = await make_coordinated(tmp_path)
+    payload = cas_payload("lost-cas-ack", False, coordinator.intent.read().revision)
+
+    class LostAck(httpx.AsyncBaseTransport):
+        def __init__(self):
+            self.inner = httpx.ASGITransport(app=create_app(coordinator, AUTH))
+            self.calls = 0
+
+        async def handle_async_request(self, request):
+            self.calls += 1
+            response = await self.inner.handle_async_request(request)
+            await response.aread()
+            await response.aclose()
+            raise httpx.ReadError("synthetic response lost after native commit", request=request)
+
+        async def aclose(self):
+            await self.inner.aclose()
+
+    transport = LostAck()
+    try:
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://test",
+            headers={"Authorization": "Bearer " + "o" * 32},
+        ) as client:
+            with pytest.raises(httpx.ReadError):
+                await client.post("/v1/resources/actions", json=payload)
+        assert transport.calls == 1
+        assert coordinator.intent.read() == IntentRecord(
+            False, payload["expected_owner_intent_revision"] + 1
+        )
+        saved = json.loads(
+            coordinator.db.execute(
+                "SELECT result FROM actions WHERE key=?", (payload["idempotency_key"],)
+            ).fetchone()[0]
+        )
+        assert saved["owner_intent_change"] == {
+            "enabled": False,
+            "revision": coordinator.intent.read().revision,
+        }
+        # The old exact receipt must survive a newer independent choice and restart.
+        on = await legacy_choice(runtime, True)
+        await coordinator.close()
+        store.close()
+        coordinator, runtime, store = await make_coordinated(tmp_path)
+        before = coordinator.intent.path.read_bytes()
+        assert await coordinator.action(payload) == saved
+        assert coordinator.intent.path.read_bytes() == before
+        assert coordinator.intent.read() == IntentRecord(True, on["owner_intent_revision"])
+        assert runtime.enabled
+        assert coordinator.db.execute("SELECT count(*) FROM actions").fetchone()[0] == 1
+    finally:
+        await coordinator.close()
+        store.close()
+
+
+async def test_cas_null_ledger_result_stays_uncertain_without_owner_or_worker_retry(
+    coordinated, monkeypatch
+):
+    coordinator, _, _ = coordinated
+    payload = cas_payload("uncertain-cas", False, coordinator.intent.read().revision)
+    digest = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    with coordinator.db:
+        coordinator.db.execute(
+            "INSERT INTO actions VALUES(?,?,NULL)", (payload["idempotency_key"], digest)
+        )
+    before_policy = coordinator.state.path.read_bytes()
+    before_intent = coordinator.intent.path.read_bytes()
+    spies = spy_resource_effects(monkeypatch, coordinator)
+    for _ in range(2):
+        result = await coordinator.action(payload)
+        assert not result["ok"] and result["uncertain"]
+        assert "owner_intent_change" not in result
+        assert "owner_intent_conflict" not in result
+    with pytest.raises(ValueError, match="idempotency key conflicts"):
+        await coordinator.action({**payload, "expected_owner_intent_revision": 1})
+    assert coordinator.intent.path.read_bytes() == before_intent
+    assert coordinator.state.path.read_bytes() == before_policy
+    assert (
+        coordinator.db.execute(
+            "SELECT result FROM actions WHERE key=?", (payload["idempotency_key"],)
+        ).fetchone()[0]
+        is None
+    )
+    for spy in spies:
+        spy.assert_not_awaited()
+
+
+async def test_cas_stale_off_cannot_preempt_managed_whistle_while_action_lock_is_held(
+    tmp_path, monkeypatch
+):
+    coordinator, runtime, store = await make_coordinated(tmp_path, worker_id="whistle")
+    pending = None
+    entered = asyncio.Event()
+    original_action = coordinator._action
+
+    async def entered_action(payload):
+        entered.set()
+        return await original_action(payload)
+
+    monkeypatch.setattr(coordinator, "_action", entered_action)
+    try:
+        old_revision = coordinator.intent.read().revision
+        on = await legacy_choice(runtime, True)
+        await coordinator.reconcile_owner_intent()
+        policy = coordinator.whistle_policy()
+        assert policy is not None
+        before_policy = coordinator.state.path.read_bytes()
+        before_intent = coordinator.intent.path.read_bytes()
+        before_worker = coordinator.manager.owned_identity("whistle")
+        assert before_worker is not None
+        spies = spy_resource_effects(monkeypatch, coordinator)
+        async with coordinator.lock:
+            pending = asyncio.create_task(
+                coordinator.action(cas_payload("stale-whistle-off", False, old_revision))
+            )
+            await asyncio.wait_for(entered.wait(), 1)
+            assert not pending.done()
+            assert coordinator._whistle_preemptions == 0
+            assert coordinator.whistle_policy() == policy
+            for spy in spies:
+                spy.assert_not_awaited()
+        result = await asyncio.wait_for(pending, 2)
+        assert result["owner_intent_conflict"] and not result["ok"]
+        assert "owner_intent_change" not in result
+        assert result["observed_owner_intent"] == {
+            "enabled": True,
+            "revision": on["owner_intent_revision"],
+        }
+        assert coordinator.state.path.read_bytes() == before_policy
+        assert coordinator.intent.path.read_bytes() == before_intent
+        assert coordinator.manager.is_current(before_worker)
+        assert coordinator.status()["workers"]["whistle"]["ready"] is True
+        assert coordinator._whistle_preemptions == 0
+        assert runtime.enabled
+        for spy in spies:
+            spy.assert_not_awaited()
+    finally:
+        if pending is not None:
+            await asyncio.wait_for(asyncio.gather(pending, return_exceptions=True), 3)
+        await coordinator.close()
+        store.close()
+
+
+@pytest.mark.parametrize("explicit_null", [False, True])
+async def test_cas_unconditional_off_still_preempts_managed_whistle_before_action_lock(
+    tmp_path, monkeypatch, explicit_null
+):
+    coordinator, runtime, store = await make_coordinated(tmp_path, worker_id="whistle")
+    entered = asyncio.Event()
+    pending = None
+    original_action = coordinator._action
+
+    async def entered_action(payload):
+        entered.set()
+        return await original_action(payload)
+
+    monkeypatch.setattr(coordinator, "_action", entered_action)
+    payload = {"operation": "converse", "idempotency_key": "unconditional-off", "enabled": False}
+    if explicit_null:
+        payload["expected_owner_intent_revision"] = None
+    try:
+        before = coordinator.intent.read()
+        assert coordinator.whistle_policy() is not None
+        async with coordinator.lock:
+            pending = asyncio.create_task(coordinator.action(payload))
+            await asyncio.wait_for(entered.wait(), 1)
+            assert not pending.done()
+            assert coordinator._whistle_preemptions == 1
+            with pytest.raises(WhistleAdmissionError):
+                coordinator.whistle_policy()
+        result = await asyncio.wait_for(pending, 3)
+        assert result["ok"] and not runtime.enabled
+        assert result["owner_intent_change"] == {
+            "enabled": False,
+            "revision": before.revision + 1,
+        }
+        assert coordinator._whistle_preemptions == 0
+        assert coordinator.status()["workers"]["whistle"]["state"] == "stopped"
+    finally:
+        if pending is not None:
+            await asyncio.wait_for(asyncio.gather(pending, return_exceptions=True), 4)
+        await coordinator.close()
+        store.close()
+
+
+async def test_cas_conflict_replay_after_restart_keeps_the_original_observed_choice(
+    tmp_path, monkeypatch
+):
+    coordinator, runtime, store = await make_coordinated(tmp_path)
+    try:
+        snapshot = coordinator.intent.read()
+        first_off = await legacy_choice(runtime, False)
+        payload = cas_payload("durable-conflict", True, snapshot.revision)
+        refused = await coordinator.action(payload)
+        assert refused["owner_intent_conflict"] and not refused["ok"]
+        assert refused["observed_owner_intent"] == {
+            "enabled": False,
+            "revision": first_off["owner_intent_revision"],
+        }
+        latest_off = await legacy_choice(runtime, False)
+        await coordinator.close()
+        store.close()
+        coordinator, runtime, store = await make_coordinated(tmp_path)
+        before_policy = coordinator.state.path.read_bytes()
+        before_intent = coordinator.intent.path.read_bytes()
+        spies = spy_resource_effects(monkeypatch, coordinator)
+        assert await coordinator.action(payload) == refused
+        assert coordinator.intent.read() == IntentRecord(False, latest_off["owner_intent_revision"])
+        assert coordinator.intent.path.read_bytes() == before_intent
+        assert coordinator.state.path.read_bytes() == before_policy
+        assert not runtime.enabled
+        for spy in spies:
+            spy.assert_not_awaited()
+    finally:
+        await coordinator.close()
+        store.close()
+
+
+@pytest.mark.parametrize("explicit_null", [False, True])
+async def test_cas_optional_revision_preserves_unconditional_resource_writes_and_receipts(
+    coordinated, explicit_null
+):
+    coordinator, _, _ = coordinated
+    before = coordinator.intent.read()
+    payload = {
+        "operation": "converse",
+        "idempotency_key": "legacy-write",
+        "enabled": before.enabled,
+    }
+    if explicit_null:
+        payload["expected_owner_intent_revision"] = None
+    original = await coordinator.action(payload)
+    assert original["ok"]
+    assert original["owner_intent_change"] == {
+        "enabled": before.enabled,
+        "revision": before.revision + 1,
+    }
+    assert await coordinator.action(payload) == original
+    assert coordinator.intent.read().revision == before.revision + 1
+    another = await coordinator.action({**payload, "idempotency_key": "second-legacy-write"})
+    assert another["ok"]
+    assert another["owner_intent_change"] == {
+        "enabled": before.enabled,
+        "revision": before.revision + 2,
+    }
 
 
 async def test_local_only_and_missing_policy_block_cloud_before_call(tmp_path):

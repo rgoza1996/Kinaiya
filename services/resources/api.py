@@ -18,6 +18,7 @@ class ResourceAction(BaseModel):
         | None
     ) = None
     enabled: bool | None = None
+    expected_owner_intent_revision: int | None = Field(default=None, ge=0, le=(1 << 63) - 1)
     required_bytes: int = Field(default=0, ge=0, le=1 << 46)
     required_gpu_bytes: int = Field(default=0, ge=0, le=1 << 46)
     task_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
@@ -29,7 +30,7 @@ class ResourceAction(BaseModel):
             "profile": {"profile"},
             "handoff": {"required_bytes", "required_gpu_bytes", "task_id", "reason"},
             "restore": set(),
-            "converse": {"enabled"},
+            "converse": {"enabled", "expected_owner_intent_revision"},
             "task_finished": {"task_id"},
         }
         if self.model_fields_set - {"operation", "idempotency_key"} - allowed[self.operation]:

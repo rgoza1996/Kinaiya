@@ -73,6 +73,10 @@ and cannot rewrite a newer owner choice. Handoff rechecks current provider
 locality, including after Converse reconfiguration; an unmanaged local text
 worker still refuses handoff.
 
+[ADR 0078](0078-conditional-converse-owner-intent.md) specifies an additive
+expected-owner-revision precondition for a new resource converse action,
+separate from replay protection and resource readiness.
+
 Resource status projects current owner intent even while a worker action holds
 the controller lock. `policy.owner_intent_revision` is independent of the worker
 `revision`; Flutter checks both and rejects retreating owner revisions. This
