@@ -60,6 +60,7 @@ from packages.contracts.models import (
     TaskRequest,
     TaskRetirement,
     TaskState,
+    new_id,
 )
 from packages.providers.disclosure import combine_scopes, entry_allowed, scope_allowed, source_scope
 from packages.providers.prompt_budget import PromptCountUnavailable
@@ -1720,6 +1721,45 @@ class AgentRuntime:
             if stale is not None:
                 raise PolicyDenied(stale)
 
+        async def admit_export(purpose, request_sha256):
+            from packages.contracts.agent_export import AgentExportAdmission, AgentExportRequest
+
+            current()
+            admission = getattr(self.journal, "agent_export_admission", None)
+            if not callable(admission):
+                raise PromptCountUnavailable("Native Agent export admission is unavailable")
+            request = AgentExportRequest(
+                task_id=rec.task.task_id,
+                objective_revision=revision,
+                session_id=rec.task.session_id,
+                thread_id=rec.task.thread_id,
+                epoch=rec.task.epoch,
+                source_event_ids=list(rec.task.source_event_ids),
+                source_revisions=dict(rec.source_revisions),
+                content_scope=rec.task.content_scope,
+                provider=provider_info.model_dump(mode="json"),
+                request_sha256=request_sha256,
+                purpose=purpose,
+                request_nonce=new_id(),
+            )
+            try:
+                receipt = await admission(request)
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                rec.task.content_scope = "local_only"
+                raise PromptCountUnavailable("Native Agent export admission was refused") from exc
+            current()
+            try:
+                if type(receipt) is not AgentExportAdmission:
+                    raise ValueError("Invalid native admission type")
+                receipt.validate_request(request)
+            except Exception as exc:
+                rec.task.content_scope = "local_only"
+                raise PromptCountUnavailable("Native Agent export admission is invalid") from exc
+            rec.task.content_scope = combine_scopes(rec.task.content_scope, receipt.effective_scope)
+            current()
+
         messages = build_messages(
             rec.task.objective,
             revision,
@@ -1734,7 +1774,7 @@ class AgentRuntime:
         )
         prepared = None
         try:
-            with agent_tool_scope(tools, export_guard=current):
+            with agent_tool_scope(tools, export_guard=current, export_admission=admit_export):
                 selection = await select_history(
                     messages[:2], history_exchanges(messages[2:]), prepare, check
                 )

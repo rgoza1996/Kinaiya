@@ -2,6 +2,7 @@
 
 import asyncio
 import copy
+import hashlib
 import json
 
 import httpx
@@ -954,5 +955,82 @@ async def test_generic_compatible_has_no_guessed_complete_count_capability():
     )
     try:
         assert not callable(getattr(p, "prepare_complete", None))
+    finally:
+        await p.close()
+
+
+async def test_each_count_and_generation_admits_exact_uploaded_bytes_after_request_hooks():
+    events = []
+    admitted = []
+
+    async def receive(request, body):
+        events.append("transport")
+        assert admitted[-1][1] == hashlib.sha256(request.content).hexdigest()
+        if request.url.path.endswith("input_tokens"):
+            assert admitted[-1][0] == "complete_count"
+            return httpx.Response(200, content=COUNT)
+        assert admitted[-1][0] == "complete_generation"
+        return generation(body)
+
+    p, calls = provider(receive)
+
+    async def hook(_request):
+        await asyncio.sleep(0)
+        events.append("request_hook")
+
+    async def admit(purpose, digest):
+        events.append("admission")
+        await asyncio.sleep(0)
+        admitted.append((purpose, digest))
+
+    p.http.event_hooks["request"].append(hook)
+    try:
+        with agent_tool_scope(native_tool_snapshot(), export_admission=admit):
+            prepared = await p.prepare_complete(MESSAGES)
+            await prepared.complete()
+        assert events == ["request_hook", "admission", "transport"] * 2
+        assert len(calls) == len(admitted) == 2
+        assert admitted[0][1] == admitted[1][1]
+    finally:
+        await p.close()
+
+
+@pytest.mark.parametrize("stage", ["count", "generation"])
+async def test_revoked_native_admission_blocks_before_external_transport(stage):
+    admitted = []
+    p, calls = provider()
+
+    async def admit(purpose, _digest):
+        admitted.append(purpose)
+        if purpose == ("complete_count" if stage == "count" else "complete_generation"):
+            raise PromptCountUnavailable("Native source was revoked")
+
+    try:
+        with agent_tool_scope(native_tool_snapshot(), export_admission=admit):
+            with pytest.raises(PromptCountUnavailable):
+                prepared = await p.prepare_complete(MESSAGES)
+                await prepared.complete()
+        assert len(calls) == (0 if stage == "count" else 1)
+        assert admitted[-1] == ("complete_count" if stage == "count" else "complete_generation")
+    finally:
+        await p.close()
+
+
+async def test_native_guard_is_rechecked_after_awaited_source_admission():
+    p, calls = provider()
+    allowed = True
+
+    async def admit(_purpose, _digest):
+        nonlocal allowed
+        await asyncio.sleep(0)
+        allowed = False
+
+    try:
+        with agent_tool_scope(
+            native_tool_snapshot(), export_guard=lambda: allowed, export_admission=admit
+        ):
+            with pytest.raises(ProviderRefusal):
+                await p.prepare_complete(MESSAGES)
+        assert calls == []
     finally:
         await p.close()

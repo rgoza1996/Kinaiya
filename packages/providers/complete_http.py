@@ -8,6 +8,7 @@ retain the ordinary client behavior.
 
 import asyncio
 import copy
+import hashlib
 from collections.abc import Callable
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
@@ -40,6 +41,9 @@ class _Boundary:
     body: bytes
     stream: _FrozenBody
     extensions: dict
+    admission: object
+    purpose: str
+    sent: list[bool]
 
     def current(self, transport, request):
         self.check()
@@ -70,6 +74,17 @@ class _ForwardingTransport(httpx.AsyncBaseTransport):
         # transport call. Its connection pool/stream lifetime remains owned by
         # the original client, not this per-request forwarding object.
         self.boundary.current(self.transport, request)
+        if self.boundary.sent[0]:
+            raise PromptCountUnavailable("Meta complete HTTP dispatch is consumed")
+        self.boundary.sent[0] = True
+        if self.boundary.admission is not None:
+            # Native authority is read atomically after awaited HTTP hooks.
+            # Its admission is the linearization point; a later revocation
+            # cannot recall an already admitted in-flight disclosure.
+            await self.boundary.admission(
+                self.boundary.purpose, hashlib.sha256(self.boundary.body).hexdigest()
+            )
+            self.boundary.current(self.transport, request)
         response = await self.transport.handle_async_request(request)
         # HTTPX runs response hooks before returning to the caller. Establish
         # close ownership before one of those hooks can await or raise.
@@ -87,7 +102,7 @@ class RequestBoundAsyncClient(httpx.AsyncClient):
 
 
 @asynccontextmanager
-async def complete_stream(client, path, body, check, own_stream):
+async def complete_stream(client, path, body, check, own_stream, *, admission=None, purpose=""):
     """Send one frozen request; reject mutation after auth/request-hook awaits."""
     if not isinstance(client, RequestBoundAsyncClient):
         raise PromptCountUnavailable("Meta complete HTTP client is unsupported")
@@ -111,6 +126,9 @@ async def complete_stream(client, path, body, check, own_stream):
         request.content,
         request.stream,
         copy.deepcopy(request.extensions),
+        admission,
+        purpose,
+        [False],
     )
     token = _request_boundary.set(boundary)
     try:

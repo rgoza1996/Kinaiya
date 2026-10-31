@@ -19,6 +19,7 @@ from packages.contracts.agent_tools import (
     LEGACY_NATIVE_TOOL_ORDER,
     NATIVE_TOOL_ORDER,
     agent_export_permitted,
+    capture_agent_export_admission,
     capture_agent_export_check,
     current_agent_tools,
 )
@@ -748,7 +749,7 @@ class MetaResponsesProvider:
             request_digest(self.info.model_dump()),
         )
 
-    async def _input_tokens(self, client, body, check=None):
+    async def _input_tokens(self, client, body, check=None, admission=None):
         """One actual count response, owned through EOF and real HTTP close."""
         from packages.providers.complete_http import complete_stream
         from packages.providers.prompt_budget import MAX_SAFE_COUNT, PromptCountUnavailable
@@ -759,7 +760,13 @@ class MetaResponsesProvider:
                 client.stream("POST", "responses/input_tokens", json=body)
                 if check is None
                 else complete_stream(
-                    client, "responses/input_tokens", body, check, _OwnedHTTPStream
+                    client,
+                    "responses/input_tokens",
+                    body,
+                    check,
+                    _OwnedHTTPStream,
+                    admission=admission,
+                    purpose="complete_count",
                 )
             )
             async with context as response:
@@ -809,6 +816,7 @@ class MetaResponsesProvider:
             raise PromptCountUnavailable("Explicit Meta complete context limit is required")
         owner, snapshot = asyncio.current_task(), current_agent_tools()
         captured = capture_agent_export_check()
+        admission = capture_agent_export_admission()
         request_tools = (
             snapshot.available_tools if snapshot is not None else LEGACY_NATIVE_TOOL_ORDER
         )
@@ -872,7 +880,7 @@ class MetaResponsesProvider:
                 raise PromptCountUnavailable("Meta complete prompt admission changed") from exc
 
         try:
-            tokens = await self._input_tokens(client, body, current)
+            tokens = await self._input_tokens(client, body, current, admission)
             current()
             measured = PromptTokenCount(
                 tokens,
@@ -894,7 +902,9 @@ class MetaResponsesProvider:
 
         async def generate():
             current()
-            return await self._complete_request(client, body, request_tools, check=current)
+            return await self._complete_request(
+                client, body, request_tools, check=current, admission=admission
+            )
 
         return PreparedComplete(measured, generate)
 
@@ -1232,7 +1242,7 @@ class MetaResponsesProvider:
         client, body = self._generation_request(messages, False)
         return await self._complete_request(client, body, request_tools)
 
-    async def _complete_request(self, client, body, request_tools, *, check=None):
+    async def _complete_request(self, client, body, request_tools, *, check=None, admission=None):
         from packages.providers.complete_http import complete_stream
         from packages.providers.decision_capture import capture_request, capture_response
 
@@ -1259,7 +1269,13 @@ class MetaResponsesProvider:
         else:
             check(body)
             async with complete_stream(
-                client, "responses", body, lambda: check(body), _OwnedHTTPStream
+                client,
+                "responses",
+                body,
+                lambda: check(body),
+                _OwnedHTTPStream,
+                admission=admission,
+                purpose="complete_generation",
             ) as response:
                 _reject_compressed_response(response)
                 collected = bytearray()

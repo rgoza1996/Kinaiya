@@ -109,22 +109,27 @@ def native_tool_snapshot(
 
 _agent_tools: ContextVar[NativeToolSnapshot | None] = ContextVar("agent_native_tools", default=None)
 _agent_export_guard: ContextVar[object] = ContextVar("agent_tool_export_guard", default=None)
+_agent_export_admission: ContextVar[object] = ContextVar("agent_export_admission", default=None)
 
 
 @contextmanager
 def agent_tool_scope(
-    snapshot: NativeToolSnapshot, *, export_guard=None
+    snapshot: NativeToolSnapshot, *, export_guard=None, export_admission=None
 ) -> Iterator[NativeToolSnapshot]:
     """Bind one request without modifying a provider or another task's scope."""
     if type(snapshot) is not NativeToolSnapshot:
         raise ValueError("Agent tool scope requires a native tool snapshot")
     if export_guard is not None and not callable(export_guard):
         raise ValueError("Agent tool export guard requires a native callable")
+    if export_admission is not None and not callable(export_admission):
+        raise ValueError("Agent export admission requires a native callable")
     token = _agent_tools.set(snapshot)
     export_token = _agent_export_guard.set(export_guard)
+    admission_token = _agent_export_admission.set(export_admission)
     try:
         yield snapshot
     finally:
+        _agent_export_admission.reset(admission_token)
         _agent_export_guard.reset(export_token)
         _agent_tools.reset(token)
 
@@ -158,6 +163,16 @@ def capture_agent_export_check() -> Callable[[], bool]:
             return False
 
     return permitted
+
+
+def capture_agent_export_admission():
+    """Capture the native async source admission for each final HTTP dispatch.
+
+    The callback accepts purpose and the actual uploaded body SHA256. It is
+    never supplied by a model/tool result and is not a reusable permission.
+    Fixture/standalone provider calls may have no source authority attached.
+    """
+    return _agent_export_admission.get()
 
 
 @contextmanager
