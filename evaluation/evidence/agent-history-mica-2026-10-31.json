@@ -1,0 +1,737 @@
+{
+  "schema_version": 1,
+  "recorded_date": "2026-10-31",
+  "tracking_issues": [
+    2,
+    179,
+    183
+  ],
+  "case_id": "mica-inventory-v1",
+  "case_consumed": true,
+  "reuse_as_fresh_evaluation_allowed": false,
+  "result": "passed_one_bounded_public_synthetic_repository_workflow",
+  "scope": {
+    "actual_native_components": [
+      "AgentRuntime",
+      "Store",
+      "role-Agent LocalJournal",
+      "MetaResponsesProvider"
+    ],
+    "converse_present": false,
+    "decisions_present": false,
+    "generation_inference_requests": 6,
+    "count_requests": 6,
+    "attempts": 1,
+    "automatic_retry": false,
+    "general_reliability_claim": false,
+    "all_M1_gates_complete_claim": false,
+    "paired_causal_comparison_claim": false,
+    "raw_private_requests_or_journal_published": false,
+    "converse_absence_boundary": "The fresh trial constructed and used no Converse or Decisions runtime; unrelated host services were preserved. Physical process-off evidence is separate prior CLI/browser work."
+  },
+  "source": {
+    "head": "1f19315396ff3e129ac90612f97efb547d1a65e5",
+    "tree": "8fcc8a041607e5104222adb78cbadfff680a9332",
+    "clean_at_freeze_and_after": true,
+    "merged_as": "06117063433943cfc4fbdb7cc8322350a9bdb4d7",
+    "pull_request": "https://github.com/rgoza1996/Kinaiya/pull/185",
+    "exact_head_ci": {
+      "head": "1f19315396ff3e129ac90612f97efb547d1a65e5",
+      "tree": "8fcc8a041607e5104222adb78cbadfff680a9332",
+      "run_id": 41220660884,
+      "url": "https://github.com/rgoza1996/Kinaiya/actions/runs/41220660884",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "name": "ios",
+          "conclusion": "success"
+        },
+        {
+          "name": "python (3.12)",
+          "conclusion": "success"
+        },
+        {
+          "name": "python (3.11)",
+          "conclusion": "success"
+        },
+        {
+          "name": "flutter",
+          "conclusion": "success"
+        },
+        {
+          "name": "android",
+          "conclusion": "success"
+        }
+      ],
+      "provenance": "Root verified exact-head CI before the attempt; projected from the frozen trial declaration. Capsule preparation made no network request."
+    }
+  },
+  "profile": {
+    "model": "muse-spark-1.3-contributor",
+    "reasoning_effort": "xhigh",
+    "max_output_tokens": 8192,
+    "context_tokens": 1007997,
+    "action_format": "flat-v1",
+    "max_steps": 18,
+    "max_count_requests": 18,
+    "deadline_s": 300,
+    "content_scope": "public_synthetic"
+  },
+  "provenance_sha256": {
+    "frozen_preparation_declaration": "41db2735ec5c11c649e47c17b3cdbabeb598c1a709fa0b590b38f4751a6a0889",
+    "frozen_trial_declaration": "144d5780be3b57a2af1e344b49c9e561a9e76bd02ba3637e231d8129424a88a4",
+    "frozen_fixture_manifest": "b556f9bb1c1cce4185c00ae0535f8f3fb752f49af9e602b953ecdfb47c4db580",
+    "runner": "5bed29a71626982bac1ddad140f1f569b0486c8f7cc40f676e7f1707391dc876",
+    "prompt": "335fcbdff8f90d9d3a0cb000c08ad64dbf5505716501c3669bd426637f7694d2",
+    "actual_trial_receipt": "7d393ff32a63a71dad1974df980489970fa4164ccd9e32ea20aae7ddbcbbd2b8",
+    "independent_review_receipt": "9c139bcfeda9bbdb4ba196d3852e17437aadfd03fc20565ab7b419b38f25d70a",
+    "independent_review_script": "e8ebafd23d32771968c6b4e5a7d7277b076443ee692d6a0b6cf72ba00c1e9e2f",
+    "captured_wire_index": "39186d3e6abcc091270fe78359494e59efe5005ce6f317f8e3771e8be1b0365d",
+    "native_event_export": "33206a41ce72ec1c712f4eaa48c93a321df02a0f2d0ba38edf0f6e80dd8bcf4f",
+    "native_journal": "c9d49c73e750cb25d26557ed58f829afa30df02a9d3d469bd159f9a96bc08c26",
+    "native_cleanup_receipt": "5a493b9a7db577c5169682ab1869c642c42b70481a0ccdf6f4626bcb5cb28bd3",
+    "heldout_receipt": "de4fb5b7ac87df090087700ddff72099bb1fc5ffd17eee48f4f8e464c6941961",
+    "candidate_diff": "1279685fa66c22c81774db0dcc84b175c984bf868f658e82a9c315324f6f64de"
+  },
+  "fixture": {
+    "baseline_git_commit": "5c57689322a18b2236c42d1418eb16f4c89302f3",
+    "baseline_clean": true,
+    "remote_count": 0,
+    "fresh_relative_to_waterlog": true,
+    "frozen_before_inference": true,
+    "author_reference_status": "Synthetic author judgments, not human ground truth or a general benchmark.",
+    "original_manifest_utf8": "{\n  \"case_id\": \"mica-inventory-v1\",\n  \"workspace\": \"fixture/workspace\",\n  \"grader\": \"fixture/grader\",\n  \"public_test_command\": \"python3 -B -m unittest discover -s tests -v\",\n  \"heldout_test_command\": \"python3 -B -m unittest discover -s heldout -v\",\n  \"allowed_agent_writes\": [\n    \"mica/ledger.py\"\n  ],\n  \"schema_version\": \"1.0\",\n  \"files\": {\n    \"fixture/workspace/LICENSE\": {\n      \"sha256\": \"662b38ca52be426823f98ea1a8e3eb1571c9ce3dad3eff164bb743c2b1197839\",\n      \"size_bytes\": 88\n    },\n    \"fixture/workspace/README.md\": {\n      \"sha256\": \"41627d74e167d60e9915eb6fd1d1634c02baa6820f8f1e1c45687ffb8c54c5d7\",\n      \"size_bytes\": 2299\n    },\n    \"fixture/workspace/mica/__init__.py\": {\n      \"sha256\": \"dce21fd9745d77fdada8d95530a6f52c9a3269e5551442cd6246b940af16c7b2\",\n      \"size_bytes\": 108\n    },\n    \"fixture/workspace/mica/ledger.py\": {\n      \"sha256\": \"9686ecdf3fefb58cd51856399976898ed397629af59f15a97f72c752681a8d61\",\n      \"size_bytes\": 909\n    },\n    \"fixture/workspace/tests/test_ledger.py\": {\n      \"sha256\": \"608d44044b3a3d7fa87af651ee3c411d5a46044731da753e87e275ae984d3408\",\n      \"size_bytes\": 4084\n    },\n    \"fixture/grader/test_ledger_heldout.py\": {\n      \"sha256\": \"03d1b32c94294a9b844dd394d6122c4f75e90d12718d74e309b4e3a7471b7696\",\n      \"size_bytes\": 2023\n    }\n  },\n  \"baseline_commit\": \"5c57689322a18b2236c42d1418eb16f4c89302f3\",\n  \"remote_count\": 0,\n  \"baseline_worktree_clean\": true,\n  \"test_counts\": {\n    \"public\": 14,\n    \"heldout\": 8\n  },\n  \"public_test_bytes\": 4084,\n  \"fresh_case\": true,\n  \"previous_case_reused\": false\n}\n",
+    "files": {
+      "fixture/workspace/LICENSE": {
+        "utf8_text": "Mica synthetic fixture: CC0 1.0 Universal. Public-domain synthetic evaluation material.\n",
+        "sha256": "662b38ca52be426823f98ea1a8e3eb1571c9ce3dad3eff164bb743c2b1197839",
+        "utf8_bytes": 88
+      },
+      "fixture/workspace/README.md": {
+        "utf8_text": "# Mica inventory ledger\n\nMica is a small Python standard-library package for totaling inventory movements.\nThe current implementation has a normalization/aggregation defect. Correct\n`mica/ledger.py` while preserving its public API and all other repository files.\n\n## Contract\n\n`inventory_totals(movements, *, include_zero=False)` consumes an iterable of\n`(sku, delta)` pairs once and returns a **list of `(canonical_sku, total)` tuples**.\nA row may be a two-item tuple or list. The function must not mutate the iterable\nor any input row. Empty input returns an empty list.\n\n- Each SKU is a string. Its canonical form is exactly `sku.strip().casefold()`\n  using Python's ordinary Unicode string methods, in that order. A SKU that is\n  blank after stripping raises `ValueError`. A non-string SKU raises `TypeError`.\n  Do not perform any other Unicode normalization or punctuation rewriting.\n- Each delta must have the exact built-in type `int`; `bool`, floats and other\n  types raise `TypeError`. Integers are not converted through floating point.\n  Positive, negative and zero deltas are valid; negative final stock is allowed.\n- Combine **all movements with the same canonical SKU** by integer addition,\n  regardless of original spelling or input order. Return each canonical SKU at\n  most once, sorted by Python's normal ascending string order.\n- By default, omit a canonical SKU if its **combined final total** is zero.\n  With `include_zero=True`, retain every canonical SKU that appeared, including\n  those whose final total is zero. The flag is used as a normal boolean option.\n- Every row must be a tuple or list of exactly two items; otherwise raise\n  `ValueError`. Invalid input must raise, rather than returning a partial result.\n\nThere are no files, persistence, timestamps, network services, third-party\npackages, or command-line interfaces involved in this API.\n\n## Verification\n\nFrom the repository root run exactly:\n\n```sh\npython3 -B -m unittest discover -s tests -v\n```\n\nThe 14 public tests include substantive cancellation and input-order assertions\nat the end of `tests/test_ledger.py`. Read the complete README, source and public\ntest file before editing. Change only `mica/ledger.py`; do not modify tests,\nREADME, package exports or Git metadata. Report the actual command result.\n",
+        "sha256": "41627d74e167d60e9915eb6fd1d1634c02baa6820f8f1e1c45687ffb8c54c5d7",
+        "utf8_bytes": 2299
+      },
+      "fixture/workspace/mica/__init__.py": {
+        "utf8_text": "\"\"\"Mica inventory aggregation API.\"\"\"\n\nfrom .ledger import inventory_totals\n\n__all__ = [\"inventory_totals\"]\n",
+        "sha256": "dce21fd9745d77fdada8d95530a6f52c9a3269e5551442cd6246b940af16c7b2",
+        "utf8_bytes": 108
+      },
+      "fixture/workspace/mica/ledger.py": {
+        "utf8_text": "\"\"\"Aggregate stock movements into a deterministic inventory ledger.\"\"\"\n\n\ndef inventory_totals(movements, *, include_zero=False):\n    \"\"\"Return sorted canonical SKU totals without changing input rows.\"\"\"\n    totals = {}\n    for row in movements:\n        if not isinstance(row, (tuple, list)) or len(row) != 2:\n            raise ValueError(\"each movement must be a two-item tuple or list\")\n        sku, delta = row\n        if not isinstance(sku, str):\n            raise TypeError(\"SKU must be a string\")\n        canonical = sku.strip().casefold()\n        if not canonical:\n            raise ValueError(\"SKU must not be blank\")\n        if type(delta) is not int:\n            raise TypeError(\"delta must be an integer\")\n        totals[sku] = totals.get(sku, 0) + delta\n    return sorted(\n        (sku.strip().casefold(), total)\n        for sku, total in totals.items()\n        if include_zero or total != 0\n    )\n",
+        "sha256": "9686ecdf3fefb58cd51856399976898ed397629af59f15a97f72c752681a8d61",
+        "utf8_bytes": 909
+      },
+      "fixture/workspace/tests/test_ledger.py": {
+        "utf8_text": "\"\"\"Public behavior examples for Mica's documented inventory API.\"\"\"\n\nimport unittest\n\nfrom mica import inventory_totals\n\n\nclass InventoryLedgerTests(unittest.TestCase):\n    def test_empty_input(self):\n        self.assertEqual(inventory_totals([]), [])\n        self.assertEqual(inventory_totals(iter(()), include_zero=True), [])\n\n    def test_single_movement_has_canonical_name(self):\n        self.assertEqual(inventory_totals([(\"  WIDGET-A  \", 7)]), [(\"widget-a\", 7)])\n\n    def test_identical_spelling_accumulates(self):\n        movements = [(\"bolt\", 5), (\"bolt\", -2), (\"bolt\", 4)]\n        self.assertEqual(inventory_totals(movements), [(\"bolt\", 7)])\n\n    def test_case_and_space_aliases_form_one_total(self):\n        movements = [(\" BOLT \", 5), (\"bolt\", -2), (\"Bolt\", 4)]\n        self.assertEqual(inventory_totals(movements), [(\"bolt\", 7)])\n\n    def test_unicode_whitespace_is_stripped_before_matching(self):\n        movements = [(\"\\tNUT\\n\", 3), (\"\\u2003nut\\u2003\", 8)]\n        self.assertEqual(inventory_totals(movements), [(\"nut\", 11)])\n\n    def test_negative_final_stock_is_retained(self):\n        self.assertEqual(inventory_totals([(\"washer\", -9), (\"washer\", 2)]), [(\"washer\", -7)])\n\n    def test_zero_is_omitted_after_aliases_are_combined(self):\n        movements = [(\"Cable\", 9), (\" cable \", -9), (\"clip\", 2)]\n        self.assertEqual(inventory_totals(movements), [(\"clip\", 2)])\n\n    def test_include_zero_retains_combined_and_explicit_zero(self):\n        movements = [(\"Case\", 4), (\"case\", -4), (\"empty\", 0)]\n        self.assertEqual(\n            inventory_totals(movements, include_zero=True),\n            [(\"case\", 0), (\"empty\", 0)],\n        )\n\n    def test_output_is_sorted_by_canonical_sku(self):\n        movements = [(\"zinc\", 1), (\" BRASS \", 2), (\"aluminum\", 3)]\n        self.assertEqual(\n            inventory_totals(movements),\n            [(\"aluminum\", 3), (\"brass\", 2), (\"zinc\", 1)],\n        )\n\n    def test_generator_is_consumed_once(self):\n        observed = []\n\n        def movements():\n            for row in [(\"Rod\", 3), (\"rod\", 6), (\"coil\", 2)]:\n                observed.append(row)\n                yield row\n\n        self.assertEqual(inventory_totals(movements()), [(\"coil\", 2), (\"rod\", 9)])\n        self.assertEqual(len(observed), 3)\n\n    def test_boolean_float_and_string_deltas_are_rejected(self):\n        for bad in (True, False, 1.0, \"2\", None):\n            with self.subTest(delta=bad):\n                with self.assertRaises(TypeError):\n                    inventory_totals([(\"bolt\", bad)])\n\n    def test_invalid_skus_and_rows_are_rejected(self):\n        for bad in (\"\", \" \\t\\n\", \"\\u2003\"):\n            with self.assertRaises(ValueError):\n                inventory_totals([(bad, 1)])\n        for bad in (None, 23, b\"bolt\"):\n            with self.assertRaises(TypeError):\n                inventory_totals([(bad, 1)])\n        for bad in (\"ab\", (\"bolt\",), [\"bolt\", 1, 2], None):\n            with self.assertRaises(ValueError):\n                inventory_totals([bad])\n\n    def test_casefold_aliases_do_not_trigger_other_normalization(self):\n        movements = [(\"Stra\u00dfe\", 4), (\"STRASSE\", -1), (\"A_B\", 2), (\"a-b\", 3)]\n        self.assertEqual(\n            inventory_totals(movements),\n            [(\"a-b\", 3), (\"a_b\", 2), (\"strasse\", 3)],\n        )\n\n    def test_tail_alias_cancellation_order_and_input_preservation(self):\n        # These tail assertions are part of the behavior, not padding: early\n        # filtering or output-time normalization cannot satisfy cancellation.\n        movements = [[\"  Clamp\", 11], [\"CLAMP  \", -6], [\"clamp\", -5],\n                     [\"Pin\", 4], [\" pin \", -1], [\"PIN\", 6], [\"zero\", 0]]\n        before = [row[:] for row in movements]\n        self.assertEqual(inventory_totals(movements), [(\"pin\", 9)])\n        self.assertEqual(movements, before)\n        self.assertEqual(inventory_totals(reversed(movements)), [(\"pin\", 9)])\n        self.assertEqual(\n            inventory_totals(movements, include_zero=True),\n            [(\"clamp\", 0), (\"pin\", 9), (\"zero\", 0)],\n        )\n\n\nif __name__ == \"__main__\":\n    unittest.main()\n",
+        "sha256": "608d44044b3a3d7fa87af651ee3c411d5a46044731da753e87e275ae984d3408",
+        "utf8_bytes": 4084
+      },
+      "fixture/grader/test_ledger_heldout.py": {
+        "utf8_text": "\"\"\"Frozen independent examples of the public Mica README contract.\"\"\"\n\nimport unittest\n\nfrom mica import inventory_totals\n\n\nclass HeldoutInventoryTests(unittest.TestCase):\n    def test_unicode_aliases_are_combined(self):\n        self.assertEqual(inventory_totals([(\" Wei\u00df \", 12), (\"WEISS\", -3), (\"wei\u00df\", -4)]), [(\"weiss\", 5)])\n\n    def test_cancelled_aliases_leave_no_default_row(self):\n        self.assertEqual(inventory_totals([(\"Part-9\", -17), (\"PART-9\", 20), (\" part-9 \", -3)]), [])\n\n    def test_zero_rows_are_retained_only_when_requested(self):\n        rows = [(\" Y \", 0), (\"x\", -5), (\"X\", 5), (\"y\", 2), (\"Y\", -2)]\n        self.assertEqual(inventory_totals(rows, include_zero=True), [(\"x\", 0), (\"y\", 0)])\n\n    def test_mixed_positive_and_negative_totals_are_sorted(self):\n        rows = [(\"Z\", -2), (\" a\", 6), (\"z \", -3), (\"A\", 9), (\"middle\", 1)]\n        self.assertEqual(inventory_totals(rows), [(\"a\", 15), (\"middle\", 1), (\"z\", -5)])\n\n    def test_one_pass_generator_preserves_integer_precision(self):\n        huge = 10 ** 80\n        rows = ((sku, qty) for sku, qty in [(\"Big\", huge), (\" BIG\", 7), (\"big \", -huge)])\n        self.assertEqual(inventory_totals(rows), [(\"big\", 7)])\n\n    def test_list_rows_and_outer_order_are_not_mutated(self):\n        rows = [[\" Q \", 1], [\"q\", 8], [\"p\", -2]]\n        before = [row[:] for row in rows]\n        self.assertEqual(inventory_totals(rows), [(\"p\", -2), (\"q\", 9)])\n        self.assertEqual(rows, before)\n\n    def test_no_extra_unicode_or_punctuation_normalization(self):\n        rows = [(\"\uff21\", 1), (\"a\", 2), (\"a_b\", 4), (\"a-b\", 8)]\n        self.assertEqual(inventory_totals(rows), [(\"a\", 2), (\"a-b\", 8), (\"a_b\", 4), (\"\uff41\", 1)])\n\n    def test_invalid_later_row_never_returns_partial_result(self):\n        for bad in [(\"good\", True), (\"  \", 2), (\"bad\", 2, 3)]:\n            with self.subTest(row=bad):\n                with self.assertRaises((TypeError, ValueError)):\n                    inventory_totals([(\"valid\", 10), bad])\n\n\nif __name__ == \"__main__\":\n    unittest.main()\n",
+        "sha256": "03d1b32c94294a9b844dd394d6122c4f75e90d12718d74e309b4e3a7471b7696",
+        "utf8_bytes": 2023
+      }
+    },
+    "public_test_command": "python3 -B -m unittest discover -s tests -v",
+    "public_test_count": 14,
+    "public_test_utf8_bytes": 4084,
+    "meaningful_public_test_tail": "test_tail_alias_cancellation_order_and_input_preservation",
+    "original_author_heldout_cases": 8,
+    "original_author_heldout_sha256": "03d1b32c94294a9b844dd394d6122c4f75e90d12718d74e309b4e3a7471b7696",
+    "pre_inference_isolated_checks": {
+      "baseline_public": {
+        "tests": 14,
+        "failed": 7,
+        "exit_code": 1
+      },
+      "baseline_author_heldout": {
+        "tests": 8,
+        "failed": 6,
+        "exit_code": 1
+      },
+      "separate_reference_public": {
+        "tests": 14,
+        "failed": 0,
+        "exit_code": 0
+      },
+      "separate_reference_author_heldout": {
+        "tests": 8,
+        "failed": 0,
+        "exit_code": 0
+      },
+      "mandatory_bwrap": true,
+      "network_grant": false,
+      "cleanup_confirmed": true,
+      "reference_never_in_agent_workspace": true,
+      "proof_sha256": "ea3f9fa471c5306803d4cfce253047a755932bcdcebba6913a6f59eba2f73299"
+    }
+  },
+  "candidate": {
+    "path": "mica/ledger.py",
+    "utf8_text": "\"\"\"Aggregate stock movements into a deterministic inventory ledger.\"\"\"\n\n\ndef inventory_totals(movements, *, include_zero=False):\n    \"\"\"Return sorted canonical SKU totals without changing input rows.\"\"\"\n    totals = {}\n    for row in movements:\n        if not isinstance(row, (tuple, list)) or len(row) != 2:\n            raise ValueError(\"each movement must be a two-item tuple or list\")\n        sku, delta = row\n        if not isinstance(sku, str):\n            raise TypeError(\"SKU must be a string\")\n        canonical = sku.strip().casefold()\n        if not canonical:\n            raise ValueError(\"SKU must not be blank\")\n        if type(delta) is not int:\n            raise TypeError(\"delta must be an integer\")\n        totals[canonical] = totals.get(canonical, 0) + delta\n    return sorted(\n        (sku, total)\n        for sku, total in totals.items()\n        if include_zero or total != 0\n    )\n",
+    "utf8_bytes": 902,
+    "sha256": "a66eae0b1ced2f7da46bed2bb94f25820dee93d6df49970c937ba7dd72757797",
+    "unified_diff_utf8": "--- a/mica/ledger.py\n+++ b/mica/ledger.py\n@@ -15,9 +15,9 @@\n             raise ValueError(\"SKU must not be blank\")\n         if type(delta) is not int:\n             raise TypeError(\"delta must be an integer\")\n-        totals[sku] = totals.get(sku, 0) + delta\n+        totals[canonical] = totals.get(canonical, 0) + delta\n     return sorted(\n-        (sku.strip().casefold(), total)\n+        (sku, total)\n         for sku, total in totals.items()\n         if include_zero or total != 0\n     )\n",
+    "changed_statement_lines": 2,
+    "general_canonical_key_fix": true,
+    "independent_static_review": "The full candidate AST equals the frozen correct reference. No imports, hardcoded case dispatch, fabricated test output, file/process/network operations or top-level executable effects were found."
+  },
+  "observed": {
+    "elapsed_task_seconds": 50.43152827298036,
+    "deadline_reached": false,
+    "native_state": "succeeded",
+    "native_acceptance": true,
+    "durable_success_snapshot_confirmed": true,
+    "post_cleanup_snapshot_identical": true,
+    "native_journal_entries": 11,
+    "successful_tool_order": [
+      "read_file",
+      "read_file",
+      "read_file",
+      "write_file",
+      "shell"
+    ],
+    "whole_prewrite_reads": [
+      {
+        "path": "README.md",
+        "sha256": "41627d74e167d60e9915eb6fd1d1634c02baa6820f8f1e1c45687ffb8c54c5d7",
+        "utf8_bytes": 2299,
+        "native_journal_sequence": 2,
+        "complete_observation_in_generation_request": 8,
+        "message_index": 3,
+        "exact_entire_file_after_ok_prefix": true,
+        "before_first_write": true
+      },
+      {
+        "path": "mica/ledger.py",
+        "sha256": "9686ecdf3fefb58cd51856399976898ed397629af59f15a97f72c752681a8d61",
+        "utf8_bytes": 909,
+        "native_journal_sequence": 3,
+        "complete_observation_in_generation_request": 8,
+        "message_index": 5,
+        "exact_entire_file_after_ok_prefix": true,
+        "before_first_write": true
+      },
+      {
+        "path": "tests/test_ledger.py",
+        "sha256": "608d44044b3a3d7fa87af651ee3c411d5a46044731da753e87e275ae984d3408",
+        "utf8_bytes": 4084,
+        "native_journal_sequence": 4,
+        "complete_observation_in_generation_request": 8,
+        "message_index": 7,
+        "exact_entire_file_after_ok_prefix": true,
+        "before_first_write": true
+      }
+    ],
+    "approvals": [
+      {
+        "tool": "write_file",
+        "arguments": {
+          "path": "mica/ledger.py",
+          "content": "\"\"\"Aggregate stock movements into a deterministic inventory ledger.\"\"\"\n\n\ndef inventory_totals(movements, *, include_zero=False):\n    \"\"\"Return sorted canonical SKU totals without changing input rows.\"\"\"\n    totals = {}\n    for row in movements:\n        if not isinstance(row, (tuple, list)) or len(row) != 2:\n            raise ValueError(\"each movement must be a two-item tuple or list\")\n        sku, delta = row\n        if not isinstance(sku, str):\n            raise TypeError(\"SKU must be a string\")\n        canonical = sku.strip().casefold()\n        if not canonical:\n            raise ValueError(\"SKU must not be blank\")\n        if type(delta) is not int:\n            raise TypeError(\"delta must be an integer\")\n        totals[canonical] = totals.get(canonical, 0) + delta\n    return sorted(\n        (sku, total)\n        for sku, total in totals.items()\n        if include_zero or total != 0\n    )\n",
+          "objective_revision": 1
+        },
+        "objective_revision": 1,
+        "action_digest": "sha256:6bc8d6dd134e104653085ce7ad8de59f5ffa706b79cbac590f89d2cee19ecba9",
+        "requested_sequence": 5,
+        "resolved_sequence": 6,
+        "approved": true,
+        "owner_resolution": true
+      },
+      {
+        "tool": "shell",
+        "arguments": {
+          "command": "python3 -B -m unittest discover -s tests -v"
+        },
+        "objective_revision": 1,
+        "action_digest": "sha256:6a83db172abe97393d2a9a5c4f3792d12644df4edf295b41e9d8336f88f152b2",
+        "requested_sequence": 8,
+        "resolved_sequence": 9,
+        "approved": true,
+        "owner_resolution": true
+      }
+    ],
+    "write": {
+      "journal_sequence": 7,
+      "objective_revision": 1,
+      "path": "mica/ledger.py",
+      "sha256": "a66eae0b1ced2f7da46bed2bb94f25820dee93d6df49970c937ba7dd72757797"
+    },
+    "public_command": {
+      "journal_sequence": 10,
+      "command": "python3 -B -m unittest discover -s tests -v",
+      "exit_code": 0,
+      "tests_reported": 14,
+      "all_expected_test_names_present": true,
+      "after_final_write": true
+    },
+    "durable_outcome": {
+      "journal_sequence": 11,
+      "state": "succeeded",
+      "objective_revision": 1,
+      "exact_task_snapshot_matches_receipt_and_post_cleanup": true
+    },
+    "changed_files": [
+      "mica/ledger.py"
+    ],
+    "all_other_workspace_files_including_tests_readme_package_and_git_unchanged": true,
+    "frozen_fixtures_unchanged": true,
+    "source_pin_unchanged": true
+  },
+  "wire": {
+    "count_requests": 6,
+    "generation_requests": 6,
+    "pairs": [
+      {
+        "count_request": 1,
+        "generation_request": 2,
+        "count_request_sha256": "d0dc01611b8e6db1a7f683b04d6537b3001e06bb3a05fde34ed0fc95043ee977",
+        "generation_request_sha256": "d0dc01611b8e6db1a7f683b04d6537b3001e06bb3a05fde34ed0fc95043ee977",
+        "request_bytes": 6145,
+        "count_response_sha256": "3d41892c0ce1709e63c4155616f82a7c03a90bc6504b39519fc50987d61329a0",
+        "generation_response_sha256": "02bba42d89086eb7f06c33f983b0431e29a4484c1fdfa0cbb08c3e1108dc07ed",
+        "count_response_bytes": 54,
+        "generation_response_bytes": 2520,
+        "count_status": 200,
+        "generation_status": 200,
+        "count_eof_complete": true,
+        "generation_eof_complete": true,
+        "generation_result": "completed",
+        "tool": "read_file",
+        "count_endpoint_input_tokens": 1392,
+        "generation_usage_input_tokens": 1249,
+        "count_minus_generation_usage": 143
+      },
+      {
+        "count_request": 3,
+        "generation_request": 4,
+        "count_request_sha256": "6c047140ab225126a337a6b8463642dcab98fa85c8a759b85eac2b0522157930",
+        "generation_request_sha256": "6c047140ab225126a337a6b8463642dcab98fa85c8a759b85eac2b0522157930",
+        "request_bytes": 8623,
+        "count_response_sha256": "796404034b3e2674010a7aceeb37854ee7e7fa8992bd46fbe4f12bd73857aa28",
+        "generation_response_sha256": "c03dd51615ced9f80fdeca499f20a2d37cf02008a637dbe9d972fc8769d9cac1",
+        "count_response_bytes": 54,
+        "generation_response_bytes": 2799,
+        "count_status": 200,
+        "generation_status": 200,
+        "count_eof_complete": true,
+        "generation_eof_complete": true,
+        "generation_result": "completed",
+        "tool": "read_file",
+        "count_endpoint_input_tokens": 1913,
+        "generation_usage_input_tokens": 1770,
+        "count_minus_generation_usage": 143
+      },
+      {
+        "count_request": 5,
+        "generation_request": 6,
+        "count_request_sha256": "0b072c90272a1b7acac53806256bfd69cedb605374dc9c1550e607c613bcd668",
+        "generation_request_sha256": "0b072c90272a1b7acac53806256bfd69cedb605374dc9c1550e607c613bcd668",
+        "request_bytes": 9715,
+        "count_response_sha256": "4422c55ff325768340dea60b50b9711b37933304d12ada74c9d5401c9fb8d82f",
+        "generation_response_sha256": "775f66c30a72f0fbe464e7af0740e8316d57f249c577aae938fc44e3d5868b00",
+        "count_response_bytes": 54,
+        "generation_response_bytes": 2843,
+        "count_status": 200,
+        "generation_status": 200,
+        "count_eof_complete": true,
+        "generation_eof_complete": true,
+        "generation_result": "completed",
+        "tool": "read_file",
+        "count_endpoint_input_tokens": 2151,
+        "generation_usage_input_tokens": 2008,
+        "count_minus_generation_usage": 143
+      },
+      {
+        "count_request": 7,
+        "generation_request": 8,
+        "count_request_sha256": "ee8efe6bcc66cf03d1e19a514907d785d0648a4d97a231b228a49418b48ded09",
+        "generation_request_sha256": "ee8efe6bcc66cf03d1e19a514907d785d0648a4d97a231b228a49418b48ded09",
+        "request_bytes": 14188,
+        "count_response_sha256": "253ee32568b84a060008b70ddecebec821f6d918e6694be4b78691346d7485c6",
+        "generation_response_sha256": "b777a0e82854cfe0196db7c8e8a8cb0bd5c4483b680f9d27cf7f4521ca89d9a7",
+        "count_response_bytes": 54,
+        "generation_response_bytes": 3808,
+        "count_status": 200,
+        "generation_status": 200,
+        "count_eof_complete": true,
+        "generation_eof_complete": true,
+        "generation_result": "completed",
+        "tool": "write_file",
+        "count_endpoint_input_tokens": 3251,
+        "generation_usage_input_tokens": 3108,
+        "count_minus_generation_usage": 143
+      },
+      {
+        "count_request": 9,
+        "generation_request": 10,
+        "count_request_sha256": "adee5707ea12b780f7f32555b5d22b173684c196e3540bdfb7d0ca14d9802b9a",
+        "generation_request_sha256": "adee5707ea12b780f7f32555b5d22b173684c196e3540bdfb7d0ca14d9802b9a",
+        "request_bytes": 15572,
+        "count_response_sha256": "1c0bc8946863f6306e649dc64a3cba12f973ee4ce8c20eea88cfe56a7f3ee840",
+        "generation_response_sha256": "b0222c3ee4011401bcd204db50e42a197e9a360b2a3201717adc01d727d06bfe",
+        "count_response_bytes": 54,
+        "generation_response_bytes": 2811,
+        "count_status": 200,
+        "generation_status": 200,
+        "count_eof_complete": true,
+        "generation_eof_complete": true,
+        "generation_result": "completed",
+        "tool": "shell",
+        "count_endpoint_input_tokens": 3609,
+        "generation_usage_input_tokens": 3466,
+        "count_minus_generation_usage": 143
+      },
+      {
+        "count_request": 11,
+        "generation_request": 12,
+        "count_request_sha256": "1cee60e4885f926911de88e3128b7845b90a89dfda3e2bf08f66dac0eee327c3",
+        "generation_request_sha256": "1cee60e4885f926911de88e3128b7845b90a89dfda3e2bf08f66dac0eee327c3",
+        "request_bytes": 17652,
+        "count_response_sha256": "780d9df3723bd22de83d5116a9466ffb9fc846309e1e40432bea7e1e41693fef",
+        "generation_response_sha256": "a55b9d31ab8b4e6559a654afabb6c62b5edc8f0267792e8896f7e7f9e6a6e64f",
+        "count_response_bytes": 54,
+        "generation_response_bytes": 2737,
+        "count_status": 200,
+        "generation_status": 200,
+        "count_eof_complete": true,
+        "generation_eof_complete": true,
+        "generation_result": "completed",
+        "tool": "finish",
+        "count_endpoint_input_tokens": 4066,
+        "generation_usage_input_tokens": 3923,
+        "count_minus_generation_usage": 143
+      }
+    ],
+    "all_pair_bodies_byte_identical": true,
+    "all_request_and_response_hashes_and_lengths_recomputed": true,
+    "all_recorded_responses_http_200_and_eof_complete": true,
+    "capture_errors": 0,
+    "native_request_profile_verified": true,
+    "raw_capture_visibility": "Private bodies are not republished. These digests/lengths were recomputed against retained captured bytes by the independent artifact reviewer. Captures are not an independent network tap.",
+    "count_offset_observation": "Every count-endpoint input_tokens value exceeded the paired generation usage input_tokens by 143. This record establishes body identity, not exact tokenizer or billing accuracy."
+  },
+  "independent_host_grade": {
+    "command": "python3 -I -B driver.py",
+    "cases": 8,
+    "calls": 10,
+    "passed": true,
+    "frozen_manifest_utf8": "{\n  \"schema_version\": \"1.0\",\n  \"case_id\": \"mica-inventory-v1\",\n  \"frozen_before_inference\": true,\n  \"provider_calls_so_far\": 0,\n  \"author_reference_sha256\": \"03d1b32c94294a9b844dd394d6122c4f75e90d12718d74e309b4e3a7471b7696\",\n  \"case_count\": 8,\n  \"call_count\": 10,\n  \"driver_command\": \"python3 -I -B driver.py\",\n  \"files\": {\n    \"driver.py\": {\n      \"sha256\": \"468a9b69c67e7ca464823b754d3ec7b66051ab0be6a8aa597ba195cfadfb09e1\",\n      \"size_bytes\": 2888\n    },\n    \"inputs.json\": {\n      \"sha256\": \"417d02be67d6cf97a12cd62062b43b0568a65fa478dd3b01e2a14a8ae7fc2344\",\n      \"size_bytes\": 4501\n    },\n    \"expected.json\": {\n      \"sha256\": \"7e7603e1429779c90607db233ed836b94aa6b2c141618bf6fde6296596eb4e3c\",\n      \"size_bytes\": 4876\n    }\n  },\n  \"expected_values_location\": \"trusted_host_only\",\n  \"child_receives\": [\n    \"driver.py\",\n    \"requests.json\",\n    \"candidate/mica/\"\n  ],\n  \"not_mounted\": [\n    \"expected.json\",\n    \"fixture/grader/\",\n    \"run.py\",\n    \"credentials\",\n    \"network\",\n    \"core\"\n  ],\n  \"verification_scope\": {\n    \"response_values_and_error_categories\": \"compared by trusted host against frozen expectations\",\n    \"input_mutation_and_return_types_and_generator_consumption\": \"untrusted driver/process-reported properties; not independently verified memory observations\"\n  }\n}\n",
+    "frozen_manifest_sha256": "30eb820e6dc186023aa40613b59abef24d10edc36adc3b8f5abd3d14fea7a3a6",
+    "files": {
+      "driver.py": {
+        "utf8_text": "\"\"\"Input-only stdlib adapter. It contains no expected values or pass verdicts.\"\"\"\n\nimport json\nimport sys\nfrom pathlib import Path\n\nrequest = json.loads(Path(\"requests.json\").read_bytes())\nif request.get(\"protocol\") != \"mica-ledger-input-v1\" or not 1 <= len(request[\"cases\"]) <= 16:\n    raise SystemExit(2)\nsys.path.insert(0, \"/workspace/candidate\")\nfrom mica import inventory_totals  # noqa: E402\n\nresults = []\nfor case in request[\"cases\"]:\n    calls = []\n    for call in case[\"calls\"]:\n        rows = [tuple(row) if call[\"row_type\"] == \"tuple\" else list(row) for row in call[\"rows\"]]\n        before = json.dumps(rows, ensure_ascii=True, separators=(\",\", \":\"))\n        consumed = []\n\n        def generate(rows=rows, consumed=consumed):\n            for row in rows:\n                consumed.append(1)\n                yield row\n\n        argument = generate() if call[\"generator\"] else rows\n        output = {\"id\": call[\"id\"]}\n        shape = None\n        try:\n            value = inventory_totals(argument, include_zero=call[\"include_zero\"])\n        except (TypeError, ValueError) as exc:\n            output.update(\n                status=\"error\",\n                error_type=\"TypeError\" if isinstance(exc, TypeError) else \"ValueError\",\n            )\n        except BaseException:\n            output.update(status=\"unexpected_error\")\n        else:\n            try:\n                shape = isinstance(value, list) and all(isinstance(row, tuple) for row in value)\n                if (\n                    not isinstance(value, list)\n                    or len(value) > 32\n                    or any(\n                        not isinstance(row, (tuple, list))\n                        or len(row) != 2\n                        or not isinstance(row[0], str)\n                        or len(row[0].encode(\"utf-8\")) > 256\n                        or type(row[1]) is not int\n                        or row[1].bit_length() > 512\n                        for row in value\n                    )\n                ):\n                    output.update(status=\"invalid_result\")\n                else:\n                    output.update(status=\"value\", value=[[row[0], row[1]] for row in value])\n            except BaseException:\n                output.update(status=\"invalid_result\")\n        output[\"reported_properties\"] = {\n            \"input_unchanged\": before == json.dumps(rows, ensure_ascii=True, separators=(\",\", \":\")),\n            \"consumed_rows\": len(consumed) if call[\"generator\"] else None,\n            \"result_is_list_of_tuples\": shape,\n        }\n        calls.append(output)\n    results.append({\"id\": case[\"id\"], \"calls\": calls})\nraw = json.dumps(\n    {\"protocol\": \"mica-ledger-result-v1\", \"cases\": results},\n    ensure_ascii=True,\n    allow_nan=False,\n    separators=(\",\", \":\"),\n).encode()\nif len(raw) > 4096:\n    raise SystemExit(2)\nsys.stdout.buffer.write(raw + b\"\\n\")\nsys.stdout.buffer.flush()\n",
+        "sha256": "468a9b69c67e7ca464823b754d3ec7b66051ab0be6a8aa597ba195cfadfb09e1",
+        "utf8_bytes": 2888
+      },
+      "inputs.json": {
+        "utf8_text": "{\n  \"protocol\": \"mica-ledger-input-v1\",\n  \"cases\": [\n    {\n      \"id\": \"c01\",\n      \"calls\": [\n        {\n          \"id\": \"q1\",\n          \"rows\": [\n            [\n              \" Wei\u00df \",\n              12\n            ],\n            [\n              \"WEISS\",\n              -3\n            ],\n            [\n              \"wei\u00df\",\n              -4\n            ]\n          ],\n          \"include_zero\": false,\n          \"generator\": false,\n          \"row_type\": \"tuple\"\n        }\n      ]\n    },\n    {\n      \"id\": \"c02\",\n      \"calls\": [\n        {\n          \"id\": \"q1\",\n          \"rows\": [\n            [\n              \"Part-9\",\n              -17\n            ],\n            [\n              \"PART-9\",\n              20\n            ],\n            [\n              \" part-9 \",\n              -3\n            ]\n          ],\n          \"include_zero\": false,\n          \"generator\": false,\n          \"row_type\": \"tuple\"\n        }\n      ]\n    },\n    {\n      \"id\": \"c03\",\n      \"calls\": [\n        {\n          \"id\": \"q1\",\n          \"rows\": [\n            [\n              \" Y \",\n              0\n            ],\n            [\n              \"x\",\n              -5\n            ],\n            [\n              \"X\",\n              5\n            ],\n            [\n              \"y\",\n              2\n            ],\n            [\n              \"Y\",\n              -2\n            ]\n          ],\n          \"include_zero\": true,\n          \"generator\": false,\n          \"row_type\": \"tuple\"\n        }\n      ]\n    },\n    {\n      \"id\": \"c04\",\n      \"calls\": [\n        {\n          \"id\": \"q1\",\n          \"rows\": [\n            [\n              \"Z\",\n              -2\n            ],\n            [\n              \" a\",\n              6\n            ],\n            [\n              \"z \",\n              -3\n            ],\n            [\n              \"A\",\n              9\n            ],\n            [\n              \"middle\",\n              1\n            ]\n          ],\n          \"include_zero\": false,\n          \"generator\": false,\n          \"row_type\": \"tuple\"\n        }\n      ]\n    },\n    {\n      \"id\": \"c05\",\n      \"calls\": [\n        {\n          \"id\": \"q1\",\n          \"rows\": [\n            [\n              \"Big\",\n              100000000000000000000000000000000000000000000000000000000000000000000000000000000\n            ],\n            [\n              \" BIG\",\n              7\n            ],\n            [\n              \"big \",\n              -100000000000000000000000000000000000000000000000000000000000000000000000000000000\n            ]\n          ],\n          \"include_zero\": false,\n          \"generator\": true,\n          \"row_type\": \"tuple\"\n        }\n      ]\n    },\n    {\n      \"id\": \"c06\",\n      \"calls\": [\n        {\n          \"id\": \"q1\",\n          \"rows\": [\n            [\n              \" Q \",\n              1\n            ],\n            [\n              \"q\",\n              8\n            ],\n            [\n              \"p\",\n              -2\n            ]\n          ],\n          \"include_zero\": false,\n          \"generator\": false,\n          \"row_type\": \"list\"\n        }\n      ]\n    },\n    {\n      \"id\": \"c07\",\n      \"calls\": [\n        {\n          \"id\": \"q1\",\n          \"rows\": [\n            [\n              \"\uff21\",\n              1\n            ],\n            [\n              \"a\",\n              2\n            ],\n            [\n              \"a_b\",\n              4\n            ],\n            [\n              \"a-b\",\n              8\n            ]\n          ],\n          \"include_zero\": false,\n          \"generator\": false,\n          \"row_type\": \"tuple\"\n        }\n      ]\n    },\n    {\n      \"id\": \"c08\",\n      \"calls\": [\n        {\n          \"id\": \"q1\",\n          \"rows\": [\n            [\n              \"valid\",\n              10\n            ],\n            [\n              \"good\",\n              true\n            ]\n          ],\n          \"include_zero\": false,\n          \"generator\": false,\n          \"row_type\": \"tuple\"\n        },\n        {\n          \"id\": \"q2\",\n          \"rows\": [\n            [\n              \"valid\",\n              10\n            ],\n            [\n              \"  \",\n              2\n            ]\n          ],\n          \"include_zero\": false,\n          \"generator\": false,\n          \"row_type\": \"tuple\"\n        },\n        {\n          \"id\": \"q3\",\n          \"rows\": [\n            [\n              \"valid\",\n              10\n            ],\n            [\n              \"bad\",\n              2,\n              3\n            ]\n          ],\n          \"include_zero\": false,\n          \"generator\": false,\n          \"row_type\": \"tuple\"\n        }\n      ]\n    }\n  ]\n}\n",
+        "sha256": "417d02be67d6cf97a12cd62062b43b0568a65fa478dd3b01e2a14a8ae7fc2344",
+        "utf8_bytes": 4501
+      },
+      "expected.json": {
+        "utf8_text": "{\n  \"protocol\": \"mica-ledger-expected-v1\",\n  \"cases\": [\n    {\n      \"id\": \"c01\",\n      \"author_reference_method\": \"test_unicode_aliases_are_combined\",\n      \"calls\": [\n        {\n          \"id\": \"q1\",\n          \"status\": \"value\",\n          \"value\": [\n            [\n              \"weiss\",\n              5\n            ]\n          ],\n          \"reported_properties\": {\n            \"input_unchanged\": true,\n            \"consumed_rows\": null,\n            \"result_is_list_of_tuples\": true\n          }\n        }\n      ]\n    },\n    {\n      \"id\": \"c02\",\n      \"author_reference_method\": \"test_cancelled_aliases_leave_no_default_row\",\n      \"calls\": [\n        {\n          \"id\": \"q1\",\n          \"status\": \"value\",\n          \"value\": [],\n          \"reported_properties\": {\n            \"input_unchanged\": true,\n            \"consumed_rows\": null,\n            \"result_is_list_of_tuples\": true\n          }\n        }\n      ]\n    },\n    {\n      \"id\": \"c03\",\n      \"author_reference_method\": \"test_zero_rows_are_retained_only_when_requested\",\n      \"calls\": [\n        {\n          \"id\": \"q1\",\n          \"status\": \"value\",\n          \"value\": [\n            [\n              \"x\",\n              0\n            ],\n            [\n              \"y\",\n              0\n            ]\n          ],\n          \"reported_properties\": {\n            \"input_unchanged\": true,\n            \"consumed_rows\": null,\n            \"result_is_list_of_tuples\": true\n          }\n        }\n      ]\n    },\n    {\n      \"id\": \"c04\",\n      \"author_reference_method\": \"test_mixed_positive_and_negative_totals_are_sorted\",\n      \"calls\": [\n        {\n          \"id\": \"q1\",\n          \"status\": \"value\",\n          \"value\": [\n            [\n              \"a\",\n              15\n            ],\n            [\n              \"middle\",\n              1\n            ],\n            [\n              \"z\",\n              -5\n            ]\n          ],\n          \"reported_properties\": {\n            \"input_unchanged\": true,\n            \"consumed_rows\": null,\n            \"result_is_list_of_tuples\": true\n          }\n        }\n      ]\n    },\n    {\n      \"id\": \"c05\",\n      \"author_reference_method\": \"test_one_pass_generator_preserves_integer_precision\",\n      \"calls\": [\n        {\n          \"id\": \"q1\",\n          \"status\": \"value\",\n          \"value\": [\n            [\n              \"big\",\n              7\n            ]\n          ],\n          \"reported_properties\": {\n            \"input_unchanged\": true,\n            \"consumed_rows\": 3,\n            \"result_is_list_of_tuples\": true\n          }\n        }\n      ]\n    },\n    {\n      \"id\": \"c06\",\n      \"author_reference_method\": \"test_list_rows_and_outer_order_are_not_mutated\",\n      \"calls\": [\n        {\n          \"id\": \"q1\",\n          \"status\": \"value\",\n          \"value\": [\n            [\n              \"p\",\n              -2\n            ],\n            [\n              \"q\",\n              9\n            ]\n          ],\n          \"reported_properties\": {\n            \"input_unchanged\": true,\n            \"consumed_rows\": null,\n            \"result_is_list_of_tuples\": true\n          }\n        }\n      ]\n    },\n    {\n      \"id\": \"c07\",\n      \"author_reference_method\": \"test_no_extra_unicode_or_punctuation_normalization\",\n      \"calls\": [\n        {\n          \"id\": \"q1\",\n          \"status\": \"value\",\n          \"value\": [\n            [\n              \"a\",\n              2\n            ],\n            [\n              \"a-b\",\n              8\n            ],\n            [\n              \"a_b\",\n              4\n            ],\n            [\n              \"\uff41\",\n              1\n            ]\n          ],\n          \"reported_properties\": {\n            \"input_unchanged\": true,\n            \"consumed_rows\": null,\n            \"result_is_list_of_tuples\": true\n          }\n        }\n      ]\n    },\n    {\n      \"id\": \"c08\",\n      \"author_reference_method\": \"test_invalid_later_row_never_returns_partial_result\",\n      \"calls\": [\n        {\n          \"id\": \"q1\",\n          \"status\": \"error\",\n          \"error_types\": [\n            \"TypeError\",\n            \"ValueError\"\n          ],\n          \"reported_properties\": {\n            \"input_unchanged\": true,\n            \"consumed_rows\": null,\n            \"result_is_list_of_tuples\": null\n          }\n        },\n        {\n          \"id\": \"q2\",\n          \"status\": \"error\",\n          \"error_types\": [\n            \"TypeError\",\n            \"ValueError\"\n          ],\n          \"reported_properties\": {\n            \"input_unchanged\": true,\n            \"consumed_rows\": null,\n            \"result_is_list_of_tuples\": null\n          }\n        },\n        {\n          \"id\": \"q3\",\n          \"status\": \"error\",\n          \"error_types\": [\n            \"TypeError\",\n            \"ValueError\"\n          ],\n          \"reported_properties\": {\n            \"input_unchanged\": true,\n            \"consumed_rows\": null,\n            \"result_is_list_of_tuples\": null\n          }\n        }\n      ]\n    }\n  ]\n}\n",
+        "sha256": "7e7603e1429779c90607db233ed836b94aa6b2c141618bf6fde6296596eb4e3c",
+        "utf8_bytes": 4876
+      }
+    },
+    "observed_response": {
+      "protocol": "mica-ledger-result-v1",
+      "cases": [
+        {
+          "id": "c01",
+          "calls": [
+            {
+              "id": "q1",
+              "status": "value",
+              "value": [
+                [
+                  "weiss",
+                  5
+                ]
+              ],
+              "reported_properties": {
+                "input_unchanged": true,
+                "consumed_rows": null,
+                "result_is_list_of_tuples": true
+              }
+            }
+          ]
+        },
+        {
+          "id": "c02",
+          "calls": [
+            {
+              "id": "q1",
+              "status": "value",
+              "value": [],
+              "reported_properties": {
+                "input_unchanged": true,
+                "consumed_rows": null,
+                "result_is_list_of_tuples": true
+              }
+            }
+          ]
+        },
+        {
+          "id": "c03",
+          "calls": [
+            {
+              "id": "q1",
+              "status": "value",
+              "value": [
+                [
+                  "x",
+                  0
+                ],
+                [
+                  "y",
+                  0
+                ]
+              ],
+              "reported_properties": {
+                "input_unchanged": true,
+                "consumed_rows": null,
+                "result_is_list_of_tuples": true
+              }
+            }
+          ]
+        },
+        {
+          "id": "c04",
+          "calls": [
+            {
+              "id": "q1",
+              "status": "value",
+              "value": [
+                [
+                  "a",
+                  15
+                ],
+                [
+                  "middle",
+                  1
+                ],
+                [
+                  "z",
+                  -5
+                ]
+              ],
+              "reported_properties": {
+                "input_unchanged": true,
+                "consumed_rows": null,
+                "result_is_list_of_tuples": true
+              }
+            }
+          ]
+        },
+        {
+          "id": "c05",
+          "calls": [
+            {
+              "id": "q1",
+              "status": "value",
+              "value": [
+                [
+                  "big",
+                  7
+                ]
+              ],
+              "reported_properties": {
+                "input_unchanged": true,
+                "consumed_rows": 3,
+                "result_is_list_of_tuples": true
+              }
+            }
+          ]
+        },
+        {
+          "id": "c06",
+          "calls": [
+            {
+              "id": "q1",
+              "status": "value",
+              "value": [
+                [
+                  "p",
+                  -2
+                ],
+                [
+                  "q",
+                  9
+                ]
+              ],
+              "reported_properties": {
+                "input_unchanged": true,
+                "consumed_rows": null,
+                "result_is_list_of_tuples": true
+              }
+            }
+          ]
+        },
+        {
+          "id": "c07",
+          "calls": [
+            {
+              "id": "q1",
+              "status": "value",
+              "value": [
+                [
+                  "a",
+                  2
+                ],
+                [
+                  "a-b",
+                  8
+                ],
+                [
+                  "a_b",
+                  4
+                ],
+                [
+                  "\uff41",
+                  1
+                ]
+              ],
+              "reported_properties": {
+                "input_unchanged": true,
+                "consumed_rows": null,
+                "result_is_list_of_tuples": true
+              }
+            }
+          ]
+        },
+        {
+          "id": "c08",
+          "calls": [
+            {
+              "id": "q1",
+              "status": "error",
+              "error_type": "TypeError",
+              "reported_properties": {
+                "input_unchanged": true,
+                "consumed_rows": null,
+                "result_is_list_of_tuples": null
+              }
+            },
+            {
+              "id": "q2",
+              "status": "error",
+              "error_type": "ValueError",
+              "reported_properties": {
+                "input_unchanged": true,
+                "consumed_rows": null,
+                "result_is_list_of_tuples": null
+              }
+            },
+            {
+              "id": "q3",
+              "status": "error",
+              "error_type": "ValueError",
+              "reported_properties": {
+                "input_unchanged": true,
+                "consumed_rows": null,
+                "result_is_list_of_tuples": null
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "response_values_and_error_categories_match_frozen_host_expected": true,
+    "child_reported_properties_match": true,
+    "properties_independently_verified": false,
+    "candidate_only_executed_under_bwrap": true,
+    "network_grant": false,
+    "entire_grading_workspace_read_only": true,
+    "expected_values_and_author_grader_mounted": false,
+    "input_only_grading_file_set": [
+      "candidate/mica/__init__.py",
+      "candidate/mica/ledger.py",
+      "driver.py",
+      "requests.json"
+    ],
+    "grading_files_unchanged": true,
+    "cleanup_confirmed": true,
+    "exit_zero_or_unittest_footer_is_a_pass_verdict": false,
+    "offline_summary_forgery_refused": true,
+    "offline_host_proof_sha256": "f41fbbf868144507fff25c1111165b8f119b4393b234436af0ff2326cbaab5ac"
+  },
+  "cleanup": {
+    "native_runtime_close_returned": true,
+    "provider_close_returned": true,
+    "provider_http_closed": true,
+    "observed_workers": 1,
+    "workers_done": true,
+    "observed_native_shell_children": 1,
+    "native_child_exit_code": 0,
+    "native_child_wait_and_reap_confirmed": true,
+    "observed_grading_children": 1,
+    "grading_child_exit_code": 0,
+    "grading_cleanup_confirmed": true,
+    "historical_confirmation_basis": "Pinned runner, native cleanup receipts and unchanged exact file snapshots; the independent artifact review does not reconstruct past kernel mount or process-wait events."
+  },
+  "independent_review": {
+    "result": "passed_no_blockers",
+    "predicate_count": 208,
+    "predicate_count_is_test_count": false,
+    "candidate_or_grader_executed_during_review": false,
+    "model_network_runtime_or_real_key_access_during_review": false,
+    "review_receipt_sha256": "9c139bcfeda9bbdb4ba196d3852e17437aadfd03fc20565ab7b419b38f25d70a"
+  },
+  "preparation_verification": {
+    "offline_tests": 94,
+    "failed": 0,
+    "skipped": 0,
+    "deselected": 0,
+    "elapsed_seconds": 1.47,
+    "source_pin_gate_enabled": true,
+    "root_repeat_tests": 94,
+    "root_repeat_elapsed_seconds": 1.69
+  },
+  "budget": {
+    "phase_contributor_estimate_delta_usd": 0.001648096,
+    "phase_cache_aware_admission_estimate_delta_usd": 0.003296192,
+    "actual_reported_billing_usd": null,
+    "estimates_are_invoices": false,
+    "unknown_billing_preserved": true,
+    "guard_budget_limit_usd": 25,
+    "guard_admission_limit_usd": 22,
+    "outstanding_reservations_preserved": true
+  },
+  "prior_failed_baseline": {
+    "path": "evaluation/evidence/agent-history-baseline-2026-10-31.json",
+    "public_record_sha256": "6bb16fb0b118ff06467869cb0043cfcfff3912876d0ec866d5cd38ce694c51e3",
+    "private_receipt_sha256": "6a3f1cf8faba9687f374cfb58313731c8cc234bfdf28e4d956617d3589697ba7",
+    "result": "failed/unqualified",
+    "case": "waterlog",
+    "unchanged": true,
+    "retried": false,
+    "same_fixture_paired_comparison": false
+  },
+  "limitations": [
+    "One successful fresh public-synthetic attempt does not establish general Agent reliability, every M1 acceptance gate or production readiness.",
+    "Converse and Decisions were absent; no cross-component or voice qualification is claimed.",
+    "The older failed Waterlog case and this Mica case differ. The result is not a controlled causal paired comparison and does not prove history loss alone caused the earlier loop.",
+    "Frozen references are synthetic author judgments. This consumed case must not be reused as a fresh evaluation set.",
+    "Host comparison independently checks received fixed values/error categories. Input mutation, return container shape and generator consumption remain untrusted child-reported properties.",
+    "The independent review checked 208 artifact predicates; that is not 208 test cases. It executed no candidate, grader, model, runtime or HTTP request.",
+    "Captured request hooks are not proof of actual export on their own; retained bodies and completed provider responses are not an independent network-tap record.",
+    "Count-endpoint results and generation usage differed by 143 input tokens in every pair; no claim of exact tokenizer accounting follows.",
+    "Cost deltas are development guard estimates. Actual provider billing remains unknown, not zero."
+  ],
+  "capsule_validation": {
+    "scope": "Public data consistency only; no candidate, grader, inference or service replay.",
+    "reproduction_command": "PYTHONPATH=. python -B -m pytest -q tests/unit/test_agent_history_trial_evidence.py",
+    "result": "6 passed",
+    "checks": [
+      "Frozen embedded text hashes and byte counts",
+      "Exact candidate diff and final write hash",
+      "Six exact count/generation digest pairs and recorded 143-token offsets",
+      "Read/approval/effect/outcome ordering and approval digests",
+      "Frozen host values/error categories and child-property limits",
+      "Scope, private-identity exclusion, exact-head CI binding and unchanged failed baseline"
+    ]
+  }
+}
