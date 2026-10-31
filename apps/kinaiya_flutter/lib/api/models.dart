@@ -147,6 +147,7 @@ class AgentTask {
     this.contentScope = ContentScope.localOnly,
     this.error,
     this.harnessVersion,
+    this.modelPin,
   });
 
   factory AgentTask.fromJson(Map<String, Object?> json) {
@@ -168,6 +169,9 @@ class AgentTask {
           .toList(),
       error: json['error'] as String?,
       harnessVersion: json['harness_version'] as String?,
+      modelPin: json['model_pin'] is Map
+          ? (json['model_pin'] as Map).cast<String, Object?>()
+          : null,
     );
   }
 
@@ -185,6 +189,7 @@ class AgentTask {
   final List<String> remainingRequiredWork;
   final String? error;
   final String? harnessVersion;
+  final Map<String, Object?>? modelPin;
 
   static const Set<String> terminalStates = {
     'succeeded',

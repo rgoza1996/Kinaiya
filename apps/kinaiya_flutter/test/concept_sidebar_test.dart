@@ -169,7 +169,7 @@ void main() {
     await tester.tap(find.byTooltip('Appearance'));
     await routePump(tester);
     expect(find.byType(PresentationSettings), findsOneWidget);
-    await tester.tap(find.byTooltip('Close appearance settings'));
+    await tester.tap(find.byTooltip('Close options'));
     await routePump(tester);
     expect(find.byKey(const ValueKey('workspace-media')), findsOneWidget);
     expect(_liveMicrophoneStatus(), findsOneWidget);

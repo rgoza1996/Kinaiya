@@ -20,19 +20,26 @@ Start the configured Python services separately. Export an owner-only credential
 
 ## Settings and design handoff
 
-**Settings** opens a searchable hub for service connection/privacy, appearance,
-voice options, saved Converse notes, Agent controls and MCP connections. It
-reuses the existing editors and preserves both mounted conversation panes.
-Opening, searching or closing the hub starts no connection, capture, task or
-inference request. Unavailable destinations explain what is missing. Agent
-controls fill a command draft; selection does not send it.
+**Settings** opens the persistent [Options workspace](../../docs/adr/0077-options-workspace-and-harness-models.md).
+Categories live in its sidebar; paired categories open separate sections with
+Back navigation. The overview uses the approved Kinaiya/gear illustration.
+Appearance, character, voice, memory, connection and MCP controls stay inside
+Options. Home/Converse and Agent remain mounted, preserving drafts, audio and
+sessions. Opening or navigating settings does not start inference or work.
 
-The [full options catalog](../../docs/options.md) records working, host-only and
-planned controls separately, including their scope, defaults and native owner.
-Its stable controls now use the owner-supplied Penpot visual style, with matching
-sections for omitted advanced options as their native editors become available.
-Provider choice, disclosure consent, permissions, isolation and cost limits
-remain separate controls.
+**Models & providers** separates Models, Providers and **Harness Customization**.
+Each native harness opens its own model editor. Choose inheritance or a
+configured profile and supported reasoning level; Save applies to new tasks.
+Accepted tasks keep their captured model. The host persists revision-bound
+settings and native operation receipts; an unconfirmed save remains visible
+across close/reopen, and an explicit retry uses the identical request.
+
+Provider credentials and model profile definitions stay on the host. The
+provider page includes Meta Model API and LM Studio information; Meta account
+sign-in is not implemented. Converse/STT/TTS/Decisions model editing still uses
+host configuration. The [full catalog](../../docs/options.md) separates working,
+host-managed and planned controls. Model selection, disclosure, permissions and
+isolation remain separate owners.
 
 Build information in Settings uses optional
 `--dart-define=KINAIYA_BUILD_LABEL=...` and
@@ -59,7 +66,7 @@ message. These browser controls do not implement mobile calling or signaling.
 
 The connected sidebar has Home, optional Converse, Agent Chat, Character & motion,
 Projects, Files, Media and Options; narrow/large-text layouts use a Menu drawer.
-Character & motion opens the existing appearance editor. Projects/Files/Media
+Character and motion controls live in Options. Projects/Files/Media
 show their actual missing integration rather than sample libraries. Home and
 Converse share one mounted voice owner; Agent stays independently mounted. View
 changes preserve drafts, sessions, microphone and playback and never start capture.

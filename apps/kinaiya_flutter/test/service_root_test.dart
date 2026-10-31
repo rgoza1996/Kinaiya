@@ -295,6 +295,10 @@ void main() {
           agentBase: p.agentUrl,
           converseBase: p.converseUrl,
           ownerToken: p.ownerToken,
+          agentWorkspaceClientFactory: () => MockClient((r) async {
+            requests.add(r);
+            return http.Response('Legacy host has no Options API', 404);
+          }),
           httpClient: MockClient((r) async {
             requests.add(r);
             if (r.url.path == '/v1/sessions') return json([]);

@@ -6,9 +6,12 @@ owner-supplied Penpot design now supplies visual language and composition
 ([ADR0054](adr/0054-penpot-owner-interface.md)). Stable option
 identities, ownership, validation and scope survive a layout change.
 
-The responsive Options hub groups working controls and forwards to their existing
-owners. The larger catalog below is preparation for the full harness, not a set
-of simulated switches. Backend capabilities determine which editors can exist.
+The persistent [Options workspace](adr/0077-options-workspace-and-harness-models.md)
+embeds working editors. Models, Providers and Harness Customization are separate
+sections. Native Agent defaults and per-harness overrides select configured
+profiles and declared reasoning levels for new tasks; running work retains its
+model pin. Provider provisioning, other runtime model roles and the remaining
+planned controls below still need their respective native owners.
 
 ## Reading the catalog
 
@@ -30,7 +33,8 @@ state and cannot trigger silent retries or success notices.
 
 | Destination | Current options/defaults | Scope and storage | Owner and change boundary |
 | --- | --- | --- | --- |
-| Models & conversation | Read-only configured conversation/STT/TTS/Decisions roles, accepted transport and reasoning. Optional Converse view starts on. | Host declarations are not load receipts; only `show_converse_view` is saved in local presentation storage. | Authenticated read-only setup API; Save merges local visibility without toggling runtime enabled or changing providers/consent. |
+| Agent model settings | Agent default profile; per-harness inheritance or model/profile/reasoning override using host-declared choices. | Protected `agent-models.sqlite`, revision-bound receipts; applies to new tasks. | Owner Options API and native task acceptance; accepted tasks retain model pins. |
+| Converse model setup | Read-only configured conversation/STT/TTS/Decisions roles, accepted transport and reasoning. Optional Converse view starts on. | Host declarations are not load receipts; only `show_converse_view` is saved in local presentation storage. | Authenticated read-only setup API; Save merges local visibility without toggling runtime enabled or changing providers/consent. |
 | Service connection & privacy | Session/Agent/Converse URLs, owner login, disclosure selection. Default URLs are loopback ports 8760/8761/8762; disclosure starts local-only. | Current connection; credentials and profile remain in RAM. | SetupDialog and native authentication; explicit Connect replaces the client. |
 | Appearance & character | Pack import/export/reset, pack palette or explicit colors; character, captions and speech mouth movement on; reduced motion off by default. Local or device reduced motion keeps the mouth still while preserving its saved preference. Import/export is currently web-only. | App presentation only. Validated web IndexedDB record or private Android/iOS snapshot; other platforms keep session-only settings. | PresentationController; immediate appearance update with visible persistence errors. |
 | Voice options | Fallback clip-ending silence: 0.8/1.5/2.5 seconds, initially 1.5, used only when streaming windows are unavailable. Live window mode streams audio continuously and Decisions chooses when to wait, respond, or interrupt; no silence timer ends the turn. | Mounted Converse view; not an inference/provider setting or a persisted global audio profile. | Current CharacterView/audio owner; only explicit changes configure fallback VAD. |
@@ -38,10 +42,12 @@ state and cannot trigger silent retries or success notices.
 | Agent controls | Current registered model/profile, permissions/YOLO, resources, skills and plugins commands. | Agent scope; many choices are process-local or host-configured. | Existing command registry/supervisor. The chooser fills a draft; the user still sends it. Expansion/profile switching requires settled work. |
 | MCP connections | Inspect/configure/test/enable/disable/reconnect/remove supported servers. | Agent owner configuration; native credential references and revisions. | Existing MCP management/native policy. A configured server is not a proven connection or a permission grant. |
 
-The hub itself reads only UI metadata and returns a destination. Opening,
-searching or dismissing it does not connect, write settings, create a session,
-start/stop capture, execute an Agent command or call a model. Existing shortcuts
-remain available. Missing connection/registry/feature support is shown honestly.
+Options navigation reads UI and authenticated host metadata. Opening, searching
+or dismissing it does not connect, write settings, create a session, start/stop
+capture, execute a command or call a model. Explicit controls retain their native
+owners and acknowledgement rules. Agent model defaults/overrides save through
+the revision-bound owner API; a UI choice cannot authorize disclosure or expand
+permissions. Missing connection, registry and feature support remain visible.
 
 ## Full harness option groups
 
@@ -53,10 +59,10 @@ configuration until its versioned contract supports them.
 
 | Option family | Type/default policy | Scope, persistence and authority | Status |
 | --- | --- | --- | --- |
-| `models.agent`, `models.converse`, `models.decisions` | Configured provider/profile/model reference for each runtime; host value, no universal model default. | Independent runtime host configuration; owner profile choice, native resource and disclosure checks. Agent profile changes apply at a settled task boundary. | Host; Agent has command selection, no universal app model editor. |
+| `models.agent`, `models.converse`, `models.decisions` | Configured provider/profile/model reference for each runtime; host value, no universal model default. | Independent runtime host configuration; owner profile choice, native resource and disclosure checks. Agent profile changes apply at a settled task boundary. | Agent: App defaults/per-harness profile editor for new tasks. Converse and Decisions: Host. |
 | `models.stt`, `models.tts` | Independent speech-provider/model references; supported languages, formats and hardware are capability data. | Converse voice pipeline; host restart or explicit resource handoff as supported. | Host; app shows configured declarations, mutable picker planned. |
 | `providers.endpoint`, `protocol`, `credential_ref` | Validated provider-specific endpoint/protocol and protected credential reference. No raw secret in URLs, exported preferences or model context. | Host/provider; credentials remain outside generated tools and public metadata. | Host; app provisioning/editor planned. |
-| `models.reasoning`, `sampling`, `output_limit` | Only fields advertised by the selected model: effort/budget, temperature/top-p/top-k/seed or output limit where supported. No assumed common range. | Per provider/profile, optionally task override after an explicit contract; show effective limits. | Some host limits exist; generic editor/overrides planned. |
+| `models.reasoning`, `sampling`, `output_limit` | Only fields advertised by the selected model: effort/budget, temperature/top-p/top-k/seed or output limit where supported. No assumed common range. | Per provider/profile, optionally task override after an explicit contract; show effective limits. | Agent: App reasoning overrides from host-declared profile levels. Other sampling/limits remain host-managed or planned. |
 | `models.fallbacks`, `auxiliary_routes` | Ordered compatible choices and role-specific routes. Default is no implicit new route or cloud fallback. | Native routing, disclosure and resource policy; replacement is an explicit owner action. | Planned as a unified surface. |
 
 The proposed tiny local Converse profile targets **8 GB for STT + dialogue + TTS

@@ -80,6 +80,7 @@ class AppState extends ChangeNotifier {
   bool streamingWindows = false;
   bool _trustedInjection = false;
   int _connectionGeneration = 0;
+  int _agentInferenceRead = 0;
 
   /// Live connection epoch. Views capture this before an await and drop
   /// late completions when it changes (reconnect/disconnect/dispose).
@@ -428,6 +429,7 @@ class AppState extends ChangeNotifier {
   Future<void> _verifyConnection(int generation) async {
     final api = client;
     if (api == null) return;
+    final inferenceRead = _agentInferenceRead;
     try {
       await api.listSessions().timeout(const Duration(seconds: 10));
       if (generation != _connectionGeneration || !identical(api, client)) {
@@ -444,7 +446,10 @@ class AppState extends ChangeNotifier {
         api
             .agentCapabilities()
             .then((_) async {
-              final health = await api.agentHealth();
+              final harness = selectedAgentHarness;
+              final health = await api.agentTargetHealth(
+                harness == 'unassociated' ? null : harness,
+              );
               agentInfo = health['provider'];
               return true;
             })
@@ -467,20 +472,24 @@ class AppState extends ChangeNotifier {
       if (generation != _connectionGeneration || !identical(api, client)) {
         return;
       }
-      agentOnline = states[0];
+      if (inferenceRead == _agentInferenceRead) {
+        agentOnline = states[0];
+        agentProvider = agentInfo is Map<String, Object?>
+            ? agentInfo as Map<String, Object?>
+            : agentInfo is Map
+            ? (agentInfo as Map).cast<String, Object?>()
+            : null;
+        agentInferenceAllowed =
+            agentOnline &&
+            providerAllows(agentInfo, connection!.backendProfile);
+      }
       converseOnline = states[1];
-      agentProvider = agentInfo is Map<String, Object?>
-          ? agentInfo as Map<String, Object?>
-          : agentInfo is Map
-          ? (agentInfo as Map).cast<String, Object?>()
-          : null;
       converseProvider = converseInfo is Map<String, Object?>
           ? converseInfo as Map<String, Object?>
           : converseInfo is Map
           ? (converseInfo as Map).cast<String, Object?>()
           : null;
       final consent = connection!.backendProfile;
-      agentInferenceAllowed = agentOnline && providerAllows(agentInfo, consent);
       converseInferenceAllowed =
           converseOnline && providerAllows(converseInfo, consent);
       connected =
@@ -523,6 +532,7 @@ class AppState extends ChangeNotifier {
       unawaited(refreshResources());
     } catch (_) {
       if (generation != _connectionGeneration) return;
+      _agentInferenceRead++;
       sessionAuthenticated = false;
       agentInferenceAllowed = false;
       converseInferenceAllowed = false;
@@ -543,6 +553,7 @@ class AppState extends ChangeNotifier {
   /// accepted until the new provider metadata is positively verified.
   /// Generation-bound: a reconnect during the check drops the stale result.
   void invalidateAgentInference() {
+    _agentInferenceRead++;
     agentInferenceAllowed = false;
     agentProvider = null;
     connected =
@@ -556,13 +567,22 @@ class AppState extends ChangeNotifier {
     final profile = connection;
     final generation = _connectionGeneration;
     if (api == null || profile == null) return;
+    final selection = agentSelectionGeneration;
+    final harness = selectedAgentHarness;
+    late final int request;
+    bool current() =>
+        request == _agentInferenceRead &&
+        ownsConnection(generation, api) &&
+        selection == agentSelectionGeneration &&
+        harness == selectedAgentHarness;
     invalidateAgentInference();
+    request = _agentInferenceRead;
     try {
       await api.agentCapabilities().timeout(const Duration(seconds: 5));
-      final health = await api.agentHealth().timeout(
-        const Duration(seconds: 5),
+      final health = await api.agentTargetHealth(
+        harness == 'unassociated' ? null : harness,
       );
-      if (!ownsConnection(generation, api)) return;
+      if (!current()) return;
       agentOnline = true;
       final info = health['provider'];
       agentProvider = info is Map<String, Object?>
@@ -585,7 +605,7 @@ class AppState extends ChangeNotifier {
       connectionError =
           'Last check (${DateTime.now().toUtc().toIso8601String()}): session authenticated. Agent $agentLabel; Converse $converseLabel.';
     } catch (_) {
-      if (!ownsConnection(generation, api)) return;
+      if (!current()) return;
       agentOnline = false;
       agentInferenceAllowed = false;
       agentProvider = null;

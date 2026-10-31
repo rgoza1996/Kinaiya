@@ -6,11 +6,17 @@ import '../character/pack.dart';
 import '../presentation/controller.dart';
 import '../presentation/platform.dart';
 import 'widgets.dart';
+import 'settings_surface.dart';
 
 /// The same local preference owner used by Appearance, exposed in Quick settings.
 class InterfaceTransitionsSwitch extends StatefulWidget {
-  const InterfaceTransitionsSwitch({super.key, required this.controller});
+  const InterfaceTransitionsSwitch({
+    super.key,
+    required this.controller,
+    this.showStorageNotice = true,
+  });
   final PresentationController controller;
+  final bool showStorageNotice;
 
   @override
   State<InterfaceTransitionsSwitch> createState() =>
@@ -87,7 +93,8 @@ class _InterfaceTransitionsSwitchState
               onChanged: _saving || controller.loading ? null : _set,
             ),
             for (final notice in <String>{
-              if (controller.notice != null) controller.notice!,
+              if (widget.showStorageNotice && controller.notice != null)
+                controller.notice!,
               if (_error != null) _error!,
             })
               Semantics(liveRegion: true, child: Text(notice)),
@@ -98,6 +105,8 @@ class _InterfaceTransitionsSwitchState
   );
 }
 
+enum PresentationSection { all, appearance, character, accessibility }
+
 /// Local presentation controls. This dialog has no runtime or service access.
 class PresentationSettings extends StatefulWidget {
   const PresentationSettings({
@@ -105,9 +114,13 @@ class PresentationSettings extends StatefulWidget {
     required this.controller,
     this.packagePicker,
     this.packageDownloader,
+    this.embedded = false,
+    this.section = PresentationSection.all,
   });
 
   final PresentationController controller;
+  final bool embedded;
+  final PresentationSection section;
 
   @visibleForTesting
   final Future<String?> Function()? packagePicker;
@@ -278,6 +291,7 @@ class _PresentationSettingsState extends State<PresentationSettings> {
         reducedMotion: current.reducedMotion,
         animateTransitions: current.animateTransitions,
         speechMouthMotion: current.speechMouthMotion,
+        intelligentUi: current.intelligentUi,
         showCharacter: current.showCharacter,
         showCaptions: current.showCaptions,
         usePackPalette: current.usePackPalette,
@@ -336,7 +350,8 @@ class _PresentationSettingsState extends State<PresentationSettings> {
     final storageNotice = controller.persistent
         ? 'Presentation settings and imported artwork stay on this device. Browser storage is used when available.'
         : 'Presentation settings last for this session. Persistent storage is unavailable on this platform.';
-    return Dialog(
+    return SettingsSurface(
+      embedded: widget.embedded,
       insetPadding: const EdgeInsets.all(12),
       child: ConstrainedBox(
         constraints: BoxConstraints(
@@ -363,11 +378,12 @@ class _PresentationSettingsState extends State<PresentationSettings> {
                       ),
                     ),
                   ),
-                  IconButton(
-                    tooltip: 'Close appearance settings',
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close),
-                  ),
+                  if (!widget.embedded)
+                    IconButton(
+                      tooltip: 'Close appearance settings',
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close),
+                    ),
                 ],
               ),
               if (_busy || controller.loading)
@@ -392,229 +408,260 @@ class _PresentationSettingsState extends State<PresentationSettings> {
                             child: Text(notice),
                           ),
                         ),
-                      _heading('Current character'),
-                      if (controller.selected != null)
-                        _metadata(controller.selected!.pack)
-                      else
-                        const Text('Loading the default character…'),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          OutlinedButton.icon(
-                            onPressed: enabled && _canImport ? _import : null,
-                            icon: const Icon(Icons.file_open_outlined),
-                            label: const Text('Import character pack'),
-                          ),
-                          OutlinedButton.icon(
-                            onPressed: enabled && _canExport ? _export : null,
-                            icon: const Icon(Icons.download_outlined),
-                            label: const Text('Export current pack'),
-                          ),
-                          TextButton(
-                            onPressed: enabled ? _restore : null,
-                            child: const Text('Restore default character'),
-                          ),
-                        ],
-                      ),
-                      if (!_canImport || !_canExport)
-                        const Padding(
-                          padding: EdgeInsets.only(top: 8),
-                          child: Text(
-                            'Character pack import and export are available in the web app.',
-                          ),
+                      if (widget.section == PresentationSection.all ||
+                          widget.section == PresentationSection.character) ...[
+                        _heading('Current character'),
+                        if (controller.selected != null)
+                          _metadata(controller.selected!.pack)
+                        else
+                          const Text('Loading the default character…'),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            OutlinedButton.icon(
+                              onPressed: enabled && _canImport ? _import : null,
+                              icon: const Icon(Icons.file_open_outlined),
+                              label: const Text('Import character pack'),
+                            ),
+                            OutlinedButton.icon(
+                              onPressed: enabled && _canExport ? _export : null,
+                              icon: const Icon(Icons.download_outlined),
+                              label: const Text('Export current pack'),
+                            ),
+                            TextButton(
+                              onPressed: enabled ? _restore : null,
+                              child: const Text('Restore default character'),
+                            ),
+                          ],
                         ),
-                      if (preview != null) ...[
-                        _heading('Preview character pack'),
-                        Card(
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Center(
-                                  child: MediaQuery(
-                                    data: media.copyWith(
-                                      disableAnimations:
-                                          media.disableAnimations ||
-                                          preferences.reducedMotion,
-                                    ),
-                                    child: MascotWidget(
-                                      pack: preview.pack,
-                                      bundle: preview.bundle,
-                                      mood: 'idle',
-                                      size: 160,
-                                    ),
-                                  ),
-                                ),
-                                _metadata(preview.pack),
-                                const SizedBox(height: 8),
-                                const Text(
-                                  'Only the artwork and its palette change when you use this pack.',
-                                ),
-                                const SizedBox(height: 8),
-                                Wrap(
-                                  spacing: 8,
-                                  runSpacing: 8,
-                                  children: [
-                                    FilledButton(
-                                      onPressed: enabled ? _usePreview : null,
-                                      child: const Text('Use character pack'),
-                                    ),
-                                    TextButton(
-                                      onPressed: enabled
-                                          ? () =>
-                                                setState(() => _preview = null)
-                                          : null,
-                                      child: const Text('Cancel preview'),
-                                    ),
-                                  ],
-                                ),
-                              ],
+                        if (!_canImport || !_canExport)
+                          const Padding(
+                            padding: EdgeInsets.only(top: 8),
+                            child: Text(
+                              'Character pack import and export are available in the web app.',
                             ),
                           ),
-                        ),
-                      ],
-                      _heading('Character & motion'),
-                      SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('Reduce motion'),
-                        subtitle: const Text(
-                          'Keep character animation and interface transitions still. Your device’s reduced motion setting always applies.',
-                        ),
-                        value: preferences.reducedMotion,
-                        onChanged: enabled
-                            ? (value) => _preferences(
-                                preferences.copyWith(reducedMotion: value),
-                              )
-                            : null,
-                      ),
-                      SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('Interface transitions'),
-                        subtitle: const Text(
-                          'Fade between views and settings panels. Reduced motion always takes priority.',
-                        ),
-                        value: preferences.animateTransitions,
-                        onChanged: enabled
-                            ? (value) => _preferences(
-                                preferences.copyWith(animateTransitions: value),
-                              )
-                            : null,
-                      ),
-                      SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('Speech mouth movement'),
-                        subtitle: Text(
-                          preferences.reducedMotion || media.disableAnimations
-                              ? 'Still · Reduced motion takes priority. Your choice is saved for when motion is enabled.'
-                              : 'Move Kinaiya’s mouth with her spoken audio in the default Converse portrait. Turn off to keep her mouth still.',
-                        ),
-                        value: preferences.speechMouthMotion,
-                        onChanged: enabled
-                            ? (value) => _preferences(
-                                controller.preferences.copyWith(
-                                  speechMouthMotion: value,
-                                ),
-                              )
-                            : null,
-                      ),
-                      SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('Show character'),
-                        subtitle: const Text(
-                          'Turn off for a simpler view with the same controls.',
-                        ),
-                        value: preferences.showCharacter,
-                        onChanged: enabled
-                            ? (value) => _preferences(
-                                preferences.copyWith(showCharacter: value),
-                              )
-                            : null,
-                      ),
-                      SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('Show captions'),
-                        subtitle: const Text(
-                          'Display spoken conversation text in Character View.',
-                        ),
-                        value: preferences.showCaptions,
-                        onChanged: enabled
-                            ? (value) => _preferences(
-                                preferences.copyWith(showCaptions: value),
-                              )
-                            : null,
-                      ),
-                      _heading('Colors'),
-                      SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('Use character pack colors'),
-                        subtitle: const Text(
-                          'Your color overrides take priority.',
-                        ),
-                        value: preferences.usePackPalette,
-                        onChanged: enabled
-                            ? (value) => _preferences(
-                                preferences.copyWith(usePackPalette: value),
-                              )
-                            : null,
-                      ),
-                      const Text(
-                        'Leave an override blank to use the character palette or Kinaiya colors. Text contrast adjusts automatically.',
-                      ),
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: _primary,
-                        enabled: enabled,
-                        maxLength: 7,
-                        autocorrect: false,
-                        textCapitalization: TextCapitalization.characters,
-                        decoration: InputDecoration(
-                          labelText: 'Primary color override',
-                          helperText: '#RRGGBB, for example #141091',
-                          helperMaxLines: 3,
-                          errorMaxLines: 3,
-                          errorText: _primaryError,
-                          counterText: '',
-                        ),
-                        onChanged: (_) => _paletteDirty = true,
-                        onSubmitted: enabled ? (_) => _applyPalette() : null,
-                      ),
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: _background,
-                        enabled: enabled,
-                        maxLength: 7,
-                        autocorrect: false,
-                        textCapitalization: TextCapitalization.characters,
-                        decoration: InputDecoration(
-                          labelText: 'Background color override',
-                          helperText: '#RRGGBB, for example #FFFFFF',
-                          helperMaxLines: 3,
-                          errorMaxLines: 3,
-                          errorText: _backgroundError,
-                          counterText: '',
-                        ),
-                        onChanged: (_) => _paletteDirty = true,
-                        onSubmitted: enabled ? (_) => _applyPalette() : null,
-                      ),
-                      const SizedBox(height: 12),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          FilledButton(
-                            onPressed: enabled ? _applyPalette : null,
-                            child: const Text('Apply color overrides'),
-                          ),
-                          TextButton(
-                            onPressed: enabled ? _clearPalette : null,
-                            child: const Text('Clear color overrides'),
+                        if (preview != null) ...[
+                          _heading('Preview character pack'),
+                          Card(
+                            child: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Center(
+                                    child: MediaQuery(
+                                      data: media.copyWith(
+                                        disableAnimations:
+                                            media.disableAnimations ||
+                                            preferences.reducedMotion,
+                                      ),
+                                      child: MascotWidget(
+                                        pack: preview.pack,
+                                        bundle: preview.bundle,
+                                        mood: 'idle',
+                                        size: 160,
+                                      ),
+                                    ),
+                                  ),
+                                  _metadata(preview.pack),
+                                  const SizedBox(height: 8),
+                                  const Text(
+                                    'Only the artwork and its palette change when you use this pack.',
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: [
+                                      FilledButton(
+                                        onPressed: enabled ? _usePreview : null,
+                                        child: const Text('Use character pack'),
+                                      ),
+                                      TextButton(
+                                        onPressed: enabled
+                                            ? () => setState(
+                                                () => _preview = null,
+                                              )
+                                            : null,
+                                        child: const Text('Cancel preview'),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
                         ],
-                      ),
-                      const SizedBox(height: 12),
+                      ],
+                      if (widget.section == PresentationSection.all ||
+                          widget.section == PresentationSection.accessibility ||
+                          widget.section == PresentationSection.character) ...[
+                        _heading('Character & motion'),
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Reduce motion'),
+                          subtitle: const Text(
+                            'Keep character animation and interface transitions still. Your device’s reduced motion setting always applies.',
+                          ),
+                          value: preferences.reducedMotion,
+                          onChanged: enabled
+                              ? (value) => _preferences(
+                                  preferences.copyWith(reducedMotion: value),
+                                )
+                              : null,
+                        ),
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Interface transitions'),
+                          subtitle: const Text(
+                            'Fade between views and settings panels. Reduced motion always takes priority.',
+                          ),
+                          value: preferences.animateTransitions,
+                          onChanged: enabled
+                              ? (value) => _preferences(
+                                  preferences.copyWith(
+                                    animateTransitions: value,
+                                  ),
+                                )
+                              : null,
+                        ),
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Speech mouth movement'),
+                          subtitle: Text(
+                            preferences.reducedMotion || media.disableAnimations
+                                ? 'Still · Reduced motion takes priority. Your choice is saved for when motion is enabled.'
+                                : 'Move Kinaiya’s mouth with her spoken audio in the default Converse portrait. Turn off to keep her mouth still.',
+                          ),
+                          value: preferences.speechMouthMotion,
+                          onChanged: enabled
+                              ? (value) => _preferences(
+                                  controller.preferences.copyWith(
+                                    speechMouthMotion: value,
+                                  ),
+                                )
+                              : null,
+                        ),
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Show character'),
+                          subtitle: const Text(
+                            'Turn off for a simpler view with the same controls.',
+                          ),
+                          value: preferences.showCharacter,
+                          onChanged: enabled
+                              ? (value) => _preferences(
+                                  preferences.copyWith(showCharacter: value),
+                                )
+                              : null,
+                        ),
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Show captions'),
+                          subtitle: const Text(
+                            'Display spoken conversation text in Character View.',
+                          ),
+                          value: preferences.showCaptions,
+                          onChanged: enabled
+                              ? (value) => _preferences(
+                                  preferences.copyWith(showCaptions: value),
+                                )
+                              : null,
+                        ),
+                      ],
+                      if (widget.section == PresentationSection.all ||
+                          widget.section == PresentationSection.appearance) ...[
+                        _heading('Interface'),
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Show Converse page'),
+                          subtitle: const Text(
+                            'Keep the close-up interaction view in navigation. Home remains available.',
+                          ),
+                          value: preferences.showConverseView,
+                          onChanged: enabled
+                              ? (value) => _preferences(
+                                  preferences.copyWith(showConverseView: value),
+                                )
+                              : null,
+                        ),
+                        InterfaceTransitionsSwitch(
+                          controller: controller,
+                          showStorageNotice: false,
+                        ),
+                        _heading('Colors'),
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Use character pack colors'),
+                          subtitle: const Text(
+                            'Your color overrides take priority.',
+                          ),
+                          value: preferences.usePackPalette,
+                          onChanged: enabled
+                              ? (value) => _preferences(
+                                  preferences.copyWith(usePackPalette: value),
+                                )
+                              : null,
+                        ),
+                        const Text(
+                          'Leave an override blank to use the character palette or Kinaiya colors. Text contrast adjusts automatically.',
+                        ),
+                        const SizedBox(height: 16),
+                        TextField(
+                          controller: _primary,
+                          enabled: enabled,
+                          maxLength: 7,
+                          autocorrect: false,
+                          textCapitalization: TextCapitalization.characters,
+                          decoration: InputDecoration(
+                            labelText: 'Primary color override',
+                            helperText: '#RRGGBB, for example #141091',
+                            helperMaxLines: 3,
+                            errorMaxLines: 3,
+                            errorText: _primaryError,
+                            counterText: '',
+                          ),
+                          onChanged: (_) => _paletteDirty = true,
+                          onSubmitted: enabled ? (_) => _applyPalette() : null,
+                        ),
+                        const SizedBox(height: 16),
+                        TextField(
+                          controller: _background,
+                          enabled: enabled,
+                          maxLength: 7,
+                          autocorrect: false,
+                          textCapitalization: TextCapitalization.characters,
+                          decoration: InputDecoration(
+                            labelText: 'Background color override',
+                            helperText: '#RRGGBB, for example #FFFFFF',
+                            helperMaxLines: 3,
+                            errorMaxLines: 3,
+                            errorText: _backgroundError,
+                            counterText: '',
+                          ),
+                          onChanged: (_) => _paletteDirty = true,
+                          onSubmitted: enabled ? (_) => _applyPalette() : null,
+                        ),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            FilledButton(
+                              onPressed: enabled ? _applyPalette : null,
+                              child: const Text('Apply color overrides'),
+                            ),
+                            TextButton(
+                              onPressed: enabled ? _clearPalette : null,
+                              child: const Text('Clear color overrides'),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                      ],
                     ],
                   ),
                 ),
