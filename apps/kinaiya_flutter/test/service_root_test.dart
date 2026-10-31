@@ -83,6 +83,8 @@ void main() {
         'ftp://host.example',
         'https://host.example?',
         'https://host.example#',
+        'https://host.example:0/',
+        'http://127.0.0.1:0/',
       ]) {
         expect(
           ConnectionProfile.validateServiceUrl(invalid),

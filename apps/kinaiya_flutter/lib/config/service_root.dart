@@ -11,6 +11,7 @@ String normalizeServiceRoot(String raw) {
     if (!{'http', 'https'}.contains(uri.scheme) ||
         !uri.hasAuthority ||
         uri.host.isEmpty ||
+        uri.port < 1 ||
         uri.port > 65535) {
       throw invalid;
     }
