@@ -7,6 +7,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../config/connection.dart';
+import '../config/service_root.dart';
 import 'models.dart';
 
 class CompanionFailure implements Exception {
@@ -26,7 +27,7 @@ class CompanionClient {
     }
     final problem = ConnectionProfile.validateServiceUrl(host);
     if (problem != null) throw CompanionFailure(problem);
-    _base = Uri.parse(host.trim().replaceFirst(RegExp(r'/+$'), ''));
+    _base = Uri.parse(normalizeServiceRoot(host));
   }
 
   final http.Client Function() _factory;

@@ -5,6 +5,7 @@
 library;
 
 import '../api/models.dart';
+import 'service_root.dart';
 
 const String defaultSessionUrl = 'http://127.0.0.1:8760';
 const String defaultAgentUrl = 'http://127.0.0.1:8761';
@@ -56,12 +57,14 @@ enum BackendProfile {
 /// Validated connection settings. The token is held in memory only.
 class ConnectionProfile {
   ConnectionProfile({
-    required this.sessionUrl,
-    required this.agentUrl,
-    required this.converseUrl,
+    required String sessionUrl,
+    required String agentUrl,
+    required String converseUrl,
     required this.ownerToken,
     this.backendProfile = BackendProfile.clean,
-  });
+  }) : sessionUrl = serviceRootOrOriginal(sessionUrl),
+       agentUrl = serviceRootOrOriginal(agentUrl),
+       converseUrl = serviceRootOrOriginal(converseUrl);
 
   final String sessionUrl;
   final String agentUrl;
@@ -92,15 +95,11 @@ class ConnectionProfile {
 
   /// Rejects insecure remote HTTP; loopback HTTP and HTTPS are allowed.
   static String? validateServiceUrl(String raw) {
-    final uri = Uri.tryParse(raw.trim());
-    if (uri == null || !uri.hasScheme || !uri.hasAuthority) {
-      return 'enter a full http(s) URL';
-    }
-    if (uri.scheme != 'http' && uri.scheme != 'https') {
-      return 'only http(s) URLs are supported';
-    }
-    if (uri.userInfo.isNotEmpty || uri.hasQuery || uri.hasFragment) {
-      return 'service URLs cannot contain credentials, queries or fragments';
+    final Uri uri;
+    try {
+      uri = Uri.parse(normalizeServiceRoot(raw));
+    } on FormatException catch (error) {
+      return error.message;
     }
     if (uri.scheme == 'http' && !_isLoopback(uri.host)) {
       return 'insecure remote HTTP is rejected; use https or loopback';

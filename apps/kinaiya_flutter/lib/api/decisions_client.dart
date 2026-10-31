@@ -5,6 +5,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'decisions_models.dart';
+import '../config/service_root.dart';
 
 class DecisionsFailure implements Exception {
   const DecisionsFailure(this.message, {this.status});
@@ -73,18 +74,13 @@ class DecisionsApi {
     if (_closed || _owners.length >= 2) {
       throw const DecisionsFailure('Evidence reader is busy or closed');
     }
-    final root = Uri.parse(base);
-    if (!{'http', 'https'}.contains(root.scheme) ||
-        root.host.isEmpty ||
-        root.userInfo.isNotEmpty ||
-        root.hasQuery ||
-        root.hasFragment) {
+    final Uri root;
+    try {
+      root = Uri.parse(normalizeServiceRoot(base));
+    } on FormatException {
       throw const DecisionsFailure('Invalid Session service URL');
     }
-    final uri = root.replace(
-      path: '${root.path.replaceFirst(RegExp(r'/+$'), '')}$path',
-      queryParameters: query,
-    );
+    final uri = root.replace(path: '${root.path}$path', queryParameters: query);
     final client = _factory();
     var closed = false;
     void close() {

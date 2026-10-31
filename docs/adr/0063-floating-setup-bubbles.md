@@ -56,6 +56,33 @@ testing and pending-save outcomes. Existing setup/navigation tests retain GET-on
 voice-owner and preference persistence checks. All fixtures are synthetic.
 Continuous motion tests advance bounded frames instead of waiting to settle.
 
+## Deterministic release regression (#163)
+
+[#163](https://github.com/rgoza1996/Kinaiya/issues/163) preserves two intermittent
+post-merge failures: [run 41157044621](https://github.com/rgoza1996/Kinaiya/actions/runs/41157044621)
+and [run 41163861835](https://github.com/rgoza1996/Kinaiya/actions/runs/41163861835).
+The old setup test required more than 30 pixels of net displacement after 120
+frames in a fresh random layout. It observed 27.0164 and 22.4812 pixels. Net
+displacement after collision/damping does not establish whether a release was
+swallowed. The exact failed layouts were not retained, so their individual
+collision histories remain unknown.
+
+A pinned Flutter 3.47.8 `VelocityTracker` diagnostic measured the old mouse
+samples (0, 110, 111, 112 pixels at 16 ms intervals) as about **-3003.125 px/s**,
+opposite the test's forward clear-path check. The replacement uses a recognition
+jump followed by ten steady 8-pixel samples at 16 ms, measured as **500 px/s**.
+Optional injected entropy supplies eight fixed positions and initial velocities
+through the real setup widget; production still creates fresh `Random()`.
+No collision, hover, damping or gesture code changed.
+
+The corrected widget test observes the released circle pass beneath the stationary
+pointer, leave it and remain unheld on every intervening frame. It checks neighbor
+motion, no accidental modal and normal hover after deliberate pointer movement.
+Replacing the stationary-release hover guard with unconditional hover capture
+makes this test fail with `Stationary pointer must never relatch Model.` The
+source was restored and the full Flutter suite passed. This tests the actual
+regression instead of relaxing the old distance threshold.
+
 This presentation change supplies no example timeline or generated rationale.
 The separate [Decisions traceability requirements](../decisions-traceability.md)
 subsequently gained the native capture/API and owner inspection implementation

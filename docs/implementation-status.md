@@ -2,8 +2,8 @@
 
 **As of:** October 30, 2026, America/Los_Angeles.<br>
 **Specification:** [Roadmap 0.3.0](../Roadmap.md) and [clarification.md](../clarification.md).<br>
-**Runtime source cutoff:** [`d735125e7767fc1e5c4d94c6254364b5816adea4`](https://github.com/rgoza1996/Kinaiya/commit/d735125e7767fc1e5c4d94c6254364b5816adea4), tree `20894fef03f7e910d67777a643e8ffdcf6c77125`.<br>
-**Reconciliation:** [#161](https://github.com/rgoza1996/Kinaiya/issues/161), documentation only.
+**Runtime source cutoff:** [`f92f6d10aa136a5d27a6d4b41af4389ece3ac828`](https://github.com/rgoza1996/Kinaiya/commit/f92f6d10aa136a5d27a6d4b41af4389ece3ac828), tree `1d6b27a87aa80dc992da7fa4c4fa2ac53bf95f41`.<br>
+**Reconciliation:** [#161](https://github.com/rgoza1996/Kinaiya/issues/161), documentation only; subsequent bounded client fixes [#151](https://github.com/rgoza1996/Kinaiya/issues/151) and [#163](https://github.com/rgoza1996/Kinaiya/issues/163) are recorded below.
 
 The owner requested reconciliation before further feature work. Inputs were the implementation discussion and **Set up local Penpot for Kinaiya** design discussion through October 30, the merged source/ADRs, retained synthetic research evidence, and GitHub tracking. This records product decisions without copying private conversation contents, credentials or live user data. A design-chat assertion or assistant completion message is not independently sufficient implementation evidence.
 
@@ -64,6 +64,14 @@ The default idle atlas sits on water under the moon; the bundled flat background
 Playback-synchronized close-up mouth motion and restrained generated mouth poses are merged in [PR158](https://github.com/rgoza1996/Kinaiya/pull/158). Actual decoded PCM/playback timing drives amplitude states; silence, Stop, stale generations and motion preferences close the mouth. Timed viseme input is optional; current providers supply no qualified phoneme timing. The Penpot chat's newer removal of hair ornaments, tiny chest mole and moonlight-highlight refinements are reference artwork only at the cutoff. No assertion is made that they are in the released pack.
 
 The latest Decisions desktop mockup is complete as a design; the design chat reports condensed mobile scripts and visual-only prototype filters/copy controls. Production has its own native-backed literal inspection and responsive tests. Those are separate artifacts: neither the prototype's examples nor production code prove every Penpot frame is finished or synchronized.
+
+## Client reliability
+
+The owner prioritized the intermittent bubble CI failure and trailing-slash connection failure before further features. [#163](https://github.com/rgoza1996/Kinaiya/issues/163) replaces a randomized, net-displacement test with fixed initial positions/velocities, a measured forward release gesture and frame-by-frame stationary-pointer re-entry/escape checks. Production physics and fresh random layout remain unchanged. A deliberate sticky-hover mutation fails the replacement test. The original failing CI runs and the pinned Flutter velocity diagnosis remain documented in [ADR0063](adr/0063-floating-setup-bubbles.md#deterministic-release-regression-163); the exact random layout responsible for either CI failure was not retained.
+
+[#151](https://github.com/rgoza1996/Kinaiya/issues/151) adds one shared service-root normalizer at profile and client boundaries. Bare, trailing-slash and outer-whitespace spellings use identical Session/Agent/Converse paths; accepted reverse-proxy prefixes also survive WebSocket conversion. Invalid or ambiguous paths, URL credentials/query/fragment and port zero are rejected with bounded errors. Owner setup retains its remote-HTTPS requirement; authentication, disclosure and provider choices retain their existing contracts. [ADR0067](adr/0067-canonical-service-roots.md) maps client, setup, auxiliary APIs and real loopback WebSocket verification.
+
+Local evidence uses pinned Flutter 3.47.8: `flutter test --no-pub` passed 771 tests after the production fixes, before the final WebSocket test was added; `flutter test --no-pub test/events_service_root_test.dart test/service_root_test.dart` then passed all nine tests at the cutoff. `flutter analyze --no-pub` and 33 `node --test web/audio_bridge.test.js` tests passed. The loopback test runs actual HTTP upgrades and first-frame auth with synthetic data, without live Kinaiya services or paid inference. Full builds and exact-head CI are recorded in the associated PR rather than inferred from local test counts. This work does not change the running preview, production provider settings or milestone acceptance gates.
 
 ## Optional Converse memory
 

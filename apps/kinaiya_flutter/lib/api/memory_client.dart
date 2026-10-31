@@ -5,6 +5,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/connection.dart';
+import '../config/service_root.dart';
 import 'memory_models.dart';
 
 class MemoryFailure implements Exception {
@@ -200,7 +201,7 @@ class MemoryApi {
     if (bytes.length > 16 * 1024) {
       throw const MemoryFailure('Memory request exceeds its bound');
     }
-    final uri = Uri.parse('${trimmed.replaceFirst(RegExp(r'/+$'), '')}$path');
+    final uri = Uri.parse('${normalizeServiceRoot(base)}$path');
     final request = http.Request('POST', uri)
       ..followRedirects = false
       ..headers.addAll({

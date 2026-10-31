@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -68,6 +69,43 @@ Widget _field({
   ),
 );
 
+class _SequenceRandom implements math.Random {
+  _SequenceRandom(this._values);
+
+  final List<double> _values;
+  int _index = 0;
+
+  @override
+  double nextDouble() {
+    return _values[_index++];
+  }
+
+  @override
+  int nextInt(int max) => (nextDouble() * max).floor() % max;
+
+  @override
+  bool nextBool() => nextDouble() < 0.5;
+}
+
+math.Random _deterministicBubbleRandom() => _SequenceRandom(<double>[
+  0.05, 0.05, // Setup
+  0.15, 0.15, // Model
+  0.55, 0.05, // Reasoning
+  0.80, 0.05, // Inputs
+  0.05, 0.65, // Speech
+  0.55, 0.80, // Decisions
+  0.80, 0.65, // View
+  0.05, 0.85, // Close
+  0.0, 0.5, // Setup velocity angle 0 / speed .5
+  0.0, 0.5, // Model
+  0.0, 0.5, // Reasoning
+  0.0, 0.5, // Inputs
+  0.0, 0.5, // Speech
+  0.0, 0.5, // Decisions
+  0.0, 0.5, // View
+  0.0, 0.5, // Close
+]);
+
 class _SetupHost {
   _SetupHost(this.state, this.presentation, this.requests);
 
@@ -75,7 +113,11 @@ class _SetupHost {
   final PresentationController presentation;
   final List<http.Request> requests;
 
-  Widget app({bool launcher = false, double textScale = 1}) => MaterialApp(
+  Widget app({
+    bool launcher = false,
+    double textScale = 1,
+    math.Random? bubbleRandom,
+  }) => MaterialApp(
     builder: (context, child) => MediaQuery(
       data: MediaQuery.of(
         context,
@@ -91,13 +133,18 @@ class _SetupHost {
                   builder: (_) => ModelSetupDialog(
                     state: state,
                     presentation: presentation,
+                    bubbleRandom: bubbleRandom,
                   ),
                 ),
                 child: const Text('Open setup'),
               ),
             ),
           )
-        : ModelSetupDialog(state: state, presentation: presentation),
+        : ModelSetupDialog(
+            state: state,
+            presentation: presentation,
+            bubbleRandom: bubbleRandom,
+          ),
   );
 
   void expectReadOnly() {
@@ -292,92 +339,120 @@ void main() {
     await _wide(tester);
     await tester.binding.setSurfaceSize(const Size(3200, 1800));
     final host = await _setup(tester);
-    await tester.pumpWidget(host.app());
+    await tester.pumpWidget(
+      host.app(bubbleRandom: _deterministicBubbleRandom()),
+    );
     await _frames(tester, count: 20);
-    final field = tester.getRect(find.byType(FloatingBubbles));
-    final circles = {
-      for (final name in ['Setup', ..._sections, 'View', 'Close'])
-        name: tester.getRect(_bubble(name)),
-    };
-    final obstacle = Rect.fromLTWH(
-      field.center.dx - 110,
-      field.top + field.height * .3,
-      220,
-      field.height * .4,
-    );
-    String? chosen;
-    Offset? direction;
-    // Select a clear path from the actual randomized layout. This keeps the
-    // regression about release-pointer re-entry rather than a wall collision.
-    for (final entry in circles.entries) {
-      final radius = entry.value.width / 2;
-      for (final axis in [
-        const Offset(1, 0),
-        const Offset(-1, 0),
-        const Offset(0, 1),
-        const Offset(0, -1),
-      ]) {
-        var clear = true;
-        for (var step = 0; step <= 60; step++) {
-          final point = entry.value.center + axis * (step * 10.0);
-          if (!field.deflate(radius + 2).contains(point) ||
-              obstacle.inflate(radius + 2).contains(point) ||
-              Rect.fromLTWH(
-                field.left,
-                field.top,
-                56,
-                56,
-              ).inflate(radius + 2).contains(point) ||
-              circles.entries.any(
-                (other) =>
-                    other.key != entry.key &&
-                    (other.value.center - point).distance < radius * 2 + 2,
-              )) {
-            clear = false;
-            break;
-          }
-        }
-        if (clear) {
-          chosen = entry.key;
-          direction = axis;
-          break;
-        }
-      }
-      if (chosen != null) break;
-    }
-    expect(
-      chosen,
-      isNotNull,
-      reason: 'Seven circles have a clear release path.',
-    );
-    final name = chosen!;
+
     final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
-    var at = tester.getCenter(_bubble(name));
     await mouse.addPointer(location: Offset.zero);
+
+    final modelCenter = tester.getCenter(_bubble('Model'));
+    await mouse.moveTo(modelCenter);
+    await _frames(tester, count: 2);
+    final hovered = _positions(tester);
+    await _frames(tester, count: 30);
+    final afterHover = _positions(tester);
+    expect(
+      afterHover['Model'],
+      hovered['Model'],
+      reason: 'Hover must hold only Model.',
+    );
+    _expectMoved(hovered, afterHover);
+
+    await mouse.moveTo(Offset.zero);
+    await _frames(tester, count: 2);
+    final unhovered = _positions(tester);
+    await _frames(tester, count: 30);
+    final resumed = _positions(tester);
+    expect(
+      (resumed['Model']! - unhovered['Model']!).distance,
+      greaterThan(1.0),
+      reason: 'Moving pointer to zero must resume Model drift.',
+    );
+    _expectMoved(unhovered, resumed);
+
+    const direction = Offset(1, 0);
+    var at = tester.getCenter(_bubble('Model'));
     await mouse.moveTo(at);
     await tester.pump();
     await mouse.down(at);
-    // A large initial move is consumed by pan recognition, leaving the cursor
-    // ahead of the body. Its ensuing re-entry used to swallow the launch.
-    for (var i = 0; i < 3; i++) {
-      at += direction! * (i == 0 ? 110.0 : 1.0);
-      await mouse.moveTo(at, timeStamp: Duration(milliseconds: 16 * (i + 1)));
+    var stamp = 0;
+    at += direction * 110.0;
+    stamp += 16;
+    await mouse.moveTo(at, timeStamp: Duration(milliseconds: stamp));
+    await tester.pump(const Duration(milliseconds: 16));
+    for (var i = 0; i < 10; i++) {
+      at += direction * 8.0;
+      stamp += 16;
+      await mouse.moveTo(at, timeStamp: Duration(milliseconds: stamp));
       await tester.pump(const Duration(milliseconds: 16));
     }
-    await mouse.up(timeStamp: const Duration(milliseconds: 49));
-    await mouse.moveTo(at);
+    stamp += 1;
+    await mouse.up(timeStamp: Duration(milliseconds: stamp));
+
+    final releasePointer = at;
+    final releaseRadius = tester.getRect(_bubble('Model')).width / 2.0;
+    var sawEnter = false;
+    var sawLeaveAfterEnter = false;
+    final beforeEscape = _positions(tester);
+    for (var f = 0; f < 60; f++) {
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(
+        find.byKey(const ValueKey('setup-popover')),
+        findsNothing,
+        reason: 'Release must not open a modal.',
+      );
+      expect(
+        tester.widget<FloatingBubbles>(find.byType(FloatingBubbles)).heldKeys,
+        isNot(contains('Model')),
+        reason: 'Stationary pointer must never relatch Model.',
+      );
+      final center = tester.getCenter(_bubble('Model'));
+      final inside = (center - releasePointer).distance <= releaseRadius;
+      if (inside) {
+        sawEnter = true;
+      } else if (sawEnter) {
+        sawLeaveAfterEnter = true;
+      }
+    }
+    expect(
+      sawEnter,
+      isTrue,
+      reason: 'Launched circle must enter under stationary pointer.',
+    );
+    expect(
+      sawLeaveAfterEnter,
+      isTrue,
+      reason: 'Launched circle must leave stationary pointer.',
+    );
+    final afterEscape = _positions(tester);
+    expect(
+      [
+        'Reasoning',
+        'Inputs',
+        'Speech',
+        'Decisions',
+      ].any((s) => (afterEscape[s]! - beforeEscape[s]!).distance > 1.0),
+      isTrue,
+      reason: 'Neighbors must continue drift during escape.',
+    );
+
+    await mouse.moveTo(Offset.zero);
     await _frames(tester, count: 2);
-    expect(find.byKey(const ValueKey('setup-popover')), findsNothing);
-    final released = tester.getTopLeft(_bubble(name));
-    await _frames(tester, count: 120);
+    final backCenter = tester.getCenter(_bubble('Model'));
+    await mouse.moveTo(backCenter);
+    await _frames(tester, count: 2);
+    final rehovered = _positions(tester);
+    await _frames(tester, count: 30);
+    final afterRehover = _positions(tester);
     expect(
-      tester.widget<FloatingBubbles>(find.byType(FloatingBubbles)).heldKeys,
-      isNot(contains(name)),
+      afterRehover['Model'],
+      rehovered['Model'],
+      reason: 'Hover after escape must hold Model again.',
     );
-    expect(
-      (tester.getTopLeft(_bubble(name)) - released).distance,
-      greaterThan(30),
-    );
+    _expectMoved(rehovered, afterRehover);
+
     await mouse.removePointer();
     host.expectReadOnly();
     expect(tester.takeException(), isNull);

@@ -20,6 +20,7 @@ class FloatingBubbles extends StatefulWidget {
     this.onDragEnded,
     this.obstacles = const [],
     required this.fallback,
+    this.random,
   });
 
   final Map<String, Widget> children;
@@ -29,6 +30,10 @@ class FloatingBubbles extends StatefulWidget {
   final ValueChanged<String>? onDragStarted, onDragEnded;
   final List<Rect> obstacles;
   final Widget fallback;
+
+  /// Optional entropy for reproducible simulations, captured once at mount.
+  /// Production callers omit this and keep fresh randomized layouts.
+  final Random? random;
 
   @override
   State<FloatingBubbles> createState() => _FloatingBubblesState();
@@ -43,7 +48,7 @@ class _BodyGesture {
 
 class _FloatingBubblesState extends State<FloatingBubbles>
     with SingleTickerProviderStateMixin, WidgetsBindingObserver {
-  final _random = Random();
+  late final Random _random;
   late final Ticker _ticker;
   BubblePhysics? _physics;
   Size? _size;
@@ -183,6 +188,7 @@ class _FloatingBubblesState extends State<FloatingBubbles>
   @override
   void initState() {
     super.initState();
+    _random = widget.random ?? Random();
     _foreground =
         WidgetsBinding.instance.lifecycleState == null ||
         WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;

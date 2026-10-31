@@ -11,6 +11,7 @@ import 'dart:convert';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import 'models.dart';
+import '../config/service_root.dart';
 
 class JournalEventBatch {
   JournalEventBatch(this.entries, this.cursor);
@@ -19,8 +20,9 @@ class JournalEventBatch {
 }
 
 class EventsSocket {
-  EventsSocket({required this.sessionBase, required String ownerToken})
-    : _token = ownerToken;
+  EventsSocket({required String sessionBase, required String ownerToken})
+    : sessionBase = normalizeServiceRoot(sessionBase),
+      _token = ownerToken;
 
   final String sessionBase;
   final String _token;
@@ -31,7 +33,7 @@ class EventsSocket {
   String get _wsBase {
     final uri = Uri.parse(sessionBase);
     final scheme = uri.scheme == 'https' ? 'wss' : 'ws';
-    return '$scheme://${uri.authority}';
+    return uri.replace(scheme: scheme).toString();
   }
 
   /// Connects for [sessionId] replaying after [after]. Emits batches.
