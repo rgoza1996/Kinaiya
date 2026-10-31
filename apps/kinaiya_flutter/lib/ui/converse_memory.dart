@@ -186,9 +186,14 @@ Future<void> showConverseMemoryDialog({
 );
 
 class ConverseMemoryDialog extends StatefulWidget {
-  const ConverseMemoryDialog({super.key, required this.state});
+  const ConverseMemoryDialog({
+    super.key,
+    required this.state,
+    this.embedded = false,
+  });
 
   final AppState state;
+  final bool embedded;
 
   @override
   State<ConverseMemoryDialog> createState() => _ConverseMemoryDialogState();
@@ -859,6 +864,24 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
+    if (widget.embedded) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: _pendingReads > 0 ? null : _refresh,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Refresh notes'),
+            ),
+          ),
+          Expanded(child: SingleChildScrollView(child: _body(context))),
+          const Divider(),
+          _useActions(),
+        ],
+      );
+    }
     return CallbackShortcuts(
       bindings: <ShortcutActivator, VoidCallback>{
         const SingleActivator(LogicalKeyboardKey.escape): () =>

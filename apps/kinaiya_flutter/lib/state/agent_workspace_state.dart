@@ -257,6 +257,7 @@ extension AgentWorkspaceState on AppState {
       _agentDraftScope = ContentScope.localOnly;
       touch();
     }
+    await revalidateAgentInference();
     await refreshAgentSessions();
   }
 
@@ -366,6 +367,8 @@ extension AgentWorkspaceState on AppState {
         agentCursor = saved.cursor;
       }
       touch();
+      await revalidateAgentInference();
+      if (!current()) return;
       await refreshAgentHistory();
     } catch (_) {
       if (current()) {

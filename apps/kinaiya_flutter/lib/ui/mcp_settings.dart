@@ -4,11 +4,13 @@ import 'package:flutter/material.dart';
 
 import '../api/client.dart';
 import '../state/app_state.dart';
+import 'settings_surface.dart';
 
 /// Owner controls, available without inference and only linked from Agent.
 class McpSettings extends StatefulWidget {
-  const McpSettings({super.key, required this.state});
+  const McpSettings({super.key, required this.state, this.embedded = false});
   final AppState state;
+  final bool embedded;
 
   @override
   State<McpSettings> createState() => _McpSettingsState();
@@ -239,7 +241,8 @@ class _McpSettingsState extends State<McpSettings> {
         .map((row) => row.cast<String, Object?>())
         .toList();
     final canControl = configured && !_busy && !_unconfirmed;
-    return Dialog(
+    return SettingsSurface(
+      embedded: widget.embedded,
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 760, maxHeight: 700),
         child: Padding(
@@ -256,11 +259,12 @@ class _McpSettingsState extends State<McpSettings> {
                       style: TextStyle(fontSize: 22),
                     ),
                   ),
-                  IconButton(
-                    tooltip: 'Close MCP settings',
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close),
-                  ),
+                  if (!widget.embedded)
+                    IconButton(
+                      tooltip: 'Close MCP settings',
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close),
+                    ),
                 ],
               ),
               const Text(

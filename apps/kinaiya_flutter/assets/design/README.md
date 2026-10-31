@@ -39,3 +39,13 @@ implementation reuses that supplied asset without another image generation.
 The sleeping illustration is a static state reference. It is shown only for a
 confirmed owner-off Converse state; an outage or resource handoff is not evidence
 that the owner put Converse to sleep.
+
+`kinaiya-options-gear-v1.png` is the approved Options overview illustration from
+this owner's design session: Kinaiya reclining before the full moon, cradling a
+gear, with the updated hair highlights and small chest mole. The imagegen output
+is copied unmodified from `exec-ea891557-e1f3-40ac-93e7-5585053ac082.png` and
+matches the master Penpot export at `99f7fd1`. It has no baked interface controls.
+The app honors Show character and uses an imported pack's fallback mascot when
+a custom character is selected.
+
+Options illustration SHA256: `db007a16d63b8d9b5fd7fe177ef380c012f65d593c3ddfb71a76946f0ea4d50a`.

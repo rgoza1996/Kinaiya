@@ -990,6 +990,12 @@ class _AgentChatState extends State<AgentChat> {
           _detail('Current state', task.state),
           _detail('Objective revision', '${task.objectiveRevision}'),
           _detail('Task', task.taskId),
+          if (task.modelPin case final pin?) ...[
+            _detail('Model', '${pin['model']}'),
+            _detail('Provider', '${pin['provider']}'),
+            _detail('Model profile', '${pin['profile_id']}'),
+            _detail('Reasoning', '${pin['reasoning'] ?? 'Profile default'}'),
+          ],
           _detail('Session', task.sessionId),
           _detail(
             'Recorded harness',
