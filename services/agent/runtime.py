@@ -30,6 +30,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+from core.extensions import HarnessError
 from core.policy import ApprovalError, PolicyDenied, ToolPolicy
 from harnesses.seed import build_messages, observation_text, parse_action
 from packages.contracts.interfaces import Journal, TextProvider
@@ -422,6 +423,22 @@ class AgentRuntime:
         async with self.integration_lock:
             return await self._submit(request, actor, explicit_skill=explicit_skill)
 
+    def session_harness(self, pinned: str | None) -> str:
+        """Native registry policy, never caller/model assertions, grants a pin."""
+        registry = self.selector_registry
+        if registry is None:
+            if pinned not in {None, "seed-v1"}:
+                raise ValueError("Pinned harness is unavailable")
+            return "seed-v1"
+        version = registry.active if pinned is None else pinned
+        if registry.selection_eligibility(version) not in {
+            "active",
+            "approved_baseline",
+            "owner_promoted",
+        }:
+            raise ValueError("Pinned harness has no current owner-approved eligibility")
+        return version
+
     async def _submit(
         self, request: TaskRequest, actor: str = "owner", *, explicit_skill: str | None = None
     ) -> Task:
@@ -485,6 +502,10 @@ class AgentRuntime:
                 ):
                     raise IdemConflict("idempotency key reuses a conflicting submit payload")
             return self._copy(task_id)
+        try:
+            harness_version = self.session_harness(session.harness_version)
+        except (HarnessError, OSError, ValueError, RuntimeError) as exc:
+            raise PolicyDenied("The session's pinned harness is unavailable or unapproved") from exc
         task = Task(
             session_id=request.session_id,
             thread_id=request.thread_id,
@@ -495,7 +516,7 @@ class AgentRuntime:
             state=TaskState.ACCEPTED,
             source_event_ids=list(request.source_event_ids),
             idempotency_key=request.idempotency_key,
-            harness_version=self.selector_registry.active if self.selector_registry else "seed-v1",
+            harness_version=harness_version,
         )
         rec = _Record(task=task, explicit_skill=explicit_skill)
         if request.source_event_ids:

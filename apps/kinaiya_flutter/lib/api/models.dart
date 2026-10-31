@@ -51,6 +51,7 @@ class SessionInfo {
     required this.channel,
     required this.epoch,
     this.name = '',
+    this.harnessVersion,
   });
 
   factory SessionInfo.fromJson(Map<String, Object?> json) {
@@ -65,6 +66,7 @@ class SessionInfo {
       channel: channel,
       epoch: (json['epoch'] as num?)?.toInt() ?? 1,
       name: json['name'] as String? ?? '',
+      harnessVersion: json['harness_version'] as String?,
     );
   }
 
@@ -73,6 +75,7 @@ class SessionInfo {
   final String channel;
   final int epoch;
   final String name;
+  final String? harnessVersion;
 
   Map<String, Object?> toCreateJson() => <String, Object?>{
     'schema_version': schemaVersion,
@@ -143,6 +146,7 @@ class AgentTask {
     this.remainingRequiredWork = const [],
     this.contentScope = ContentScope.localOnly,
     this.error,
+    this.harnessVersion,
   });
 
   factory AgentTask.fromJson(Map<String, Object?> json) {
@@ -163,6 +167,7 @@ class AgentTask {
           .map((e) => '$e')
           .toList(),
       error: json['error'] as String?,
+      harnessVersion: json['harness_version'] as String?,
     );
   }
 
@@ -179,6 +184,7 @@ class AgentTask {
   final List<Evidence> evidence;
   final List<String> remainingRequiredWork;
   final String? error;
+  final String? harnessVersion;
 
   static const Set<String> terminalStates = {
     'succeeded',

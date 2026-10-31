@@ -82,8 +82,9 @@ void main() {
     await tester.pumpWidget(KinaiyaApp(state: state));
     await penpotSettle(tester);
     expect(find.text('Workspace'), findsOneWidget);
-    expect(find.widgetWithText(TextField, 'Search tasks'), findsOneWidget);
-    expect(find.byKey(const ValueKey('workspace-task-one')), findsOneWidget);
+    expect(find.byKey(const ValueKey('agent-harness-sidebar')), findsOneWidget);
+    expect(find.byKey(const ValueKey('agent-session-sidebar')), findsOneWidget);
+    expect(find.text('Synthetic task one'), findsWidgets);
     expect(find.text('Direct Agent Chat'), findsOneWidget);
     expect(find.byKey(const ValueKey('agent-input')), findsOneWidget);
     expect(find.text('Send task'), findsOneWidget);
@@ -107,7 +108,8 @@ void main() {
     state.setTasks(api.fixtures);
     await tester.pumpWidget(KinaiyaApp(state: state));
     await penpotSettle(tester);
-    expect(find.text('Workspace'), findsNothing);
+    expect(find.byKey(const ValueKey('agent-session-sidebar')), findsNothing);
+    expect(find.byKey(const ValueKey('open-agent-workspace')), findsOneWidget);
     expect(find.text('Task details'), findsNothing);
     expect(find.byKey(const ValueKey('agent-input')), findsOneWidget);
     expect(find.text('Synthetic task one'), findsWidgets);

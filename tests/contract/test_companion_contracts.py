@@ -47,3 +47,24 @@ def test_call_request_cannot_supply_authority(extra):
         companion.CallRequest(
             device_id="synthetic", title="Invitation", idempotency_key="call", **extra
         )
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        {"channel": "converse"},
+        {"name": "Session metadata"},
+        {"harness_version": None},
+        {"harness_version": "seed-v1"},
+        {"selectable": True},
+    ],
+)
+def test_pairing_request_never_accepts_unprojected_session_metadata(extra):
+    with pytest.raises(ValidationError):
+        companion.PairingRequest(
+            session_id="synthetic-session",
+            thread_id="synthetic-thread",
+            epoch=1,
+            label="Synthetic phone",
+            **extra,
+        )

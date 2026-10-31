@@ -91,6 +91,7 @@ void main() {
     tester,
   ) async {
     final state = wiredState();
+    await state.ensureSession('agent', name: 'work');
     await tester.pumpWidget(KinaiyaApp(state: state));
     await tester.pump(const Duration(milliseconds: 200));
 

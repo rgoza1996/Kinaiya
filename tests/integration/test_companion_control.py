@@ -38,9 +38,14 @@ def host(tmp_path):
 
 
 def pairing(client, session, **extra):
-    payload = {**session.model_dump(), "label": "Synthetic phone"}
-    for key in ("channel", "name"):
-        payload.pop(key)
+    # Session metadata can grow independently of the scoped companion wire.
+    payload = PairingRequest(
+        schema_version=session.schema_version,
+        session_id=session.session_id,
+        thread_id=session.thread_id,
+        epoch=session.epoch,
+        label="Synthetic phone",
+    ).model_dump(mode="json")
     return client.post(PREFIX + "/pairings", json={**payload, **extra}, headers=OWNER)
 
 
@@ -80,6 +85,38 @@ def act(client, issued, call, action, key="action", **override):
         },
         headers=bearer(issued),
     )
+
+
+def test_pairing_projects_binding_while_session_harness_metadata_stays_visible(host):
+    store, session, now, auth, app, client = host
+    current = client.get("/v1/sessions/" + session.session_id, headers=OWNER).json()
+    assert current["harness_version"] is None
+    projected = pairing(client, session)
+    assert projected.status_code == 200, projected.text
+    assert set(projected.json()) == {
+        "schema_version",
+        "session_id",
+        "thread_id",
+        "epoch",
+        "label",
+        "pairing_code",
+        "expires_at",
+    }
+    # Even null metadata is outside the pairing contract, not a new grant.
+    for harness in (None, "seed-v1"):
+        rejected = pairing(client, session, harness_version=harness)
+        assert rejected.status_code == 422
+    assert store.db.execute("SELECT count(*) FROM companion_pairings").fetchone()[0] == 1
+
+    agent = store.create_session(SessionRequest(channel="agent", harness_version="seed-v1"))
+    assert (
+        client.get("/v1/sessions/" + agent.session_id, headers=OWNER).json()["harness_version"]
+        == "seed-v1"
+    )
+    # Projecting a valid wire shape cannot turn an Agent session into Converse.
+    assert pairing(client, agent).status_code == 409
+    assert store.session(agent.session_id).harness_version == "seed-v1"
+    assert store.db.execute("SELECT count(*) FROM companion_pairings").fetchone()[0] == 1
 
 
 def test_single_use_concurrent_redemption_and_hash_only_restart(host):

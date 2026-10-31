@@ -16,8 +16,11 @@ import 'package:flutter/foundation.dart';
 
 import '../api/client.dart';
 import '../api/models.dart';
+import '../api/agent_workspace.dart';
 import '../config/connection.dart';
 import 'converse_handoff.dart';
+
+part 'agent_workspace_state.dart';
 
 enum AppView { character, agent }
 
@@ -111,11 +114,13 @@ class AppState extends ChangeNotifier {
 
   SessionInfo? converseSession;
   SessionInfo? agentSession;
+  final _agentWorkspace = _AgentWorkspaceData();
 
   final List<ChatMsg> converseHistory = [];
   final List<ChatMsg> agentHistory = [];
   String _converseDraft = '';
   String _agentDraft = '';
+  int _agentDraftRevision = 0;
   ContentScope _converseDraftScope = ContentScope.localOnly;
   ContentScope _agentDraftScope = ContentScope.localOnly;
   String get converseDraft => _converseDraft;
@@ -128,6 +133,7 @@ class AppState extends ChangeNotifier {
   }
 
   set agentDraft(String value) {
+    _agentDraftRevision++;
     _agentDraft = value;
     _agentDraftScope = ContentScope.localOnly;
   }
@@ -203,6 +209,7 @@ class AppState extends ChangeNotifier {
           : _converseDraftScope.combine(selectedContentScope);
       _converseDraft = value;
     } else {
+      _agentDraftRevision++;
       _agentDraftScope = value.trim().isEmpty
           ? ContentScope.localOnly
           : _agentDraft.trim().isEmpty
@@ -290,8 +297,10 @@ class AppState extends ChangeNotifier {
   bool get converseCanInfer => sessionAuthenticated && converseInferenceAllowed;
 
   void connect(ConnectionProfile profile, {KinaiyaClient? injected}) {
+    _saveAgentWorkspace();
     final previous = connection;
     final backendChanged = previous != null && !_sameBackend(previous, profile);
+    _invalidateAgentWorkspace(clear: backendChanged);
     tasksStatusStale = true;
     client?.close();
     _noticesPoll?.cancel();
@@ -1264,6 +1273,8 @@ class AppState extends ChangeNotifier {
   }
 
   void disconnect() {
+    _saveAgentWorkspace();
+    _invalidateAgentWorkspace();
     _connectionGeneration++;
     _noticesPoll?.cancel();
     _resourcesPoll?.cancel();
@@ -1300,6 +1311,7 @@ class AppState extends ChangeNotifier {
 
   @override
   void dispose() {
+    _invalidateAgentWorkspace();
     _connectionGeneration++;
     _noticesPoll?.cancel();
     _resourcesPoll?.cancel();
@@ -1319,8 +1331,26 @@ class AppState extends ChangeNotifier {
     final api = client;
     final generation = _connectionGeneration;
     if (api == null) throw StateError('Not connected');
+    if (channel == 'agent' && agentIdentitySelecting) {
+      throw StateError('Agent session identity is being verified');
+    }
+    if (channel == 'agent' && selectedAgentHarness != null) {
+      if (agentSession != null) return agentSession!;
+      final created = await createSelectedAgentSession(name: name);
+      if (!ownsConnection(generation, api) ||
+          created == null ||
+          agentSession == null ||
+          _agentScope(created) != _agentScope(agentSession!)) {
+        throw StateError('Agent session creation was not confirmed');
+      }
+      return created;
+    }
+    final selection = agentSelectionGeneration;
+    bool current() =>
+        ownsConnection(generation, api) &&
+        (channel != 'agent' || selection == agentSelectionGeneration);
     final listed = await api.listSessions();
-    if (!ownsConnection(generation, api)) {
+    if (!current()) {
       throw StateError('Connection changed during session acquisition');
     }
     SessionInfo? match;
@@ -1332,33 +1362,33 @@ class AppState extends ChangeNotifier {
     }
     // Recheck before the side-effecting create: a stale list must not
     // create a session on the old client into the new connection.
-    if (!ownsConnection(generation, api)) {
+    if (!current()) {
       throw StateError('Connection changed during session acquisition');
     }
     final session = match ?? await api.createSession(channel, name: name);
-    if (!ownsConnection(generation, api)) {
+    if (!current()) {
       throw StateError('Connection changed during session acquisition');
     }
     if (channel == 'converse') {
       if (converseSession?.sessionId != session.sessionId) {
         try {
           final seed = await api.recent(sessionId: session.sessionId, limit: 1);
-          if (!ownsConnection(generation, api)) {
+          if (!current()) {
             throw StateError('Connection changed during session acquisition');
           }
           _noticeSession = session.sessionId;
           _noticeCursor = seed.isEmpty ? 0 : seed.last.sequence;
         } catch (_) {
-          if (!ownsConnection(generation, api)) rethrow;
+          if (!current()) rethrow;
           /* A later cursor poll can retry. */
         }
       }
-      if (!ownsConnection(generation, api)) {
+      if (!current()) {
         throw StateError('Connection changed during session acquisition');
       }
       converseSession = session;
     } else {
-      if (!ownsConnection(generation, api)) {
+      if (!current()) {
         throw StateError('Connection changed during session acquisition');
       }
       agentSession = session;
