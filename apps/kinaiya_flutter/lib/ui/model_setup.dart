@@ -17,10 +17,14 @@ class ModelSetupDialog extends StatefulWidget {
     required this.state,
     required this.presentation,
     this.voiceControls,
+    this.bubbleRandom,
   });
   final AppState state;
   final PresentationController presentation;
   final Widget? voiceControls;
+
+  /// Optional deterministic simulation input; no provider/runtime setting.
+  final math.Random? bubbleRandom;
   @override
   State<ModelSetupDialog> createState() => _ModelSetupDialogState();
 }
@@ -798,6 +802,7 @@ class _ModelSetupDialogState extends State<ModelSetupDialog>
                           ),
                           children: bubbles,
                           diameter: diameter,
+                          random: widget.bubbleRandom,
                           enabled: _motionAllowed,
                           paused: false,
                           heldKeys: _heldBubbles,
