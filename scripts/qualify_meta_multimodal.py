@@ -7,20 +7,25 @@ requests. No camera, user media, model loading or automatic retry is supported.
 import argparse
 import base64
 import hashlib
+import importlib.util
 import json
 import time
 from pathlib import Path
 
 import httpx
 
-from scripts.qualify_local_multimodal import (
-    SPEECH_TEXT,
-    create_fixtures,
-    decode,
-    encoded,
-    media_bytes,
-    transcript_words,
+# Developer scripts are not installed packages; bind only this fixed sibling.
+_local_spec = importlib.util.spec_from_file_location(
+    "qualification_local_helpers", Path(__file__).with_name("qualify_local_multimodal.py")
 )
+_local = importlib.util.module_from_spec(_local_spec)
+_local_spec.loader.exec_module(_local)
+SPEECH_TEXT = _local.SPEECH_TEXT
+create_fixtures = _local.create_fixtures
+decode = _local.decode
+encoded = _local.encoded
+media_bytes = _local.media_bytes
+transcript_words = _local.transcript_words
 
 PROXY = "http://127.0.0.1:9790"
 SPARK = "muse-spark-1.3-contributor"

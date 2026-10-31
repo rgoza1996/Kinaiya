@@ -2,12 +2,17 @@
 
 import copy
 import hashlib
+import importlib.util
 import json
+from pathlib import Path
 
 import httpx
 import pytest
 
-from scripts import qualify_local_multimodal as qual
+_path = Path(__file__).resolve().parents[2] / "scripts/qualify_local_multimodal.py"
+_spec = importlib.util.spec_from_file_location("tested_local_qualification", _path)
+qual = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(qual)
 
 
 @pytest.fixture

@@ -1,12 +1,17 @@
 """Synthetic transports only: no credentials, model API or capture."""
 
+import importlib.util
 import json
 import sys
+from pathlib import Path
 
 import httpx
 import pytest
 
-from scripts import qualify_meta_multimodal as qual
+_path = Path(__file__).resolve().parents[2] / "scripts/qualify_meta_multimodal.py"
+_spec = importlib.util.spec_from_file_location("tested_meta_qualification", _path)
+qual = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(qual)
 
 
 @pytest.fixture

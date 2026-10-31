@@ -71,6 +71,10 @@ malformed JSON/probabilities, manifests, documented input ordering, exact-word
 ASR checks, incomplete/refused routes, fixed Meta endpoint/headers, explicit
 opt-in, cumulative budget checks and absence of automatic retries. A regression
 rejects a conversational response that merely contains ASR keywords.
+The two qualification test modules also pass through the console `pytest`
+entry point with `PYTHONPATH` unset. They load these developer-only scripts by
+fixed source path, as does the Meta script's fixed sibling helper import; the
+scripts directory is not added to Kinaiya's installed production packages.
 
 The Options browser check also found the selected auxiliary purpose reset after
 a successful save/refresh. The parent now retains that selection; a Flutter
