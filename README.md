@@ -14,6 +14,8 @@ Kinaiya pairs a personable, real-time voice experience with an agent that can do
 
 The long-term product scope also includes resource-aware operation, provider choice, durable work, skills and MCP tools, mobile calling, and optional intelligent UI. Those are planned capabilities, not promises that every feature will ship in one release.
 
+The [Roadmap 0.3.0](Roadmap.md) reconciles owner decisions through October 30, 2026. The [implementation and acceptance ledger](docs/implementation-status.md) distinguishes implemented slices, experiments, unverified gates and planned work at source `d735125`; it is the consolidated progress record. Partial resource/ecosystem/mobile foundations do not establish completion of the full product scope above.
+
 
 ## Mathematical foundations
 
@@ -264,9 +266,24 @@ optional interaction view adds close-up artwork, transcript and composer. Home's
 mascot/Setup opens model declarations and local view visibility. Model hot-swap,
 camera/direct-audio input and project/media libraries remain unavailable.
 The [setup bubbles](docs/adr/0063-floating-setup-bubbles.md) start in fresh random
-positions and drift slowly, pausing during interaction and honoring motion
-preferences. The separate [Decisions inspection design](docs/decisions-traceability.md)
-is planned; existing routing records do not yet provide its exact-script timeline.
+positions and drift slowly. Hover/focus holds only the affected bubble; dragging
+and bounded flinging, bubble-to-modal growth, a floating Close control and
+empty-space dismissal honor motion preferences and preserve voice Stop controls.
+The [Decisions owner window](docs/adr/0066-decisions-owner-window.md) now reads
+actual provider-bound captures through the [private inspection API](docs/decisions-trace-api.md):
+literal submitted scripts, raw/validated outputs, historical identities and
+bounded session/date filters. Missing historical capture stays unavailable;
+direct Agent observations explicitly show no Decisions inference. This inspection
+slice does not establish overall routing/model-quality acceptance.
+
+Agent has [two independently collapsible sidebars](docs/adr/0065-agent-sidebars.md):
+Harnesses and the selected harness's Workspace/sessions. Native eligibility and
+immutable session/task pins govern selection; a host with no configured selector
+registry exposes Seed Agent and legacy unassociated sessions remain unassociated. Current generated
+entries are bounded context selectors, not complete generated Agent runtimes.
+The close-up's [mouth motion](docs/adr/0064-speech-mouth-playback.md) follows
+actual decoded/playback-clock audio; optional visemes require real timing data.
+Newer design-chat hair/mole/highlight reference artwork remains pending pack integration.
 
 An experimental [Converse memory core](docs/adr/0047-converse-memory-core.md)
 is installed only with `kinaiya serve session --converse-memory` (or the same

@@ -56,6 +56,9 @@ testing and pending-save outcomes. Existing setup/navigation tests retain GET-on
 voice-owner and preference persistence checks. All fixtures are synthetic.
 Continuous motion tests advance bounded frames instead of waiting to settle.
 
-The separate Decisions traceability design remains
-[planned requirements](../decisions-traceability.md). This presentation change
-supplies no example timeline or generated rationale.
+This presentation change supplies no example timeline or generated rationale.
+The separate [Decisions traceability requirements](../decisions-traceability.md)
+subsequently gained the native capture/API and owner inspection implementation
+in [PR160](https://github.com/rgoza1996/Kinaiya/pull/160), documented by
+[ADR0066](0066-decisions-owner-window.md). See the [status ledger](../implementation-status.md#decisions-inspection)
+for its actual scope and remaining qualification.

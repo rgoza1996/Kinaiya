@@ -133,8 +133,10 @@ remain separate from preparing these options.
 
 Keep everyday choices near their task and detailed controls in searchable
 sections. Advanced controls should explain units, scope and unsupported values;
-the main Converse bottom bar contains only Call and Tell. Global active capture
-and playback stops remain visible when needed; text input is available through
+the earlier scene concept requests a Call/Tell-only voice bar. Current Home has
+Talk with Kinaiya, Setup and separate Sleep/Wake controls after the Home/optional
+Converse split; aligning that placement with the earlier intent remains pending.
+Global active capture and playback stops remain visible when needed; text input is available through
 Converse chat in the header, and supporting options remain accessible in chat
 and Settings.
 The Penpot design can supply additional panels in its own style when it lacks a
@@ -153,43 +155,35 @@ Stop/revoke/deny separate from inference readiness. Search and shortcuts cannot
 bypass disabled/native-protected actions. Raw instructions, notes and external
 metadata remain literal text rather than executable UI bindings.
 
-## Primary-source comparison inputs
+## Technical references
 
-These are current rolling documentation, checked 2026-10-29, not installed-binary
-qualification. Their patterns inform this catalog; their defaults are not
-Kinaiya defaults.
+These technical sources were consulted on 2026-10-29. They are historical inputs
+for configuration and compatibility work, not Kinaiya defaults, installed-binary
+qualification or a feature-parity promise. Product descriptions use direct
+capability names such as model selection, permissions, context, sessions and
+standard agent controls.
 
-- Hermes separates model routing, approval/security, tool-server policy and
-  session/memory configuration. Its host execution, automatic writes and
-  model-assisted approval behavior are not substitutes for Kinaiya's native
-  grants. [Models](https://hermes-agent.nousresearch.com/docs/user-guide/configuring-models),
+- **Model, security and tool-server configuration references:**
+  [Hermes models](https://hermes-agent.nousresearch.com/docs/user-guide/configuring-models),
   [security](https://hermes-agent.nousresearch.com/docs/user-guide/security),
   [MCP](https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp),
   [configuration](https://hermes-agent.nousresearch.com/docs/user-guide/configuration).
-- OpenClaw separates per-agent models/workspaces, tool policies, sandboxing,
-  sessions and automation. Its sandbox defaults and shared integration identity
-  need independent isolation decisions here.
-  [Models](https://docs.openclaw.ai/gateway/config-agents/models),
+- **Workspace, sandbox, session and automation references:**
+  [OpenClaw models](https://docs.openclaw.ai/gateway/config-agents/models),
   [sandbox](https://docs.openclaw.ai/gateway/config-agents/sandbox),
   [tool policy](https://docs.openclaw.ai/gateway/config-tools/tool-policy),
   [sessions](https://docs.openclaw.ai/gateway/config-agents/sessions),
   [automation](https://docs.openclaw.ai/gateway/config-automation).
-- Codex documents distinct model/reasoning, approval/sandbox, workspace,
-  tool-server and concurrency configuration, while everyday app preferences
-  include keyboard, notifications, appearance and personal instructions.
-  [Configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference),
+- **Application and execution configuration references:**
+  [Codex configuration](https://learn.chatgpt.com/docs/config-file/config-reference),
   [app settings](https://learn.chatgpt.com/docs/reference/settings).
-- MiniMax Code separates provider/model variants, access/plan modes, context,
-  session/usage and status presentation. Telemetry consent is separate from
-  normal provider requests, account operations and submitted feedback.
-  [Configuration](https://agent.minimax.io/docs/cli/configuration),
+- **Provider, session, usage and telemetry references:**
+  [MiniMax configuration](https://agent.minimax.io/docs/cli/configuration),
   [security](https://agent.minimax.io/docs/cli/security),
   [features](https://agent.minimax.io/docs/cli/features),
   [telemetry source](https://github.com/MiniMax-AI/minimax-code/blob/main/docs/telemetry.md).
-- Muse Code CLI separates model/effort, approvals, filesystem/network/workspace
-  trust, extensions, session retention and context controls. Rewinding a chat
-  does not undo workspace files; execution limits are not a monetary cap.
-  [Configuration](https://dev.meta.ai/docs/muse-code/configuration),
+- **CLI permission, extension and context references:**
+  [Muse Code configuration](https://dev.meta.ai/docs/muse-code/configuration),
   [permissions](https://dev.meta.ai/docs/muse-code/permissions),
   [extensions](https://dev.meta.ai/docs/muse-code/extending),
   [interactive controls](https://dev.meta.ai/docs/muse-code/interactive).

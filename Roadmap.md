@@ -1,8 +1,9 @@
 # Kinaiya — Product Specification, Technical Plan, and Roadmap
 
-**Specification version:** 0.2.2<br>
-**Decision baseline:** October 26, 2026  
-**Status:** Pre-implementation design baseline. Requirements and acceptance criteria below are not claims of implemented functionality.  
+**Specification version:** 0.3.0<br>
+**Decision baseline:** October 30, 2026; reconciles the October 26 baseline with subsequent owner decisions.<br>
+**Status:** Product specification with an experimental implementation. Requirements are not completion claims; see the [implementation and acceptance ledger](docs/implementation-status.md).<br>
+**Implementation evidence cutoff:** `d735125e7767fc1e5c4d94c6254364b5816adea4` on `main`. Later documentation changes do not qualify new runtime behavior.<br>
 **Repository:** `rgoza1996/Kinaiya`  
 **Voice prototype:** `rgoza1996/Kinaiya-Converse`
 
@@ -13,6 +14,8 @@ Kinaiya builds on an existing local-first voice prototype and expands it into a 
 This document consolidates the product decisions, specifies the boundaries between components, and defines an implementation sequence with measurable release gates. Explicit owner decisions take precedence over earlier exploratory suggestions. Where a choice was not settled, this document labels its proposed implementation default rather than presenting it as an agreed requirement.
 
 Read this specification together with [clarification.md](./clarification.md), which defines the architectural intent for autonomous capability expansion. Kinaiya can acquire durable executable capabilities implemented by conventional programs, specialized models, external tools/services, or Agent-authored software; those capabilities need not use LLM inference. This is design intent, not a claim that acquisition is already implemented.
+
+This revision reconciles the owner's implementation chat and **Set up local Penpot for Kinaiya** design chat through October 30. It records accepted product decisions rather than publishing those conversations. The [status ledger](docs/implementation-status.md) separates merged behavior, experimental evidence, unverified acceptance and planned work. ADRs explain mechanisms; reviewed code, tests and actual observations establish only their stated scope. Penpot controls, generated images, compiled clients and green CI do not establish model quality, live media, broad compatibility or milestone completion.
 
 ## Contents
 
@@ -106,13 +109,37 @@ The platform and initial default character identity are both Kinaiya. Users can 
 | D21 | Important events notify; critical events may initiate internet calls. | Explicit user requests can also schedule or condition a call. |
 | D22 | Intelligent UI remains usable during a call. | Audio and interactive artifacts share a session without sharing a rendering lifecycle. |
 | D23 | Retain Ming 3 Tiny, VibeVoice Realtime 0.5B, Kokoro 82M, and Supertonic 3. | Build a provider interface; do not replace the shortlist with new recommendations by default. |
-| D24 | Default brand colors are `#141091` and `#FFFFFF`. | Chat inherits character colors unless the user overrides the theme. |
+| D24 | Default character-pack brand colors remain `#141091` and `#FFFFFF`; the owner-approved Penpot navy/blue presentation refines the application UI. | Preserve pack validation and explicit theme/character overrides; application styling follows the accepted design rather than vendor branding. |
 | D25 | Kinaiya Agent must consume OpenClaw and Hermes-compatible skills. | Target portable Agent Skills packages, preserve supporting files, and explicitly handle runtime-specific requirements. |
 | D26 | Users can point Agent at ClawHub or a GitHub repository to install skills. | Support discovery, inspection, pinned installation, activation, updates, removal, and rollback. |
 | D27 | MCP is a first-class Agent integration surface. | Connect local and remote MCP servers through the permission/tool broker, independently of Converse. |
 | D28 | Agent supports plugins and conventional extension management. | Provide a versioned executable plugin interface and explicit compatibility reporting for foreign runtimes. |
-| D29 | Hermes-style slash commands belong exclusively to Agent-facing interfaces. | Share a registry across Agent Chat and the Agent CLI; never expose its parser, autocomplete, or command palette in Converse. |
+| D29 | Standard agent slash commands belong exclusively to Agent-facing interfaces. | Share a registry across Agent Chat and the Agent CLI; never expose its parser, autocomplete, or command palette in Converse. |
 | D30 | Converse is designed for non-developers. | Use ordinary voice/text conversation, clearly labeled buttons, and approachable settings; technical commands are neither required nor presented as its interaction model. |
+
+### 2.1 Owner decisions reconciled on October 30
+
+These additions refine the baseline without changing the protected-core, permission, research or independent-runtime requirements. Implementation scope is recorded separately in the status ledger.
+
+| ID | Accepted decision | Requirement and current boundary |
+|---|---|---|
+| D31 | Home and the optional Converse interaction view are different presentations of one conversation owner. | Home uses the moon-and-water scene; the waveform destination opens the optional close-up/transcript/composer view. Navigation preserves sessions, drafts and audio. |
+| D32 | Clicking Kinaiya opens conversational setup. | This supersedes character-click-to-Agent navigation in the old §15.2. Agent has an explicit navigation destination; opening setup never starts capture, inference or work. |
+| D33 | Converse setup uses floating, interactive bubbles. | Randomized slow drift, independent hover/focus holds, drag/launch, bubble-to-modal growth, floating Setup/View/Close and empty-space dismissal honor motion and accessibility settings. |
+| D34 | Setup is model- and capability-aware. | Independently choose conversation, STT, TTS and Decisions providers; reasoning and accepted text/image/video/audio depend on verified model and transport support. Direct audio may replace STT only when actually supported. Current read-only declarations are not mutable pickers. |
+| D35 | Home expresses availability and intent visibly. | Awake and seated on water means Converse is available; sleeping expresses off/unavailable. Explain owner-off, starting, failure and unknown health separately. Awake does not mean the microphone is recording. |
+| D36 | Agent has two independently collapsible left sidebars. | Harnesses shows protected Core and actual registered versions; Workspace shows that harness's sessions and controls. Preserve real task/version pins and historical unknowns. Generated context selectors are not complete generated Agent runtimes. |
+| D37 | Decisions has its own owner inspection window. | Display exact submitted scripts, raw and validated outputs, historical identities, ignored/no-inference dispositions and session/date filters. Never invent model rationale, summary, confidence or missing captures. Appearance remains in Options. |
+| D38 | The smallest local Converse target is 8 GB total VRAM. | STT, conversational LLM and TTS must use verified GPU inference within the measured whole-stack budget. CPU research profiles remain explicit alternatives, not qualification of this target. |
+| D39 | Local and cloud Converse are explicit selectable profiles. | Preserve local-first preference and authorized cloud testing. Cloud dialogue uses the requested Muse Spark 1.3 Contributor lowest supported reasoning profile; development subagent reasoning is a separate setting. No silent provider or disclosure fallback. |
+| D40 | Task delegation depends on Agent availability and authorization, not Converse provider locality. | A local Converse may route to an authorized cloud Agent. Acknowledgments are backchannels, not claims of accepted work or completion. Existing source/disclosure and action permissions still apply. |
+| D41 | Decisions controls live conversational timing as well as Agent routing. | Represent its two outputs separately; do not require artificial live silence before every response. Retain acoustic opening checks and the explicitly labeled clip-capture fallback. |
+| D42 | Korina Memory DAG is optional, replaceable Converse memory. | It supplements shared history; it is not Agent memory or Decisions state. Curated selected recall exists experimentally; automatic extraction/ranking and improved continuity remain unproven. |
+| D43 | Speech and artwork follow the actual scene and playback. | Idle Kinaiya sits on water beneath the looming moon in the concept's flat illustration style. Mouth motion follows played audio, with optional real timed visemes; clean decorative emoji/smileys before TTS without rewriting the transcript. |
+| D44 | Relevant intelligent UI can take the main stage during a call. | Kinaiya moves into a small side/corner frame; keep call controls reachable and return to the usual view when appropriate. User-pinned or actively used artifacts must not disappear on a topic guess. This remains planned. |
+| D45 | Product descriptions state Kinaiya's capabilities directly. | Use neutral wording such as standard agent controls. Name other products only where needed for an actual model, API, development tool, compatibility target or technical citation. |
+
+The Penpot concept is a visual/compositional reference, not an exhaustive options inventory or executable backend. Missing full-harness options belong in the same visual system once their contracts exist; [the options catalog](docs/options.md) distinguishes working controls, host configuration and planned editors. Latest design-chat artwork removes the hair's moon/star ornaments, uses a tiny chest mole and refines moonlit white hair highlights. Those reference refinements have not been integrated into the bundled pack at the evidence cutoff; preserve identity/style and review versioned assets before activation rather than silently replacing released sprites.
 
 **Proposed engineering defaults, not additional owner requirements:** Python for the initial host services, SQLite behind a single local storage service, JSON Schema for contracts, authenticated HTTP/WebSocket control transport, and a WebRTC-based mobile media layer. Specific libraries, versions, and endpoint names remain replaceable implementation choices.
 
@@ -291,19 +318,20 @@ If Agent is off, record the conversation without dispatching or stockpiling task
 
 If Converse is unloaded, direct Agent Chat bypasses Decisions. If Decisions is unavailable, ordinary conversation remains possible and direct work controls remain available; display that conversational delegation is unavailable rather than pretending it succeeded.
 
-Optional future use of a lightweight classifier for semantic turn-ending is separate from Agent routing and must not turn the latter into a mandatory blocking step.
+Conversational timing and Agent routing are separate Decisions outputs, as clarified in [clarification.md §10](clarification.md#10-decisions-real-time-converse-control-and-agent-routing). One inference may produce both outputs; neither routing nor ordinary dialogue must wait for Agent execution.
+
+For retained live transcript windows, conversational choices are `IGNORE`, `WAIT_FOR_NEXT_WINDOW`, `RESPOND_INTERRUPT_USER`, and `RESPOND_WITHOUT_INTERRUPTING_USER`. They are distinct from `ignore`, `queue`, `steer`, and `interrupt` for Agent. A prepared noninterrupting reply can wait for an acoustic opening; an interrupting reply can proceed during speech. Do not add a fixed artificial silence period to the live path. The older clip-capture compatibility path may retain an explicitly labeled end-silence control. Content-controlled timing is implemented experimentally, not proof of natural conversational timing or classifier accuracy.
 
 ### 6.6 Owner inspection and decision traceability
 
-The owner-approved Decisions window is a planned addition beside Converse and
-Agent. Preserve the exact submitted script (every question, type, instruction
+The owner-approved Decisions window is an implemented experimental inspection
+surface beside Converse and Agent ([ADR 0066](docs/adr/0066-decisions-owner-window.md), [inspection API](docs/decisions-trace-api.md), [status/evidence](docs/implementation-status.md#decisions-inspection)). Preserve the exact submitted script (every question, type, instruction
 and possible answer), actual structured outputs and available confidence,
 historical model/provider identity, source transcript or Agent event, session
 and decision IDs, and timestamps. Include ignored dispositions and bounded
 search, single-date and date-range filters. Do not fabricate rationale, summaries,
 scores or missing historical inputs. See the [Decisions traceability requirements](docs/decisions-traceability.md)
-for capture, privacy, retrieval and verification boundaries. Existing routing
-records and the Penpot prototype do not establish this feature as shipped.
+for capture, privacy, retrieval and verification boundaries. Capture occurs at the actual provider boundary; it is not reconstruction from a generic prompt. Keep the raw response, validated answer and native override/executor outcome distinct. Reuse links to the original call; native Agent observations explicitly show no Decisions inference. Missing or expired historical capture remains unavailable. Bounded owner-only reads and literal rendering must not expose these private payloads to generic transcript readers or run another classification. This implemented slice does not complete all M3 coordination or model-quality gates.
 
 ## 7. Converse and real-time voice
 
@@ -335,6 +363,16 @@ STT, conversational generation, and TTS should overlap where their backends perm
 
 Retain a text-only mode. Keep the STT, response LLM, and TTS provider interfaces independently replaceable. Local models are preferred for the immediate personality loop; explicitly configured cloud alternatives must be labeled as transmitting data off-device.
 
+The owner also wants model-aware multimodal configuration: direct model audio input may disable separate STT only when the selected provider and runtime actually implement that path. A model card or setup bubble advertising input types is not an implemented microphone/image/video transport. Preserve transcript provenance and Decisions' required input when adding a real direct-audio adapter; do not silently omit the shared record.
+
+### 7.2.1 History, recall and task backchannels
+
+Build each generation request against the selected model's actual context capacity, including system/personality sections, whole retained history entries, current input, optional recall, provider overhead and output reserve. Measure the complete rendered request with a supported tokenizer/provider counting path; do not substitute a fixed last-eight-replies limit or infer capacity from parameter count. Truncating an active prompt does not delete the authoritative journal. Unsupported counting must report its limitation rather than claiming a measured fit ([ADR 0057](docs/adr/0057-converse-context-window-budget.md)).
+
+Converse may acknowledge a work request with a brief backchannel such as “Give me some time on it” or “Let me think about that,” while Decisions routes independently. Do not falsely deny Agent capabilities merely because Converse cannot execute tools. Do not promise that Agent accepted, started or completed work without native evidence. Later questions about the task use actual linked status/results, not a fresh isolated transcript or model-invented recollection. Small-model dialogue quality still requires evaluation; stronger cloud replies do not qualify the tiny local profile.
+
+The optional [Converse memory interface](clarification.md#12-korina-memory-dag-optional-memory-for-converse) supplements this bounded context. It is disabled by default and replaceable. Disabling or replacing it must fence stale retrieval and derived assistant history without removing shared transcripts. Current owner-curated notes, dependency closure and explicit selected recall are an experimental subset; automatic memory extraction, relevance selection and improved long-conversation recall remain separate work ([ADRs 0047](docs/adr/0047-converse-memory-core.md), [0051](docs/adr/0051-converse-selected-recall.md), [0052](docs/adr/0052-converse-memory-owner-ui.md)).
+
 ### 7.3 Interruptions and playback truth
 
 The Kinaiya Converse prototype explored interruption-aware playback; Kinaiya must preserve and test that behavior as the architecture evolves.
@@ -352,6 +390,8 @@ Model-ready, text-ready, first-decoded-audio, audible-playback, and playback-com
 Converse emits dialogue and performance direction in the same inference pass when possible. Keep voice identity stable while varying delivery. A provider adapter maps supported directions; unsupported directions degrade gracefully rather than being spoken literally.
 
 The same expressive intent should inform voice delivery and the character's expression. It must not fabricate work results or override urgent factual content. No random emotion oscillator or extra personality model is required.
+
+Normalize only the synthesis projection of text before TTS: remove decorative pictographs, emoji sequences and standalone smileys rather than making the voice say “smiley face.” Preserve the original displayed/persisted dialogue. The current projection preserves meaningful language, numbers and ordinary punctuation/symbols while removing limited formatting markers; it is not a complete Markdown, code or phonetic renderer and does not guarantee exact symbolic-expression pronunciation. An emoji-only projection produces no fabricated spoken words. Literal words requested by the user remain words. Provider-independent normalization and integration regressions live in `services/converse/tts_text.py` and `tests/integration/test_converse_tts_text.py`.
 
 ### 7.5 Retained TTS providers
 
@@ -375,6 +415,8 @@ Agent must support a normal work loop: receive an objective, inspect context, pl
 Initial tool surface: scoped filesystem access, repository search, command execution, patching, test execution, and artifact creation. Email, browser research, document workflows, and other connectors expand this surface later. Credentials and permissions stay outside model prompts wherever possible.
 
 The seed harness must be functional before it attempts to improve itself. Self-building is not permission to leave the base agent unusable until an experiment succeeds.
+
+Converse's local/cloud profile does not decide whether Agent can receive work. Dispatch checks actual Agent capability/availability plus the source's authorization and disclosure scope. Local Converse and an explicitly authorized cloud Agent can coexist. Preserve local-only/private-input restrictions at the actual provider boundary; availability never grants new permission.
 
 ### 8.2 Adapter contract
 
@@ -592,7 +634,9 @@ Document-drafting workflows should distinguish drafts from filed/sent documents 
 
 Provider adapters separate STT, Converse LLM, TTS, Decisions, Agent LLM, and image generation. Support local inference and configured cloud APIs without assuming all vendors implement identical streaming, tools, cancellation, or accounting.
 
-Intended Agent provider targets include Meta, OpenRouter, Groq, and compatible local servers. Muse Spark 1.3 Contributor is the user's desired development profile, subject to verifying the account's actual available model ID and applicable terms. Do not hardcode unverified pricing, training-data policies, or access claims into Kinaiya.
+Intended Agent provider targets include Meta, OpenRouter, Groq, and compatible local servers. Exact supported adapters/profiles and remaining qualifications are listed in the [implementation ledger](docs/implementation-status.md#voice-and-provider-profiles). The owner-selected cloud Converse test profile is Muse Spark 1.3 Contributor with the lowest verified supported reasoning level (`minimal` in the checked catalog), Muse Voice Transcribe for STT and explicitly selected OpenRouter Kokoro for TTS. Agent is independently configured. These are opt-in test profiles, not a new universal default, proof of live streaming, or authorization to disclose private input to Contributor ([ADRs 0061](docs/adr/0061-explicit-meta-converse.md)–[0062](docs/adr/0062-explicit-openrouter-tts.md)). Do not hardcode unverified prices, data-use policies or API availability.
+
+Retain the owner's small-local candidates—Whistle by Cactus Compute, Qwen3 0.6B or Qwen3.5 2B, Kokoro and Laya—as candidates with exact runtime/device/quantization evidence, not a promised winning stack. The suggested newer Liquid/LFM decision/omni and quantized Muse Glimmer profiles remain research leads, with identity, availability, compatibility, licensing, quality and memory fit unqualified. A proposed Q4 model with Q8 KV cache is not a measured footprint. None silently replaces the four retained TTS candidates or the local-first requirement.
 
 Provider setup must show endpoint, model/revision where available, capabilities, credentials source, estimated download/runtime requirements, privacy implications, and a connection test. Store secrets in an appropriate local secret store, not character packs or tracked configuration.
 
@@ -605,7 +649,9 @@ Offer user-selectable profiles:
 - **Local-only:** never silently send work to a cloud provider to resolve pressure.
 - **Configured hybrid:** use only providers and data-disclosure scopes the user has authorized.
 
-These profiles govern behavior; they do not imply hardware-enforced GPU priority exists on every backend. Admission control and actual measurement are required. The 6–12 GB VRAM target concerns the accessible conversational experience; it does not require every extension or simultaneous workload to fit that budget. Heavy capabilities declare their own resource needs and participate in scheduling, loading/unloading, or explicitly authorized offloading. Private data never silently migrates to cloud providers.
+These profiles govern behavior; they do not imply hardware-enforced GPU priority exists on every backend. Admission control and actual measurement are required. The broader 6–12 GB accessibility goal is now qualified by the owner's concrete **8 GB total VRAM smallest local Converse target**. That target covers GPU inference for STT + conversational LLM + TTS together, with concurrent Decisions, caches, buffers, renderer and headroom accounted for. CPU control/tokenization is normal; silently loading an inference model on CPU does not satisfy this GPU profile. Explicit CPU research/fallback profiles remain separately labeled and do not qualify it ([ADR 0056](docs/adr/0056-explicit-gpu-converse.md)).
+
+Publish measured idle, loaded and representative peak whole-stack use on the same hardware/context settings when comparing 0.6B and 2B models. Distinguish model weights, KV cache, runtime reservations, other processes and device total; parameter count or model-file size alone cannot explain a 7 GB device observation. The accessible profile remains unqualified until actual aggregate memory, quality and latency evidence passes. Heavy Agent work and extensions declare separate resource needs and participate in scheduling/handoff or authorized offloading. Private data never silently migrates to cloud providers.
 
 ### 14.3 Safe handoff
 
@@ -634,25 +680,29 @@ Converse being off by user choice must not be overridden just because Agent want
 
 ### 15.1 Primary views
 
-**Character View** is Converse's personality-focused surface: voice, optional Converse text entry/transcript, an animated character, and minimal surrounding controls.
+**Home** is the moon-and-water surface with Kinaiya seated on the water beneath a looming moon. The earlier scene concept requested only **Call Kinaiya** (live conversation) and **Tell Kinaiya** (one voice message) in its ordinary voice bar. After the Home/optional-Converse split, current Home instead exposes **Talk with Kinaiya**, **Setup** and separate **Sleep/Wake** controls; Tell remains in other conversational controls. Reconciling that placement with the earlier Call/Tell-only intent remains a UI follow-up, not completed fidelity. Text/transcript and supporting controls remain reachable through their explicit destinations; active capture/playback Stop stays reachable outside setup. None of these labels establishes a mobile internet-call media path.
+
+**Converse** is the optional waveform-navigation interaction view, with a close-up mascot, transcript and composer, sharing Home's conversation/audio owner. A visibility preference hides only this presentation; it does not switch the runtime off, erase history or move drafts to Agent. A displayed activity waveform must not be described as measured audio amplitude unless it really is.
 
 **Agent Chat** is the direct productivity surface connected to Kinaiya Agent, or the selected external agent through its adapter. It provides instructions, tool activity, subagent inspection, artifacts, approvals, and cancellation.
 
-The later decision that Agent Chat connects directly to Agent takes precedence over the earlier idea that every chat view is merely the same Converse conversation. A separate top-level Converse Chat screen is optional, not a prerequisite for the initial UI.
+**Decisions** is the separate read-only owner inspection destination in §6.6. Appearance and character controls remain in Options. Other concept navigation destinations must expose actual capability, empty and unavailable states, not the example projects, files or media drawn in Penpot.
+
+The later decision that Agent Chat connects directly to Agent takes precedence over the earlier idea that every chat view is merely the same Converse conversation. Home and optional Converse share a conversational owner; Agent retains its own sessions and task lifecycle.
 
 Use explicit channel labels. Changing views must not accidentally redirect an unfinished draft to a different recipient. Linked task references connect the experiences; do not merge the histories or silently replay one thread into the other.
 
-### 15.2 Character-to-chat transition
+### 15.2 Character interaction and view transitions
 
-Clicking/tapping the character can make it approach, open a book, unroll a scroll, project a panel, or perform another pack-defined transition that opens Agent Chat. The transition is skippable and never delays urgent interaction.
+Clicking/tapping Home's character opens Converse setup bubbles; Agent Chat opens through explicit Agent navigation. This supersedes the original character-to-Agent book/scroll transition. Future pack-defined choreography is optional, skippable and never delays ready speech or urgent controls.
 
-A sidebar control returns to Character View. Speech and background tasks continue across navigation where their runtimes are enabled.
+A sidebar control returns Home or opens optional Converse. Speech and background tasks continue across navigation where their runtimes are enabled. View changes may fade in/out; the saved Animations preference, reduced-motion setting and OS disable-animations preference suppress decorative motion without disabling speech or work ([ADR 0060](docs/adr/0060-converse-handoffs-and-motion.md)).
 
 In Agent Chat, a compact mascot can occupy the send-button position. Its accessible label and behavior must remain unambiguous: submit nonempty input; expose stop/cancel separately while work runs. Do not turn an empty send action into an undocumented navigation surprise.
 
 ### 15.3 Branding and themes
 
-Ship one original, replaceable mascot. Default colors are deep blue `#141091` and white `#FFFFFF`; do not substitute Meta's brighter palette. Meta integration is technical, not a requirement to copy Meta's product branding.
+Ship one original, replaceable mascot. The default character-pack metadata/validation retains deep blue `#141091` and white `#FFFFFF`. The accepted Penpot application presentation uses navy/blue surfaces and the bundled Inter font ([ADR 0054](docs/adr/0054-penpot-owner-interface.md)); this authorized presentation refinement supersedes an exact two-color restriction on every app surface. Meta integration is technical, not a requirement to copy Meta's product branding.
 
 Theme precedence: explicit user override, character-pack palette, Kinaiya default. Derive legible light/dark surface variants and check contrast. Do not require image regeneration to change UI colors.
 
@@ -676,6 +726,20 @@ Users interact through ordinary speech or text and clearly labeled controls. For
 
 Keep essential controls, account setup, and permission explanations approachable. Advanced Agent tooling is available when the user deliberately opens Agent Chat or the Agent CLI, not imposed on the conversational experience. Both experiences can access authorized capabilities without forcing non-developers to operate the technical command interface.
 
+### 15.7 Floating setup and capability-backed options
+
+The setup field contains Setup, Model, Reasoning, Inputs, Speech, Decisions, View and Close bubbles. Randomize their valid initial positions and let them drift slowly. Hover, press or keyboard focus holds only that bubble; other bubbles continue moving. Permit dragging and a bounded damped launch, collisions and responsive readable fallbacks. Reduced motion or Animations off stops autonomous movement/morphing and fling while keeping direct controls usable.
+
+Selecting a bubble grows it from its current bounds into its options modal; closing reverses the transition and restores focus. An outside click first closes an expanded panel; a subsequent genuine empty-space tap exits setup. Close is itself a floating bubble. Bubble drag, scrolling and voice controls must not count as background dismissal. Existing pending/uncertain-save rules remain in force; opening or dismissing setup does not save, change providers or start a model ([ADR 0063](docs/adr/0063-floating-setup-bubbles.md)).
+
+The fuller [options catalog](docs/options.md) covers models, providers, context/cost, privacy, permissions, harnesses, tools/skills/MCP/plugins, resources, voice/memory, accessibility and mobile settings. The owner asked that it accommodate common agent-harness controls even where Penpot omits a knob. Only capability-backed editors may apply settings. Distinguish app preferences, exact session/task scope and host configuration/restart effects; unsupported options remain unavailable/planned rather than simulated switches.
+
+### 15.8 Agent harness and session workspace
+
+Keep global navigation, then two independently collapsible left columns: **Harnesses** for protected Core and real baseline/generated versions; **Workspace** for the selected harness's sessions and available controls. A separate right task/context inspector can collapse independently. On narrow layouts use independently opened sheets while keeping chat, approvals and Stop reachable.
+
+A selected harness is not a promotion. Session creation uses native eligibility and pins the actual version; tasks retain their accepted pin. Selection, running work, voice provenance and attention-needed are separate states, not merely colors. Legacy unassociated sessions stay explicitly unassociated; missing registry entries stay unavailable. A host with no registry exposes its real Seed Agent rather than invented specialized harnesses. Current generated entries are bounded `context_selector.v1` extensions; general runtime generation, arbitrary extension-provided navigation, project libraries and every inspector in the concept remain broader work ([ADR 0065](docs/adr/0065-agent-sidebars.md), [workspace API](docs/agent-workspace-api.md), [clarification §11](clarification.md#11-cross-surface-task-coordination-steered-by-converse-and-voice-traceability)).
+
 ## 16. Character packs and animation
 
 ### 16.1 Pack format
@@ -690,7 +754,7 @@ Keep secrets and private memories outside the pack. Personality/profile data bel
 
 | Semantic activity | Example presentation |
 |---|---|
-| `idle` | Looking out a window, reading, resting, or wandering. |
+| `idle` | Default Kinaiya sits awake on water beneath the moon; other packs may choose their own rest pose. |
 | `listening` | Turning toward the user or leaning forward. |
 | `warming` | Walking toward the foreground. |
 | `speaking` | Expression and mouth/body motion synchronized to played audio. |
@@ -719,6 +783,10 @@ Use local deterministic animation playback, not per-frame LLM calls. Keep speech
 Bake costumes/props into sheets for the initial implementation. Layered compositing and skeletal rendering are explicitly deferred. Approximate mouth-open/closed animation based on playback amplitude is acceptable where phoneme timing is unavailable; do not claim accurate lip synchronization.
 
 The bundled Converse close-up implements that playback-amplitude fallback with a small native mouth overlay and optional timed viseme cues ([ADR 0064](docs/adr/0064-speech-mouth-playback.md)). Imported pack animation and general layered/skeletal rendering retain their existing scope. Current speech providers do not supply phoneme timing.
+
+Drive the close-up's closed/half/open and available mouth poses from decoded audio aligned to the actual playback clock, with smoothing. Silence, stopped/cancelled playback, stale generations and motion-disabled presentation close the mouth. Keep the rest of the face and hair stable; use the reviewed restrained generated mouth sprites rather than leaving a fully open mouth for the entire reply. This is amplitude-based animation, not proven phoneme/word lip sync.
+
+Home should communicate both health and owner intent. A fresh confirmed owner-off currently selects sleeping artwork; startup, stale/unknown state and failure remain explicit labels. The design chat additionally wants sleeping presentation for fully unavailable Converse, with distinct retry versus wake behavior. That unavailable-artwork mapping is pending reconciliation, not evidence that every offline condition already selects sleeping art. Agent can remain available independently ([ADR 0059](docs/adr/0059-home-and-optional-converse.md)).
 
 Validate atlas bounds, image dimensions, frame counts, transparency, anchor alignment, loop continuity, and maximum texture/memory budgets. Bad packs fall back to a known-good idle asset rather than crashing the app.
 
@@ -761,6 +829,8 @@ For the illustrative market scenario, display source, observation time, units, a
 Artifacts persist after the call. Active subscriptions have their own lifetime and budget; end/pause refresh when no longer needed unless the user authorized continued monitoring.
 
 Character View should yield space to work. Move the character aside rather than obscuring a document, dashboard, approval, or accessibility control.
+
+The accepted call-layout direction puts a relevant artifact in the main area and keeps Kinaiya in a small side/corner picture-in-picture frame. Restore the ordinary Converse layout when the artifact is no longer relevant, subject to explicit user pin/close/reopen and active interaction. Preserve audio, transcript, task identity and reachable call controls through layout changes and after hangup. This is planned M9/M8 behavior; the mockup does not implement an artifact renderer, automatic relevance policy or live call media.
 
 ## 19. Proactivity, notifications, and calls
 
@@ -1068,9 +1138,30 @@ The existing repository license is Apache 2.0. Model weights, generated assets, 
 
 Parallel work starts after the shared contracts are sufficient to build deterministic fakes. Use a fake Agent, deterministic Decisions fixtures, and prerecorded test audio to unblock UI and integration work, but label them as test fixtures and replace them in demonstration paths.
 
+### 23.1 Development orchestration and budget
+
+The owner's latest development instruction allows Codex subagents alongside actual Muse CLI workers. Use Muse Spark 1.3 Contributor at `xhigh` or `max` where genuinely supported for bounded development tasks, with inspectable real terminal activity; do not simulate workers or confuse this with Converse's lowest-reasoning test profile. Establish interfaces, acceptance checks and isolated file ownership before substantial parallel implementation. This is a development workflow, not evidence that Kinaiya's product subagent runtime is complete.
+
+The shared incremental Meta development authorization remains **$25 total**, not per worker. Preserve actual reported billing, estimates, uncertain reservations and conservative admission separately; do not reset the guard to create spending headroom. Private conversations, secrets and sensitive inputs must not be sent to Contributor. Documentation reconciliation requires no paid inference. The development guard does not establish product-wide metering across arbitrary providers; that remains separate work.
+
 ## 24. Milestone roadmap
 
-Milestones are ordered by dependencies, not invented calendar dates. All are planned until implementation evidence is linked. Hackathon scope is a slice through these milestones, not a promise to finish production in a fixed number of days.
+Milestones are ordered by dependencies, not invented calendar dates. Their original exit gates below remain acceptance obligations. Implementation has progressed through interleaved owner-directed slices across M1–M6 and mobile foundations; that does not make the unfinished parent milestones complete. Hackathon scope is a slice through these milestones, not a promise to finish production in a fixed number of days.
+
+### 24.1 Status and added-scope mapping
+
+The [implementation and acceptance ledger](docs/implementation-status.md#milestone-status) records the October 30 source cutoff, actual scope, evidence and remaining gates for every milestone. **Implemented** describes the cited slice; **experimental** retains research/platform limits; **unverified** means an acceptance obligation lacks sufficient evidence; **planned** means no qualified implementation is established. These labels can coexist within a milestone. No completion percentage is inferred from test counts or closed feature PRs. Some parent issue descriptions still say queued; use the linked evidence and outstanding gate rather than either declaring the code absent or closing the issue administratively.
+
+| Added/refined owner scope | Milestones | Acceptance mapping and implementation boundary |
+|---|---|---|
+| Home/optional Converse, health/intent, setup bubbles and animation preferences | M5; runtime dependencies M2/M6 | AT49–AT51. Presentation is implemented; generic unavailable sleeping artwork and mutable/direct-multimodal setup remain qualified separately. |
+| Two Agent sidebars and pinned harness/session workspace | M1/M4/M5 | AT52 and existing AT19/23/46. Current generated extension kind is a bounded context selector. |
+| Exact Decisions capture and owner inspection | M3/M5 | AT53–AT54 and existing AT10/13/31/32. Actual captures remain distinct from native execution receipts and missing historical data. |
+| Context-capacity history, task backchannels and TTS text cleanup | M2/M3 | AT55–AT56 and existing AT06/08/09/15. Prompt tests do not prove dialogue quality. |
+| 8 GB whole-GPU local profile and explicit cloud test profiles | M2/M6 | AT57–AT58. Local GPU qualification and cloud/provider results are different evidence. |
+| Optional Converse-only memory | M2/M3/M5 | AT59 and [clarification §12](clarification.md#12-korina-memory-dag-optional-memory-for-converse). Owner-curated selected recall is narrower than automatic long-term memory. |
+| Playback-aligned mouth, seated scene and current artwork direction | M5 | AT60 and existing AT21–AT22. New hair/mole reference changes are pending pack integration. |
+| Artifact-main-stage/mascot-PiP call layout | M9; integrates M8/M5 | AT61 and existing AT24–AT25/29. Design direction only; media and generated artifact runtimes remain open. |
 
 ### M0 — Contracts, provenance, and reproducible skeleton
 
@@ -1132,7 +1223,7 @@ Implement plugin lifecycle/configuration schemas, scoped hooks, namespaced tool/
 
 **Depends on:** M0; integrates M1–M3.
 
-Ship an original default mascot, pack loader, minimal activity/expression set, Character View, direct Agent Chat, book/scroll-style transition hooks, exact default colors, theme overrides, reduced motion, and accessible controls. Add one Meta image-generation workflow when the verified API is ready.
+Ship an original default mascot, pack loader, minimal activity/expression set, Home/optional Converse, direct Agent Chat, skippable presentation transitions, the accepted Penpot application palette with preserved default pack colors, theme overrides, reduced motion, and accessible controls. The owner refinements in §§15–16 supersede book/scroll-to-Agent navigation without weakening the exit gate. Add one Meta image-generation workflow when the verified API is ready.
 
 **Exit gate:** replacing the pack changes appearance/theme without losing tasks or identity state; app navigation does not recreate sessions or misroute drafts; animation never holds up ready speech; invalid packs fail safely.
 
@@ -1276,8 +1367,23 @@ Use blinded or randomized listening where feasible. Do not optimize personality 
 | AT46 | A task is resumed after plugin/skill/harness updates. | Recorded versions remain available or incompatibility is reported; no silent dependency substitution. |
 | AT47 | A user enters slash-like text or discusses a command in Converse. | No command parser, command autocomplete, or direct slash dispatch runs; ordinary conversation remains available. |
 | AT48 | A plugin adds commands or the user switches between Agent Chat and Converse on desktop/mobile. | Command controls remain Agent-only; Converse retains natural-language input, plain controls, and no leaked command palette or slash shortcuts. |
+| AT49 | Switch between Home, optional Converse, Agent and Decisions; toggle presentation visibility/motion; owner-off, starting, unavailable and stale health differ. | One retained conversation/audio owner; correct draft recipients; truthful health versus intent; awake is not recording; optional view visibility does not turn off Converse. Current owner-off sleeping art is distinguished from pending generic unavailable-art mapping. |
+| AT50 | Open setup repeatedly; hover/focus one bubble, drag/launch it, grow its panel, close it and tap empty space. | Fresh valid positions, independent holds and continued neighbor drift; bounded fling/collisions; focus-preserving growth/return; floating Close; nested-first dismissal; no accidental dismiss from drag/scroll/Stop; motion-disabled and accessible layouts remain usable. |
+| AT51 | Select a model/reasoning/input/speech setting shown by the design, including unsupported direct audio or video. | Only actual capability-backed editors apply changes under native scope/consent. Read-only host declarations are labeled; opening settings starts no model, microphone or work. Unsupported transport/reasoning remains unavailable, and local preference Save cannot change host providers. |
+| AT52 | Collapse either Agent sidebar, switch harness/session with drafts or work active, inspect an unapproved or missing version, create/resume a session. | Columns and narrow sheets operate independently; native eligibility and exact session/task pins govern use; no selection promotes a candidate, redirects a stale draft, migrates work or fabricates historical association. Approvals remain reachable. |
+| AT53 | Inspect ignored, failed, reused, native-override, direct-Agent and historical Decisions records. | Show the actual submitted script/questions/types/possible answers, raw response, validated output and historical provider/model/artifact identity where captured. No generated rationale/summary or invented confidence; unavailable/expired data stays explicit; reuse resolves the original call and direct Agent shows no inference. |
+| AT54 | Filter Decisions by source/session/outcome/search/single date/date range, page results, open literal untrusted evidence, replace the connection or delete a session. | Explicit timezone and stable bounded cursors; owner-only bounded reads; literal rendering; no classification/dispatch/permission side effects; stale dialogs/results and private filters cannot cross hosts; retention/deletion honors the capture contract. |
+| AT55 | A conversation exceeds eight replies or its native context budget; a user delegates work and later asks about its result. | Budget the complete actual prompt with current model capacity/output reserve and whole-entry history. Preserve the shared journal, use brief grounded backchannels, route asynchronously and consult native linked outcomes; do not invent task state or rely on a fixed reply count. |
+| AT56 | Dialogue contains emoji, smileys, ordinary symbols, numbers or explicitly requested words such as “smiley face.” | Synthesis removes decorative glyphs/smileys without naming them, preserves meaningful text and requested literal words, and emits no fake speech for an empty cleaned projection. Displayed and persisted dialogue remains original. |
+| AT57 | Qualify the smallest local profile or compare a 0.6B and 2B dialogue model under representative context/load. | Verify GPU inference placement for STT/LLM/TTS and measure whole-stack residency/peaks including Decisions/cache/buffers/rendering/headroom against 8 GB. Separate weights and other processes. CPU fallback, file size and a larger development GPU are not qualification. |
+| AT58 | Local Converse delegates to an available authorized cloud Agent; test explicit cloud Converse; provider or disclosure is denied/unavailable. | Source/disclosure/action policy and actual availability govern dispatch independently of Converse locality. No silent cloud fallback or unauthorized Contributor input. Cloud test profiles retain verified identity/lowest supported Converse reasoning; development worker effort cannot silently change it. |
+| AT59 | Enable/select optional Converse memory, correct/forget a source, disable it or replace the runtime/backend during a pending operation. | Only compatible scoped complete memory context enters a measured local prompt; stale/invalid derived context is excluded. Off/unavailable memory preserves ordinary conversation, shared transcript and Agent independence. Curated recall does not establish automatic extraction or better human recall. |
+| AT60 | Play speech with silence, interrupt it, switch presentation or disable motion; review the default scene and a new artwork revision. | Mouth follows actual playback-clock audio, closes on silence/stop/stale output and keeps identity stable; optional visemes require real timing. Idle remains seated on water under the looming moon in the approved flat style. New reference edits require validated versioned pack integration, not an unreviewed asset substitution. |
+| AT61 | During a real call an intelligent artifact becomes relevant, is actively used or pinned, then recedes or the call ends. | Artifact can occupy the main stage with the mascot in a small side/corner frame; audio and accessible call controls persist. User pin/close/reopen takes precedence over a topic guess; artifact state survives hangup. A mockup or foreground invitation cannot pass this media/artifact gate. |
 
-Contract and deterministic safety tests should run in ordinary CI without paid APIs or GPUs. Hardware/provider tests run in a separate opt-in tier. Synthetic fixtures must remain clearly labeled.
+AT01–AT48 are retained unchanged from version 0.2.2. AT49–AT61 add owner-refinement coverage; they do not retroactively mark the original tests passed or relax an exit gate. Live content-controlled timing also retains [clarification §10](clarification.md#10-decisions-real-time-converse-control-and-agent-routing)'s separate conversational/Agent outputs, no artificial live-silence requirement and actual cancellation acknowledgments.
+
+Contract and deterministic safety tests should run in ordinary CI without paid APIs or GPUs. Hardware/provider tests run in a separate opt-in tier. Synthetic fixtures must remain clearly labeled. The [status ledger](docs/implementation-status.md) maps existing evidence and open qualification; a row in this requirements table is not a test result.
 
 ## 27. Hackathon demonstration and release gates
 
@@ -1338,15 +1444,15 @@ Separate live functions, recorded demonstrations, deterministic fixtures, and pr
 
 ### 28.2 Choices to resolve through implementation spikes
 
-These are engineering tasks, not reasons to reopen settled product decisions:
+These are remaining engineering qualifications, not reasons to reopen settled product decisions. Initial implementations already resolve parts of the old list; preserve their pinned evidence instead of treating them as untouched work:
 
-- Exact Laya checkpoint, backend, rolling-window defaults, and calibration thresholds.
-- First STT and Converse LLM profiles; measured CPU/GPU compatibility of retained TTS providers.
-- Exact model IDs, API access, licensing, and data-use settings for Meta and other configured providers.
+- Broader/default Laya qualification and fresh independent calibration. A pinned experimental local worker and typed window integration already exist; consumed synthetic evaluation sets are not fresh holdouts.
+- Qualify a natural, all-GPU 8 GB local Converse stack and complete the retained TTS comparison. Managed Whistle/Qwen/GGUF and CPU/GPU speech profiles exist; Ming 3 Tiny, full hardware coverage and human audible/latency acceptance remain open.
+- Keep exact Meta Contributor/Voice Transcribe and OpenRouter Kokoro opt-in profiles pinned and recheck provider capabilities, licensing, data-use and accounting when changing them. The current catalog/profile evidence is in ADR0061–0062, not a universal availability guarantee.
 - Python/backend packaging and the supported sandbox mechanism on each host platform.
 - First external-agent adapter, selected by a verified control/event interface rather than a guessed integration.
 - WebRTC/signaling deployment choice, relay cost, pairing implementation, and encryption trust model.
-- Initial character resolution/frame rate/asset budget and default mascot artwork.
+- Extend the already implemented pack limits/semantic animation and default water scene with reviewed new identity artwork, specialized expressions/work states and any additional device budgets. Current amplitude mouth motion is not phoneme qualification.
 - Promotion thresholds and benchmark fixture sets, locked before evaluating candidate improvements.
 - Hardware cutoffs for intelligent-UI levels, defined by measured behavior rather than arbitrary branding tiers.
 - Pinned Agent Skills/MCP revisions, OpenClaw/Hermes compatibility fixtures, source-adapter APIs, and plugin SDK contracts.
@@ -1365,14 +1471,17 @@ A user-authorized change may revise the roadmap, objectives, or policies. That i
 
 ### Immediate implementation order
 
-1. Establish contracts, storage/authentication, synthetic fixtures, and independent launch commands.
-2. Build the standalone seed Agent and a separate minimal Converse pipeline in parallel.
-3. Integrate Decisions over the shared transcript and prove truth/order/interruption behavior.
-4. Implement the protected executable-extension experiment before treating self-building as a completed claim.
-5. Add the minimal character/direct-chat experience and measured resource handoff.
-6. Expand into proactive notifications, native mobile calls, asset generation, external adapters, and intelligent UI according to the milestone gates.
+The October 26 foundation-first order led to real infrastructure, a seed Agent, voice/routing slices and a narrow negative harness experiment. Subsequent owner requests deliberately prioritized UI/UX, optional memory, mobile foundations and explicit cloud testing while human latency/“feel” testing was deferred. Do not erase that history, restart implemented foundations, or infer that skipped acceptance gates passed. The reconciled remaining order is:
 
-Build M1A skill/MCP/command foundations alongside this sequence; do not postpone ordinary Agent extensibility until mobile/character work is finished. M4A adds executable-plugin composition after the protected execution boundary exists.
+1. **Reconcile before new features.** Maintain this specification and the evidence ledger first, including superseded UI decisions and open issue status. This documentation change does not deploy or reconfigure the application.
+2. **Stabilize the current usable path.** Address tracked connection/provider/history/handoff defects with source-bound regressions and preserve independent Stop/approvals. Recheck source→Decisions→Agent acknowledgment→task result and reconnect/session identity without weakening existing permission/disclosure or context-budget boundaries. [Connection normalization #151](https://github.com/rgoza1996/Kinaiya/issues/151) is a known outstanding example.
+3. **Continue bounded product work where it is independent of human voice qualification.** Complete capability-backed settings, accepted UI/health/artwork refinements, optional Converse memory and owner/foreground companion controls against explicit contracts. Ordinary M1A skills/MCP/commands remain baseline work; UI work must not indefinitely displace Agent usability or claim unfinished backend controls exist.
+4. **Qualify voice with the owner.** Human listening/naturalness, physical microphone/speaker/echo, long-context follow-ups, interruptions and task acknowledgments require human/device tests. Screen the local 8 GB GPU stack with actual aggregate memory and comparable settings; keep explicit cloud results separate. Complete retained-provider and fresh routing measurements. Until these gates pass, M2/M3/M6 remain partial regardless of polished screens.
+5. **Complete the research evidence.** Retain the failed selector experiment and unknown cost fields. Run any further budgeted model/task-specific comparisons with predeclared criteria and fresh protected work; measure capability acquisition separately from fixed-tool harness optimization. Do not demand a positive result to count an honest rejected experiment, or claim general self-building from one selector or CSV plugin.
+6. **Build the remaining dependent capabilities.** M7 standing responsibilities/notifications precede claimed proactive calling; M8 still needs real media, Android/iOS system integration and device-state tests. M9 needs validated persistent artifacts and an actual external-Agent adapter; its PiP layout integrates with real call media. Foreground pairing/native builds are existing foundations, not completed calls.
+7. **Qualify distribution and broader support.** Complete M4A composition and M10 install/update/recovery/privacy/licensing/accessibility/hardware matrices with reproducible evidence. No beta/production label follows automatically from a feature merge or CI build.
+
+Within these tracks, parallelize only independent bounded tasks after shared contracts exist. Preserve the original milestone dependencies and exit gates; an interface or deterministic fixture may unblock implementation but cannot qualify its eventual real-provider/device demonstration. The owner may revise priorities explicitly; record the decision and affected gates here rather than silently making the roadmap match the code afterward.
 
 **Architectural invariant:** one shared conversational record, selective asynchronous attention, personality only in Converse, a standalone self-building Agent, and a protected core that generated harness code cannot redefine.
 
@@ -1509,7 +1618,7 @@ The first conformance set includes portable skills from both ecosystems, a scrip
 
 ### 32.1 Interaction model and Agent-only scope
 
-Kinaiya Agent's work interface should feel familiar to someone using Hermes: type `/` for discovery, select a command, see argument hints, and invoke a skill by name. Hermes documents a shared registry for multiple command surfaces and dynamic commands for installed skills; this is the interaction reference, not a promise to clone every Hermes command verbatim. [S16]
+Kinaiya Agent provides standard agent controls: type `/` for discovery, select a command, see argument hints, and invoke a skill by name. Share the registry across supported Agent surfaces and expose eligible installed skills as dynamic commands.
 
 **Slash commands belong exclusively to Agent-facing interfaces. Converse has no slash commands.** Character View, Converse text input, the floating companion, and Converse's mobile/call experience stay natural-language-first and friendly to non-developers. They do not register a slash parser, display command suggestions, or expose a technical command palette.
 
@@ -1536,7 +1645,7 @@ Control commands cannot be issued by instructions embedded in a webpage, tool re
 
 ### 32.3 Proposed initial command families
 
-The following names are Kinaiya design targets. Their exact options are finalized through the registry contract and tests; they are not commands available today.
+The following table is the full command target, not a claim that every command or option is available. Several families already have bounded implementations; the actual authenticated registry/help and [status ledger](docs/implementation-status.md#milestone-status) define current availability. Finalize additional options through contracts and tests rather than silently advertising the target set as shipped.
 
 | Command family | Intended behavior |
 |---|---|
@@ -1562,7 +1671,7 @@ New sessions do not silently cancel old background work. Clearing a view is not 
 
 Eligible user-invocable skills appear as dynamic slash commands after activation. Preserve manual-only and model-invocation restrictions where the imported profile supports them. Disabled/unconfigured skills are labeled appropriately; they do not masquerade as ready capabilities.
 
-Reserve built-in names and aliases. A skill named `stop` must not intercept `/stop`; it remains accessible through `/skill <qualified-id>` if permitted. Resolve collisions between skills/plugins through explicit namespaces and visible provenance, not install order. The Hermes reference similarly protects built-in command names. [S16]
+Reserve built-in names and aliases. A skill named `stop` must not intercept `/stop`; it remains accessible through `/skill <qualified-id>` if permitted. Resolve collisions between skills/plugins through explicit namespaces and visible provenance, not install order.
 
 Plugins can register additional commands through the SDK with argument/permission schemas. A generated harness can propose commands as part of a candidate extension, but registering them follows normal validation and activation; self-building cannot override help, stop, policy, or recovery controls.
 
@@ -1584,4 +1693,4 @@ Command availability is capability-driven for external Agent adapters. Never for
 
 Ship the registry, help/autocomplete, direct status/stop controls, session/model selection, and skill invocations in M1A. Add plugin-provided commands and user execution shortcuts with M4A. Add richer Agent UI/messaging presentation only after those shared semantics are tested. AT47–AT48 must also verify that Converse remains command-free after plugin activation, view changes, and mobile integration.
 
-The required result is an Agent that remains practical to operate like a conventional agent while retaining Kinaiya's adaptive harness: users can discover capabilities, install a skill, connect an MCP server, run a workflow, inspect work, or stop it without involving Converse or paying for a model call just to manipulate application controls. Converse remains the separate, approachable conversational experience; users do not need to learn these commands to talk with their character or request authorized work.
+The required result is a practical Agent with standard controls and Kinaiya's adaptive harness: users can discover capabilities, install a skill, connect an MCP server, run a workflow, inspect work, or stop it without involving Converse or paying for a model call just to manipulate application controls. Converse remains the separate, approachable conversational experience; users do not need to learn these commands to talk with their character or request authorized work.
