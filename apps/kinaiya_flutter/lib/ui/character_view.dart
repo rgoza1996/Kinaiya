@@ -24,6 +24,7 @@ import 'settings_controls.dart';
 import 'moonlit_scene.dart';
 import 'anchored_moonlit_scene.dart';
 import 'design_tokens.dart';
+import 'intelligent_converse_stage.dart';
 import 'visual_theme.dart';
 import 'widgets.dart';
 
@@ -77,6 +78,8 @@ class CharacterView extends StatefulWidget {
     this.setupOpen = false,
     this.animateTransitions = true,
     this.speechMouthMotion = true,
+    this.richArtifactsEnabled = true,
+    this.onRichArtifactsEnabled,
     this.scenePrimary = kinaiyaIndigo,
     this.sceneBackground = kinaiyaWhite,
   });
@@ -91,6 +94,8 @@ class CharacterView extends StatefulWidget {
   final CharacterSurface surface;
   final VoidCallback? onModelSettings;
   final bool showConverseView, setupOpen, animateTransitions, speechMouthMotion;
+  final bool richArtifactsEnabled;
+  final ValueChanged<bool>? onRichArtifactsEnabled;
   final Color scenePrimary, sceneBackground;
 
   @override
@@ -2518,58 +2523,88 @@ class _CharacterViewState extends State<CharacterView> {
     useDesignScene: widget.useDesignScene && widget.showCharacter,
   );
 
+  Widget _interactionPortrait(CharacterPack? pack) =>
+      widget.showCharacter &&
+          widget.character?.packageJson == null &&
+          pack?.fallback != true
+      ? InkWell(
+          onTap: widget.onModelSettings,
+          child: ValueListenableBuilder<SpeechMouthFrame>(
+            valueListenable: _mouthFrame,
+            builder: (context, frame, _) => ConversePortrait(
+              speaking: _speaking,
+              thinking: _s.busyConverse && !_speaking,
+              mouthOpenness: _canAnimateMouth ? frame.openness : 0,
+              viseme: _canAnimateMouth ? frame.viseme : null,
+            ),
+          ),
+        )
+      : LayoutBuilder(
+          builder: (_, bounds) => Center(
+            child: _mascot(pack, bounds.maxHeight.clamp(48.0, bounds.maxWidth)),
+          ),
+        );
+
+  void _prefillArtifactQuestion(String message) {
+    if (_s.prefillArtifactQuestion(message)) {
+      _input.value = TextEditingValue(
+        text: _s.converseDraft,
+        selection: TextSelection.collapsed(offset: _s.converseDraft.length),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'This question could not be added to the current draft.',
+          ),
+        ),
+      );
+    }
+  }
+
   Widget _interactionSurface(CharacterPack? pack, Widget banner) => Column(
     children: [
       banner,
       Expanded(
-        child: ConverseInteraction(
-          character:
-              widget.showCharacter &&
-                  widget.character?.packageJson == null &&
-                  pack?.fallback != true
-              ? InkWell(
-                  onTap: widget.onModelSettings,
-                  child: ValueListenableBuilder<SpeechMouthFrame>(
-                    valueListenable: _mouthFrame,
-                    builder: (context, frame, _) => ConversePortrait(
-                      speaking: _speaking,
-                      thinking: _s.busyConverse && !_speaking,
-                      mouthOpenness: _canAnimateMouth ? frame.openness : 0,
-                      viseme: _canAnimateMouth ? frame.viseme : null,
-                    ),
-                  ),
-                )
-              : LayoutBuilder(
-                  builder: (_, bounds) => Center(
-                    child: _mascot(
-                      pack,
-                      bounds.maxHeight.clamp(48.0, bounds.maxWidth),
-                    ),
-                  ),
-                ),
+        child: IntelligentConverseStage(
+          state: _s,
+          character: _interactionPortrait(pack),
           transcript: _transcript(),
           composer: _inlineComposer(),
-          modelSummary: ConverseModelSummary(state: _s),
-          status: _status,
-          callLabel: _armed || _micStopPending || _micStopUnconfirmed
-              ? _callLabel
-              : 'Talk with Kinaiya',
-          onCall: _callAction,
-          onMicrophone: _micStopPending
-              ? null
-              : _armed || _recording || _micStopUnconfirmed
-              ? _stopMicrophone
-              : _callAction,
-          microphoneLabel: _micStopPending
-              ? 'Stopping microphone…'
-              : _armed || _recording || _micStopUnconfirmed
-              ? 'Mute'
-              : 'Unmute',
-          onModelSettings: widget.onModelSettings ?? _openVoiceOptions,
+          controls: _voiceActions(),
           onHistory: _openHistory,
-          onVoiceOptions: _openVoiceOptions,
-          onMemory: () => showConverseMemoryDialog(context: context, state: _s),
-          activeVoice: _armed || _recording || _speaking,
+          onAsk: _prefillArtifactQuestion,
+          richEnabled: widget.richArtifactsEnabled,
+          onRichEnabled: widget.onRichArtifactsEnabled,
+          animate: widget.animateTransitions,
+          normalBuilder: (character, transcript, composer) =>
+              ConverseInteraction(
+                character: character,
+                transcript: transcript,
+                composer: composer,
+                modelSummary: ConverseModelSummary(state: _s),
+                status: _status,
+                callLabel: _armed || _micStopPending || _micStopUnconfirmed
+                    ? _callLabel
+                    : 'Talk with Kinaiya',
+                onCall: _callAction,
+                onMicrophone: _micStopPending
+                    ? null
+                    : _armed || _recording || _micStopUnconfirmed
+                    ? _stopMicrophone
+                    : _callAction,
+                microphoneLabel: _micStopPending
+                    ? 'Stopping microphone…'
+                    : _armed || _recording || _micStopUnconfirmed
+                    ? 'Mute'
+                    : 'Unmute',
+                onModelSettings: widget.onModelSettings ?? _openVoiceOptions,
+                onHistory: _openHistory,
+                onVoiceOptions: _openVoiceOptions,
+                onMemory: () =>
+                    showConverseMemoryDialog(context: context, state: _s),
+                activeVoice: _armed || _recording || _speaking,
+              ),
         ),
       ),
     ],

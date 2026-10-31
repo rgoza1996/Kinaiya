@@ -17,6 +17,7 @@ import 'models.dart';
 import 'converse_setup.dart';
 import 'agent_workspace.dart';
 import 'agent_workspace_client.dart';
+import 'artifact_client.dart';
 import '../config/service_root.dart';
 
 const _uuid = Uuid();
@@ -74,11 +75,15 @@ class KinaiyaClient {
     http.Client Function()? memoryClientFactory,
     http.Client Function()? decisionsClientFactory,
     http.Client Function()? agentWorkspaceClientFactory,
+    http.Client Function()? artifactClientFactory,
   }) : sessionBase = normalizeServiceRoot(sessionBase),
        agentBase = normalizeServiceRoot(agentBase),
        converseBase = normalizeServiceRoot(converseBase),
        _token = ownerToken,
        _http = _NoRedirectClient(httpClient ?? http.Client()),
+       _artifactClientFactory =
+           artifactClientFactory ??
+           (httpClient == null ? http.Client.new : _artifactInjectionRequired),
        _memoryClientFactory = memoryClientFactory ?? http.Client.new,
        _decisionsClientFactory =
            decisionsClientFactory ??
@@ -92,6 +97,14 @@ class KinaiyaClient {
   final String converseBase;
   final String _token;
   final http.Client _http;
+  final http.Client Function() _artifactClientFactory;
+  static http.Client _artifactInjectionRequired() =>
+      throw StateError('Artifact transport requires its own injected factory');
+  late final ArtifactApi artifacts = ArtifactApi(
+    base: agentBase,
+    ownerToken: _token,
+    clientFactory: _artifactClientFactory,
+  );
   final http.Client Function() _memoryClientFactory;
   final http.Client Function() _decisionsClientFactory;
   static http.Client _decisionsInjectionRequired() =>
@@ -130,11 +143,14 @@ class KinaiyaClient {
     http.Client Function()? memoryClientFactory,
     http.Client Function()? decisionsClientFactory,
     http.Client Function()? agentWorkspaceClientFactory,
+    http.Client Function()? artifactClientFactory,
   }) : sessionBase = normalizeServiceRoot(sessionBase),
        agentBase = normalizeServiceRoot(agentBase),
        converseBase = normalizeServiceRoot(converseBase),
        _token = 'mock-token-not-a-credential',
        _http = _NoRedirectClient(mockTransport),
+       _artifactClientFactory =
+           artifactClientFactory ?? _artifactInjectionRequired,
        _memoryClientFactory = memoryClientFactory ?? http.Client.new,
        _decisionsClientFactory =
            decisionsClientFactory ?? _decisionsInjectionRequired,
@@ -741,6 +757,7 @@ class KinaiyaClient {
       unawaited(memory.close());
       decisionInspections.close();
       unawaited(_agentWorkspaceReader.close());
+      artifacts.close();
     }
   }
 }

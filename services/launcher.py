@@ -351,6 +351,7 @@ def serve(args):
         from core.policy import ToolPolicy
         from packages.commands import Registry
         from services.agent import AgentRuntime, create_app
+        from services.agent.artifacts import ArtifactStore
 
         args.workspace.mkdir(parents=True, exist_ok=True)
         journal = JournalClient(config["session_url"], tokens["agent"])
@@ -472,6 +473,9 @@ def serve(args):
                     workspace,
                     {key: Path(value) for key, value in suites.items()},
                 )
+        artifact_path = args.data_dir.resolve() / "artifacts.sqlite3"
+        if artifact_path.resolve().is_relative_to(workspace):
+            raise SystemExit("UI artifact storage must stay outside the worker workspace")
         runtime = AgentRuntime(
             journal,
             provider(config, "agent", resource_state=resource_state),
@@ -482,6 +486,7 @@ def serve(args):
             mcp_controller=mcp_controller,
             skill_service=skill_service,
             plugin_service=plugin_service,
+            artifact_store=ArtifactStore(artifact_path),
         )
         if resources_enabled:
             from services.resources.client import ResourceClient

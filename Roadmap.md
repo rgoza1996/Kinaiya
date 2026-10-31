@@ -136,7 +136,7 @@ These additions refine the baseline without changing the protected-core, permiss
 | D41 | Decisions controls live conversational timing as well as Agent routing. | Represent its two outputs separately; do not require artificial live silence before every response. Retain acoustic opening checks and the explicitly labeled clip-capture fallback. |
 | D42 | Korina Memory DAG is optional, replaceable Converse memory. | It supplements shared history; it is not Agent memory or Decisions state. Curated selected recall exists experimentally; automatic extraction/ranking and improved continuity remain unproven. |
 | D43 | Speech and artwork follow the actual scene and playback. | Idle Kinaiya sits on water beneath the looming moon in the concept's flat illustration style. Mouth motion follows played audio, with optional real timed visemes; clean decorative emoji/smileys before TTS without rewriting the transcript. |
-| D44 | Relevant intelligent UI can take the main stage during a call. | Kinaiya moves into a small side/corner frame; keep call controls reachable and return to the usual view when appropriate. User-pinned or actively used artifacts must not disappear on a topic guess. This remains planned. |
+| D44 | Relevant intelligent UI can take the main stage during a call. | Kinaiya moves into a small side/corner frame; keep call controls reachable and return to the usual view when appropriate. User-pinned or actively used artifacts must not disappear on a topic guess. A bounded native Converse slice is implemented in ADR0068; real-call acceptance and semantic relevance remain unverified. |
 | D45 | Product descriptions state Kinaiya's capabilities directly. | Use neutral wording such as standard agent controls. Name other products only where needed for an actual model, API, development tool, compatibility target or technical citation. |
 
 The Penpot concept is a visual/compositional reference, not an exhaustive options inventory or executable backend. Missing full-harness options belong in the same visual system once their contracts exist; [the options catalog](docs/options.md) distinguishes working controls, host configuration and planned editors. Latest design-chat artwork removes the hair's moon/star ornaments, uses a tiny chest mole and refines moonlit white hair highlights. Those reference refinements have not been integrated into the bundled pack at the evidence cutoff; preserve identity/style and review versioned assets before activation rather than silently replacing released sprites.
@@ -806,7 +806,7 @@ Keep the approved identity reference, style direction, generation parameters whe
 
 ### 18.1 Ownership and resource policy
 
-Agent decides which information/actions deserve a UI, constructs the specification, and handles meaningful interactions. Converse describes it in character. Flutter renders it.
+Agent decides which information/actions deserve a UI and constructs the specification. **Converse displays the intelligent UI**, describes it in character and retains the conversational controls. Flutter validates and renders the components. Meaningful work requested through an interaction still passes ordinary routing and native authorization.
 
 The user's concern about weak hardware is a requirement: intelligent UI must be optional, bounded, and capable of degrading to text/cards. Basic task controls and approvals must remain available even when intelligent UI is disabled.
 
@@ -814,7 +814,7 @@ Separate inference cost from rendering cost. A weak phone may render a small clo
 
 ### 18.2 Declarative contract
 
-Initial components: text, status, table, chart, source link, image preview, document preview, code/diff preview, form, and approval action. Use a versioned schema with explicit data and action bindings.
+The bounded native v1 slice supports text, status, table, chart, diagram, source metadata, numeric/choice controls and an Ask action that only prefills the ordinary composer. Its [contract](docs/intelligent-ui-contract.md) defines strict limits, authenticated persistence, native evidence, patches and idempotent presentation actions ([ADR0068](docs/adr/0068-intelligent-converse-artifacts.md)). Image, document and code/diff previews, general forms and capability-backed approval bindings remain planned extensions; a generated widget cannot grant approval. Use a versioned schema with explicit data and action bindings.
 
 No arbitrary JavaScript/Dart from the model, unrestricted embedded webpages, or client-side secrets. Unknown/invalid components fail safely to a readable representation. Extensions may implement backend computations, but new frontend widget types require the separate reviewed application/plugin mechanism.
 
@@ -830,7 +830,7 @@ Artifacts persist after the call. Active subscriptions have their own lifetime a
 
 Character View should yield space to work. Move the character aside rather than obscuring a document, dashboard, approval, or accessibility control.
 
-The accepted call-layout direction puts a relevant artifact in the main area and keeps Kinaiya in a small side/corner picture-in-picture frame. Restore the ordinary Converse layout when the artifact is no longer relevant, subject to explicit user pin/close/reopen and active interaction. Preserve audio, transcript, task identity and reachable call controls through layout changes and after hangup. This is planned M9/M8 behavior; the mockup does not implement an artifact renderer, automatic relevance policy or live call media.
+The accepted call-layout direction puts a relevant artifact in the main area and keeps Kinaiya in a small side/corner picture-in-picture frame. Restore the ordinary Converse layout when the artifact is no longer relevant, subject to explicit user pin/close/reopen and active interaction. Preserve audio, transcript, task identity and reachable call controls through layout changes and after hangup. The native Converse slice now supplies the main-stage renderer, stable portrait/transcript/composer transition, pin/close/reopen and optional summary/data fallback. Native task order governs automatic display; semantic topic-based relevance and real call media remain unimplemented. Text routing and widget checks do not pass the M9/M8 real-call gate.
 
 ## 19. Proactivity, notifications, and calls
 

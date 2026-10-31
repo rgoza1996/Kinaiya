@@ -30,6 +30,39 @@ class ProviderCleanupError(ProviderError):
     """The provider's HTTP response did not confirm resource cleanup."""
 
 
+_UI_SPEC_MAX_BYTES = 48 * 1024
+# JSON string escaping can expand one UTF-8 byte to six wire bytes. This
+# envelope bound includes that expansion plus the other nullable wire fields.
+_UI_WIRE_MAX_BYTES = 6 * _UI_SPEC_MAX_BYTES + 8192
+
+
+def _closed_json_object(encoded, limit, label):
+    """Decode one bounded UTF-8 object, rejecting duplicates and non-finite data."""
+    from packages.providers.whistle_ipc import decode_json
+
+    try:
+        if type(encoded) is not str or not 1 <= len(encoded) <= limit:
+            raise ValueError("Expected JSON text")
+        decoded = decode_json(encoded.encode("utf-8"), limit)
+        # parse_constant rejects NaN/Infinity; serialization also catches
+        # exponent overflow (1e999) and escaped unpaired Unicode surrogates.
+        json.dumps(decoded, ensure_ascii=False, allow_nan=False).encode("utf-8")
+        return decoded
+    except (TypeError, ValueError, RecursionError) as exc:
+        raise ProviderError(f"{label} require a bounded UTF-8 JSON object") from exc
+
+
+def _ui_spec_object(encoded):
+    spec = _closed_json_object(encoded, _UI_SPEC_MAX_BYTES, "UI publication arguments")
+    keys = set(spec)
+    if not (
+        {"title", "summary", "components"} <= keys <= {"title", "summary", "components", "layout"}
+        or keys == {"artifact_id", "expected_revision", "updates"}
+    ):
+        raise ProviderError("UI publication arguments require exactly the create or update fields")
+    return spec
+
+
 def _meta_credential():
     """One bounded protected credential reference, never other user state."""
     from packages.providers.whistle_ipc import decode_json
@@ -638,6 +671,11 @@ class MetaResponsesProvider:
             messages = [dict(message) for message in messages]
             wire = (
                 "\nFor plugin_call, put the approved id in plugin_id and JSON-encode the input object in plugin_arguments_json. "
+                "\nFor publish_ui, JSON-encode the complete logical publication argument object "
+                "into arguments.ui_spec_json (at most 48 KiB in UTF-8). Create uses title, "
+                "summary, components and optional layout; update uses artifact_id, expected_revision "
+                "and updates. Put no native metadata or evidence in that object. All other "
+                "arguments fields must be null for publish_ui. "
                 "\nStrict response wire serialization: for mcp_call, put the configured server id "
                 "in arguments.server_id, the exact tool name in arguments.mcp_tool, and JSON-encode "
                 "the target argument object into arguments.mcp_arguments_json. For mcp_list, use "
@@ -670,8 +708,14 @@ class MetaResponsesProvider:
                             "plugin_id": args["plugin_id"],
                             "plugin_arguments_json": json.dumps(args["arguments"], allow_nan=False),
                         }
+                    elif action["tool"] == "publish_ui":
+                        encoded = json.dumps(
+                            args, ensure_ascii=False, allow_nan=False, separators=(",", ":")
+                        )
+                        _ui_spec_object(encoded)
+                        action["arguments"] = {"ui_spec_json": encoded}
                     message["content"] = json.dumps(action)
-                except (ValueError, KeyError, TypeError):
+                except (ValueError, KeyError, TypeError, ProviderError):
                     pass
         body = {
             "model": self.model,
@@ -711,6 +755,11 @@ class MetaResponsesProvider:
             fields["mcp_arguments_json"] = {
                 "type": ["string", "null"],
                 "description": "For mcp_call: JSON-encode the target tool's full argument object in this string. The adapter decodes it into arguments.",
+            }
+            fields["ui_spec_json"] = {
+                "type": ["string", "null"],
+                "maxLength": _UI_SPEC_MAX_BYTES,
+                "description": "For publish_ui only: JSON-encode its complete create or update argument object, at most 48 KiB UTF-8. All other argument fields must be null. Native storage validates the publication schema.",
             }
             schema = {
                 "type": "object",
@@ -757,7 +806,10 @@ class MetaResponsesProvider:
         capture_response(response.content)
         if response.is_error:
             raise ProviderError(f"Meta HTTP {response.status_code}; no automatic provider fallback")
-        data = response.json()
+        try:
+            data = response.json()
+        except (ValueError, RecursionError) as exc:
+            raise ProviderError("Meta returned invalid response JSON") from exc
         if data.get("status") in {"failed", "incomplete"}:
             raise ProviderError("Meta response did not complete within its token budget")
         messages = [item for item in data.get("output", []) if item.get("type") == "message"]
@@ -775,7 +827,33 @@ class MetaResponsesProvider:
             raise ProviderError("Meta returned no output text")
         text = "".join(texts)
         if self.structured_actions:
-            action = json.loads(text)
+            try:
+                action = json.loads(text)
+            except (ValueError, RecursionError) as exc:
+                raise ProviderError("Meta returned invalid structured action JSON") from exc
+            if not isinstance(action, dict) or not isinstance(action.get("arguments"), dict):
+                raise ProviderError("Meta structured action requires an arguments object")
+            if isinstance(action, dict) and action.get("tool") == "publish_ui":
+                action = _closed_json_object(text, _UI_WIRE_MAX_BYTES, "UI publication wire fields")
+                if set(action) != {"tool", "arguments"} or type(action["arguments"]) is not dict:
+                    raise ProviderError(
+                        "UI publication requires only tool and arguments wire fields"
+                    )
+                wire_args = action["arguments"]
+                fields = body["text"]["format"]["schema"]["properties"]["arguments"]["properties"]
+                if set(wire_args) - set(fields):
+                    raise ProviderError("UI publication forbids undeclared wire fields")
+                active = {key: value for key, value in wire_args.items() if value is not None}
+                if set(active) != {"ui_spec_json"}:
+                    raise ProviderError("UI publication requires only the ui_spec_json argument")
+                action["arguments"] = _ui_spec_object(active["ui_spec_json"])
+                return json.dumps(action, ensure_ascii=False, allow_nan=False)
+            if (
+                isinstance(action, dict)
+                and isinstance(action.get("arguments"), dict)
+                and action["arguments"].get("ui_spec_json") is not None
+            ):
+                raise ProviderError("ui_spec_json is only valid for publish_ui")
             action["arguments"] = {
                 key: value for key, value in action["arguments"].items() if value is not None
             }

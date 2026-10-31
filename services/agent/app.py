@@ -46,6 +46,7 @@ def create_app(runtime: AgentRuntime, auth: Any, commands=None) -> FastAPI:
     commands = commands or Registry(runtime)
 
     app = FastAPI(title="Kinaiya Seed Agent", version="0.1.0")
+    from services.agent.artifact_api import router as artifact_router
     from services.agent.harness_api import router as harness_router
     from services.agent.mcp_controls import router as mcp_router
     from services.agent.plugin_controls import router as plugin_router
@@ -59,6 +60,7 @@ def create_app(runtime: AgentRuntime, auth: Any, commands=None) -> FastAPI:
     app.include_router(mcp_router(runtime, auth))
     app.include_router(skill_router(runtime, auth))
     app.include_router(plugin_router(runtime, auth))
+    app.include_router(artifact_router(runtime, auth))
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(auth.allowed_origins),
@@ -137,6 +139,8 @@ def create_app(runtime: AgentRuntime, auth: Any, commands=None) -> FastAPI:
             tools += ["skills_list", "skill_load"]
         if runtime.plugin_service is not None:
             tools += ["plugins_list", "plugin_call"]
+        if runtime.artifact_store is not None:
+            tools.append("publish_ui")
         return {
             "harness": runtime.selector_registry.active if runtime.selector_registry else "seed-v1",
             "event_protocol": "1.0",

@@ -37,6 +37,9 @@ class SleepApi extends KinaiyaClient {
         agentBase: 'http://fixture',
         converseBase: 'http://fixture',
         ownerToken: 'synthetic',
+        artifactClientFactory: () => throw StateError(
+          'UI artifacts are unavailable in this synthetic sleep fixture',
+        ),
       );
   Map<String, Object?> health = availability(true, 0);
   Map<String, Object?> resources = {'configured': false};

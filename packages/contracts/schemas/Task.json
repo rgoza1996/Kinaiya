@@ -21,7 +21,8 @@
             "search",
             "test",
             "extension",
-            "external"
+            "external",
+            "artifact"
           ],
           "title": "Kind",
           "type": "string"
