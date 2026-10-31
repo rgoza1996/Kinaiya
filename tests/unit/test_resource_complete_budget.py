@@ -184,6 +184,43 @@ async def test_resource_guard_survives_generation_capture_await(policy, monkeypa
         await p.close()
 
 
+@pytest.mark.parametrize("where", ["count", "generation"])
+async def test_resource_revocation_in_awaited_request_hook_blocks_transport(policy, where):
+    p, calls = meta()
+    wrapped = ResourceBoundProvider(p, policy.path, "agent")
+    entered, release = asyncio.Event(), asyncio.Event()
+
+    async def hook(request):
+        if request.url.path.endswith("input_tokens") == (where == "count"):
+            entered.set()
+            await release.wait()
+
+    async def revoke():
+        await entered.wait()
+        policy.save(reason="Changed while synthetic request hook awaited")
+        release.set()
+
+    p.http.event_hooks["request"].append(hook)
+    revocation = asyncio.create_task(revoke())
+    try:
+        if where == "count":
+            with pytest.raises(PromptCountUnavailable):
+                await wrapped.prepare_complete(MESSAGES)
+        else:
+            prepared = await wrapped.prepare_complete(MESSAGES)
+            with pytest.raises(ProviderRefusal):
+                await prepared.complete()
+            with pytest.raises(PromptCountUnavailable):
+                await prepared.complete()
+        await revocation
+        assert calls == ([] if where == "count" else ["/v1/responses/input_tokens"])
+    finally:
+        release.set()
+        revocation.cancel()
+        await asyncio.gather(revocation, return_exceptions=True)
+        await p.close()
+
+
 @pytest.mark.parametrize("where", ["prepare", "generation"])
 async def test_wrapper_cannot_replace_native_export_guard(policy, where):
     p, calls = meta()

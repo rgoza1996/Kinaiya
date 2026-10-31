@@ -108,6 +108,9 @@ _UI_WIRE_MAX_BYTES = 6 * _UI_SPEC_MAX_BYTES + 8192
 # The largest ordinary native argument is a 256 KiB file write. Escaping may
 # expand its wire representation sixfold; this bound does not grant a write.
 _TYPED_WIRE_MAX_BYTES = 6 * 256 * 1024 + 8192
+# Prepared complete requests bound raw, identity-encoded response bytes to
+# 8 MiB. This is a native transport/memory limit, not a model context capacity.
+_COMPLETE_MAX_RAW_BYTES = 8 * 1024 * 1024
 
 
 def _closed_json_object(encoded, limit, stage):
@@ -685,6 +688,8 @@ class MetaResponsesProvider:
         context_tokens=None,
         transport=None,
     ):
+        from packages.providers.complete_http import RequestBoundAsyncClient
+
         if not allow_cloud:
             raise ProviderError("Meta requires explicit cloud disclosure authorization")
         if type(action_format) is not str or action_format not in {"flat-v1", "typed-v2"}:
@@ -716,7 +721,7 @@ class MetaResponsesProvider:
         self._measurement_required = False
         self._measurement = None
         self._count_generation = 0
-        self.http = httpx.AsyncClient(
+        self.http = RequestBoundAsyncClient(
             base_url=base_url.rstrip("/") + "/",
             timeout=120,
             headers={"Authorization": f"Bearer {api_key}", "x-tbh-contributor-mode": "true"},
@@ -743,15 +748,23 @@ class MetaResponsesProvider:
             request_digest(self.info.model_dump()),
         )
 
-    async def _input_tokens(self, client, body, check=lambda: None):
+    async def _input_tokens(self, client, body, check=None):
         """One actual count response, owned through EOF and real HTTP close."""
+        from packages.providers.complete_http import complete_stream
         from packages.providers.prompt_budget import MAX_SAFE_COUNT, PromptCountUnavailable
         from packages.providers.whistle_ipc import decode_json
 
         async with asyncio.timeout(10):
-            check()
-            async with client.stream("POST", "responses/input_tokens", json=body) as response:
-                response.stream = _OwnedHTTPStream(response.stream)
+            context = (
+                client.stream("POST", "responses/input_tokens", json=body)
+                if check is None
+                else complete_stream(
+                    client, "responses/input_tokens", body, check, _OwnedHTTPStream
+                )
+            )
+            async with context as response:
+                if check is None:
+                    response.stream = _OwnedHTTPStream(response.stream)
                 if response.status_code != 200:
                     raise PromptCountUnavailable("Meta prompt measurement is unavailable")
                 _reject_compressed_response(response)
@@ -760,7 +773,8 @@ class MetaResponsesProvider:
                     if len(raw) + len(chunk) > 4096:
                         raise PromptCountUnavailable("Meta prompt measurement is invalid")
                     raw.extend(chunk)
-        check()
+        if check is not None:
+            check()
         value = decode_json(bytes(raw), 4096)
         if (
             type(value) is not dict
@@ -1219,6 +1233,7 @@ class MetaResponsesProvider:
         return await self._complete_request(client, body, request_tools)
 
     async def _complete_request(self, client, body, request_tools, *, check=None):
+        from packages.providers.complete_http import complete_stream
         from packages.providers.decision_capture import capture_request, capture_response
 
         wire_name = body.get("text", {}).get("format", {}).get("name")
@@ -1240,17 +1255,30 @@ class MetaResponsesProvider:
             raise ProviderRefusal("Meta capture transport binding changed")
         if check is None:
             response = await client.post("responses", json=body)
+            raw = response.content
         else:
             check(body)
-            async with client.stream("POST", "responses", json=body) as response:
-                response.stream = _OwnedHTTPStream(response.stream)
-                await response.aread()
+            async with complete_stream(
+                client, "responses", body, lambda: check(body), _OwnedHTTPStream
+            ) as response:
+                _reject_compressed_response(response)
+                collected = bytearray()
+                # Real HTTP streams are read as raw entity bytes. A preloaded
+                # response is supported for in-process transport fixtures.
+                chunks = (
+                    response.aiter_bytes() if response.is_stream_consumed else response.aiter_raw()
+                )
+                async for chunk in chunks:
+                    if len(collected) + len(chunk) > _COMPLETE_MAX_RAW_BYTES:
+                        raise ProviderError("Meta complete response exceeds its native byte bound")
+                    collected.extend(chunk)
+                raw = bytes(collected)
             check(body)
-        capture_response(response.content)
+        capture_response(raw)
         if response.is_error:
             raise ProviderError(f"Meta HTTP {response.status_code}; no automatic provider fallback")
         try:
-            data = response.json()
+            data = json.loads(raw)
         except (ValueError, RecursionError) as exc:
             raise ProviderError("Meta returned invalid response JSON") from exc
         if data.get("status") in {"failed", "incomplete"}:

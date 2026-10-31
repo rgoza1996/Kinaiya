@@ -22,6 +22,7 @@ from packages.providers.prompt_budget import (
     request_digest,
 )
 from packages.providers.text import (
+    _COMPLETE_MAX_RAW_BYTES,
     CompatibleTextProvider,
     MetaResponsesProvider,
     ProviderCleanupError,
@@ -85,6 +86,7 @@ def provider(handler=None, **kwargs):
 class Body(httpx.AsyncByteStream):
     def __init__(self, raw=COUNT, *, held=False, fail=False):
         self.raw, self.fail, self.closed = raw, fail, 0
+        self.confirmed = False
         self.closing, self.release = asyncio.Event(), asyncio.Event()
         if not held:
             self.release.set()
@@ -99,6 +101,7 @@ class Body(httpx.AsyncByteStream):
         await self.release.wait()
         if self.fail:
             raise OSError("untrusted synthetic exception text")
+        self.confirmed = True
 
 
 @pytest.mark.parametrize("action_format", ["flat-v1", "typed-v2"])
@@ -173,6 +176,293 @@ async def test_inherited_scope_child_cannot_consume_parent_admission():
             with pytest.raises(PromptCountUnavailable):
                 await admission.complete()
         assert len(calls) == 1
+    finally:
+        await p.close()
+
+
+@pytest.mark.parametrize("where", ["count", "generation"])
+async def test_awaited_request_hook_revocation_prevents_transport_export(where):
+    p, calls = provider()
+    entered, release = asyncio.Event(), asyncio.Event()
+    allowed = True
+
+    async def hook(request):
+        if request.url.path.endswith("input_tokens") == (where == "count"):
+            entered.set()
+            await release.wait()
+
+    async def revoke():
+        nonlocal allowed
+        await entered.wait()
+        allowed = False
+        release.set()
+
+    p.http.event_hooks["request"].append(hook)
+    revocation = asyncio.create_task(revoke())
+    try:
+        with agent_tool_scope(native_tool_snapshot()), agent_export_scope(lambda: allowed):
+            if where == "count":
+                with pytest.raises(ProviderRefusal):
+                    await p.prepare_complete(MESSAGES)
+            else:
+                prepared = await p.prepare_complete(MESSAGES)
+                with pytest.raises(ProviderRefusal):
+                    await prepared.complete()
+                with pytest.raises(PromptCountUnavailable):
+                    await prepared.complete()
+        await revocation
+        assert [path for path, _, _ in calls] == (
+            [] if where == "count" else ["/v1/responses/input_tokens"]
+        )
+    finally:
+        release.set()
+        revocation.cancel()
+        await asyncio.gather(revocation, return_exceptions=True)
+        await p.close()
+
+
+@pytest.mark.parametrize("where", ["count", "generation"])
+@pytest.mark.parametrize(
+    "change", ["method", "url", "headers", "content", "stream", "extensions", "transport"]
+)
+async def test_request_hook_cannot_change_actual_frozen_http_request(where, change):
+    p, calls = provider()
+    original_transport = p.http._transport
+    replacement = httpx.MockTransport(lambda _: pytest.fail("replacement transport exported"))
+
+    async def hook(request):
+        if request.url.path.endswith("input_tokens") != (where == "count"):
+            return
+        if change == "method":
+            request.method = "PUT"
+        elif change == "url":
+            request.url = httpx.URL("https://changed.invalid/v1/responses")
+        elif change == "headers":
+            request.headers["Authorization"] = "Bearer synthetic-replacement"
+        elif change == "content":
+            request._content = b"{}"
+        elif change == "stream":
+            # request.content retains the original bytes: checking only that
+            # cache would miss the actual changed upload stream.
+            request.stream = httpx.ByteStream(b"{}")
+        elif change == "extensions":
+            request.extensions["timeout"]["read"] = None
+        else:
+            p.http._transport = replacement
+
+    p.http.event_hooks["request"].append(hook)
+    try:
+        if where == "count":
+            with pytest.raises(PromptCountUnavailable):
+                await p.prepare_complete(MESSAGES)
+        else:
+            prepared = await p.prepare_complete(MESSAGES)
+            with pytest.raises(PromptCountUnavailable):
+                await prepared.complete()
+            with pytest.raises(PromptCountUnavailable):
+                await prepared.complete()
+        assert [path for path, _, _ in calls] == (
+            [] if where == "count" else ["/v1/responses/input_tokens"]
+        )
+    finally:
+        p.http._transport = original_transport
+        await replacement.aclose()
+        await p.close()
+
+
+@pytest.mark.parametrize("guard", ["captured", "active"])
+async def test_request_hook_checks_captured_and_fresh_export_guards(guard):
+    p, calls = provider()
+    allowed = {"captured": True, "active": True}
+
+    async def hook(request):
+        if not request.url.path.endswith("input_tokens"):
+            allowed[guard] = False
+
+    p.http.event_hooks["request"].append(hook)
+    try:
+        with agent_export_scope(lambda: allowed["captured"]):
+            prepared = await p.prepare_complete(MESSAGES)
+        with agent_export_scope(lambda: allowed["active"]), pytest.raises(ProviderRefusal):
+            await prepared.complete()
+        assert [path for path, _, _ in calls] == ["/v1/responses/input_tokens"]
+    finally:
+        await p.close()
+
+
+async def test_httpx_hook_dispatch_contract_and_raw_body_identity():
+    # The production subclass overrides HTTPX's transport-selection seam.
+    # Review this version-sensitive seam when updating the pinned HTTPX lock.
+    assert httpx.__version__ == "0.28.1"
+    order = []
+
+    async def send(request, body):
+        order.append("transport")
+        assert b"".join([chunk async for chunk in request.stream]) == request.content
+        assert request.headers["Accept-Encoding"] == "identity"
+        return httpx.Response(200, content=COUNT) if len(order) == 3 else generation(body)
+
+    p, calls = provider(send)
+
+    async def first(_request):
+        order.append("first")
+
+    async def second(_request):
+        order.append("second")
+
+    p.http.event_hooks["request"].extend([first, second])
+    try:
+        prepared = await p.prepare_complete(MESSAGES)
+        assert json.loads(await prepared.complete()) == LOGICAL
+        assert order == ["first", "second", "transport"] * 2
+        assert calls[0][2] == calls[1][2]
+    finally:
+        await p.close()
+
+
+@pytest.mark.parametrize("where", ["count", "generation"])
+async def test_cancel_during_request_hook_never_exports_and_resets_request_scope(where):
+    p, calls = provider()
+    entered, hold = asyncio.Event(), asyncio.Event()
+
+    async def hook(request):
+        if request.url.path.endswith("input_tokens") == (where == "count"):
+            entered.set()
+            await hold.wait()
+
+    p.http.event_hooks["request"].append(hook)
+
+    async def run():
+        prepared = await p.prepare_complete(MESSAGES)
+        try:
+            return await prepared.complete()
+        finally:
+            if where == "generation":
+                with pytest.raises(PromptCountUnavailable):
+                    await prepared.complete()
+
+    pending = asyncio.create_task(run())
+    try:
+        await entered.wait()
+        pending.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await pending
+        assert [path for path, _, _ in calls] == (
+            [] if where == "count" else ["/v1/responses/input_tokens"]
+        )
+        # Removing the held hook permits an unrelated, independently bound
+        # admission; cancellation did not leave shared client state behind.
+        p.http.event_hooks["request"].clear()
+        fresh = await p.prepare_complete(MESSAGES)
+        assert json.loads(await fresh.complete()) == LOGICAL
+    finally:
+        hold.set()
+        pending.cancel()
+        await asyncio.gather(pending, return_exceptions=True)
+        await p.close()
+
+
+class RawBody(httpx.AsyncByteStream):
+    def __init__(self, raw):
+        self.raw, self.closed, self.yielded = raw, 0, 0
+
+    async def __aiter__(self):
+        for start in range(0, len(self.raw), 16384):
+            self.yielded += 1
+            yield self.raw[start : start + 16384]
+
+    async def aclose(self):
+        self.closed += 1
+
+
+@pytest.mark.parametrize("extra", [0, 1, 32768])
+async def test_complete_identity_raw_response_byte_bound_and_owned_close(extra):
+    payload = generation({"text": {"format": {"name": "kinaiya_tool_action"}}}).content
+    raw = RawBody(payload + b" " * (_COMPLETE_MAX_RAW_BYTES - len(payload) + extra))
+
+    async def send(request, _body):
+        if request.url.path.endswith("input_tokens"):
+            return httpx.Response(200, content=COUNT)
+        return httpx.Response(200, stream=raw)
+
+    p, calls = provider(send)
+    try:
+        prepared = await p.prepare_complete(MESSAGES)
+        if extra:
+            with pytest.raises(ProviderError, match="native byte bound"):
+                await prepared.complete()
+        else:
+            assert json.loads(await prepared.complete()) == LOGICAL
+        assert raw.closed == 1
+        assert raw.yielded == (_COMPLETE_MAX_RAW_BYTES // 16384) + bool(extra)
+        assert len(calls) == 2
+        with pytest.raises(PromptCountUnavailable):
+            await prepared.complete()
+    finally:
+        await p.close()
+
+
+@pytest.mark.parametrize("where", ["count", "generation"])
+async def test_response_hook_cancellation_keeps_actual_close_owned(where):
+    raw = Body(COUNT, held=True)
+    entered, hold = asyncio.Event(), asyncio.Event()
+
+    async def send(request, body):
+        selected = request.url.path.endswith("input_tokens") == (where == "count")
+        if selected:
+            return httpx.Response(200, stream=raw)
+        return httpx.Response(200, content=COUNT) if where == "generation" else generation(body)
+
+    p, calls = provider(send)
+
+    async def hook(response):
+        if response.request.url.path.endswith("input_tokens") == (where == "count"):
+            entered.set()
+            await hold.wait()
+
+    p.http.event_hooks["response"].append(hook)
+
+    async def run():
+        prepared = await p.prepare_complete(MESSAGES)
+        return await prepared.complete()
+
+    pending = asyncio.create_task(run())
+    try:
+        await entered.wait()
+        pending.cancel()
+        await raw.closing.wait()
+        pending.cancel()
+        turn = asyncio.Event()
+        asyncio.get_running_loop().call_soon(turn.set)
+        await turn.wait()
+        assert not pending.done() and raw.closed == 1 and not raw.confirmed
+        raw.release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await pending
+        assert raw.confirmed and raw.closed == 1
+        assert len(calls) == (1 if where == "count" else 2)
+    finally:
+        raw.release.set()
+        hold.set()
+        pending.cancel()
+        await asyncio.gather(pending, return_exceptions=True)
+        await p.close()
+
+
+async def test_prepared_complete_refuses_compression_before_consuming_body():
+    raw = RawBody(b"untrusted compressed bytes")
+
+    async def send(request, _body):
+        if request.url.path.endswith("input_tokens"):
+            return httpx.Response(200, content=COUNT)
+        return httpx.Response(200, headers={"Content-Encoding": "gzip"}, stream=raw)
+
+    p, _ = provider(send)
+    try:
+        prepared = await p.prepare_complete(MESSAGES)
+        with pytest.raises(ProviderRefusal):
+            await prepared.complete()
+        assert raw.yielded == 0 and raw.closed == 1
     finally:
         await p.close()
 
