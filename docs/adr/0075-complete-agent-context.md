@@ -1,6 +1,6 @@
 # ADR 0075: Complete Agent observations and measured complete requests
 
-Status: accepted contract; implementation and qualification in progress (#179).
+Status: experimental implementation (#179); real M1 qualification remains separate.
 
 ## Requirement and baseline
 
@@ -86,6 +86,14 @@ mismatched receipt, unverified chain or denied scope refuses the upload. A
 one-use native dispatch latch prevents admission reuse; a rejected or uncertain
 attempt is not replayed. The local task/provider/tool/catalog guards run again
 after admission awaits. Fixture-only generation acquires no external admission.
+
+Loaded skill and plugin bodies also retain synchronous native pin guards.
+After hooks and native admission, the controller must still recognize the exact
+task pin and immutable source/version, current enabled/author/approval rules and
+the actual provider's disclosure policy. A disposed or rebound pin, closed/busy
+broker or withdrawn scope refuses export without loading or recreating a pin.
+An eligible old immutable version can remain pinned across a legitimate active
+version update. Local-only bodies remain eligible only for local providers.
 
 The atomic native admission is the linearization point for that one upload.
 Later revocation can stop subsequent requests and action admission, but cannot
