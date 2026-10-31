@@ -11,6 +11,7 @@ from packages.contracts import models
 from packages.providers.disclosure import combine_scopes, scope_allowed
 
 MAX_AGENT_EXPORT_BYTES = 65536
+MAX_AGENT_CONTEXT_REFS = 128
 ExportIdentifier = Annotated[str, Field(strict=True, min_length=1, max_length=128)]
 ExportCounter = Annotated[int, Field(strict=True, ge=1, le=models.MAX_PLAYBACK_GENERATION)]
 ExportDigest = Annotated[str, Field(strict=True, pattern=r"^[0-9a-f]{64}$")]
@@ -90,6 +91,11 @@ class AgentExportRequest(models.WireModel):
     epoch: ExportCounter
     source_event_ids: list[ExportIdentifier] = Field(max_length=32)
     source_revisions: dict[ExportIdentifier, ExportCounter] = Field(max_length=32)
+    # Retrieved context is retained disclosure provenance, never an instruction
+    # source or an additional grant. Journal event rows are immutable by ID.
+    context_event_ids: list[ExportIdentifier] = Field(
+        default_factory=list, max_length=MAX_AGENT_CONTEXT_REFS
+    )
     content_scope: models.ContentScope
     provider: AgentExportProviderInfo
     request_sha256: ExportDigest
@@ -115,6 +121,10 @@ class AgentExportRequest(models.WireModel):
             raise ValueError("Agent export source bindings do not match")
         for source in self.source_event_ids:
             _safe_text(source)
+        if len(set(self.context_event_ids)) != len(self.context_event_ids):
+            raise ValueError("Agent export context bindings do not match")
+        for event_id in self.context_event_ids:
+            _safe_text(event_id)
         if len(self.model_dump_json().encode("utf-8")) > MAX_AGENT_EXPORT_BYTES:
             raise ValueError("Agent export admission exceeds its byte bound")
         return self

@@ -62,7 +62,14 @@ from packages.contracts.models import (
     TaskState,
     new_id,
 )
-from packages.providers.disclosure import combine_scopes, entry_allowed, scope_allowed, source_scope
+from packages.providers.disclosure import (
+    ContextScopeClosure,
+    combine_scopes,
+    context_scope,
+    entry_allowed,
+    scope_allowed,
+    source_scope,
+)
 from packages.providers.prompt_budget import PromptCountUnavailable
 from packages.providers.text import ActionDecodeError, ProviderCleanupError, ProviderRefusal
 from services.agent.artifacts import ArtifactConflict, ArtifactInvalid, ArtifactNotFound
@@ -255,6 +262,7 @@ class _Record:
     recovered: bool = False
     submit_sequence: int = 0
     source_revisions: dict[str, int] = field(default_factory=dict)
+    context_event_ids: set[str] = field(default_factory=set)
     explicit_skill: str | None = None
     used_skills: set[str] = field(default_factory=set)
     plugin_versions: dict[str, str] = field(default_factory=dict)
@@ -513,6 +521,24 @@ class AgentRuntime:
                     self._check_completion_open(rec, require_active=True)
                 rec.task.content_scope = "local_only"
                 raise PolicyDenied("Task source disclosure cannot be verified") from exc
+        context_closure = ContextScopeClosure(
+            rec.task.session_id, rec.task.thread_id, rec.task.epoch
+        )
+        for event_id in sorted(rec.context_event_ids):
+            try:
+                entry = await self.journal.entry(event_id)
+                if (entry.session_id, entry.thread_id, entry.epoch) != (
+                    rec.task.session_id,
+                    rec.task.thread_id,
+                    rec.task.epoch,
+                ):
+                    raise ValueError("Wrong context scope")
+                scopes.append(await context_scope(self.journal, entry, closure=context_closure))
+            except Exception as exc:
+                if require_open:
+                    self._check_completion_open(rec, require_active=True)
+                rec.task.content_scope = "local_only"
+                raise PolicyDenied("Retained context disclosure cannot be verified") from exc
         if require_open:
             self._check_completion_open(rec, require_active=True)
         scope = combine_scopes(rec.task.content_scope, *scopes)
@@ -1646,6 +1672,7 @@ class AgentRuntime:
                 task.harness_version,
                 tuple(task.source_event_ids),
                 tuple(sorted(rec.source_revisions.items())),
+                tuple(sorted(rec.context_event_ids)),
                 task.content_scope,
                 rec.explicit_skill,
                 frozenset(rec.used_skills),
@@ -1737,6 +1764,7 @@ class AgentRuntime:
                 epoch=rec.task.epoch,
                 source_event_ids=list(rec.task.source_event_ids),
                 source_revisions=dict(rec.source_revisions),
+                context_event_ids=sorted(rec.context_event_ids),
                 content_scope=rec.task.content_scope,
                 provider=provider_info.model_dump(mode="json"),
                 request_sha256=request_sha256,
@@ -2644,6 +2672,8 @@ class AgentRuntime:
         )
 
     async def _read_transcript(self, rec, args):
+        from packages.contracts.agent_export import MAX_AGENT_CONTEXT_REFS
+
         event_ids = args.get("event_ids", [])
         limit = int(args.get("limit", 8))
         if not isinstance(event_ids, list) or len(event_ids) > 20 or not 1 <= limit <= 20:
@@ -2658,24 +2688,10 @@ class AgentRuntime:
             raise PolicyDenied("Transcript reference outside the task's current session epoch")
         selected, size = [], 0
         for entry in entries:
-            scope = entry.payload.get("content_scope", "local_only")
-            if entry.kind == "conversation.user":
-                scope = await self._source_scope(entry.event_id, entry)
-            elif entry.kind == "conversation.revision":
-                target_id = entry.payload.get("target_event_id")
-                scope = "local_only"
-                if isinstance(target_id, str):
-                    target = await self.journal.resolve(target_id)
-                    if (
-                        target.kind == "conversation.user"
-                        and target.origin == "authenticated-user"
-                        and (target.session_id, target.thread_id, target.epoch)
-                        == (entry.session_id, entry.thread_id, entry.epoch)
-                    ):
-                        scope = combine_scopes(
-                            entry.payload.get("content_scope", "local_only"),
-                            await self._source_scope(target_id, target),
-                        )
+            try:
+                scope = await context_scope(self.journal, entry)
+            except Exception as exc:
+                raise PolicyDenied("Transcript context disclosure cannot be verified") from exc
             if not entry_allowed(self.provider.info, entry) or not scope_allowed(
                 self.provider.info, scope
             ):
@@ -2689,6 +2705,11 @@ class AgentRuntime:
             size += len(text)
             if size > 12000:
                 break
+            if len(rec.context_event_ids | {entry.event_id}) > MAX_AGENT_CONTEXT_REFS:
+                raise ToolFailure("Transcript context provenance limit reached")
+            # These references remain disclosure dependencies even if the
+            # associated exchange later leaves the measured prompt suffix.
+            rec.context_event_ids.add(entry.event_id)
             selected.append(
                 {
                     "event_id": entry.event_id,

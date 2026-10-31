@@ -102,6 +102,16 @@
       "title": "Source Revisions",
       "type": "object"
     },
+    "context_event_ids": {
+      "items": {
+        "maxLength": 128,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "title": "Context Event Ids",
+      "type": "array"
+    },
     "content_scope": {
       "enum": [
         "local_only",
