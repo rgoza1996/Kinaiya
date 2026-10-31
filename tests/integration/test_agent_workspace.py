@@ -384,7 +384,7 @@ async def test_global_promotion_during_source_read_never_rebinds_a_session_pin(e
         "owner",
     )
     entered, release = asyncio.Event(), asyncio.Event()
-    original = env.runtime._validated_source_texts
+    original = env.runtime._source_authority_texts
 
     async def paused_read(*args, **kwargs):
         value = await original(*args, **kwargs)
@@ -392,7 +392,7 @@ async def test_global_promotion_during_source_read_never_rebinds_a_session_pin(e
         await release.wait()
         return value
 
-    monkeypatch.setattr(env.runtime, "_validated_source_texts", paused_read)
+    monkeypatch.setattr(env.runtime, "_source_authority_texts", paused_read)
     submit = asyncio.create_task(
         env.runtime.submit(
             request_for(session).model_copy(update={"source_event_ids": [source.event_id]})
