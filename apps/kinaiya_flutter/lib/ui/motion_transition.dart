@@ -7,11 +7,13 @@ class UiFadeTransition extends StatelessWidget {
     required this.enabled,
     required this.transitionKey,
     required this.child,
+    this.alignment = Alignment.center,
   });
 
   final bool enabled;
   final Object transitionKey;
   final Widget child;
+  final AlignmentGeometry alignment;
 
   @override
   Widget build(BuildContext context) {
@@ -25,7 +27,7 @@ class UiFadeTransition extends StatelessWidget {
         child: child,
       ),
       layoutBuilder: (current, previous) => Stack(
-        alignment: Alignment.center,
+        alignment: alignment,
         children: [
           for (final outgoing in animate ? previous : <Widget>[])
             ExcludeFocus(

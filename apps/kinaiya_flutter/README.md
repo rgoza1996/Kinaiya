@@ -48,6 +48,13 @@ Build information in Settings uses optional
 
 ## Voice behavior
 
+Options → Voice exposes session-scoped Dynamic VAD, speech sensitivity and
+room recalibration on the web adapter. Calibration starts with an explicitly
+armed Call; requesting recalibration while off only queues it. Clip fallback
+also exposes speech/interrupt confirmation and ending silence. Continuous
+windows retain Decisions timing. See [ADR0078](../../docs/adr/0078-adaptive-vad-and-top-aligned-options.md)
+for defaults, bounds, prototype provenance and qualification limits.
+
 The [updated owner design](../../docs/adr/0059-home-and-optional-converse.md) opens
 on moonlit **Home**, with the animated mascot seated on water. **Talk with
 Kinaiya** arms the existing live browser listener; **End conversation** stops

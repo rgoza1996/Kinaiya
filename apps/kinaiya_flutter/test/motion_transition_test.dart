@@ -3,6 +3,32 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kinaiya_flutter/ui/motion_transition.dart';
 
 void main() {
+  for (final motion in [true, false]) {
+    testWidgets('top alignment survives short page fades: $motion', (
+      tester,
+    ) async {
+      Widget page(String name, double height) => MaterialApp(
+        home: Scaffold(
+          body: SizedBox.expand(
+            child: UiFadeTransition(
+              enabled: motion,
+              alignment: Alignment.topLeft,
+              transitionKey: name,
+              child: SizedBox(height: height, child: Text(name)),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpWidget(page('Models', 300));
+      expect(tester.getTopLeft(find.text('Models')).dy, 0);
+      await tester.pumpWidget(page('Audio', 70));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(tester.getTopLeft(find.text('Audio')).dy, 0);
+      await tester.pumpAndSettle();
+      expect(tester.getTopLeft(find.text('Audio')).dy, 0);
+    });
+  }
+
   Widget scene(
     String name, {
     bool enabled = true,

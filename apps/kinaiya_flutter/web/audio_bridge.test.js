@@ -514,5 +514,83 @@ test('mouth metadata has bounded chunks/windows and expires after playback', asy
   api.dispose();
 });
 
+test('adaptive VAD settings are atomic, bounded and never start capture', () => {
+  const {api, seen} = makeFakes();
+  const initial = JSON.parse(api.vadConfigure('{}'));
+  assert.equal(initial.adaptive, true);
+  assert.equal(initial.sensitivity, 'balanced');
+  assert.equal(api.vadRecalibrate(), 'queued');
+  assert.equal(seen.constraints, undefined);
+  for (const cfg of [
+    {adaptive:'true'}, {sensitivity:'other'}, {bargeMs:NaN},
+    {minSpeechMs:Infinity}, {endSilenceMs:'800'},
+    {sensitivity:'high', unsupported:true}, [],
+  ]) {
+    assert.equal(api.vadConfigure(cfg), 'invalid');
+    assert.deepEqual(JSON.parse(api.vadConfigure('{}')), initial);
+  }
+  const limited = JSON.parse(api.vadConfigure({endSilenceMs:9000,minSpeechMs:1,bargeMs:9999}));
+  assert.equal(limited.endSilenceMs, 5000);
+  assert.equal(limited.minSpeechMs, 100);
+  assert.equal(limited.bargeMs, 2000);
+  assert.equal(seen.constraints, undefined);
+});
+
+test('room calibration handles sustained initial background without speech events', async () => {
+  const {api} = makeFakes();
+  await api.startArmed();
+  for (let now=1000; now<15000; now+=25) {
+    assert.equal(api.vadSample(0.03, now), '');
+  }
+  let start;
+  for (let now=15000; now<15500; now+=50) {
+    const event=api.vadSample(0.4,now);
+    if(event) start=JSON.parse(event);
+  }
+  assert.equal(start.type,'speech-start');
+  api.dispose();
+});
+
+test('fixed thresholds and sensitivity affect speech detection without calibration', async () => {
+  for (const sensitivity of ['balanced','high']) {
+    const {api} = makeFakes();
+    api.vadConfigure({adaptive:false,sensitivity,minSpeechMs:100});
+    assert.equal(api.vadRecalibrate(),'unavailable');
+    await api.startArmed();
+    api.vadSample(0.03,1000);
+    const event=api.vadSample(0.03,1100);
+    assert.equal(event ? JSON.parse(event).type : '',sensitivity==='high'?'speech-start':'');
+    api.dispose();
+  }
+});
+
+test('explicit VAD profile and calibration survive clip boundaries', async () => {
+  const {api}=makeFakes();
+  const profile={adaptive:true,sensitivity:'high',minSpeechMs:100,bargeMs:350,endSilenceMs:800};
+  api.vadConfigure(profile);
+  await api.startArmed();
+  for(let now=1000;now<=2000;now+=50) api.vadSample(0.001,now);
+  await api.beginClip();
+  for(const [key,value] of Object.entries(profile)) {
+    assert.equal(JSON.parse(api.vadConfigure('{}'))[key],value);
+  }
+  api.vadSample(0.021,3000);
+  assert.equal(JSON.parse(api.vadSample(0.021,3100)).type,'speech-start');
+  api.dispose();
+});
+
+test('custom interrupt timing stops local playback only after sustained voice', async () => {
+  const {api}=makeFakes();
+  api.vadConfigure({adaptive:false,bargeMs:500,minSpeechMs:2000});
+  await api.startArmed();
+  await api.queuePcm(pcmLevels([[30000,1]]),1000);
+  api.vadSample(0.5,1000);
+  assert.equal(api.vadSample(0.5,1499),'');
+  assert.equal(api.playbackActive(),'yes');
+  assert.equal(JSON.parse(api.vadSample(0.5,1500)).type,'barge');
+  assert.equal(api.playbackActive(),'no');
+  api.dispose();
+});
+
 // Keep the existing CI entrypoint responsible for both trusted browser bridges.
 require('./presentation_bridge.cases.js');
