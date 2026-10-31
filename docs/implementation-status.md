@@ -79,6 +79,24 @@ that qualification gap. Native publication/display works independently of the
 truthfully failed task. General Agent completion reliability is not established
 by this slice.
 
+## Agent completion durability
+
+The bounded [#167](https://github.com/rgoza1996/Kinaiya/issues/167) repair uses
+one frozen native success append and positive receipt/read-back confirmation.
+Live state remains verifying until confirmed; uncertainty is paused with no
+success summary, fallback terminal write or replay of work. A finalization fence
+also arbitrates steering, cancellation and shutdown. See the
+[contract](agent-completion-confirmation.md), [ADR0069](adr/0069-confirmed-agent-completion.md)
+and deterministic [receipt](../tests/unit/test_agent_completion_confirmation.py),
+[recovery](../tests/integration/test_agent_completion_recovery.py) and
+[race](../tests/integration/test_agent_completion_races.py) tests.
+This fixes final-outcome confirmation for legacy and UI tasks; it does not
+qualify general model task reliability ([#169](https://github.com/rgoza1996/Kinaiya/issues/169)),
+online owner reconciliation, arbitrary external-effect transactions or the full
+M1/M6 production gates. Exact execution evidence is recorded with the PR/CI.
+The [bounded verification record](../evaluation/evidence/agent-completion-2026-10-31.json)
+preserves the failing prior baseline and independent checks.
+
 ## Client reliability
 
 The owner prioritized the intermittent bubble CI failure and trailing-slash connection failure before further features. [#163](https://github.com/rgoza1996/Kinaiya/issues/163) replaces a randomized, net-displacement test with fixed initial positions/velocities, a measured forward release gesture and frame-by-frame stationary-pointer re-entry/escape checks. Production physics and fresh random layout remain unchanged. A deliberate sticky-hover mutation fails the replacement test. The original failing CI runs and the pinned Flutter velocity diagnosis remain documented in [ADR0063](adr/0063-floating-setup-bubbles.md#deterministic-release-regression-163); the exact random layout responsible for either CI failure was not retained.

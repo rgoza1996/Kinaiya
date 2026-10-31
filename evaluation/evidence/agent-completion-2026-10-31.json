@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "issue": 167,
+  "scope": "Final native success confirmation for legacy and UI tasks; no model-quality or production-readiness qualification",
+  "base_commit": "88484f6a0c49a342549b53c46a49ac29fa965b1e",
+  "runtime_and_regression_sha256": {
+    "services/agent/runtime.py": "c7e1a8bc58df61e19b42f563b9fc83fd1c79bcb2348f0c7a33b4c5fbb6b6744e",
+    "services/agent/completion.py": "6d816aa7b0247a5697a5f9dcc123401c47c98b29b55a09c31d6dd108884b9e33",
+    "tests/unit/test_agent_completion_confirmation.py": "301869a3026b42c03891493bb2911a90563421a0c06ceaf59b2ccf8bd2ef18ee",
+    "tests/integration/test_agent_completion_recovery.py": "e2e81df453cc9c98f85aad4bb5353cbd5046c5027fb25c5e13d6e29420da4e53",
+    "tests/integration/test_agent_completion_races.py": "8bb5b2835f816be70f6486248ab4a6b5235273a3eddea9d294484d990090eb68"
+  },
+  "verification": {
+    "focused_helper_recovery_legacy_ui": {
+      "result": "passed",
+      "count": 110,
+      "command": "PYTHONPATH=. python -m pytest -q tests/unit/test_agent_completion_confirmation.py tests/integration/test_agent_completion_recovery.py tests/unit/test_agent_runtime.py tests/integration/test_agent_seed.py tests/integration/test_intelligent_ui.py"
+    },
+    "independent_races": {
+      "result": "passed",
+      "count": 12,
+      "command": "PYTHONPATH=. python -m pytest -q tests/integration/test_agent_completion_races.py"
+    },
+    "red_baseline": {
+      "commit": "ed93b2549b2b2916190d4235bef1d17d6b9e29e3",
+      "failed": 1,
+      "passed": 1,
+      "deselected": 8,
+      "expected_failure": "Before-commit completion failure incorrectly leaves SUCCEEDED on original runtime"
+    },
+    "independent_review": {
+      "first_findings": [
+        "Post-await steering disclosure mutation",
+        "Accepted steer lost before old-result verification failure"
+      ],
+      "resolution": "Fixed, adversarial regressions added; final runtime/helper follow-up independently reviewed"
+    },
+    "contract_export": "passed; generated schema unchanged",
+    "dependency_audit": "no known vulnerabilities found",
+    "full_ci": "Required on exact PR head before merge; see linked GitHub Actions, not inferred from focused counts"
+  },
+  "muse_development": {
+    "actual_cli": true,
+    "requested_model": "muse-spark-1.3-contributor",
+    "requested_reasoning_effort": "xhigh",
+    "backend_reasoning_effort": "unreported",
+    "public_synthetic_inputs_only": true,
+    "exit_code": 0,
+    "elapsed_seconds": 338.64072651497554,
+    "direct_child_reaped": true,
+    "candidate_result": "Rejected before integration: missing origin accepted as authentic, broad invented alias/duck-typing contract, final code returned without writing files",
+    "parent_correction": "Strict typed contract imports, exact authenticated origin, complete canonical request comparison, full page validation and native integration",
+    "estimated_incremental_contributor_usd": 0.00969027,
+    "actual_reported_billing_usd": null,
+    "guard_limit_usd": 25,
+    "guard_admission_limit_usd": 22,
+    "guard_reservations_preserved": true,
+    "original_candidate_sha256": {
+      "completion.py": "69ac91bcea516a68d926a7603c8cfae0d91406b11f9b90b49cf5da80eb369721",
+      "test_agent_completion_confirmation.py": "2503fdec5992e755b3d175c197548b5e7d3d22360ff6a0b0a14607dd1641cb32"
+    }
+  },
+  "limitations": [
+    "No live provider or voice qualification is claimed for this fault-injection slice",
+    "Unconfirmed work requires restart recovery; no online reconciliation editor",
+    "No general external-effect transaction or exactly-once guarantee",
+    "Optional Tool Library and formal verification in clarification remain separate design intent"
+  ]
+}

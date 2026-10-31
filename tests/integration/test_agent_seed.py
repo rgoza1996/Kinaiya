@@ -43,7 +43,9 @@ class InMemoryJournal:
             task_refs=list(request.task_refs),
             idempotency_key=request.idempotency_key,
             sequence=self._seq,
-            origin="authenticated-user" if request.kind == "conversation.user" else "test",
+            origin="authenticated-user"
+            if request.kind == "conversation.user"
+            else "agent-supervisor",
             created_at=datetime.now(UTC),
         )
         self.entries.append(entry)

@@ -490,14 +490,22 @@ async def test_journal_partial_publication_is_truthful_and_never_retried(
     )
     task = await env.runtime.submit(request(env))
     final = await env.runtime.wait(task.task_id, timeout=3)
-    assert final.state == TaskState.FAILED
-    assert "was stored" in final.error and "without retry" in final.error
-    assert "secret" not in final.error
+    if kind == "agent.outcome":
+        # The same completion protocol now positively reconciles the exact
+        # committed outcome; absent confirmation remains paused, never a
+        # conflicting local/durable failure or an automatic retry.
+        assert final.state == (TaskState.SUCCEEDED if commit_then_error else TaskState.PAUSED)
+        if not commit_then_error:
+            assert "unconfirmed" in final.error and "without retry" in final.error
+            assert "secret" not in final.error
+    else:
+        assert final.state == TaskState.FAILED
+        assert "was stored" in final.error and "without retry" in final.error
+        assert "secret" not in final.error
     assert len(env.artifacts.page(**scope(env))["items"]) == 1
     assert len(env.provider.calls) == (2 if kind == "agent.outcome" else 1)
     if kind == "agent.outcome" and commit_then_error:
-        # Unconfirmed local status must not overwrite a durable success with
-        # a contradictory failure. Recovery uses the actual native receipt.
+        # Confirmed local status and recovery use the same native receipt.
         outcomes = env.journal.read(session_id=env.session.session_id, kinds=["agent.outcome"])
         assert len(outcomes) == 1 and outcomes[0].payload["state"] == "succeeded"
         recovered = AgentRuntime(
