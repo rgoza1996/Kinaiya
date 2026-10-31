@@ -10,7 +10,7 @@ import stat
 
 from packages.contracts.models import AppendRequest, new_id
 from packages.resources.processes import _mem_available_bytes
-from services.converse.intent import ConverseIntent
+from services.converse.intent import ConverseIntent, OwnerIntentConflict
 from services.resources.state import PROFILES
 
 
@@ -294,7 +294,11 @@ class ResourceCoordinator:
         # implementation remains the authority.
         preempt = (self._has_whistle or self._has_text) and (
             payload.get("operation") == "handoff"
-            or (payload.get("operation") == "converse" and payload.get("enabled") is False)
+            or (
+                payload.get("operation") == "converse"
+                and payload.get("enabled") is False
+                and payload.get("expected_owner_intent_revision") is None
+            )
         )
         if preempt:
             preempt = (
@@ -553,6 +557,7 @@ class ResourceCoordinator:
                 )
             with self.db:
                 self.db.execute("INSERT INTO actions VALUES(?,?,NULL)", (key, digest))
+            intent_change = None
             try:
                 if operation == "profile":
                     profile = payload.get("profile")
@@ -569,7 +574,11 @@ class ResourceCoordinator:
                     await self._restore_locked()
                 elif operation == "converse":
                     desired = payload["enabled"]
-                    choice = self.intent.set(desired)
+                    choice = self.intent.set(
+                        desired,
+                        expected_revision=payload.get("expected_owner_intent_revision"),
+                    )
+                    intent_change = {"enabled": choice.enabled, "revision": choice.revision}
                     await self._save(owner_intent_revision=choice.revision)
                     if desired:
                         await self._restore_locked()
@@ -584,17 +593,37 @@ class ResourceCoordinator:
                 else:
                     raise ValueError("Unknown resource action")
                 result = {"ok": True, "policy": self.state.record.model_dump()}
+                if intent_change is not None:
+                    result["owner_intent_change"] = intent_change
             except asyncio.CancelledError:
                 self.state.save(
                     phase="failed", reason="Resource action interrupted; inspect status"
                 )
                 raise
+            except OwnerIntentConflict as exc:
+                observed = exc.observed
+                result = {
+                    "ok": False,
+                    "owner_intent_conflict": True,
+                    "error": "Owner intent revision conflict",
+                    "observed_owner_intent": {
+                        "enabled": observed.enabled,
+                        "revision": observed.revision,
+                    },
+                    "policy": {
+                        **self.state.record.model_dump(),
+                        "desired_converse": observed.enabled,
+                        "owner_intent_revision": observed.revision,
+                    },
+                }
             except ValueError as exc:
                 result = {
                     "ok": False,
                     "error": str(exc)[:160],
                     "policy": self.state.record.model_dump(),
                 }
+                if intent_change is not None:
+                    result["owner_intent_change"] = intent_change
             except Exception as exc:
                 await self._save(phase="failed", reason="Resource action failed; inspect status")
                 result = {
@@ -602,6 +631,8 @@ class ResourceCoordinator:
                     "error": str(exc)[:160],
                     "policy": self.state.record.model_dump(),
                 }
+                if intent_change is not None:
+                    result["owner_intent_change"] = intent_change
             with self.db:
                 self.db.execute(
                     "UPDATE actions SET result=? WHERE key=?", (json.dumps(result), key)

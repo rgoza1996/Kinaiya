@@ -29,6 +29,12 @@ class IntentRecord:
             raise OverflowError("Owner intent revision is outside its bound")
 
 
+class OwnerIntentConflict(ValueError):
+    def __init__(self, observed: IntentRecord):
+        super().__init__("Owner intent revision conflict")
+        self.observed = observed
+
+
 def _private_file(fd):
     info = os.fstat(fd)
     if (
@@ -147,14 +153,23 @@ class ConverseIntent:
         with self._directory() as directory:
             return self._read(directory)
 
-    def set(self, enabled):
+    def set(self, enabled, *, expected_revision=None):
         if type(enabled) is not bool:
             raise TypeError("Owner intent must be a boolean")
+        if expected_revision is not None:
+            if type(expected_revision) is not int:
+                raise TypeError("Owner intent revision must be an integer")
+            if not 0 <= expected_revision <= _MAX_REVISION:
+                raise OverflowError("Owner intent revision is outside its bound")
         if self.path is None:
+            if expected_revision is not None and expected_revision != self._record.revision:
+                raise OwnerIntentConflict(self._record)
             self._record = IntentRecord(enabled, self._record.revision + 1)
             return self._record
         with self._locked() as directory:
             current = self._read(directory)
+            if expected_revision is not None and expected_revision != current.revision:
+                raise OwnerIntentConflict(current)
             candidate = IntentRecord(enabled, current.revision + 1)
             self._write(directory, candidate)
             return candidate
