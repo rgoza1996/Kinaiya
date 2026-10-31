@@ -4,7 +4,7 @@ The supervisor supplies these flags from trusted configuration and task pins.
 This module never discovers, installs, executes or authorizes a foreign tool.
 """
 
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
@@ -143,3 +143,35 @@ def agent_export_permitted() -> bool:
         return guard() is True
     except Exception:
         return False
+
+
+def capture_agent_export_check() -> Callable[[], bool]:
+    """Retain a native disclosure predicate for a deferred request callback."""
+    guard = _agent_export_guard.get()
+
+    def permitted() -> bool:
+        if guard is None:
+            return True
+        try:
+            return guard() is True
+        except Exception:
+            return False
+
+    return permitted
+
+
+@contextmanager
+def agent_export_scope(check: Callable[[], bool]) -> Iterator[None]:
+    """Add an export condition without replacing the caller's native guard."""
+    if not callable(check):
+        raise ValueError("Agent tool export guard requires a native callable")
+    previous = capture_agent_export_check()
+
+    def permitted() -> bool:
+        return previous() and check() is True
+
+    token = _agent_export_guard.set(permitted)
+    try:
+        yield
+    finally:
+        _agent_export_guard.reset(token)

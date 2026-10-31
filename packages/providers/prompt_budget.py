@@ -51,7 +51,6 @@ class PromptTokenCount:
             or not 64 <= self.context_tokens <= MAX_SAFE_COUNT
             or type(self.reserved_output_tokens) is not int
             or not 16 <= self.reserved_output_tokens < self.context_tokens
-            or self.reserved_output_tokens > 2048
             or any(
                 type(value) is not str or re.fullmatch(r"[0-9a-f]{64}", value) is None
                 for value in (self.request_sha256, self.binding_sha256)
