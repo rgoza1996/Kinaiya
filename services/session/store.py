@@ -6,6 +6,7 @@ import threading
 from contextlib import contextmanager
 from pathlib import Path
 
+from packages.contracts.agent_export import AgentExportAdmission, AgentExportRequest
 from packages.contracts.context import (
     MAX_CONTEXT_PAGE_BYTES,
     ContextHistoryPage,
@@ -23,6 +24,7 @@ from packages.contracts.models import (
     SpeechWindow,
     WindowDecision,
 )
+from packages.providers.disclosure import combine_scopes, folded_source_scope, scope_allowed
 
 ALLOWED_KINDS = {
     "owner": {
@@ -371,6 +373,105 @@ class Store:
         if not row:
             raise KeyError(event_id)
         return JournalEntry.model_validate_json(row[0])
+
+    def agent_export_admission(self, request: AgentExportRequest) -> AgentExportAdmission:
+        """Linearize one request's source admission under the native journal lock.
+
+        This read changes no journal/task state and stores no prompt. The
+        receipt describes this point in time, not a reusable bearer permit or
+        a promise to recall a request after its upload has been admitted.
+        """
+        request = AgentExportRequest.model_validate(request)
+        try:
+            with self.lock:
+                session = self.session(request.session_id)
+                if (session.thread_id, session.epoch) != (request.thread_id, request.epoch):
+                    raise JournalError("Agent export source authority is unavailable")
+                scopes = [request.content_scope]
+                for source_id in request.source_event_ids:
+                    original = self.entry(source_id)
+                    resolved = self.resolve(source_id)
+                    if (
+                        (original.session_id, original.thread_id, original.epoch)
+                        != (request.session_id, request.thread_id, request.epoch)
+                        or (resolved.session_id, resolved.thread_id, resolved.epoch)
+                        != (request.session_id, request.thread_id, request.epoch)
+                        or original.kind not in {"conversation.user", "conversation.window"}
+                        or resolved.kind != original.kind
+                        or original.origin != "authenticated-user"
+                        or resolved.origin != "authenticated-user"
+                        or type(resolved.payload.get("revision", 1)) is not int
+                        or resolved.payload.get("revision", 1)
+                        != request.source_revisions[source_id]
+                        or not isinstance(resolved.payload.get("text"), str)
+                        or not resolved.payload["text"].strip()
+                    ):
+                        raise JournalError("Agent export source authority is unavailable")
+                    if original.kind == "conversation.window":
+                        window = SpeechWindow.model_validate(resolved.payload)
+                        if (window.session_id, window.thread_id, window.epoch) != (
+                            request.session_id,
+                            request.thread_id,
+                            request.epoch,
+                        ):
+                            raise JournalError("Agent export source authority is unavailable")
+                        latest = self.latest_window(
+                            request.session_id, request.epoch, window.utterance_id
+                        )
+                        if (
+                            latest is None
+                            or latest.origin != "authenticated-user"
+                            or latest.thread_id != request.thread_id
+                            or latest.payload.get("text") != window.text
+                        ):
+                            raise JournalError("Agent export source authority is unavailable")
+                        # Later flags may retain the same text, but must not
+                        # revive disclosure withdrawn by the latest window.
+                        scopes.append(latest.payload.get("content_scope", "local_only"))
+                        control = self.window_control(
+                            request.session_id, request.epoch, agent_interrupt=True
+                        )
+                        if control is not None and (
+                            control.origin != "decisions"
+                            or type(control.payload.get("source_sequence")) is not int
+                            or control.payload["source_sequence"] > resolved.sequence
+                        ):
+                            raise JournalError("Agent export source authority is unavailable")
+                        revisions = self.read(
+                            session_id=request.session_id,
+                            thread_id=request.thread_id,
+                            epoch=request.epoch,
+                            kinds=["conversation.window"],
+                            utterance_id=window.utterance_id,
+                            window_index=window.window_index,
+                            limit=200,
+                        )
+                    else:
+                        if resolved.payload.get("final") is not True:
+                            raise JournalError("Agent export source authority is unavailable")
+                        revisions = self.read(
+                            after=original.sequence,
+                            session_id=request.session_id,
+                            kinds=["conversation.revision"],
+                            limit=200,
+                        )
+                    scopes.append(
+                        folded_source_scope(original, resolved, revisions, require_complete=True)
+                    )
+                effective = combine_scopes(*scopes)
+                if not scope_allowed(request.provider, effective):
+                    raise PermissionError("Agent export disclosure is not permitted")
+                sequence = self.db.execute(
+                    "SELECT coalesce(max(sequence),0) FROM entries"
+                ).fetchone()[0]
+                return AgentExportAdmission(
+                    **request.model_dump(mode="python"),
+                    binding_sha256=request.binding_digest(),
+                    effective_scope=effective,
+                    journal_sequence=sequence,
+                ).validate_request(request)
+        except (KeyError, ValueError, sqlite3.Error) as exc:
+            raise JournalError("Agent export source authority is unavailable") from exc
 
     def append(self, request: AppendRequest, role: str) -> JournalEntry:
         if request.kind not in ALLOWED_KINDS.get(role, set()):
@@ -1008,12 +1109,33 @@ class Store:
         kinds=None,
         task_id=None,
         search=None,
+        epoch=None,
+        utterance_id=None,
+        window_index=None,
     ) -> list[JournalEntry]:
         if after < 0 or not 1 <= limit <= 200:
             raise JournalError("after must be nonnegative; limit must be 1..200")
+        if epoch is not None and (
+            type(epoch) is not int or not 1 <= epoch <= MAX_PLAYBACK_GENERATION
+        ):
+            raise JournalError("Invalid native epoch filter")
+        if utterance_id is not None or window_index is not None:
+            import re
+
+            if (
+                type(utterance_id) is not str
+                or re.fullmatch(r"[A-Za-z0-9_-]{1,128}", utterance_id) is None
+                or type(window_index) is not int
+                or not 0 <= window_index <= 1_000_000
+                or not session_id
+                or not thread_id
+                or epoch is None
+                or kinds != ["conversation.window"]
+            ):
+                raise JournalError("Exact window filters require a native window slot scope")
         clauses = ["sequence>?"]
         parameters = [after]
-        for name, value in [("session_id", session_id), ("thread_id", thread_id)]:
+        for name, value in [("session_id", session_id), ("thread_id", thread_id), ("epoch", epoch)]:
             if value is not None:
                 clauses.append(f"{name}=?")
                 parameters.append(value)
@@ -1022,6 +1144,14 @@ class Store:
                 raise JournalError("Too many kind filters")
             clauses.append("kind IN (" + ",".join("?" for _ in kinds) + ")")
             parameters.extend(kinds)
+        if utterance_id is not None:
+            clauses.extend(
+                [
+                    "json_extract(value,'$.payload.utterance_id')=?",
+                    "json_extract(value,'$.payload.window_index')=?",
+                ]
+            )
+            parameters.extend([utterance_id, window_index])
         if task_id:
             clauses.append(
                 "EXISTS(SELECT 1 FROM json_each(entries.value,'$.task_refs') WHERE value=?)"
@@ -1074,6 +1204,11 @@ class LocalJournal:
 
     def __init__(self, store: Store, role: str):
         self.store, self.role = store, role
+
+    async def agent_export_admission(self, request):
+        if self.role != "agent":
+            raise PermissionError("Agent export admission requires Agent")
+        return self.store.agent_export_admission(request)
 
     async def append(self, request):
         return self.store.append(request, self.role)
