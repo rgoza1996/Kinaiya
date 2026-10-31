@@ -1254,25 +1254,85 @@ class SkillService:
         """
         checked_task = _check_task_id(task_id)
         async with self._lock:
-            self._ensure_open()
-            local, contributor = _provider_flags(provider_info)
-            for (task, skill_id), pin in self._pins.items():
-                if task != checked_task:
-                    continue
-                invocation = "user" if skill_id == user_skill_id else "model"
-                record = self._current_record(skill_id)
-                self._deny_unless_disclosable(
-                    record, self._effective_scope(skill_id), provider_info, invocation=invocation
+            self._validate_task_disclosure(checked_task, provider_info, user_skill_id)
+
+    def _validate_task_disclosure(self, task_id, provider_info, user_skill_id):
+        self._ensure_open()
+        local, contributor = _provider_flags(provider_info)
+        for (task, skill_id), pin in self._pins.items():
+            if task != task_id:
+                continue
+            invocation = "user" if skill_id == user_skill_id else "model"
+            record = self._current_record(skill_id)
+            self._deny_unless_disclosable(
+                record, self._effective_scope(skill_id), provider_info, invocation=invocation
+            )
+            if not _scope_allows(
+                self._effective_scope(skill_id, pin.digest),
+                local=local,
+                contributor=contributor,
+            ):
+                raise _fail(
+                    "Pinned skill version is unavailable under this model disclosure policy"
                 )
-                if not _scope_allows(
-                    self._effective_scope(skill_id, pin.digest),
-                    local=local,
-                    contributor=contributor,
+            if (invocation == "model" and not pin.model_invocable) or (
+                invocation == "user" and not pin.user_invocable
+            ):
+                raise _fail("Pinned skill invocation is disabled")
+
+    def capture_task_disclosure(
+        self, task_id, provider_info, *, user_skill_id=None, expected_skill_ids=None
+    ):
+        """Capture retained pin authority for synchronous final upload fences.
+
+        No load or pin is created. Immutable pinned bytes remain eligible
+        across a current-version update, but disposal/rebinding, revocation,
+        current or pinned author restrictions and a busy controller refuse.
+        The copy retains immutable byte objects rather than rereading packages.
+        """
+        try:
+            checked_task = _check_task_id(task_id)
+            if user_skill_id is not None:
+                _check_skill_id(user_skill_id)
+            if expected_skill_ids is not None and (
+                type(expected_skill_ids) is not frozenset
+                or len(expected_skill_ids) > MAX_PINS
+                or any(type(identity) is not str for identity in expected_skill_ids)
+            ):
+                raise _fail("Retained skill disclosure is unavailable")
+            for identity in expected_skill_ids or ():
+                _check_skill_id(identity)
+            configuration = (self._manager, self._root, self._workspace)
+            if self._lock.locked():
+                raise _fail("Retained skill disclosure is unavailable")
+            self._validate_task_disclosure(checked_task, provider_info, user_skill_id)
+            pins = {
+                key: (pin, copy.deepcopy(pin))
+                for key, pin in self._pins.items()
+                if key[0] == checked_task
+            }
+            if expected_skill_ids is not None and not expected_skill_ids <= {
+                key[1] for key in pins
+            }:
+                raise _fail("Retained skill disclosure is unavailable")
+        except Exception:
+            raise _fail("Retained skill disclosure is unavailable") from None
+
+        def current():
+            try:
+                if self._lock.locked() or configuration != (
+                    self._manager,
+                    self._root,
+                    self._workspace,
                 ):
-                    raise _fail(
-                        "Pinned skill version is unavailable under this model disclosure policy"
-                    )
-                if (invocation == "model" and not pin.model_invocable) or (
-                    invocation == "user" and not pin.user_invocable
-                ):
-                    raise _fail("Pinned skill invocation is disabled")
+                    return False
+                self._validate_task_disclosure(checked_task, provider_info, user_skill_id)
+                actual = {key: pin for key, pin in self._pins.items() if key[0] == checked_task}
+                return actual.keys() == pins.keys() and all(
+                    actual[key] is original and actual[key] == snapshot
+                    for key, (original, snapshot) in pins.items()
+                )
+            except Exception:
+                return False
+
+        return current

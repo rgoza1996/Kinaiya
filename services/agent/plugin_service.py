@@ -466,6 +466,67 @@ class PluginService:
             await self.pin_task(task, plugin_id, provider_info)
             self.inspect(task.plugin_versions[plugin_id])
 
+    def capture_task_disclosure(self, task, provider_info):
+        """Capture existing pins without pinning, executing or awaiting a lock.
+
+        The chosen immutable version must stay intact, approved and disclosed.
+        A different active version is permitted while this pin remains eligible.
+        Releasing/rebinding a task pin or disabling the plugin refuses export.
+        """
+        registry = self.registry
+        configuration = (self.root, self.workspace, self.scope_file, self.scope_pending)
+        try:
+            task_id = task.task_id
+            cached_pins = self._pins.get(task_id)
+        except Exception:
+            raise PluginError("Retained plugin disclosure is unavailable") from None
+
+        def state():
+            if (
+                self.registry is not registry
+                or task.task_id != task_id
+                or self._pins.get(task_id) is not cached_pins
+                or configuration != (self.root, self.workspace, self.scope_file, self.scope_pending)
+                or self._lock.locked()
+                or not registry._thread.acquire(blocking=False)
+            ):
+                raise PluginError("Retained plugin disclosure is unavailable")
+            try:
+                registry._ensure_open()
+                pins = self._tool_metadata_pins(task)
+                if pins != task.plugin_versions or pins != self._pins.get(task.task_id, {}):
+                    raise PluginError("Retained plugin disclosure is unavailable")
+                durable = registry._read_pins() if pins else {}
+                rows = {}
+                for identity, version in pins.items():
+                    if (
+                        registry.active(identity) is None
+                        or durable.get("task:" + task.task_id + ":" + version) != version
+                    ):
+                        raise PluginError("Retained plugin disclosure is unavailable")
+                    row = registry.inspect(version)
+                    if row["plugin_id"] != identity:
+                        raise PluginError("Retained plugin disclosure is unavailable")
+                    registry._approval(row, registry._read_active_doc()["plugins"].get(identity))
+                    self._check_disclosure(version, provider_info)
+                    rows[identity] = row
+                return rows
+            finally:
+                registry._thread.release()
+
+        try:
+            original = state()
+        except Exception:
+            raise PluginError("Retained plugin disclosure is unavailable") from None
+
+        def current():
+            try:
+                return state() == original
+            except Exception:
+                return False
+
+        return current
+
     async def call_task(self, task, plugin_id, arguments, provider_info):
         version_id, _ = await self.pin_task(task, plugin_id, provider_info)
         result = await self.run(version_id, arguments)

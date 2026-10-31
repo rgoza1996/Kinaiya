@@ -420,8 +420,16 @@ def fake_skill(row):
     async def validate(*args, **kwargs):
         service.validates += 1
 
+    def capture(task_id, provider_info, *, user_skill_id=None, expected_skill_ids=None):
+        # This fixture projects catalog metadata only and loads no skill pins.
+        # Real catalog guards still enforce its mutable public disclosure.
+        assert isinstance(task_id, str) and provider_info.local is False
+        assert user_skill_id is None and expected_skill_ids == frozenset()
+        return lambda: True
+
     service.tool_metadata, service.tool_metadata_current = metadata, current
     service.validate_task, service.release_task = validate, AsyncMock()
+    service.capture_task_disclosure = capture
     return service
 
 

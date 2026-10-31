@@ -1659,6 +1659,20 @@ class AgentRuntime:
         provider_info = copy.deepcopy(provider.info)
         history = [dict(turn) for turn in rec.history]
         guards = tuple(rec.catalog_guards.items())
+        retained_guards = []
+        if self.skill_service is not None:
+            retained_guards.append(
+                self.skill_service.capture_task_disclosure(
+                    rec.task.task_id,
+                    provider_info,
+                    user_skill_id=rec.explicit_skill,
+                    expected_skill_ids=frozenset(rec.used_skills),
+                )
+            )
+        if self.plugin_service is not None:
+            retained_guards.append(
+                self.plugin_service.capture_task_disclosure(self._plugin_task(rec), provider_info)
+            )
 
         def identity():
             task = rec.task
@@ -1721,6 +1735,9 @@ class AgentRuntime:
                 or self.tool_snapshot(rec.task) != tools
             ):
                 raise PolicyDenied("Agent inference authority changed during context admission")
+            if not all(guard() for guard in retained_guards):
+                rec.task.content_scope = "local_only"
+                raise PolicyDenied("Retained tool disclosure changed; task stopped")
             self._validate_catalog_history(rec)
             if not scope_allowed(provider.info, rec.task.content_scope):
                 raise PolicyDenied("Task disclosure does not permit the configured Agent provider")
