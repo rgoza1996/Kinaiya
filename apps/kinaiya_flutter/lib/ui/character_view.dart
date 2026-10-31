@@ -180,25 +180,10 @@ class _CharacterViewState extends State<CharacterView> {
           !identical(controls.buildVoiceOptions, panel)) {
         return null;
       }
-      return StatefulBuilder(
-        builder: (_, update) => VoiceOptionsSheet(
-          embedded: true,
-          endSilenceMs: _endSilenceMs,
-          silenceChoices: endSilenceOptionsMs,
-          windowMode: _windowMode,
-          onSilenceChanged: (value) async {
-            if (!mounted ||
-                !identical(widget.state, owner) ||
-                !identical(controls.buildVoiceOptions, panel)) {
-              return;
-            }
-            update(() {
-              _endSilenceMs = value;
-            });
-            setState(() {});
-            await _audio.configureVad(endSilenceMs: value);
-          },
-        ),
+      return _voiceOptionsPanel(
+        embedded: true,
+        owner: owner,
+        controls: controls,
       );
     };
     _registeredVoicePanel = panel;
@@ -456,7 +441,108 @@ class _CharacterViewState extends State<CharacterView> {
 
   /// User-armed continuous listening. Never true unless the user toggled it.
   bool _armed = false;
-  int _endSilenceMs = 1500;
+  VadSettings _vadSettings = const VadSettings();
+  int get _endSilenceMs => _vadSettings.endSilenceMs;
+  bool _vadBusy = false;
+  String? _vadNotice;
+  int _vadChange = 0;
+  final _voiceOptionsUpdates = ValueNotifier<int>(0);
+
+  AdaptiveVadAudio? get _adaptiveAudio =>
+      _audio is AdaptiveVadAudio &&
+          (_audio as AdaptiveVadAudio).supportsVadSettings
+      ? _audio as AdaptiveVadAudio
+      : null;
+
+  Future<VadSettings> _configureVad(VadSettings settings) async {
+    final advanced = _adaptiveAudio;
+    if (advanced != null) return advanced.configureVadSettings(settings);
+    await _audio.configureVad(endSilenceMs: settings.endSilenceMs);
+    return settings;
+  }
+
+  Future<void> _changeVad({
+    VadSettings? settings,
+    bool recalibrate = false,
+  }) async {
+    if (_vadBusy || (settings != null && !settings.valid)) return;
+    final owner = widget.state, request = ++_vadChange;
+    bool current() =>
+        mounted && request == _vadChange && identical(widget.state, owner);
+    setState(() {
+      _vadBusy = true;
+      _vadNotice = null;
+    });
+    _voiceOptionsUpdates.value++;
+    try {
+      if (recalibrate) {
+        final advanced = _adaptiveAudio;
+        if (advanced == null) throw StateError('Unavailable');
+        await advanced.recalibrateVad().timeout(const Duration(seconds: 2));
+        if (current()) {
+          _vadNotice = _armed
+              ? 'Calibration queued. Remain quiet for about one second.'
+              : 'Calibration will start when you next turn Call on.';
+        }
+      } else if (settings != null) {
+        final applied = await _configureVad(
+          settings,
+        ).timeout(const Duration(seconds: 2));
+        if (current()) {
+          _vadSettings = applied;
+          _vadNotice = 'Microphone settings applied for this session.';
+        }
+      }
+    } catch (_) {
+      if (current()) {
+        _vadNotice =
+            'Microphone settings could not be confirmed. Apply a choice again.';
+      }
+    } finally {
+      if (current()) {
+        setState(() => _vadBusy = false);
+        _voiceOptionsUpdates.value++;
+      }
+    }
+  }
+
+  Widget _voiceOptionsPanel({
+    required bool embedded,
+    required AppState owner,
+    required ConverseViewControls? controls,
+  }) => ValueListenableBuilder<int>(
+    valueListenable: _voiceOptionsUpdates,
+    builder: (_, version, child) {
+      bool current() =>
+          mounted &&
+          identical(widget.state, owner) &&
+          identical(widget.controls, controls) &&
+          (!embedded ||
+              identical(controls?.buildVoiceOptions, _registeredVoicePanel));
+      return VoiceOptionsSheet(
+        embedded: embedded,
+        endSilenceMs: _endSilenceMs,
+        silenceChoices: endSilenceOptionsMs,
+        windowMode: _windowMode,
+        vadSettings: _adaptiveAudio == null ? null : _vadSettings,
+        busy: _vadBusy,
+        notice: _vadNotice,
+        onVadChanged: (settings) {
+          if (current()) unawaited(_changeVad(settings: settings));
+        },
+        onRecalibrate: () {
+          if (current()) unawaited(_changeVad(recalibrate: true));
+        },
+        onSilenceChanged: (value) {
+          if (current()) {
+            unawaited(
+              _changeVad(settings: _vadSettings.copyWith(endSilenceMs: value)),
+            );
+          }
+        },
+      );
+    },
+  );
   Timer? _pollTimer;
   bool _voiceBusy = false;
   bool _clipOpen = false;
@@ -507,6 +593,9 @@ class _CharacterViewState extends State<CharacterView> {
     super.didUpdateWidget(oldWidget);
     if (!identical(oldWidget.controls, widget.controls) ||
         !identical(oldWidget.state, widget.state)) {
+      _vadChange++;
+      _vadBusy = false;
+      _vadNotice = null;
       _dismissTextConversation();
       _bindSettingsControls();
     }
@@ -590,6 +679,7 @@ class _CharacterViewState extends State<CharacterView> {
     unawaited(_audio.stopPlayback());
     unawaited(_audio.dispose());
     _mouthFrame.dispose();
+    _voiceOptionsUpdates.dispose();
     _input.dispose();
     super.dispose();
   }
@@ -1212,14 +1302,25 @@ class _CharacterViewState extends State<CharacterView> {
   /// User-armed continuous listening toggle. The mic starts ONLY here.
   Future<void> _setArmed(bool on) async {
     if (!on) return _stopMicrophone();
-    if (_micStopUnconfirmed) return;
+    if (_micStopUnconfirmed || _vadBusy) return;
     final owner = ++_armOwner;
     if (!_converseAvailable || !_s.converseCanInfer || _s.client == null) {
       return;
     }
     _captureScope = _s.selectedContentScope;
     await _windowAudio?.configureWindows(_windowMode);
-    await _audio.configureVad(endSilenceMs: _endSilenceMs);
+    try {
+      await _configureVad(_vadSettings).timeout(const Duration(seconds: 2));
+    } catch (_) {
+      if (mounted && owner == _armOwner) {
+        setState(
+          () => _vadNotice =
+              'Microphone configuration is unavailable. Review Voice options.',
+        );
+        _voiceOptionsUpdates.value++;
+      }
+      return;
+    }
     if (!mounted || owner != _armOwner || !_converseAvailable) return;
     final result = await _audio.startArmed();
     if (!mounted || owner != _armOwner) return;
@@ -2200,20 +2301,20 @@ class _CharacterViewState extends State<CharacterView> {
   Future<void> _openVoiceOptions() {
     final owner = widget.state;
     final controls = widget.controls;
-    return showVoiceOptions(
+    return showModalBottomSheet<void>(
       context: context,
-      endSilenceMs: _endSilenceMs,
-      silenceChoices: endSilenceOptionsMs,
-      windowMode: _windowMode,
-      onSilenceChanged: (v) async {
-        if (!mounted ||
-            !identical(widget.state, owner) ||
-            !identical(widget.controls, controls)) {
-          return;
-        }
-        setState(() => _endSilenceMs = v);
-        await _audio.configureVad(endSilenceMs: v);
-      },
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (sheetContext) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.viewInsetsOf(sheetContext).bottom,
+        ),
+        child: _voiceOptionsPanel(
+          embedded: false,
+          owner: owner,
+          controls: controls,
+        ),
+      ),
     );
   }
 

@@ -4,6 +4,9 @@
 library;
 
 export 'speech_mouth.dart';
+export 'vad_settings.dart';
+
+import 'vad_settings.dart';
 
 import 'speech_audio_stub.dart'
     if (dart.library.js_interop) 'speech_audio_web.dart'
@@ -61,6 +64,13 @@ abstract interface class WindowSpeechAudio {
   Future<Map<String, Object?>?> snapshotWindow();
   Future<bool> get userSpeaking;
   Future<int> nextUtterance();
+}
+
+/// Optional trusted adapter capability. Configuration never acquires a mic.
+abstract interface class AdaptiveVadAudio {
+  bool get supportsVadSettings;
+  Future<VadSettings> configureVadSettings(VadSettings settings);
+  Future<void> recalibrateVad();
 }
 
 SpeechAudio speechAudio() => impl.createSpeechAudio();
