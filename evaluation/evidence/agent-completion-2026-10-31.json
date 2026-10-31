@@ -8,7 +8,8 @@
     "services/agent/completion.py": "6d816aa7b0247a5697a5f9dcc123401c47c98b29b55a09c31d6dd108884b9e33",
     "tests/unit/test_agent_completion_confirmation.py": "301869a3026b42c03891493bb2911a90563421a0c06ceaf59b2ccf8bd2ef18ee",
     "tests/integration/test_agent_completion_recovery.py": "e2e81df453cc9c98f85aad4bb5353cbd5046c5027fb25c5e13d6e29420da4e53",
-    "tests/integration/test_agent_completion_races.py": "8bb5b2835f816be70f6486248ab4a6b5235273a3eddea9d294484d990090eb68"
+    "tests/integration/test_agent_completion_races.py": "8bb5b2835f816be70f6486248ab4a6b5235273a3eddea9d294484d990090eb68",
+    "tests/unit/test_agent_write_arguments.py": "a9f7688172bec6803e82579158df8e4cdd2c998a82446f7da77c1842e59b3c17"
   },
   "verification": {
     "focused_helper_recovery_legacy_ui": {
@@ -37,7 +38,20 @@
     },
     "contract_export": "passed; generated schema unchanged",
     "dependency_audit": "no known vulnerabilities found",
-    "full_ci": "Required on exact PR head before merge; see linked GitHub Actions, not inferred from focused counts"
+    "full_ci": "Required on exact PR head before merge; see linked GitHub Actions, not inferred from focused counts",
+    "broader_local_initial_run": {
+      "result": "failed",
+      "failed": 5,
+      "passed": 4727,
+      "skipped": 6,
+      "deselected": 2,
+      "warnings": 1,
+      "elapsed_seconds": 806.67,
+      "source_status": "Run began before final guard follow-up and before final fixture correction; not exact final PR head",
+      "cause": "A third InMemoryJournal test double in test_agent_write_arguments.py authored successful Agent records with origin=test; strict native confirmation rejected them",
+      "resolution": "Correct only the fixture to agent-supervisor; retain production origin check and all assertions",
+      "focused_correction": "40 write-argument tests passed after fixture correction; full exact-head CI remains required"
+    }
   },
   "muse_development": {
     "actual_cli": true,
