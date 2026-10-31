@@ -346,7 +346,7 @@ async def test_approval_before_call_and_digest_binding(tmp_path) -> None:
             {"tool": "mcp_call", "arguments": args},
             {
                 "tool": "read_file",
-                "arguments": {"path": "synth_mcp_agent_server.py", "max_bytes": 64},
+                "arguments": {"path": "synth_mcp_agent_server.py"},
             },
             {"tool": "finish", "arguments": {"summary": "mcp work done", "objective_revision": 1}},
         ]
@@ -377,6 +377,10 @@ async def test_approval_before_call_and_digest_binding(tmp_path) -> None:
         assert final.state == TaskState.SUCCEEDED, final.error
         kinds = [e.kind for e in final.evidence if e.objective_revision == 1]
         assert kinds == ["external", "read"]
+        assert (
+            final.evidence[1].sha256
+            == hashlib.sha256((tmp_path / "synth_mcp_agent_server.py").read_bytes()).hexdigest()
+        )
         receipt = final.evidence[0]
         assert receipt.kind == "external"
         assert "synth" in receipt.summary and "echo" in receipt.summary

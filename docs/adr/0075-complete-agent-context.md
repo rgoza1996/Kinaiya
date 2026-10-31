@@ -1,6 +1,6 @@
 # ADR 0075: Complete Agent observations and measured complete requests
 
-Status: accepted contract; implementation and qualification in progress (#179).
+Status: experimental implementation (#179); real M1 qualification remains separate.
 
 ## Requirement and baseline
 
@@ -87,12 +87,34 @@ one-use native dispatch latch prevents admission reuse; a rejected or uncertain
 attempt is not replayed. The local task/provider/tool/catalog guards run again
 after admission awaits. Fixture-only generation acquires no external admission.
 
+Loaded skill and plugin bodies also retain synchronous native pin guards.
+After hooks and native admission, the controller must still recognize the exact
+task pin and immutable source/version, current enabled/author/approval rules and
+the actual provider's disclosure policy. A disposed or rebound pin, closed/busy
+broker or withdrawn scope refuses export without loading or recreating a pin.
+An eligible old immutable version can remain pinned across a legitimate active
+version update. Local-only bodies remain eligible only for local providers.
+
 The atomic native admission is the linearization point for that one upload.
 Later revocation can stop subsequent requests and action admission, but cannot
 recall an already admitted in-flight disclosure. This is not a distributed
 transaction or a new tool/effect permission. Native source scope now also folds
 all bounded revisions of one exact speech-window slot, retaining an intermediate
 restrictive scope; unrelated slots do not taint or exhaust that chain.
+
+Retrieved transcript rows also retain their immutable journal event IDs as
+task-wide disclosure dependencies. They do not become authenticated instruction
+sources, authorize work or alter `source_event_ids`. The same native admission
+folds their current user/window/revision-target disclosure chains under its lock;
+the asynchronous continuation/effect fences also recheck these dependencies.
+The closure includes causal ancestors of derived assistant replies and all
+relevant revisions. Raw cause edges must reference older native rows in the same
+session/thread/epoch. Missing, cyclic, forward or inconsistent references refuse
+admission. One shared bound of 256 metadata rows covers the complete closure of
+all retained roots in each validation pass; no dependency is silently dropped.
+At most 128 distinct context rows may be retained by a task. Reaching that
+native provenance resource bound refuses further retrieval instead of evicting
+an old disclosure dependency. The bound does not represent model capacity.
 
 Prepared transports are tested against pinned HTTPX 0.28.1. They bind method,
 URL, raw headers, immutable upload stream, body, extensions and selected

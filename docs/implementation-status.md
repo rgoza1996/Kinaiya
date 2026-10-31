@@ -160,6 +160,15 @@ Previously unmeasured Agent adapters now refuse explicitly until they implement
 complete-count admission; model names and approximate token estimates supply no
 capacity. Converse's separate budgeting interface is unchanged.
 
+Final upload fences also revalidate retained skill/plugin pins and native
+transcript provenance, including causal ancestors of retrieved assistant replies.
+These remain disclosure dependencies after prompt eviction and grant no task
+authority. Scope withdrawals in count/generation hooks and after generation are
+covered by [native regressions](../tests/integration/test_agent_retained_transcript.py)
+and [broker regressions](../tests/integration/test_agent_retained_disclosure.py).
+Missing or over-bound provenance refuses the request rather than dropping a
+dependency. This does not qualify general repository work or a new model default.
+
 ## Agent completion durability
 
 The bounded [#167](https://github.com/rgoza1996/Kinaiya/issues/167) repair uses

@@ -1,6 +1,12 @@
 """Native entry-scope admission shared by window consumers and transcript tools."""
 
+from collections import deque
+
 from packages.contracts.models import SpeechWindow
+
+# This bounds native provenance traversal, not a model's context capacity. A
+# dependency is never dropped to make a retained transcript row admissible.
+MAX_CONTEXT_PROVENANCE_NODES = 256
 
 
 def scope_allowed(info, scope):
@@ -180,3 +186,180 @@ async def source_scope(journal, source_id, resolved=None):
         else []
     )
     return folded_source_scope(original, resolved, revisions)
+
+
+def context_source_id(entry):
+    """Identify a context row's source without treating it as an instruction."""
+    if entry.kind == "conversation.revision":
+        target_id = entry.payload.get("target_event_id")
+        if not isinstance(target_id, str) or not target_id:
+            raise ValueError("Native context source is unavailable")
+        return target_id
+    return entry.event_id
+
+
+def validate_context_source(entry, target):
+    if (
+        (entry.session_id, entry.thread_id, entry.epoch)
+        != (
+            target.session_id,
+            target.thread_id,
+            target.epoch,
+        )
+        or (
+            entry.kind == "conversation.revision"
+            and (
+                target.kind != "conversation.user"
+                or target.origin != "authenticated-user"
+                or target.event_id != context_source_id(entry)
+            )
+        )
+        or (
+            entry.kind != "conversation.revision"
+            and (
+                target.kind != entry.kind
+                or (entry.kind != "conversation.window" and target.event_id != entry.event_id)
+            )
+        )
+    ):
+        raise ValueError("Native context source is unavailable")
+
+
+def context_revision_query(original, resolved):
+    """Select the same bounded source chain in async and atomic admission."""
+    if original.kind == "conversation.window":
+        window = SpeechWindow.model_validate(resolved.payload)
+        return {
+            "session_id": original.session_id,
+            "thread_id": original.thread_id,
+            "epoch": original.epoch,
+            "kinds": ["conversation.window"],
+            "utterance_id": window.utterance_id,
+            "window_index": window.window_index,
+            "limit": 200,
+        }
+    if original.kind == "conversation.user":
+        return {
+            "after": original.sequence,
+            "session_id": original.session_id,
+            "kinds": ["conversation.revision"],
+            "limit": 200,
+        }
+    return None
+
+
+class ContextScopeClosure:
+    """Fold retained rows and their complete native disclosure dependencies.
+
+    Causes carry provenance, never instruction authority or grants. Every raw
+    causal edge must point to an older row in the same session/thread/epoch;
+    this also rejects cycles without rejecting a shared DAG. Resolving a user
+    or window includes every bounded revision and those revisions' causes.
+    """
+
+    def __init__(self, session_id, thread_id, epoch):
+        self.identity = (session_id, thread_id, epoch)
+        self.scope = "public_synthetic"
+        self._pending = deque()
+        self._known = set()
+        self._observed = {}
+        self._before = {}
+
+    def _reserve(self, event_id):
+        if type(event_id) is not str or not 1 <= len(event_id) <= 128 or "\x00" in event_id:
+            raise ValueError("Native context provenance is unavailable")
+        try:
+            event_id.encode("utf-8")
+        except UnicodeError as exc:
+            raise ValueError("Native context provenance is unavailable") from exc
+        if event_id not in self._known:
+            if len(self._known) >= MAX_CONTEXT_PROVENANCE_NODES:
+                raise ValueError("Native context provenance exceeds its resource bound")
+            self._known.add(event_id)
+            return True
+        return False
+
+    def queue(self, event_id, *, before=None):
+        fresh = self._reserve(event_id)
+        if before is not None:
+            self._before[event_id] = min(before, self._before.get(event_id, before))
+            observed = self._observed.get(event_id)
+            if observed is not None and observed.sequence >= self._before[event_id]:
+                raise ValueError("Native context provenance is unavailable")
+        if fresh:
+            self._pending.append(event_id)
+
+    def next_event_id(self):
+        while self._pending:
+            event_id = self._pending.popleft()
+            if event_id not in self._observed:
+                return event_id
+        return None
+
+    def observe(self, entry, original, resolved, revisions):
+        validate_context_source(entry, original)
+        validate_context_source(entry, resolved)
+        scope = folded_source_scope(original, resolved, revisions, require_complete=True)
+        if original.kind == "conversation.window":
+            rows = revisions
+        elif original.kind == "conversation.user":
+            rows = [original] + [
+                row for row in revisions if row.payload.get("target_event_id") == original.event_id
+            ]
+        else:
+            if original != resolved:
+                raise ValueError("Native context source is unavailable")
+            rows = [original]
+        if not any(row == entry for row in rows):
+            raise ValueError("Native context source is unavailable")
+        for row in rows:
+            self._reserve(row.event_id)
+            if (
+                (row.session_id, row.thread_id, row.epoch) != self.identity
+                or type(row.sequence) is not int
+                or row.sequence < 1
+                or type(row.causes) is not list
+                or len(row.causes) > 32
+                or row.sequence >= self._before.get(row.event_id, row.sequence + 1)
+            ):
+                raise ValueError("Native context provenance is unavailable")
+            previous = self._observed.get(row.event_id)
+            if previous is not None and previous != row:
+                raise ValueError("Native context provenance is unavailable")
+            self._observed[row.event_id] = row
+        for row in rows:
+            for cause in row.causes:
+                self.queue(cause, before=row.sequence)
+        self.scope = combine_scopes(self.scope, scope)
+
+
+async def context_scope(journal, entry, *, closure=None):
+    """Recheck the bounded causal closure at continuation/effect fences.
+
+    The Store performs this traversal atomically at each actual upload. Async
+    reads use identical folds; an unavailable or inconsistent chain is refused.
+    A shared closure is local to one validation pass, never reused at a later
+    fence. Unretained scan candidates must use independent closures.
+    """
+    if closure is None:
+        closure = ContextScopeClosure(entry.session_id, entry.thread_id, entry.epoch)
+    if type(closure) is not ContextScopeClosure or closure.identity != (
+        entry.session_id,
+        entry.thread_id,
+        entry.epoch,
+    ):
+        raise ValueError("Native context provenance is unavailable")
+    closure.queue(entry.event_id)
+    while (event_id := closure.next_event_id()) is not None:
+        current = await journal.entry(event_id)
+        if current.event_id != event_id:
+            raise ValueError("Native context provenance is unavailable")
+        source_id = context_source_id(current)
+        original = current if source_id == event_id else await journal.entry(source_id)
+        resolved = await journal.resolve(source_id)
+        validate_context_source(current, original)
+        validate_context_source(current, resolved)
+        query = context_revision_query(original, resolved)
+        revisions = await journal.read(**query) if query is not None else []
+        closure.observe(current, original, resolved, revisions)
+    return combine_scopes(entry.payload.get("content_scope", "local_only"), closure.scope)

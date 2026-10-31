@@ -24,7 +24,15 @@ from packages.contracts.models import (
     SpeechWindow,
     WindowDecision,
 )
-from packages.providers.disclosure import combine_scopes, folded_source_scope, scope_allowed
+from packages.providers.disclosure import (
+    ContextScopeClosure,
+    combine_scopes,
+    context_revision_query,
+    context_source_id,
+    folded_source_scope,
+    scope_allowed,
+    validate_context_source,
+)
 
 ALLOWED_KINDS = {
     "owner": {
@@ -374,6 +382,50 @@ class Store:
             raise KeyError(event_id)
         return JournalEntry.model_validate_json(row[0])
 
+    def _agent_source_scope(self, original, resolved):
+        """Read a complete bounded source chain while admission holds the lock."""
+        if original.kind == "conversation.window":
+            window = SpeechWindow.model_validate(resolved.payload)
+            revisions = self.read(
+                session_id=original.session_id,
+                thread_id=original.thread_id,
+                epoch=original.epoch,
+                kinds=["conversation.window"],
+                utterance_id=window.utterance_id,
+                window_index=window.window_index,
+                limit=200,
+            )
+        elif original.kind == "conversation.user":
+            revisions = self.read(
+                after=original.sequence,
+                session_id=original.session_id,
+                kinds=["conversation.revision"],
+                limit=200,
+            )
+        else:
+            revisions = []
+        return folded_source_scope(original, resolved, revisions, require_complete=True)
+
+    def _agent_context_scope(self, event_id, request, *, closure=None):
+        # The admission caller holds self.lock across every retained root and
+        # its causes. Share one bound so many roots cannot multiply the limit.
+        if closure is None:
+            closure = ContextScopeClosure(request.session_id, request.thread_id, request.epoch)
+        closure.queue(event_id)
+        while (current_id := closure.next_event_id()) is not None:
+            entry = self.entry(current_id)
+            if entry.event_id != current_id:
+                raise ValueError("Native context provenance is unavailable")
+            source_id = context_source_id(entry)
+            original = entry if source_id == current_id else self.entry(source_id)
+            resolved = self.resolve(source_id)
+            validate_context_source(entry, original)
+            validate_context_source(entry, resolved)
+            query = context_revision_query(original, resolved)
+            revisions = self.read(**query) if query is not None else []
+            closure.observe(entry, original, resolved, revisions)
+        return closure.scope
+
     def agent_export_admission(self, request: AgentExportRequest) -> AgentExportAdmission:
         """Linearize one request's source admission under the native journal lock.
 
@@ -437,26 +489,16 @@ class Store:
                             or control.payload["source_sequence"] > resolved.sequence
                         ):
                             raise JournalError("Agent export source authority is unavailable")
-                        revisions = self.read(
-                            session_id=request.session_id,
-                            thread_id=request.thread_id,
-                            epoch=request.epoch,
-                            kinds=["conversation.window"],
-                            utterance_id=window.utterance_id,
-                            window_index=window.window_index,
-                            limit=200,
-                        )
                     else:
                         if resolved.payload.get("final") is not True:
                             raise JournalError("Agent export source authority is unavailable")
-                        revisions = self.read(
-                            after=original.sequence,
-                            session_id=request.session_id,
-                            kinds=["conversation.revision"],
-                            limit=200,
-                        )
+                    scopes.append(self._agent_source_scope(original, resolved))
+                context_closure = ContextScopeClosure(
+                    request.session_id, request.thread_id, request.epoch
+                )
+                for event_id in request.context_event_ids:
                     scopes.append(
-                        folded_source_scope(original, resolved, revisions, require_complete=True)
+                        self._agent_context_scope(event_id, request, closure=context_closure)
                     )
                 effective = combine_scopes(*scopes)
                 if not scope_allowed(request.provider, effective):

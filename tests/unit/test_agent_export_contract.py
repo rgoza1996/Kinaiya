@@ -81,6 +81,11 @@ def test_exported_schema_is_exact(model):
             "source_revisions": {str(i): 1 for i in range(33)},
         },
         {"source_event_ids": ["\udfff"], "source_revisions": {"\udfff": 1}},
+        {"context_event_ids": ["context", "context"]},
+        {"context_event_ids": [str(i) for i in range(129)]},
+        {"context_event_ids": ["bad\0id"]},
+        {"context_event_ids": ["\ud800"]},
+        {"context_event_ids": [True]},
         {"content_scope": "cloud"},
         {"headers": {"Authorization": "forbidden"}},
         {"provider": {"provider": "meta", "model": "synthetic", "local": "false"}},
@@ -102,6 +107,11 @@ def test_strict_bounded_metadata(change):
 
 def test_empty_sources_and_maximum_unique_bindings_are_supported():
     assert request(source_event_ids=[], source_revisions={}).source_revisions == {}
+    assert request().context_event_ids == []
+    assert (
+        len(request(context_event_ids=[f"context-{i}" for i in range(128)]).context_event_ids)
+        == 128
+    )
     ids = [f"source-{i}" for i in range(32)]
     assert (
         len(request(source_event_ids=ids, source_revisions=dict.fromkeys(ids, 1)).source_event_ids)
@@ -118,6 +128,7 @@ def test_empty_sources_and_maximum_unique_bindings_are_supported():
         ("thread_id", "other"),
         ("epoch", 2),
         ("source_revisions", {"source": 2}),
+        ("context_event_ids", ["retrieved-context"]),
         ("request_sha256", "cd" * 32),
         ("purpose", "complete_generation"),
         ("request_nonce", "nonce-2"),
