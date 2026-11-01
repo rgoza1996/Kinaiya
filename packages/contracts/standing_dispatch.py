@@ -106,7 +106,7 @@ class StandingDispatchState(_Dispatch):
 
     wire_bytes: ClassVar[int] = 16384
     backend_id: BackendId
-    instance_id: ControlInstance
+    instance_id: ControlInstance | None
     control_revision: Revision
     mode: AgentMode
     control_writable: bool
@@ -120,6 +120,8 @@ class StandingDispatchState(_Dispatch):
 
     @model_validator(mode="after")
     def gate_observation(self):
+        if self.instance_id is None and (self.control_writable or self.producer is not None):
+            raise ValueError(_PROOF_ERROR)
         if self.stopped_through_epoch > self.epoch:
             raise ValueError(_PROOF_ERROR)
         if self.epoch == 0:
