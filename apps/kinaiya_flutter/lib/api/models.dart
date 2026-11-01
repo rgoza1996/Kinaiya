@@ -382,7 +382,8 @@ class ApprovalRequest {
   final bool reissueSupported;
 
   bool get isExpired {
-    if (status == 'expired') return true;
+    // Native lifecycle status is authoritative across owner clock changes.
+    if (reissueSupported) return status == 'expired';
     if (expiresAt == null || expiresAt!.isEmpty) return false;
     final t = DateTime.tryParse(expiresAt!);
     return t != null && !DateTime.now().toUtc().isBefore(t);

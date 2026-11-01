@@ -735,9 +735,11 @@ class _AgentChatState extends State<AgentChat> {
       if (!mounted || !_s.ownsConnection(generation, api)) return;
       _s.removeApproval(approval.approvalId);
       await _refreshTasks();
-    } on ApiException {
+    } on ApiException catch (error) {
       if (!_s.ownsConnection(generation, api)) return;
-      _s.agentNotice = "Couldn't record that decision. Check the connection.";
+      _s.agentNotice = error.status == 403 || error.status == 409
+          ? 'Refresh the task and current request; the approval may have expired or changed.'
+          : "Couldn't record that decision. Check the connection.";
       _s.touch();
     }
   }
