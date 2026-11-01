@@ -6,8 +6,8 @@ Requirement: [#228](https://github.com/rgoza1996/Kinaiya/issues/228), within
 [Agent operating modes](agent-control-api.md), Roadmap §13/§19 and clarification.md.
 
 This branch implements the authorization owner, native dispatch gate and their
-authenticated Session APIs, plus immutable authorization/dispatch Dart proofs and bounded
-transport. A saved or armed authorization is **not** a scheduled task,
+authenticated Session APIs, immutable authorization/dispatch Dart proofs and bounded
+transport, plus native claim reservations and pure task-entry proofs. A saved or armed authorization is **not** a scheduled task,
 producer-health claim, execution receipt or completed responsibility. Native
 occurrence admission, an actual Agent producer, positive execution settlement,
 the inbox and embedded owner editor still require integration. Autonomous stays
@@ -227,8 +227,43 @@ parsing a `created` disposition does not establish native acceptance or launch.
 
 The [contract evidence](../evaluation/evidence/standing-execution-contract-2026-11-01.json)
 records the independent frozen checks, original missing-capability baseline,
-source review and additive schema export. Native claim storage and the working
-editor → occurrence → Agent → settled inbox chain remain unqualified.
+source review and additive schema export. Native claim reservations are qualified
+separately below. Actual task admission and the working editor → occurrence →
+Agent → settled inbox chain remain unfinished.
+
+## Native claim reservations
+
+`services/session/standing_execution.py` adds an explicitly registered
+`StandingExecutionOwner` over the same protected Store, controller,
+authorization owner and dispatch gate. Construction and close are passive.
+`prepare` joins the complete current armed/enabled grant, exact Agent session,
+task/workspace metadata, native due occurrence, Autonomous activation and live
+producer before committing an immutable claim. It checks the known initial
+request serialization limit before inserting, and repeats current authority and
+absolute cancellation/deadline checks immediately before COMMIT.
+
+Two protected tables retain canonical full proofs and unique claim/occurrence
+identities. This phase permits one unresolved reservation globally, including
+across all responsibility revisions. It has no task-admission, worker, release
+or settlement operation. Neither editing a grant nor Stop, expiry, session
+reset/deletion or process restart clears the reservation. The full original
+owner record and captured prepared time qualify historical occurrence meaning;
+saved metadata does not prove the live external filesystem/provider matches it.
+
+Only a timely direct acknowledged new COMMIT returns `created`; exact replay
+returns `retained`. A lost acknowledgement preserves durable uncertainty.
+`lookup` and `unresolved` validate history without sampling UTC or producer
+liveness, starting work or changing the reservation. Established history also
+remains readable at controller-registration capacity using validated passive
+owner joins; no current writer is invented. No claim API or actual producer is
+exposed by this class alone.
+
+Schema validation rejects unexpected foreign keys in both tables. The
+[native claim evidence](../evaluation/evidence/standing-execution-owner-2026-11-01.json)
+retains the initial 64-case pass, two subsequent failing corruption regressions,
+the source-only fix and unchanged 66-case qualification. Those checks use actual
+SQLite transactions, commit faults, session lifecycle, clocks and competing
+callers; they do not qualify Agent execution or effect settlement.
 
 ## Native dispatch gate
 
