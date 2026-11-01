@@ -24,6 +24,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
+from conftest import InMemorySubmitProtocol
 from httpx import ASGITransport, AsyncClient
 
 from core.policy import ToolPolicy
@@ -50,8 +51,9 @@ SECRET_VALUE = "kinaiya-test-token-VALUE-9f3a"
 SESSION = Session(session_id="s9", thread_id="t9", channel="agent", epoch=1)
 
 
-class InMemoryJournal:
+class InMemoryJournal(InMemorySubmitProtocol):
     def __init__(self, channel: str = "agent") -> None:
+        super().__init__()
         self.entries: list[JournalEntry] = []
         self._seq = 0
         self._channel = channel

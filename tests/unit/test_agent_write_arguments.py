@@ -5,6 +5,7 @@ import hashlib
 from datetime import UTC, datetime
 
 import pytest
+from conftest import InMemorySubmitProtocol
 
 from core.policy import ToolPolicy
 from packages.contracts.models import (
@@ -23,8 +24,9 @@ from services.agent.runtime import AgentRuntime
 SESSION = Session(session_id="s1", thread_id="t1", channel="agent", epoch=1)
 
 
-class InMemoryJournal:
+class InMemoryJournal(InMemorySubmitProtocol):
     def __init__(self, session):
+        super().__init__()
         self.session_obj = session
         self.entries = []
         self._seq = 0

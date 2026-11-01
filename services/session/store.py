@@ -1,5 +1,6 @@
 """The sole SQLite journal owner. Transactions establish sequence and provenance."""
 
+import copy
 import json
 import sqlite3
 import threading
@@ -7,6 +8,17 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from packages.contracts.agent_export import AgentExportAdmission, AgentExportRequest
+from packages.contracts.agent_submit import (
+    MAX_AGENT_SUBMIT_RESPONSE_BYTES,
+    AgentSubmitConflict,
+    AgentSubmitLookupRequest,
+    AgentSubmitLookupResult,
+    AgentSubmitReceipt,
+    AgentSubmitUnavailable,
+    agent_submit_json,
+    submit_entry,
+    submit_request,
+)
 from packages.contracts.context import (
     MAX_CONTEXT_PAGE_BYTES,
     ContextHistoryPage,
@@ -143,12 +155,19 @@ class Store:
             CREATE TABLE IF NOT EXISTS cursors(
                 writer TEXT NOT NULL, consumer TEXT NOT NULL, sequence INTEGER NOT NULL,
                 PRIMARY KEY(writer,consumer));
+            CREATE TABLE IF NOT EXISTS agent_submit_slots(
+                session_id TEXT NOT NULL,
+                logical_key TEXT NOT NULL,
+                event_id TEXT NOT NULL REFERENCES entries(event_id) ON DELETE CASCADE,
+                PRIMARY KEY(session_id, logical_key));
         """)
         if self.db.execute("SELECT version FROM schema_meta").fetchone()[0] != 1:
             raise JournalError(
                 "Unsupported database version; preserve the database before migration"
             )
         self.db.commit()
+        self._agent_submit_ready = False
+        self._agent_submit_unavailable = False
         from services.session.decisions_store import DecisionsInspectionStore
 
         self.decisions = DecisionsInspectionStore(self)
@@ -515,186 +534,474 @@ class Store:
         except (KeyError, ValueError, sqlite3.Error) as exc:
             raise JournalError("Agent export source authority is unavailable") from exc
 
-    def append(self, request: AppendRequest, role: str) -> JournalEntry:
+    def _append_entry_locked(self, request: AppendRequest, role: str) -> JournalEntry:
+        """Transaction-neutral core; caller holds lock and a write transaction."""
         if request.kind not in ALLOWED_KINDS.get(role, set()):
             raise PermissionError("Writer cannot publish this event kind")
         pin = self._memory_context_pin(request, role)
         encoded = request.model_dump_json()
         if len(encoded.encode()) > 65536:
             raise JournalError("Entry exceeds 64 KiB; store large artifacts by reference")
-        with self.lock, self.db:
-            session = self.session(request.session_id)
-            if (request.epoch, request.thread_id) != (session.epoch, session.thread_id):
-                raise JournalError("Stale epoch or wrong session thread")
-            if pin is not None and session.channel != "converse":
-                raise JournalError("Memory context requires a Converse session")
-            if request.kind == "conversation.window":
-                try:
-                    window = SpeechWindow.model_validate(request.payload)
-                except ValueError as exc:
-                    raise JournalError("Invalid transcript-window payload") from exc
-                if session.channel != "converse" or (
-                    window.session_id,
-                    window.thread_id,
-                    window.epoch,
-                ) != (request.session_id, request.thread_id, request.epoch):
-                    raise JournalError("Wrong transcript-window scope")
-                previous = self._window_row(
-                    window.session_id, window.epoch, window.utterance_id, window.window_index
+        session = self.session(request.session_id)
+        if (request.epoch, request.thread_id) != (session.epoch, session.thread_id):
+            raise JournalError("Stale epoch or wrong session thread")
+        if pin is not None and session.channel != "converse":
+            raise JournalError("Memory context requires a Converse session")
+        if request.kind == "conversation.window":
+            try:
+                window = SpeechWindow.model_validate(request.payload)
+            except ValueError as exc:
+                raise JournalError("Invalid transcript-window payload") from exc
+            if session.channel != "converse" or (
+                window.session_id,
+                window.thread_id,
+                window.epoch,
+            ) != (request.session_id, request.thread_id, request.epoch):
+                raise JournalError("Wrong transcript-window scope")
+            previous = self._window_row(
+                window.session_id, window.epoch, window.utterance_id, window.window_index
+            )
+            if previous is not None:
+                prior = SpeechWindow.model_validate(previous.payload)
+                if window.revision == prior.revision and window == prior:
+                    return previous
+                if window.revision != prior.revision + 1:
+                    raise JournalError("Window revision must increase by one")
+            elif window.revision != 1:
+                raise JournalError("The first window revision must be one")
+        elif request.kind == "routing.window_decided":
+            try:
+                decision = WindowDecision.model_validate(request.payload)
+            except ValueError as exc:
+                raise JournalError("Invalid window decision payload") from exc
+            source = self.resolve(decision.source_event_id)
+            if (
+                source.kind != "conversation.window"
+                or source.origin != "authenticated-user"
+                or (
+                    source.session_id,
+                    source.thread_id,
+                    source.epoch,
+                    source.sequence,
+                    source.payload.get("revision"),
+                    request.causes,
                 )
-                if previous is not None:
-                    prior = SpeechWindow.model_validate(previous.payload)
-                    if window.revision == prior.revision and window == prior:
-                        return previous
-                    if window.revision != prior.revision + 1:
-                        raise JournalError("Window revision must increase by one")
-                elif window.revision != 1:
-                    raise JournalError("The first window revision must be one")
-            elif request.kind == "routing.window_decided":
-                try:
-                    decision = WindowDecision.model_validate(request.payload)
-                except ValueError as exc:
-                    raise JournalError("Invalid window decision payload") from exc
-                source = self.resolve(decision.source_event_id)
-                if (
-                    source.kind != "conversation.window"
-                    or source.origin != "authenticated-user"
-                    or (
-                        source.session_id,
-                        source.thread_id,
-                        source.epoch,
-                        source.sequence,
-                        source.payload.get("revision"),
-                        request.causes,
+                != (
+                    request.session_id,
+                    request.thread_id,
+                    request.epoch,
+                    decision.source_sequence,
+                    decision.source_revision,
+                    [decision.source_event_id],
+                )
+            ):
+                raise JournalError("Window decision does not bind an authenticated source")
+        elif request.kind == "routing.window_status":
+            payload = request.payload
+            source_id = payload.get("source_event_id")
+            if (
+                not isinstance(source_id, str)
+                or not 1 <= len(source_id) <= 128
+                or payload.get("phase")
+                not in {
+                    "classifying",
+                    "retrying",
+                    "classified",
+                    "busy",
+                    "error",
+                    "superseded",
+                    "expired",
+                    "obsolete",
+                    "agent_unavailable",
+                }
+                or not isinstance(payload.get("reason"), str)
+                or not 1 <= len(payload["reason"]) <= 120
+                or (
+                    "attempt" in payload
+                    and (type(payload["attempt"]) is not int or payload["attempt"] not in (1, 2))
+                )
+            ):
+                raise JournalError("Invalid window status payload")
+            source = self.entry(source_id)
+            if (
+                source.kind != "conversation.window"
+                or source.origin != "authenticated-user"
+                or (source.session_id, source.thread_id, source.epoch, [source.event_id])
+                != (request.session_id, request.thread_id, request.epoch, request.causes)
+                or (
+                    "source_sequence" in payload
+                    and (
+                        type(payload["source_sequence"]) is not int
+                        or payload["source_sequence"] != source.sequence
                     )
-                    != (
-                        request.session_id,
-                        request.thread_id,
-                        request.epoch,
-                        decision.source_sequence,
-                        decision.source_revision,
-                        [decision.source_event_id],
+                )
+                or (
+                    "source_revision" in payload
+                    and (
+                        type(payload["source_revision"]) is not int
+                        or payload["source_revision"] != source.payload.get("revision", 1)
                     )
-                ):
-                    raise JournalError("Window decision does not bind an authenticated source")
-            elif request.kind == "routing.window_status":
-                payload = request.payload
-                source_id = payload.get("source_event_id")
-                if (
-                    not isinstance(source_id, str)
-                    or not 1 <= len(source_id) <= 128
-                    or payload.get("phase")
-                    not in {
-                        "classifying",
-                        "retrying",
-                        "classified",
-                        "busy",
-                        "error",
-                        "superseded",
-                        "expired",
-                        "obsolete",
-                        "agent_unavailable",
-                    }
-                    or not isinstance(payload.get("reason"), str)
-                    or not 1 <= len(payload["reason"]) <= 120
-                    or (
-                        "attempt" in payload
-                        and (
-                            type(payload["attempt"]) is not int or payload["attempt"] not in (1, 2)
-                        )
-                    )
-                ):
-                    raise JournalError("Invalid window status payload")
-                source = self.entry(source_id)
-                if (
-                    source.kind != "conversation.window"
-                    or source.origin != "authenticated-user"
-                    or (source.session_id, source.thread_id, source.epoch, [source.event_id])
-                    != (request.session_id, request.thread_id, request.epoch, request.causes)
-                    or (
-                        "source_sequence" in payload
-                        and (
-                            type(payload["source_sequence"]) is not int
-                            or payload["source_sequence"] != source.sequence
-                        )
-                    )
-                    or (
-                        "source_revision" in payload
-                        and (
-                            type(payload["source_revision"]) is not int
-                            or payload["source_revision"] != source.payload.get("revision", 1)
-                        )
-                    )
-                ):
-                    raise JournalError("Window status does not bind an authenticated source")
-            row = self.db.execute(
-                "SELECT request,value FROM entries WHERE session_id=? AND writer=? AND idem=?",
-                (request.session_id, role, request.idempotency_key),
-            ).fetchone()
-            if row:
-                if json.loads(row[0]) != json.loads(encoded):
-                    raise JournalError("Idempotency key reused with different content")
-                return JournalEntry.model_validate_json(row[1])
-            for event_id in request.causes:
-                source = self.entry(event_id)
-                if source.session_id != request.session_id or source.epoch != request.epoch:
-                    raise JournalError("Causal reference outside current session epoch")
-            if request.kind in {"conversation.user", "conversation.converse"}:
-                if not isinstance(request.payload.get("text"), str):
-                    raise JournalError("Conversation requires text")
-                if request.payload.get("final") is not True:
-                    raise JournalError("Only finalized conversation enters the routing journal")
-            if request.kind == "conversation.revision":
-                target = self.entry(request.payload.get("target_event_id", ""))
-                if target.kind != "conversation.user" or target.session_id != request.session_id:
-                    raise JournalError("Revision must reference a user message in this session")
-                if target.epoch != request.epoch or not isinstance(
-                    request.payload.get("text"), str
-                ):
-                    raise JournalError("Invalid revision")
-                current = self.resolve(target.event_id)
-                if request.payload.get("revision") != current.payload.get("revision", 1) + 1:
-                    raise JournalError("Revision must increase by one")
-            origin = {"owner": "authenticated-user", "agent": "agent-supervisor"}.get(role, role)
-            if request.kind in {"conversation.user", "conversation.window"}:
-                origin = "authenticated-user"
-            event = JournalEntry(**request.model_dump(), sequence=1, origin=origin)
-            if pin is not None:
-                validator = self._converse_context_validators.get(pin.implementation_id)
-                try:
-                    admitted = (
-                        validator is not None
-                        and validator(request.session_id, request.thread_id, request.epoch, pin)
-                        is True
-                    )
-                except Exception:
-                    raise JournalError("Converse memory context is unavailable") from None
-                if not admitted:
-                    raise JournalError("Converse memory context is unavailable")
-                # No append DML precedes this callback. Reconciliation may
-                # commit source invalidation/quarantine even when it refuses
-                # publication, without committing a partial journal entry.
-            cursor = self.db.execute(
-                "INSERT INTO entries(event_id,session_id,thread_id,epoch,kind,writer,idem,request,value) "
-                "VALUES(?,?,?,?,?,?,?,?,?)",
-                (
-                    event.event_id,
-                    event.session_id,
-                    event.thread_id,
-                    event.epoch,
-                    event.kind,
-                    role,
-                    event.idempotency_key,
-                    encoded,
-                    "{}",
-                ),
-            )
-            event.sequence = cursor.lastrowid
-            self.db.execute(
-                "UPDATE entries SET value=? WHERE event_id=?",
-                (event.model_dump_json(), event.event_id),
-            )
+                )
+            ):
+                raise JournalError("Window status does not bind an authenticated source")
+        row = self.db.execute(
+            "SELECT request,value FROM entries WHERE session_id=? AND writer=? AND idem=?",
+            (request.session_id, role, request.idempotency_key),
+        ).fetchone()
+        if row:
+            if json.loads(row[0]) != json.loads(encoded):
+                raise JournalError("Idempotency key reused with different content")
+            return JournalEntry.model_validate_json(row[1])
+        for event_id in request.causes:
+            source = self.entry(event_id)
+            if source.session_id != request.session_id or source.epoch != request.epoch:
+                raise JournalError("Causal reference outside current session epoch")
+        if request.kind in {"conversation.user", "conversation.converse"}:
+            if not isinstance(request.payload.get("text"), str):
+                raise JournalError("Conversation requires text")
+            if request.payload.get("final") is not True:
+                raise JournalError("Only finalized conversation enters the routing journal")
+        if request.kind == "conversation.revision":
+            target = self.entry(request.payload.get("target_event_id", ""))
+            if target.kind != "conversation.user" or target.session_id != request.session_id:
+                raise JournalError("Revision must reference a user message in this session")
+            if target.epoch != request.epoch or not isinstance(request.payload.get("text"), str):
+                raise JournalError("Invalid revision")
+            current = self.resolve(target.event_id)
+            if request.payload.get("revision") != current.payload.get("revision", 1) + 1:
+                raise JournalError("Revision must increase by one")
+        origin = {"owner": "authenticated-user", "agent": "agent-supervisor"}.get(role, role)
+        if request.kind in {"conversation.user", "conversation.window"}:
+            origin = "authenticated-user"
+        event = JournalEntry(**request.model_dump(), sequence=1, origin=origin)
+        if pin is not None:
+            validator = self._converse_context_validators.get(pin.implementation_id)
+            try:
+                admitted = (
+                    validator is not None
+                    and validator(request.session_id, request.thread_id, request.epoch, pin) is True
+                )
+            except Exception:
+                raise JournalError("Converse memory context is unavailable") from None
+            if not admitted:
+                raise JournalError("Converse memory context is unavailable")
+            # No append DML precedes this callback. Reconciliation may
+            # commit source invalidation/quarantine even when it refuses
+            # publication, without committing a partial journal entry.
+        cursor = self.db.execute(
+            "INSERT INTO entries(event_id,session_id,thread_id,epoch,kind,writer,idem,request,value) "
+            "VALUES(?,?,?,?,?,?,?,?,?)",
+            (
+                event.event_id,
+                event.session_id,
+                event.thread_id,
+                event.epoch,
+                event.kind,
+                role,
+                event.idempotency_key,
+                encoded,
+                "{}",
+            ),
+        )
+        event.sequence = cursor.lastrowid
+        self.db.execute(
+            "UPDATE entries SET value=? WHERE event_id=?",
+            (event.model_dump_json(), event.event_id),
+        )
         return event
+
+    def append(self, request: AppendRequest, role: str) -> JournalEntry:
+        if (
+            request.kind == "agent.command"
+            and isinstance(request.payload, dict)
+            and request.payload.get("op") == "submit"
+        ):
+            raise JournalError("Agent submit requires native admission")
+        with self.lock, self.db:
+            return self._append_entry_locked(request, role)
+
+    @staticmethod
+    def _agent_submit_bytes(text: str):
+        if type(text) is not str:
+            raise AgentSubmitUnavailable
+        return agent_submit_json(text.encode("utf-8"), maximum=MAX_AGENT_SUBMIT_RESPONSE_BYTES)
+
+    def _agent_submit_check_row(self, row) -> JournalEntry:
+        try:
+            request_data = self._agent_submit_bytes(row["request"])
+            value_data = self._agent_submit_bytes(row["value"])
+            entry = submit_entry(value_data)
+        except (ValueError, RecursionError):
+            raise AgentSubmitUnavailable from None
+        if (
+            row["writer"] != "agent"
+            or row["event_id"] != entry.event_id
+            or row["sequence"] != entry.sequence
+            or row["session_id"] != entry.session_id
+            or row["thread_id"] != entry.thread_id
+            or row["epoch"] != entry.epoch
+            or row["kind"] != entry.kind
+            or row["idem"] != entry.idempotency_key
+            or entry.origin != "agent-supervisor"
+        ):
+            raise AgentSubmitUnavailable
+        if type(request_data) is not dict or set(request_data) != set(AppendRequest.model_fields):
+            raise AgentSubmitUnavailable
+        # Reuse the historical grammar without supplying any missing request field.
+        # Only native identity comes from the independently validated stored entry.
+        try:
+            original = submit_entry(
+                {
+                    **request_data,
+                    **{
+                        field: value_data[field]
+                        for field in ("event_id", "sequence", "origin", "created_at")
+                    },
+                }
+            )
+        except (ValueError, RecursionError):
+            raise AgentSubmitUnavailable from None
+        if any(
+            getattr(original, field) != getattr(entry, field)
+            for field in AppendRequest.model_fields
+        ):
+            raise AgentSubmitUnavailable
+        return entry
+
+    def _agent_submit_winner(
+        self, event_id: str, session_id: str, logical_key: str
+    ) -> JournalEntry:
+        row = self.db.execute(
+            "SELECT sequence,event_id,session_id,thread_id,epoch,kind,writer,idem,request,value"
+            " FROM entries WHERE event_id=?",
+            (event_id,),
+        ).fetchone()
+        if row is None:
+            raise AgentSubmitUnavailable
+        if row["session_id"] != session_id:
+            raise AgentSubmitUnavailable
+        entry = self._agent_submit_check_row(row)
+        if entry.payload.get("idempotency_key") != logical_key:
+            raise AgentSubmitUnavailable
+        slot = self.db.execute(
+            "SELECT event_id FROM agent_submit_slots WHERE session_id=? AND logical_key=?",
+            (session_id, logical_key),
+        ).fetchone()
+        if slot is None or slot["event_id"] != event_id:
+            raise AgentSubmitUnavailable
+        return entry
+
+    @contextmanager
+    def _agent_submit_transaction(self):
+        connection = self.db
+        try:
+            connection.execute("BEGIN IMMEDIATE")
+            yield
+            connection.commit()
+        except BaseException:
+            try:
+                connection.rollback()
+            except BaseException:
+                self._agent_submit_unavailable = True
+                connection.close()
+            raise
+
+    def _ensure_agent_submit_upgrade(self):
+        with self.lock:
+            if self._agent_submit_ready or self._agent_submit_unavailable:
+                return
+            try:
+                with self._agent_submit_transaction():
+                    self.db.execute(
+                        "CREATE TABLE IF NOT EXISTS agent_submit_slots("
+                        "session_id TEXT NOT NULL, logical_key TEXT NOT NULL, "
+                        "event_id TEXT NOT NULL REFERENCES entries(event_id) ON DELETE CASCADE, "
+                        "PRIMARY KEY(session_id, logical_key))"
+                    )
+                    last = 0
+                    while True:
+                        rows = self.db.execute(
+                            "SELECT sequence,event_id,session_id,thread_id,epoch,kind,"
+                            "writer,idem,request,value FROM entries WHERE sequence>? "
+                            "ORDER BY sequence LIMIT 200",
+                            (last,),
+                        ).fetchall()
+                        if not rows:
+                            break
+                        for row in rows:
+                            last = row["sequence"]
+                            try:
+                                request_data = self._agent_submit_bytes(row["request"])
+                            except (ValueError, RecursionError):
+                                request_data = None
+                            try:
+                                value_data = self._agent_submit_bytes(row["value"])
+                            except (ValueError, RecursionError):
+                                value_data = None
+                            if row["kind"] == "agent.command":
+                                for data in (request_data, value_data):
+                                    if not (
+                                        isinstance(data, dict)
+                                        and data.get("kind") == "agent.command"
+                                        and isinstance(data.get("payload"), dict)
+                                        and type(data["payload"].get("op")) is str
+                                        and data["payload"]["op"]
+                                    ):
+                                        raise AgentSubmitUnavailable
+                            candidate = False
+                            for data in (request_data, value_data):
+                                if (
+                                    isinstance(data, dict)
+                                    and data.get("kind") == "agent.command"
+                                    and isinstance(data.get("payload"), dict)
+                                    and data["payload"].get("op") == "submit"
+                                ):
+                                    candidate = True
+                                    break
+                            if not candidate:
+                                continue
+                            entry = self._agent_submit_check_row(row)
+                            logical = entry.payload.get("idempotency_key")
+                            if not isinstance(logical, str):
+                                raise AgentSubmitUnavailable
+                            existing = self.db.execute(
+                                "SELECT event_id FROM agent_submit_slots"
+                                " WHERE session_id=? AND logical_key=?",
+                                (entry.session_id, logical),
+                            ).fetchone()
+                            if existing is not None:
+                                if existing["event_id"] != entry.event_id:
+                                    raise AgentSubmitUnavailable
+                                continue
+                            self.db.execute(
+                                "INSERT INTO agent_submit_slots(session_id,logical_key,event_id)"
+                                " VALUES(?,?,?)",
+                                (entry.session_id, logical, entry.event_id),
+                            )
+            except BaseException as exc:
+                self._agent_submit_unavailable = True
+                if not isinstance(exc, Exception):
+                    raise
+                raise AgentSubmitUnavailable from None
+            self._agent_submit_ready = True
+
+    def admit_submit(self, request: AppendRequest, role: str) -> AgentSubmitReceipt:
+        try:
+            raw = copy.deepcopy(request.model_dump(mode="python"))
+            proposal = submit_request(raw)
+        except (ValueError, RecursionError, TypeError):
+            raise AgentSubmitUnavailable from None
+        if role != "agent":
+            raise PermissionError("Agent submission requires Agent")
+        with self.lock:
+            self._ensure_agent_submit_upgrade()
+            if self._agent_submit_unavailable:
+                raise AgentSubmitUnavailable
+            try:
+                with self._agent_submit_transaction():
+                    try:
+                        session = self.session(proposal.session_id)
+                    except KeyError as exc:
+                        raise AgentSubmitUnavailable from exc
+                    if (session.thread_id, session.epoch) != (proposal.thread_id, proposal.epoch):
+                        raise AgentSubmitUnavailable
+                    logical = proposal.payload["idempotency_key"]
+                    slot = self.db.execute(
+                        "SELECT event_id FROM agent_submit_slots WHERE session_id=? AND logical_key=?",
+                        (proposal.session_id, logical),
+                    ).fetchone()
+                    if slot is not None:
+                        winner = self._agent_submit_winner(
+                            slot["event_id"], proposal.session_id, logical
+                        )
+                        try:
+                            receipt = AgentSubmitReceipt(
+                                disposition="retained", entry=winner
+                            ).validate_request(proposal)
+                        except ValueError as exc:
+                            raise AgentSubmitConflict from exc
+                        if (
+                            len(receipt.model_dump_json().encode("utf-8"))
+                            > MAX_AGENT_SUBMIT_RESPONSE_BYTES
+                        ):
+                            raise AgentSubmitUnavailable
+                        return receipt
+                    native = self.db.execute(
+                        "SELECT event_id FROM entries WHERE session_id=? AND writer='agent' AND idem=?",
+                        (proposal.session_id, proposal.idempotency_key),
+                    ).fetchone()
+                    if native is not None:
+                        raise AgentSubmitUnavailable
+                    event = self._append_entry_locked(proposal, role)
+                    self.db.execute(
+                        "INSERT INTO agent_submit_slots(session_id,logical_key,event_id)"
+                        " VALUES(?,?,?)",
+                        (proposal.session_id, logical, event.event_id),
+                    )
+                    try:
+                        receipt = AgentSubmitReceipt(
+                            disposition="created", entry=event
+                        ).validate_request(proposal)
+                    except ValueError as exc:
+                        raise AgentSubmitUnavailable from exc
+                    if (
+                        len(receipt.model_dump_json().encode("utf-8"))
+                        > MAX_AGENT_SUBMIT_RESPONSE_BYTES
+                    ):
+                        raise AgentSubmitUnavailable
+                    return receipt
+            except (AgentSubmitConflict, AgentSubmitUnavailable, PermissionError):
+                raise
+            except Exception:
+                raise AgentSubmitUnavailable from None
+
+    def lookup_submit(
+        self, request: AgentSubmitLookupRequest, role: str
+    ) -> AgentSubmitLookupResult:
+        try:
+            raw = copy.deepcopy(request.model_dump(mode="python"))
+            lookup = AgentSubmitLookupRequest.model_validate(raw)
+        except (ValueError, RecursionError, TypeError):
+            raise AgentSubmitUnavailable from None
+        if role != "agent":
+            raise PermissionError("Agent submission lookup requires Agent")
+        with self.lock:
+            self._ensure_agent_submit_upgrade()
+            if self._agent_submit_unavailable:
+                raise AgentSubmitUnavailable
+            try:
+                try:
+                    session = self.session(lookup.session_id)
+                except KeyError as exc:
+                    raise AgentSubmitUnavailable from exc
+                if (session.thread_id, session.epoch) != (lookup.thread_id, lookup.epoch):
+                    raise AgentSubmitUnavailable
+                slot = self.db.execute(
+                    "SELECT event_id FROM agent_submit_slots WHERE session_id=? AND logical_key=?",
+                    (lookup.session_id, lookup.idempotency_key),
+                ).fetchone()
+                if slot is None:
+                    result = AgentSubmitLookupResult(status="unobserved", entry=None)
+                    try:
+                        return result.validate_request(lookup)
+                    except ValueError as exc:
+                        raise AgentSubmitUnavailable from exc
+                winner = self._agent_submit_winner(
+                    slot["event_id"], lookup.session_id, lookup.idempotency_key
+                )
+                try:
+                    result = AgentSubmitLookupResult(
+                        status="recorded", entry=winner
+                    ).validate_request(lookup)
+                except ValueError as exc:
+                    raise AgentSubmitConflict from exc
+                if len(result.model_dump_json().encode("utf-8")) > MAX_AGENT_SUBMIT_RESPONSE_BYTES:
+                    raise AgentSubmitUnavailable
+                return result
+            except (AgentSubmitConflict, AgentSubmitUnavailable, PermissionError):
+                raise
+            except (sqlite3.Error, JournalError, KeyError, ValueError, RecursionError) as exc:
+                raise AgentSubmitUnavailable from exc
 
     def resolve(self, event_id: str) -> JournalEntry:
         event = self.entry(event_id)
@@ -1251,6 +1558,12 @@ class LocalJournal:
         if self.role != "agent":
             raise PermissionError("Agent export admission requires Agent")
         return self.store.agent_export_admission(request)
+
+    async def admit_submit(self, request):
+        return self.store.admit_submit(request, self.role)
+
+    async def lookup_submit(self, request):
+        return self.store.lookup_submit(request, self.role)
 
     async def append(self, request):
         return self.store.append(request, self.role)

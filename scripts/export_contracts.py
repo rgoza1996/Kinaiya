@@ -5,6 +5,7 @@ from pathlib import Path
 
 from packages.contracts import (
     agent_export,
+    agent_submit,
     companion,
     context,
     converse_setup,
@@ -26,6 +27,7 @@ for module in (
     memory_operations,
     context,
     agent_export,
+    agent_submit,
 ):
     for name in dir(module):
         cls = getattr(module, name)

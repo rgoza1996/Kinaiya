@@ -279,6 +279,8 @@ Each committed entry has a stable ID, monotonic journal sequence, origin, sessio
 
 Use at-least-once delivery with idempotent handlers and durable acknowledgments. Do not claim end-to-end exactly-once execution for arbitrary third-party tools. Deduplicate commands and reconcile uncertain external results before retrying irreversible actions.
 
+Initial Agent submissions require an atomic native journal entry and logical idempotency slot. A RAM record or negative observation cannot establish durable acceptance or authorize a repeated launch. Only a direct validated creation receipt, followed by fresh source/session checks, can grant one local launch opportunity; retained or recovered receipts preserve their original identity and model pins without starting work. See [ADR0087](docs/adr/0087-agent-submit-admission.md) and [#199](https://github.com/rgoza1996/Kinaiya/issues/199) for the bounded admission, uncertainty and upgrade contract.
+
 Connection loss does not erase an entry. A consumer resumes from its cursor. Session reset creates a new epoch rather than reusing IDs that an old worker might still publish against.
 
 ## 6. Asynchronous Decisions

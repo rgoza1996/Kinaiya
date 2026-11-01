@@ -6,6 +6,7 @@ import json
 
 import httpx
 import pytest
+from test_agent_submit_prescope_compatibility import historical_submit, insert_legacy_submit
 
 from core.policy import PolicyDenied, ToolPolicy
 from packages.commands import Registry
@@ -343,10 +344,44 @@ async def test_local_task_and_steer_cannot_be_promoted_by_changing_provider(env)
     )
     assert updated.content_scope == "local_only"
     cloud = runtime.provider = Spy()
+    # Changing the default leaves this task's selected backend intact. Simulate
+    # that actual backend losing its local identity before continuation.
+    local.info = cloud.info.model_copy(deep=True)
     release.set()
     result = await runtime.wait(task.task_id, timeout=2)
     assert result.state == "failed" and result.content_scope == "local_only"
     assert len(local.calls) == 1 and cloud.calls == []
+
+
+async def test_changing_default_keeps_selected_local_provider_for_every_attempt(env):
+    _, store, session, _, runtime = env
+    entered, release = asyncio.Event(), asyncio.Event()
+
+    async def first():
+        entered.set()
+        await release.wait()
+        return {"tool": "read_file", "arguments": {"path": "public.txt"}}
+
+    local = runtime.provider = Spy(local=True, responses=[first])
+    task = await runtime.submit(request(session))
+    await asyncio.wait_for(entered.wait(), 1)
+    cloud = runtime.provider = Spy()
+    release.set()
+    result = await runtime.wait(task.task_id, timeout=2)
+    assert result.state == "succeeded" and result.content_scope == "local_only"
+    assert len(local.calls) == 2 and cloud.calls == []
+    assert runtime.provider is cloud
+    effects = store.read(task_id=task.task_id, kinds=["agent.tool"])
+    assert any(
+        entry.payload.get("tool") == "read_file" and entry.payload.get("ok") is True
+        for entry in effects
+    )
+    assert any(
+        item.path == str((runtime.workspace / "public.txt").resolve())
+        and item.sha256 == hashlib.sha256(b"public fixture").hexdigest()
+        for item in result.evidence
+    )
+    assert "public fixture" in json.dumps(local.calls[1])
 
 
 async def test_source_less_local_steer_denied_for_active_public_contributor_task(env):
@@ -378,7 +413,7 @@ async def test_source_less_local_steer_denied_for_active_public_contributor_task
 
 async def test_approval_continuation_rechecks_provider_but_owner_denial_still_works(env):
     _, _, session, _, runtime = env
-    runtime.provider = Spy(
+    local = runtime.provider = Spy(
         local=True,
         responses=[{"tool": "write_file", "arguments": {"path": "new.txt", "content": "x"}}],
     )
@@ -390,6 +425,7 @@ async def test_approval_continuation_rechecks_provider_but_owner_denial_still_wo
         await asyncio.sleep(0)
     assert len(approvals) == 1
     cloud = runtime.provider = Spy()
+    local.info = cloud.info.model_copy(deep=True)
     approval = approvals[0]
     resolution = ApprovalResolution(
         approved=True,
@@ -408,25 +444,9 @@ async def test_approval_continuation_rechecks_provider_but_owner_denial_still_wo
 async def test_historical_unscoped_recovery_remains_local_and_controls_need_no_export(env):
     _, store, session, provider, runtime = env
     task_id = "historical"
-    store.append(
-        AppendRequest(
-            session_id=session.session_id,
-            thread_id=session.thread_id,
-            epoch=session.epoch,
-            kind="agent.command",
-            task_refs=[task_id],
-            payload={
-                "op": "submit",
-                "task_id": task_id,
-                "session_id": session.session_id,
-                "thread_id": session.thread_id,
-                "epoch": session.epoch,
-                "objective": "old private request",
-                "idempotency_key": "old",
-            },
-            idempotency_key="agent:historical:agent.command:1",
-        ),
-        "agent",
+    insert_legacy_submit(
+        store.db,
+        historical_submit(session, task_id=task_id, key="old", objective="old private request"),
     )
     recovered = await runtime.recover()
     assert recovered[0].content_scope == "local_only" and recovered[0].state == "paused"
@@ -481,37 +501,11 @@ async def test_pre_scope_submit_idempotency_replays_locally_without_reexecution(
     _, store, session, _, runtime = env
     provider = runtime.provider = Spy(local=True)
     body = request(session)
-    old_payload = {
-        key: getattr(body, key)
-        for key in (
-            "session_id",
-            "thread_id",
-            "epoch",
-            "objective",
-            "source_event_ids",
-            "source_revision",
-        )
-    }
-    digest = hashlib.sha256(
-        json.dumps(old_payload, sort_keys=True, separators=(",", ":")).encode()
-    ).hexdigest()
-    store.append(
-        AppendRequest(
-            session_id=session.session_id,
-            thread_id=session.thread_id,
-            epoch=session.epoch,
-            kind="agent.command",
-            task_refs=["old"],
-            idempotency_key="old-submit",
-            payload={
-                **old_payload,
-                "task_id": "old",
-                "op": "submit",
-                "idempotency_key": body.idempotency_key,
-                "payload_digest": digest,
-            },
+    insert_legacy_submit(
+        store.db,
+        historical_submit(
+            session, task_id="old", key=body.idempotency_key, objective=body.objective
         ),
-        "agent",
     )
     await runtime.recover()
     task = await runtime.submit(body)

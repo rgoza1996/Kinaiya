@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import httpx
 import pytest
 from fastapi.testclient import TestClient
+from test_agent_submit_admission import proposal
 
 from packages.contracts.decisions import MAX_REQUEST_BYTES, DecisionsCallFinish, DecisionsCallStart
 from packages.contracts.models import AppendRequest, SessionRequest, SpeechWindow
@@ -55,6 +56,16 @@ def header(role="owner"):
 
 def source(env, *, session=None, kind="conversation.user", text=LITERAL, index=0):
     session = session or env.session
+    if kind == "agent.command":
+        return env.store.admit_submit(
+            proposal(
+                session,
+                task_id="synthetic-task",
+                key=f"source-{index}-{kind}-{len(env.store.read())}",
+                objective=text,
+            ),
+            "agent",
+        ).entry
     payload = {"text": text, "revision": 1, "final": True, "content_scope": "public_synthetic"}
     if kind == "conversation.window":
         payload = SpeechWindow(

@@ -171,15 +171,23 @@ async def restarted(
             entry = store.read(task_id=accepted.task_id, kinds=["agent.command"])[0]
             old = body.model_dump(exclude={"schema_version", "idempotency_key", "content_scope"})
             value = entry.model_dump(mode="json")
-            value["payload"].pop("requested_content_scope")
-            value["payload"].pop("model_pin", None)
-            value["payload"]["payload_digest"] = hashlib.sha256(
+            original = json.loads(
+                store.db.execute(
+                    "SELECT request FROM entries WHERE event_id=?", (entry.event_id,)
+                ).fetchone()[0]
+            )
+            legacy_digest = hashlib.sha256(
                 json.dumps(old, sort_keys=True, separators=(",", ":")).encode()
             ).hexdigest()
+            # Both native representations must describe the same historical submit.
+            for payload in (value["payload"], original["payload"]):
+                payload.pop("requested_content_scope")
+                payload.pop("model_pin", None)
+                payload["payload_digest"] = legacy_digest
             with store.db:
                 store.db.execute(
-                    "UPDATE entries SET value=? WHERE event_id=?",
-                    (json.dumps(value), entry.event_id),
+                    "UPDATE entries SET value=?, request=? WHERE event_id=?",
+                    (json.dumps(value), json.dumps(original), entry.event_id),
                 )
             pin = None
         store.close()
