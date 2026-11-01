@@ -2700,10 +2700,10 @@ class AgentRuntime:
             )
             # Intent is not a spend. The effect broker consumes it once after
             # its final source, scope, cancellation and revision checks.
-            pending["approved"] = True
             self.policy.review_approval(
                 approval_id, resolution.action_digest, resolution.objective_revision
             )
+            pending["approved"] = True
             rec.resume.set()
             return {"approval_id": approval_id, "approved": True}
 
