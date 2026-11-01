@@ -317,6 +317,35 @@ diagnosed fixture corrections and qualification results. These use actual SQLite
 and ASGI operations with synthetic credentials and no inference. They do not
 qualify a scheduler, provider, worker, inbox, owner editor or full issue #228.
 
+## Python Agent transport
+
+`JournalClient` exposes `standing_renew`, `standing_prepare`,
+`standing_claim_lookup`, `standing_unresolved`, `standing_admit` and
+`standing_task_lookup`. These six methods send strict frozen originals to the
+Agent-only routes above. Only admission accepts the optional exact 32-byte
+capability; it is sent as the private header and is not put in a public packet.
+The three nullable reads accept a validated absence without treating it as a
+failed dispatch or permission to retry work.
+
+Each standing exchange has a 25-second absolute deadline covering serialization,
+acquisition, bounded raw response reading, proof validation and actual response
+close. Redirects and compressed bodies are refused. Late acquisition, body work
+or close remains owned after the caller stops waiting; failed cleanup latches
+uncertainty. There is no automatic retry or worker launch.
+
+Standing, control and ordinary submit exchanges share the same actual owner
+registry. The shared allocator now enforces its 64-owner limit before registering
+an exchange or creating its Task. Review found that the old ordinary path could
+otherwise enter as owner 65 after standing/control callers stopped waiting. Two
+additional frozen tests reproduced that gap for ordinary submit and lookup; the
+two-line allocator correction preserves their old error type and cleanup code.
+
+The [transport evidence](../evaluation/evidence/standing-agent-client-2026-11-01.json)
+records the original 73-case pass, the additional two failing regressions, the
+reviewed correction and 228 passing new/existing checks. One production-client
+test uses actual Session ASGI/auth/SQLite admission and retained history. It does
+not establish a running scheduler, model provider, standing worker or inbox.
+
 ## Native dispatch gate
 
 `services/session/standing_dispatch.py` implements explicit registration,
