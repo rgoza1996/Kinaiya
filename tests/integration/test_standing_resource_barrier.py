@@ -145,12 +145,15 @@ class NativeBoundary(httpx.AsyncBaseTransport):
         self.delegate = httpx.ASGITransport(app=app)
         self.requests, self.streams = [], []
         self.path = self.phase = None
+        self.reservation_entered = asyncio.Event()
         self.entered, self.release = asyncio.Event(), asyncio.Event()
         self.before = None
         self.coordinator = None
 
     async def handle_async_request(self, request):
         self.requests.append((request.url.path, json.loads(request.content), dict(request.headers)))
+        if request.url.path == NATIVE_RESERVE:
+            self.reservation_entered.set()
         if request.url.path == NATIVE_BIND:
             assert request.headers["authorization"] == "Bearer " + "r" * 32
             assert "x-kinaiya-standing-capability" not in request.headers
@@ -400,6 +403,32 @@ async def assert_native_metadata_only(value, context):
     )
 
 
+def observe_fence(value, binding, monkeypatch):
+    """Witness real native context completion and the contract's later fence."""
+    fenced, completed = asyncio.Event(), set()
+    actual_context = value.gateway.standing_resource_finalize_context
+    actual_fence = value.coordinator.standing_barrier.fence
+
+    async def context(request):
+        result = await actual_context(request)
+        assert type(result) is StandingResourceFinalizeContext
+        result = result.validate_request(request)
+        assert result.binding.canonical_bytes() == binding.request.canonical_bytes()
+        assert result.request.original.canonical_bytes() == value.packet.canonical_bytes()
+        completed.add(request.canonical_bytes())
+        return result
+
+    def fence(task_id, request):
+        assert task_id == value.packet.task.task_id
+        assert request.canonical_bytes() in completed
+        actual_fence(task_id, request)
+        fenced.set()
+
+    monkeypatch.setattr(value.gateway, "standing_resource_finalize_context", context)
+    monkeypatch.setattr(value.coordinator.standing_barrier, "fence", fence)
+    return fenced
+
+
 async def test_real_prepare_bind_admit_seal_and_exact_knowledge_replays(barriers):
     value = await barriers()
     assert await begin(value, "lookup_standing_binding") is None
@@ -493,16 +522,18 @@ async def test_lost_ack_keeps_exact_pending_request_and_reconciles_without_rebin
 @pytest.mark.parametrize("phase", [NATIVE_TASK_CONTEXT, NATIVE_RESERVE])
 @pytest.mark.parametrize("owner_phase", ["acquire", "read", "close"])
 async def test_seal_fences_pending_task_capture_and_joins_actual_http_owner(
-    barriers, phase, owner_phase
+    barriers, phase, owner_phase, monkeypatch
 ):
     value = await barriers()
     binding = await bind(value)
+    fenced = observe_fence(value, binding, monkeypatch)
     await value.agent.standing_admit(value.packet, capability=SECRET)
     value.boundary.path, value.boundary.phase = phase, owner_phase
     operation = capture(value)
     await asyncio.wait_for(value.boundary.entered.wait(), 5)
     await value.agent.standing_close_admission(value.packet, capability=SECRET)
     sealed = begin(value, "seal_standing_claim", seal_request(value, binding))
+    await asyncio.wait_for(fenced.wait(), 5)
     await asyncio.sleep(0.02)
     await no_seal_success(sealed)
     assert value.coordinator.state.record.lease_id is None
@@ -520,20 +551,19 @@ async def test_seal_fences_pending_task_capture_and_joins_actual_http_owner(
     assert value.coordinator.state.record.lease_id is None
 
 
-async def test_seal_never_joins_capture_while_holding_controller_lock(barriers):
+async def test_seal_never_joins_capture_while_holding_controller_lock(barriers, monkeypatch):
     value = await barriers()
     binding = await bind(value)
+    fenced = observe_fence(value, binding, monkeypatch)
     await value.agent.standing_admit(value.packet, capability=SECRET)
     await value.coordinator.lock.acquire()
     operation = capture(value)
     try:
-        for _ in range(1000):
-            if any(path == NATIVE_RESERVE for path, _, _ in value.boundary.requests):
-                break
-            await asyncio.sleep(0)
+        await asyncio.wait_for(value.boundary.reservation_entered.wait(), 5)
         assert any(path == NATIVE_RESERVE for path, _, _ in value.boundary.requests)
         await value.agent.standing_close_admission(value.packet, capability=SECRET)
         sealed = begin(value, "seal_standing_claim", seal_request(value, binding))
+        await asyncio.wait_for(fenced.wait(), 5)
         await asyncio.sleep(0.02)
         await no_seal_success(sealed)
     finally:
@@ -676,9 +706,12 @@ async def test_shared64_limit_rejects_before_ingress_and_capture_has_no_extra_po
     binding = await bind(value)
     await value.agent.standing_admit(value.packet, capability=SECRET)
     release, reads = asyncio.Event(), []
+    all_received = asyncio.Event()
 
     async def body(index):
         reads.append(index)
+        if len(reads) == 64:
+            all_received.set()
         await release.wait()
         yield value.claim.canonical_bytes()
 
@@ -691,10 +724,7 @@ async def test_shared64_limit_rejects_before_ingress_and_capture_has_no_extra_po
     ]
     value.tasks.extend(pending)
     try:
-        for _ in range(1000):
-            if len(reads) == 64:
-                break
-            await asyncio.sleep(0)
+        await asyncio.wait_for(all_received.wait(), 5)
         assert len(reads) == 64
         for route in ROUTES.values():
             extra_reads = []
@@ -775,6 +805,7 @@ async def test_seal_suppresses_preemption_before_controller_lock_and_never_uses_
 ):
     value = await barriers()
     binding = await bind(value)
+    fenced = observe_fence(value, binding, monkeypatch)
     await value.agent.standing_admit(value.packet, capability=SECRET)
     entered, release = asyncio.Event(), asyncio.Event()
     value.releases.append(release)
@@ -790,6 +821,7 @@ async def test_seal_suppresses_preemption_before_controller_lock_and_never_uses_
     await asyncio.wait_for(entered.wait(), 5)
     await value.agent.standing_close_admission(value.packet, capability=SECRET)
     sealed = begin(value, "seal_standing_claim", seal_request(value, binding))
+    await asyncio.wait_for(fenced.wait(), 5)
     await asyncio.sleep(0.02)
     await no_seal_success(sealed)
     assert value.coordinator._whistle_preemptions == value.coordinator._qwen3_preemptions == 0
@@ -942,6 +974,7 @@ async def test_healthy_actual_worker_reaper_gate_allows_exact_drained_context_th
 ):
     value = await barriers()
     binding = await bind(value)
+    fenced = observe_fence(value, binding, monkeypatch)
     await value.agent.standing_admit(value.packet, capability=SECRET)
     assert (await action(value.coordinator, "profile", profile="local_work_priority"))["ok"]
     assert (await action(value.coordinator, "converse", enabled=True))["ok"]
@@ -965,6 +998,7 @@ async def test_healthy_actual_worker_reaper_gate_allows_exact_drained_context_th
     await value.agent.standing_close_admission(value.packet, capability=SECRET)
     request = seal_request(value, binding)
     sealed = begin(value, "seal_standing_claim", request)
+    await asyncio.wait_for(fenced.wait(), 5)
     await asyncio.sleep(0.02)
     await no_seal_success(sealed)
     assert manager._workers["whistle"].leader_fd is not None
