@@ -364,3 +364,32 @@ def test_validation_rejects_hidden_extension_headers_before_consuming_metadata(
     monkeypatch.setattr(builder, "MAX_TOTAL_BYTES", 100000)
     with pytest.raises(ReleaseError):
         builder.validate_bundle(output)
+
+
+@pytest.mark.parametrize("damage", ["crc", "trailer"])
+def test_validation_rejects_corrupt_gzip_envelope(source_repo, tmp_path, damage):
+    import hashlib
+
+    from scripts.build_release import build_release, validate_bundle
+
+    output = tmp_path / "out"
+    data = build_release(
+        source_repo,
+        output,
+        channel="stable",
+        version="0.2.0",
+        build_number=124,
+        source_sha=git(source_repo, "rev-parse", "HEAD"),
+    )
+    artifact = data["artifacts"][0]
+    path = output / artifact["name"]
+    raw = bytearray(path.read_bytes())
+    if damage == "crc":
+        raw[-8] ^= 1
+    else:
+        del raw[-8:]
+    path.write_bytes(raw)
+    artifact.update(size=len(raw), sha256=hashlib.sha256(raw).hexdigest())
+    (output / "release-manifest.json").write_text(json.dumps(data))
+    with pytest.raises(ReleaseError):
+        validate_bundle(output)

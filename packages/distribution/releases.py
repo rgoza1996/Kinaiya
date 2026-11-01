@@ -1,8 +1,10 @@
 """Official stable/nightly feed contracts (#262)."""
 
+import gzip
 import hashlib
 import json
 import re
+import zlib
 from pathlib import Path
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
@@ -207,6 +209,22 @@ def verify_artifact(path, artifact):
             digest.update(chunk)
     _require(total == expected, "Artifact size changed during verification")
     _require(digest.hexdigest() == artifact.get("sha256"), "Artifact digest mismatch")
+
+
+def verify_gzip_archive(path, max_uncompressed):
+    """Consume the full bounded envelope so gzip verifies CRC, size and trailer.
+
+    Tar iteration stops at end-of-archive padding without necessarily checking
+    the enclosing gzip trailer. Count headers/padding too, not just tar members.
+    """
+    total = 0
+    try:
+        with gzip.open(path, "rb") as stream:
+            while chunk := stream.read(min(1024 * 1024, max_uncompressed - total + 1)):
+                total += len(chunk)
+                _require(total <= max_uncompressed, "Gzip decompression bound exceeded")
+    except (OSError, EOFError, zlib.error) as exc:
+        raise ReleaseError("Invalid or truncated gzip stream") from exc
 
 
 def update_status(manifest, installed_build):

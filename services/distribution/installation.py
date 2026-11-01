@@ -215,12 +215,15 @@ class _SourceTarInfo(tarfile.TarInfo):
 
 
 def unpack_source(archive, destination, artifact):
-    from packages.distribution.releases import ReleaseError, verify_artifact
+    from packages.distribution.releases import ReleaseError, verify_artifact, verify_gzip_archive
 
     try:
         verify_artifact(archive, artifact)
+        verify_gzip_archive(archive, 512 * 1024**2 + 20000 * 1024 + 10240)
     except ReleaseError:
-        raise InstallError("Source artifact integrity mismatch (size or SHA-256)") from None
+        raise InstallError(
+            "Source artifact integrity mismatch (size, SHA-256 or gzip stream)"
+        ) from None
     destination.mkdir(mode=0o700)
     seen, total = set(), 0
     try:

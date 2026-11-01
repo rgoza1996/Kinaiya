@@ -7,6 +7,7 @@ exec "${KINAIYA_PYTHON:-python3}" -I - "$@" <<'KINAIYA_BOOTSTRAP_PY'
 # BEGIN PYTHON BOOTSTRAP
 import argparse
 import ctypes.util
+import gzip
 import hashlib
 import json
 import os
@@ -18,6 +19,7 @@ import sys
 import tarfile
 import tempfile
 import time
+import zlib
 from pathlib import Path, PurePosixPath
 from urllib.error import HTTPError
 from urllib.parse import urlsplit
@@ -163,6 +165,15 @@ class _BootstrapTarInfo(tarfile.TarInfo):
 
 
 def unpack(archive, destination):
+    # Validate the complete gzip envelope before creating or importing any files.
+    maximum, total = MAX_BYTES + 20000 * 1024 + 10240, 0
+    try:
+        with gzip.open(archive, "rb") as stream:
+            while chunk := stream.read(min(1024**2, maximum - total + 1)):
+                total += len(chunk)
+                require(total <= maximum, "Bootstrap gzip decompression bound exceeded")
+    except (OSError, EOFError, zlib.error):
+        raise BootstrapError("Invalid or truncated gzip stream") from None
     destination.mkdir(mode=0o700)
     names, total = set(), 0
     with tarfile.open(archive, "r|gz", tarinfo=_BootstrapTarInfo) as tar:

@@ -87,7 +87,7 @@ jobs:
       - name: Verify release engineering contracts
         run: |
           python -m pip install --require-hashes -r requirements-dev.lock
-          python -m pytest tests/unit/test_distribution_releases.py tests/unit/test_distribution_build.py tests/unit/test_distribution_gate.py tests/unit/test_distribution_workflow.py -q
+          python -m pytest tests/unit/test_distribution_*.py -q
       - name: Install pinned official Flutter SDK
         run: |
           git init "$RUNNER_TEMP/flutter"

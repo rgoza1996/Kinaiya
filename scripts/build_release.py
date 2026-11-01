@@ -22,6 +22,7 @@ from packages.distribution.releases import (
     validate_identity,
     validate_manifest,
     verify_artifact,
+    verify_gzip_archive,
 )
 
 ROOT_FILES = {"pyproject.toml", "requirements-runtime.lock", "LICENSE", "README.md", "install.sh"}
@@ -254,6 +255,7 @@ def validate_bundle(directory):
         verify_artifact(path, artifact)
         if artifact["platform"] not in ("linux", "web"):
             continue
+        verify_gzip_archive(path, MAX_TOTAL_BYTES + MAX_FILES * 1024 + 10240)
         seen, total, archive_identity = set(), 0, None
         try:
             with tarfile.open(path, "r|gz", tarinfo=_ReleaseTarInfo) as archive:

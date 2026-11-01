@@ -104,3 +104,39 @@ def test_extractors_reject_hidden_extension_metadata(bootstrap, tmp_path, header
                 },
             )
     assert not any(destination.iterdir())
+
+
+@pytest.mark.parametrize("damage", ["crc", "trailer"])
+@pytest.mark.parametrize("extractor", ["bootstrap", "managed"])
+def test_extractors_reject_corrupt_gzip_before_writes(bootstrap, tmp_path, damage, extractor):
+    import hashlib
+    import tarfile
+
+    from services.distribution.installation import InstallError, unpack_source
+
+    archive = tmp_path / "source.tar.gz"
+    with tarfile.open(archive, "w:gz", format=tarfile.USTAR_FORMAT) as tar:
+        for name in ("pyproject.toml", "requirements-runtime.lock"):
+            member = tarfile.TarInfo(name)
+            member.size = 1
+            tar.addfile(member, io.BytesIO(b"#"))
+    raw = bytearray(archive.read_bytes())
+    if damage == "crc":
+        raw[-8] ^= 1
+    else:
+        del raw[-8:]
+    archive.write_bytes(raw)
+    destination = tmp_path / "output"
+    with pytest.raises((bootstrap.BootstrapError, InstallError)):
+        if extractor == "bootstrap":
+            bootstrap.unpack(archive, destination)
+        else:
+            unpack_source(
+                archive,
+                destination,
+                {
+                    "size": len(raw),
+                    "sha256": hashlib.sha256(raw).hexdigest(),
+                },
+            )
+    assert not destination.exists() or not any(destination.iterdir())
