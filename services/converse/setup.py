@@ -150,9 +150,12 @@ def setup_state(runtime, host=None):
     settings = runtime_model_settings(runtime)
     try:
         info = runtime_provider_info(runtime)
-        conversation = _role(info.provider, info.model, source="runtime")
     except (ProviderError, ValueError, RuntimeError):
         conversation = _role(source="runtime")
+    else:
+        # An unavailable owner is different from an invalid display identity.
+        # Refuse unsafe metadata through the API's fixed no-store error boundary.
+        conversation = _role(info.provider, info.model, source="runtime")
     if settings is not None:
         conversation.reason = (
             "Selected through Converse model options; readiness is not checked."
