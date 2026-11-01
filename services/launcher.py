@@ -406,15 +406,22 @@ def serve(args):
         )
         # Saved authority is loaded before any owner stores or transport brokers
         # capture the worker root. Corruption is a startup refusal, never host fallback.
-        workspace_settings = AgentWorkspaceSettings(
-            host_workspace,
-            path=args.data_dir.resolve() / "agent-workspace.sqlite",
-            protected_roots=protected,
-            control_roots=(args.data_dir.resolve(), Path(config_path).resolve()),
-            evaluation_roots=evaluations,
-            credential_roots=((Path.home() / ".config/muse").resolve(),),
-            host_readonly_roots=host_readonly,
-        )
+        try:
+            workspace_settings = AgentWorkspaceSettings(
+                host_workspace,
+                path=args.data_dir.resolve() / "agent-workspace.sqlite",
+                protected_roots=protected,
+                control_roots=(args.data_dir.resolve(), Path(config_path).resolve()),
+                evaluation_roots=evaluations,
+                credential_roots=((Path.home() / ".config/muse").resolve(),),
+                host_readonly_roots=host_readonly,
+            )
+        except ValueError:
+            # Preserve the launcher's controlled configuration refusal. Saved
+            # root availability below remains a separate, repairable state.
+            raise SystemExit(
+                "Use a dedicated worker workspace disjoint from core, evaluation, settings and credentials"
+            ) from None
         desired_workspace = Path(workspace_settings.saved_selection().root)
         try:
             workspace_context = workspace_settings.initial_context()
