@@ -3863,10 +3863,15 @@ class AgentRuntime:
                 completion.arm()
 
     async def _release_task_resources(self, rec):
+        completion = rec.resource_completion
         if rec.standing_initial is None and self.skill_service is not None:
             await self.skill_service.release_task(rec.task.task_id)
+            if isinstance(completion, ResourceCompletion):
+                completion.recheck()
         if rec.standing_initial is None and self.plugin_service is not None:
             await self.plugin_service.release_task(rec.task.task_id)
+            if isinstance(completion, ResourceCompletion):
+                completion.recheck()
 
     async def _notify_task_resources(self, rec):
         # This is only a waiter for the original operation, never a retry or
