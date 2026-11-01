@@ -121,7 +121,7 @@ void main() {
         }
         if (request.url.path == '/v1/commands') {
           return http.Response(
-            '{"commands":[{"name":"status","description":"Status"}]}',
+            '{"commands":[{"name":"status","description":"Status","execution_type":"runtime_control"}]}',
             200,
           );
         }

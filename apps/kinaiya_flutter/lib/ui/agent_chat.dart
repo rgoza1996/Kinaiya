@@ -379,7 +379,6 @@ class _AgentChatState extends State<AgentChat> {
         api == null ||
         owner.busyAgent ||
         owner.agentIdentitySelecting ||
-        session == null ||
         !owner.ownsConnection(generation, api) ||
         !owner.sessionAuthenticated) {
       return;
@@ -396,6 +395,12 @@ class _AgentChatState extends State<AgentChat> {
       owner.touch();
       return;
     }
+    if (!slash && session == null) {
+      owner.agentNotice =
+          'Choose an existing session or create one from Workspace first.';
+      owner.touch();
+      return;
+    }
     owner.busyAgent = true;
     owner.touch();
     try {
@@ -404,7 +409,7 @@ class _AgentChatState extends State<AgentChat> {
       if (!mounted ||
           !identical(widget.state, owner) ||
           !owner.ownsConnection(generation, api) ||
-          !owner.ownsAgentSelection(selection, session) ||
+          (session != null && !owner.ownsAgentSelection(selection, session)) ||
           !owner.sessionAuthenticated) {
         return;
       }
@@ -421,6 +426,7 @@ class _AgentChatState extends State<AgentChat> {
         return;
       }
       if (!owner.agentCanDisclose(scope)) return;
+      if (session == null) return;
       await _beginSubmission(
         api,
         generation,
@@ -732,7 +738,7 @@ class _AgentChatState extends State<AgentChat> {
   Future<void> _dispatchSlash(
     KinaiyaClient api,
     int generation,
-    SessionInfo session,
+    SessionInfo? session,
     int selection,
     int draftRevision,
     String text,
@@ -741,7 +747,7 @@ class _AgentChatState extends State<AgentChat> {
     final name = text.split(RegExp(r'\s+')).first.substring(1);
     if (!_s.sessionAuthenticated ||
         !_s.ownsConnection(generation, api) ||
-        !_s.ownsAgentSelection(selection, session)) {
+        (session != null && !_s.ownsAgentSelection(selection, session))) {
       return;
     }
     final registry = _s.commands;
@@ -776,6 +782,12 @@ class _AgentChatState extends State<AgentChat> {
       return;
     }
     try {
+      if (session == null) {
+        _s.agentNotice =
+            'Choose an existing session or create one from Workspace first.';
+        _s.touch();
+        return;
+      }
       // First dispatch uses the captured owner session and current discovery.
       // Retained receipt checks use their separate original-request path.
       if (!mounted ||
