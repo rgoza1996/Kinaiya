@@ -189,6 +189,7 @@ class _Attempt:
             self.model_owner.effort(self.record.provider),
         ) != (pin.provider, pin.model, pin.local, pin.reasoning):
             raise PolicyDenied("Standing model identity changed")
+        self.guard()
 
     async def session(self):
         self.guard()
