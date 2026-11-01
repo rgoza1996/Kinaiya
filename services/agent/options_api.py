@@ -48,6 +48,7 @@ class _NoStoreRoute(APIRoute):
 
 
 def router(runtime, auth):
+    from services.agent.authorization_api import router as authorization_router
     from services.agent.auxiliary_routes_api import router as auxiliary_routes_router
 
     routes = APIRouter(
@@ -55,6 +56,7 @@ def router(runtime, auth):
         dependencies=[Depends(auth.require("owner"))],
         route_class=_NoStoreRoute,
     )
+    routes.include_router(authorization_router(runtime, auth, _NoStoreRoute))
 
     @routes.get("/context")
     async def inspect_context():

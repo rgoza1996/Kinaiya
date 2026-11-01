@@ -22,6 +22,7 @@ import 'options_capabilities.dart';
 import 'agent_runtime_writes.dart';
 import 'options_provider_editor.dart';
 import 'options_tool_permissions.dart';
+import 'options_authorizations.dart';
 import 'options_converse_model.dart';
 import 'options_stt_model.dart';
 import 'options_tts_model.dart';
@@ -1191,6 +1192,15 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
             owner.ownsConnection(generation, client),
         currentSessionId: owner.agentSession?.sessionId,
         currentTaskIds: owner.tasks.map((task) => task.taskId).toList(),
+      ),
+      OptionsAuthorizations(
+        key: ObjectKey(client),
+        api: client?.toolPermissions,
+        active: () =>
+            mounted &&
+            identical(widget.state, owner) &&
+            client != null &&
+            owner.ownsConnection(generation, client),
       ),
       ..._errors,
       if (_runtimeReadOnlyReason case final reason?) Text(reason),

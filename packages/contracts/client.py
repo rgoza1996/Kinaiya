@@ -420,6 +420,19 @@ class JournalClient:
                 closing.add_done_callback(settled)
                 await asyncio.shield(closing)
 
+    async def lookup_authorization_revocation(self, original):
+        """Strict retained exchange for a positive metadata-only original event."""
+        from packages.contracts.authorizations import AuthorizationJournalProof, AuthorizationRevoke
+
+        original = AuthorizationRevoke.model_validate(original)
+        return await self._submit(
+            "/v1/transcript/authorization-revocations/lookup",
+            original,
+            AuthorizationJournalProof,
+            8192,
+            asyncio.get_running_loop().time() + 5,
+        )
+
     async def decisions_call_start(self, request):
         response = await self.http.post(
             "/v1/decisions/calls/start", json=request.model_dump(mode="json")
