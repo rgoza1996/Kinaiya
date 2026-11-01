@@ -26,6 +26,7 @@ from packages.contracts import (
     standing_admission,
     standing_dispatch,
     standing_execution,
+    standing_export,
     standing_work,
     stt_models,
     stt_settlement,
@@ -162,6 +163,8 @@ for cls in (
     standing_execution.StandingExecutionClaimAdmission,
     standing_admission.StandingInitialProof,
     standing_admission.StandingTaskAdmission,
+    standing_export.StandingExportRequest,
+    standing_export.StandingExportAdmission,
 ):
     (target / f"{cls.__name__}.json").write_text(
         json.dumps(cls.model_json_schema(), indent=2) + "\n"
