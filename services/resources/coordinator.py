@@ -109,6 +109,7 @@ class ResourceCoordinator:
         self._closing = False
         self._closed = False
         self._text_lifecycle = None
+        self._whistle_lifecycle = None
         self.publication_pending = False
         self._whistle_preemptions = 0
         self._has_whistle = "whistle" in self.manager.status()["workers"]
@@ -133,6 +134,22 @@ class ResourceCoordinator:
         from services.resources.standing_handoff import StandingHandoff
 
         self.standing_handoff = StandingHandoff(self)
+        from services.resources.standing_barrier import StandingBarrier
+
+        self.standing_barrier = StandingBarrier(self)
+        self._close_owner = None
+
+    async def bind_standing_claim(self, claim):
+        return await self.standing_barrier.run("bind", claim)
+
+    async def lookup_standing_binding(self, claim):
+        return await self.standing_barrier.run("binding_lookup", claim)
+
+    async def seal_standing_claim(self, request):
+        return await self.standing_barrier.run("seal", request)
+
+    async def lookup_standing_seal(self, request):
+        return await self.standing_barrier.run("seal_lookup", request)
 
     def register_text_lifecycle(self, *, abort, drain, release):
         """Register trusted selected-broker hooks once; never a second owner."""
@@ -143,6 +160,18 @@ class ResourceCoordinator:
         ) or inspect.iscoroutinefunction(abort):
             raise ValueError("Managed text lifecycle requires a synchronous abort hook")
         self._text_lifecycle = abort, drain, release
+
+    def register_whistle_lifecycle(self, *, abort, drain):
+        if (
+            self._whistle_lifecycle is not None
+            or self._closing
+            or not self._has_whistle
+            or not callable(abort)
+            or not callable(drain)
+            or inspect.iscoroutinefunction(abort)
+        ):
+            raise ValueError("Whistle lifecycle cannot be registered")
+        self._whistle_lifecycle = abort, drain
 
     async def stop_text(self, identity=None):
         if identity is not None and identity.worker_id != self.text_worker_id:
@@ -239,6 +268,10 @@ class ResourceCoordinator:
         handoff_ready = False
         try:
             await self.standing_handoff.register()
+            try:
+                await self.standing_barrier.register()
+            except StandingUnavailable:
+                pass
             handoff_ready = True
         except StandingUnavailable:
             # A failed task gateway never disables independent owner cleanup.
@@ -735,6 +768,11 @@ class ResourceCoordinator:
     async def _stop_workers(self):
         workers = tuple(self.manager.status()["workers"])
         hooks, failure, first_identity, first_result = self._text_lifecycle, None, None, None
+        if self._whistle_lifecycle is not None:
+            try:
+                self._whistle_lifecycle[0]()
+            except (Exception, asyncio.CancelledError) as exc:
+                failure = exc
         if hooks is not None:
             try:
                 hooks[0]()
@@ -754,6 +792,11 @@ class ResourceCoordinator:
         if hooks is not None:
             try:
                 await hooks[1]()
+            except (Exception, asyncio.CancelledError) as exc:
+                failure = failure or exc
+        if self._whistle_lifecycle is not None:
+            try:
+                await self._whistle_lifecycle[1]()
             except (Exception, asyncio.CancelledError) as exc:
                 failure = failure or exc
         try:
@@ -1023,15 +1066,37 @@ class ResourceCoordinator:
                 raise RuntimeError("Managed conversation worker did not become ready")
         return not self._closing and self.intent.read().enabled
 
-    async def close(self):
+    async def _close_owned(self):
+        from packages.contracts.operation_ownership import ActualOperation, actual_owner
+
+        cleanup = ActualOperation(lambda _: None)
+        root = object()
+        cleanup.hold(root)
+        retain = getattr(self.manager, "retain_operations", None)
+        if callable(retain):
+            retain(cleanup)
+        with actual_owner(cleanup):
+            try:
+                await self._retire_owned(cleanup, root)
+            finally:
+                cleanup.release(root)
+
+    async def _retire_owned(self, cleanup, root):
         self._closing = True
+        self.standing_barrier.shutdown()
         await self.standing_handoff.close()
+        # Never join capture owners under the controller lock they may need.
+        # This waits for settlement, including failed cleanup; Manager.close
+        # still performs its independent exact-owned retirement/retry below.
+        await self.standing_barrier.join_shutdown()
+        while self.standing_handoff.native:
+            await asyncio.wait(tuple(self.standing_handoff.native))
         async with self.lock:
             if self._closed:
                 return
             failure = None
             try:
-                if self._text_lifecycle is not None:
+                if self._text_lifecycle is not None or self._whistle_lifecycle is not None:
                     await self._stop_workers()
             except (Exception, asyncio.CancelledError) as exc:
                 failure = exc
@@ -1040,6 +1105,14 @@ class ResourceCoordinator:
                     await self.manager.close()
                 except (Exception, asyncio.CancelledError) as exc:
                     failure = failure or exc
+        # Join actual cleanup outside the controller lock, including a child
+        # that was already waiting to enter it when shutdown fenced admission.
+        # Manager retirement/retry above is independent of a failed proof.
+        cleanup.release(root)
+        await cleanup.join()
+        if cleanup.failed or self.standing_barrier.uncertain:
+            failure = failure or StandingUnavailable()
+        async with self.lock:
             try:
                 if failure is None:
                     self.state.save(
@@ -1052,12 +1125,32 @@ class ResourceCoordinator:
                     )
             finally:
                 self._closed = True
-                self.db.close()
-                self.state.close()
-                await self.converse.close()
-                if self.journal and hasattr(self.journal, "close"):
-                    await self.journal.close()
-                if self.handoff_journal is not self.journal and self.handoff_journal is not None:
-                    await self.handoff_journal.close()
+                for retire in (self.standing_handoff._maybe_close, self.db.close, self.state.close):
+                    try:
+                        retire()
+                    except (Exception, asyncio.CancelledError) as exc:
+                        failure = failure or exc
+                clients = [self.converse, self.journal]
+                if self.handoff_journal is not self.journal:
+                    clients.append(self.handoff_journal)
+                for client in clients:
+                    if client is not None and callable(getattr(client, "close", None)):
+                        try:
+                            await client.close()
+                        except (Exception, asyncio.CancelledError) as exc:
+                            failure = failure or exc
             if failure is not None:
                 raise failure
+
+    async def close(self):
+        self._closing = True
+        self.standing_barrier.shutdown()
+        if self._close_owner is None:
+            self._close_owner = asyncio.create_task(self._close_owned())
+            self._close_owner.add_done_callback(
+                lambda task: task.exception() if not task.cancelled() else None
+            )
+        done, _ = await asyncio.wait({self._close_owner}, timeout=1)
+        if not done:
+            raise StandingUnavailable
+        return self._close_owner.result()

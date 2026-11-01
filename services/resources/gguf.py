@@ -141,6 +141,8 @@ class _Exchange:
 
 
 class GGUFEndpoint:
+    actual_ownership_supported = True
+
     def __init__(
         self, directory, manifest, *, context_tokens=2048, max_new_tokens=128, request_timeout_s=120
     ):

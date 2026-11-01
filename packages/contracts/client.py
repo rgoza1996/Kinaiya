@@ -1,5 +1,6 @@
 import asyncio
 import copy
+import json
 
 import httpx
 
@@ -44,6 +45,7 @@ from packages.contracts.interfaces import (
     AgentModeOff,
 )
 from packages.contracts.models import AppendRequest, JournalEntry, PlaybackGeneration, Session
+from packages.contracts.operation_ownership import current_owner
 
 AGENT_EXPORT_TIMEOUT_S = 15
 _SUBMIT_CLOSE_DRAIN_S = 1.0
@@ -62,6 +64,9 @@ class _SubmitExchange:
         self.abandoned = False
         self.work_cancel_requested = False
         self.close_cancel_requested = False
+        self.actual_owner = current_owner()
+        if self.actual_owner is not None:
+            self.actual_owner.hold(self)
         owner._submit_exchanges.add(self)
         self.task = asyncio.create_task(self._run(request, proposal, result_type, deadline))
         self.task.add_done_callback(self._settled)
@@ -79,6 +84,8 @@ class _SubmitExchange:
             self.owner._submit_cleanup_failed = True
         if self.task.done() and (self.close_task is None or self.close_task.done()):
             self.owner._submit_exchanges.discard(self)
+            if self.actual_owner is not None:
+                self.actual_owner.release(self, failed=self.owner._submit_cleanup_failed)
 
     def abandon(self):
         self.abandoned = True
@@ -217,7 +224,39 @@ class _ControlExchange(_SubmitExchange):
                 await asyncio.shield(self.close_task)
 
 
+class _JournalMetadataExchange(_SubmitExchange):
+    """Scoped Resources publication, on the same actual exchange registry.
+
+    A publication timeout says nothing about notification delivery and is not
+    cleanup proof. Its original raw read and sole close remain enrolled even
+    after the best-effort publication facade is cancelled.
+    """
+
+    async def _run(self, request, proposal, result_type, deadline):
+        try:
+            self.response = await self.owner.http.send(request, stream=True, follow_redirects=False)
+            if self.abandoned:
+                raise AgentSubmitUnavailable
+            self.response.raise_for_status()
+            if (
+                self.response.headers.get("content-encoding", "identity").strip().lower()
+                != "identity"
+            ):
+                raise AgentSubmitUnavailable
+            raw = bytearray()
+            async for chunk in self.response.stream:
+                raw.extend(chunk)
+            return json.loads(bytes(raw))
+        finally:
+            if self.response is not None:
+                self.close_task = asyncio.create_task(self._close())
+                self.close_task.add_done_callback(self._settled)
+                await asyncio.shield(self.close_task)
+
+
 class JournalClient:
+    actual_ownership_supported = True
+
     def __init__(self, url: str, token: str, *, transport=None):
         self.http = httpx.AsyncClient(
             base_url=url,
@@ -229,6 +268,15 @@ class JournalClient:
         self._submit_stt_closes = set()
         self._submit_cleanup_failed = False
         self._submit_closed = False
+
+    async def _owned_metadata(self, method, path, **kwargs):
+        if self._submit_closed or self._submit_cleanup_failed:
+            raise AgentSubmitUnavailable
+        request = self.http.build_request(
+            method, path, headers={"Accept-Encoding": "identity"}, **kwargs
+        )
+        exchange = _JournalMetadataExchange(self, request, None, None, None)
+        return await asyncio.shield(exchange.task)
 
     async def standing_renew(self, request):
         from packages.contracts.standing_client import standing_renew
@@ -470,6 +518,11 @@ class JournalClient:
         )
 
     async def append(self, request):
+        if current_owner() is not None:
+            result = await self._owned_metadata(
+                "POST", "/v1/transcript/entries", json=request.model_dump(mode="json")
+            )
+            return JournalEntry.model_validate(result)
         response = await self.http.post(
             "/v1/transcript/entries", json=request.model_dump(mode="json")
         )
@@ -622,6 +675,10 @@ class JournalClient:
         return maximum
 
     async def sessions(self):
+        if current_owner() is not None:
+            return [
+                Session.model_validate(s) for s in await self._owned_metadata("GET", "/v1/sessions")
+            ]
         response = await self.http.get("/v1/sessions")
         response.raise_for_status()
         return [Session.model_validate(s) for s in response.json()]

@@ -21,6 +21,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 
 from packages.contracts.models import new_id
+from packages.contracts.operation_ownership import actual_owner, current_owner, retain_task
 from packages.contracts.standing_resources import (
     StandingResourceReservation,
     StandingResourceReservationReceipt,
@@ -97,6 +98,7 @@ class _Capture:
     request: StandingResourceReservation | None = None
     receipt: StandingResourceReservationReceipt | None = None
     gateway: object = None
+    ownership: object = None
 
     def suppress(self):
         self.active = False
@@ -112,8 +114,11 @@ class _Capture:
             or gate.closed
             or gate.failed
             or not gate.ready
+            or not owner.standing_barrier.ready
+            or owner.standing_barrier.failed
             or owner._closing
             or owner._closed
+            or owner.standing_barrier.sealed(self.payload["task_id"])
             or owner.controller_id != self.instance
             or gate.attempts.get(self.payload["idempotency_key"]) is not self
             or self.task is None
@@ -159,6 +164,7 @@ class StandingHandoff:
         self.operations = set()
         self.native = set()
         self.registration = None
+        self.file_identity = None
 
     @contextmanager
     def _transaction(self, guard=None):
@@ -295,6 +301,7 @@ class StandingHandoff:
             after = path.stat(follow_symlinks=False)
             if (before.st_dev, before.st_ino) != (after.st_dev, after.st_ino):
                 raise StandingUnavailable
+            self.file_identity = before.st_dev, before.st_ino
         finally:
             os.close(fd)
         with self._transaction():
@@ -322,7 +329,7 @@ class StandingHandoff:
         self.ready = True
 
     async def _database(self, invoke, capture=None):
-        task = asyncio.create_task(asyncio.to_thread(invoke))
+        task = retain_task(asyncio.create_task(asyncio.to_thread(invoke)))
         self.native.add(task)
         task.add_done_callback(self._native_settled)
         interrupted = False
@@ -340,6 +347,9 @@ class StandingHandoff:
                 interrupted = True
 
     def _native_settled(self, task):
+        scope = current_owner()
+        if self.failed and scope is not None:
+            scope.fail()
         self.native.discard(task)
         if not task.cancelled():
             task.exception()
@@ -430,7 +440,14 @@ class StandingHandoff:
                 raise StandingUnavailable
 
     async def _work(self, capture, invoke):
+        with actual_owner(capture.ownership):
+            return await self._owned_work(capture, invoke)
+
+    async def _owned_work(self, capture, invoke):
         try:
+            retain = getattr(self.owner.manager, "retain_operations", None)
+            if callable(retain):
+                retain(capture.ownership)
             await self._database(lambda: self._prior(capture), capture)
             capture.guard()
             journal = self.owner.handoff_journal
@@ -466,12 +483,23 @@ class StandingHandoff:
                 if capture.receipt.disposition != "created":
                     raise StandingUnavailable
             capture.guard()
-            return await invoke(capture.payload, capture=capture)
+            result = await invoke(capture.payload, capture=capture)
+            if capture.effects_started and (
+                type(result) is not dict or result.get("ok") is not True
+            ):
+                capture.ownership.fail()
+            return result
         except (StandingConflict, StandingUnavailable):
+            if capture.effects_started:
+                capture.ownership.fail()
             raise
         except asyncio.CancelledError:
+            if capture.effects_started:
+                capture.ownership.fail()
             raise
         except Exception:
+            if capture.effects_started:
+                capture.ownership.fail()
             raise StandingUnavailable from None
         finally:
             capture.suppress()
@@ -491,8 +519,11 @@ class StandingHandoff:
             self.closed
             or self.failed
             or not self.ready
+            or not self.owner.standing_barrier.ready
+            or self.owner.standing_barrier.failed
             or self.owner._closing
             or self.owner._closed
+            or self.owner.standing_barrier.sealed(payload["task_id"])
         ):
             raise StandingUnavailable
         key, digest = payload["idempotency_key"], action_digest(payload)
@@ -501,13 +532,19 @@ class StandingHandoff:
             if previous.digest != digest:
                 raise StandingConflict
             raise StandingUnavailable
-        if len(self.attempts) >= MAX_HANDOFF_CAPTURES:
-            raise StandingUnavailable
+        ownership = self.owner.standing_barrier.admit(task_id=payload["task_id"])
         capture = _Capture(
-            self, payload, digest, started + HANDOFF_CAPTURE_SECONDS, self.owner.controller_id
+            self,
+            payload,
+            digest,
+            started + HANDOFF_CAPTURE_SECONDS,
+            self.owner.controller_id,
+            ownership=ownership,
         )
         self.attempts[key] = capture
         operation = asyncio.create_task(self._work(capture, invoke))
+        ownership.retain_task(operation)
+        self.owner.standing_barrier.release_ingress(ownership)
         capture.task = operation
         self.operations.add(operation)
 
@@ -528,27 +565,31 @@ class StandingHandoff:
             )
             if not capture.effects_started and time.monotonic() >= capture.deadline:
                 capture.suppress()
-                operation.cancel()
                 raise StandingUnavailable
             if operation in done:
                 return operation.result()
             if capture.started not in done or not capture.effects_started:
                 capture.suppress()
-                operation.cancel()
                 raise StandingUnavailable
             # The capture deadline ends at the first real preemption/effect.
             # Existing hardware action timing and ownership remain unchanged.
             return await asyncio.shield(operation)
         except asyncio.CancelledError:
             capture.suppress()
-            operation.cancel()
             caller = asyncio.current_task()
             if caller is not None and caller.cancelling():
                 raise
             raise StandingUnavailable from None
 
     def _maybe_close(self):
-        if self.closed and not self.operations and not self.native and self.db is not None:
+        if (
+            self.closed
+            and not self.operations
+            and not self.native
+            and not self.owner.standing_barrier.operations
+            and (not self.owner._closing or self.owner._closed)
+            and self.db is not None
+        ):
             self.db.close()
             self.db = None
 
@@ -557,8 +598,6 @@ class StandingHandoff:
         for capture in self.attempts.values():
             capture.suppress()
         operations = tuple(self.operations)
-        for operation in operations:
-            operation.cancel()
         if operations:
             await asyncio.wait(operations, timeout=1)
         self._maybe_close()

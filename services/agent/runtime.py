@@ -400,6 +400,7 @@ class AgentRuntime:
         mcp_host: Any | None = None,
         skill_service: Any | None = None,
         resource_client: Any | None = None,
+        standing_resource_client: Any | None = None,
         plugin_service: Any | None = None,
         mcp_controller: Any | None = None,
         artifact_store: Any | None = None,
@@ -429,6 +430,7 @@ class AgentRuntime:
         self.integration_lock = asyncio.Lock()
         self.skill_service = skill_service
         self.resource_client = resource_client
+        self.standing_resource_client = standing_resource_client
         self.plugin_service = plugin_service
         # Native presentation storage is optional for direct/test runtimes.
         # The actual launcher supplies a protected operator data path.
@@ -455,7 +457,11 @@ class AgentRuntime:
     def workspace_operation_state(self):
         """Actual owners, including cancelled callers whose native work remains."""
         records = tuple(self._tasks.values())
-        exchanges = getattr(self.journal, "_submit_exchanges", ())
+        exchanges = (
+            *tuple(getattr(self.journal, "_submit_exchanges", ())),
+            *tuple(getattr(self.standing_resource_client, "_submit_exchanges", ())),
+        )
+        standing_close = getattr(self.standing_resource_client, "_close_task", None)
         uncertain_hosts = tuple(getattr(self.mcp_controller, "_uncertain_hosts", ()))
         actors = tuple(getattr(self.mcp_host, "_actors", {}).values()) + tuple(
             actor for host in uncertain_hosts for actor in getattr(host, "_actors", {}).values()
@@ -482,6 +488,7 @@ class AgentRuntime:
             "retirements": sum(rec.retire_lock.locked() for rec in records),
             "submit_preflights": len(self._submit_preflights),
             "submit_operations": sum(not op.done() for op in self._submit_operations)
+            + int(standing_close is not None and not standing_close.done())
             + sum(
                 not ex.task.done() or ex.close_task is not None and not ex.close_task.done()
                 for ex in exchanges
@@ -499,6 +506,7 @@ class AgentRuntime:
             "cleanup_failed": int(
                 self._workspace_cleanup_failed
                 or getattr(self.journal, "_submit_cleanup_failed", False)
+                or getattr(self.standing_resource_client, "_submit_cleanup_failed", False)
             )
             + sum(bool(failed_lease(lease)) for lease in leases)
             + len(uncertain_hosts),
@@ -528,9 +536,13 @@ class AgentRuntime:
 
                 operation.add_done_callback(settled)
 
-            for exchange in tuple(getattr(self.journal, "_submit_exchanges", ())):
+            for exchange in (
+                *tuple(getattr(self.journal, "_submit_exchanges", ())),
+                *tuple(getattr(self.standing_resource_client, "_submit_exchanges", ())),
+            ):
                 watch(exchange.task)
                 watch(exchange.close_task, cleanup=True)
+            watch(getattr(self.standing_resource_client, "_close_task", None), cleanup=True)
             for lease in tuple(getattr(self.model_settings, "catalog_leases", ())):
                 watch(lease.cleanup)
                 for operation in tuple(lease.retiring):
@@ -2608,9 +2620,15 @@ class AgentRuntime:
         permissions, self.tool_permissions = self.tool_permissions, None
         if permissions is not None:
             permissions.close()
-        if self.workspace_settings is not None:
-            self._workspace_settled()
-            self.workspace_settings.close()
+        # Keep the configured object retained even if its bounded facade
+        # refuses: it owns late send/read/sole-close and transport retirement.
+        try:
+            if self.standing_resource_client is not None:
+                await self.standing_resource_client.close()
+        finally:
+            if self.workspace_settings is not None:
+                self._workspace_settled()
+                self.workspace_settings.close()
 
     # -- approvals ------------------------------------------------------
     async def pending_approvals(

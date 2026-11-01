@@ -66,6 +66,60 @@ class ManagedTextResponse(StreamingResponse):
 def create_app(coordinator, auth, whistle=None, qwen3=None, gguf=None):
     app = FastAPI(title="Kinaiya local resources")
     owner = [Depends(auth.require("owner"))]
+    from services.resources.standing_barrier import StandingResourcesHTTP
+
+    standing = StandingResourcesHTTP(coordinator)
+
+    class StandingNoStore:
+        def __init__(self, app):
+            self.app = app
+
+        async def __call__(self, scope, receive, send):
+            async def respond(message):
+                if message["type"] == "http.response.start" and scope.get("path", "").startswith(
+                    "/v1/resources/standing/"
+                ):
+                    message = {
+                        **message,
+                        "headers": [
+                            (key, value)
+                            for key, value in message.get("headers", ())
+                            if key.lower() != b"cache-control"
+                        ]
+                        + [(b"cache-control", b"no-store")],
+                    }
+                await send(message)
+
+            await self.app(scope, receive, respond)
+
+    app.add_middleware(StandingNoStore)
+
+    async def standing_response(request, operation):
+        try:
+            wire = await standing.run(request, operation)
+        except StandingConflict:
+            raise HTTPException(409, str(StandingConflict())) from None
+        except StandingUnavailable:
+            raise HTTPException(503, str(StandingUnavailable())) from None
+        return Response(wire, media_type="application/json", headers={"Cache-Control": "no-store"})
+
+    @app.post("/v1/resources/standing/binding", dependencies=[Depends(auth.require("agent"))])
+    async def standing_binding(request: Request):
+        return await standing_response(request, "bind")
+
+    @app.post(
+        "/v1/resources/standing/binding/lookup", dependencies=[Depends(auth.require("agent"))]
+    )
+    async def standing_binding_lookup(request: Request):
+        return await standing_response(request, "binding_lookup")
+
+    @app.post("/v1/resources/standing/seal", dependencies=[Depends(auth.require("agent"))])
+    async def standing_seal(request: Request):
+        return await standing_response(request, "seal")
+
+    @app.post("/v1/resources/standing/seal/lookup", dependencies=[Depends(auth.require("agent"))])
+    async def standing_seal_lookup(request: Request):
+        return await standing_response(request, "seal_lookup")
 
     @app.get("/health")
     async def health():

@@ -9,6 +9,7 @@ import httpx
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from packages.contracts.client import JournalClient
+from packages.contracts.standing_work import StandingUnavailable
 from packages.providers.qwen3_ipc import MANIFEST_SHA256, MODEL, PROFILE
 from packages.providers.tts_backends import profile_settings, validate_tts_device, validate_voice
 from packages.resources.processes import WorkerManager, WorkerSpec
@@ -466,6 +467,8 @@ def resource_app(args, config, auth, tokens, root):
             drain=selected_broker.drain,
             release=selected_endpoint.release_after_stop,
         )
+    if whistle is not None:
+        coordinator.register_whistle_lifecycle(abort=whistle.abort_active, drain=whistle.drain)
     app = create_app(coordinator, auth, whistle, qwen3, gguf)
 
     @asynccontextmanager
@@ -499,33 +502,49 @@ def resource_app(args, config, auth, tokens, root):
         try:
             yield
         finally:
+            coordinator._closing = True
+            coordinator.standing_barrier.shutdown()
             publication.cancel()
             await asyncio.gather(publication, return_exceptions=True)
-            try:
-                failures = []
-                for broker in (whistle, qwen3, gguf):
-                    if broker is not None:
-                        try:
-                            await broker.close()
-                        except Exception as exc:
-                            failures.append(exc)
-                # Always reconcile the actual owned processes, including when
-                # a transport close failed. Endpoint pruning follows only a
-                # successful manager close that confirmed group release.
-                await coordinator.close()
-                if whistle_endpoint is not None:
-                    whistle_endpoint.close()
-                if qwen3_endpoint is not None:
-                    qwen3_endpoint.close()
-                if gguf_endpoint is not None:
-                    gguf_endpoint.close()
-                if failures:
-                    raise failures[0]
-            finally:
-                await health_http.aclose()
-                await agent_http.aclose()
-                if laya_probe is not None:
-                    await laya_probe.close()
+
+            async def retire_resources():
+                try:
+                    failures = []
+                    for broker in (whistle, qwen3, gguf):
+                        if broker is not None:
+                            try:
+                                await broker.close()
+                            except Exception as exc:
+                                failures.append(exc)
+                    # The bounded coordinator facade may refuse while its
+                    # real shutdown owner still uses these configured links.
+                    try:
+                        await coordinator.close()
+                    except StandingUnavailable:
+                        if coordinator._close_owner is None:
+                            raise
+                        await asyncio.shield(coordinator._close_owner)
+                    # Prune only after successful exact Manager retirement.
+                    if whistle_endpoint is not None:
+                        whistle_endpoint.close()
+                    if qwen3_endpoint is not None:
+                        qwen3_endpoint.close()
+                    if gguf_endpoint is not None:
+                        gguf_endpoint.close()
+                    if failures:
+                        raise failures[0]
+                finally:
+                    await health_http.aclose()
+                    await agent_http.aclose()
+                    if laya_probe is not None:
+                        await laya_probe.close()
+
+            shutdown = asyncio.create_task(retire_resources())
+            app.state.resource_shutdown_owner = shutdown
+            shutdown.add_done_callback(
+                lambda task: task.exception() if not task.cancelled() else None
+            )
+            await asyncio.shield(shutdown)
 
     app.router.lifespan_context = lifespan
     app.state.coordinator = coordinator

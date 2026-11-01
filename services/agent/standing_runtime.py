@@ -17,11 +17,17 @@ from packages.contracts.agent_tools import NATIVE_TOOL_ORDER, NativeToolSnapshot
 from packages.contracts.models import AgentModelPin, Session, Task, TaskState
 from packages.contracts.standing_admission import StandingInitialProof, StandingTaskAdmission
 from packages.contracts.standing_execution import (
+    StandingExecutionClaim,
     StandingExecutionIntent,
     StandingExecutionModelPin,
     capability_digest,
     claim_id,
     occurrence_id,
+)
+from packages.contracts.standing_resource_finalization import (
+    StandingResourceBindingReceipt,
+    checked_finalization,
+    finalization_bytes,
 )
 from packages.contracts.standing_work import _tree
 from packages.providers.disclosure import scope_allowed
@@ -105,6 +111,7 @@ class _Attempt:
     deadline: float
     capability: bytes | None = field(repr=False)
     journal: object = None
+    resource_client: object = None
     suppressed: asyncio.Future = field(
         default_factory=lambda: asyncio.get_running_loop().create_future()
     )
@@ -137,6 +144,16 @@ class _Attempt:
             not self.active
             or runtime._closed
             or runtime.journal is not self.journal
+            or self.resource_client is not None
+            and runtime.standing_resource_client is not self.resource_client
+            or self.resource_client is not None
+            and (
+                getattr(self.resource_client, "_submit_closed", False)
+                or getattr(self.resource_client, "_submit_cleanup_failed", False)
+                or getattr(getattr(self.resource_client, "http", None), "is_closed", False)
+            )
+            or getattr(self.journal, "_submit_closed", False)
+            or getattr(self.journal, "_submit_cleanup_failed", False)
             or time.monotonic() >= self.deadline
             or current is not None
             and current.cancelling()
@@ -242,9 +259,64 @@ class _Attempt:
                 raise AgentSubmitUnconfirmed
             self.key = key
             runtime._standing_pending[key] = self
+            client = self.resource_client = runtime.standing_resource_client
+            bind = getattr(client, "bind_standing_claim", None)
+            lookup_claim = getattr(self.journal, "standing_claim_lookup", None)
+            if not callable(bind) or not callable(lookup_claim):
+                raise AgentSubmitUnavailable
+            if getattr(client, "_submit_closed", False) or getattr(
+                client, "_submit_cleanup_failed", False
+            ):
+                raise AgentSubmitUnavailable
             await self.session()
-            async with runtime.integration_lock:
+            # Capture native selection authority before any binding await;
+            # this reads pins but allocates no task model/lease.
+            context = captured_context(runtime)
+            owner, primary = runtime.model_settings, runtime.provider
+            authority = _authority(runtime, None)
+            if (
+                context is None
+                or not context.current()
+                or context.pin != original.task.workspace_pin
+                or owner is None
+            ):
+                raise PolicyDenied("Standing launch authority is unavailable")
+            if (
+                _pin(owner.selection_info(original.task.harness_version)[1])
+                != original.task.model_pin
+            ):
+                raise PolicyDenied("Standing model authority is unavailable")
+
+            def before_allocation():
                 self.guard()
+                if (
+                    runtime.standing_resource_client is not client
+                    or getattr(client, "_submit_closed", False)
+                    or getattr(client, "_submit_cleanup_failed", False)
+                    or captured_context(runtime) is not context
+                    or not context.current()
+                    or runtime.model_settings is not owner
+                    or runtime.provider is not primary
+                    or _authority(runtime, None) != authority
+                    or _pin(owner.selection_info(original.task.harness_version)[1])
+                    != original.task.model_pin
+                ):
+                    raise AgentSubmitUnavailable
+
+            claim = await lookup_claim(original)
+            before_allocation()
+            claim = checked_finalization(claim, StandingExecutionClaim)
+            if finalization_bytes(claim.request) != finalization_bytes(original):
+                raise AgentSubmitUnavailable
+            receipt = await bind(claim)
+            before_allocation()
+            if type(receipt) is not StandingResourceBindingReceipt:
+                raise AgentSubmitUnavailable
+            receipt.validate_claim(claim)
+            await self.session()
+            before_allocation()
+            async with runtime.integration_lock:
+                before_allocation()
                 self.context = captured_context(runtime)
                 if self.context is None or self.context.pin != original.task.workspace_pin:
                     raise PolicyDenied("Standing workspace authority is unavailable")

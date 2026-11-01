@@ -299,6 +299,16 @@ class StandingResourceBindingReceipt(_Finalization):
         except _FAILURES:
             raise ValueError(_ERROR) from None
 
+    def validate_claim(self, original: StandingExecutionClaim) -> Self:
+        try:
+            result = checked_finalization(self, StandingResourceBindingReceipt)
+            original = checked_finalization(original, StandingExecutionClaim)
+            if _encode(result.request.claim) != _encode(original):
+                raise ValueError(_ERROR)
+            return result
+        except _FAILURES:
+            raise ValueError(_ERROR) from None
+
 
 class StandingResourceFinalizeRequest(_Finalization):
     wire_bytes: ClassVar[int] = MAX_STANDING_RESOURCE_FINALIZE_REQUEST_BYTES

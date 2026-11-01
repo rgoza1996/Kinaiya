@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from anyio import CancelScope
 from fastapi import HTTPException
 
+from packages.contracts.operation_ownership import current_owner
 from services.resources.coordinator import Qwen3AdmissionError
 
 _END = object()
@@ -219,8 +220,31 @@ class ManagedTextBroker:
             op.work.cancel()
         if op.cleanup is None or (op.cleanup.done() and op.cleanup_failed):
             op.cleanup = asyncio.create_task(self.cleanup(op))
+        owner = current_owner()
+        if owner is not None:
+            closes = getattr(self.endpoint, "stream_closes", None)
+            if closes is not None:
+                closes.retain(owner)
+            elif getattr(self.endpoint, "actual_ownership_supported", False) is not True:
+                owner.fail()
+            # The broker remains the sole abort/endpoint-close owner. Enroll
+            # its original tasks, including a previously admitted allocation.
+            for task in (op.admission, op.work, op.monitor, op.disconnect, op.cleanup):
+                if task is not None:
+                    owner.retain_task(task)
+            cleanup = op.cleanup
+            cleanup.add_done_callback(
+                lambda _: owner.fail() if not op.cleanup_confirmed or op.cleanup_failed else None
+            )
 
     def abort_active(self):
+        owner = current_owner()
+        if owner is not None:
+            closes = getattr(self.endpoint, "stream_closes", None)
+            if closes is not None:
+                closes.retain(owner)
+            elif getattr(self.endpoint, "actual_ownership_supported", False) is not True:
+                owner.fail()
         if self.operation is not None:
             self.abort(self.operation, "paused")
 
