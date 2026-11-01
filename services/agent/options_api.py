@@ -1,25 +1,42 @@
-"""Owner-only Options metadata and revision-bound model defaults."""
+"""Owner-only Options metadata and revision-bound native settings."""
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+import sqlite3
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
 from core.extensions import HarnessError
+from core.policy import PolicyDenied
 from services.agent.model_settings import ModelSettingsChange, ModelSettingsConflict
+from services.agent.runtime_settings import (
+    RuntimeSettingsChange,
+    RuntimeSettingsConflict,
+    execution_metadata,
+)
 
 
 def router(runtime, auth):
     routes = APIRouter(prefix="/v1/agent/options", dependencies=[Depends(auth.require("owner"))])
 
     @routes.get("")
-    async def inspect_options():
+    async def inspect_options(response: Response):
+        response.headers["Cache-Control"] = "no-store"
         try:
             models = (
                 runtime.model_settings.snapshot() if runtime.model_settings is not None else None
             )
-        except (OSError, ValueError) as exc:
-            raise HTTPException(503, "Agent model settings are unavailable") from exc
+            settings = (
+                runtime.runtime_settings.snapshot()
+                if runtime.runtime_settings is not None
+                else None
+            )
+            execution = execution_metadata(runtime)
+        except (OSError, ValueError, sqlite3.Error) as exc:
+            raise HTTPException(503, "Agent settings are unavailable") from exc
         return {
             "schema_version": "1.0",
             "models": models,
+            "runtime_settings": settings,
+            "execution": execution,
             "provider": runtime.model_settings.default_info()
             if runtime.model_settings is not None
             else runtime.provider.info.model_dump(),
@@ -30,6 +47,38 @@ def router(runtime, auth):
             "max_steps": runtime.max_steps,
             "tools": list(runtime.tool_snapshot().available_tools),
         }
+
+    @routes.post("/runtime")
+    async def change_runtime(request: RuntimeSettingsChange, response: Response):
+        response.headers["Cache-Control"] = "no-store"
+        if runtime.runtime_settings is None:
+            raise HTTPException(503, "Execution settings are not enabled on this host")
+        async with runtime.integration_lock:
+            try:
+                return await runtime.runtime_settings.change(request)
+            except RuntimeSettingsConflict as exc:
+                raise HTTPException(409, str(exc)) from exc
+            except (PolicyDenied, ValueError) as exc:
+                raise HTTPException(
+                    400, "Execution settings refused; check the workspace and bounds"
+                ) from exc
+            except (OSError, RuntimeError, sqlite3.Error) as exc:
+                raise HTTPException(
+                    503, "Execution settings outcome is unconfirmed; inspect the exact receipt"
+                ) from exc
+
+    @routes.get("/runtime-changes/{key}")
+    async def runtime_change_receipt(key: str, response: Response):
+        response.headers["Cache-Control"] = "no-store"
+        if len(key) > 128 or runtime.runtime_settings is None:
+            raise HTTPException(404, "Execution settings receipt is unavailable")
+        try:
+            receipt = runtime.runtime_settings.receipt(key)
+        except (OSError, ValueError, sqlite3.Error) as exc:
+            raise HTTPException(503, "Execution settings receipt is unavailable") from exc
+        if receipt is None:
+            raise HTTPException(404, "No committed execution settings receipt is visible")
+        return receipt
 
     @routes.post("/models")
     async def change_models(request: ModelSettingsChange):

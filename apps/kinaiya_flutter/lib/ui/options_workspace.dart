@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../api/agent_model_settings.dart';
+import '../api/agent_runtime_settings.dart';
 import '../api/agent_workspace.dart';
 import '../api/client.dart';
 import '../api/converse_setup.dart';
@@ -14,6 +15,7 @@ import 'converse_memory.dart';
 import 'design_tokens.dart';
 import 'mcp_settings.dart';
 import 'options_model_editor.dart';
+import 'options_runtime_editor.dart';
 import 'presentation_settings.dart';
 import 'settings_controls.dart';
 import 'setup_dialog.dart';
@@ -34,6 +36,14 @@ class _ModelChange {
 }
 
 final _modelChanges = <String, _ModelChange>{};
+
+class _RuntimeChange extends _ModelChange {
+  _RuntimeChange(super.body, this.instanceId);
+  final String instanceId;
+  bool uncertain = false;
+}
+
+final _runtimeChanges = <String, _RuntimeChange>{};
 
 class OptionsWorkspace extends StatefulWidget {
   const OptionsWorkspace({
@@ -63,12 +73,15 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
   ConverseSetup? _converse;
   Map<String, Object?>? _agent;
   AgentModelsSnapshot? _models;
-  String? _readError, _modelError, _notice;
+  AgentRuntimeSnapshot? _runtime;
+  OptionsRuntimeDraft? _runtimeDraft;
+  String? _readError, _modelError, _runtimeError, _notice;
   bool _loading = false, _savingPreference = false;
   int _read = 0, _connection = -1;
 
   String? get _endpoint => widget.state.client?.agentBase;
   _ModelChange? get _pending => _modelChanges[_endpoint];
+  _RuntimeChange? get _runtimePending => _runtimeChanges[_endpoint];
 
   @override
   void initState() {
@@ -90,6 +103,7 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
       oldWidget.state.removeListener(_changed);
       widget.state.addListener(_changed);
       _harness = null;
+      _runtimeDraft = null;
       _connection = widget.state.connectionGeneration;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _refresh();
@@ -130,12 +144,14 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
   Future<void> _refresh() async {
     final owner = widget.state, api = widget.state.client;
     final generation = owner.connectionGeneration, request = ++_read;
+    if (_connection != generation) _runtimeDraft = null;
     _connection = generation;
     setState(() {
       _converse = null;
       _agent = null;
       _models = null;
-      _readError = _modelError = null;
+      _runtime = null;
+      _readError = _modelError = _runtimeError = null;
       _loading = api != null;
     });
     if (api == null) return;
@@ -170,13 +186,36 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
               result['tools'] is! List) {
             throw const FormatException();
           }
-          final models = result['models'] == null
-              ? null
-              : AgentModelsSnapshot.fromJson(result['models']);
+          AgentModelsSnapshot? models;
+          AgentRuntimeSnapshot? runtime;
+          String? modelError, runtimeError;
+          try {
+            if (result['models'] != null) {
+              models = AgentModelsSnapshot.fromJson(result['models']);
+            }
+          } catch (_) {
+            modelError = 'Agent model settings could not be read.';
+          }
+          try {
+            if (result['runtime_settings'] != null) {
+              runtime = AgentRuntimeSnapshot.fromJson(
+                result['runtime_settings'],
+              );
+            }
+          } catch (_) {
+            runtimeError = 'Agent execution settings could not be read.';
+          }
           if (current()) {
             setState(() {
               _agent = result;
               _models = models;
+              _modelError = modelError;
+              _runtime = runtime;
+              _runtimeError = runtimeError;
+              if (runtime != null &&
+                  (_runtimeDraft == null || !_runtimeDraft!.dirty)) {
+                _runtimeDraft = OptionsRuntimeDraft(runtime);
+              }
             });
           }
         } catch (_) {
@@ -389,6 +428,168 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
     }
   }
 
+  bool _validRuntimeReceipt(
+    _RuntimeChange operation,
+    Map<String, Object?> result,
+  ) {
+    try {
+      return result['schema_version'] == '1.0' &&
+          result['status'] == 'settings_saved' &&
+          result['change_boundary'] == 'settled_service' &&
+          result['idempotency_key'] == operation.body['idempotency_key'] &&
+          result['revision'] ==
+              (operation.body['expected_revision'] as int) + 1 &&
+          result['service_instance'] == operation.instanceId &&
+          result['requested_yolo'] == operation.body['yolo'] &&
+          AgentExecutionSettings.fromJson(result['settings']).matches(
+            AgentExecutionSettings.fromJson(operation.body['settings']),
+          );
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _saveRuntime(OptionsRuntimeDraft draft) async {
+    final endpoint = _endpoint, runtime = _runtime, settings = draft.settings;
+    if (endpoint == null ||
+        runtime == null ||
+        settings == null ||
+        _runtimePending != null ||
+        _loading ||
+        runtime.busy ||
+        runtime.stateToken != draft.base.stateToken) {
+      return;
+    }
+    if (_runtimeChanges.length >= 16) {
+      setState(
+        () => _notice =
+            'Resolve an earlier execution settings save before another change.',
+      );
+      return;
+    }
+    final operation = _RuntimeChange({
+      'schema_version': '1.0',
+      'expected_revision': runtime.revision,
+      'expected_state': runtime.stateToken,
+      'idempotency_key': newIdempotencyKey(),
+      'settings': settings,
+      'yolo': draft.yolo,
+    }, runtime.instanceId);
+    _runtimeChanges[endpoint] = operation;
+    await _sendRuntime(endpoint, operation);
+  }
+
+  Future<void> _sendRuntime(String endpoint, _RuntimeChange operation) async {
+    final owner = widget.state, api = owner.client;
+    final generation = owner.connectionGeneration;
+    if (api == null || api.agentBase != endpoint || operation.inFlight >= 2) {
+      return;
+    }
+    operation.inFlight++;
+    operation.timedOut = false;
+    operation.notice = 'Saving Agent execution settings…';
+    if (mounted) setState(() {});
+    bool current() =>
+        mounted &&
+        identical(owner, widget.state) &&
+        owner.ownsConnection(generation, api);
+    final request = api.saveAgentRuntimeSettings(operation.body);
+    unawaited(
+      request.then<void>(
+        (result) async {
+          operation.inFlight--;
+          if (!identical(_runtimeChanges[endpoint], operation)) return;
+          if (_validRuntimeReceipt(operation, result)) {
+            _runtimeChanges.remove(endpoint);
+            if (current()) {
+              _runtimeDraft = null;
+              _notice =
+                  'Agent settings saved. Active values are refreshed below.';
+            }
+          } else {
+            operation.uncertain = true;
+            operation.notice =
+                'Save result is unconfirmed. Check the exact receipt.';
+          }
+          if (current()) {
+            setState(() {});
+            await _refresh();
+          }
+        },
+        onError: (Object error) async {
+          operation.inFlight--;
+          if (!identical(_runtimeChanges[endpoint], operation)) return;
+          if (error is ApiException &&
+              const [400, 409, 422].contains(error.status) &&
+              !operation.uncertain &&
+              operation.inFlight == 0) {
+            _runtimeChanges.remove(endpoint);
+            if (current()) {
+              _notice = error.status == 409
+                  ? 'The host changed or work is pending. Your draft is retained. '
+                        'Review active values before saving again.'
+                  : 'The host refused this change. Check the directory and limits.';
+            }
+          } else {
+            operation.uncertain = true;
+            operation.notice =
+                'Save result is unconfirmed. Check its receipt '
+                'before another execution settings change.';
+          }
+          if (current()) {
+            setState(() {});
+            await _refresh();
+          }
+        },
+      ),
+    );
+    try {
+      await request.timeout(const Duration(seconds: 8));
+    } catch (_) {
+      if (operation.sending) {
+        operation.timedOut = true;
+        operation.notice =
+            'Still waiting for the host. The settings may be saved.';
+        if (current()) setState(() {});
+      }
+    }
+  }
+
+  Future<void> _checkRuntimeSave() async {
+    final owner = widget.state, operation = _runtimePending;
+    final api = owner.client, endpoint = _endpoint;
+    final generation = owner.connectionGeneration;
+    if (operation == null || api == null || endpoint == null) return;
+    bool current() =>
+        mounted &&
+        identical(owner, widget.state) &&
+        owner.ownsConnection(generation, api);
+    try {
+      final result = await api.agentRuntimeSettingsReceipt(
+        operation.body['idempotency_key'] as String,
+      );
+      if (!_validRuntimeReceipt(operation, result)) {
+        throw const FormatException();
+      }
+      if (identical(_runtimeChanges[endpoint], operation)) {
+        _runtimeChanges.remove(endpoint);
+        if (current()) _runtimeDraft = null;
+      }
+      if (current()) {
+        setState(
+          () => _notice =
+              'Save confirmed. Review the current active values below.',
+        );
+        await _refresh();
+      }
+    } catch (_) {
+      operation.notice =
+          'No confirmed receipt yet. Retry uses the identical '
+          'request and cannot apply it twice.';
+      if (current()) setState(() {});
+    }
+  }
+
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, bounds) {
@@ -478,6 +679,39 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
                                 onPressed: () =>
                                     _sendModel(_endpoint!, pending),
                                 child: const Text('Retry the same save'),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  if (_runtimePending case final pending?)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 8,
+                      ),
+                      child: DesignPanel(
+                        padding: const EdgeInsets.all(12),
+                        child: Wrap(
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          spacing: 12,
+                          runSpacing: 8,
+                          children: [
+                            Text(
+                              pending.notice ??
+                                  'An execution change awaits confirmation.',
+                            ),
+                            TextButton(
+                              onPressed: _checkRuntimeSave,
+                              child: const Text('Check execution save status'),
+                            ),
+                            if (pending.canRetry)
+                              TextButton(
+                                onPressed: () =>
+                                    _sendRuntime(_endpoint!, pending),
+                                child: const Text(
+                                  'Retry the same execution save',
+                                ),
                               ),
                           ],
                         ),
@@ -693,6 +927,7 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
     ),
     OptionsPage.agent => _agentSettings(),
     OptionsPage.permissions => _permissions(),
+    OptionsPage.workspace || OptionsPage.execution => _runtimeSettings(),
     OptionsPage.tools => _tools(),
     OptionsPage.data => _data(),
     OptionsPage.tasks => _tasks(),
@@ -738,7 +973,7 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
           ),
         ),
         const SizedBox(height: 6),
-        SelectableText(value),
+        SelectableText(value, semanticsLabel: value),
       ],
     ),
   );
@@ -753,6 +988,7 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
       const Text('Connect to your host to inspect models and services.'),
     if (_readError != null) Text(_readError!),
     if (_modelError != null) Text(_modelError!),
+    if (_runtimeError != null) Text(_runtimeError!),
   ];
 
   Widget _role(String id, String label) {
@@ -1002,10 +1238,12 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
       _agent?['max_steps']?.toString() ?? 'Unavailable',
     ),
     const Text(
-      'Model defaults and harness overrides are in Models & providers. Task limits are host-managed.',
+      'Model defaults and harness overrides are in Models & providers. '
+      'Execution contains task step and native command limits.',
     ),
   ]);
   Widget _permissions() {
+    if (_runtime != null) return _runtimeSettings();
     final permissions = _agent?['permissions'];
     return _scroll([
       const Text(
@@ -1023,12 +1261,35 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
           permissions is Map && permissions[row.$1] is bool
               ? permissions[row.$1] == true
                     ? 'Allowed by host policy'
-                    : 'Not granted'
+                    : 'Not granted by this host flag'
               : 'Unavailable',
         ),
       const Text(
         'Use the owner Agent permission controls to change grants. Existing approval and isolation checks remain in force.',
       ),
+    ]);
+  }
+
+  Widget _runtimeSettings() {
+    final snapshot = _runtime, draft = _runtimeDraft;
+    return _scroll([
+      ..._errors,
+      if (snapshot != null && draft != null)
+        OptionsRuntimeEditor(
+          key: ObjectKey(draft),
+          snapshot: snapshot,
+          draft: draft,
+          page: _page,
+          saving: _runtimePending != null || _loading,
+          onSave: _saveRuntime,
+          onReset: () =>
+              setState(() => _runtimeDraft = OptionsRuntimeDraft(snapshot)),
+        )
+      else
+        _unavailable(
+          'Execution settings unavailable',
+          'Connect to an updated Agent host with owner execution settings enabled.',
+        ),
     ]);
   }
 

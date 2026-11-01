@@ -41,6 +41,7 @@ state and cannot trigger silent retries or success notices.
 | Voice options | Web Dynamic VAD (on), balanced sensitivity, room recalibration; fallback-only speech confirmation (300 ms), interrupt confirmation (220 ms), clip-ending silence (1.5 s; choices 0.8/1.5/2.5). Live windows remain continuous and Decisions chooses when to wait, respond, or interrupt. | Mounted Converse view, session-only; separate from inference/provider settings and appearance export. | Current CharacterView/audio owner; explicit changes require an acknowledged bridge profile. Opening/closing Options never changes capture. See [ADR0079](adr/0079-adaptive-vad-and-top-aligned-options.md). |
 | Saved Converse notes | Browse/inspect existing notes, namespace access, select 1–8 active notes, Use/Stop. New namespaces start disabled; runtime use starts off after restart. | Exact Converse session/thread/epoch. Stored namespace and process-local selected use are separate. | Session memory store plus Converse recall runtime; observed revisions/runtime identity guard writes. |
 | Agent controls | Current registered model/profile, permissions/YOLO, resources, skills and plugins commands. | Agent scope; many choices are process-local or host-configured. | Existing command registry/supervisor. The chooser fills a draft; the user still sends it. Expansion/profile switching requires settled work. |
+| Agent execution settings | Native file-write/command Ask/Allow/Deny, tool network access, step limit, per-command timeout and relative shell directory. Active root, folder guards, mandatory sandbox and public environment inspection. | Protected `agent-runtime-settings.sqlite`, revision/state-bound receipts, settled service boundary. YOLO remains service-instance only. | Embedded Permissions, Workspace and Execution pages; [ADR0084](adr/0084-owner-execution-settings.md). Broader per-tool/scoped permissions, root relocation and task/concurrency/hardware limits remain incomplete. |
 | MCP connections | Inspect/configure/test/enable/disable/reconnect/remove supported servers. | Agent owner configuration; native credential references and revisions. | Existing MCP management/native policy. A configured server is not a proven connection or a permission grant. |
 
 Options navigation reads UI and authenticated host metadata. Opening, searching
@@ -86,11 +87,11 @@ remain separate from preparing these options.
 
 | Option family | Type/default policy | Scope, persistence and authority | Status |
 | --- | --- | --- | --- |
-| `agent.workspace`, `working_directory` | Approved workspace/path reference; show actual effective root, not a guessed directory. | Host/task; native path, symlink, protected-root and OS-isolation checks. | Host; workspace picker planned. |
-| `agent.permissions` | Inspect precise write/shell/network/tool grants and current YOLO mode. Approval behavior and isolation are distinct controls. | Trusted supervisor/policy broker; expanding authority waits for settled work. | Host/Agent commands; richer editor planned. |
+| `agent.workspace`, `working_directory` | Actual approved root, protected/read-only folders, existing relative shell directory. | Host root; owner directory edit at settled service boundary, persisted. Native containment/symlink/isolation checks. | Workspace inspection/directory editor implemented (ADR0084); root selection/worktrees remain planned. |
+| `agent.permissions` | Native file-write/command Ask/Allow/Deny, network access and process-local YOLO. File-write Deny also mounts the command workspace read-only. Approval behavior and isolation are distinct. | Trusted supervisor/policy broker; revision/state-bound edits require settled work. Saved values and actual effective values are separate. | Service-level native editor implemented (ADR0084). Read/per-tool rules and task/session/workspace/default scopes remain incomplete. |
 | `agent.approvals` | Pending actions, approve/deny and scope of a granted decision. Changing UI mode is not a retroactive approval. | Native owner action. Model risk assessment, if later added, is advisory. | Existing task approval controls; unified defaults editor planned. |
-| `agent.sandbox`, `network`, `environment` | Execution backend, read/write roots, egress, mounts and allowed environment references. No import of another harness's sandbox-off default. | Native execution boundary; user/model text cannot broaden it. | Existing native policy/isolation; detailed app editor planned. |
-| `agent.step_limit`, `deadline`, `concurrency` | Typed finite execution bounds with native validation. Current capabilities report max_steps, initially 12; this is not a live UI setter. A per-tool timeout is not a whole-task deadline or a global task-concurrency cap. | Host/new tasks; active task changes require a versioned native operation. | Existing step/per-tool bounds. Whole-task deadline, task-concurrency admission and generic editors planned. |
+| `agent.sandbox`, `network`, `environment` | Mandatory Bubblewrap, read/write mount state, public fixed environment and network namespace. Executable detection is not isolation proof. | Native execution boundary; owner tool-network edit, no secrets or arbitrary mounts/environment in this slice. | Inspection/network editor implemented (ADR0084); alternate backends and broader sandbox/environment controls remain incomplete. |
+| `agent.step_limit`, `deadline`, `concurrency` | Native maximum steps 1–2000 (host default 12), command cap 1–120 whole seconds. A command cap is not a whole-task deadline or task-concurrency cap. | Owner settled-service edits, persisted; accepted/unsettled work blocks changes. | Step/command editor implemented (ADR0084). Whole-task deadline, concurrency admission and hardware controls remain incomplete. |
 | `agent.subagents` | Allowed model/provider/tools, concurrency and inherited budget/grants; no greater authority than the parent permits. | A future native delegation contract and policy; keep development Muse/Codex workers distinct from product Agent workers. | Planned. Current bounded worker/tool execution is infrastructure, not a product subagent facility. |
 | `agent.instructions`, `harness_versions` | Owner/project instructions, installed extension/version, evaluation/promotion/rollback status. Protected core, goals and evaluator remain immutable to generated code. | Trusted configuration and native harness manager; no free-form setting may disable evidence requirements. | Existing native mechanisms; unified editor planned. |
 
@@ -148,6 +149,12 @@ Converse chat in the header, and supporting options remain accessible in chat
 and Settings.
 The Penpot design can supply additional panels in its own style when it lacks a
 particular option. Do not invent a separate visual system for omitted settings.
+
+The October 31 owner-confirmed `/goal` covers all twelve groups from the earlier
+harness comparison, including checkpoints, scopes and development tooling, plus
+ongoing harness/multimodal work. See the [delivery plan](options-delivery-plan.md)
+and [#208](https://github.com/rgoza1996/Kinaiya/issues/208). A delivered increment
+does not close the full inventory.
 
 Show saved versus effective settings and restart/next-task effects. Global,
 workspace, session and task overrides need a documented precedence rule before

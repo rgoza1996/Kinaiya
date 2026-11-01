@@ -297,6 +297,7 @@ class AgentRuntime:
         self.journal = journal
         self.provider = provider
         self.model_settings = None
+        self.runtime_settings = None
         self.projects = None
         self.workspace = Path(workspace)
         self.policy = policy
@@ -1235,6 +1236,9 @@ class AgentRuntime:
         projects, self.projects = self.projects, None
         if projects is not None:
             projects.close()
+        settings, self.runtime_settings = self.runtime_settings, None
+        if settings is not None:
+            settings.close()
 
     # -- approvals ------------------------------------------------------
     async def pending_approvals(
@@ -1543,10 +1547,28 @@ class AgentRuntime:
         return SimpleNamespace(task_id=rec.task.task_id, plugin_versions=rec.plugin_versions)
 
     def _grants(self) -> str:
-        return (
+        grants = (
             f"write={self.policy.effective_write} "
             f"shell={self.policy.effective_shell} "
             f"network={self.policy.network}"
+        )
+        if self.policy.deny_write or self.policy.deny_shell:
+            grants += f" deny_write={self.policy.deny_write} deny_shell={self.policy.deny_shell}"
+        if self.policy.shell_working_directory != "." or self.policy.shell_timeout_s != 120:
+            grants += (
+                f" shell_directory={self.policy.shell_working_directory!r}"
+                f" shell_timeout_s={self.policy.shell_timeout_s}"
+            )
+        return grants
+
+    def runtime_settings_busy(self) -> bool:
+        """Terminal publication does not prove its worker or child has released."""
+        return self._closed or any(
+            rec.task.state not in TERMINAL
+            or (rec.worker is not None and not rec.worker.done())
+            or rec.proc_slot.get("proc") is not None
+            or rec.retire_lock.locked()
+            for rec in self._tasks.values()
         )
 
     def tool_snapshot(self, task: Task | None = None) -> NativeToolSnapshot:
@@ -2250,7 +2272,8 @@ class AgentRuntime:
             self._model_mcp(rec)._check(args.get("server_id", ""))
         sources = (
             await self._uncommitted_speech_sources(rec)
-            if tool in {"write_file", "shell", "mcp_call", "publish_ui"}
+            if not self.policy.denies(tool)
+            and tool in {"write_file", "shell", "mcp_call", "publish_ui"}
             else []
         )
         if await self._discard_revised_action(rec, revision, raw):
@@ -2385,7 +2408,8 @@ class AgentRuntime:
             return
         sources = (
             await self._uncommitted_speech_sources(rec)
-            if tool in {"write_file", "shell", "mcp_call", "publish_ui"}
+            if not self.policy.denies(tool)
+            and tool in {"write_file", "shell", "mcp_call", "publish_ui"}
             else []
         )
         if tool == "publish_ui":
@@ -2433,7 +2457,10 @@ class AgentRuntime:
             # There is no await between this grant check and the broker's
             # matching synchronous permission check.
             if tool == "publish_ui" or (
-                tool in {"write_file", "shell"} and not self.policy.needs_approval(tool)
+                tool == "write_file"
+                and self.policy.effective_write
+                or tool == "shell"
+                and self.policy.effective_shell
             ):
                 self.policy.consume_approval(approval_id, digest, revision)
         if raw and tool not in {"publish_ui", "tool_catalog"}:
@@ -2442,6 +2469,8 @@ class AgentRuntime:
             # One-use intent is now committed to this exact execution.
             rec.pending = None
         try:
+            if self.policy.denies(tool):
+                raise PolicyDenied("Native action is disabled by owner policy")
             if not self.tool_snapshot(rec.task).supports(tool):
                 raise ToolFailure(f"Tool {tool!r} is unavailable for this task")
             if tool == "read_transcript":

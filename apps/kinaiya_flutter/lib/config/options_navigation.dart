@@ -9,6 +9,8 @@ enum OptionsPage {
   audio('Audio'),
   agent('Agent'),
   permissions('Permissions'),
+  workspace('Workspace'),
+  execution('Execution'),
   tools('Tools'),
   integrations('Integrations'),
   memory('Memory'),
@@ -46,6 +48,8 @@ const optionsCategories = [
   OptionsCategory('Agent & permissions', Icons.smart_toy_outlined, [
     OptionsPage.agent,
     OptionsPage.permissions,
+    OptionsPage.workspace,
+    OptionsPage.execution,
   ]),
   OptionsCategory('Tools & integrations', Icons.extension_outlined, [
     OptionsPage.tools,

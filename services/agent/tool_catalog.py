@@ -45,6 +45,8 @@ class CatalogGuard:
             policy.effective_shell,
             policy.network,
             policy.yolo,
+            policy.deny_write,
+            policy.deny_shell,
             (task.objective_revision, task.content_scope, task.harness_version, task.state.value)
             if task is not None
             else None,
@@ -173,7 +175,9 @@ def _schema(row, schema, *, output_schema=None):
 def _permissions(runtime, task, tool):
     policy = runtime.policy
     approval = "uncommitted_speech_only" if tool == "publish_ui" else "not_required"
-    if tool in {"write_file", "shell"}:
+    if policy.denies(tool):
+        approval = "denied"
+    elif tool in {"write_file", "shell"}:
         approval = "per_action" if policy.needs_approval(tool) else "broad_grant"
     elif tool == "mcp_call":
         approval = "broad_grant" if policy.yolo else "per_action"
@@ -182,7 +186,8 @@ def _permissions(runtime, task, tool):
         "write_granted": policy.effective_write,
         "shell_granted": policy.effective_shell,
         "network_granted": policy.network,
-        "uncommitted_speech_approval": tool in {"write_file", "shell", "mcp_call", "publish_ui"},
+        "uncommitted_speech_approval": not policy.denies(tool)
+        and tool in {"write_file", "shell", "mcp_call", "publish_ui"},
         "task_state": task.state.value if task is not None else None,
         "contextual_checks": "required_at_dispatch",
         "readiness": "not_checked",

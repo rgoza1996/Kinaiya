@@ -9,6 +9,20 @@ The owner requested reconciliation before further feature work. Inputs were the 
 
 **Implemented** means the cited bounded behavior exists and has the stated verification. **Experimental** retains research, environment or reliability limits. **Unverified** identifies an acceptance gate without sufficient evidence. **Planned** identifies work without a qualified implementation. A milestone can contain all four. Open parent issues are not closed by this ledger; stale “queued” descriptions do not erase merged work. No percentage-complete or production-readiness claim is made.
 
+## October 31 Options increment
+
+The owner-confirmed [full Options goal](options-delivery-plan.md) is tracked by
+[#208](https://github.com/rgoza1996/Kinaiya/issues/208), alongside ongoing #196
+and multimodal #204. [ADR0084](adr/0084-owner-execution-settings.md) adds native
+service-level file-write/command Ask/Allow/Deny, tool network/YOLO inspection,
+persisted step/command bounds and relative shell directory, plus embedded
+Permissions, Workspace and Execution pages. Deny precedes approvals/YOLO and
+mounts the native command workspace read-only. Saved receipts and actual active
+state remain separate. See its PR for checks actually run; this addendum does
+not change the historical source cutoff or claim completion of the twelve
+Options groups, broader per-tool/scoped grants, root relocation, whole-task
+deadlines/concurrency, provider editing or multimodal acceptance gates.
+
 ## Milestone status
 
 The original [milestone exit gates](../Roadmap.md#24-milestone-roadmap) and AT01–AT48 remain unchanged. Additional owner-refinement scenarios AT49–AT61 supplement them; AT62–AT63 record the October 31 distinction between model choice, profile recommendations and architectural comparisons. These additions claim no new runtime behavior or passed acceptance. Links to tests describe existing coverage, not a new execution of those tests during documentation editing.
