@@ -12,6 +12,7 @@ from packages.contracts import (
     memory,
     memory_catalog,
     memory_context,
+    memory_operations,
     models,
 )
 
@@ -23,6 +24,7 @@ for module in (
     memory,
     memory_catalog,
     memory_context,
+    memory_operations,
     context,
     agent_export,
     agent_submit,

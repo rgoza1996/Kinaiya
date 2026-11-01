@@ -1,4 +1,4 @@
-# ADR 0085: Native Agent submission admission and uncertain receipts
+# ADR 0087: Native Agent submission admission and uncertain receipts
 
 Status: Implemented with deterministic local qualification; exact-head CI is
 required before merge. Tracking: [#199](https://github.com/rgoza1996/Kinaiya/issues/199).

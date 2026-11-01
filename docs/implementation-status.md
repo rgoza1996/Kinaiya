@@ -23,6 +23,17 @@ not change the historical source cutoff or claim completion of the twelve
 Options groups, broader per-tool/scoped grants, root relocation, whole-task
 deadlines/concurrency, provider editing or multimodal acceptance gates.
 
+The following in-progress increment adds [owner note creation/revision/forget
+and exact historical receipt recovery](adr/0085-converse-note-editor.md), plus a
+[protected provider and credential catalog](adr/0086-owner-provider-catalog.md).
+The catalog explicitly does not apply a provider to a role or establish
+readiness. Native LM Studio now has a measured Agent/auxiliary complete-request
+interface; no fresh model qualification follows. Current evidence is static
+analysis/review; consult the associated PR for later exact-head CI/browser
+evidence. Automatic memory extraction/retention, catalog role application,
+ordered fallback, direct multimodal/camera and the remaining full Options groups
+stay open. This addendum does not change the historical source cutoff.
+
 ## Milestone status
 
 The original [milestone exit gates](../Roadmap.md#24-milestone-roadmap) and AT01–AT48 remain unchanged. Additional owner-refinement scenarios AT49–AT61 supplement them; AT62–AT63 record the October 31 distinction between model choice, profile recommendations and architectural comparisons. These additions claim no new runtime behavior or passed acceptance. Links to tests describe existing coverage, not a new execution of those tests during documentation editing.
@@ -202,7 +213,7 @@ Only the original direct creation receipt can permit one local launch after fres
 authority checks. Retained and recovered receipts preserve native identity and
 model pins without execution, including authentic pre-scope local-only records.
 Task ID collisions refuse rather than substitute another session or overwrite a
-retained task. See [ADR0085](adr/0085-agent-submit-admission.md).
+retained task. See [ADR0087](adr/0087-agent-submit-admission.md).
 
 The [verification record](../evaluation/evidence/agent-submit-admission-2026-10-31.json)
 binds source/tests and the lead's 396 passing integrated cases, additional

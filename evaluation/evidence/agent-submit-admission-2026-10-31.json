@@ -6,12 +6,27 @@
     192
   ],
   "scope": "Initial Agent admission, native receipt identity, pending reconciliation and one-use local worker launch; no model-quality or exactly-once external-tool qualification",
-  "base_commit": "aecf94da20c2e8103adcc3cc98434cd23bdaf965",
+  "base_commit": "02bfce38cc066b41f360f15e50afe44c8dc69340",
+  "initial_qualification_base_commit": "aecf94da20c2e8103adcc3cc98434cd23bdaf965",
+  "main_integration": {
+    "seven_functional_submit_files_byte_identical_to": "fa5fccd8624ac693717b90e9c91756a92204e26d",
+    "exporter_change": "Combine agent_submit and upstream memory_operations exports; no other exporter logic changed.",
+    "upstream_files_preserved_byte_exact": 28,
+    "combined_files": [
+      "README.md",
+      "docs/implementation-status.md",
+      "scripts/export_contracts.py"
+    ],
+    "adr_move": "0085-agent-submit-admission to 0087-agent-submit-admission; title and references only, preserving upstream ADR0085 note editor and ADR0086 provider catalog.",
+    "lead_static_receipt_sha256": "8e47b2597a58540f0fa8e6ae798aa36dedec3bf2cd6188fbec308f115b70ce4b",
+    "independent_static_receipt_sha256": "cd80b29e545c913795cecf56a0b5da9f924e3742cb92b813206c52bcb8b839b3",
+    "combined_schema_receipt_sha256": "11b9f30f0bd4e5ddb6f415c09d47df1ad6367f4aa62881c791a9fed45a0c6b9b"
+  },
   "production_sha256": {
     "packages/contracts/agent_submit.py": "053c5700e6403372ad64e48772382a949caee217aa676b632b7b21ce1d243d9e",
     "packages/contracts/client.py": "ac773acc2a8a660cc81aa42c1574fe0b93b2d422a46d510082a0a468e400399c",
     "packages/contracts/interfaces.py": "1b46d5e0fc348b36f220552d2afb46359a4b71f2b08a42e6d4296a0c93bdb680",
-    "scripts/export_contracts.py": "2515c62ef0eb8e945af2bf2d12a455cdaea2e7fc7fdbe9c3b64a10663c91433c",
+    "scripts/export_contracts.py": "237dd50b9dbcfbe05e844ddfbb7bad02af5de7ae6e7c7a6ad165e0c4f60a8fba",
     "services/session/api.py": "5bdc2e216415fa9129a154ea5f47cdab6f15bf5d10f546f61e1fe866b3a7e598",
     "services/session/store.py": "9271a58077e8b85a08e1fb5b285446a5f303f14178f510e4198789d185172b37",
     "services/agent/runtime.py": "9c9ccfaf78fccc679f4ea44f648de6040a4217250a7070b75472427d451b1869",
@@ -77,6 +92,7 @@
       "skipped": 0,
       "pytest_seconds": 65.276,
       "all_captured_production_and_test_hashes_stable": true,
+      "scope": "Ran on the initial qualification base before later main integration; all seven functional submit files remain byte-identical. Combined exporter generation and full final-head CI are separate checks.",
       "log_sha256": "1ca8b96afa72491d5c37721a1605304c45e7e18d876dc2ea01c47e4c5d64e14e"
     },
     "author_corrected_runtime_groups": {
@@ -99,7 +115,8 @@
       "limits": "Collision regressions preserve a confirmed paused record; separate live-worker reuse and steering controls are not a combined applied-steer-then-submit test. Native author did not independently review their own correction."
     },
     "generated_contracts": {
-      "count": 78,
+      "count": 81,
+      "initial_qualification_count": 78,
       "byte_exact_after_export": true,
       "command": "python -B -m scripts.export_contracts"
     },
@@ -116,7 +133,8 @@
         "git diff --check"
       ],
       "result": "passed",
-      "formatted_python_files": 525
+      "formatted_python_files": 534,
+      "initial_qualification_formatted_python_files": 525
     },
     "full_local_run": {
       "status": "intentionally interrupted, not passed",

@@ -19,6 +19,7 @@ import 'agent_workspace.dart';
 import 'agent_workspace_client.dart';
 import 'library_models.dart';
 import 'artifact_client.dart';
+import 'provider_client.dart';
 import '../config/service_root.dart';
 
 const _uuid = Uuid();
@@ -77,6 +78,7 @@ class KinaiyaClient {
     http.Client Function()? decisionsClientFactory,
     http.Client Function()? agentWorkspaceClientFactory,
     http.Client Function()? artifactClientFactory,
+    http.Client Function()? providerClientFactory,
   }) : sessionBase = normalizeServiceRoot(sessionBase),
        agentBase = normalizeServiceRoot(agentBase),
        converseBase = normalizeServiceRoot(converseBase),
@@ -86,6 +88,9 @@ class KinaiyaClient {
            artifactClientFactory ??
            (httpClient == null ? http.Client.new : _artifactInjectionRequired),
        _memoryClientFactory = memoryClientFactory ?? http.Client.new,
+       _providerClientFactory =
+           providerClientFactory ??
+           (httpClient == null ? http.Client.new : _providerInjectionRequired),
        _decisionsClientFactory =
            decisionsClientFactory ??
            (httpClient == null ? http.Client.new : _decisionsInjectionRequired),
@@ -98,6 +103,14 @@ class KinaiyaClient {
   final String converseBase;
   final String _token;
   final http.Client _http;
+  final http.Client Function() _providerClientFactory;
+  static http.Client _providerInjectionRequired() =>
+      throw StateError('Provider transport requires its own injected factory');
+  late final ProviderApi providers = ProviderApi(
+    baseUrl: sessionBase,
+    ownerToken: _token,
+    clientFactory: _providerClientFactory,
+  );
   final http.Client Function() _artifactClientFactory;
   static http.Client _artifactInjectionRequired() =>
       throw StateError('Artifact transport requires its own injected factory');
@@ -145,6 +158,7 @@ class KinaiyaClient {
     http.Client Function()? decisionsClientFactory,
     http.Client Function()? agentWorkspaceClientFactory,
     http.Client Function()? artifactClientFactory,
+    http.Client Function()? providerClientFactory,
   }) : sessionBase = normalizeServiceRoot(sessionBase),
        agentBase = normalizeServiceRoot(agentBase),
        converseBase = normalizeServiceRoot(converseBase),
@@ -153,6 +167,8 @@ class KinaiyaClient {
        _artifactClientFactory =
            artifactClientFactory ?? _artifactInjectionRequired,
        _memoryClientFactory = memoryClientFactory ?? http.Client.new,
+       _providerClientFactory =
+           providerClientFactory ?? _providerInjectionRequired,
        _decisionsClientFactory =
            decisionsClientFactory ?? _decisionsInjectionRequired,
        _agentWorkspaceClientFactory =
@@ -843,6 +859,7 @@ class KinaiyaClient {
       _http.close();
     } finally {
       unawaited(memory.close());
+      unawaited(providers.close());
       decisionInspections.close();
       unawaited(_agentWorkspaceReader.close());
       artifacts.close();

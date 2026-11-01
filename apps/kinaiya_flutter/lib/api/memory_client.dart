@@ -17,6 +17,57 @@ class MemoryFailure implements Exception {
   String toString() => message;
 }
 
+/// The inspected native source only. Unrelated journal metadata is bounded and
+/// parsed but is never retained as authority or copied into the note request.
+class MemorySourceInspection {
+  MemorySourceInspection._(
+    this.binding,
+    this.eventId,
+    this.revision,
+    this.sequence,
+    this.text,
+  );
+
+  factory MemorySourceInspection.fromJson(Object? value) {
+    if (value is! Map<String, Object?> || value['schema_version'] != '1.0') {
+      throw const FormatException('Invalid memory source');
+    }
+    final payload = value['payload'];
+    final sequence = value['sequence'];
+    if (payload is! Map<String, Object?> ||
+        value['kind'] != 'conversation.user' ||
+        value['origin'] != 'authenticated-user' ||
+        payload['final'] != true ||
+        sequence is! int ||
+        sequence < 1 ||
+        sequence > memoryMaxSafeInteger ||
+        payload['text'] is! String) {
+      throw const FormatException('Invalid memory source');
+    }
+    final revision = payload.containsKey('revision') ? payload['revision'] : 1;
+    if (revision is! int || revision < 1 || revision > memoryMaxSafeInteger) {
+      throw const FormatException('Invalid memory source');
+    }
+    return MemorySourceInspection._(
+      MemoryBinding.fromJson({
+        'schema_version': value['schema_version'],
+        'session_id': value['session_id'],
+        'thread_id': value['thread_id'],
+        'epoch': value['epoch'],
+      }),
+      memoryIdentifier(value['event_id']),
+      revision,
+      sequence,
+      payload['text'] as String,
+    );
+  }
+
+  final MemoryBinding binding;
+  final String eventId;
+  final int revision, sequence;
+  final String text;
+}
+
 class MemoryApi {
   MemoryApi({
     required this.sessionBase,
@@ -100,6 +151,26 @@ class MemoryApi {
     );
   }
 
+  /// Owner read of one resolved, finalized native user event. Capture still
+  /// validates the complete correction chain and freshness under its own CAS;
+  /// this response is an inspected revision, not permission to bypass that.
+  Future<MemorySourceInspection> inspectSource(
+    MemoryBinding binding,
+    String eventId,
+  ) {
+    _id(eventId);
+    return _request(
+      sessionBase,
+      '/v1/transcript/entries/${Uri.encodeComponent(eventId)}',
+      const {},
+      binding,
+      MemorySourceInspection.fromJson,
+      (value) => value.binding,
+      valid: (value) => value.eventId == eventId,
+      journalSource: true,
+    );
+  }
+
   Future<MemoryUseState> useState(MemoryBinding binding) => _request(
     converseBase,
     '/v1/memory/state',
@@ -108,6 +179,120 @@ class MemoryApi {
     MemoryUseState.fromJson,
     (v) => v.binding,
   );
+
+  Future<MemoryInspection> capture(
+    MemoryBinding binding, {
+    required int expectedRevision,
+    required String idempotencyKey,
+    required String kind,
+    required String sourceEventId,
+    required int sourceRevision,
+    required String body,
+    required MemoryFact? fact,
+    List<String> prerequisiteIds = const [],
+  }) {
+    final request = _contentRequest({
+      ...binding.toJson(),
+      'expected_revision': expectedRevision,
+      'idempotency_key': idempotencyKey,
+      'kind': kind,
+      'source_event_id': sourceEventId,
+      'source_revision': sourceRevision,
+      'body': body,
+      'fact': fact?.toJson(),
+      'prerequisite_ids': prerequisiteIds,
+    }, 'capture');
+    final parents = (request['prerequisite_ids'] as List<String>).toSet();
+    return _request(
+      sessionBase,
+      '/v1/converse-memory/capture',
+      request,
+      binding,
+      MemoryInspection.fromJson,
+      (v) => v.binding,
+      write: true,
+      valid: (v) =>
+          v.state.revision == expectedRevision + 1 &&
+          v.node.kind == kind &&
+          v.node.sourceEventId == sourceEventId &&
+          v.node.sourceRevision == sourceRevision &&
+          v.node.prerequisiteIds.length == parents.length &&
+          v.node.prerequisiteIds.every(parents.contains) &&
+          (v.node.state == 'forgotten' ||
+              v.node.body == body &&
+                  (fact == null
+                      ? v.node.fact == null
+                      : fact.matches(v.node.fact))),
+    );
+  }
+
+  Future<MemoryForgetResult> forget(
+    MemoryBinding binding, {
+    required int expectedRevision,
+    required String idempotencyKey,
+    required String nodeId,
+  }) {
+    final request = _contentRequest({
+      ...binding.toJson(),
+      'expected_revision': expectedRevision,
+      'idempotency_key': idempotencyKey,
+      'node_id': nodeId,
+    }, 'forget');
+    return _request(
+      sessionBase,
+      '/v1/converse-memory/forget',
+      request,
+      binding,
+      MemoryForgetResult.fromJson,
+      (v) => v.binding,
+      write: true,
+      valid: (v) => (v.forgottenIds.isEmpty
+          ? v.state.revision == expectedRevision
+          : v.state.revision == expectedRevision + 1 &&
+                v.forgottenIds.contains(nodeId)),
+    );
+  }
+
+  Future<MemoryOperationLookup> lookupOperation(
+    MemoryBinding binding, {
+    required String operation,
+    required Map<String, Object?> request,
+  }) {
+    final original = _contentRequest(request, operation);
+    if (original['session_id'] != binding.sessionId ||
+        original['thread_id'] != binding.threadId ||
+        original['epoch'] != binding.epoch) {
+      throw const MemoryFailure('Invalid memory operation binding');
+    }
+    return _request(
+      sessionBase,
+      '/v1/converse-memory/operations/lookup',
+      {'schema_version': '1.0', 'operation': operation, 'request': original},
+      binding,
+      MemoryOperationLookup.fromJson,
+      (v) => v.binding,
+      valid: (v) =>
+          v.operation == operation &&
+          v.idempotencyKey == original['idempotency_key'] &&
+          (v.receipt == null ||
+              v.receipt!.revision ==
+                      (original['expected_revision'] as int) + 1 &&
+                  (operation == 'capture' ||
+                      v.receipt!.nodeId == original['node_id'])),
+    );
+  }
+
+  static Map<String, Object?> _contentRequest(
+    Map<String, Object?> value,
+    String operation,
+  ) {
+    try {
+      return memoryContentRequest(value, operation);
+    } on FormatException {
+      throw const MemoryFailure('Invalid memory content request');
+    }
+  }
+
   Future<MemoryUseState> configureUse(
     MemoryBinding binding, {
     required String expectedRuntimeId,
@@ -183,6 +368,7 @@ class MemoryApi {
     MemoryBinding Function(T) scope, {
     bool write = false,
     bool Function(T)? valid,
+    bool journalSource = false,
   }) async {
     if (_closed || _owners.length >= 8) {
       throw const MemoryFailure('Memory transport is unavailable');
@@ -197,16 +383,21 @@ class MemoryApi {
         cleanupTimeout <= Duration.zero) {
       throw const MemoryFailure('Invalid memory connection');
     }
-    final bytes = utf8.encode(jsonEncode(body));
+    if (journalSource && (write || body.isNotEmpty)) {
+      throw const MemoryFailure('Invalid memory source request');
+    }
+    final bytes = journalSource ? const <int>[] : utf8.encode(jsonEncode(body));
     if (bytes.length > 16 * 1024) {
       throw const MemoryFailure('Memory request exceeds its bound');
     }
-    final uri = Uri.parse('${normalizeServiceRoot(base)}$path');
-    final request = http.Request('POST', uri)
+    final uri = Uri.parse('${normalizeServiceRoot(base)}$path').replace(
+      queryParameters: journalSource ? const {'resolve': 'true'} : null,
+    );
+    final request = http.Request(journalSource ? 'GET' : 'POST', uri)
       ..followRedirects = false
       ..headers.addAll({
         'Authorization': 'Bearer $_token',
-        'Content-Type': 'application/json',
+        if (!journalSource) 'Content-Type': 'application/json',
         'Accept': 'application/json',
         'Accept-Encoding': 'identity',
       })
@@ -222,7 +413,9 @@ class MemoryApi {
         if (owned.settled) _owners.remove(owned);
       };
       final raw = await owner.read(request).timeout(requestTimeout);
-      final decoded = decode(_JsonReader(raw).read());
+      final decoded = decode(
+        _JsonReader(raw, journalSource: journalSource).read(),
+      );
       result = decoded;
       if (scope(decoded) != binding || (valid != null && !valid(decoded))) {
         throw const FormatException('Invalid memory response');
@@ -385,13 +578,16 @@ class _OwnedRequest {
   }
 }
 
-/// Memory-only JSON: check integer spelling before parsing/rounding on web.
+/// Bounded memory JSON. Native memory responses require integer spelling.
+/// Journal source metadata may contain finite fractions, while source identity
+/// numbers still require integer spelling before any web numeric conversion.
 class _JsonReader {
-  _JsonReader(List<int> bytes)
+  _JsonReader(List<int> bytes, {this.journalSource = false})
     : text = utf8.decode(bytes, allowMalformed: false) {
     if (bytes.length > 256 * 1024) _bad();
   }
   final String text;
+  final bool journalSource;
   int at = 0;
   int values = 0;
   Never _bad() => throw const FormatException('Invalid memory response');
@@ -408,7 +604,11 @@ class _JsonReader {
     return result;
   }
 
-  Object? _value(int depth) {
+  Object? _value(
+    int depth, {
+    bool payloadRoot = false,
+    bool integerOnly = false,
+  }) {
     if (depth > 16 || ++values > 8192) _bad();
     _space();
     if (at >= text.length) _bad();
@@ -426,12 +626,21 @@ class _JsonReader {
         _space();
         if (at >= text.length || text[at] != '"') _bad();
         final key = _string();
-        if (key.length > 128 || map.containsKey(key) || map.length >= 32) {
+        if (key.length > (journalSource ? 4096 : 128) ||
+            map.containsKey(key) ||
+            map.length >= (journalSource ? 8192 : 32)) {
           _bad();
         }
         _space();
         if (at >= text.length || text[at++] != ':') _bad();
-        map[key] = _value(depth + 1);
+        map[key] = _value(
+          depth + 1,
+          payloadRoot: journalSource && depth == 0 && key == 'payload',
+          integerOnly:
+              journalSource &&
+              ((depth == 0 && const {'epoch', 'sequence'}.contains(key)) ||
+                  (payloadRoot && key == 'revision')),
+        );
         _space();
         if (at >= text.length) _bad();
         final separator = text[at++];
@@ -448,7 +657,7 @@ class _JsonReader {
         return list;
       }
       while (true) {
-        if (list.length >= 256) _bad();
+        if (list.length >= (journalSource ? 8192 : 256)) _bad();
         list.add(_value(depth + 1));
         _space();
         if (at >= text.length) _bad();
@@ -473,15 +682,50 @@ class _JsonReader {
     }
     if (at == digits) _bad();
     final magnitude = text.substring(digits, at);
-    if ((magnitude.length > 1 && magnitude.startsWith('0')) ||
-        magnitude.length > 16 ||
+    if (magnitude.length > 1 && magnitude.startsWith('0')) _bad();
+    var fraction = false;
+    if (at < text.length && text[at] == '.') {
+      fraction = true;
+      at++;
+      final first = at;
+      while (_digitAt()) {
+        at++;
+      }
+      if (at == first) _bad();
+    }
+    if (at < text.length && 'eE'.contains(text[at])) {
+      fraction = true;
+      at++;
+      if (at < text.length && '+-'.contains(text[at])) at++;
+      final first = at;
+      while (_digitAt()) {
+        at++;
+      }
+      if (at == first) _bad();
+    }
+    if (fraction) {
+      if (!journalSource || integerOnly || at - start > 128) _bad();
+      final number = double.tryParse(text.substring(start, at));
+      if (number == null || !number.isFinite) _bad();
+      return number;
+    }
+    if (magnitude.length > 16 ||
         (magnitude.length == 16 &&
             magnitude.compareTo('9007199254740991') > 0)) {
-      _bad();
+      if (!journalSource || integerOnly || at - start > 128) _bad();
+      final metadataNumber = double.tryParse(text.substring(start, at));
+      if (metadataNumber == null || !metadataNumber.isFinite) _bad();
+      // Only unrelated source metadata reaches this branch. The source DTO
+      // drops it; identity, sequence, epoch and revision never accept rounding.
+      return metadataNumber;
     }
-    if (at < text.length && '.eE'.contains(text[at])) _bad();
     return int.parse(text.substring(start, at));
   }
+
+  bool _digitAt() =>
+      at < text.length &&
+      text.codeUnitAt(at) >= 48 &&
+      text.codeUnitAt(at) <= 57;
 
   String _string() {
     final start = at++;

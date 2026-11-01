@@ -259,8 +259,11 @@ memory, connection and MCP editors. Models, Providers and Harness Customization
 are separate pages. Native revision-bound Agent defaults and per-harness model/
 reasoning overrides affect new tasks; accepted tasks retain their provider and
 inspectable model pin. The [owner API](docs/agent-options-api.md) persists settings
-and receipts without placing credentials in the client. Provider provisioning
-and Converse/STT/TTS/Decisions model editing remain host-managed. These new
+and receipts without placing active provider credentials in model preferences.
+The [Providers catalog](docs/adr/0086-owner-provider-catalog.md) adds native
+profile and protected credential-generation forms. Catalog saves do not yet
+apply providers to a role; Converse/STT/TTS/Decisions model editing remains
+host-managed. These new
 controls still require the runtime/concurrency acceptance described in the ADR.
 Global and per-harness [auxiliary text models](docs/adr/0082-task-pinned-auxiliary-models.md)
 support explicit analysis, compression, title, delegated reasoning and harness
@@ -326,9 +329,12 @@ Opening it only reads the current scope. The owner-only Session catalog is
 complete and bounded; disabled listing does not reconcile sources or write data.
 Unconfirmed changes retain bounded RAM latches across dialog close/reopen and
 same-endpoint reconnect; unchanged refresh values cannot settle an old write.
-Namespace access and runtime use remain separate. Note creation still uses the
-owner API; a creation/editor UI, extraction, relevance ranking and improved
-human recall are not provided by this slice.
+Namespace access and runtime use remain separate. The owner can now
+[create a transcript-pinned note, create a revised note and explicitly forget a note](docs/adr/0085-converse-note-editor.md).
+Revision creates another immutable note; forgetting the original is a separate
+action. Exact historical receipts help reconcile uncertain saves without
+recreating erased content. Automatic extraction, relevance ranking and improved
+human recall remain unfinished.
 
 Optional local skill controls are enabled with `"skills": {"enabled": true}` in
 the owner configuration. `/skills list`, `/skills install <local-path>`, and
@@ -353,7 +359,7 @@ records unreconciled effects without copying old execution context into the new
 epoch. Unacknowledged retirement stays paused until explicitly reconciled; MCP
 management remains blocked while any work is nonterminal.
 
-Initial Agent submissions use [native admission](docs/adr/0085-agent-submit-admission.md)
+Initial Agent submissions use [native admission](docs/adr/0087-agent-submit-admission.md)
 to commit the journal entry and its logical idempotency slot together. An
 unconfirmed acknowledgment stays paused and returns an explicit HTTP503; a RAM
 entry alone cannot establish acceptance. Exact retries reconcile the original
