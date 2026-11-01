@@ -8,7 +8,7 @@ import '../config/connection.dart';
 import '../config/service_root.dart';
 import 'provider_settings.dart' show providerJsonDecode;
 
-enum SettingsDomain { model, runtime, control, standing }
+enum SettingsDomain { model, runtime, control, standing, standingDispatch }
 
 class OwnedSettingsFailure implements Exception {
   const OwnedSettingsFailure(
@@ -50,15 +50,21 @@ class OwnedSettingsTransport {
     SettingsDomain.runtime => 'Execution settings',
     SettingsDomain.control => 'Agent mode',
     SettingsDomain.standing => 'Standing work',
+    SettingsDomain.standingDispatch => 'Standing dispatch',
   };
   String get _connectionLabel => switch (domain) {
     SettingsDomain.model => 'model',
     SettingsDomain.runtime => 'execution settings',
     SettingsDomain.control => 'Agent mode',
     SettingsDomain.standing => 'standing work',
+    SettingsDomain.standingDispatch => 'standing dispatch',
   };
   int get _requestBytes => domain == SettingsDomain.standing ? 131072 : 4096;
-  int get _responseBytes => domain == SettingsDomain.standing ? 262144 : 16384;
+  int get _responseBytes => switch (domain) {
+    SettingsDomain.standing => 262144,
+    SettingsDomain.standingDispatch => 32768,
+    _ => 16384,
+  };
   final String baseUrl, _token;
   final http.Client Function() _factory;
   final Duration resultTimeout, cleanupTimeout;
