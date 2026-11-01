@@ -1,5 +1,18 @@
 # Agent Options API 1.0
 
+## Approval expiry and renewal
+
+The existing owner approval list retains expired actions with additive
+`status:pending|expired`. Expiry pauses the same action; approving an expired
+request is refused. Owners may deny, stop, or explicitly renew through
+`POST /v1/approvals/{old_id}/reissue` with strict `ApprovalReissue` fields
+`schema_version`, `action_digest` and `objective_revision`. This creates a fresh
+unapproved request. Typed `ApprovalReissueReceipt` retains both IDs, exact
+digest/revision, replacement expiry and current `replacement_status`.
+The same old-ID/body replays its receipt without allocating another replacement.
+HTTP410 means bounded history is unavailable, not failure proof. See
+[ADR0088](adr/0088-approval-expiry-renewal.md) for native ownership and UI recovery.
+
 Implements [#188](https://github.com/rgoza1996/Kinaiya/issues/188) and
 [ADR0077](adr/0077-options-workspace-and-harness-models.md).
 Every route requires authenticated owner access. Metadata is local inspection,

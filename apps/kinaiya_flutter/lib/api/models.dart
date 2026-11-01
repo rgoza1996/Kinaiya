@@ -305,6 +305,8 @@ class ApprovalRequest {
     this.sessionId = '',
     this.threadId = '',
     this.epoch = 0,
+    this.status = 'pending',
+    this.reissueSupported = false,
   });
 
   factory ApprovalRequest.fromEntry(JournalEntry entry) {
@@ -319,6 +321,30 @@ class ApprovalRequest {
 
   factory ApprovalRequest.fromJson(Map<String, Object?> p) {
     checkSchemaVersion(p, 'PendingApproval');
+    final status = p['status'] ?? 'pending';
+    if (status != 'pending' && status != 'expired') {
+      throw const FormatException('Unsupported approval status');
+    }
+    if (p.containsKey('status')) {
+      final id = p['approval_id'];
+      final digest = p['action_digest'];
+      final revision = p['objective_revision'];
+      final expiry = p['expires_at'];
+      if (id is! String ||
+          id.isEmpty ||
+          id.length > 128 ||
+          digest is! String ||
+          !RegExp(r'^sha256:[a-f0-9]{64}$').hasMatch(digest) ||
+          revision is! int ||
+          revision < 1 ||
+          revision > 9007199254740991 ||
+          expiry is! num ||
+          !expiry.isFinite ||
+          expiry <= 0 ||
+          expiry > 8640000000000) {
+        throw const FormatException('Invalid native approval identity');
+      }
+    }
     return ApprovalRequest(
       approvalId: p['approval_id'] as String? ?? '',
       taskId: p['task_id'] as String? ?? '',
@@ -330,6 +356,8 @@ class ApprovalRequest {
       sessionId: p['session_id'] as String? ?? '',
       threadId: p['thread_id'] as String? ?? '',
       epoch: (p['epoch'] as num?)?.toInt() ?? 0,
+      status: status as String,
+      reissueSupported: p.containsKey('status'),
       expiresAt: p['expires_at'] is num
           ? DateTime.fromMillisecondsSinceEpoch(
               ((p['expires_at'] as num) * 1000).round(),
@@ -350,12 +378,91 @@ class ApprovalRequest {
   final String sessionId;
   final String threadId;
   final int epoch;
+  final String status;
+  final bool reissueSupported;
 
   bool get isExpired {
+    if (status == 'expired') return true;
     if (expiresAt == null || expiresAt!.isEmpty) return false;
     final t = DateTime.tryParse(expiresAt!);
-    return t != null && DateTime.now().toUtc().isAfter(t);
+    return t != null && !DateTime.now().toUtc().isBefore(t);
   }
+}
+
+/// Exact renewal identity retained in RAM until its outcome is confirmed.
+class ApprovalReissueAttempt {
+  ApprovalReissueAttempt(this.approval);
+  final ApprovalRequest approval;
+  bool inFlight = false;
+
+  Map<String, Object?> get body => Map.unmodifiable({
+    'schema_version': schemaVersion,
+    'action_digest': approval.actionDigest,
+    'objective_revision': approval.objectiveRevision,
+  });
+}
+
+/// Historical reissue confirmation, never evidence that approval is active.
+class ApprovalReissueReceipt {
+  ApprovalReissueReceipt.fromJson(Map<String, Object?> json) {
+    checkSchemaVersion(json, 'ApprovalReissueReceipt');
+    if (json['status'] != 'reissued') throw const FormatException();
+    previousApprovalId = _id(json['previous_approval_id']);
+    approvalId = _id(json['approval_id']);
+    final digest = json['action_digest'];
+    if (digest is! String ||
+        !RegExp(r'^sha256:[a-f0-9]{64}$').hasMatch(digest)) {
+      throw const FormatException();
+    }
+    actionDigest = digest;
+    final revision = json['objective_revision'];
+    if (revision is! int || revision < 1 || revision > 9007199254740991) {
+      throw const FormatException();
+    }
+    objectiveRevision = revision;
+    final expiry = json['expires_at'];
+    if (expiry is! num ||
+        !expiry.isFinite ||
+        expiry <= 0 ||
+        expiry > 8640000000000) {
+      throw const FormatException();
+    }
+    expiresAt = DateTime.fromMillisecondsSinceEpoch(
+      (expiry * 1000).round(),
+      isUtc: true,
+    );
+    final replacement = json['replacement_status'];
+    if (!{
+      'pending',
+      'expired',
+      'used',
+      'retired',
+      'unavailable',
+    }.contains(replacement)) {
+      throw const FormatException();
+    }
+    replacementStatus = replacement as String;
+  }
+
+  static String _id(Object? value) {
+    if (value is! String || value.isEmpty || value.length > 128) {
+      throw const FormatException();
+    }
+    return value;
+  }
+
+  late final String previousApprovalId;
+  late final String approvalId;
+  late final String actionDigest;
+  late final int objectiveRevision;
+  late final DateTime expiresAt;
+  late final String replacementStatus;
+
+  bool matches(ApprovalRequest approval) =>
+      previousApprovalId == approval.approvalId &&
+      approvalId != previousApprovalId &&
+      actionDigest == approval.actionDigest &&
+      objectiveRevision == approval.objectiveRevision;
 }
 
 class PendingApprovalPage {

@@ -195,6 +195,9 @@ class AppState extends ChangeNotifier {
   /// evidence for current character activity until the next successful read.
   bool tasksStatusStale = true;
   List<ApprovalRequest> approvals = [];
+
+  /// Same-backend/owner RAM only; retain unknown exact renewal outcomes.
+  final Map<String, ApprovalReissueAttempt> approvalReissues = {};
   List<CommandDef>? commands; // null: registry unavailable (honest).
   bool commandsAvailable = false;
 
@@ -344,6 +347,7 @@ class AppState extends ChangeNotifier {
       agentSession = null;
       tasks = [];
       approvals = [];
+      approvalReissues.clear();
       converseHistory.clear();
       agentHistory.clear();
       converseDraft = '';

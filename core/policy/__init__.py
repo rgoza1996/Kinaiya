@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import secrets
 import time
@@ -32,6 +33,10 @@ class ApprovalError(PolicyDenied):
     """Raised when an approval is missing, stale, expired, or already spent."""
 
 
+class ApprovalReceiptUnavailable(ApprovalError):
+    """Bounded historical renewal metadata is no longer available."""
+
+
 @dataclass
 class Approval:
     approval_id: str
@@ -39,6 +44,10 @@ class Approval:
     objective_revision: int
     expires_at: float
     used: bool = field(default=False)
+    retired: str | None = None
+    replacement_id: str | None = None
+    replacement_expires_at: float | None = None
+    deadline: float | None = None
 
 
 def action_digest(tool: str, arguments: dict[str, Any], objective_revision: int) -> str:
@@ -113,6 +122,7 @@ class ToolPolicy:
             references.append(resolved)
         self.readonly_roots = tuple(references)
         self._approvals: dict[str, Approval] = {}
+        self._approval_owners: set[str] = set()
 
     # -- ownership ------------------------------------------------------
     @staticmethod
@@ -287,17 +297,111 @@ class ToolPolicy:
         return action_digest(tool, _norm_args(arguments), objective_revision)
 
     # -- approvals ------------------------------------------------------
+    MAX_LIVE_APPROVALS = 1024
+    MAX_CLOSED_APPROVALS = 256
+
+    def approval_state(self, approval_id: str) -> str:
+        approval = self._approvals.get(approval_id)
+        if approval is None:
+            return "unavailable"
+        if approval.used:
+            return "used"
+        if approval.retired is not None:
+            return "expired" if approval.retired == "expired" else "retired"
+        expired = approval.expires_at <= time.time() or (
+            approval.deadline is not None and approval.deadline <= time.monotonic()
+        )
+        return "expired" if expired else "pending"
+
+    def prune_approvals(self) -> None:
+        """Bound closed history without evicting a live waiter/dispatch permit."""
+        closed = [
+            key
+            for key in self._approvals
+            if key not in self._approval_owners and self.approval_state(key) != "pending"
+        ]
+        for key in closed[: max(0, len(closed) - self.MAX_CLOSED_APPROVALS)]:
+            del self._approvals[key]
+
+    def retire_approval(self, approval_id: str, reason: str = "retired") -> None:
+        approval = self._approvals.get(approval_id)
+        if approval is not None and (
+            approval.retired is None or approval.retired == "expired" and reason != "expired"
+        ):
+            approval.retired = reason
+            # Closed history is ordered by its most recent native transition.
+            self._approvals[approval_id] = self._approvals.pop(approval_id)
+        self.prune_approvals()
+
+    def release_approval(self, approval_id: str) -> None:
+        self.retire_approval(approval_id)
+        self._approval_owners.discard(approval_id)
+        self.prune_approvals()
+
     def create_approval(
-        self, action_digest_: str, objective_revision: int, ttl_s: float = 300.0
+        self,
+        action_digest_: str,
+        objective_revision: int,
+        ttl_s: float = 300.0,
+        *,
+        retained: bool = False,
+        _replaces: str | None = None,
     ) -> Approval:
+        if (
+            isinstance(ttl_s, bool)
+            or not isinstance(ttl_s, (int, float))
+            or not math.isfinite(ttl_s)
+            or not -3600 <= ttl_s <= 3600
+        ):
+            raise ApprovalError("Approval lifetime is outside the native bound")
+        self.prune_approvals()
+        live = sum(
+            key in self._approval_owners or self.approval_state(key) == "pending"
+            for key in self._approvals
+            if key != _replaces
+        )
+        if live >= self.MAX_LIVE_APPROVALS:
+            raise ApprovalError("Approval capacity requires owner retirement")
         approval = Approval(
             approval_id="apr_" + secrets.token_hex(8),
             action_digest=action_digest_,
             objective_revision=objective_revision,
             expires_at=time.time() + ttl_s,
+            deadline=time.monotonic() + max(0, ttl_s),
         )
         self._approvals[approval.approval_id] = approval
+        if retained:
+            self._approval_owners.add(approval.approval_id)
+        self.prune_approvals()
         return approval
+
+    def reissue_approval(
+        self, approval_id: str, action_digest_: str, objective_revision: int
+    ) -> Approval:
+        """Native same-action replacement; old identity never grants twice."""
+        original = self._approvals.get(approval_id)
+        if original is None:
+            raise ApprovalError("Approval renewal receipt is unavailable")
+        if (original.action_digest, original.objective_revision) != (
+            action_digest_,
+            objective_revision,
+        ):
+            raise ApprovalError("Approval renewal does not match the original action")
+        if original.replacement_id is not None:
+            raise ApprovalError("Approval already has a replacement")
+        if self.approval_state(approval_id) != "expired":
+            raise ApprovalError("Only an expired approval can be renewed")
+        replacement = self.create_approval(
+            action_digest_, objective_revision, retained=True, _replaces=approval_id
+        )
+        original.replacement_id = replacement.approval_id
+        original.replacement_expires_at = replacement.expires_at
+        # New retained ownership replaces the old waiter's slot synchronously.
+        original.retired = "reissued"
+        self._approvals[approval_id] = self._approvals.pop(approval_id)
+        self._approval_owners.discard(approval_id)
+        self.prune_approvals()
+        return replacement
 
     def peek_approval(self, approval_id: str) -> Approval | None:
         return self._approvals.get(approval_id)
@@ -306,16 +410,27 @@ class ToolPolicy:
         self, approval_id: str, action_digest_: str, objective_revision: int
     ) -> Approval:
         """One-use, expiring, digest- and revision-bound approval spend."""
+        approval = self.check_approval(approval_id, action_digest_, objective_revision)
+        approval.used = True
+        self._approvals[approval_id] = self._approvals.pop(approval_id)
+        self.prune_approvals()
+        return approval
+
+    def check_approval(
+        self, approval_id: str, action_digest_: str, objective_revision: int
+    ) -> Approval:
+        """Validate without spending; the effect broker still consumes once."""
         approval = self._approvals.get(approval_id)
         if approval is None:
             raise ApprovalError(f"unknown approval {approval_id!r}")
         if approval.used:
             raise ApprovalError(f"approval {approval_id!r} already spent")
-        if time.time() > approval.expires_at:
+        if approval.retired is not None:
+            raise ApprovalError("approval is retired; a separate owner review is required")
+        if self.approval_state(approval_id) == "expired":
             raise ApprovalError(f"approval {approval_id!r} expired")
         if approval.action_digest != action_digest_:
             raise ApprovalError("approval does not match this action; re-approval required")
         if approval.objective_revision != objective_revision:
             raise ApprovalError("approval is for a stale objective revision")
-        approval.used = True
         return approval

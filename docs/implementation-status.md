@@ -11,6 +11,12 @@ The owner requested reconciliation before further feature work. Inputs were the 
 
 ## October 31 Options increment
 
+[ADR0088](adr/0088-approval-expiry-renewal.md) adds visible paused approval
+expiry, exact owner renewal into a separately reviewed permit and bounded
+broker history. It preserves final one-use enforcement and unknown-receipt
+handling. Static checks and PR-specific CI remain distinct; broader scoped
+read/per-tool permission rules are still unfinished.
+
 The owner-confirmed [full Options goal](options-delivery-plan.md) is tracked by
 [#208](https://github.com/rgoza1996/Kinaiya/issues/208), alongside ongoing #196
 and multimodal #204. [ADR0084](adr/0084-owner-execution-settings.md) adds native

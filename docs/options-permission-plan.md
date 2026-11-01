@@ -76,9 +76,9 @@ narrow native action-admission boundary while preserving worker ownership:
 - Journal bounded permission provenance at actual admission. Keep private
   credentials and unnecessary absolute workspace paths out of model context.
 
-### Existing approval-expiry gap
+### Approval-expiry prerequisite
 
-Current `pending_approvals` hides expired approvals, while `_await_approval`
+The inspected baseline's `pending_approvals` hid expired approvals, while `_await_approval`
 waits for its resume event without an expiry wake/reissue path. The policy
 broker also retains used/expired records without pruning. A task can therefore
 remain Awaiting Approval with no visible pending row; adding more Ask actions
@@ -89,6 +89,11 @@ reissue or retirement, with truthful pending/expired/used/cancelled state.
 Pruning must preserve references needed by live tasks and in-flight dispatch.
 An expired row disappearing is not evidence that a task finished or stopped.
 Renewal must not automatically rerun inference or side effects.
+
+[ADR0088](adr/0088-approval-expiry-renewal.md) implements this bounded lifecycle
+prerequisite: visible paused expiry, exact owner renewal into a separately
+reviewed permit, explicit retirement and bounded broker history. See its PR for
+verification. Precise scoped rules remain unfinished.
 
 ## Owner storage, API and Options
 

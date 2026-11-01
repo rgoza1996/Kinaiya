@@ -785,6 +785,24 @@ class KinaiyaClient {
     );
   }
 
+  Future<ApprovalReissueReceipt> reissueApproval(
+    ApprovalReissueAttempt attempt,
+  ) async {
+    final receipt = ApprovalReissueReceipt.fromJson(
+      await _post(
+        agentBase,
+        '/v1/approvals/${Uri.encodeComponent(attempt.approval.approvalId)}/reissue',
+        attempt.body,
+      ),
+    );
+    if (!receipt.matches(attempt.approval)) {
+      throw const FormatException(
+        'Approval renewal confirmation does not match',
+      );
+    }
+    return receipt;
+  }
+
   Future<Map<String, Object?>> agentCapabilities() =>
       _get(agentBase, '/v1/agents/capabilities');
 
