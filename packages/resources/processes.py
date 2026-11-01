@@ -730,6 +730,7 @@ class WorkerManager:
             }
 
     async def close(self) -> None:
+        """Stop every worker, retaining cleanup authority for any incomplete stop."""
         async with self._lock:
             self._closed = True
             failures: list[str] = []
@@ -740,8 +741,6 @@ class WorkerManager:
                         failures.append(f"{wid}:{result.get('error')}")
                 except Exception as exc:  # keep stopping every other worker
                     failures.append(f"{wid}:{type(exc).__name__}")
-            for managed in self._workers.values():
-                self._release_handles(managed)  # terminal: no live handle may leak
             if failures:
                 raise RuntimeError(
                     f"close incomplete; attempted all workers: {'; '.join(failures)}"
@@ -1106,7 +1105,7 @@ class WorkerManager:
 
     @staticmethod
     def _release_handles(managed: _Managed) -> None:
-        """Close pidfds. Only call after verified cleanup, or terminally in close()."""
+        """Close pidfds only after verified cleanup."""
         if managed.leader_fd is not None:
             try:
                 os.close(managed.leader_fd)
