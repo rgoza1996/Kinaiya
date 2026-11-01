@@ -319,6 +319,21 @@ class StandingResourceFinalizationOwner:
         binding, report = self._schema(state)
         return state, binding, report
 
+    def check_reservation(self, original):
+        """Join a possible new reservation inside its caller's transaction."""
+        state, binding, _ = self._observation()
+        if binding is None:
+            return  # Existing unbound claims retain their original protocol.
+        if (
+            original.resource_backend != binding.resource_backend
+            or original.resource_instance != binding.resource_instance
+            or original.context.standing is None
+            or finalization_bytes(original.context.standing.claim)
+            != finalization_bytes(binding.claim)
+            or finalization_bytes(state[2]) != finalization_bytes(binding.claim)
+        ):
+            raise StandingConflict
+
     @_native
     def register(self) -> None:
         if self._closed or self._failed:

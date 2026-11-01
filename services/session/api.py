@@ -130,6 +130,7 @@ def create_app(
     standing_resource_finalization_owner = StandingResourceFinalizationOwner(
         store, control, standing_task_owner, standing_resource_owner
     )
+    standing_resource_owner.register_finalization_owner(standing_resource_finalization_owner)
     standing_resource_finalization_initialized = False
     try:
         standing_resource_finalization_owner.register()

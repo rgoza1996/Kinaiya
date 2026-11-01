@@ -56,6 +56,23 @@ class StandingResourceOwner:
         self.store, self.control, self.tasks = store, control, tasks
         self._registered = self._closed = self._failed = False
         self._backend = self._instance = None
+        self._finalization_owner = None
+
+    def register_finalization_owner(self, owner):
+        from services.session.standing_resource_finalization import (
+            StandingResourceFinalizationOwner,
+        )
+
+        if (
+            self._finalization_owner is not None
+            or type(owner) is not StandingResourceFinalizationOwner
+            or owner.resources is not self
+            or owner.store is not self.store
+            or owner.control is not self.control
+            or owner.tasks is not self.tasks
+        ):
+            raise StandingUnavailable
+        self._finalization_owner = owner
 
     def close(self):
         self._closed = True
@@ -349,6 +366,10 @@ class StandingResourceOwner:
             raise StandingConflict
         if self.tasks._closures.observe(meta, claim, initial) is not None:
             raise StandingConflict
+        if self._finalization_owner is not None:
+            # This runs in the existing reservation transaction both before
+            # INSERT and immediately before COMMIT. Never nest a public lookup.
+            self._finalization_owner.check_reservation(original)
 
     @_native
     def reserve(
