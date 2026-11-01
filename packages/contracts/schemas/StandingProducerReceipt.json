@@ -1,0 +1,91 @@
+{
+  "$defs": {
+    "StandingProducerRenewal": {
+      "additionalProperties": false,
+      "description": "Renewal identity only; the native controller owns the monotonic clock.",
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "expected_backend": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Expected Backend",
+          "type": "string"
+        },
+        "expected_instance": {
+          "maxLength": 36,
+          "minLength": 36,
+          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+          "title": "Expected Instance",
+          "type": "string"
+        },
+        "producer_id": {
+          "maxLength": 36,
+          "minLength": 36,
+          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+          "title": "Producer Id",
+          "type": "string"
+        },
+        "sequence": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Sequence",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schema_version",
+        "expected_backend",
+        "expected_instance",
+        "producer_id",
+        "sequence"
+      ],
+      "title": "StandingProducerRenewal",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "An acknowledged renewal packet, without a claim of current liveness.",
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "request": {
+      "$ref": "#/$defs/StandingProducerRenewal"
+    },
+    "lease_token": {
+      "maxLength": 36,
+      "minLength": 36,
+      "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+      "title": "Lease Token",
+      "type": "string"
+    },
+    "issued_monotonic_ms": {
+      "maximum": 9007199254725991,
+      "minimum": 0,
+      "title": "Issued Monotonic Ms",
+      "type": "integer"
+    },
+    "expires_monotonic_ms": {
+      "maximum": 9007199254740991,
+      "minimum": 15000,
+      "title": "Expires Monotonic Ms",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema_version",
+    "request",
+    "lease_token",
+    "issued_monotonic_ms",
+    "expires_monotonic_ms"
+  ],
+  "title": "StandingProducerReceipt",
+  "type": "object"
+}

@@ -1,0 +1,52 @@
+{
+  "additionalProperties": false,
+  "description": "Minimal current revision/authority projection without another full request.",
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "backend_id": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Backend Id",
+      "type": "string"
+    },
+    "instance_id": {
+      "maxLength": 36,
+      "minLength": 36,
+      "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+      "title": "Instance Id",
+      "type": "string"
+    },
+    "responsibility_id": {
+      "maxLength": 36,
+      "minLength": 36,
+      "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+      "title": "Responsibility Id",
+      "type": "string"
+    },
+    "revision": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "title": "Revision",
+      "type": "integer"
+    },
+    "control_writable": {
+      "title": "Control Writable",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "schema_version",
+    "backend_id",
+    "instance_id",
+    "responsibility_id",
+    "revision",
+    "control_writable"
+  ],
+  "title": "StandingCurrent",
+  "type": "object"
+}
