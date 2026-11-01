@@ -66,7 +66,7 @@ Kinaiya pairs a personable, real-time voice experience with an agent that can do
 
 The long-term product scope also includes resource-aware operation, provider choice, durable work, skills and MCP tools, mobile calling, and optional intelligent UI. Those are planned capabilities, not promises that every feature will ship in one release.
 
-The [Roadmap 0.3.1](Roadmap.md) retains the October 30 reconciliation and adds the October 31 clarification on model choice, stack recommendations and architectural performance research. The [implementation and acceptance ledger](docs/implementation-status.md) distinguishes implemented slices, experiments, unverified gates and planned work at source `f92f6d1`; it is the consolidated progress record. Partial resource/ecosystem/mobile foundations do not establish completion of the full product scope above.
+The [Roadmap 0.3.2](Roadmap.md) retains the October 30 reconciliation, October 31 model-choice/performance clarification and November 1 optional Omni Converse paths. The [implementation and acceptance ledger](docs/implementation-status.md) distinguishes implemented slices, experiments, unverified gates and planned work at source `f92f6d1`; it is the consolidated progress record. Partial resource/ecosystem/mobile foundations do not establish completion of the full product scope above.
 
 
 ## Status

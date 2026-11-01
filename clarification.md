@@ -180,6 +180,8 @@ The present document establishes the intended design and interpretation. Individ
 
 Decisions does not replace the conversational LLM, Agent's reasoning and planning, or the complete transcript. Its classifications are routing and timing instructions, not authoritative statements that work has started, stopped, or succeeded.
 
+The November 1 clarification in [§18](#18-optional-omni-converse-and-direct-multimodal-decisions) adds a qualified native full-duplex timing option and direct media input to multimodal Decisions. Transcript windows remain the text-based path; they are not a mandatory prerequisite for a verified media-aware classifier. Agent routing and transcript persistence remain independent in every path.
+
 ### 10.1 Converse-facing conversational outcomes
 
 On each suitable streaming transcript window, Decisions may select one of four conversational behaviors:
@@ -651,3 +653,15 @@ These are interpretation and evaluation requirements. They do not claim that eve
 The owner's third proposed scenario—asking Kinaiya to acquire sign-language understanding by constructing, compiling or integrating a durable executable recognition pipeline—is already explained in §4.2. For explicit end-to-end acceptance, measure the request → capability-gap investigation → authorized executable integration → independent testing on held-out language-appropriate signs and sequences → registration and reuse across compatible model replacements. A working binary or isolated hand-gesture classifier does not itself establish sign-language understanding.
 
 **Interpretation:** These three owner-proposed tests evaluate different research claims: authorized multimodal perception, voice-directed evidence-backed harness improvement, and autonomous executable capability acquisition. All remain unqualified until actually run and independently evaluated.
+
+## 18. Optional Omni Converse and Direct Multimodal Decisions
+
+**Owner clarification, November 1, 2026.** Preserve the modular speech → transcription → Converse timing decision → text response → TTS path, and add an optional single-model multimodal Converse path with native text and/or speech output. A qualified full-duplex model/runtime may manage its own conversational timing; a non-duplex Omni path retains the separate Converse-facing timing gate. Agent-facing routing remains asynchronous and separate from either choice. Neither path adds fixed artificial silence or waits for Agent work.
+
+If the selected Decisions model and backend accept audio, video or images, provide those authorized bounded media directly without waiting for transcription. Transcription proceeds in parallel for history, accessibility and text-based consumers. A text-only classifier retains its transcript bridge. Model declarations alone do not establish installed transport support, continuous streaming, full duplex, routing quality or permission to capture/disclose media.
+
+The two paths in §10.3 remain mandatory: Decisions selects relevant transcript sections/references for Agent's immediate attention; the complete transcript is kept independently and Agent may retrieve it on demand, including ignored/unselected sections, under the owner's retention/access policy. Selective routing is not history filtering, and direct multimodal decisions do not block transcript persistence or cause the full history to be repeatedly forwarded.
+
+Use native input transcripts and aligned reply text where available. For speech without corresponding text, transcribe the relevant user or assistant audio incrementally. Reuse a retained streaming ASR session whenever the selected backend supports it; repeatedly decoded rolling-window fallback is reserved for backends that require it. An Omni answer is not a user transcript. Keep speaker provenance, media timestamps and common source/session/epoch/revision identities so media decisions and later transcript revisions cannot dispatch the same instruction twice. Generated speech remains separate from what actually played, and interruption/reset fences stale input, generation, transcription and playback.
+
+Qwen2.5-Omni-7B and LFM3 Omni are candidate Converse choices; LFM3 d1 Omni is a candidate direct-media Decisions choice. Whole-stack GPU footprint, codecs/projectors, KV/cache settings, any required transcription side channel, cancellation and real interaction quality still need qualification. These are added requirements, not implemented production capabilities. See [Roadmap §7.2.2](Roadmap.md#722-optional-omni-input-and-native-speech-output), AT64–AT66 and [#204](https://github.com/rgoza1996/Kinaiya/issues/204).
