@@ -67,3 +67,40 @@ def test_bootstrap_preflight_failure_happens_before_feed_or_cache(bootstrap, tmp
     monkeypatch.setattr(bootstrap, "resolve", lambda *a: pytest.fail("must not fetch release"))
     with pytest.raises(bootstrap.BootstrapError, match="namespace"):
         bootstrap.run(["--yes", "--no-setup"])
+
+
+@pytest.mark.parametrize("header_type", [b"x", b"g", b"L"])
+@pytest.mark.parametrize("extractor", ["bootstrap", "managed"])
+def test_extractors_reject_hidden_extension_metadata(bootstrap, tmp_path, header_type, extractor):
+    import hashlib
+    import tarfile
+
+    from services.distribution.installation import InstallError, unpack_source
+
+    archive = tmp_path / "source.tar.gz"
+    with tarfile.open(archive, "w:gz", format=tarfile.USTAR_FORMAT) as tar:
+        member = tarfile.TarInfo("hidden-extension")
+        member.type = header_type
+        payload = b"131072 comment=" + b"x" * (131072 - 16) + b"\n"
+        if header_type == b"L":
+            payload = b"pyproject.toml\0" + b"\0" * 131057
+        member.size = len(payload)
+        tar.addfile(member, io.BytesIO(payload))
+        for name in ("pyproject.toml", "requirements-runtime.lock"):
+            member = tarfile.TarInfo(name)
+            member.size = 1
+            tar.addfile(member, io.BytesIO(b"#"))
+    destination = tmp_path / "output"
+    with pytest.raises((bootstrap.BootstrapError, InstallError), match="regular|extension"):
+        if extractor == "bootstrap":
+            bootstrap.unpack(archive, destination)
+        else:
+            unpack_source(
+                archive,
+                destination,
+                {
+                    "size": archive.stat().st_size,
+                    "sha256": hashlib.sha256(archive.read_bytes()).hexdigest(),
+                },
+            )
+    assert not any(destination.iterdir())

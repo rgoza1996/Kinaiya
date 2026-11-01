@@ -155,10 +155,17 @@ def download(artifact, target):
     require(total == artifact["size"] and digest.hexdigest() == artifact["sha256"], "Bootstrap artifact size/digest mismatch")
 
 
+class _BootstrapTarInfo(tarfile.TarInfo):
+    def _proc_member(self, archive):
+        # Reject hidden extension headers before tarfile allocates their metadata.
+        require(self.type in (tarfile.REGTYPE, tarfile.AREGTYPE, tarfile.DIRTYPE), "Unsafe archive: only regular files/directories; extension headers refused")
+        return super()._proc_member(archive)
+
+
 def unpack(archive, destination):
     destination.mkdir(mode=0o700)
     names, total = set(), 0
-    with tarfile.open(archive, "r|gz") as tar:
+    with tarfile.open(archive, "r|gz", tarinfo=_BootstrapTarInfo) as tar:
         for member in tar:
             path = PurePosixPath(member.name)
             total += member.size

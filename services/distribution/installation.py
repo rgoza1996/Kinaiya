@@ -18,6 +18,7 @@ from contextlib import contextmanager, redirect_stdout
 from dataclasses import asdict, dataclass
 from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
+from typing import Any, cast
 from urllib.parse import urlsplit
 
 
@@ -202,6 +203,17 @@ def source_artifact(release):
     return artifacts[0]
 
 
+class _SourceTarInfo(tarfile.TarInfo):
+    def _proc_member(self, archive):
+        # This hook precedes stdlib PAX/GNU payload parsing and allocation.
+        if self.type not in (tarfile.REGTYPE, tarfile.AREGTYPE, tarfile.DIRTYPE):
+            raise InstallError(
+                "Unsafe archive: only regular files/directories; extension headers refused"
+            )
+        # The private stdlib hook is intentionally absent from typeshed.
+        return cast(Any, tarfile.TarInfo)._proc_member(self, archive)
+
+
 def unpack_source(archive, destination, artifact):
     from packages.distribution.releases import ReleaseError, verify_artifact
 
@@ -214,7 +226,7 @@ def unpack_source(archive, destination, artifact):
     try:
         # Stream and bound members before extracting; never delegate path/link handling
         # to tar.extractall, and never allow links, devices, sparse or duplicate entries.
-        with tarfile.open(archive, "r|gz") as tar:
+        with tarfile.open(archive, "r|gz", tarinfo=_SourceTarInfo) as tar:
             for member in tar:
                 path = PurePosixPath(member.name)
                 total += member.size
