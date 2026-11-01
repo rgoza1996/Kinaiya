@@ -498,7 +498,13 @@ def create_app(
                     {sender, self.stream.monitor}, return_when=asyncio.FIRST_COMPLETED
                 )
                 if sender in done:
-                    await sender
+                    try:
+                        await sender
+                    except HTTPException as exc:
+                        # Both tasks can finish before wait resumes. Only the
+                        # monitor's own disconnect is an expected stream exit.
+                        if exc is not self.stream.monitor_failure or exc.status_code != 499:
+                            raise
                 elif self.stream.monitor_failure is not None:
                     if self.stream.monitor_failure.status_code != 499:
                         raise self.stream.monitor_failure
