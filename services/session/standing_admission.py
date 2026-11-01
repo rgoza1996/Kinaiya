@@ -5,6 +5,7 @@ import time
 from contextlib import contextmanager
 
 from packages.contracts.agent_control import MAX_AGENT_CONTROL_INTEGER
+from packages.contracts.agent_export import AgentExportAdmission
 from packages.contracts.standing_admission import (
     MAX_STANDING_INITIAL_PROOF_BYTES,
     StandingInitialProof,
@@ -17,6 +18,11 @@ from packages.contracts.standing_execution import (
     capability_digest,
     standing_initial_request,
 )
+from packages.contracts.standing_export import (
+    StandingExportAdmission,
+    StandingExportRequest,
+    standing_export_digest,
+)
 from packages.contracts.standing_work import (
     StandingConflict,
     StandingUnavailable,
@@ -25,6 +31,7 @@ from packages.contracts.standing_work import (
     canonical_bytes,
     standing_json,
 )
+from packages.providers.disclosure import combine_scopes, scope_allowed
 from services.session.standing_execution import _native
 
 _TABLE = "standing_task_admissions"
@@ -448,3 +455,61 @@ class StandingTaskOwner:
                 if proof is not None:
                     return proof.validate_request(request)
             return None
+
+    @_native
+    def export_admission(
+        self, original: StandingExportRequest, *, deadline=None, cancelled=None
+    ) -> StandingExportAdmission:
+        deadline = self.claims._options(deadline, cancelled)
+        if type(original) is not StandingExportRequest:
+            raise StandingUnavailable
+        original = _checked(original, StandingExportRequest)
+        self._guard(deadline, cancelled)
+
+        def observe():
+            self._guard(deadline, cancelled)
+            meta, _, _, _, _, _, proof = self._observation()
+            self._guard(deadline, cancelled)
+            if proof is None or canonical_bytes(proof) != canonical_bytes(original.initial):
+                raise StandingConflict
+            request = proof.claim.request
+            record = self.owner._record(
+                request.responsibility_id, request.authorization_revision, meta
+            )
+            self._guard(deadline, cancelled)
+            # The accepted grant remains historical; the actual Session must
+            # still be the captured Agent session/thread/epoch for this export.
+            self.owner._agent_session(record.receipt.request)
+            self._guard(deadline, cancelled)
+            return proof
+
+        def commit_guard():
+            observe()
+            self._guard(deadline, cancelled)
+
+        with self._transaction(commit_guard):
+            proof = observe()
+            effective = combine_scopes(
+                proof.claim.request.task.content_scope, original.export.content_scope
+            )
+            if not scope_allowed(original.export.provider, effective):
+                raise StandingConflict
+            row = self._one("SELECT max(sequence) FROM entries")
+            self._guard(deadline, cancelled)
+            sequence = row[0]
+            if type(sequence) is not int or not 0 <= sequence <= MAX_AGENT_CONTROL_INTEGER:
+                raise StandingUnavailable
+            admitted = AgentExportAdmission(
+                **original.export.model_dump(mode="python"),
+                binding_sha256=original.export.binding_digest(),
+                effective_scope=effective,
+                journal_sequence=sequence,
+            )
+            result = StandingExportAdmission(
+                schema_version="1.0",
+                request_digest=standing_export_digest(original),
+                admission=admitted,
+            ).validate_request(original)
+            self._guard(deadline, cancelled)
+        self._guard(deadline, cancelled)
+        return result

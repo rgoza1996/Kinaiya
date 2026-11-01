@@ -499,6 +499,55 @@ class Store:
         request = AgentExportRequest.model_validate(request)
         try:
             with self.lock:
+                # A standing initial cannot acquire disclosure authority by
+                # presenting the old owner/Decisions packet, even if one native
+                # projection or the initial entry is missing/corrupted.
+                try:
+                    standing = self.db.execute(
+                        "WITH native AS (SELECT kind,writer,"
+                        "CASE WHEN typeof(request)='text' AND length(CAST(request AS BLOB)) "
+                        "BETWEEN 1 AND 65536 THEN CASE WHEN json_valid(request) THEN request END "
+                        "END AS req,"
+                        "CASE WHEN typeof(value)='text' AND length(CAST(value AS BLOB)) "
+                        "BETWEEN 1 AND 69632 THEN CASE WHEN json_valid(value) THEN value END "
+                        "END AS val FROM entries) "
+                        "SELECT 1 FROM native WHERE (kind='agent.standing-command' "
+                        "OR writer='standing-supervisor' "
+                        "OR json_extract(req,'$.kind')='agent.standing-command' "
+                        "OR json_extract(val,'$.kind')='agent.standing-command') AND ("
+                        "req IS NULL OR val IS NULL "
+                        "OR coalesce(json_type(req,'$.payload.task_id'),'')!='text' "
+                        "OR coalesce(json_type(val,'$.payload.task_id'),'')!='text' "
+                        "OR json_extract(req,'$.payload.task_id')=? "
+                        "OR json_extract(val,'$.payload.task_id')=? "
+                        "OR EXISTS(SELECT 1 FROM json_each(req,'$.task_refs') "
+                        "WHERE type='text' AND value=?) "
+                        "OR EXISTS(SELECT 1 FROM json_each(val,'$.task_refs') "
+                        "WHERE type='text' AND value=?)) LIMIT 1",
+                        (request.task_id,) * 4,
+                    ).fetchone()
+                    table = self.db.execute(
+                        "SELECT type FROM sqlite_schema WHERE name='standing_task_admissions'"
+                    ).fetchone()
+                    if table is not None:
+                        if table["type"] != "table":
+                            raise JournalError("Standing export authority is unavailable")
+                        linked = self.db.execute(
+                            "WITH native AS (SELECT CASE WHEN typeof(proof)='text' "
+                            "AND length(CAST(proof AS BLOB)) BETWEEN 1 AND 163840 "
+                            "THEN CASE WHEN json_valid(proof) THEN proof END END AS body "
+                            "FROM standing_task_admissions) SELECT 1 FROM native "
+                            "WHERE body IS NULL OR coalesce(json_type(body,"
+                            "'$.claim.request.task.task_id'),'')!='text' "
+                            "OR json_extract(body,'$.claim.request.task.task_id')=? LIMIT 1",
+                            (request.task_id,),
+                        ).fetchone()
+                    else:
+                        linked = None
+                    if standing is not None or linked is not None:
+                        raise JournalError("Standing tasks require standing export admission")
+                except Exception:
+                    raise JournalError("Standing export authority is unavailable") from None
                 session = self.session(request.session_id)
                 if (session.thread_id, session.epoch) != (request.thread_id, request.epoch):
                     raise JournalError("Agent export source authority is unavailable")
