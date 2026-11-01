@@ -536,7 +536,13 @@ class Store:
                         from packages.contracts.standing_work import canonical_bytes
 
                         links = self.db.execute(
-                            "SELECT claim_id,event_id,sequence,CASE WHEN typeof(proof)='text' "
+                            "SELECT CASE WHEN typeof(claim_id)='text' "
+                            "AND length(CAST(claim_id AS BLOB))=64 THEN claim_id END AS claim_id,"
+                            "CASE WHEN typeof(event_id)='text' "
+                            "AND length(CAST(event_id AS BLOB)) BETWEEN 1 AND 512 "
+                            "THEN event_id END AS event_id,"
+                            "CASE WHEN typeof(sequence)='integer' THEN sequence END AS sequence,"
+                            "CASE WHEN typeof(proof)='text' "
                             "AND length(CAST(proof AS BLOB)) BETWEEN 1 AND 163840 "
                             "THEN proof END AS body FROM standing_task_admissions LIMIT 2"
                         ).fetchall()
