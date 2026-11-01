@@ -5,7 +5,7 @@ Requirement: [Roadmap §13.1](../Roadmap.md#131-operating-modes),
 [#217](https://github.com/rgoza1996/Kinaiya/issues/217).
 The strict version 1.0 wire grammar is implemented; native enforcement and the
 owner panel are being integrated. This document does not establish qualification
-or completion. See [ADR0093](adr/0093-agent-operating-modes.md).
+or completion. See [ADR0097](adr/0097-agent-operating-modes.md).
 
 ## Ownership and routes
 
@@ -68,6 +68,8 @@ An unknown arbitrary generation is a conflict. Off, temporary busy state,
 read-only observation, equal values or a future expected revision do not prove
 absence. Database replacement is a foreign backend, even at the same URL.
 This protocol assumes protected, unforked, non-rolled-back native storage.
+Quiesce older Session/Agent binaries before enabling this authority: code that
+does not participate in native mode admission cannot enforce the new setting.
 
 ## Active work and steering
 
@@ -120,3 +122,19 @@ A public timeout, facade close or logical settlement does not release an actual
 owner before genuine cleanup. Model/runtime semantics retain their own contracts.
 Historical receipt and current observed mode are separate UI states; unsupported
 Autonomous and unknown mode remain explicit rather than inferred from health.
+
+The native journal retains at most 10,000 controller generations, mode-change
+proofs and steering intents in each respective table. Reaching a limit refuses
+new records; this slice provides no pruning or history-compaction protocol.
+Exact retained proofs remain readable. These are protected-store lifetime limits,
+not claims about standing-work throughput.
+
+The Agent HTTP steering operation has a 25-second public boundary. Its preparation,
+native admission and fresh-authority phases use 5-, 15- and 5-second guards.
+Runtime initial-submit and steering operations share the existing 128-operation
+owner limit; nested native exchanges consume that pool too. JournalClient
+separately bounds its shared actual exchanges to 64. Timed-out or cancelled
+operations retain actual ownership until settlement. An internal direct runtime
+call has passive preparation guards and can remain awaiting an uncooperative
+source adapter; the production HTTP route supplies the outer deadline. These
+limits do not assert a separate Session request-ingress time limit.

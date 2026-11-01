@@ -1,4 +1,4 @@
-# ADR0093 — Native Agent operating modes
+# ADR0097 — Native Agent operating modes
 
 Status: contract accepted; native/client implementation and qualification in progress.
 Requirement: Roadmap §13.1 and §19.2; [#217](https://github.com/rgoza1996/Kinaiya/issues/217),
