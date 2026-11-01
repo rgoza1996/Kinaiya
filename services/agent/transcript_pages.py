@@ -431,7 +431,7 @@ async def read_transcript(runtime, rec, args):
         for entry in retained:
             fresh = await call("resolve" if view == "resolved" else "entry", entry.event_id)
             fresh_bytes = transcript_bytes(checked_entry(fresh))
-            if fresh_bytes != selected_views[entry.event_id]:
+            if fresh_bytes != transcript_bytes(entry):
                 raise ToolFailure("Transcript entry changed; restart the page")
             selected_raw[entry.event_id] = (
                 fresh_bytes
