@@ -1,0 +1,111 @@
+{
+  "schema_version": "1.0",
+  "capture_date": "2026-11-01",
+  "recorded_at_utc": "2026-11-01T15:46:48.009064+00:00",
+  "capture_method": "Raw CUA JPEG screenshots of the running Flutter application",
+  "source_commit": "ffed567aae4046b6c9373956e0fce2d73d91985f",
+  "visible_build_label": "options-handoff-integration",
+  "publication_base_commit": "c4d86bf0a6ccbf155d9a3035633d16d0600eabc1",
+  "flutter_tree": "2a0289ad4daeeb6bfb159c242606685264d86716",
+  "flutter_tree_matches_publication_base": true,
+  "preview": {
+    "kind": "Settings integration preview",
+    "port": 8808,
+    "data": "fixture model metadata and an empty Agent workspace",
+    "actions": "Inspection only; no inference, audio, task execution, model loading, or settings save during capture."
+  },
+  "processing": "None: original complete JPEG bytes copied without crop, retouch, resize, or re-encoding.",
+  "timestamp_note": "capture_date is the recorded session date; individual source_file_mtime_utc values are file timestamps, not independently verified shutter timestamps.",
+  "images": [
+    {
+      "file": "12-converse.jpg",
+      "view": "Converse",
+      "description": "Character and empty conversation view.",
+      "sha256": "4a2354d114c4791bcf2c6e0a7cc454429aad8e06fe274f588ee81639dc996a85",
+      "bytes": 138941,
+      "width": 2293,
+      "height": 1573,
+      "source_file_mtime_utc": "2026-11-01T15:40:47.807338+00:00"
+    },
+    {
+      "file": "07-agent-workspace.jpg",
+      "view": "Agent workspace",
+      "description": "Selected Seed Agent, empty sessions, task details and read-only unknown operating mode.",
+      "sha256": "d5034319083b3a68b0c5568a1a540999616a29cc2fb12d4db9fe4d12942c345f",
+      "bytes": 106660,
+      "width": 2065,
+      "height": 1416,
+      "source_file_mtime_utc": "2026-11-01T15:31:52.913281+00:00"
+    },
+    {
+      "file": "10-options-connected.jpg",
+      "view": "Options",
+      "description": "Category navigation and character artwork.",
+      "sha256": "a304744a03ef6600e248566a40896059167b4502ce85a40577f3b38d999f4954",
+      "bytes": 223442,
+      "width": 2065,
+      "height": 1416,
+      "source_file_mtime_utc": "2026-11-01T15:34:37.597888+00:00"
+    },
+    {
+      "file": "08-home-connected.jpg",
+      "view": "Home",
+      "description": "Character hub with no Agent session selected.",
+      "sha256": "cd51c2e83a4cc53b20948216054e1e6b5a1f670dbb306c1d8ef124eeb46398d2",
+      "bytes": 283989,
+      "width": 2065,
+      "height": 1416,
+      "source_file_mtime_utc": "2026-11-01T15:32:02.599244+00:00"
+    },
+    {
+      "file": "09-floating-bubbles.jpg",
+      "view": "Floating controls",
+      "description": "Home setup bubbles and fixture model label.",
+      "sha256": "902ce18e7ba8ebfec514a0beb7935002016550d7319dd6377f1a096a88340df9",
+      "bytes": 306971,
+      "width": 2065,
+      "height": 1416,
+      "source_file_mtime_utc": "2026-11-01T15:32:08.935221+00:00"
+    },
+    {
+      "file": "04-models.jpg",
+      "view": "Models",
+      "description": "Separate role editors with fixture model metadata and unknown readiness.",
+      "sha256": "685d0486a09d5d3a7641520c478c926ad00148be44728da1a37a66b213ee53d4",
+      "bytes": 142249,
+      "width": 2065,
+      "height": 1416,
+      "source_file_mtime_utc": "2026-11-01T15:30:01.640048+00:00"
+    },
+    {
+      "file": "05-tools.jpg",
+      "view": "Tools",
+      "description": "Native tool availability and authorization metadata.",
+      "sha256": "219c063554778aa983247c6a5acd455b66453b2b0fe48e51317fbb9ad87106a1",
+      "bytes": 140617,
+      "width": 2065,
+      "height": 1416,
+      "source_file_mtime_utc": "2026-11-01T15:30:15.012156+00:00"
+    },
+    {
+      "file": "06-permissions.jpg",
+      "view": "Permissions",
+      "description": "Default scoped tool rules with Allow, Deny and Ask behavior.",
+      "sha256": "145963a1b9206033e1c8ca7f0063fd93e3988a12b5c413c4cdf52e423b7629b7",
+      "bytes": 147698,
+      "width": 2065,
+      "height": 1416,
+      "source_file_mtime_utc": "2026-11-01T15:30:29.336272+00:00"
+    },
+    {
+      "file": "11-about-connected.jpg",
+      "view": "About",
+      "description": "Visible build label and full source commit.",
+      "sha256": "b190ab55150d607f87dbb8a12db5f949aa31c2f75be46ea72c4056f8ebff7566",
+      "bytes": 43387,
+      "width": 2065,
+      "height": 1416,
+      "source_file_mtime_utc": "2026-11-01T15:34:45.332880+00:00"
+    }
+  ]
+}
