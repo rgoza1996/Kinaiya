@@ -12,6 +12,8 @@ from packages.contracts import (
     context,
     converse_models,
     converse_setup,
+    decisions,
+    decisions_models,
     memory,
     memory_catalog,
     memory_context,
@@ -69,10 +71,19 @@ for cls in (
     stt_models.STTModelSelection,
     stt_models.STTModelChange,
     models.STTModelPin,
+    decisions_models.DecisionsModelSelection,
+    decisions_models.DecisionsModelChange,
+    decisions_models.DecisionsModelPin,
     workspace_settings.WorkspaceSelection,
     workspace_settings.WorkspaceChange,
     workspace_settings.WorkspacePin,
 ):
     (target / f"{cls.__name__}.json").write_text(
         json.dumps(cls.model_json_schema(), indent=2) + "\n"
+    )
+
+# Private capture records use their existing canonical key ordering.
+for cls in (decisions.DecisionsCallStart, decisions.DecisionsCallFinish):
+    (target / f"{cls.__name__}.json").write_text(
+        json.dumps(cls.model_json_schema(), indent=2, sort_keys=True) + "\n"
     )

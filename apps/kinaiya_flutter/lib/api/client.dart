@@ -28,6 +28,7 @@ import 'provider_client.dart';
 import 'tool_permissions_client.dart';
 import 'converse_model_client.dart';
 import 'stt_model_client.dart';
+import 'decisions_model_client.dart';
 import 'auxiliary_route_client.dart';
 import '../config/service_root.dart';
 
@@ -81,11 +82,13 @@ class KinaiyaClient {
     required String sessionBase,
     required String agentBase,
     required String converseBase,
+    String? decisionsBase,
     required String ownerToken,
     http.Client? httpClient,
     http.Client Function()? memoryClientFactory,
     http.Client Function()? sttModelClientFactory,
     http.Client Function()? decisionsClientFactory,
+    http.Client Function()? decisionsModelClientFactory,
     http.Client Function()? agentWorkspaceClientFactory,
     http.Client Function()? artifactClientFactory,
     http.Client Function()? providerClientFactory,
@@ -94,6 +97,9 @@ class KinaiyaClient {
   }) : sessionBase = normalizeServiceRoot(sessionBase),
        agentBase = normalizeServiceRoot(agentBase),
        converseBase = normalizeServiceRoot(converseBase),
+       decisionsBase = decisionsBase == null || decisionsBase.trim().isEmpty
+           ? null
+           : normalizeServiceRoot(decisionsBase),
        _token = ownerToken,
        _http = _NoRedirectClient(httpClient ?? http.Client()),
        _artifactClientFactory =
@@ -109,6 +115,11 @@ class KinaiyaClient {
        _decisionsClientFactory =
            decisionsClientFactory ??
            (httpClient == null ? http.Client.new : _decisionsInjectionRequired),
+       _decisionsModelClientFactory =
+           decisionsModelClientFactory ??
+           (httpClient == null
+               ? http.Client.new
+               : _decisionsModelInjectionRequired),
        _agentWorkspaceClientFactory =
            agentWorkspaceClientFactory ??
            (httpClient == null ? http.Client.new : _workspaceInjectionRequired),
@@ -122,6 +133,7 @@ class KinaiyaClient {
   final String sessionBase;
   final String agentBase;
   final String converseBase;
+  final String? decisionsBase;
   final String _token;
   final http.Client _http;
 
@@ -240,6 +252,17 @@ class KinaiyaClient {
     ownerToken: _token,
     clientFactory: _sttModelClientFactory,
   );
+  final http.Client Function() _decisionsModelClientFactory;
+  static http.Client _decisionsModelInjectionRequired() => throw StateError(
+    'Decisions model transport requires its own injected factory',
+  );
+  late final DecisionsModelsApi? decisionsModels = decisionsBase == null
+      ? null
+      : DecisionsModelsApi(
+          baseUrl: decisionsBase!,
+          ownerToken: _token,
+          clientFactory: _decisionsModelClientFactory,
+        );
   late final AuxiliaryRoutesApi auxiliaryRoutes = AuxiliaryRoutesApi(
     baseUrl: agentBase,
     ownerToken: _token,
@@ -277,11 +300,13 @@ class KinaiyaClient {
     required String sessionBase,
     required String agentBase,
     required String converseBase,
+    String? decisionsBase,
     required http.Client mockTransport,
     String label = 'mock',
     http.Client Function()? memoryClientFactory,
     http.Client Function()? sttModelClientFactory,
     http.Client Function()? decisionsClientFactory,
+    http.Client Function()? decisionsModelClientFactory,
     http.Client Function()? agentWorkspaceClientFactory,
     http.Client Function()? artifactClientFactory,
     http.Client Function()? providerClientFactory,
@@ -290,6 +315,9 @@ class KinaiyaClient {
   }) : sessionBase = normalizeServiceRoot(sessionBase),
        agentBase = normalizeServiceRoot(agentBase),
        converseBase = normalizeServiceRoot(converseBase),
+       decisionsBase = decisionsBase == null || decisionsBase.trim().isEmpty
+           ? null
+           : normalizeServiceRoot(decisionsBase),
        _token = 'mock-token-not-a-credential',
        _http = _NoRedirectClient(mockTransport),
        _artifactClientFactory =
@@ -301,6 +329,8 @@ class KinaiyaClient {
            providerClientFactory ?? _providerInjectionRequired,
        _decisionsClientFactory =
            decisionsClientFactory ?? _decisionsInjectionRequired,
+       _decisionsModelClientFactory =
+           decisionsModelClientFactory ?? _decisionsModelInjectionRequired,
        _agentWorkspaceClientFactory =
            agentWorkspaceClientFactory ?? _workspaceInjectionRequired,
        _agentModelClientFactory =
@@ -1023,6 +1053,8 @@ class KinaiyaClient {
       unawaited(toolPermissions.close());
       unawaited(converseModels.close());
       unawaited(sttModels.close());
+      final classifier = decisionsModels;
+      if (classifier != null) unawaited(classifier.close());
       unawaited(auxiliaryRoutes.close());
       unawaited(workspaceSettings.close());
       unawaited(runtimeSettings.close());

@@ -23,6 +23,13 @@ const roots = [
   'http://[::1]:8762',
 ];
 
+// Optional service fields can be inserted before the credential field.
+Finder get ownerTokenField => find.byWidgetPredicate(
+  (widget) =>
+      widget is TextField &&
+      widget.decoration?.labelText == 'Owner access token',
+);
+
 ConnectionProfile profile(List<String> urls) => ConnectionProfile(
   sessionUrl: urls[0],
   agentUrl: urls[1],
@@ -338,7 +345,7 @@ void main() {
       for (var i = 0; i < 3; i++) {
         await t.enterText(find.byType(TextField).at(i), ' \t${roots[i]}/ ');
       }
-      await t.enterText(find.byType(TextField).at(3), owner);
+      await t.enterText(ownerTokenField, owner);
       await t.tap(find.text('Connect'));
       await t.pumpAndSettle();
       expect(state.sessionAuthenticated, isTrue);
@@ -350,6 +357,7 @@ void main() {
         state.connection!.converseUrl,
       ], roots);
       expect(state.connection!.ownerToken, owner);
+      expect(state.connection!.decisionsUrl, isNull);
       expect(state.connection!.backendProfile, BackendProfile.clean);
       expect(requests.every((r) => !r.url.path.startsWith('//')), isTrue);
       expect(
@@ -374,7 +382,7 @@ void main() {
         };
       addTearDown(state.dispose);
       await t.pumpWidget(MaterialApp(home: SetupDialog(state: state)));
-      await t.enterText(find.byType(TextField).at(3), owner);
+      await t.enterText(ownerTokenField, owner);
       for (var invalidRole = 0; invalidRole < 3; invalidRole++) {
         for (var i = 0; i < 3; i++) {
           await t.enterText(
