@@ -60,15 +60,22 @@ class ConnectionProfile {
     required String sessionUrl,
     required String agentUrl,
     required String converseUrl,
+    String? decisionsUrl,
     required this.ownerToken,
     this.backendProfile = BackendProfile.clean,
   }) : sessionUrl = serviceRootOrOriginal(sessionUrl),
        agentUrl = serviceRootOrOriginal(agentUrl),
-       converseUrl = serviceRootOrOriginal(converseUrl);
+       converseUrl = serviceRootOrOriginal(converseUrl),
+       decisionsUrl = decisionsUrl == null || decisionsUrl.trim().isEmpty
+           ? null
+           : serviceRootOrOriginal(decisionsUrl.trim());
 
   final String sessionUrl;
   final String agentUrl;
   final String converseUrl;
+
+  /// Optional independent Decisions service. No endpoint is inferred.
+  final String? decisionsUrl;
   final String ownerToken;
   final BackendProfile backendProfile;
 
@@ -85,6 +92,7 @@ class ConnectionProfile {
       MapEntry('Session URL', sessionUrl),
       MapEntry('Agent URL', agentUrl),
       MapEntry('Converse URL', converseUrl),
+      if (decisionsUrl != null) MapEntry('Decisions URL', decisionsUrl!),
     ]) {
       final problem = validateServiceUrl(entry.value);
       if (problem != null) return '${entry.key}: $problem';

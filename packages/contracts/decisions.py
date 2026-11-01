@@ -5,6 +5,8 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from packages.contracts.decisions_models import DecisionsModelPin
+
 Identifier = Annotated[str, Field(min_length=1, max_length=128)]
 MAX_REQUEST_BYTES = 262144
 MAX_RESPONSE_BYTES = 1048576
@@ -38,6 +40,7 @@ class DecisionsCallStart(CaptureModel):
     ]
     request: dict[str, Any] | None = None
     reused_from_call_id: Identifier | None = None
+    model_pin: DecisionsModelPin | None = None
 
     @model_validator(mode="after")
     def bounds(self):
@@ -51,6 +54,18 @@ class DecisionsCallStart(CaptureModel):
             raise ValueError("A submitted call requires its actual request")
         if self.request_format == "reused" and self.reused_from_call_id is None:
             raise ValueError("Reuse requires the original call identity")
+        if self.model_pin is not None and (
+            (self.provider, self.model) != (self.model_pin.provider, self.model_pin.model)
+            or (
+                self.request_format == "laya_systemone"
+                and self.model_pin.protocol != "laya_systemone"
+            )
+            or (
+                self.model_pin.selection.source == "catalog"
+                and self.request_format not in {"laya_systemone", "not_submitted"}
+            )
+        ):
+            raise ValueError("Classifier capture model pin does not match its request")
         return self
 
 

@@ -14,7 +14,14 @@ from packages.providers.laya_artifact import (
     WORKER_PID_HEADER,
     valid_artifact_sha256,
 )
-from packages.providers.text import ProviderError, ProviderRefusal, _authorize_endpoint
+from packages.providers.text import (
+    ProviderCleanupError,
+    ProviderError,
+    ProviderRefusal,
+    _authorize_endpoint,
+    _http_cleanup_owned,
+    _OwnedHTTPStream,
+)
 
 REASON_CODE = "laya_typed_choices"
 MAX_TOTAL_CHARS = 36000
@@ -236,6 +243,8 @@ class LayaRoutingProvider:
         try:
             async with asyncio.timeout(self.timeout):
                 async with self.http.stream(method, path, **kwargs) as response:
+                    if _http_cleanup_owned.get():
+                        response.stream = _OwnedHTTPStream(response.stream)
                     if not 200 <= response.status_code < 300:
                         await capture_error_response(response, MAX_RESPONSE_BYTES)
                         raise ProviderError(f"Laya endpoint returned HTTP {response.status_code}")
@@ -278,6 +287,10 @@ class LayaRoutingProvider:
     async def health(self) -> dict:
         try:
             payload = await self._request("GET", "health")
+        except ProviderCleanupError:
+            # A negative readiness result must not conceal an unsettled native
+            # transport from the owning classifier lease.
+            raise
         except ProviderError:
             return {"ready": False, "model": self.model}
         return self._parse_health(payload)

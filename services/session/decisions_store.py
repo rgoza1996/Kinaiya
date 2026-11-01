@@ -138,6 +138,9 @@ class DecisionsInspectionStore:
     def start(self, request):
         request = DecisionsCallStart.model_validate(request)
         body, db = request.model_dump(), self.store.db
+        if request.model_pin is None:
+            # Preserve historical request digests when the additive pin is absent.
+            body.pop("model_pin")
         with self.store.lock, db:
             source = self.store.entry(request.source_event_id)
             if source.kind not in CONVERSATION:
@@ -194,6 +197,10 @@ class DecisionsInspectionStore:
                     raise ValueError("Reuse crossed a native scope")
                 for key in ("provider", "model", "artifact_sha256"):
                     value[key] = original[key]
+                if original.get("model_pin") is not None:
+                    value["model_pin"] = original["model_pin"]
+                else:
+                    value.pop("model_pin", None)
                 value["reused_from_source_event_id"] = original["source_event_id"]
             cursor = db.execute(
                 "INSERT INTO decisions_calls(call_id,source_event_id,session_id,start_digest,value,payload_bytes,search) VALUES(?,?,?,?,?,0,'')",

@@ -1,0 +1,144 @@
+{
+  "$defs": {
+    "CatalogModelBinding": {
+      "additionalProperties": false,
+      "description": "Explicit immutable native provider reference, never a display alias.",
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "generation": {
+          "maximum": 64,
+          "minimum": 1,
+          "title": "Generation",
+          "type": "integer"
+        },
+        "configuration_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Configuration Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "generation",
+        "configuration_sha256"
+      ],
+      "title": "CatalogModelBinding",
+      "type": "object"
+    },
+    "DecisionsModelSelection": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "enum": [
+            "host",
+            "catalog"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "catalog_binding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CatalogModelBinding"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "source",
+        "catalog_binding"
+      ],
+      "title": "DecisionsModelSelection",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "role": {
+      "const": "decisions",
+      "default": "decisions",
+      "title": "Role",
+      "type": "string"
+    },
+    "backend_id": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Backend Id",
+      "type": "string"
+    },
+    "instance_id": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Instance Id",
+      "type": "string"
+    },
+    "settings_revision": {
+      "maximum": 9007199254740990,
+      "minimum": 0,
+      "title": "Settings Revision",
+      "type": "integer"
+    },
+    "selection": {
+      "$ref": "#/$defs/DecisionsModelSelection"
+    },
+    "catalog_revision": {
+      "anyOf": [
+        {
+          "maximum": 9007199254740990,
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Catalog Revision"
+    },
+    "provider": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Provider",
+      "type": "string"
+    },
+    "model": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Model",
+      "type": "string"
+    },
+    "local": {
+      "title": "Local",
+      "type": "boolean"
+    },
+    "protocol": {
+      "enum": [
+        "laya_systemone",
+        "host_configured"
+      ],
+      "title": "Protocol",
+      "type": "string"
+    }
+  },
+  "required": [
+    "backend_id",
+    "instance_id",
+    "settings_revision",
+    "selection",
+    "catalog_revision",
+    "provider",
+    "model",
+    "local",
+    "protocol"
+  ],
+  "title": "DecisionsModelPin",
+  "type": "object"
+}

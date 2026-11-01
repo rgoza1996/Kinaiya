@@ -12,6 +12,7 @@ void main() {
     sessionBase: profile.sessionUrl,
     agentBase: profile.agentUrl,
     converseBase: profile.converseUrl,
+    decisionsBase: profile.decisionsUrl,
     ownerToken: profile.ownerToken,
   );
   runApp(KinaiyaApp(state: state));

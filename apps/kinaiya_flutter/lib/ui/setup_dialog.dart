@@ -25,6 +25,7 @@ class _SetupDialogState extends State<SetupDialog> {
   late final TextEditingController _session;
   late final TextEditingController _agent;
   late final TextEditingController _converse;
+  late final TextEditingController _decisions;
   late final TextEditingController _token;
   BackendProfile _profile = BackendProfile.clean;
   String? _error;
@@ -36,6 +37,7 @@ class _SetupDialogState extends State<SetupDialog> {
     _session = TextEditingController(text: c.sessionUrl);
     _agent = TextEditingController(text: c.agentUrl);
     _converse = TextEditingController(text: c.converseUrl);
+    _decisions = TextEditingController(text: c.decisionsUrl ?? '');
     _token = TextEditingController();
     _profile = c.backendProfile;
   }
@@ -45,6 +47,7 @@ class _SetupDialogState extends State<SetupDialog> {
     _session.dispose();
     _agent.dispose();
     _converse.dispose();
+    _decisions.dispose();
     _token.dispose();
     super.dispose();
   }
@@ -54,12 +57,15 @@ class _SetupDialogState extends State<SetupDialog> {
       sessionUrl: _session.text,
       agentUrl: _agent.text,
       converseUrl: _converse.text,
+      decisionsUrl: _decisions.text,
       ownerToken:
           _token.text.isEmpty &&
               widget.embedded &&
               _session.text == widget.state.connection?.sessionUrl &&
               _agent.text == widget.state.connection?.agentUrl &&
-              _converse.text == widget.state.connection?.converseUrl
+              _converse.text == widget.state.connection?.converseUrl &&
+              _decisions.text.trim() ==
+                  (widget.state.connection?.decisionsUrl ?? '')
           ? widget.state.connection!.ownerToken
           : _token.text,
       backendProfile: _profile,
@@ -101,6 +107,15 @@ class _SetupDialogState extends State<SetupDialog> {
               controller: _converse,
               decoration: const InputDecoration(
                 labelText: 'Converse service URL',
+              ),
+              keyboardType: TextInputType.url,
+            ),
+            TextField(
+              controller: _decisions,
+              decoration: const InputDecoration(
+                labelText: 'Decisions service URL (optional)',
+                helperText:
+                    'Use its explicit independent URL. Blank leaves Decisions model options unconfigured.',
               ),
               keyboardType: TextInputType.url,
             ),
@@ -176,6 +191,8 @@ class _SetupDialogState extends State<SetupDialog> {
           ),
           const SizedBox(height: 12),
           Text(widget.state.connectionError ?? 'Not connected'),
+          const SizedBox(height: 8),
+          Text(widget.state.decisionsModelOptionsStatus),
         ],
       );
     }

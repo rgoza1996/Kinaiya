@@ -1,0 +1,114 @@
+{
+  "$defs": {
+    "CatalogModelBinding": {
+      "additionalProperties": false,
+      "description": "Explicit immutable native provider reference, never a display alias.",
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "generation": {
+          "maximum": 64,
+          "minimum": 1,
+          "title": "Generation",
+          "type": "integer"
+        },
+        "configuration_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Configuration Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "generation",
+        "configuration_sha256"
+      ],
+      "title": "CatalogModelBinding",
+      "type": "object"
+    },
+    "DecisionsModelSelection": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "enum": [
+            "host",
+            "catalog"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "catalog_binding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CatalogModelBinding"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "source",
+        "catalog_binding"
+      ],
+      "title": "DecisionsModelSelection",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "expected_backend": {
+      "maxLength": 32,
+      "minLength": 32,
+      "title": "Expected Backend",
+      "type": "string"
+    },
+    "expected_instance": {
+      "maxLength": 32,
+      "minLength": 32,
+      "title": "Expected Instance",
+      "type": "string"
+    },
+    "expected_revision": {
+      "exclusiveMaximum": 9007199254740990,
+      "minimum": 0,
+      "title": "Expected Revision",
+      "type": "integer"
+    },
+    "expected_state": {
+      "maxLength": 64,
+      "minLength": 64,
+      "title": "Expected State",
+      "type": "string"
+    },
+    "idempotency_key": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Idempotency Key",
+      "type": "string"
+    },
+    "selection": {
+      "$ref": "#/$defs/DecisionsModelSelection"
+    }
+  },
+  "required": [
+    "schema_version",
+    "expected_backend",
+    "expected_instance",
+    "expected_revision",
+    "expected_state",
+    "idempotency_key",
+    "selection"
+  ],
+  "title": "DecisionsModelChange",
+  "type": "object"
+}
