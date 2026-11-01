@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from contextlib import nullcontext
 
 from packages.contracts.models import (
     AppendRequest,
@@ -114,10 +115,13 @@ def validated_classification(source, result):
 
 
 class DecisionsWorker:
-    def __init__(self, journal, agent, classifier, *, window_turns=12, enabled=True):
+    def __init__(
+        self, journal, agent, classifier, *, window_turns=12, enabled=True, model_settings=None
+    ):
         self.journal, self.agent, self.classifier = journal, agent, classifier
         self.window_turns, self.enabled = window_turns, enabled
         self.consumer = "decisions-v1"
+        self.model_settings = model_settings
         self.last_error = None
         self.running = False
 
@@ -194,6 +198,31 @@ class DecisionsWorker:
         )
 
     async def process(self, source):
+        with (
+            self.model_settings.preparing("finalized")
+            if self.model_settings is not None
+            else nullcontext()
+        ):
+            return await self._process(source)
+
+    async def _classify(self, source, context, tasks):
+        if self.model_settings is None:
+            async with decision_attempt(
+                self.journal, source, getattr(self.classifier, "provider", None)
+            ) as capture:
+                result = await self.classifier.classify(source, context, tasks)
+                capture.validated_output = validated_classification(source, result)
+                return result
+        async with self.model_settings.operation() as lease:
+            classifier = ModelClassifier(lease.provider, window_chars=self.classifier.window_chars)
+            async with decision_attempt(
+                self.journal, source, lease.provider, model_pin=lease.pin, current=lease.current
+            ) as capture:
+                result = await classifier.classify(source, context, tasks)
+                capture.validated_output = validated_classification(source, result)
+                return result
+
+    async def _process(self, source):
         session = await self.journal.session(source.session_id)
         if source.epoch != session.epoch or session.channel != "converse":
             return None
@@ -252,15 +281,11 @@ class DecisionsWorker:
                 result = {"route": "ignore", "reason_code": "assistant_has_no_user_authority"}
             else:
                 try:
-                    async with decision_attempt(
-                        self.journal, source, getattr(self.classifier, "provider", None)
-                    ) as capture:
-                        result = await self.classifier.classify(
-                            await self._scoped_source(source),
-                            [await self._scoped_source(entry) for entry in context],
-                            tasks,
-                        )
-                        capture.validated_output = validated_classification(source, result)
+                    result = await self._classify(
+                        await self._scoped_source(source),
+                        [await self._scoped_source(entry) for entry in context],
+                        tasks,
+                    )
                 except ProviderRefusal as exc:
                     current = await self.journal.session(source.session_id)
                     if (current.thread_id, current.epoch) != (source.thread_id, source.epoch):

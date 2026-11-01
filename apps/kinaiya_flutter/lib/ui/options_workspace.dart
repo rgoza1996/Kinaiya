@@ -22,6 +22,7 @@ import 'agent_runtime_writes.dart';
 import 'options_provider_editor.dart';
 import 'options_tool_permissions.dart';
 import 'options_converse_model.dart';
+import 'options_decisions_model.dart';
 import 'options_auxiliary_routes.dart';
 import 'presentation_settings.dart';
 import 'settings_controls.dart';
@@ -979,9 +980,16 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
           'Agent default',
           'Connect to an updated Agent host to manage model profiles.',
         ),
-      _role('decisions', 'Decisions'),
-      const Text(
-        'Decisions classifies typed questions. It has no conversational reasoning or voice setting.',
+      OptionsDecisionsModel(
+        key: ObjectKey(client?.decisionsModels),
+        api: client?.decisionsModels,
+        active: current,
+        onInvalidate: () {
+          if (current()) owner.invalidateDecisionsModelOptions();
+        },
+        onChanged: () {
+          if (ownsConnection()) unawaited(owner.refreshDecisionsModelOptions());
+        },
       ),
       if (_models case final models?)
         OptionsAuxiliaryModels(
