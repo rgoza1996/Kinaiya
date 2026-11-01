@@ -385,7 +385,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
       'model': _model.text,
       'allow_cloud': _cloud,
       if (_kind != 'lmstudio') 'credential': credential,
-      if (_kind != 'laya') ...{
+      if (_kind != 'laya' && _kind != 'meta_stt') ...{
         'max_tokens': int.tryParse(_max.text),
         'reasoning_effort': _effort,
       },
@@ -590,6 +590,10 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
           items: const [
             DropdownMenuItem(value: 'meta', child: Text('Meta API')),
             DropdownMenuItem(
+              value: 'meta_stt',
+              child: Text('Meta · speech to text'),
+            ),
+            DropdownMenuItem(
               value: 'lmstudio',
               child: Text('LM Studio · native local'),
             ),
@@ -607,14 +611,19 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
                   if (kind != null) {
                     setState(() {
                       _kind = kind;
-                      _cloud = kind == 'meta';
+                      _cloud = kind == 'meta' || kind == 'meta_stt';
+                      if (kind == 'meta_stt') {
+                        _model.text = 'muse-voice-transcribe-1.0';
+                      }
                       _effort = kind == 'meta'
                           ? 'xhigh'
                           : kind == 'lmstudio'
                           ? 'none'
                           : null;
                       _max.text = kind == 'lmstudio' ? '128' : '2048';
-                      _timeout.text = kind == 'laya'
+                      _timeout.text = kind == 'meta_stt'
+                          ? '120'
+                          : kind == 'laya'
                           ? '5'
                           : kind == 'lmstudio'
                           ? '60'
@@ -635,16 +644,23 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
           'Endpoint URL',
           maxLength: 2048,
           validator: (v) => _bounded(v, 2048),
-          help: _kind == 'lmstudio'
+          help: _kind == 'meta_stt'
+              ? 'Explicit Meta transcription origin ending in /v1. Remote origins require HTTPS.'
+              : _kind == 'lmstudio'
               ? 'Explicit loopback native endpoint with a port, such as http://127.0.0.1:1234.'
               : 'No embedded credentials, queries or fragments. Remote origins require HTTPS.',
         ),
         _field(
           _model,
           'Exact model ID or native loaded alias',
+          enabled: _kind != 'meta_stt',
           maxLength: 256,
           validator: (v) => _bounded(v, 256),
         ),
+        if (_kind == 'meta_stt')
+          const Text(
+            'Buffered Meta speech-to-text only. Saving this declaration does not capture audio, grant cloud disclosure, test readiness, or select it for a role.',
+          ),
         if (_kind == 'meta')
           const Text(
             'Meta is a cloud provider, including when reached through a local budget gateway. Contributor disclosure restrictions still apply.',
@@ -657,7 +673,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
             subtitle: const Text(
               'Input, transcript, tool and personality disclosure are checked independently for every request.',
             ),
-            onChanged: _enabled && _kind != 'meta'
+            onChanged: _enabled && _kind != 'meta' && _kind != 'meta_stt'
                 ? (value) => setState(() {
                     _cloud = value;
                   })
@@ -696,7 +712,8 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
                     value.isNotEmpty &&
                     !activeCredentials.any((c) => c.binding.value == value)
                 ? 'Choose a current credential generation.'
-                : _kind == 'meta' && (value == null || value.isEmpty)
+                : (_kind == 'meta' || _kind == 'meta_stt') &&
+                      (value == null || value.isEmpty)
                 ? 'Meta requires a stored credential generation.'
                 : null,
             onChanged: _enabled
@@ -709,7 +726,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
           const Text(
             'To register or rotate a key, use Credentials. Rotation retires the old generation for new use; update each affected profile explicitly.',
           ),
-        if (_kind != 'laya') ...[
+        if (_kind != 'laya' && _kind != 'meta_stt') ...[
           _field(
             _max,
             'Maximum output tokens',
@@ -759,7 +776,15 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
             'Request timeout · seconds',
             maxLength: 3,
             numeric: true,
-            validator: (v) => _number(v, 1, _kind == 'laya' ? 120 : 900),
+            validator: (v) => _number(
+              v,
+              1,
+              _kind == 'laya'
+                  ? 120
+                  : _kind == 'meta_stt'
+                  ? 300
+                  : 900,
+            ),
           ),
         if (_kind == 'laya') ...[
           const Text(
@@ -1067,7 +1092,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
           if (_screen == 'list')
             _panel([
               const Text(
-                'Save provider connections and credentials on this computer. Select them for Agent in Models or Harness Customization. Other roles are still configured on the host.',
+                'Save provider connections and credentials on this computer. Select supported text profiles in Models or Harness Customization, and transcription profiles in Audio. Text to speech remains host configured.',
               ),
               Wrap(
                 spacing: 12,

@@ -786,6 +786,20 @@ def serve(args):
         except (OSError, ValueError, RuntimeError, KeyError, TypeError, ImportError, SystemExit):
             speech = None
             runtime.speech_unavailable = True
+        from services.converse.stt_model_settings import STTModelSettings
+
+        runtime._stt_options_configured = True
+        try:
+            runtime.stt_model_settings = STTModelSettings(
+                runtime,
+                catalog,
+                speech,
+                args.data_dir.resolve() / "converse-stt-model.sqlite",
+                workspace=args.workspace.resolve(),
+                resource_state=resource_state,
+            )
+        except (OSError, ValueError, RuntimeError, sqlite3.Error):
+            runtime._stt_options_unavailable = True
         windows = (
             WindowConverseController(runtime)
             if config.get("streaming_windows", {}).get("enabled", True)
@@ -815,9 +829,9 @@ def serve(args):
             await runtime.close()
             if runtime.model_settings is not None:
                 await runtime.model_settings.close()
-            await journal.close()
-            if speech:
-                await speech.close()
+            from services.converse.stt_operations import retire_converse_shared
+
+            await retire_converse_shared(runtime, journal, speech, windows)
 
         app.router.lifespan_context = converse_lifespan
     else:

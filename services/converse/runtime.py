@@ -238,6 +238,14 @@ class ConverseRuntime:
         self._model_options_unavailable = False
         self._model_preparing = set()
         self._model_operations_extra = lambda: {"windows": 0, "stt": 0, "stt_cleanup": 0}
+        self.stt_model_settings = None
+        self._stt_options_configured = False
+        self._stt_options_unavailable = False
+        self._stt_stopping = False
+        self._stt_operations = set()
+        self._stt_finalizers = set()
+        self._stt_transports = set()
+        self._stt_transport_closures = set()
         self._window_text_ready = None
         self._speech = {}
         self._dedupe_locks = {}
@@ -874,6 +882,10 @@ class ConverseRuntime:
             )
 
     async def close(self):
+        self._stt_stopping = True
+        self._cancel_speech()
+        if self._stt_finalizers:
+            await asyncio.wait(tuple(self._stt_finalizers), timeout=1)
         self._cancel_text()
         cleanups = {operation.cleanup for operation in self._text.values() if operation.cleanup}
         self.memory.shutdown()

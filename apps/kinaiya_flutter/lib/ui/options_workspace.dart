@@ -23,6 +23,7 @@ import 'agent_runtime_writes.dart';
 import 'options_provider_editor.dart';
 import 'options_tool_permissions.dart';
 import 'options_converse_model.dart';
+import 'options_stt_model.dart';
 import 'options_auxiliary_routes.dart';
 import 'presentation_settings.dart';
 import 'settings_controls.dart';
@@ -1150,15 +1151,28 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
       ),
     ],
   );
-  Widget _audio() => _scroll([
-    const Text('Speech providers remain independent of the dialogue model.'),
-    ..._errors,
-    _role('stt', 'Speech to text'),
-    _role('tts', 'Text to speech'),
-    const Text(
-      'This host currently accepts text dialogue through transcription. Direct audio input and disabling transcription require a compatible native pipeline.',
-    ),
-  ]);
+  Widget _audio() {
+    final owner = widget.state, client = owner.client;
+    final generation = owner.connectionGeneration;
+    return _scroll([
+      const Text('Speech providers remain independent of the dialogue model.'),
+      ..._errors,
+      OptionsSttModel(
+        key: ObjectKey(client?.sttModels),
+        api: client?.sttModels,
+        active: () =>
+            mounted &&
+            identical(widget.state, owner) &&
+            client != null &&
+            owner.ownsConnection(generation, client),
+      ),
+      _role('tts', 'Text to speech'),
+      const Text(
+        'This host currently accepts text dialogue through transcription. Direct audio input and disabling transcription require a compatible native pipeline.',
+      ),
+    ]);
+  }
+
   Widget _agentSettings() => _scroll([
     const Text(
       'Trusted Agent runtime. Generated context selectors do not replace permissions or the protected core.',

@@ -17,6 +17,7 @@ from packages.contracts import (
     memory_context,
     memory_operations,
     models,
+    stt_models,
     tool_permissions,
     workspace_settings,
 )
@@ -65,6 +66,9 @@ for cls in (
     converse_models.ConverseModelSelection,
     converse_models.ConverseModelChange,
     converse_models.RoleModelPin,
+    stt_models.STTModelSelection,
+    stt_models.STTModelChange,
+    models.STTModelPin,
     workspace_settings.WorkspaceSelection,
     workspace_settings.WorkspaceChange,
     workspace_settings.WorkspacePin,
