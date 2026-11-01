@@ -418,6 +418,8 @@ async def read_transcript(runtime, rec, args):
     if len(roots) > MAX_AGENT_CONTEXT_REFS:
         raise ToolFailure("Transcript context provenance limit reached")
     final_scope = selected_scope
+    selected_views = {entry.event_id: transcript_bytes(entry) for entry in retained}
+    selected_raw = {}
     try:
         for event_id in sorted(roots):
             final_scope = combine_scopes(
@@ -428,8 +430,14 @@ async def read_transcript(runtime, rec, args):
         # are returned; corrections during asynchronous disclosure reads refuse.
         for entry in retained:
             fresh = await call("resolve" if view == "resolved" else "entry", entry.event_id)
-            if transcript_bytes(checked_entry(fresh)) != transcript_bytes(entry):
+            fresh_bytes = transcript_bytes(checked_entry(fresh))
+            if fresh_bytes != selected_views[entry.event_id]:
                 raise ToolFailure("Transcript entry changed; restart the page")
+            selected_raw[entry.event_id] = (
+                fresh_bytes
+                if view == "immutable"
+                else transcript_bytes(checked_entry(await call("entry", entry.event_id)))
+            )
     except (PolicyDenied, ToolFailure):
         raise
     except Exception:
@@ -437,6 +445,47 @@ async def read_transcript(runtime, rec, args):
     await runtime._task_scope(rec, persist=False)
     current()
     await session_current()
+
+    async def final_entry(event_id):
+        fresh = await call("entry", event_id)
+        if (
+            event_id in selected_raw
+            and transcript_bytes(checked_entry(fresh)) != selected_raw[event_id]
+        ):
+            raise ToolFailure("Transcript entry changed; restart the page")
+        return fresh
+
+    async def final_resolve(event_id):
+        fresh = await call("resolve", event_id)
+        if (
+            view == "resolved"
+            and event_id in selected_views
+            and transcript_bytes(checked_entry(fresh)) != selected_views[event_id]
+        ):
+            raise ToolFailure("Transcript entry changed; restart the page")
+        return fresh
+
+    # Newly selected roots are still prospective: denied data must not acquire
+    # retained context ownership. Recheck their full shared closure after every
+    # earlier view/task/session await, and bind selected views inside this pass.
+    # This is an async observation, not an atomic publication guarantee; actual
+    # provider uploads still require the existing native export admission.
+    final_journal = SimpleNamespace(entry=final_entry, resolve=final_resolve, read=raw_read)
+    final_closure = ContextScopeClosure(*identity[2:])
+    try:
+        for event_id in sorted(roots):
+            final_scope = combine_scopes(
+                final_scope,
+                await context_scope(
+                    final_journal, await final_entry(event_id), closure=final_closure
+                ),
+            )
+    except (PolicyDenied, ToolFailure):
+        raise
+    except Exception:
+        raise PolicyDenied("Transcript context disclosure cannot be verified") from None
+    # No journal or session await may follow the final prospective-root pass.
+    current()
     final_scope = combine_scopes(task.content_scope, final_scope)
     if not scope_allowed(provider_info, final_scope):
         raise PolicyDenied("Transcript context disclosure is no longer authorized")
