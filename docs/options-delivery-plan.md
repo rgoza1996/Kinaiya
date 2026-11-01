@@ -13,6 +13,17 @@ commands and generated libraries. Recording a missing capability in this plan
 does not deliver it. The parent stays open until implementation and the
 corresponding acceptance evidence are present.
 
+## November1 owner handoff
+
+The owner requested that remaining objectives, progress, next steps and
+considerations move to actionable GitHub issues under [#208](https://github.com/rgoza1996/Kinaiya/issues/208),
+with necessary usability integration completed before ending the active Codex
+goal. The full requirement inventory below remains open. Its issue index is
+#233–245, with scheduling/notifications in #10/#228 and multimodal qualification
+in #196/#204. #238 retains an explicitly unimplemented contract sketch; it is
+excluded from this integration. Current CI/preview evidence and the resumption
+order belong to #208. Ending the automation does not mark these features shipped.
+
 ## Acceptance groups
 
 | Group | Required outcome | Current delivered foundation / next work |
