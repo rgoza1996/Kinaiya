@@ -567,4 +567,3 @@ The planned demonstration is a focused slice through the larger roadmap:
 6. At least one verified Meta integration is exercised if the event requirements, account access, and applicable terms allow it.
 
 Meta is a target integration, not a product dependency. Model and API availability must be verified during implementation; the core stays provider-configurable. A Meta-generated character variant is a stretch demonstration, not a requirement on the voice-response path.
-
