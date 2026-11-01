@@ -357,9 +357,10 @@ async def test_concurrent_first_start_keeps_one_backend_and_one_active_generatio
 
 
 class TransactionFault:
-    def __init__(self, db, stage, *, rollback_fails=False):
+    def __init__(self, db, stage, *, rollback_fails=False, error_type=sqlite3.OperationalError):
         self.db, self.stage = db, stage
         self.rollback_fails = rollback_fails
+        self.error_type = error_type
         self.fired = False
         self.closed = False
 
@@ -374,7 +375,7 @@ class TransactionFault:
             self.fired = True
             if self.stage != "begin":
                 self.db.execute(sql, *args)
-            raise sqlite3.OperationalError("synthetic private storage fault")
+            raise self.error_type("synthetic private storage fault")
         return self.db.execute(sql, *args)
 
     def commit(self):
@@ -382,7 +383,7 @@ class TransactionFault:
             self.fired = True
             if self.stage == "commit-after":
                 self.db.commit()
-            raise sqlite3.OperationalError("synthetic private commit fault")
+            raise self.error_type("synthetic private commit fault")
         return self.db.commit()
 
     def rollback(self):
@@ -517,3 +518,129 @@ async def test_api_replay_never_assigns_provider_and_all_owner_results_are_no_st
         assert "private" not in unavailable.text
         assert unavailable.headers["Cache-Control"] == "no-store"
     assert runtime.provider is original_provider
+
+
+def model_api(settings):
+    runtime = SimpleNamespace(
+        model_settings=settings,
+        integration_lock=asyncio.Lock(),
+        session_harness=lambda version: version,
+        provider=object(),
+    )
+    app = FastAPI()
+    app.include_router(router(runtime, Auth({"owner": "o" * 32, "agent": "a" * 32})))
+    return (
+        httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app, raise_app_exceptions=False),
+            base_url="http://synthetic",
+            headers={"Authorization": "Bearer " + "o" * 32},
+        ),
+        runtime,
+    )
+
+
+@pytest.mark.parametrize(
+    "stage", ["begin", "settings", "operations", "commit-before", "commit-after"]
+)
+async def test_storage_runtime_errors_are_unconfirmed_at_http_boundary(make_settings, stage):
+    settings = make_settings()
+    request = change(settings)
+    fault = TransactionFault(settings.db, stage, error_type=RuntimeError)
+    settings.db = fault
+    client, runtime = model_api(settings)
+    original_provider = runtime.provider
+    async with client:
+        response = await client.post("/v1/agent/options/models", json=canonical(request))
+        assert fault.fired
+        assert response.status_code == 503, response.text
+        assert "unconfirmed" in response.json()["detail"]
+        assert "private" not in response.text and "RuntimeError" not in response.text
+        assert response.headers["Cache-Control"] == "no-store"
+        assert not fault.in_transaction
+        committed = stage == "commit-after"
+        assert fault.execute("SELECT revision FROM settings").fetchone()[0] == int(committed)
+        assert fault.execute("SELECT count(*) FROM operations").fetchone()[0] == int(committed)
+        observed = await client.post(
+            "/v1/agent/options/model-changes/lookup", json=canonical(request)
+        )
+        assert observed.status_code == 200
+        assert observed.json()["status"] == ("recorded" if committed else "unobserved")
+        assert observed.json()["mutation_fenced"] is committed
+    assert runtime.provider is original_provider
+
+
+@pytest.mark.parametrize("damage", ["settings", "receipt"])
+@pytest.mark.parametrize("route", ["write", "lookup", "receipt"])
+async def test_deeply_nested_corrupt_json_is_unavailable_not_refusal_or_absence(
+    make_settings, damage, route
+):
+    settings = make_settings()
+    request = change(settings)
+    settings.change(request)
+    depth = 20000
+    nested = "[" * depth + "null" + "]" * depth
+    if damage == "settings":
+        settings.db.execute("UPDATE settings SET body=?", (nested,))
+    else:
+        settings.db.execute("UPDATE operations SET receipt=?", (nested,))
+    settings.db.commit()
+    rows_before = (
+        settings.db.execute("SELECT * FROM settings").fetchall(),
+        settings.db.execute("SELECT * FROM operations").fetchall(),
+    )
+    client, _ = model_api(settings)
+    async with client:
+        if route == "receipt":
+            response = await client.get(
+                "/v1/agent/options/model-changes/" + request.idempotency_key
+            )
+        else:
+            path = (
+                "/v1/agent/options/models"
+                if route == "write"
+                else "/v1/agent/options/model-changes/lookup"
+            )
+            response = await client.post(path, json=canonical(request))
+    assert response.status_code == 503, response.text
+    assert "unconfirmed" in response.json()["detail"]
+    assert response.headers["Cache-Control"] == "no-store"
+    assert not settings.db.in_transaction
+    assert (
+        settings.db.execute("SELECT * FROM settings").fetchall(),
+        settings.db.execute("SELECT * FROM operations").fetchall(),
+    ) == rows_before
+
+
+@pytest.mark.parametrize("refusal", ["unknown-profile", "stale-revision", "profile-runtime"])
+async def test_definite_validation_remains_distinct_from_storage_failure(make_settings, refusal):
+    def configured_profile(effort):
+        if effort == "high":
+            raise RuntimeError("synthetic private configured profile refusal")
+        return provider("other", effort)
+
+    settings = make_settings(factories={"other": configured_profile})
+    request = change(
+        settings,
+        revision=1 if refusal == "stale-revision" else 0,
+        profile_id="unknown" if refusal == "unknown-profile" else "other",
+        reasoning="high" if refusal == "profile-runtime" else None,
+    )
+    client, _ = model_api(settings)
+    async with client:
+        response = await client.post("/v1/agent/options/models", json=canonical(request))
+    assert response.status_code == (409 if refusal == "stale-revision" else 400)
+    assert "private" not in response.text
+    assert settings.snapshot()["revision"] == 0
+    assert settings.db.execute("SELECT count(*) FROM operations").fetchone()[0] == 0
+
+
+async def test_quoted_delimiters_in_valid_profile_are_not_json_depth(make_settings):
+    label = "[" * 30 + '\\"' + "]" * 30
+    settings = make_settings(
+        factories={label: lambda effort: provider("quoted", effort)}, reasoning_levels={}
+    )
+    request = change(settings, profile_id=label)
+    receipt = settings.change(request)
+    assert receipt["binding"]["profile_id"] == label
+    assert settings.lookup(request)["receipt"] == receipt
+    assert settings.change(request) == receipt

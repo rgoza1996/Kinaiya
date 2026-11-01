@@ -28,6 +28,7 @@ AUXILIARY_TASKS = {
     "delegation": "Delegated reasoning",
     "harness_design": "Harness design",
 }
+_MAX_STORED_JSON_DEPTH = 16
 
 
 class ModelSettingsConflict(ValueError):
@@ -118,7 +119,7 @@ class AgentModelSettings:
         try:
             if path is not None:
                 path.chmod(0o600)
-            self.db.execute("PRAGMA synchronous=FULL")
+            self._execute("PRAGMA synchronous=FULL")
             with self._transaction():
                 self._initialize_authority()
         except BaseException:
@@ -128,6 +129,26 @@ class AgentModelSettings:
     def _ensure_store(self):
         if self._failed or self._closed:
             raise ModelSettingsUnavailable
+
+    def _storage(self, invoke):
+        self._ensure_store()
+        try:
+            return invoke()
+        except sqlite3.Error:
+            raise
+        except Exception:
+            # A storage adapter can fail after its operation actually ran.
+            # Keep that uncertainty distinct from native choice validation.
+            raise ModelSettingsUnavailable from None
+
+    def _execute(self, sql, parameters=()):
+        return self._storage(lambda: self.db.execute(sql, parameters))
+
+    def _one(self, sql, parameters=()):
+        return self._storage(lambda: self.db.execute(sql, parameters).fetchone())
+
+    def _all(self, sql, parameters=()):
+        return self._storage(lambda: self.db.execute(sql, parameters).fetchall())
 
     def _poison(self):
         self._failed = True
@@ -150,32 +171,32 @@ class AgentModelSettings:
     def _transaction(self):
         self._ensure_store()
         try:
-            self.db.execute("BEGIN IMMEDIATE")
+            self._execute("BEGIN IMMEDIATE")
             yield
-            self.db.commit()
+            self._storage(lambda: self.db.commit())
         except BaseException:
             self._rollback()
             raise
 
     def _initialize_authority(self):
-        marker = self.db.execute("PRAGMA user_version").fetchone()[0]
+        marker = self._one("PRAGMA user_version")[0]
         tables = {
             row[0]
-            for row in self.db.execute(
+            for row in self._all(
                 "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
             )
         }
         legacy = {"settings", "operations"}
         if marker == 0 and not tables:
-            self.db.execute(
+            self._execute(
                 "CREATE TABLE settings (id INTEGER PRIMARY KEY CHECK(id=1), "
                 "revision INTEGER NOT NULL, body TEXT NOT NULL)"
             )
-            self.db.execute(
+            self._execute(
                 "CREATE TABLE operations (key TEXT PRIMARY KEY, digest TEXT NOT NULL, "
                 "receipt TEXT NOT NULL)"
             )
-            self.db.execute(
+            self._execute(
                 "INSERT INTO settings VALUES (1, 0, ?)",
                 (
                     json.dumps(
@@ -213,24 +234,24 @@ class AgentModelSettings:
         for table, columns in expected_columns.items():
             actual = [
                 (row[1], row[2].upper(), row[3], row[5])
-                for row in self.db.execute(f"PRAGMA table_info({table})")
+                for row in self._all(f"PRAGMA table_info({table})")
             ]
             if actual != columns:
                 raise ModelSettingsUnavailable
         self._read()
         if marker == 0:
-            self.db.execute(
+            self._execute(
                 "CREATE TABLE model_write_authority (id INTEGER PRIMARY KEY CHECK(id=1), "
                 "backend_id TEXT NOT NULL, active_instance TEXT NOT NULL)"
             )
-            self.db.execute(
+            self._execute(
                 "INSERT INTO model_write_authority VALUES (1, ?, ?)",
                 (secrets.token_hex(16), self.instance),
             )
-            self.db.execute("PRAGMA user_version=1")
+            self._execute("PRAGMA user_version=1")
         else:
             self._authority()
-            self.db.execute(
+            self._execute(
                 "UPDATE model_write_authority SET active_instance=? WHERE id=1",
                 (self.instance,),
             )
@@ -241,11 +262,9 @@ class AgentModelSettings:
 
     def _authority(self):
         self._ensure_store()
-        if self.db.execute("PRAGMA user_version").fetchone()[0] != 1:
+        if self._one("PRAGMA user_version")[0] != 1:
             raise ModelSettingsUnavailable
-        rows = self.db.execute(
-            "SELECT id, backend_id, active_instance FROM model_write_authority"
-        ).fetchall()
+        rows = self._all("SELECT id, backend_id, active_instance FROM model_write_authority")
         if (
             len(rows) != 1
             or type(rows[0][0]) is not int
@@ -291,19 +310,41 @@ class AgentModelSettings:
 
         if type(value) is not str:
             raise ValueError("Invalid stored JSON")
-        return json.loads(value, object_pairs_hook=unique, parse_constant=invalid_constant)
+        depth, quoted, escaped = 0, False, False
+        for char in value:
+            if quoted:
+                if escaped:
+                    escaped = False
+                elif char == "\\":
+                    escaped = True
+                elif char == '"':
+                    quoted = False
+            elif char == '"':
+                quoted = True
+            elif char in "{[":
+                depth += 1
+                if depth > _MAX_STORED_JSON_DEPTH:
+                    raise ValueError("Stored JSON nesting exceeds its bound")
+            elif char in "}]":
+                depth -= 1
+                if depth < 0:
+                    raise ValueError("Invalid stored JSON nesting")
+        try:
+            return json.loads(value, object_pairs_hook=unique, parse_constant=invalid_constant)
+        except RecursionError:
+            raise ValueError("Stored JSON decoding exceeded its bound") from None
 
     def _read(self):
         self._ensure_store()
         try:
-            if self.db.execute("SELECT count(*) FROM settings").fetchone()[0] != 1:
+            if self._one("SELECT count(*) FROM settings")[0] != 1:
                 raise ModelSettingsUnavailable
             return self._read_settings()
         except (ValueError, TypeError, IndexError, KeyError):
             raise ModelSettingsUnavailable from None
 
     def _read_settings(self):
-        row = self.db.execute("SELECT revision, body FROM settings WHERE id=1").fetchone()
+        row = self._one("SELECT revision, body FROM settings WHERE id=1")
         revision, body = row[0], self._stored_json(row[1])
         if (
             type(revision) is not int
@@ -406,9 +447,7 @@ class AgentModelSettings:
         }
 
     def _operation(self, key):
-        row = self.db.execute(
-            "SELECT digest, receipt FROM operations WHERE key=?", (key,)
-        ).fetchone()
+        row = self._one("SELECT digest, receipt FROM operations WHERE key=?", (key,))
         if row is None:
             return None
         try:
@@ -621,7 +660,7 @@ class AgentModelSettings:
                 raise ModelSettingsConflict("Agent model settings changed; refresh before saving")
             if revision >= 9_007_199_254_740_990:
                 raise ValueError("Agent model settings revision space is exhausted")
-            if self.db.execute("SELECT count(*) FROM operations").fetchone()[0] >= 10000:
+            if self._one("SELECT count(*) FROM operations")[0] >= 10000:
                 raise ValueError("Model settings receipt storage needs owner maintenance")
             target = request.harness_version
             if target is not None and validate_harness is not None:
@@ -663,11 +702,11 @@ class AgentModelSettings:
                         raise ValueError("Too many harness model overrides")
                     body["harnesses"][target] = binding
             receipt = self._change_receipt(request)
-            self.db.execute(
+            self._execute(
                 "UPDATE settings SET revision=?, body=? WHERE id=1",
                 (revision + 1, json.dumps(body)),
             )
-            self.db.execute(
+            self._execute(
                 "INSERT INTO operations VALUES (?, ?, ?)",
                 (request.idempotency_key, digest, json.dumps(receipt)),
             )
