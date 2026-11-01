@@ -62,6 +62,24 @@ class FakeAgentClient extends KinaiyaClient {
   Future<Map<String, Object?>> Function()? healthHook;
 
   @override
+  Future<Object> submitOriginal(
+    AgentSubmission request, {
+    required bool reconcileOnly,
+  }) async {
+    if (reconcileOnly || request.command != null) {
+      throw StateError('No recorded fixture receipt');
+    }
+    return createTask(
+      sessionId: request.session.sessionId,
+      threadId: request.session.threadId,
+      epoch: request.session.epoch,
+      objective: request.text,
+      idempotencyKey: request.key,
+      contentScope: request.scope,
+    );
+  }
+
+  @override
   Future<Map<String, Object?>> converseHealth() =>
       healthHook?.call() ?? Future.value({'enabled': true});
 
