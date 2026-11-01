@@ -6,8 +6,8 @@ Requirement: [#228](https://github.com/rgoza1996/Kinaiya/issues/228), within
 [Agent operating modes](agent-control-api.md), Roadmap §13/§19 and clarification.md.
 
 This branch implements the authorization owner, its authenticated Session API,
-immutable Dart proofs and bounded transport. Dispatch packets describe the next
-native boundary. A saved or armed authorization is **not** a scheduled task,
+immutable Dart proofs, bounded transport and the native dispatch gate.
+Authenticated dispatch routes still require integration. A saved or armed authorization is **not** a scheduled task,
 producer-health claim, execution receipt or completed responsibility. Native
 occurrence admission, an actual Agent producer, positive execution settlement,
 the inbox and embedded owner editor still require integration. Autonomous stays
@@ -154,12 +154,16 @@ exclusive cursor and the page cannot exceed the requested limit. An internally
 valid proof for another request is refused. Change and lookup additionally bind
 the complete original mutation request.
 
-## Dispatch protocol awaiting native integration
+## Native dispatch gate
 
-`standing_dispatch.py` defines strict producer renewal, gate observation,
-explicit owner activation, historical lookup and target-epoch Stop packets.
-They do not implement native liveness or launch. Their exported schemas are
-distinct from the unchanged ordinary owner/Decisions submission grammar.
+`services/session/standing_dispatch.py` implements explicit registration,
+producer renewal, gate observation, owner activation, historical lookup and
+target-epoch Stop against the same native Store and Agent controller. Opening
+or closing this local capability does not register or retire a controller.
+Its four protected tables retain the gate, immutable activation proofs and
+bounded producer highwater state. These operations start no timer or worker.
+The strict exported packets are distinct from the unchanged ordinary
+owner/Decisions submission grammar.
 
 An activation binds a full ordinary Autonomous mode request, the observed
 dispatch epoch and random fence token. Its receipt binds the ordinary native
@@ -173,12 +177,25 @@ Emergency Stop must remain representable over valid established storage when
 normal controller registration reaches capacity. A null current controller is
 reported literally, with writable false and no live producer. It is never
 replaced by an invented UUID or fabricated Off ModeReceipt.
+`stop_context()` reads a current-target request template without clock sampling,
+mutation or writer assignment. If there is no current controller, it uses an
+actually issued historical controller identity. The template grants no new
+writer authority and is not itself evidence that Stop happened.
 
 Producer receipts carry a fixed 15,000 ms interval on the native current
-Session's monotonic clock. They do not prove current liveness. The native owner
-must retain bounded current renewal/highwater state, not append a ledger row
-every heartbeat. Exact sequence replay keeps its original expiry; retired
-producers cannot renew and old Session leases never revive on clock rollback.
+Session's monotonic clock. A receipt alone does not prove current liveness.
+The owner retains at most 10,000 producer identities and one latest renewal
+per identity; it does not append a ledger row every heartbeat. Exact sequence
+replay keeps its original expiry; retired producers cannot renew and old Session
+leases never revive on clock rollback. Clock failure removes readiness while
+preserving emergency Stop over healthy storage.
+
+Fresh activation atomically saves its ordinary mode receipt and dispatch epoch.
+Activation and renewal recheck cancellation, their absolute deadline, the current
+controller and live lease before COMMIT, including a final cancellation/deadline
+check after SQL validation. Rollback failure poisons the local capability rather
+than supplying a proof. A lost COMMIT acknowledgement remains uncertain even
+when a later lookup retrieves the retained receipt.
 
 Ordinary restart may preserve an unstopped Autonomous intent under its original
 finite owner grants, but future work needs a genuine new current producer lease
