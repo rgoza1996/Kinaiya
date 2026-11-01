@@ -35,6 +35,15 @@ instead of creating a new identity. Older binaries must be quiesced first.
 An older controller can read historical receipts but cannot regain write
 authority, clear a newer generation or apply another preference change.
 
+Only affirmative atomic creation of a new owner-only regular file may initialize
+empty runtime storage; an in-memory embedding is explicitly fresh. Existing
+empty, truncated or incomplete stores refuse through the existing unavailable
+and poisoned-connection path instead of restoring host preferences or generating
+new writer authority. Storage remains outside the worker workspace, without
+symlink aliases or hard links and under an owner-controlled directory. Valid
+two-table version-zero and three-table version-one migration/registration retain
+their original preference, revision, receipt and writer semantics.
+
 The outer snapshot remains version 1.0, with additive `write_authority` containing
 `mutation_version: "1.1"`, `backend_id`, `instance_id` and `writable`.
 Bound mutation 1.1 adds required `expected_backend` and `expected_instance` to
