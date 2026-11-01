@@ -2,6 +2,7 @@
 
 import json
 import math
+import re
 import unicodedata
 from datetime import datetime
 from typing import Annotated, ClassVar, Literal, Self
@@ -17,6 +18,10 @@ _MAX_DEPTH = 512
 _MAX_NODES = 262144
 _ERROR = "Invalid transcript scan contract"
 _FAILURES = (ValueError, TypeError, UnicodeError, RecursionError, OverflowError)
+_TIME = re.compile(
+    r"[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt ][0-9]{2}:[0-9]{2}:[0-9]{2}"
+    r"(?:\.[0-9]{1,6})?(?:[Zz]|[+-][0-9]{2}:[0-9]{2})\Z"
+)
 _Counter = Annotated[int, Field(ge=0, le=MAX_TRANSCRIPT_INTEGER)]
 _Positive = Annotated[int, Field(ge=1, le=MAX_TRANSCRIPT_INTEGER)]
 
@@ -103,8 +108,12 @@ def _values(value, kind):
 def _time(value):
     if type(value) is str:
         value.encode("utf-8")
-        value = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if _TIME.fullmatch(value) is None:
+            raise ValueError(_ERROR)
+        value = datetime.fromisoformat(value.replace("z", "Z").replace("Z", "+00:00"))
     if type(value) is not datetime or value.tzinfo is None or value.utcoffset() is None:
+        raise ValueError(_ERROR)
+    if _TIME.fullmatch(value.isoformat()) is None:
         raise ValueError(_ERROR)
     return value
 
