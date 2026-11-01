@@ -288,14 +288,18 @@ class _PermissionRequest {
   Future<bool>? _closing;
   void Function()? onSettled;
   bool _closed = false,
+      _started = false,
       _finished = false,
       _clientClosed = false,
       _cancelSettled = false;
   bool dispatched = false;
   bool get settled =>
-      _finished && _clientClosed && (_reader == null || _cancelSettled);
+      (!_started || _finished) &&
+      _clientClosed &&
+      (_reader == null || _cancelSettled);
 
   Future<List<int>> read(http.Request request) async {
+    _started = true;
     try {
       dispatched = true;
       final response = await client.send(request);
