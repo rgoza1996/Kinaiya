@@ -18,7 +18,11 @@ from pydantic import (
     create_model,
 )
 
-from packages.contracts.agent_tools import NATIVE_TOOL_ORDER, NativeToolSnapshot
+from packages.contracts.agent_tools import (
+    NATIVE_TOOL_ORDER,
+    NativeToolSnapshot,
+    current_agent_tools,
+)
 from packages.contracts.models import AuxiliaryTask
 
 
@@ -176,8 +180,23 @@ _ACTIONS = {
 
 def _selection(tools):
     try:
+        snapshot = current_agent_tools()
+        if snapshot is not None:
+            if (
+                type(snapshot) is not NativeToolSnapshot
+                or type(tools) is not tuple
+                or tools != snapshot.available_tools
+            ):
+                raise ValueError
+            return NativeToolSnapshot(
+                tools,
+                schema_version=snapshot.schema_version,
+                owner_disabled=snapshot.owner_disabled,
+                owner_revision=snapshot.owner_revision,
+                task_subset=snapshot.task_subset,
+            ).available_tools
         return NativeToolSnapshot(tools).available_tools
-    except (ValueError, TypeError):
+    except (ValueError, TypeError, AttributeError):
         raise TypedWireError() from None
 
 
