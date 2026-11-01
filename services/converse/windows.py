@@ -79,6 +79,10 @@ class PreparedReply:
     stop_generation: int = 0
     content_scope: str = "local_only"
     provider: object = None
+    model_lease: object = None
+    model_dependencies: set = field(default_factory=set)
+    model_cleanup: object = None
+    consumer_done: asyncio.Event = field(default_factory=asyncio.Event)
     memory_lease: object = None
     messages: object = None
 
@@ -116,9 +120,23 @@ class WindowConverseController:
     def _local_current(self, prepared):
         if prepared.abandoned or not self.runtime.admission_current(prepared.admission):
             return False
-        if prepared.memory_lease is not None and (
-            not prepared.memory_lease.current() or self.runtime.provider is not prepared.provider
+        published_cache = (
+            prepared.model_lease is not None
+            and prepared.model_cleanup is not None
+            and not prepared.cleanup_failed
+            and not prepared.model_lease.cleanup_failed
+            and prepared.task is not None
+            and prepared.task.done()
+            and prepared.consumer_done.is_set()
+            and prepared.published == len(prepared.chunks)
+        )
+        if (
+            prepared.provider is not None
+            and not published_cache
+            and not self.runtime.model_current(prepared)
         ):
+            return False
+        if prepared.memory_lease is not None and not prepared.memory_lease.current():
             return False
         epoch = self.runtime.playback.get(prepared.source.session_id)
         expected = (
@@ -134,6 +152,7 @@ class WindowConverseController:
         if prepared.abandoned:
             return
         prepared.abandoned = True
+        prepared.consumer_done.set()
         epoch = self.runtime.playback.get(prepared.source.session_id)
         if (
             prepared.generation is not None
@@ -175,6 +194,13 @@ class WindowConverseController:
             if not prepared.cleanup.done() or prepared.cleanup.cancelled():
                 return False
             if prepared.cleanup.exception() is not None:
+                return False
+        if prepared.model_lease is not None:
+            if prepared.model_cleanup is None or not prepared.model_cleanup.done():
+                return False
+            if prepared.model_cleanup.cancelled() or prepared.model_cleanup.exception() is not None:
+                return False
+            if prepared.model_lease.cleanup_failed:
                 return False
         return True
 
@@ -370,6 +396,7 @@ class WindowConverseController:
                     "started",
                     generation_epoch=prepared.generation,
                     behavior=prepared.behavior,
+                    **self.runtime.model_payload(prepared),
                 )
             if not prepared.started:
                 recorded = await self._native(
@@ -424,6 +451,7 @@ class WindowConverseController:
                             "window_source_id": source.event_id,
                             "window_utterance_id": latest.utterance_id,
                             "window_behavior": prepared.behavior,
+                            **self.runtime.model_payload(prepared),
                             **(
                                 {"guard_reason": "ungrounded_runtime_state_claim"}
                                 if negative_state
@@ -462,7 +490,10 @@ class WindowConverseController:
             return prepared.messages
         if prepared.prepare_request is None:
             prepared.prepare_request = self._state_request(
-                source, "preparing", behavior=prepared.behavior
+                source,
+                "preparing",
+                behavior=prepared.behavior,
+                **self.runtime.model_payload(prepared),
             )
         await self._native("append", prepared.prepare_request)
         recent = (
@@ -478,9 +509,7 @@ class WindowConverseController:
                 prepared.provider,
                 personality=self.runtime.personality,
                 runtime_id=self.runtime._runtime_id,
-                current=lambda: (
-                    self.runtime.provider is prepared.provider and self._local_current(prepared)
-                ),
+                current=lambda: self._local_current(prepared),
                 native=self._native,
             )
             if self.runtime.context_budgeted
@@ -517,8 +546,8 @@ class WindowConverseController:
             prepared.provider,
             compile_context,
             lambda: self._abandon(prepared),
-            lambda: self.runtime.provider is prepared.provider and self._local_current(prepared),
-            lambda lease: setattr(prepared, "memory_lease", lease),
+            lambda: self._local_current(prepared),
+            lambda lease: self.runtime.attach_memory_lease(prepared, lease),
             budgeted_builder=budget.build if budget is not None else None,
         )
         prepared.memory_lease = lease
@@ -540,8 +569,13 @@ class WindowConverseController:
     async def generate(self, prepared):
         source = prepared.source
         try:
-            prepared.provider = self.runtime.provider
             w = SpeechWindow.model_validate(source.payload)
+            selected = self.runtime.selected_provider_info()
+            if not scope_allowed(selected, w.content_scope) or not scope_allowed(
+                selected, self.runtime.personality_scope
+            ):
+                raise ValueError("Window disclosure does not permit the selected provider")
+            self.runtime.capture_model(prepared)
             if not allowed_scope(prepared.provider, w.content_scope):
                 raise ValueError("Window disclosure does not permit this provider")
             if not allowed_scope(prepared.provider, self.runtime.personality_scope):
@@ -599,13 +633,39 @@ class WindowConverseController:
             except Exception:
                 pass
         finally:
+            if prepared.abandoned or prepared.published == len(prepared.chunks):
+                prepared.consumer_done.set()
+            if prepared.model_lease is not None:
+                prepared.model_cleanup = asyncio.create_task(self._finish_model(prepared))
             if prepared.memory_lease is not None:
                 prepared.memory_lease.retain_cleanup(
                     prepared.cleanup, lambda: prepared.cleanup_failed
                 )
+                prepared.memory_lease.retain_cleanup(
+                    prepared.model_cleanup, lambda: prepared.cleanup_failed
+                )
                 prepared.memory_lease.finish()
             if self.runtime._active.get(source.session_id) is prepared.task:
                 self.runtime._active.pop(source.session_id, None)
+
+    async def _finish_model(self, prepared):
+        """Keep buffered publication and the actual adapter close owned at EOF."""
+        try:
+            if prepared.task is not None:
+                await asyncio.gather(prepared.task, return_exceptions=True)
+            if prepared.cleanup is not None:
+                await asyncio.shield(prepared.cleanup)
+            await prepared.consumer_done.wait()
+            await self.runtime.settle_model_dependencies(prepared)
+            if prepared.cleanup_failed:
+                prepared.model_lease.cleanup_failed = True
+                return
+            await asyncio.shield(prepared.model_lease.start_close())
+            if prepared.model_lease.cleanup_failed:
+                prepared.cleanup_failed = True
+        except (Exception, asyncio.CancelledError):
+            prepared.cleanup_failed = True
+            prepared.model_lease.cleanup_failed = True
 
     @asynccontextmanager
     async def _provider_stream(self, messages, prepared):
@@ -651,7 +711,8 @@ class WindowConverseController:
                         raise asyncio.CancelledError
 
     async def process(self, entry):
-        return await self._recover(lambda: self._process_once(entry))
+        with self.runtime.model_preparation():
+            return await self._recover(lambda: self._process_once(entry))
 
     async def _process_once(self, entry):
         if (datetime.now(UTC) - entry.created_at).total_seconds() > 60:
@@ -785,6 +846,8 @@ class WindowConverseController:
             self.after = entry.sequence
         for p in list(self.pending.values()):
             await self.flush(p)
+            if p.task is not None and p.task.done() and p.published == len(p.chunks):
+                p.consumer_done.set()
             if p.abandoned and self._released(p) and self.pending.get(p.source.session_id) is p:
                 self.pending.pop(p.source.session_id, None)
         return len(entries)

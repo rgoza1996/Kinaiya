@@ -8,6 +8,7 @@ from packages.contracts import (
     agent_submit,
     companion,
     context,
+    converse_models,
     converse_setup,
     memory,
     memory_catalog,
@@ -44,7 +45,13 @@ for module in (
 )
 
 # Owner policy requests are strict frozen models, separate from journal events.
-for cls in (tool_permissions.PermissionScope, tool_permissions.ToolPermissionChange):
+for cls in (
+    tool_permissions.PermissionScope,
+    tool_permissions.ToolPermissionChange,
+    converse_models.ConverseModelSelection,
+    converse_models.ConverseModelChange,
+    converse_models.RoleModelPin,
+):
     (target / f"{cls.__name__}.json").write_text(
         json.dumps(cls.model_json_schema(), indent=2) + "\n"
     )

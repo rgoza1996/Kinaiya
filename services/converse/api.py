@@ -2,6 +2,8 @@ import asyncio
 import base64
 import hashlib
 import json
+import re
+import sqlite3
 import time
 from contextlib import aclosing
 from typing import Annotated
@@ -16,9 +18,51 @@ from packages.contracts.converse_setup import ConverseSetup
 from packages.contracts.models import ContentScope, ConverseRequest, DeliveryRequest, SpeechWindow
 from packages.providers.disclosure import scope_allowed
 from packages.providers.speech import SpeechProviderError
+from services.converse.embedding import (
+    host_model_selected,
+    runtime_model_preparation,
+    runtime_model_settings,
+    runtime_provider_info,
+)
 
 _STT_CLOSE_OWNERS = set()
 _STT_OWNERS = set()
+_API_MODEL_PREPARATIONS = "kinaiya.converse.model_preparations"
+
+
+class ModelApiOwnership:
+    """Own endpoint preparation through the complete ASGI response lifetime.
+
+    The endpoint reserves only after owner authentication. Keeping release at
+    the outer request boundary covers response-construction failures and a
+    disconnect before a streaming body's first iteration as well.
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        preparations = []
+        scope[_API_MODEL_PREPARATIONS] = preparations
+        try:
+            await self.app(scope, receive, send)
+        finally:
+            for preparation in reversed(preparations):
+                preparation.__exit__(None, None, None)
+
+
+def _reserve_api_model(runtime, request):
+    preparations = request.scope.get(_API_MODEL_PREPARATIONS)
+    if not isinstance(preparations, list):
+        raise HTTPException(503, "Converse request ownership is unavailable")
+    try:
+        preparation = runtime_model_preparation(runtime)
+        preparation.__enter__()
+    except RuntimeError:
+        raise HTTPException(503, "Converse request admission is busy") from None
+    preparations.append(preparation)
 
 
 def _cloud_stt_current(runtime, speech, content_scope, validate=None):
@@ -165,18 +209,39 @@ class TypedTurnResponse(StreamingResponse):
                 await self.body_iterator.aclose()
 
 
+class SpeechTurnResponse(TypedTurnResponse):
+    """Close a paused speech body before releasing its ASGI preparation owner."""
+
+
 def create_app(runtime, auth, speech=None, window_controller=None, *, setup=None):
     from services.converse.memory_api import install_memory_controls
 
     app = FastAPI(title="Kinaiya Converse", version="1.0")
     owner = [Depends(auth.require("owner"))]
     require_control = auth.require("owner", "resources")
+
+    def model_operation_extras():
+        return {
+            "windows": (
+                sum(
+                    not window_controller._reclaimable(p)
+                    for p in window_controller.pending.values()
+                )
+                if window_controller is not None
+                else 0
+            ),
+            "stt": len(_STT_OWNERS),
+            "stt_cleanup": len(_STT_CLOSE_OWNERS),
+        }
+
+    runtime._model_operations_extra = model_operation_extras
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(auth.allowed_origins),
         allow_methods=["GET", "POST"],
         allow_headers=["Authorization", "Content-Type"],
     )
+    app.add_middleware(ModelApiOwnership)
 
     @app.get("/health")
     async def health():
@@ -187,10 +252,14 @@ def create_app(runtime, auth, speech=None, window_controller=None, *, setup=None
             availability = runtime.availability()
         except (OSError, ValueError):
             availability = {"enabled": False, "owner_intent_unavailable": True}
+        try:
+            provider_info = runtime_provider_info(runtime).model_dump()
+        except (ProviderError, OSError, ValueError, RuntimeError, sqlite3.Error):
+            provider_info = None
         result = {
             "service": "converse",
             **availability,
-            "provider": runtime.provider.info.model_dump(),
+            "provider": provider_info,
             "voice_configured": speech is not None,
             "speech_operations": runtime.speech_status(),
             "text_operations": runtime.text_status(),
@@ -199,13 +268,108 @@ def create_app(runtime, auth, speech=None, window_controller=None, *, setup=None
                 "measured" if getattr(runtime, "context_budgeted", False) else "legacy_embedded"
             ),
         }
+        if provider_info is None:
+            result["provider_error"] = "Selected Converse text model is unavailable"
+        if getattr(runtime, "speech_unavailable", False):
+            result["voice_error"] = "Configured voice adapter is unavailable"
         try:
-            binding = managed_text_binding(runtime.provider)
+            binding = (
+                managed_text_binding(runtime.provider)
+                if provider_info is not None and host_model_selected(runtime)
+                else None
+            )
         except ProviderError as exc:
             raise HTTPException(503, "Managed text configuration identity is unavailable") from exc
         if binding is not None:
             result["managed_text"] = binding
         return result
+
+    def model_settings():
+        settings = runtime_model_settings(runtime)
+        if settings is None:
+            raise HTTPException(
+                503, "Converse model options are unavailable", headers={"Cache-Control": "no-store"}
+            )
+        return settings
+
+    def model_error(status, message):
+        return HTTPException(status, message, headers={"Cache-Control": "no-store"})
+
+    @app.get("/v1/converse/options/model", dependencies=owner)
+    async def inspect_model():
+        try:
+            result = model_settings().snapshot()
+        except (OSError, ValueError, RuntimeError, sqlite3.Error):
+            raise model_error(503, "Converse model options are unavailable") from None
+        return JSONResponse(result, headers={"Cache-Control": "no-store"})
+
+    @app.post("/v1/converse/options/model", dependencies=owner)
+    async def change_model(request: Request):
+        from packages.contracts.converse_models import ConverseModelChange
+        from services.converse.model_settings import ConverseModelConflict
+
+        settings = model_settings()
+        raw = bytearray()
+        async for chunk in request.stream():
+            if len(raw) + len(chunk) > 8192:
+                raise model_error(413, "Converse model change exceeds its request bound")
+            raw.extend(chunk)
+
+        def unique(pairs):
+            result = {}
+            for key, value in pairs:
+                if key in result:
+                    raise ValueError("Duplicate field")
+                result[key] = value
+            return result
+
+        def constant(_):
+            raise ValueError("Nonfinite number")
+
+        try:
+            body = json.loads(
+                raw.decode("utf-8"), object_pairs_hook=unique, parse_constant=constant
+            )
+            pending, nodes = [(body, 0)], 0
+            while pending:
+                value, depth = pending.pop()
+                nodes += 1
+                if depth > 8 or nodes > 256:
+                    raise ValueError("JSON bound")
+                if type(value) is dict:
+                    pending.extend((v, depth + 1) for v in value.values())
+                elif type(value) is list:
+                    pending.extend((v, depth + 1) for v in value)
+                elif type(value) is str:
+                    value.encode("utf-8")
+            change = ConverseModelChange.model_validate(body)
+        except (ValueError, TypeError, UnicodeError, RecursionError):
+            raise model_error(
+                422, "Converse model change requires its strict versioned shape"
+            ) from None
+        try:
+            result = settings.change(change)
+        except ConverseModelConflict as exc:
+            raise model_error(409, str(exc)) from None
+        except ValueError:
+            raise model_error(400, "Converse model selection was refused") from None
+        except (OSError, RuntimeError, sqlite3.Error):
+            raise model_error(
+                503, "Model change outcome is unconfirmed; inspect its exact receipt"
+            ) from None
+        return JSONResponse(result, headers={"Cache-Control": "no-store"})
+
+    @app.get("/v1/converse/options/model-changes/{key}", dependencies=owner)
+    async def model_change_receipt(key: str):
+        if re.fullmatch(r"[A-Za-z0-9:._-]{1,128}", key) is None:
+            raise model_error(404, "Converse model change receipt is unavailable")
+        try:
+            result = model_settings().receipt(key)
+        except (OSError, ValueError, RuntimeError, sqlite3.Error):
+            raise model_error(503, "Converse model change receipt is unavailable") from None
+        if result is None:
+            raise model_error(404, "Converse model change receipt is unavailable")
+        return JSONResponse(result, headers={"Cache-Control": "no-store"})
 
     @app.get("/v1/converse/setup", dependencies=owner, response_model=ConverseSetup)
     async def model_setup():
@@ -269,6 +433,7 @@ def create_app(runtime, auth, speech=None, window_controller=None, *, setup=None
         file: UploadFile,
         content_scope: Annotated[ContentScope, Form()] = "local_only",
     ):
+        _reserve_api_model(runtime, request)
         if not runtime.enabled:
             raise HTTPException(409, "Converse is off; direct Agent Chat remains available")
         if speech is None:
@@ -288,7 +453,8 @@ def create_app(runtime, auth, speech=None, window_controller=None, *, setup=None
         return {**transcript, "content_scope": content_scope}
 
     @app.post("/v1/converse/windows", dependencies=owner)
-    async def window(request: SpeechWindow):
+    async def window(request: SpeechWindow, http_request: Request):
+        _reserve_api_model(runtime, http_request)
         if window_controller is None:
             raise HTTPException(503, "Streaming conversation control is unavailable")
         if not runtime.enabled:
@@ -301,6 +467,7 @@ def create_app(runtime, auth, speech=None, window_controller=None, *, setup=None
 
     @app.post("/v1/converse/audio/windows", dependencies=owner)
     async def audio_window(request: AudioWindow, http_request: Request):
+        _reserve_api_model(runtime, http_request)
         if window_controller is None or speech is None:
             raise HTTPException(503, "Configure streaming conversation control and STT")
         if not runtime.enabled:
@@ -365,7 +532,8 @@ def create_app(runtime, auth, speech=None, window_controller=None, *, setup=None
         }
 
     @app.post("/v1/converse/speech", dependencies=owner)
-    async def audio(request: SpeechRequest):
+    async def audio(request: SpeechRequest, http_request: Request):
+        _reserve_api_model(runtime, http_request)
         if speech is None:
             raise HTTPException(503, "Configure a TTS provider in settings")
         try:
@@ -399,7 +567,7 @@ def create_app(runtime, auth, speech=None, window_controller=None, *, setup=None
                         + "\n"
                     )
 
-        return StreamingResponse(generate(), media_type="application/x-ndjson")
+        return SpeechTurnResponse(generate(), media_type="application/x-ndjson")
 
     install_memory_controls(app, runtime, auth)
     return app

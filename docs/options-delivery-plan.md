@@ -71,3 +71,10 @@ an embedded editor. It does not establish blanket filesystem-read protection,
 individual MCP/plugin or scoped network rules, active-grant inventory or the
 remaining full permission acceptance. See the PR for actual verification and
 preview promotion; source presence alone does not close these obligations.
+
+[ADR0091](adr/0091-converse-text-model-settings.md) adds the next independently
+owned role editor: Converse text, exact eligible catalog generations/reasoning,
+settled-operation CAS, captured stream leases and pins, and receipt-first UI
+recovery. Decisions, STT/TTS, ordered fallback and real multimodal qualification
+remain incomplete. This is source under review; consult its PR for actual CI and
+preview evidence before treating it as delivered.

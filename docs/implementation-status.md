@@ -48,6 +48,13 @@ Agent only. Catalog role application for Converse/Decisions/STT/TTS, ordered
 fallback and broader model qualification remain unfinished. Static review and
 analysis do not establish fresh inference quality or full settings coverage.
 
+[ADR0091](adr/0091-converse-text-model-settings.md) adds Converse text selection
+through its own protected store and native operation leases, with a separate
+embedded editor and exact unknown-save recovery. This supersedes the application
+gap for that text role only. It is under source/static review; later PR-specific
+CI and runtime evidence remain separate. Decisions/STT/TTS editing, fallback,
+direct multimodal capture and the other full Options acceptance groups stay open.
+
 ## Milestone status
 
 The subsequent [bound model-save repair](adr/0088-bound-model-settings-writes.md)

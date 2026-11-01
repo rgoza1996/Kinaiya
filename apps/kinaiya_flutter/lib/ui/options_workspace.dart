@@ -21,6 +21,7 @@ import 'options_runtime_editor.dart';
 import 'agent_runtime_writes.dart';
 import 'options_provider_editor.dart';
 import 'options_tool_permissions.dart';
+import 'options_converse_model.dart';
 import 'presentation_settings.dart';
 import 'settings_controls.dart';
 import 'setup_dialog.dart';
@@ -934,47 +935,70 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
     );
   }
 
-  Widget _modelDefaults() => _scroll([
-    const Text(
-      'Model defaults by role. Harness-specific choices live in Harness Customization.',
-    ),
-    ..._errors,
-    _role('conversation', 'Converse'),
-    if (_modelReadOnlyReason case final reason?) Text(reason),
-    if (_models case final models?)
-      OptionsModelEditor(
-        key: const ValueKey('agent-default-model-editor'),
-        models: models,
-        busy: _modelBusy,
-        onSave: _saveModel,
-        onSaveCatalog: (catalog, reasoning) =>
-            _saveModel(null, reasoning, catalogBinding: catalog),
-      )
-    else
-      _unavailable(
-        'Agent default',
-        'Connect to an updated Agent host to manage model profiles.',
+  Widget _modelDefaults() {
+    final owner = widget.state, client = widget.state.client;
+    final generation = owner.connectionGeneration;
+    bool current() =>
+        mounted &&
+        identical(widget.state, owner) &&
+        client != null &&
+        owner.ownsConnection(generation, client);
+    bool ownsConnection() =>
+        client != null && owner.ownsConnection(generation, client);
+    return _scroll([
+      const Text(
+        'Model defaults by role. Harness-specific choices live in Harness Customization.',
       ),
-    _role('decisions', 'Decisions'),
-    const Text(
-      'Decisions classifies typed questions. It has no conversational reasoning or voice setting.',
-    ),
-    if (_models case final models?)
-      OptionsAuxiliaryModels(
-        models: models,
-        initialPurpose: _auxiliaryPurpose,
-        onPurposeChanged: (value) => _auxiliaryPurpose = value,
-        busy: _modelBusy,
-        onSave: (purpose, profile, reasoning) =>
-            _saveModel(profile, reasoning, auxiliaryTask: purpose),
-        onSaveCatalog: (purpose, catalog, reasoning) => _saveModel(
-          null,
-          reasoning,
-          auxiliaryTask: purpose,
-          catalogBinding: catalog,
+      ..._errors,
+      OptionsConverseModel(
+        key: ObjectKey(client),
+        api: client?.converseModels,
+        active: current,
+        onInvalidate: () {
+          if (current()) owner.invalidateConverseInference();
+        },
+        onSettled: () async {
+          if (ownsConnection()) {
+            await owner.revalidateConverseInference(invalidate: false);
+          }
+        },
+      ),
+      if (_modelReadOnlyReason case final reason?) Text(reason),
+      if (_models case final models?)
+        OptionsModelEditor(
+          key: const ValueKey('agent-default-model-editor'),
+          models: models,
+          busy: _modelBusy,
+          onSave: _saveModel,
+          onSaveCatalog: (catalog, reasoning) =>
+              _saveModel(null, reasoning, catalogBinding: catalog),
+        )
+      else
+        _unavailable(
+          'Agent default',
+          'Connect to an updated Agent host to manage model profiles.',
         ),
+      _role('decisions', 'Decisions'),
+      const Text(
+        'Decisions classifies typed questions. It has no conversational reasoning or voice setting.',
       ),
-  ]);
+      if (_models case final models?)
+        OptionsAuxiliaryModels(
+          models: models,
+          initialPurpose: _auxiliaryPurpose,
+          onPurposeChanged: (value) => _auxiliaryPurpose = value,
+          busy: _modelBusy,
+          onSave: (purpose, profile, reasoning) =>
+              _saveModel(profile, reasoning, auxiliaryTask: purpose),
+          onSaveCatalog: (purpose, catalog, reasoning) => _saveModel(
+            null,
+            reasoning,
+            auxiliaryTask: purpose,
+            catalogBinding: catalog,
+          ),
+        ),
+    ]);
+  }
 
   Widget _harnesses() {
     final rows = widget.state.agentHarnesses;
