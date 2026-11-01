@@ -400,7 +400,12 @@ def test_backend_only_read_never_registers_control_writer(tmp_path):
     try:
         backend = store.agent_control.backend()
         assert store.agent_control.backend() == backend
-        assert store.db.execute("SELECT count(*) FROM agent_control_generations").fetchone()[0] == 0
+        assert (
+            store.db.execute(
+                "SELECT count(*) FROM sqlite_schema WHERE name='agent_control_generations'"
+            ).fetchone()[0]
+            == 0
+        )
         with pytest.raises(AgentControlUnavailable):
             store.agent_control.snapshot()
         control = AgentControl(store)

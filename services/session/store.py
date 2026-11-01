@@ -2,6 +2,7 @@
 
 import copy
 import json
+import secrets
 import sqlite3
 import threading
 from contextlib import contextmanager
@@ -97,12 +98,9 @@ class Store:
         self._converse_context_validators = {}
         self.db = sqlite3.connect(self.path, check_same_thread=False)
         self.db.row_factory = sqlite3.Row
-        new_store = not self.db.execute(
-            "SELECT 1 FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' LIMIT 1"
-        ).fetchone()
         self.db.execute("PRAGMA foreign_keys=ON")
         self.db.execute("PRAGMA journal_mode=WAL")
-        self.db.executescript("""
+        schema = """
             CREATE TABLE IF NOT EXISTS schema_meta(version INTEGER NOT NULL);
             INSERT INTO schema_meta(version) SELECT 1 WHERE NOT EXISTS(SELECT 1 FROM schema_meta);
             CREATE TABLE IF NOT EXISTS sessions(
@@ -164,12 +162,41 @@ class Store:
                 logical_key TEXT NOT NULL,
                 event_id TEXT NOT NULL REFERENCES entries(event_id) ON DELETE CASCADE,
                 PRIMARY KEY(session_id, logical_key));
-        """)
-        if self.db.execute("SELECT version FROM schema_meta").fetchone()[0] != 1:
-            raise JournalError(
-                "Unsupported database version; preserve the database before migration"
-            )
-        self.db.commit()
+        """
+        try:
+            # The creation capability and durable pending origin are decided
+            # under the same SQLite writer boundary as the first base schema.
+            # executescript would implicitly commit that boundary before DDL.
+            self.db.execute("BEGIN IMMEDIATE")
+            new_store = not self.db.execute(
+                "SELECT 1 FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' LIMIT 1"
+            ).fetchone()
+            if new_store:
+                self.db.execute(
+                    "CREATE TABLE schema_meta(version INTEGER NOT NULL,"
+                    "agent_control_version INTEGER,agent_control_backend TEXT NOT NULL)"
+                )
+                self.db.execute("INSERT INTO schema_meta VALUES(1,0,?)", (secrets.token_hex(16),))
+            statement = ""
+            for line in schema.splitlines(keepends=True):
+                statement += line
+                if sqlite3.complete_statement(statement):
+                    self.db.execute(statement)
+                    statement = ""
+            if statement.strip():
+                raise JournalError("Incomplete native schema initialization")
+            if self.db.execute("SELECT version FROM schema_meta").fetchone()[0] != 1:
+                raise JournalError(
+                    "Unsupported database version; preserve the database before migration"
+                )
+            self.db.commit()
+        except BaseException:
+            try:
+                self.db.rollback()
+            finally:
+                self.db.close()
+            raise
+        self._agent_control_default_bootstrap = new_store
         self._agent_submit_ready = False
         self._agent_submit_unavailable = False
         from services.session.decisions_store import DecisionsInspectionStore

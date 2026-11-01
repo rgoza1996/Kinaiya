@@ -5,12 +5,14 @@ import secrets
 import time
 import uuid
 from contextlib import contextmanager
+from datetime import datetime
 from functools import wraps
 
 from pydantic import TypeAdapter
 
 from packages.contracts.agent_control import (
     MAX_AGENT_CONTROL_INTEGER,
+    MAX_AGENT_CONTROL_RESPONSE_BYTES,
     AgentControlSnapshot,
     AgentModeChange,
     AgentModeLookupResult,
@@ -45,6 +47,7 @@ _TABLES = {
     ],
 }
 _MAX_RECORDS = 10000
+_FRESH_META = ["version", "agent_control_version", "agent_control_backend"]
 _ADMISSION_STATES = frozenset(state.value for state in TaskState) - {
     "succeeded",
     "failed",
@@ -143,18 +146,51 @@ class AgentControl:
                     self._poison()
                 raise
 
-    def _ensure(self, *, legacy_agent_enabled=None):
+    def _bootstrap_origin(self):
+        columns = [row["name"] for row in self._all("PRAGMA table_info(schema_meta)")]
+        if columns != _FRESH_META:
+            return False, None
+        rows = self._all("SELECT * FROM schema_meta")
+        if (
+            len(rows) != 1
+            or type(rows[0]["version"]) is not int
+            or rows[0]["version"] != 1
+            or type(rows[0]["agent_control_version"]) is not int
+            or rows[0]["agent_control_version"] not in {0, 1}
+        ):
+            raise AgentControlUnavailable
+        backend = rows[0]["agent_control_backend"]
+        try:
+            TypeAdapter(BackendId).validate_python(backend, strict=True)
+        except ValueError:
+            raise AgentControlUnavailable from None
+        pending = rows[0]["agent_control_version"] == 0
+        if pending and any(
+            row["name"] in _TABLES
+            for row in self._all("SELECT name FROM sqlite_schema WHERE type='table'")
+        ):
+            raise AgentControlUnavailable
+        return pending, backend
+
+    def _ensure(self, *, legacy_agent_enabled=None, registering=False, allow_fresh_default=False):
         columns = [row["name"] for row in self._all("PRAGMA table_info(schema_meta)")]
         tables = {
             row["name"]
             for row in self._all("SELECT name FROM sqlite_schema WHERE type='table'")
             if row["name"] in _TABLES
         }
-        if columns == ["version"] and not tables:
-            rows = self._all("SELECT version FROM schema_meta")
-            if len(rows) != 1 or type(rows[0][0]) is not int or rows[0][0] != 1:
-                raise AgentControlUnavailable
-            self._sql("ALTER TABLE schema_meta ADD COLUMN agent_control_version INTEGER")
+        pending, bootstrap_backend = self._bootstrap_origin()
+        if (columns == ["version"] and not tables) or pending:
+            if pending:
+                if not registering and not (
+                    allow_fresh_default and self.store._agent_control_default_bootstrap
+                ):
+                    raise AgentControlUnavailable
+            else:
+                rows = self._all("SELECT version FROM schema_meta")
+                if len(rows) != 1 or type(rows[0][0]) is not int or rows[0][0] != 1:
+                    raise AgentControlUnavailable
+                self._sql("ALTER TABLE schema_meta ADD COLUMN agent_control_version INTEGER")
             self._sql(
                 "CREATE TABLE agent_control_state(id INTEGER PRIMARY KEY CHECK(id=1),"
                 "backend_id TEXT NOT NULL,instance_id TEXT,revision INTEGER NOT NULL,"
@@ -175,13 +211,15 @@ class AgentControl:
                 "receipt TEXT NOT NULL,event_id TEXT NOT NULL REFERENCES entries(event_id) ON DELETE CASCADE,"
                 "PRIMARY KEY(submit_event_id,base_revision),UNIQUE(submit_event_id,key))"
             )
-            mode = "off" if self.new_store and legacy_agent_enabled is False else "on_demand"
+            mode = "off" if pending and legacy_agent_enabled is False else "on_demand"
             self._sql(
                 "INSERT INTO agent_control_state VALUES(1,?,NULL,0,?,?)",
-                (secrets.token_hex(16), mode, mode),
+                (bootstrap_backend or secrets.token_hex(16), mode, mode),
             )
             self._sql("UPDATE schema_meta SET agent_control_version=1")
-        elif columns != ["version", "agent_control_version"] or tables != set(_TABLES):
+        elif columns not in (["version", "agent_control_version"], _FRESH_META) or tables != set(
+            _TABLES
+        ):
             raise AgentControlUnavailable
         marker = self._all("SELECT version,agent_control_version FROM schema_meta")
         if len(marker) != 1 or tuple(marker[0]) != (1, 1):
@@ -189,9 +227,10 @@ class AgentControl:
         for name, expected in _TABLES.items():
             if [row["name"] for row in self._all(f"PRAGMA table_info({name})")] != expected:
                 raise AgentControlUnavailable
+        return bootstrap_backend
 
-    def metadata(self):
-        self._ensure()
+    def metadata(self, *, allow_fresh_default=False):
+        bootstrap_backend = self._ensure(allow_fresh_default=allow_fresh_default)
         rows = self._all("SELECT * FROM agent_control_state")
         if len(rows) != 1:
             raise AgentControlUnavailable
@@ -202,6 +241,7 @@ class AgentControl:
                 TypeAdapter(ControlInstance).validate_python(row["instance_id"], strict=True)
             if (
                 row["id"] != 1
+                or (bootstrap_backend is not None and row["backend_id"] != bootstrap_backend)
                 or type(row["revision"]) is not int
                 or not 0 <= row["revision"] <= MAX_AGENT_CONTROL_INTEGER
                 or row["mode"] not in {"off", "on_demand", "autonomous"}
@@ -243,16 +283,20 @@ class AgentControl:
     def register(self, *, legacy_agent_enabled=None):
         if self.instance is not None:
             raise AgentControlConflict
-        instance = str(uuid.uuid4())
-        with self.transaction():
-            self._ensure(legacy_agent_enabled=legacy_agent_enabled)
-            self.metadata()
-            if self._one("SELECT count(*) FROM agent_control_generations")[0] >= _MAX_RECORDS:
-                raise AgentControlUnavailable
-            self._sql("UPDATE agent_control_generations SET retired=1 WHERE retired=0")
-            self._sql("INSERT INTO agent_control_generations VALUES(?,0)", (instance,))
-            self._sql("UPDATE agent_control_state SET instance_id=? WHERE id=1", (instance,))
-        self.instance = instance
+        with self.store.lock:
+            # An attempted explicit startup permanently retires this Store's
+            # creator-only default capability, including after a clean rollback.
+            self.store._agent_control_default_bootstrap = False
+            instance = str(uuid.uuid4())
+            with self.transaction():
+                self._ensure(legacy_agent_enabled=legacy_agent_enabled, registering=True)
+                self.metadata()
+                if self._one("SELECT count(*) FROM agent_control_generations")[0] >= _MAX_RECORDS:
+                    raise AgentControlUnavailable
+                self._sql("UPDATE agent_control_generations SET retired=1 WHERE retired=0")
+                self._sql("INSERT INTO agent_control_generations VALUES(?,0)", (instance,))
+                self._sql("UPDATE agent_control_state SET instance_id=? WHERE id=1", (instance,))
+            self.instance = instance
 
     def _snapshot(self, row):
         if row["instance_id"] is None:
@@ -278,6 +322,9 @@ class AgentControl:
     def backend(self):
         """Internal Agent discovery without registering any control writer."""
         with self.transaction():
+            pending, backend = self._bootstrap_origin()
+            if pending:
+                return backend
             return self.metadata()["backend_id"]
 
     def _mode_proof(self, request, row):
@@ -369,7 +416,7 @@ class AgentControl:
 
     def require_admission(self):
         """Called inside the existing native acceptance transaction, after proof."""
-        row = self.metadata()
+        row = self.metadata(allow_fresh_default=True)
         if row["mode"] == "off":
             raise AgentModeOff
         return row
@@ -416,7 +463,14 @@ class AgentControl:
                 or raw.get("schema_version") != "1.0"
                 or type(raw.get("sequence")) is not int
                 or type(raw.get("epoch")) is not int
+                or type(raw.get("created_at")) is not str
             ):
+                raise ValueError
+            timestamp = raw["created_at"]
+            if len(timestamp) > 64 or timestamp[10:11] != "T":
+                raise ValueError
+            instant = datetime.fromisoformat(timestamp)
+            if instant.tzinfo is None or instant.utcoffset() is None:
                 raise ValueError
             event = JournalEntry.model_validate(raw)
             if (
@@ -480,6 +534,7 @@ class AgentControl:
                 or state not in _ADMISSION_STATES
                 or _canonical(event.payload) != _canonical(_steer_payload(original, state))
                 or event.causes != list(original.request.source_event_ids)
+                or receipt.admission_mode != self._historical_mode(receipt.control_revision)
             ):
                 raise ValueError
         except (ValueError, TypeError, AttributeError, KeyError):
@@ -489,6 +544,34 @@ class AgentControl:
         return AgentSteerReceipt.model_validate(
             {**receipt.model_dump(mode="python"), "disposition": "retained"}
         )
+
+    def _historical_mode(self, revision):
+        current = self.metadata()
+        if revision > current["revision"]:
+            raise AgentControlUnavailable
+        if revision == 0:
+            mode = current["initial_mode"]
+        else:
+            # Accepted mode receipts are bounded and capped in this protected
+            # ledger. Validate the unique original proof; current mode may have
+            # legitimately changed through Off/on_demand since this admission.
+            rows = self._all(
+                "SELECT receipt FROM agent_control_changes WHERE CASE "
+                "WHEN typeof(receipt)='text' AND length(CAST(receipt AS BLOB))<=? "
+                "THEN CASE WHEN json_valid(receipt) THEN json_extract(receipt,'$.revision') END "
+                "END=? LIMIT 2",
+                (MAX_AGENT_CONTROL_RESPONSE_BYTES, revision),
+            )
+            if len(rows) != 1:
+                raise AgentControlUnavailable
+            candidate = AgentModeReceipt.from_json(rows[0]["receipt"].encode("utf-8"))
+            proof = self._mode_proof(candidate.request, current)
+            if proof is None or proof.revision != revision:
+                raise AgentControlUnavailable
+            mode = proof.request.mode
+        if revision == current["revision"] and mode != current["mode"]:
+            raise AgentControlUnavailable
+        return mode
 
     def _history(self, initial):
         revision = initial.payload["objective_revision"]
