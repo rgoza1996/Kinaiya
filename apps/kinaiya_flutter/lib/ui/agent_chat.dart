@@ -13,6 +13,45 @@ import 'mcp_settings.dart';
 import 'settings_controls.dart';
 import 'widgets.dart';
 
+/// These are owner input, not success receipts. Keep unknown writes across view
+/// close and same-owner reconnect without persisting private drafts or keys.
+class _PendingAgentSubmission {
+  _PendingAgentSubmission({
+    required this.owner,
+    required this.origin,
+    required this.request,
+    required this.draft,
+    required this.draftRevision,
+    required this.selection,
+  });
+
+  final KinaiyaClient owner;
+  final AppState origin;
+  final AgentSubmission request;
+  final String draft;
+  final int draftRevision, selection;
+  int outstanding = 0;
+  bool checking = false;
+  String notice = 'Awaiting the original request receipt.';
+}
+
+class _AgentSubmissions {
+  static const limit = 16;
+  static final pending = <_PendingAgentSubmission>[];
+  static final changed = ValueNotifier<int>(0);
+  static int outstanding = 0;
+
+  static Iterable<_PendingAgentSubmission> forOwner(KinaiyaClient? api) =>
+      api == null
+      ? const <_PendingAgentSubmission>[]
+      : pending.where((attempt) => attempt.owner.sameOwnerBackend(api));
+
+  static bool inScope(KinaiyaClient? api, SessionInfo? session) =>
+      forOwner(api).any((attempt) => attempt.request.sameScope(session));
+
+  static void notify() => changed.value++;
+}
+
 /// Direct Agent Chat: real worker surface with tools, evidence, approvals
 /// and cancel. Slash commands are Agent-only and registry-driven; Converse
 /// text is never routed here.
@@ -91,6 +130,7 @@ class _AgentChatState extends State<AgentChat> {
     _lastGeneration = _s.connectionGeneration;
     _lastWorkspaceAuth = _s.sessionAuthenticated;
     _s.addListener(_handleStateChange);
+    _AgentSubmissions.changed.addListener(_handleSubmissionChange);
     _loadRegistry();
     unawaited(_refreshTasks());
     _scheduleWorkspaceRefresh();
@@ -137,6 +177,7 @@ class _AgentChatState extends State<AgentChat> {
     _detachSettingsControls();
     _poll?.cancel();
     _s.removeListener(_handleStateChange);
+    _AgentSubmissions.changed.removeListener(_handleSubmissionChange);
     _input.dispose();
     for (final c in _steer.values) {
       c.dispose();
@@ -145,6 +186,15 @@ class _AgentChatState extends State<AgentChat> {
   }
 
   AppState get _s => widget.state;
+
+  void _handleSubmissionChange() {
+    if (mounted) setState(() {});
+  }
+
+  bool get _canStartSubmission =>
+      _AgentSubmissions.pending.length < _AgentSubmissions.limit &&
+      _AgentSubmissions.outstanding < _AgentSubmissions.limit &&
+      !_AgentSubmissions.inScope(_s.client, _s.agentSession);
 
   /// Same-view reconnect: the AppState object is identical but its client
   /// and generation change on connect/disconnect. Reload the registry
@@ -311,18 +361,19 @@ class _AgentChatState extends State<AgentChat> {
     }
     if (!_s.sessionAuthenticated || _s.agentSession == null) return false;
     if (!_isSlash(text)) {
-      return _s.agentSession != null &&
+      return _canStartSubmission &&
           _s.agentCanInfer &&
           !_s.agentHistoryLoading &&
           _s.agentHistoryError == null;
     }
     final name = text.trim().split(RegExp(r'\s+')).first.substring(1);
     final registry = _s.commands;
-    if (registry == null) return _s.agentCanInfer;
+    if (registry == null) return _canStartSubmission && _s.agentCanInfer;
     final match = registry.where((c) => c.matches(name)).toList();
     if (match.isEmpty || !match.first.available) return false;
     if (match.first.requiresInference) {
-      return _s.agentCanInfer &&
+      return _canStartSubmission &&
+          _s.agentCanInfer &&
           !_s.agentHistoryLoading &&
           _s.agentHistoryError == null;
     }
@@ -330,110 +381,370 @@ class _AgentChatState extends State<AgentChat> {
   }
 
   Future<void> _send() async {
+    final owner = _s;
     final text = _input.text.trim();
-    final api = _s.client;
-    final generation = _s.connectionGeneration;
-    final scope = _s.draftScope(AppView.agent);
+    final api = owner.client;
+    final generation = owner.connectionGeneration;
+    final scope = owner.draftScope(AppView.agent);
+    final session = owner.agentSession;
+    final selection = owner.agentSelectionGeneration;
+    final draftRevision = owner.agentDraftRevision;
     if (text.isEmpty ||
         api == null ||
-        _s.busyAgent ||
-        _s.agentIdentitySelecting) {
+        owner.busyAgent ||
+        owner.agentIdentitySelecting ||
+        !owner.ownsConnection(generation, api) ||
+        !owner.sessionAuthenticated) {
       return;
     }
-    if (!_s.ownsConnection(generation, api)) return;
-    if (!_s.sessionAuthenticated) return;
     final slash = _isSlash(text);
-    if (!slash && (_s.agentHistoryLoading || _s.agentHistoryError != null)) {
+    if (!slash &&
+        (owner.agentHistoryLoading || owner.agentHistoryError != null)) {
       return;
     }
-    if (!slash && !_s.agentCanDisclose(scope)) {
-      if (!_s.ownsConnection(generation, api)) return;
-      _s.agentNotice = _s.agentCanInfer
+    if (!slash && !owner.agentCanDisclose(scope)) {
+      owner.agentNotice = owner.agentCanInfer
           ? 'This draft retains its original disclosure scope and cannot be sent to this provider. Clear and re-enter it to choose a new scope.'
           : 'Agent inference is not available for the current provider and disclosure consent. Deterministic controls (/status, /stop, /help) still work.';
-      _s.touch();
+      owner.touch();
       return;
     }
-    if (!slash && _s.agentSession == null) return;
-    if (slash && !_s.sessionAuthenticated) return;
-    _s.busyAgent = true;
-    _s.touch();
+    if (!slash && session == null) {
+      owner.agentNotice =
+          'Choose an existing session or create one from Workspace first.';
+      owner.touch();
+      return;
+    }
+    owner.busyAgent = true;
+    owner.touch();
     try {
+      // Notifications can synchronously reconnect, select another session or
+      // edit/retype the draft. Capture intent before publishing the busy state.
+      if (!mounted ||
+          !identical(widget.state, owner) ||
+          !owner.ownsConnection(generation, api) ||
+          (session != null && !owner.ownsAgentSelection(selection, session)) ||
+          !owner.sessionAuthenticated) {
+        return;
+      }
       if (slash) {
-        await _dispatchSlash(api, generation, text, scope);
+        await _dispatchSlash(
+          api,
+          generation,
+          session,
+          selection,
+          draftRevision,
+          text,
+          scope,
+        );
         return;
       }
-      SessionInfo? session = _s.agentSession;
-      if (session == null) {
-        try {
-          session = await _s.ensureSession('agent', name: 'work');
-        } catch (_) {
-          // Stale acquisition (reconnect raced the session read) leaves
-          // the new connection untouched; a fresh send can retry there.
-          if (!_s.ownsConnection(generation, api)) return;
-          rethrow;
-        }
-      }
-      // Recheck after the awaited acquisition: a reconnect must not have
-      // a side effect submitted from a stale session/client. Inference may
-      // also have been revoked (for example by a /model switch).
-      if (!mounted ||
-          !_s.ownsConnection(generation, api) ||
-          !_s.agentCanDisclose(scope)) {
-        return;
-      }
-      final selection = _s.agentSelectionGeneration;
-      if (!_s.ownsAgentSelection(selection, session)) return;
-      final liveApi = _s.client;
-      if (liveApi == null || !identical(liveApi, api)) return;
-      final task = await liveApi.createTask(
-        sessionId: session.sessionId,
-        threadId: session.threadId,
-        epoch: session.epoch,
-        objective: text.startsWith(r'\/') ? text.substring(1) : text,
-        contentScope: scope,
-        idempotencyKey: newIdempotencyKey(),
+      if (!owner.agentCanDisclose(scope)) return;
+      if (session == null) return;
+      await _beginSubmission(
+        api,
+        generation,
+        session,
+        text,
+        scope,
+        selection: selection,
+        draftRevision: draftRevision,
       );
-      // Already-sent requests cannot be recalled, but a stale completion
-      // must not mutate the new connection's draft, history or busy state.
-      if (!mounted ||
-          !_s.ownsConnection(generation, api) ||
-          !_s.ownsAgentSelection(selection, session)) {
-        return;
-      }
-      // Clear only the draft that was actually sent; text typed during the
-      // await (same or new connection) survives.
-      if (_input.text.trim() == text) {
-        _input.clear();
-        if (_s.agentDraft.trim() == text) _s.setDraft(AppView.agent, '');
-      }
-      _s.agentHistory.add(
-        ChatMsg(
-          role: 'user',
-          text: text,
-          note: 'Task ${task.taskId} ${task.state}',
-        ),
-      );
-      _s.touch();
-      if (_s.ownsConnection(generation, api)) await _refreshTasks();
-    } on ApiException catch (e) {
-      if (!_s.ownsConnection(generation, api)) return;
-      _s.agentNotice = e.status == 409
-          ? 'That request conflicts with current work. Refresh and try again.'
-          : "Couldn't reach the Agent service. Check the connection.";
-      _s.touch();
     } catch (_) {
-      if (!_s.ownsConnection(generation, api)) return;
-      _s.agentNotice =
-          'The Agent request was not confirmed. Inspect current sessions and tasks before trying again.';
-      _s.touch();
+      if (!owner.ownsConnection(generation, api)) return;
+      owner.agentNotice =
+          'The Agent request was not confirmed. Check any retained original request and inspect recorded tasks.';
+      owner.touch();
     } finally {
-      // Cleanup belongs to the originating connection only.
-      if (_s.ownsConnection(generation, api)) {
-        _s.busyAgent = false;
-        _s.touch();
+      if (owner.ownsConnection(generation, api)) {
+        owner.busyAgent = false;
+        owner.touch();
       }
     }
+  }
+
+  Future<void> _beginSubmission(
+    KinaiyaClient api,
+    int generation,
+    SessionInfo session,
+    String draft,
+    ContentScope scope, {
+    required int selection,
+    required int draftRevision,
+    String? command,
+  }) async {
+    final owner = _s;
+    if (!mounted ||
+        !owner.ownsConnection(generation, api) ||
+        !owner.ownsAgentSelection(selection, session)) {
+      return;
+    }
+    if (!_canStartSubmission) {
+      owner.agentNotice = _AgentSubmissions.inScope(api, session)
+          ? 'An original request in this session is still unconfirmed. Check its receipt before sending new work.'
+          : 'The local unresolved-request limit is reached. Keep these requests for receipt reconciliation; none was cancelled.';
+      owner.touch();
+      return;
+    }
+    // Validate the bounded frozen body before it becomes a possibly sent write.
+    late final AgentSubmission request;
+    try {
+      request = AgentSubmission(
+        session: session,
+        text: command == null && draft.startsWith(r'\/')
+            ? draft.substring(1)
+            : draft,
+        scope: scope,
+        key: newIdempotencyKey(),
+        command: command,
+      );
+    } on FormatException {
+      owner.agentNotice =
+          'This input exceeds the supported Agent request bounds. It was not sent.';
+      owner.touch();
+      return;
+    }
+    final attempt = _PendingAgentSubmission(
+      owner: api,
+      origin: owner,
+      request: request,
+      draft: draft,
+      draftRevision: draftRevision,
+      selection: selection,
+    );
+    _AgentSubmissions.pending.add(attempt);
+    _AgentSubmissions.notify();
+    // Notification listeners may synchronously reconnect or change sessions.
+    if (!mounted ||
+        !owner.ownsConnection(generation, api) ||
+        !owner.ownsAgentSelection(selection, session)) {
+      _AgentSubmissions.pending.remove(attempt);
+      _AgentSubmissions.notify();
+      return;
+    }
+    await _checkSubmission(attempt, original: true);
+  }
+
+  Future<void> _checkSubmission(
+    _PendingAgentSubmission attempt, {
+    bool original = false,
+  }) async {
+    final owner = _s, api = _s.client;
+    final generation = owner.connectionGeneration;
+    if (api == null ||
+        !owner.sessionAuthenticated ||
+        !owner.ownsConnection(generation, api) ||
+        !attempt.owner.sameOwnerBackend(api) ||
+        !_AgentSubmissions.pending.contains(attempt) ||
+        attempt.checking ||
+        attempt.outstanding >= 2 ||
+        _AgentSubmissions.outstanding >= _AgentSubmissions.limit) {
+      return;
+    }
+    attempt.checking = true;
+    attempt.outstanding++;
+    _AgentSubmissions.outstanding++;
+    attempt.notice = original
+        ? 'Awaiting the original request receipt.'
+        : 'Checking the original request; its input and key are unchanged.';
+    _AgentSubmissions.notify();
+
+    Future<void> run() async {
+      try {
+        if (!original) {
+          // A retained retry may bypass current model/discovery gates, never the
+          // original native session epoch. It cannot target a replacement scope.
+          final checked = await api.agentWorkspaceSession(
+            attempt.request.session.sessionId,
+          );
+          if (!attempt.request.sameScope(checked) ||
+              checked.channel != 'agent') {
+            attempt.notice =
+                'The original session scope changed. This outcome remains unknown; inspect historical tasks. New sessions can still accept work.';
+            return;
+          }
+        }
+        if (!mounted ||
+            !identical(widget.state, owner) ||
+            !owner.ownsConnection(generation, api) ||
+            !owner.sessionAuthenticated ||
+            (original &&
+                (!owner.ownsAgentSelection(
+                      attempt.selection,
+                      attempt.request.session,
+                    ) ||
+                    !owner.agentCanDisclose(attempt.request.scope) ||
+                    owner.agentHistoryLoading ||
+                    owner.agentHistoryError != null))) {
+          if (original) {
+            // This operation has not reached POST: local withdrawal is known.
+            _AgentSubmissions.pending.remove(attempt);
+          } else {
+            attempt.notice =
+                'The connection changed. The original outcome is still unknown.';
+          }
+          return;
+        }
+        final result = await api.submitOriginal(
+          attempt.request,
+          reconcileOnly: !original,
+        );
+        if (!_AgentSubmissions.pending.contains(attempt)) return;
+        if (result is Map<String, Object?> &&
+            result['status'] == 'error' &&
+            result['task_rejected_before_submit'] == true) {
+          // Only the explicit native proof establishes that this command
+          // reservation never submitted a task. Legacy errors stay unknown.
+          _AgentSubmissions.pending.remove(attempt);
+          if (owner.ownsConnection(generation, api) &&
+              attempt.request.sameScope(owner.agentSession)) {
+            owner.agentNotice =
+                '/${attempt.request.command} was rejected before task submission. ${result['error']}';
+            owner.touch();
+          }
+          // Keep the original/edited draft and add no optimistic success entry.
+          return;
+        }
+        if (result is! AgentTask &&
+            (result is! Map<String, Object?> || result['status'] != 'ok')) {
+          attempt.notice = result is Map && result['task_result'] is Map
+              ? 'Native task acceptance was recorded, but the command receipt is still unconfirmed. Check the original request.'
+              : 'The original outcome is still unconfirmed. Check the original request under its unchanged key.';
+          return;
+        }
+        _AgentSubmissions.pending.remove(attempt);
+        final notice = result is AgentTask
+            ? 'Confirmed original task ${result.taskId} · ${result.state}. Inspect its recorded state and evidence.'
+            : 'Confirmed original /${attempt.request.command} command receipt.';
+        // A late receipt can settle its retained identity but cannot consume a
+        // different connection, selected session, or edited/retyped draft.
+        if (!owner.ownsConnection(generation, api) ||
+            !attempt.request.sameScope(owner.agentSession)) {
+          return;
+        }
+        final clear =
+            identical(attempt.origin, owner) &&
+            owner.ownsAgentSelection(
+              attempt.selection,
+              attempt.request.session,
+            ) &&
+            owner.acknowledgeAgentSubmission(
+              revision: attempt.draftRevision,
+              text: attempt.draft,
+              scope: attempt.request.scope,
+              notice: notice,
+            );
+        if (!owner.ownsConnection(generation, api) ||
+            !attempt.request.sameScope(owner.agentSession)) {
+          return;
+        }
+        if (!clear) {
+          owner.agentNotice = notice;
+          owner.touch();
+        }
+        if (!owner.ownsConnection(generation, api) ||
+            !attempt.request.sameScope(owner.agentSession)) {
+          return;
+        }
+        // Acknowledgment notifies synchronously. A listener may already have
+        // edited/retyped the draft or changed selection on this same connection.
+        if (mounted &&
+            identical(widget.state, owner) &&
+            clear &&
+            owner.ownsAgentSelection(
+              attempt.selection,
+              attempt.request.session,
+            ) &&
+            owner.agentDraftRevision == attempt.draftRevision + 1 &&
+            owner.agentDraft.isEmpty &&
+            owner.draftScope(AppView.agent) == ContentScope.localOnly &&
+            (_input.text.isEmpty || _input.text.trim() == attempt.draft)) {
+          _input.clear();
+        }
+        // Native event IDs supply one authoritative transcript entry. An exact
+        // retry must never append another optimistic copy of the instruction.
+        unawaited(owner.refreshAgentHistory());
+        if (mounted &&
+            identical(widget.state, owner) &&
+            owner.ownsConnection(generation, api) &&
+            attempt.request.sameScope(owner.agentSession)) {
+          unawaited(_refreshTasks());
+        }
+      } catch (_) {
+        if (_AgentSubmissions.pending.contains(attempt)) {
+          attempt.notice =
+              'The original outcome is unknown. A failed response is not proof that no task was accepted. Check the original request.';
+        }
+      } finally {
+        attempt.outstanding--;
+        _AgentSubmissions.outstanding--;
+        _AgentSubmissions.notify();
+      }
+    }
+
+    // Timeout stops waiting in this view, not the already dispatched write.
+    // Keep real outstanding operations counted until their futures settle.
+    try {
+      await run().timeout(const Duration(seconds: 35));
+    } on TimeoutException {
+      if (_AgentSubmissions.pending.contains(attempt)) {
+        attempt.notice =
+            'The response timed out. The original outcome remains unknown; check its receipt before sending new work in this session.';
+      }
+    } finally {
+      attempt.checking = false;
+      _AgentSubmissions.notify();
+    }
+  }
+
+  Widget _pendingSubmissionCard(_PendingAgentSubmission attempt) {
+    final session = attempt.request.session;
+    final current = attempt.request.sameScope(_s.agentSession);
+    final busy =
+        attempt.checking ||
+        attempt.outstanding >= 2 ||
+        _AgentSubmissions.outstanding >= _AgentSubmissions.limit;
+    return Card(
+      margin: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Unconfirmed original request${current ? '' : ' · earlier session'}',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+            const SizedBox(height: 6),
+            SelectableText(
+              'Session ${session.sessionId} · thread ${session.threadId} · epoch ${session.epoch}',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 6),
+            Text(attempt.draft, maxLines: 3, overflow: TextOverflow.ellipsis),
+            const SizedBox(height: 6),
+            Text(attempt.notice),
+            const SizedBox(height: 8),
+            TextButton.icon(
+              onPressed:
+                  busy || !_s.sessionAuthenticated || _s.agentIdentitySelecting
+                  ? null
+                  : () => unawaited(_checkSubmission(attempt)),
+              icon: const Icon(Icons.refresh),
+              label: Text(
+                attempt.checking
+                    ? 'Checking original request…'
+                    : 'Check original request',
+              ),
+            ),
+            if (attempt.outstanding >= 2)
+              const Text(
+                'Two original receipt checks are still outstanding. Wait for their transports to settle or reconnect.',
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
   /// Agent-only slash dispatch. Unknown commands are never sent anywhere;
@@ -441,11 +752,18 @@ class _AgentChatState extends State<AgentChat> {
   Future<void> _dispatchSlash(
     KinaiyaClient api,
     int generation,
+    SessionInfo? session,
+    int selection,
+    int draftRevision,
     String text,
     ContentScope scope,
   ) async {
     final name = text.split(RegExp(r'\s+')).first.substring(1);
-    if (!_s.sessionAuthenticated) return;
+    if (!_s.sessionAuthenticated ||
+        !_s.ownsConnection(generation, api) ||
+        (session != null && !_s.ownsAgentSelection(selection, session))) {
+      return;
+    }
     final registry = _s.commands;
     if (registry == null) {
       if (!_s.ownsConnection(generation, api)) return;
@@ -478,28 +796,17 @@ class _AgentChatState extends State<AgentChat> {
       return;
     }
     try {
-      // A command never acquires an arbitrary destination while discovery is pending.
-      if (_s.agentSession == null) {
+      if (session == null) {
         _s.agentNotice =
             'Choose an existing session or create one from Workspace first.';
         _s.touch();
         return;
       }
-      // No session is created for blocked inference (checked above).
-      SessionInfo? session = _s.agentSession;
-      if (session == null) {
-        try {
-          session = await _s.ensureSession('agent', name: 'work');
-        } catch (_) {
-          if (!_s.ownsConnection(generation, api)) return;
-          rethrow;
-        }
-      }
-      // Recheck after acquisition and re-validate against the live
-      // registry: a stale decision must not execute on a new connection.
-      // Inference may also have been revoked while awaiting the session.
+      // First dispatch uses the captured owner session and current discovery.
+      // Retained receipt checks use their separate original-request path.
       if (!mounted ||
           !_s.ownsConnection(generation, api) ||
+          !_s.ownsAgentSelection(selection, session) ||
           !_s.sessionAuthenticated) {
         return;
       }
@@ -517,10 +824,22 @@ class _AgentChatState extends State<AgentChat> {
         _s.touch();
         return;
       }
-      final selection = _s.agentSelectionGeneration;
       if (!_s.ownsAgentSelection(selection, session)) return;
       final liveApi = _s.client;
       if (liveApi == null || !identical(liveApi, api)) return;
+      if (liveMatch.first.requiresInference) {
+        await _beginSubmission(
+          liveApi,
+          generation,
+          session,
+          text,
+          scope,
+          selection: selection,
+          draftRevision: draftRevision,
+          command: liveMatch.first.name,
+        );
+        return;
+      }
       final hasModelArgs =
           liveMatch.first.name == 'model' &&
           text.trim().split(RegExp(r'\s+')).length > 1;
@@ -1017,6 +1336,22 @@ class _AgentChatState extends State<AgentChat> {
             _detail('Provider', '${pin['provider']}'),
             _detail('Model profile', '${pin['profile_id']}'),
             _detail('Reasoning', '${pin['reasoning'] ?? 'Profile default'}'),
+            _detail('Model settings revision', '${pin['settings_revision']}'),
+            if (pin['catalog_binding'] case final Map reference) ...[
+              _detail('Saved provider', '${reference['id']}'),
+              _detail('Provider version', '${reference['generation']}'),
+              _detail('Catalog revision', '${pin['catalog_revision']}'),
+              ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                title: const Text('Saved provider identity'),
+                children: [
+                  _detail(
+                    'Configuration SHA256',
+                    '${reference['configuration_sha256']}',
+                  ),
+                ],
+              ),
+            ],
           ],
           _detail('Session', task.sessionId),
           _detail(
@@ -1113,6 +1448,8 @@ class _AgentChatState extends State<AgentChat> {
                   ],
                 ),
 
+              for (final attempt in _AgentSubmissions.forOwner(_s.client))
+                _pendingSubmissionCard(attempt),
               for (final a in _s.approvals)
                 _approvalCard(a, tasksById[a.taskId]),
               if (_s.agentHistoryLoading) const LinearProgressIndicator(),

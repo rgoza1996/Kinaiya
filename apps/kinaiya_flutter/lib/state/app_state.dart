@@ -133,6 +133,28 @@ class AppState extends ChangeNotifier {
   ContentScope _agentDraftScope = ContentScope.localOnly;
   String get converseDraft => _converseDraft;
   String get agentDraft => _agentDraft;
+  int get agentDraftRevision => _agentDraftRevision;
+
+  /// Acknowledgment can clear only the unchanged originating draft.
+  bool acknowledgeAgentSubmission({
+    required int revision,
+    required String text,
+    required ContentScope scope,
+    required String notice,
+  }) {
+    final clear =
+        _agentDraftRevision == revision &&
+        _agentDraft.trim() == text &&
+        _agentDraftScope == scope;
+    agentNotice = notice;
+    if (clear) {
+      _agentDraftRevision++;
+      _agentDraft = '';
+      _agentDraftScope = ContentScope.localOnly;
+    }
+    notifyListeners();
+    return clear;
+  }
 
   // Restored/externally assigned drafts have no disclosure provenance.
   set converseDraft(String value) {

@@ -269,9 +269,10 @@ and database identity, with exact historical receipts and a shared bounded
 settings transport pool. Runtime version 1.0 retains its existing first-write
 and replay behavior; new UI writes require observed runtime authority.
 The [Providers catalog](docs/adr/0086-owner-provider-catalog.md) adds native
-profile and protected credential-generation forms. Catalog saves do not yet
-apply providers to a role; Converse/STT/TTS/Decisions model editing remains
-host-managed. These new
+profile and protected credential-generation forms. [Agent model selection](docs/adr/0089-agent-catalog-models.md)
+captures exact saved versions in fresh task-owned primary/auxiliary adapters;
+saving a provider profile alone does not select it. Converse/STT/TTS/Decisions
+model editing remains host-managed. These new
 controls still require the runtime/concurrency acceptance described in the ADR.
 Global and per-harness [auxiliary text models](docs/adr/0082-task-pinned-auxiliary-models.md)
 support explicit analysis, compression, title, delegated reasoning and harness

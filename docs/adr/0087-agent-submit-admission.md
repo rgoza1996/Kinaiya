@@ -140,3 +140,22 @@ Earlier failures, the intentionally interrupted full local run, fixture correcti
 and actual Muse/Codex attribution remain recorded. Final Python 3.11/3.12,
 Flutter, Android and iOS CI must pass on the exact PR head before merge or issue
 closure. These checks do not establish a physical device or live-model qualification.
+
+## Subsequent catalog integration
+
+[ADR0089](0089-agent-catalog-models.md) extends model pins with exact catalog
+generation/configuration identity and captured catalog revision. Its additive
+validation must preserve historical omission/null formats and original logical
+submission identity. Adapter ownership and Flutter exact submission retries
+are integrated without changing this ADR's exclusive native launch boundary.
+The associated integration PR records its own checks independently of the
+historical evidence above.
+
+Owner Flutter submission checks retain the original key/body in bounded RAM
+after dispatched failures. Task-producing commands additionally freeze their
+derived request and immutable skill target in native command storage before
+submission. A reserved command retry only reconciles recorded work, with no new
+proposal or launch opportunity. First positive command response and journal
+body are frozen together before metadata publication; lost acknowledgments
+cannot rewrite that body. These subsequent integration changes require their
+own exact-head CI and do not alter the historical evidence counts above.

@@ -30,7 +30,7 @@ class CatalogGuard:
 
     def __init__(self, runtime, rec):
         self.runtime, self.rec = runtime, rec
-        self.provider = runtime.provider_for(rec).info.model_dump()
+        self.provider = runtime.provider_info_for(rec).model_dump()
         self.snapshot = runtime.tool_snapshot(rec.task if rec is not None else None)
         self.context = self._context()
         self.sources = []
@@ -50,17 +50,18 @@ class CatalogGuard:
             (task.objective_revision, task.content_scope, task.harness_version, task.state.value)
             if task is not None
             else None,
+            runtime.owner_provider_context() if task is None else None,
         )
 
     def disclosure_current(self, *, retained=True):
         try:
             runtime, rec = self.runtime, self.rec
-            if runtime.provider_for(rec).info.model_dump() != self.provider:
+            if runtime.provider_info_for(rec).model_dump() != self.provider:
                 return False
             for kind, service, rows, query in self.retained_sources if retained else self.sources:
                 if kind == "skill" and rows:
                     if service is not runtime.skill_service or not service.tool_metadata_current(
-                        runtime.provider_for(rec).info,
+                        runtime.provider_info_for(rec),
                         rows,
                         task_id=rec.task.task_id if rec is not None else None,
                         invocation="model",
@@ -69,7 +70,7 @@ class CatalogGuard:
                         return False
                 elif kind == "plugin" and rows:
                     if service is not runtime.plugin_service or not service.tool_metadata_current(
-                        runtime.provider_for(rec).info,
+                        runtime.provider_info_for(rec),
                         rows,
                         task=runtime._plugin_task(rec) if rec is not None else None,
                         retained=retained,
@@ -223,7 +224,7 @@ def _native(runtime, task, query):
 async def _skills(runtime, rec, query, guard):
     service = runtime.skill_service
     rows = await service.tool_metadata(
-        runtime.provider_for(rec).info,
+        runtime.provider_info_for(rec),
         skill_id=query.name if query.selected else None,
         task_id=rec.task.task_id if rec is not None else None,
         invocation="model",
@@ -272,7 +273,7 @@ async def _skills(runtime, rec, query, guard):
 
 async def _plugins(runtime, rec, query, guard):
     rows = await runtime.plugin_service.tool_metadata(
-        runtime.provider_for(rec).info,
+        runtime.provider_info_for(rec),
         plugin_id=query.name if query.selected else None,
         task=runtime._plugin_task(rec) if rec is not None else None,
     )

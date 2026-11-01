@@ -139,6 +139,35 @@ class ConsentClient extends KinaiyaClient {
   int interrupts = 0;
   int resolutions = 0;
   int transcriptions = 0;
+  // The owner UI submits frozen identities through this seam now. Keep every
+  // inference attempt observable without using a real transport in this fake.
+  @override
+  Future<Object> submitOriginal(
+    AgentSubmission request, {
+    required bool reconcileOnly,
+  }) async {
+    if (reconcileOnly) throw StateError('No recorded fixture receipt');
+    if (request.command != null) {
+      return await executeCommand(
+            sessionId: request.session.sessionId,
+            threadId: request.session.threadId,
+            epoch: request.session.epoch,
+            input: request.text,
+            idempotencyKey: request.key,
+            contentScope: request.scope,
+          ) ??
+          <String, Object?>{};
+    }
+    return createTask(
+      sessionId: request.session.sessionId,
+      threadId: request.session.threadId,
+      epoch: request.session.epoch,
+      objective: request.text,
+      idempotencyKey: request.key,
+      contentScope: request.scope,
+    );
+  }
+
   Completer<List<JournalEntry>>? recentGate;
   Completer<Map<String, Object?>?>? executionGate;
   List<CommandDef> registry = <CommandDef>[

@@ -9,7 +9,25 @@ import shlex
 import sqlite3
 from pathlib import Path
 
-from packages.contracts.models import TERMINAL_STATES, AppendRequest, InterruptRequest, TaskRequest
+from packages.commands.task_intents import (
+    MAX_FROZEN_BYTES,
+    MAX_FROZEN_COMMANDS,
+    encode,
+    load_intent,
+    load_receipt,
+    task_intent,
+    task_receipt,
+    unconfirmed,
+    validate_append_receipt,
+)
+from packages.contracts.agent_submit import AgentSubmitUnavailable, AgentSubmitUnconfirmed
+from packages.contracts.models import (
+    TERMINAL_STATES,
+    AppendRequest,
+    InterruptRequest,
+    ProviderInfo,
+    TaskRequest,
+)
 
 
 def parse(text):
@@ -77,6 +95,14 @@ class Registry:
             "CREATE TABLE IF NOT EXISTS commands (session TEXT, key TEXT, digest TEXT, result TEXT, "
             "PRIMARY KEY(session,key))"
         )
+        columns = {row[1] for row in self.db.execute("PRAGMA table_info(commands)")}
+        for column in ("task_intent", "task_receipt"):
+            if column not in columns:
+                self.db.execute(f"ALTER TABLE commands ADD COLUMN {column} TEXT")
+        self.db.execute(
+            "CREATE INDEX IF NOT EXISTS pending_task_commands ON commands(session,key) "
+            "WHERE result IS NULL AND task_intent IS NOT NULL"
+        )
         self.db.commit()
 
     def definitions(self):
@@ -131,6 +157,15 @@ class Registry:
         self._skills_truncated = False
         if service is None:
             return
+        settings = getattr(self.runtime, "model_settings", None)
+        configured = settings.default_info() if settings is not None else None
+        info = (
+            ProviderInfo.model_validate(configured)
+            if configured is not None
+            else self.runtime.provider.info
+            if settings is None
+            else None
+        )
         rows, after = [], 0
         for _ in range(8):
             page = await service.list_owner(after=after, limit=8)
@@ -159,13 +194,18 @@ class Registry:
             ):
                 continue
             available = row.get("enabled", False) and row.get("status") == "ready"
-            info = self.runtime.provider.info
-            contributor = info.provider == "meta" or "contributor" in info.model.lower()
+            contributor = info is not None and (
+                info.provider == "meta" or "contributor" in info.model.lower()
+            )
             scope = row.get("scope", "local_only")
-            available = available and (
-                info.local
-                or scope == "public_synthetic"
-                or (not contributor and scope == "private_cloud_authorized")
+            available = (
+                available
+                and info is not None
+                and (
+                    info.local
+                    or scope == "public_synthetic"
+                    or (not contributor and scope == "private_cloud_authorized")
+                )
             )
             self._skill_commands.append(
                 {
@@ -201,8 +241,12 @@ class Registry:
         reserved_digest = digest
         async with self.lock:
             row = self.db.execute(
-                "SELECT digest,result FROM commands WHERE session=? AND key=?",
-                (request.session_id, request.idempotency_key),
+                "SELECT digest,result,"
+                "CASE WHEN length(CAST(task_intent AS BLOB))<=? THEN task_intent END,"
+                "CASE WHEN length(CAST(task_receipt AS BLOB))<=? THEN task_receipt END,"
+                "task_intent IS NOT NULL,task_receipt IS NOT NULL "
+                "FROM commands WHERE session=? AND key=?",
+                (MAX_FROZEN_BYTES, MAX_FROZEN_BYTES, request.session_id, request.idempotency_key),
             ).fetchone()
             if row:
                 legacy_digest = hashlib.sha256(
@@ -213,24 +257,39 @@ class Registry:
                 ):
                     raise ValueError("Command idempotency key conflicts with earlier input")
                 if row[1]:
-                    return json.loads(row[1])
+                    result = json.loads(row[1])
+                    if result.get("status") == "error" and result.get("error") in {
+                        str(AgentSubmitUnconfirmed()),
+                        str(AgentSubmitUnavailable()),
+                    }:
+                        # Older registries cached these uncertainty exceptions
+                        # as errors. No frozen intent means no safe redispatch.
+                        return unconfirmed()
+                    return result
                 parsed = parse(request.input)
                 recover_model = parsed is not None and parsed[0] == "model" and len(parsed[1]) == 1
-                if not recover_model:
-                    return self._reply(
-                        "error",
-                        None,
-                        error="Interrupted dispatch; inspect state before a new request",
-                    )
                 reserved_digest = row[0]
             else:
                 with self.db:
                     self.db.execute(
-                        "INSERT INTO commands VALUES (?,?,?,NULL)",
+                        "INSERT INTO commands(session,key,digest,result) VALUES (?,?,?,NULL)",
                         (request.session_id, request.idempotency_key, digest),
                     )
+        if row and not recover_model:
+            # Only a retained frozen task supports read-only task reconciliation.
+            # Other interrupted controls cannot acquire fresh dispatch authority.
+            if not row[4]:
+                return unconfirmed()
+            try:
+                intent = load_intent(row[2], request)
+                receipt = load_receipt(row[3], intent, request) if row[5] else None
+            except ValueError:
+                return unconfirmed()
+            return await self._execute_task(request, intent, receipt=receipt, retry=True)
         # The durable intent reserves this key. Slow connection/IO work
         # must not hold the command registry lock and block status/stop.
+        task_command_name = None
+        before_task_submit = False
         try:
             parsed = parse(request.input)
             if recover_model:
@@ -252,11 +311,24 @@ class Registry:
                 if name != "model":
                     await self.refresh_skill_commands()
                 if name in self._skill_targets:
-                    result = self._reply(
-                        "ok",
+                    task_command_name, before_task_submit = name, True
+                    intent = task_intent(name, args, request, skill_id=self._skill_targets[name])
+                    await self._freeze_task(request, intent)
+                    before_task_submit = False
+                    return await self._execute_task(request, intent)
+                elif name in {"create-harness", "skill"}:
+                    task_command_name, before_task_submit = name, True
+                    if name == "skill" and not args:
+                        raise ValueError("Usage: /skill <qualified-id> [request]")
+                    intent = task_intent(
                         name,
-                        result=await self._invoke_skill(self._skill_targets[name], args, request),
+                        args if name == "create-harness" else args[1:],
+                        request,
+                        skill_id=None if name == "create-harness" else args[0],
                     )
+                    await self._freeze_task(request, intent)
+                    before_task_submit = False
+                    return await self._execute_task(request, intent)
                 elif name not in DEFINITIONS:
                     result = self._reply(
                         "error",
@@ -328,7 +400,17 @@ class Registry:
                     raise ModelSettingsUnavailable from None
                 raise
         except (ValueError, KeyError) as exc:
-            result = self._reply("error", None, error=str(exc))
+            result = self._reply(
+                "error",
+                task_command_name if before_task_submit else None,
+                error=(str(exc) or "Task command rejected before submission")[:512]
+                if before_task_submit
+                else str(exc),
+            )
+            if before_task_submit:
+                # This new reservation never called submit. Legacy cached errors
+                # have no such proof and must not acquire this marker on replay.
+                result["task_rejected_before_submit"] = True
         async with self.lock:
             with self.db:
                 self.db.execute(
@@ -350,6 +432,83 @@ class Registry:
 
             raise ModelSettingsUnavailable
         return json.loads(winner[1])
+
+    async def _freeze_task(self, request, intent):
+        encoded = encode(intent)
+        async with self.lock:
+            with self.db:
+                # The capacity observation and reservation share the SQLite
+                # write lock, including across separate Registry instances.
+                self.db.execute("BEGIN IMMEDIATE")
+                count = self.db.execute(
+                    "SELECT count(*) FROM commands WHERE result IS NULL AND task_intent IS NOT NULL"
+                ).fetchone()[0]
+                if count >= MAX_FROZEN_COMMANDS:
+                    raise ValueError(
+                        "Unconfirmed task commands require reconciliation before more work"
+                    )
+                updated = self.db.execute(
+                    "UPDATE commands SET task_intent=? WHERE session=? AND key=? "
+                    "AND result IS NULL AND task_intent IS NULL AND task_receipt IS NULL",
+                    (encoded, request.session_id, request.idempotency_key),
+                )
+                if updated.rowcount != 1:
+                    raise ValueError("Task command reservation is unavailable")
+
+    async def _execute_task(self, request, intent, *, receipt=None, retry=False):
+        try:
+            if receipt is None:
+                task_request = TaskRequest.model_validate(intent["task_request"], strict=True)
+                submit = self.runtime.reconcile_submit if retry else self.runtime.submit
+                task = await submit(
+                    task_request, actor="owner", explicit_skill=intent["explicit_skill"]
+                )
+                candidate = task_receipt(task, intent, request)
+                async with self.lock:
+                    with self.db:
+                        self.db.execute(
+                            "UPDATE commands SET task_receipt=? WHERE session=? AND key=? "
+                            "AND task_intent=? AND task_receipt IS NULL AND result IS NULL",
+                            (
+                                encode(candidate),
+                                request.session_id,
+                                request.idempotency_key,
+                                encode(intent),
+                            ),
+                        )
+                    # Another confirmer may have observed an earlier Task state.
+                    # Every appender must use the same first persisted response.
+                    row = self.db.execute(
+                        "SELECT CASE WHEN length(CAST(task_receipt AS BLOB))<=? "
+                        "THEN task_receipt END,result FROM commands WHERE session=? AND key=?",
+                        (MAX_FROZEN_BYTES, request.session_id, request.idempotency_key),
+                    ).fetchone()
+                    if row is None:
+                        return unconfirmed(intent["command"])
+                    if row[1]:
+                        return json.loads(row[1])
+                    receipt = load_receipt(row[0], intent, request)
+            appended = await self.runtime.journal.append(
+                AppendRequest.model_validate(receipt["append"], strict=True)
+            )
+            validate_append_receipt(appended, receipt)
+            async with self.lock:
+                with self.db:
+                    self.db.execute(
+                        "UPDATE commands SET result=?,task_intent=NULL,task_receipt=NULL "
+                        "WHERE session=? AND key=? AND task_receipt=? AND result IS NULL",
+                        (
+                            encode(receipt["response"]),
+                            request.session_id,
+                            request.idempotency_key,
+                            encode(receipt),
+                        ),
+                    )
+            return receipt["response"]
+        except Exception:
+            # A refusal or timeout on a later observation cannot disprove an
+            # earlier commit. Preserve the exact native intent and append body.
+            return unconfirmed(intent["command"], receipt=receipt)
 
     @staticmethod
     def _reply(status, command, **fields):
@@ -377,6 +536,7 @@ class Registry:
         if (
             original.harness_version is not None
             or original.profile_id != args[0]
+            or original.catalog_binding is not None
             or original.reasoning is not None
             or original.auxiliary_task is not None
         ):
@@ -393,45 +553,8 @@ class Registry:
                 "focus": args[0] if args else "vad",
                 "capture_changed": False,
             }
-        if name == "create-harness":
-            if not args or not " ".join(args).strip():
-                raise ValueError("Usage: /create-harness <request>")
-            objective = (
-                "Create a specialized Kinaiya harness candidate for this owner request:\n\n"
-                + " ".join(args)
-                + "\n\nProduce the candidate source, manifest and usage notes in the granted "
-                "workspace. Inspect the available native extension contracts before choosing "
-                "an implementation. The current protected harness contract is context_selector.v1; "
-                "do not claim unsupported runtime capabilities. Check the candidate within existing "
-                "permissions. Creation does not authorize registration, evaluation-suite changes, "
-                "promotion or activation. Report the produced paths and any remaining owner steps."
-            )
-            if len(objective) > 16000:
-                raise ValueError("Harness request exceeds the supported task length")
-            task = await runtime.submit(
-                TaskRequest(
-                    session_id=request.session_id,
-                    thread_id=request.thread_id,
-                    epoch=request.epoch,
-                    objective=objective,
-                    content_scope=request.content_scope,
-                    idempotency_key="harness-command:"
-                    + hashlib.sha256(request.idempotency_key.encode()).hexdigest(),
-                ),
-                actor="owner",
-            )
-            return {
-                "accepted_task_id": task.task_id,
-                "state": task.state.value,
-                "workflow": "harness_candidate",
-                "activation": "owner_review_required",
-            }
         if name == "resources":
             return await self._resources_control(args, request)
-        if name == "skill":
-            if not args:
-                raise ValueError("Usage: /skill <qualified-id> [request]")
-            return await self._invoke_skill(args[0], args[1:], request)
         if name == "skills":
             return await self._skills_control(args)
         if name == "plugins":
@@ -514,6 +637,9 @@ class Registry:
                             )
                         )
                         try:
+                            # /model accepts an existing host profile only.
+                            # Catalog adapters remain task-owned and are never
+                            # selected or rebound through this legacy command.
                             runtime.provider = settings.selection(None)[0]
                             active = settings.default_info()
                         except Exception:
@@ -608,23 +734,6 @@ class Registry:
             ]
         if name == "clear":
             return {"clear_view": True, "journal_preserved": True}
-
-    async def _invoke_skill(self, skill_id, args, request):
-        task = await self.runtime.submit(
-            TaskRequest(
-                session_id=request.session_id,
-                thread_id=request.thread_id,
-                epoch=request.epoch,
-                objective=" ".join(args)
-                or "Follow the selected skill's procedure within current permissions.",
-                content_scope=request.content_scope,
-                idempotency_key="skill-command:"
-                + hashlib.sha256(request.idempotency_key.encode()).hexdigest(),
-            ),
-            actor="owner",
-            explicit_skill=skill_id,
-        )
-        return {"accepted_task_id": task.task_id, "state": task.state.value, "skill_id": skill_id}
 
     async def _mcp_control(self, args, request):
         from packages.contracts.models import MCPControl

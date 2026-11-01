@@ -390,6 +390,12 @@ def serve(args):
             **config.get("policy", {}),
             protected_roots=protected,
         )
+        configured_providers = config.get("providers")
+        host_profile = (
+            configured_providers.get("agent") if isinstance(configured_providers, dict) else None
+        )
+        if not isinstance(host_profile, dict):
+            host_profile = {}
         selector = None
         if harness := config.get("harness"):
             from core.extensions import Registry as HarnessRegistry
@@ -401,10 +407,12 @@ def serve(args):
                 args.data_dir / "harness",
                 suite,
                 model_profile={
-                    "provider": config["providers"]["agent"]["kind"],
-                    "model": config["providers"]["agent"]["model"],
+                    "provider": host_profile["kind"],
+                    "model": host_profile["model"],
                     "evaluation_model_calls": 0,
-                },
+                }
+                if type(host_profile.get("kind")) is str and type(host_profile.get("model")) is str
+                else None,
             )
         mcp_host = None
         mcp_controller = None
@@ -481,9 +489,18 @@ def serve(args):
         artifact_path = args.data_dir.resolve() / "artifacts.sqlite3"
         if artifact_path.resolve().is_relative_to(workspace):
             raise SystemExit("UI artifact storage must stay outside the worker workspace")
+        from services.settings.provider_factory import UnavailableHostProvider
+
+        try:
+            host_provider = provider(config, "agent", resource_state=resource_state)
+        except (OSError, ValueError, RuntimeError, KeyError, TypeError, ImportError, SystemExit):
+            # This is an unavailable host profile, never a fallback. Keep the
+            # owner catalog/Options control plane available so a valid saved
+            # catalog selection can serve new work without the host credential.
+            host_provider = UnavailableHostProvider()
         runtime = AgentRuntime(
             journal,
-            provider(config, "agent", resource_state=resource_state),
+            host_provider,
             args.workspace,
             policy,
             selector_registry=selector,
@@ -519,7 +536,21 @@ def serve(args):
             )
             for name, profile in config.get("agent_profiles", {}).items()
         }
+        import sqlite3
+
         from services.agent.model_settings import AgentModelSettings
+        from services.settings.provider_catalog import ProviderCatalog
+
+        # Create the shared protected owner early enough for task model
+        # selection. The owner router/lifespan below reuse this connection.
+        try:
+            catalog = ProviderCatalog(
+                args.data_dir.resolve() / "providers.sqlite",
+                args.workspace.resolve(),
+                env_refs=config.get("provider_credential_references", {}),
+            )
+        except (OSError, ValueError, RuntimeError, sqlite3.Error):
+            catalog = None
 
         def model_factory(profile, *, auxiliary=False):
             def create(effort):
@@ -551,12 +582,14 @@ def serve(args):
             },
             path=args.data_dir / "agent-models.sqlite",
             reasoning_levels=config.get("agent_reasoning_options", {}),
-            host_factory=model_factory(config["providers"]["agent"]),
+            host_factory=model_factory(host_profile),
             auxiliary_factories={
                 name: model_factory(profile, auxiliary=True)
                 for name, profile in config.get("agent_profiles", {}).items()
             },
-            auxiliary_host_factory=model_factory(config["providers"]["agent"], auxiliary=True),
+            auxiliary_host_factory=model_factory(host_profile, auxiliary=True),
+            catalog=catalog,
+            resource_state=resource_state,
         )
         try:
             runtime.provider = runtime.model_settings.selection(None)[0]
@@ -707,17 +740,16 @@ def serve(args):
 
         # Each independent owner service can manage the same protected catalog.
         # Saving a declaration never hot-swaps any role or starts inference.
-        try:
-            catalog = ProviderCatalog(
-                args.data_dir.resolve() / "providers.sqlite",
-                args.workspace.resolve(),
-                env_refs=config.get("provider_credential_references", {}),
-            )
-        except (OSError, ValueError, RuntimeError, sqlite3.Error):
-            # An unavailable optional catalog cannot take the independent
-            # journal or an existing host-configured role offline. Catalog
-            # actions still fail closed through their explicit 503 routes.
-            catalog = None
+        if service != "agent":
+            try:
+                catalog = ProviderCatalog(
+                    args.data_dir.resolve() / "providers.sqlite",
+                    args.workspace.resolve(),
+                    env_refs=config.get("provider_credential_references", {}),
+                )
+            except (OSError, ValueError, RuntimeError, sqlite3.Error):
+                # An unavailable catalog cannot stop an independent host role.
+                catalog = None
         app.include_router(provider_router(catalog, auth))
         original_lifespan = app.router.lifespan_context
 

@@ -5,7 +5,7 @@ from enum import StrEnum
 from typing import Any, Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_serializer, model_validator
 
 SCHEMA_VERSION = "1.0"
 ContentScope = Literal["local_only", "public_synthetic", "private_cloud_authorized"]
@@ -133,6 +133,15 @@ class Evidence(WireModel):
     objective_revision: int = Field(default=1, ge=1)
 
 
+class CatalogModelBinding(BaseModel):
+    """Explicit immutable native provider reference, never a display alias."""
+
+    model_config = ConfigDict(extra="forbid", strict=True, frozen=True)
+    id: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+    generation: int = Field(ge=1, le=64)
+    configuration_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
 class AgentModelPin(WireModel):
     """Native model selection for one accepted task; never request authority."""
 
@@ -142,6 +151,27 @@ class AgentModelPin(WireModel):
     local: bool
     reasoning: str | None = Field(default=None, max_length=16)
     settings_revision: int = Field(ge=0)
+    catalog_binding: CatalogModelBinding | None = None
+    catalog_revision: int | None = Field(default=None, ge=0, le=9_007_199_254_740_990)
+
+    @model_serializer(mode="wrap")
+    def preserve_historical_catalog_shape(self, handler):
+        result = handler(self)
+        # Legacy accepted pins omitted these additive fields. Preserve that
+        # representation, including inside Task, rather than rewriting history
+        # with defaults. Explicit nulls and exact catalog references stay exact.
+        for name in ("catalog_binding", "catalog_revision"):
+            if name not in self.model_fields_set:
+                result.pop(name, None)
+        return result
+
+    @model_validator(mode="after")
+    def exact_catalog_pin(self):
+        if (self.catalog_binding is None) != (self.catalog_revision is None):
+            raise ValueError("Catalog pin requires an exact reference and capture revision")
+        if self.catalog_binding is not None and self.profile_id != self.catalog_binding.id:
+            raise ValueError("Catalog pin profile identity does not match its reference")
+        return self
 
 
 class Task(WireModel):

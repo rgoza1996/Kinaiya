@@ -326,12 +326,14 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
     String? profile,
     String? reasoning, {
     String? auxiliaryTask,
+    AgentCatalogBinding? catalogBinding,
   }) async {
     final api = widget.state.client?.modelSettings, models = _models;
     final authority = models?.writeAuthority;
     if (api == null || models == null || authority == null || _modelBusy) {
       return;
     }
+    if (profile != null && catalogBinding != null) return;
     final request = AgentModelChange.fromJson({
       'schema_version': '1.1',
       'expected_backend': authority.backendId,
@@ -340,6 +342,7 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
       'idempotency_key': newIdempotencyKey(),
       'harness_version': _page == OptionsPage.harnesses ? _harness : null,
       'profile_id': profile,
+      if (catalogBinding != null) 'catalog_binding': catalogBinding.toJson(),
       'reasoning': reasoning,
       if (auxiliaryTask != null) 'auxiliary_task': auxiliaryTask,
     });
@@ -943,6 +946,8 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
         models: models,
         busy: _modelBusy,
         onSave: _saveModel,
+        onSaveCatalog: (catalog, reasoning) =>
+            _saveModel(null, reasoning, catalogBinding: catalog),
       )
     else
       _unavailable(
@@ -961,6 +966,12 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
         busy: _modelBusy,
         onSave: (purpose, profile, reasoning) =>
             _saveModel(profile, reasoning, auxiliaryTask: purpose),
+        onSaveCatalog: (purpose, catalog, reasoning) => _saveModel(
+          null,
+          reasoning,
+          auxiliaryTask: purpose,
+          catalogBinding: catalog,
+        ),
       ),
   ]);
 
@@ -993,6 +1004,8 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
             harness: _harness,
             busy: _modelBusy,
             onSave: _saveModel,
+            onSaveCatalog: (catalog, reasoning) =>
+                _saveModel(null, reasoning, catalogBinding: catalog),
           )
         else
           _unavailable(
@@ -1011,6 +1024,12 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
             busy: _modelBusy,
             onSave: (purpose, profile, reasoning) =>
                 _saveModel(profile, reasoning, auxiliaryTask: purpose),
+            onSaveCatalog: (purpose, catalog, reasoning) => _saveModel(
+              null,
+              reasoning,
+              auxiliaryTask: purpose,
+              catalogBinding: catalog,
+            ),
           ),
       ]);
     }
@@ -1048,7 +1067,7 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
                 _models == null
                     ? 'Unavailable'
                     : _models!.harnesses.containsKey(row.versionId)
-                    ? 'Custom · ${_models!.effective(row.versionId).profileId}'
+                    ? 'Custom · ${_models!.bindingLabel(_models!.effective(row.versionId))}'
                     : 'Inherits Agent default',
               ),
               Text('${row.kind} · ${row.eligibility}'),

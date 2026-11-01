@@ -55,6 +55,10 @@ increment; the cumulative $10 paid-test budget and reservations are unchanged.
 
 ## Remaining role application
 
+ADR0089 subsequently adds explicit exact-generation Agent primary and auxiliary
+selection. The original foundation boundary below remains the rule for catalog
+saves and the still unfinished other role owners.
+
 The catalog is a foundation. Role selection must capture immutable profile and
 credential generations before applying a provider. Accepted Agent tasks keep
 their old adapters and pins. Converse/Decisions/STT/TTS need their own settled

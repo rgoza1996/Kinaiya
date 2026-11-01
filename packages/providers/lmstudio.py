@@ -267,6 +267,7 @@ class LMStudioProvider:
         reasoning_effort="none",
         allow_cloud=False,
         transport_factory=None,
+        pin_complete_identity=False,
     ):
         try:
             url = urlparse(base_url)
@@ -295,6 +296,7 @@ class LMStudioProvider:
             or not math.isfinite(timeout)
             or not 1 <= timeout <= 900
             or type(allow_cloud) is not bool
+            or type(pin_complete_identity) is not bool
         ):
             raise ProviderError("Unsupported LM Studio native configuration")
         self.model, self.max_tokens, self.reasoning_effort = model, max_tokens, reasoning_effort
@@ -306,9 +308,18 @@ class LMStudioProvider:
         self._uncertain = False
         self._closed = False
         self._measurement = None
+        self._pin_complete_identity = pin_complete_identity
+        self._complete_snapshot = None
 
     def _configuration(self):
-        return self._endpoint, self.model, self.max_tokens, self.reasoning_effort, self.timeout
+        return (
+            self._endpoint,
+            self.model,
+            self.max_tokens,
+            self.reasoning_effort,
+            self.timeout,
+            self._pin_complete_identity,
+        )
 
     async def _connect(self):
         if self._transport_factory is not None:
@@ -664,6 +675,14 @@ class LMStudioProvider:
             async with asyncio.timeout(min(self.timeout, 10)):
                 async with self._operation() as op:
                     snapshot = await self._snapshot(op, check=current)
+                    if self._pin_complete_identity:
+                        # A task-owned Agent adapter may span several requests.
+                        # Refuse alias/configuration rebinding before its next
+                        # history reaches the native formatter/tokenizer.
+                        if self._complete_snapshot is None:
+                            self._complete_snapshot = copy.deepcopy(snapshot)
+                        elif snapshot != self._complete_snapshot:
+                            raise _refuse()
                     creation, measured, formatted = await self._measure(
                         op, history, snapshot, check=current, admission=admission
                     )
