@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'agent_operating_mode_panel.dart';
 
 import '../api/client.dart';
 import '../api/models.dart';
@@ -1480,6 +1481,22 @@ class _AgentChatState extends State<AgentChat> {
                   ),
                 ),
               for (final task in sessionTasks.reversed) _taskCard(task),
+              Builder(
+                builder: (context) {
+                  final owner = _s;
+                  final client = owner.client;
+                  final generation = owner.connectionGeneration;
+                  return AgentOperatingModePanel(
+                    key: ValueKey((owner, client, generation)),
+                    api: client?.agentControl,
+                    ownerAuthenticated: owner.sessionAuthenticated,
+                    active: () =>
+                        mounted &&
+                        identical(owner, _s) &&
+                        owner.ownsConnection(generation, client),
+                  );
+                },
+              ),
               if (_s.agentHistoryHasMore)
                 TextButton(
                   onPressed: _s.agentHistoryLoading

@@ -8,7 +8,7 @@ import '../config/connection.dart';
 import '../config/service_root.dart';
 import 'provider_settings.dart' show providerJsonDecode;
 
-enum SettingsDomain { model, runtime }
+enum SettingsDomain { model, runtime, control }
 
 class OwnedSettingsFailure implements Exception {
   const OwnedSettingsFailure(
@@ -45,10 +45,16 @@ class OwnedSettingsTransport {
        _factory = clientFactory;
 
   final SettingsDomain domain;
-  String get _label =>
-      domain == SettingsDomain.model ? 'Model' : 'Execution settings';
-  String get _connectionLabel =>
-      domain == SettingsDomain.model ? 'model' : 'execution settings';
+  String get _label => switch (domain) {
+    SettingsDomain.model => 'Model',
+    SettingsDomain.runtime => 'Execution settings',
+    SettingsDomain.control => 'Agent mode',
+  };
+  String get _connectionLabel => switch (domain) {
+    SettingsDomain.model => 'model',
+    SettingsDomain.runtime => 'execution settings',
+    SettingsDomain.control => 'Agent mode',
+  };
   final String baseUrl, _token;
   final http.Client Function() _factory;
   final Duration resultTimeout, cleanupTimeout;
