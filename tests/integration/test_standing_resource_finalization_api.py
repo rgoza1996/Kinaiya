@@ -25,13 +25,19 @@ import test_standing_execution_api as old_api
 from test_standing_dispatch_api import headers, rows
 from test_standing_execution_api import SECRET, close_env, original, prepared
 from test_standing_execution_api import factory as factory
+from test_standing_execution_owner import build_native as build_native
 from test_standing_execution_owner import mode_request
 from test_standing_resources_registration import RESOURCE_INSTANCE, reservation
+from test_standing_task_admission import prepare as native_prepare
 
 from packages.contracts.standing_admission import StandingTaskAdmission
 from packages.contracts.standing_closure import StandingAdmissionClosure
 from packages.contracts.standing_execution import StandingExecutionClaim, StandingExecutionIntent
-from packages.contracts.standing_resources import StandingResourceObservation, TaskResourceContext
+from packages.contracts.standing_resources import (
+    StandingResourceObservation,
+    TaskResourceContext,
+    TaskResourceQuery,
+)
 from packages.contracts.standing_work import (
     StandingChange,
     StandingChangeReceipt,
@@ -1135,6 +1141,147 @@ async def test_actual_thread_operation_survives_public_cancellation_until_explic
         else:
             await hub.close()
     assert hub.active_operations == 0 and not env.store.db.in_transaction
+
+
+async def test_standalone_native_registration_enforces_the_committed_binding(env, record_property):
+    data = await seed(env)
+    current = owner(env)
+    resources = type(env.app.state.standing_resource_owner)(
+        env.store, env.app.state.agent_control, env.app.state.standing_task_owner
+    )
+    finalization = None
+    try:
+        resources.register()
+        assert resources._finalization_owner is None
+        finalization = type(current)(
+            env.store, env.app.state.agent_control, env.app.state.standing_task_owner, resources
+        )
+        finalization.register()
+        bound = finalization.bind(packet("StandingResourceBindingRequest", data.binding))
+        assert bound.model_dump(mode="json") == {
+            "schema_version": "1.0",
+            "disposition": "created",
+            "request": data.binding,
+            "request_digest": digest("kinaiya.standing.resource-binding.v1", data.binding),
+        }
+        await admit(data)
+        context = resources.context(
+            TaskResourceQuery(schema_version="1.0", task_id=data.original.task.task_id)
+        )
+        assert context.standing == data.initial
+        own = reservation(context)
+        before = rows(env.store)
+        for field, value in (("resource_backend", "c" * 32), ("resource_instance", OTHER_INSTANCE)):
+            foreign = type(own).model_validate({**own.model_dump(mode="python"), field: value})
+            outcome = None
+            try:
+                with pytest.raises(StandingConflict):
+                    outcome = resources.reserve(foreign)
+            finally:
+                record_property(
+                    f"standalone_foreign_{field}",
+                    json.dumps(
+                        {
+                            "returned_disposition": None
+                            if outcome is None
+                            else outcome.disposition,
+                            "native_rows_changed": rows(env.store) != before,
+                            "in_transaction": env.store.db.in_transaction,
+                        },
+                        sort_keys=True,
+                    ),
+                )
+            assert rows(env.store) == before and not env.store.db.in_transaction
+        accepted = resources.reserve(own)
+        assert accepted.disposition == "created" and accepted.request == own
+        assert resources.reserve(own).disposition == "retained"
+        assert not env.store.db.in_transaction
+    finally:
+        if finalization is not None:
+            finalization.close()
+        resources.close()
+
+
+async def test_bare_native_resource_owner_cannot_bypass_an_existing_binding(env, record_property):
+    data = await seed(env)
+    await bind(data)
+    resources = type(env.app.state.standing_resource_owner)(
+        env.store, env.app.state.agent_control, env.app.state.standing_task_owner
+    )
+    try:
+        resources.register()
+        assert resources._finalization_owner is None
+        await admit(data)
+        context = resources.context(
+            TaskResourceQuery(schema_version="1.0", task_id=data.original.task.task_id)
+        )
+        assert context.standing == data.initial
+        own = reservation(context)
+        before = rows(env.store)
+        for field, value in (
+            ("resource_backend", "c" * 32),
+            ("resource_instance", OTHER_INSTANCE),
+            ("resource_backend", BACKEND),
+        ):
+            request = type(own).model_validate({**own.model_dump(mode="python"), field: value})
+            outcome = None
+            try:
+                with pytest.raises(StandingUnavailable):
+                    outcome = resources.reserve(request)
+            finally:
+                record_property(
+                    f"bare_foreign_{field}_{value}",
+                    json.dumps(
+                        {
+                            "returned_disposition": None
+                            if outcome is None
+                            else outcome.disposition,
+                            "native_rows_changed": rows(env.store) != before,
+                            "in_transaction": env.store.db.in_transaction,
+                        },
+                        sort_keys=True,
+                    ),
+                )
+            assert rows(env.store) == before and not env.store.db.in_transaction
+        actual = env.app.state.standing_resource_owner.reserve(own)
+        assert actual.disposition == "created" and actual.request == own
+        retained_before = rows(env.store)
+        assert resources.reserve(own).disposition == "retained"
+        assert rows(env.store) == retained_before and not env.store.db.in_transaction
+    finally:
+        resources.close()
+
+
+def test_fresh_legacy_store_without_new_family_keeps_native_reservation_protocol(build_native):
+    native = build_native()
+    data = native_prepare(native)
+    tasks = data.task_owner()
+    resource_type = importlib.import_module(
+        "services.session.standing_resources"
+    ).StandingResourceOwner
+    resources = resource_type(native.store, native.control, tasks)
+    native.ledgers.append(resources)
+    resources.register()
+    assert resources._finalization_owner is None
+    family = {
+        "standing_resource_finalization_meta",
+        "standing_resource_bindings",
+        "standing_resource_finalizations",
+    }
+    assert not family.intersection(
+        row["name"] for row in native.store.db.execute("SELECT name FROM sqlite_schema")
+    )
+    proof = tasks.admit(data.request, capability=SECRET).proof
+    context = resources.context(
+        TaskResourceQuery(schema_version="1.0", task_id=data.request.task.task_id)
+    )
+    assert context.standing == proof
+    request = reservation(context)
+    accepted = resources.reserve(request)
+    assert accepted.disposition == "created" and accepted.request == request
+    before = rows(native.store)
+    assert resources.reserve(request).disposition == "retained"
+    assert rows(native.store) == before and not native.store.db.in_transaction
 
 
 async def test_shared_64_actual_owner_capacity_rejects_extra_ingress_before_read(env, monkeypatch):
