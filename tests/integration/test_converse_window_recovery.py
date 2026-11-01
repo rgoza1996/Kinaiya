@@ -67,6 +67,10 @@ class Faults:
         self.requests = []
         self.entered = asyncio.Event()
         self.release = None
+        self.timeout_s = None
+        self.cancelled = []
+        self.timeouts = []
+        self.waiting = 0
 
     async def run(self, target, body, operation):
         if target != self.target or target is None:
@@ -78,7 +82,19 @@ class Faults:
         result = await operation() if self.when == "after" else None
         self.entered.set()
         if self.release is not None:
-            await self.release.wait()
+            self.waiting += 1
+            try:
+                async with asyncio.timeout(self.timeout_s):
+                    try:
+                        await self.release.wait()
+                    except asyncio.CancelledError:
+                        self.cancelled.append(body)
+                        raise
+            except TimeoutError:
+                self.timeouts.append(body)
+                raise
+            finally:
+                self.waiting -= 1
         close = getattr(result, "aclose", None)
         if callable(close):
             await close()
@@ -167,6 +183,36 @@ async def env(tmp_path, request):
         if isinstance(journal, JournalClient):
             await journal.close()
         store.close()
+
+
+@pytest.fixture(params=[0, 0.05], ids=["ordinary-io", "delayed-ordinary-io"])
+def preparing_timeouts(env, monkeypatch, request):
+    # Time only the deliberately blocked native append. A prerequisite read
+    # must not spend one of its three attempts before that fault is admitted.
+    env.faults.timeout_s = 0.02
+    observed = SimpleNamespace(entered=0, completed=0, cancelled=0)
+    original = env.journal.session
+
+    async def session(session_id):
+        prepared = env.controller.pending.get(session_id)
+        if (
+            prepared is not None
+            and prepared.task is asyncio.current_task()
+            and not observed.entered
+        ):
+            observed.entered += 1
+            try:
+                await asyncio.sleep(request.param)
+                result = await original(session_id)
+            except asyncio.CancelledError:
+                observed.cancelled += 1
+                raise
+            observed.completed += 1
+            return result
+        return await original(session_id)
+
+    monkeypatch.setattr(env.journal, "session", session)
+    return observed
 
 
 async def decision(
@@ -1236,7 +1282,9 @@ async def test_owner_off_cancels_provider_before_first_delta_during_native_read_
     assert all(p.task.done() for p in env.controller.pending.values())
 
 
-async def test_recovered_generation_timeouts_preserve_later_owner_cancellation(env):
+async def test_recovered_generation_timeouts_preserve_later_owner_cancellation(
+    env, preparing_timeouts
+):
     entered, closed = asyncio.Event(), asyncio.Event()
 
     class Provider:
@@ -1254,7 +1302,6 @@ async def test_recovered_generation_timeouts_preserve_later_owner_cancellation(e
 
     provider = Provider()
     env.runtime.provider = provider
-    env.controller._journal_timeout_s = 0.02
     env.faults.target, env.faults.remaining = "preparing", 2
     env.faults.release = asyncio.Event()
     try:
@@ -1262,6 +1309,11 @@ async def test_recovered_generation_timeouts_preserve_later_owner_cancellation(e
         await env.controller.tick()
         await asyncio.wait_for(entered.wait(), 1)
         assert len(env.faults.requests) == 3 and provider.calls == 1
+        assert env.faults.entered.is_set() and env.faults.waiting == 0
+        assert env.faults.timeouts == env.faults.cancelled == env.faults.requests[:2]
+        assert all(body == env.faults.requests[0] for body in env.faults.requests)
+        assert preparing_timeouts.entered == preparing_timeouts.completed == 1
+        assert preparing_timeouts.cancelled == 0
         task = env.controller.pending[env.session.session_id].task
         assert task.cancelling() == 0
         await env.runtime.set_enabled(False, owner=True)
@@ -1272,13 +1324,19 @@ async def test_recovered_generation_timeouts_preserve_later_owner_cancellation(e
         env.faults.release.set()
 
 
-async def test_repeated_generation_native_timeouts_exhaust_with_no_inference_replay(env):
-    env.controller._journal_timeout_s = 0.02
+async def test_repeated_generation_native_timeouts_exhaust_with_no_inference_replay(
+    env, preparing_timeouts
+):
     env.faults.target, env.faults.remaining = "preparing", 100
     env.faults.release = asyncio.Event()
     await decision(env)
     await asyncio.wait_for(settle(env), 1)
     assert len(env.faults.requests) == 3 and not env.provider.calls
+    assert env.faults.entered.is_set() and env.faults.waiting == 0
+    assert env.faults.timeouts == env.faults.cancelled == env.faults.requests
+    assert all(body == env.faults.requests[0] for body in env.faults.requests)
+    assert preparing_timeouts.entered == preparing_timeouts.completed == 1
+    assert preparing_timeouts.cancelled == 0
     errors = [
         e for e in env.store.read(kinds=["converse.window_state"]) if e.payload["phase"] == "error"
     ]
