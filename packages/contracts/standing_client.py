@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 from packages.contracts.client import _SubmitExchange
 from packages.contracts.standing_admission import StandingInitialProof, StandingTaskAdmission
+from packages.contracts.standing_closure import StandingAdmissionClosure
 from packages.contracts.standing_dispatch import StandingProducerReceipt, StandingProducerRenewal
 from packages.contracts.standing_execution import (
     StandingExecutionClaim,
@@ -49,6 +50,10 @@ def _freeze(original, kind):
 
 class _StandingExchange(_SubmitExchange):
     """Use the parent's actual registry, abandonment and sole-close lifecycle."""
+
+    def __init__(self, owner, request, proposal, result_type, deadline, *, allow_null=False):
+        self.allow_null = allow_null
+        super().__init__(owner, request, proposal, result_type, deadline)
 
     def _timely(self, deadline):
         if self.abandoned or asyncio.get_running_loop().time() >= deadline:
@@ -95,10 +100,7 @@ class _StandingExchange(_SubmitExchange):
             if length is not None and len(raw) != length:
                 raise StandingUnavailable
             self._timely(deadline)
-            if (
-                result_type in (StandingExecutionClaim, StandingInitialProof)
-                and bytes(raw).strip(b" \t\r\n") == b"null"
-            ):
+            if self.allow_null and bytes(raw).strip(b" \t\r\n") == b"null":
                 result = None
             else:
                 result = result_type.from_json(bytes(raw))
@@ -114,7 +116,9 @@ class _StandingExchange(_SubmitExchange):
         return result
 
 
-async def _exchange(owner, method, path, original, request_type, result_type, *, capability=None):
+async def _exchange(
+    owner, method, path, original, request_type, result_type, *, capability=None, allow_null=False
+):
     exchange = None
     loop = asyncio.get_running_loop()
     deadline = loop.time() + 25
@@ -153,7 +157,14 @@ async def _exchange(owner, method, path, original, request_type, result_type, *,
             method, path, content=body, headers=headers, timeout=None
         )
         available()
-        exchange = _StandingExchange(owner, request, proposal, result_type, deadline)
+        exchange = _StandingExchange(
+            owner,
+            request,
+            proposal,
+            result_type,
+            deadline,
+            allow_null=allow_null or result_type in (StandingExecutionClaim, StandingInitialProof),
+        )
         done, _ = await asyncio.wait({exchange.task}, timeout=max(0, deadline - loop.time()))
         if not done or exchange.abandoned or loop.time() >= deadline:
             raise StandingUnavailable
@@ -254,4 +265,32 @@ async def standing_task_lookup(
         request,
         StandingExecutionIntent,
         StandingInitialProof,
+    )
+
+
+async def standing_close_admission(
+    owner, request: StandingExecutionIntent, *, capability=None
+) -> StandingAdmissionClosure:
+    return await _exchange(
+        owner,
+        "POST",
+        "/v1/standing/tasks/close-admission",
+        request,
+        StandingExecutionIntent,
+        StandingAdmissionClosure,
+        capability=capability,
+    )
+
+
+async def standing_closure_lookup(
+    owner, request: StandingExecutionIntent
+) -> StandingAdmissionClosure | None:
+    return await _exchange(
+        owner,
+        "POST",
+        "/v1/standing/tasks/closure-lookup",
+        request,
+        StandingExecutionIntent,
+        StandingAdmissionClosure,
+        allow_null=True,
     )

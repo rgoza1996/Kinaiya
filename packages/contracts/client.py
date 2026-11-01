@@ -265,6 +265,16 @@ class JournalClient:
 
         return await standing_export_admission(self, request)
 
+    async def standing_close_admission(self, request, *, capability=None):
+        from packages.contracts.standing_client import standing_close_admission
+
+        return await standing_close_admission(self, request, capability=capability)
+
+    async def standing_closure_lookup(self, request):
+        from packages.contracts.standing_client import standing_closure_lookup
+
+        return await standing_closure_lookup(self, request)
+
     async def admit_submit(self, request: AppendRequest) -> AgentSubmitReceipt:
         deadline = asyncio.get_running_loop().time() + AGENT_SUBMIT_ADMISSION_TIMEOUT_S
         try:

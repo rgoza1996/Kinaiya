@@ -11,6 +11,7 @@ from pydantic import TypeAdapter
 
 from packages.contracts.agent_control import ControlInstance
 from packages.contracts.standing_admission import StandingInitialProof, StandingTaskAdmission
+from packages.contracts.standing_closure import StandingAdmissionClosure
 from packages.contracts.standing_dispatch import (
     MAX_STANDING_DISPATCH_REQUEST_BYTES,
     StandingDispatchActivation,
@@ -58,8 +59,16 @@ _EXECUTION_BODIES = {
     "execution_lookup",
     "task_admit",
     "task_lookup",
+    "task_close_admission",
+    "task_closure_lookup",
 }
-_NULLABLE_EXECUTION = {"execution_lookup", "execution_unresolved", "task_lookup"}
+_NULLABLE_EXECUTION = {
+    "execution_lookup",
+    "execution_unresolved",
+    "task_lookup",
+    "task_closure_lookup",
+}
+_CAPABILITY_ACTIONS = {"task_admit", "task_close_admission"}
 
 
 class StandingOwnerOperations:
@@ -211,6 +220,14 @@ class StandingOwnerOperations:
             elif action == "task_lookup" and self.tasks is not None:
                 result = self.tasks.lookup(argument)
                 kind = StandingInitialProof
+            elif action == "task_close_admission" and self.tasks is not None:
+                result = self.tasks.close_admission(
+                    argument, capability=capability, deadline=deadline, cancelled=event.is_set
+                )
+                kind = StandingAdmissionClosure
+            elif action == "task_closure_lookup" and self.tasks is not None:
+                result = self.tasks.lookup_closure(argument)
+                kind = StandingAdmissionClosure
             elif self.dispatch is None:
                 raise StandingUnavailable
             elif action == "dispatch_snapshot":
@@ -237,6 +254,8 @@ class StandingOwnerOperations:
             if result is None and action in _NULLABLE_EXECUTION:
                 return b"null"
             if not isinstance(result, kind):
+                raise StandingUnavailable
+            if kind is StandingAdmissionClosure and type(result) is not kind:
                 raise StandingUnavailable
             value = kind.model_validate(result)
             if action in _DISPATCH_BODIES or action in _EXECUTION_BODIES or action == "task_export":
@@ -272,7 +291,7 @@ class StandingOwnerOperations:
         monitor = None
         try:
             query = self._query(request, action)
-            capability = self._capability(request) if action == "task_admit" else None
+            capability = self._capability(request) if action in _CAPABILITY_ACTIONS else None
             if action in {"change", "lookup"}:
                 argument = await self._body(request, event, deadline, started)
             elif action in _DISPATCH_BODIES:
@@ -296,7 +315,7 @@ class StandingOwnerOperations:
                     raise HTTPException(422, _INVALID) from None
             ingress_done.set()
             self._guard(event, deadline)
-            if action == "task_admit":
+            if action in _CAPABILITY_ACTIONS:
                 native = asyncio.to_thread(
                     self._call, action, argument, query, event, deadline, capability=capability
                 )
@@ -485,6 +504,14 @@ def install_standing_owner_routes(
     @agent_routes.post("/tasks/export-admission")
     async def task_export(request: Request):
         return await respond(request, "task_export")
+
+    @agent_routes.post("/tasks/close-admission")
+    async def task_close_admission(request: Request):
+        return await respond(request, "task_close_admission")
+
+    @agent_routes.post("/tasks/closure-lookup")
+    async def task_closure_lookup(request: Request):
+        return await respond(request, "task_closure_lookup")
 
     app.include_router(routes)
     app.include_router(agent_routes)
