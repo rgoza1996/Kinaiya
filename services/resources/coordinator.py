@@ -354,7 +354,9 @@ class ResourceCoordinator:
             self._whistle_preemptions += int(self._has_whistle)
             self._qwen3_preemptions += int(self._has_text)
         try:
-            return await self._action(payload, capture=capture)
+            if bound:
+                return await self._action(payload, capture=capture)
+            return await self._action(payload)
         finally:
             if preempt:
                 self._whistle_preemptions -= int(self._has_whistle)
@@ -602,7 +604,10 @@ class ResourceCoordinator:
                         )
                     await self._save(profile=profile)
                 elif operation == "handoff":
-                    await self._handoff_locked(payload, capture=capture)
+                    if payload.get("task_id") is not None:
+                        await self._handoff_locked(payload, capture=capture)
+                    else:
+                        await self._handoff_locked(payload)
                 elif operation == "restore":
                     await self._restore_locked()
                 elif operation == "converse":
