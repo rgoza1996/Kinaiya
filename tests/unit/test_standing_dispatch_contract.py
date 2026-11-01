@@ -376,7 +376,7 @@ def test_full_original_fence_and_nested_actual_model_graph_bound():
 
 @pytest.mark.parametrize(
     "writable,autonomous,stopped,same_revision,live_producer",
-    itertools.product((False, True), repeat=5),
+    tuple(itertools.product((False, True), repeat=5)),
 )
 def test_readiness_is_exact_conjunction_without_new_permission(
     writable, autonomous, stopped, same_revision, live_producer
