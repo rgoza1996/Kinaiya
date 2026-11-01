@@ -24,6 +24,7 @@ from packages.contracts import (
     memory_operations,
     models,
     standing_admission,
+    standing_closure,
     standing_dispatch,
     standing_execution,
     standing_export,
@@ -163,6 +164,7 @@ for cls in (
     standing_execution.StandingExecutionClaimAdmission,
     standing_admission.StandingInitialProof,
     standing_admission.StandingTaskAdmission,
+    standing_closure.StandingAdmissionClosure,
     standing_export.StandingExportRequest,
     standing_export.StandingExportAdmission,
 ):

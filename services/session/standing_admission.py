@@ -13,6 +13,7 @@ from packages.contracts.standing_admission import (
     standing_entry,
     standing_initial_proof,
 )
+from packages.contracts.standing_closure import StandingAdmissionClosure
 from packages.contracts.standing_execution import (
     StandingExecutionIntent,
     capability_digest,
@@ -81,6 +82,9 @@ class StandingTaskOwner:
         self._failed = False
         self._backend = None
         self._instance = None
+        from services.session.standing_closure import StandingAdmissionClosures
+
+        self._closures = StandingAdmissionClosures(self)
 
     def close(self) -> None:
         self._closed = True
@@ -258,7 +262,9 @@ class StandingTaskOwner:
         meta, generations, gate, activation, producer, claim = self._joins()
         if self._backend != meta["backend_id"]:
             raise StandingUnavailable
-        return meta, generations, gate, activation, producer, claim, self._schema(claim)
+        proof = self._schema(claim)
+        self._closures.observe(meta, claim, proof)
+        return meta, generations, gate, activation, producer, claim, proof
 
     @_native
     def register(self) -> None:
@@ -296,7 +302,8 @@ class StandingTaskOwner:
                     created = True
                 elif table["type"] != "table":
                     raise StandingUnavailable
-                self._schema(claim)
+                proof = self._schema(claim)
+                created = self._closures.register(meta, claim, proof) or created
                 instance = self.control.instance
             self._backend, self._instance, self._registered = meta["backend_id"], instance, True
         except BaseException:
@@ -317,6 +324,8 @@ class StandingTaskOwner:
         self._guard(deadline, cancelled)
         meta, generations, gate, activation, producer, current, _ = self._observation()
         self._writer(meta)
+        if self._closures.blocks_admission():
+            raise StandingConflict
         request = claim.request
         if current is None or canonical_bytes(current) != canonical_bytes(claim):
             raise StandingUnavailable
@@ -440,6 +449,18 @@ class StandingTaskOwner:
         return StandingTaskAdmission(
             schema_version="1.0", disposition="created", proof=proof
         ).validate_request(request)
+
+    @_native
+    def close_admission(
+        self, original: StandingExecutionIntent, *, capability: bytes, deadline=None, cancelled=None
+    ) -> StandingAdmissionClosure:
+        return self._closures.close_admission(
+            original, capability=capability, deadline=deadline, cancelled=cancelled
+        )
+
+    @_native
+    def lookup_closure(self, original: StandingExecutionIntent) -> StandingAdmissionClosure | None:
+        return self._closures.lookup(original)
 
     @_native
     def lookup(self, request: StandingExecutionIntent) -> StandingInitialProof | None:
