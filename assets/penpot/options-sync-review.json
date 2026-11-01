@@ -1,0 +1,63 @@
+{
+  "artifact_format": 1,
+  "scope": "Final master export after native Options and scoped permissions patch plus stacking-only repair",
+  "file_id": "aed0c863-4a2a-8195-8008-defdd82e75a3",
+  "page_id": "1521d820-51cc-4a49-a496-12d9c823c47e",
+  "archive": {
+    "bytes": 228277854,
+    "sha256": "ba1f0e61d133eccb6539c3aee5504292a4ed61e77416e63e99fd98ef27e3f8be",
+    "revision": 53,
+    "modified_at": "2026-11-01T03:41:42.925373Z"
+  },
+  "checks": {
+    "same_14_page_ids": true,
+    "other_13_pages_byte_exact": true,
+    "all_267_old_board_ids_names_geometry_preserved": true,
+    "329_real_boards_251_primary": true,
+    "62_added_details_in_same_primary_page": true,
+    "outside_62_existing_content_targets_exact": true,
+    "all_100_uploaded_media_paths_byte_exact": true,
+    "repair_kept_every_shape_id": true,
+    "repair_only_permuted_existing_child_order": true,
+    "all_1126_native_patch_interactions_preserved": true,
+    "230_scoped_links_resolve_with_valid_motion": true
+  },
+  "all_checks_passed": true,
+  "real_boards": {
+    "old": 267,
+    "native_patch": 317,
+    "scoped_patch": 329,
+    "final": 329
+  },
+  "new_scoped_interactions": {
+    "count": 230,
+    "motion": {
+      "on_dissolve_220ms": 115,
+      "off_instant": 115
+    }
+  },
+  "visual_review": [
+    "Models, Providers and exact LM Studio profile edit after first patch",
+    "Corrected default Permissions and linked Task unsaved edit / unknown receipt route after stacking repair"
+  ],
+  "limitations": [
+    "Selected prototype paths reviewed; not every control manually exercised.",
+    "Design examples are synthetic and do not save runtime settings.",
+    "Future Converse text editor, fallback routes and Search/MCP target designs remain separate increments."
+  ],
+  "errors": {
+    "outside_targets": [],
+    "repair_non_order_shape_changes": [],
+    "repair_changed_child_membership": [],
+    "upload_changes": [],
+    "native_interaction_changes": [],
+    "broken_scoped_links": []
+  },
+  "publication": {
+    "oid": "sha256:ba1f0e61d133eccb6539c3aee5504292a4ed61e77416e63e99fd98ef27e3f8be",
+    "size": 228277854,
+    "remote_download_hash_verified": true,
+    "destination": "rgoza1996/Kinaiya Git LFS",
+    "protocol": "standard repository-authenticated LFS batch/basic upload and download"
+  }
+}
