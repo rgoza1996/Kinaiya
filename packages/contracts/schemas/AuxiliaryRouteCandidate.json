@@ -1,0 +1,74 @@
+{
+  "$defs": {
+    "CatalogModelBinding": {
+      "additionalProperties": false,
+      "description": "Explicit immutable native provider reference, never a display alias.",
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "generation": {
+          "maximum": 64,
+          "minimum": 1,
+          "title": "Generation",
+          "type": "integer"
+        },
+        "configuration_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Configuration Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "generation",
+        "configuration_sha256"
+      ],
+      "title": "CatalogModelBinding",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "catalog_binding": {
+      "$ref": "#/$defs/CatalogModelBinding"
+    },
+    "reasoning": {
+      "anyOf": [
+        {
+          "enum": [
+            "none",
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Reasoning"
+    },
+    "cloud_scope": {
+      "enum": [
+        "local_only",
+        "public_synthetic",
+        "private_cloud_authorized"
+      ],
+      "title": "Cloud Scope",
+      "type": "string"
+    }
+  },
+  "required": [
+    "catalog_binding",
+    "reasoning",
+    "cloud_scope"
+  ],
+  "title": "AuxiliaryRouteCandidate",
+  "type": "object"
+}

@@ -10,7 +10,7 @@ from fastapi.routing import APIRoute
 
 from core.extensions import HarnessError
 from core.policy import PolicyDenied
-from packages.contracts.tool_permissions import ToolPermissionChange
+from packages.contracts.tool_permissions import ToolPermissionChange, ToolPermissionTargetChange
 from services.agent.model_settings import (
     BoundModelSettingsChange,
     ModelSettingsChange,
@@ -46,6 +46,8 @@ class _NoStoreRoute(APIRoute):
 
 
 def router(runtime, auth):
+    from services.agent.auxiliary_routes_api import router as auxiliary_routes_router
+
     routes = APIRouter(
         prefix="/v1/agent/options",
         dependencies=[Depends(auth.require("owner"))],
@@ -151,6 +153,39 @@ def router(runtime, auth):
             return await tool_permissions().page_saved(after, limit)
         except (ValueError, OSError, RuntimeError, sqlite3.Error) as exc:
             raise HTTPException(503, "Saved permission scopes are unavailable") from exc
+
+    @routes.get("/tool-permission-targets")
+    async def inspect_permission_targets(
+        scope: str = Query(default="default", pattern=r"^(default|workspace|session|task)$"),
+        scope_id: str | None = Query(default=None, pattern=r"^[a-f0-9]{64}$"),
+        session_id: str | None = Query(default=None, min_length=1, max_length=128),
+        task_id: str | None = Query(default=None, min_length=1, max_length=128),
+        after: str | None = Query(default=None, pattern=r"^[a-f0-9]{64}$"),
+        limit: int = Query(default=20, ge=1, le=20),
+    ):
+        if scope_id is not None and (session_id is not None or task_id is not None):
+            raise HTTPException(400, "Choose one native permission scope")
+        try:
+            return await tool_permissions().select_targets(
+                scope, session_id, task_id, scope_id, after, limit
+            )
+        except (ValueError, KeyError) as exc:
+            raise HTTPException(400, "Permission target scope or cursor is unavailable") from exc
+        except (OSError, RuntimeError, sqlite3.Error) as exc:
+            raise HTTPException(503, "Permission target inventory is unavailable") from exc
+
+    @routes.post("/tool-permission-targets")
+    async def change_permission_target(request: ToolPermissionTargetChange):
+        try:
+            return await tool_permissions().change_target(request)
+        except ToolPermissionConflict as exc:
+            raise HTTPException(
+                409, "Permission target changed; inspect its exact receipt"
+            ) from exc
+        except ValueError as exc:
+            raise HTTPException(400, "Permission target change was refused") from exc
+        except (OSError, RuntimeError, sqlite3.Error) as exc:
+            raise HTTPException(503, "Permission target save outcome is unconfirmed") from exc
 
     @routes.post("/tool-permissions")
     async def change_tool_permission(request: ToolPermissionChange, response: Response):
@@ -289,4 +324,5 @@ def router(runtime, auth):
             raise HTTPException(404, "Model change has no committed receipt yet")
         return receipt
 
+    routes.include_router(auxiliary_routes_router(runtime, auth, _NoStoreRoute))
     return routes

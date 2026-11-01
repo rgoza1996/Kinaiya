@@ -1,0 +1,571 @@
+{
+  "$defs": {
+    "AttemptCandidate": {
+      "additionalProperties": false,
+      "properties": {
+        "ordinal": {
+          "maximum": 3,
+          "minimum": 1,
+          "title": "Ordinal",
+          "type": "integer"
+        },
+        "model_pin": {
+          "$ref": "#/$defs/AttemptModelPin"
+        },
+        "cloud_scope": {
+          "enum": [
+            "local_only",
+            "public_synthetic",
+            "private_cloud_authorized"
+          ],
+          "title": "Cloud Scope",
+          "type": "string"
+        },
+        "credential": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AttemptCredential"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "ordinal",
+        "model_pin",
+        "cloud_scope",
+        "credential"
+      ],
+      "title": "AttemptCandidate",
+      "type": "object"
+    },
+    "AttemptCredential": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "generation": {
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Generation",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "generation"
+      ],
+      "title": "AttemptCredential",
+      "type": "object"
+    },
+    "AttemptModelPin": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "profile_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+          "title": "Profile Id",
+          "type": "string"
+        },
+        "provider": {
+          "enum": [
+            "meta",
+            "lmstudio"
+          ],
+          "title": "Provider",
+          "type": "string"
+        },
+        "model": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Model",
+          "type": "string"
+        },
+        "local": {
+          "title": "Local",
+          "type": "boolean"
+        },
+        "reasoning": {
+          "anyOf": [
+            {
+              "enum": [
+                "none",
+                "minimal",
+                "low",
+                "medium",
+                "high",
+                "xhigh"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Reasoning"
+        },
+        "settings_revision": {
+          "maximum": 9007199254740990,
+          "minimum": 0,
+          "title": "Settings Revision",
+          "type": "integer"
+        },
+        "catalog_binding": {
+          "$ref": "#/$defs/CatalogModelBinding"
+        },
+        "catalog_revision": {
+          "maximum": 9007199254740990,
+          "minimum": 0,
+          "title": "Catalog Revision",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schema_version",
+        "profile_id",
+        "provider",
+        "model",
+        "local",
+        "reasoning",
+        "settings_revision",
+        "catalog_binding",
+        "catalog_revision"
+      ],
+      "title": "AttemptModelPin",
+      "type": "object"
+    },
+    "AttemptRoute": {
+      "additionalProperties": false,
+      "properties": {
+        "purpose": {
+          "enum": [
+            "analysis",
+            "compression",
+            "title_generation",
+            "delegation",
+            "harness_design"
+          ],
+          "title": "Purpose",
+          "type": "string"
+        },
+        "harness_version": {
+          "anyOf": [
+            {
+              "pattern": "^(seed-v1|v-[a-f0-9]{24})$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Harness Version"
+        },
+        "settings_revision": {
+          "maximum": 9007199254740990,
+          "minimum": 0,
+          "title": "Settings Revision",
+          "type": "integer"
+        },
+        "route_revision": {
+          "maximum": 9007199254740990,
+          "minimum": 0,
+          "title": "Route Revision",
+          "type": "integer"
+        },
+        "candidates": {
+          "items": {
+            "$ref": "#/$defs/AttemptCandidate"
+          },
+          "maxItems": 3,
+          "minItems": 1,
+          "title": "Candidates",
+          "type": "array"
+        }
+      },
+      "required": [
+        "purpose",
+        "harness_version",
+        "settings_revision",
+        "route_revision",
+        "candidates"
+      ],
+      "title": "AttemptRoute",
+      "type": "object"
+    },
+    "CatalogModelBinding": {
+      "additionalProperties": false,
+      "description": "Explicit immutable native provider reference, never a display alias.",
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "generation": {
+          "maximum": 64,
+          "minimum": 1,
+          "title": "Generation",
+          "type": "integer"
+        },
+        "configuration_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Configuration Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "generation",
+        "configuration_sha256"
+      ],
+      "title": "CatalogModelBinding",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "task_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Task Id",
+      "type": "string"
+    },
+    "state": {
+      "const": "running",
+      "title": "State",
+      "type": "string"
+    },
+    "objective_revision": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Objective Revision",
+      "type": "integer"
+    },
+    "plugin_versions": {
+      "additionalProperties": {
+        "maxLength": 128,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxProperties": 64,
+      "propertyNames": {
+        "maxLength": 128,
+        "minLength": 1
+      },
+      "title": "Plugin Versions",
+      "type": "object"
+    },
+    "content_scope": {
+      "enum": [
+        "local_only",
+        "public_synthetic",
+        "private_cloud_authorized"
+      ],
+      "title": "Content Scope",
+      "type": "string"
+    },
+    "submit_sequence": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Submit Sequence",
+      "type": "integer"
+    },
+    "purpose": {
+      "enum": [
+        "analysis",
+        "compression",
+        "title_generation",
+        "delegation",
+        "harness_design"
+      ],
+      "title": "Purpose",
+      "type": "string"
+    },
+    "logical_request_id": {
+      "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+      "title": "Logical Request Id",
+      "type": "string"
+    },
+    "logical_request_sha256": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Logical Request Sha256",
+      "type": "string"
+    },
+    "route_sha256": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Route Sha256",
+      "type": "string"
+    },
+    "route_revision": {
+      "maximum": 9007199254740990,
+      "minimum": 0,
+      "title": "Route Revision",
+      "type": "integer"
+    },
+    "route_event_id": {
+      "anyOf": [
+        {
+          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Route Event Id"
+    },
+    "phase": {
+      "enum": [
+        "route_captured",
+        "attempt_started",
+        "export_admitted",
+        "attempt_finished",
+        "route_stopped"
+      ],
+      "title": "Phase",
+      "type": "string"
+    },
+    "ordinal": {
+      "anyOf": [
+        {
+          "maximum": 3,
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Ordinal"
+    },
+    "model_pin": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AttemptModelPin"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "route": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AttemptRoute"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "export_purpose": {
+      "anyOf": [
+        {
+          "enum": [
+            "complete_count",
+            "complete_generation"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Export Purpose"
+    },
+    "request_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Request Sha256"
+    },
+    "effective_scope": {
+      "anyOf": [
+        {
+          "enum": [
+            "local_only",
+            "public_synthetic",
+            "private_cloud_authorized"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Effective Scope"
+    },
+    "outcome": {
+      "anyOf": [
+        {
+          "enum": [
+            "completed",
+            "context_overflow",
+            "disclosure_ineligible",
+            "endpoint_refused",
+            "model_not_loaded",
+            "count_rate_limited",
+            "count_unavailable",
+            "unconfirmed",
+            "refused"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Outcome"
+    },
+    "generation_state": {
+      "anyOf": [
+        {
+          "enum": [
+            "not_started",
+            "completed",
+            "unconfirmed"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Generation State"
+    },
+    "cleanup_state": {
+      "anyOf": [
+        {
+          "enum": [
+            "not_opened",
+            "settled",
+            "unconfirmed"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Cleanup State"
+    },
+    "input_tokens": {
+      "anyOf": [
+        {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Input Tokens"
+    },
+    "context_tokens": {
+      "anyOf": [
+        {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Context Tokens"
+    },
+    "reserved_output_tokens": {
+      "anyOf": [
+        {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Reserved Output Tokens"
+    },
+    "output_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Output Sha256"
+    },
+    "stage": {
+      "anyOf": [
+        {
+          "enum": [
+            "route",
+            "prepare",
+            "generation"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Stage"
+    }
+  },
+  "required": [
+    "schema_version",
+    "task_id",
+    "state",
+    "objective_revision",
+    "plugin_versions",
+    "content_scope",
+    "submit_sequence",
+    "purpose",
+    "logical_request_id",
+    "logical_request_sha256",
+    "route_sha256",
+    "route_revision",
+    "route_event_id",
+    "phase",
+    "ordinal",
+    "model_pin"
+  ],
+  "title": "AuxiliaryAttempt",
+  "type": "object"
+}

@@ -14,22 +14,32 @@ from packages.contracts.tool_permissions import (
     NATIVE_PERMISSION_TOOLS,
     PermissionScope,
     ToolPermissionChange,
+    ToolPermissionTargetChange,
 )
+from services.agent.target_permission_store import TargetPermissionStore
 from services.settings.provider_catalog import _storage
 
 MAX_RULES = 1024
 MAX_RECEIPTS = 10000
 MAX_SCOPE_BYTES = 2048
 MAX_RECEIPT_BYTES = 8192
-STORAGE_VERSION = 1
-_TABLES = {
+STORAGE_VERSION = 2
+_LEGACY_TABLES = {
     "permission_state": "CREATE TABLE permission_state (id INTEGER PRIMARY KEY CHECK(id=1), revision INTEGER NOT NULL)",
     "permission_rules": "CREATE TABLE permission_rules (scope_id TEXT NOT NULL, tool TEXT NOT NULL, scope TEXT NOT NULL, mode TEXT NOT NULL, revision INTEGER NOT NULL, PRIMARY KEY(scope_id,tool))",
     "permission_operations": "CREATE TABLE permission_operations (key TEXT PRIMARY KEY, digest TEXT NOT NULL, receipt TEXT NOT NULL)",
 }
-_INDEXES = {
+_TABLES = {
+    **_LEGACY_TABLES,
+    "permission_target_rules": "CREATE TABLE permission_target_rules (scope_id TEXT NOT NULL, target_id TEXT NOT NULL, scope TEXT NOT NULL, target TEXT NOT NULL, binding TEXT NOT NULL, mode TEXT NOT NULL, revision INTEGER NOT NULL, PRIMARY KEY(scope_id,target_id))",
+}
+_LEGACY_INDEXES = {
     "sqlite_autoindex_permission_rules_1": "permission_rules",
     "sqlite_autoindex_permission_operations_1": "permission_operations",
+}
+_INDEXES = {
+    **_LEGACY_INDEXES,
+    "sqlite_autoindex_permission_target_rules_1": "permission_target_rules",
 }
 
 
@@ -87,7 +97,7 @@ def _scope_value(scope):
     return scope.model_dump(exclude_none=True)
 
 
-class AgentToolPermissions:
+class AgentToolPermissions(TargetPermissionStore):
     def __init__(self, runtime, path=None):
         self.runtime = runtime
         self.instance = str(uuid.uuid4())
@@ -109,11 +119,16 @@ class AgentToolPermissions:
                 for statement in _TABLES.values():
                     self.db.execute(statement)
                 self.db.execute("INSERT INTO permission_state VALUES (1,0)")
-            # Version zero is the exact original three-table layout only. All
-            # retained authority and receipts must survive its explicit upgrade.
-            self._schema(legacy=True)
+                self.db.execute(f"PRAGMA user_version={STORAGE_VERSION}")
+            elif self.db.execute("PRAGMA user_version").fetchone() in {(0,), (1,)}:
+                # Upgrade only complete original authority. In particular, the
+                # unversioned pre-release four-table layout is not a legacy DB.
+                self._schema(legacy=True)
+                self._validate_storage(legacy=True)
+                self.db.execute(_TABLES["permission_target_rules"])
+                self.db.execute(f"PRAGMA user_version={STORAGE_VERSION}")
+            self._schema()
             self._validate_storage()
-            self.db.execute(f"PRAGMA user_version={STORAGE_VERSION}")
             self.db.commit()
             self._revision()
         except BaseException:
@@ -125,21 +140,23 @@ class AgentToolPermissions:
         if self._closed:
             raise ValueError("Permission storage is closed")
         version = self.db.execute("PRAGMA user_version").fetchone()
-        permitted = {(0,), (STORAGE_VERSION,)} if legacy else {(STORAGE_VERSION,)}
+        permitted = {(0,), (1,)} if legacy else {(STORAGE_VERSION,)}
         if version not in permitted:
             raise ValueError("Permission storage version is unavailable")
         rows = self.db.execute(
             "SELECT type, CASE WHEN length(CAST(name AS BLOB))<=128 THEN name END,"
             "CASE WHEN length(CAST(tbl_name AS BLOB))<=128 THEN tbl_name END,"
             "CASE WHEN length(CAST(sql AS BLOB))<=4096 THEN sql END "
-            "FROM sqlite_schema LIMIT 6"
+            "FROM sqlite_schema LIMIT 8"
         ).fetchall()
-        expected = {("table", name) for name in _TABLES} | {("index", name) for name in _INDEXES}
+        tables = _LEGACY_TABLES if legacy else _TABLES
+        indexes = _LEGACY_INDEXES if legacy else _INDEXES
+        expected = {("table", name) for name in tables} | {("index", name) for name in indexes}
         if len(rows) != len(expected) or {(row[0], row[1]) for row in rows} != expected:
             raise ValueError("Permission storage schema is unavailable")
         for kind, name, table, sql in rows:
             if kind == "index":
-                if table != _INDEXES[name] or sql is not None:
+                if table != indexes[name] or sql is not None:
                     raise ValueError("Permission storage index is unavailable")
             elif (
                 table != name
@@ -147,7 +164,7 @@ class AgentToolPermissions:
                 or re.sub(r"\s+", "", sql)
                 .lower()
                 .replace("createtableifnotexists", "createtable", 1)
-                != re.sub(r"\s+", "", _TABLES[name]).lower()
+                != re.sub(r"\s+", "", tables[name]).lower()
             ):
                 raise ValueError("Permission storage table is unavailable")
 
@@ -165,7 +182,7 @@ class AgentToolPermissions:
             raise ValueError("Permission revision is unavailable")
         return rows[0][1]
 
-    def _validate_storage(self):
+    def _validate_storage(self, *, legacy=False):
         # Every native mutation retains one receipt and increments exactly once;
         # checking their full bounded history detects incomplete legacy stores.
         revision = self._stored_revision()
@@ -188,7 +205,9 @@ class AgentToolPermissions:
                 or not 1 <= rule_revision <= revision
             ):
                 raise ValueError("Stored permission rule is unavailable")
-            rules[(identity, tool)] = (_scope_value(scope), mode, rule_revision)
+            rules[("1.0", identity, tool)] = (_scope_value(scope), mode, rule_revision)
+        if not legacy:
+            rules.update(self._stored_target_rules(revision, len(rules)))
         operations, revisions, latest = 0, set(), {}
         for key, digest, encoded in self.db.execute(
             "SELECT CASE WHEN typeof(key)='text' AND length(CAST(key AS BLOB))<=128 THEN key END,"
@@ -198,18 +217,16 @@ class AgentToolPermissions:
         ):
             operations += 1
             receipt = self._receipt_value(encoded, key)
-            request = ToolPermissionChange.model_validate(
+            version = receipt["schema_version"]
+            if legacy and version != "1.0":
+                raise ValueError("Legacy permission history contains newer authority")
+            request = (
+                ToolPermissionChange if version == "1.0" else ToolPermissionTargetChange
+            ).model_validate(
                 {
-                    field: receipt[field]
-                    for field in (
-                        "schema_version",
-                        "expected_revision",
-                        "expected_state",
-                        "idempotency_key",
-                        "scope",
-                        "tool",
-                        "mode",
-                    )
+                    field: child
+                    for field, child in receipt.items()
+                    if field not in {"status", "scope_id", "revision", "change_boundary"}
                 }
             )
             operation_revision = receipt["revision"]
@@ -221,12 +238,25 @@ class AgentToolPermissions:
             ):
                 raise ValueError("Stored permission operation is unavailable")
             revisions.add(operation_revision)
-            identity = (receipt["scope_id"], receipt["tool"])
+            if version == "1.0":
+                identity = (version, receipt["scope_id"], receipt["tool"])
+                value = (receipt["scope"], receipt["mode"], operation_revision)
+            else:
+                from services.agent.permission_targets import target_id
+
+                identity = (version, receipt["scope_id"], target_id(receipt["target"]))
+                value = (
+                    receipt["scope"],
+                    receipt["target"],
+                    receipt["binding"],
+                    receipt["mode"],
+                    operation_revision,
+                )
             current = latest.get(identity)
-            if current is None or current[2] < operation_revision:
-                latest[identity] = (receipt["scope"], receipt["mode"], operation_revision)
+            if current is None or current[-1] < operation_revision:
+                latest[identity] = value
         if operations != revision or rules != {
-            identity: value for identity, value in latest.items() if value[1] is not None
+            identity: value for identity, value in latest.items() if value[-2] is not None
         }:
             raise ValueError("Permission storage history is incomplete")
 
@@ -246,7 +276,7 @@ class AgentToolPermissions:
         policy = self.runtime.policy
         # The policy's action methods may consult this resolver. Host ceilings
         # must therefore use the underlying owner configuration directly.
-        if tool == "read_file":
+        if tool in {"read_file", "search"}:
             return "allow", False
         denied = policy.deny_write if tool == "write_file" else policy.deny_shell
         allowed = policy.allow_write if tool == "write_file" else policy.allow_shell
@@ -359,6 +389,8 @@ class AgentToolPermissions:
         return result
 
     def resolve(self, task, tool):
+        if tool == "search":
+            return self.resolve_target(task, {"kind": "native", "name": tool})
         scope = (
             self._scope_for_task(task)
             if task is not None
@@ -481,7 +513,7 @@ class AgentToolPermissions:
         ):
             raise ValueError("Invalid saved permission scope")
         row = self.db.execute(
-            "SELECT CASE WHEN length(CAST(scope AS BLOB))<=? THEN scope END FROM permission_rules WHERE scope_id=? LIMIT 1",
+            "SELECT CASE WHEN length(CAST(scope AS BLOB))<=? THEN scope END FROM (SELECT scope_id,scope FROM permission_rules UNION ALL SELECT scope_id,scope FROM permission_target_rules) WHERE scope_id=? LIMIT 1",
             (MAX_SCOPE_BYTES, identity),
         ).fetchone()
         if row is None:
@@ -508,7 +540,7 @@ class AgentToolPermissions:
             raise ValueError("Invalid saved permission page")
         rows = self.db.execute(
             "SELECT DISTINCT CASE WHEN length(CAST(scope_id AS BLOB))=64 THEN scope_id END "
-            "FROM permission_rules WHERE scope_id>? ORDER BY scope_id LIMIT ?",
+            "FROM (SELECT scope_id FROM permission_rules UNION ALL SELECT scope_id FROM permission_target_rules) WHERE scope_id>? ORDER BY scope_id LIMIT ?",
             (after or "", limit + 1),
         ).fetchall()
         items = [
@@ -548,6 +580,8 @@ class AgentToolPermissions:
 
     def _receipt_value(self, encoded, key):
         value = _decode(encoded, MAX_RECEIPT_BYTES)
+        if type(value) is dict and value.get("schema_version") == "1.1":
+            return self._target_receipt_value(value, key)
         expected = {
             "schema_version",
             "status",
@@ -663,11 +697,7 @@ class AgentToolPermissions:
                     "SELECT 1 FROM permission_rules WHERE scope_id=? AND tool=?",
                     (identity, request.tool),
                 ).fetchone()
-                if (
-                    exists is None
-                    and self.db.execute("SELECT count(*) FROM permission_rules").fetchone()[0]
-                    >= MAX_RULES
-                ):
+                if exists is None and self._rule_count() >= MAX_RULES:
                     raise ValueError("Permission rule capacity requires owner reset")
                 self.db.execute(
                     "INSERT INTO permission_rules VALUES (?,?,?,?,?) ON CONFLICT(scope_id,tool) DO UPDATE SET scope=excluded.scope,mode=excluded.mode,revision=excluded.revision",

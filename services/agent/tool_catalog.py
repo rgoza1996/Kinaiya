@@ -174,12 +174,18 @@ def _schema(row, schema, *, output_schema=None):
         row["schema_state"] = "available"
 
 
-def _permissions(runtime, task, tool):
+def _permissions(runtime, task, tool, target=None):
     policy = runtime.policy
     scoped = None
-    if runtime.tool_permissions is not None and tool in {"read_file", "write_file", "shell"}:
+    if runtime.tool_permissions is not None and (
+        target is not None or tool in {"read_file", "write_file", "shell", "search"}
+    ):
         try:
-            scoped = runtime.tool_permissions.resolve(task, tool)
+            scoped = (
+                runtime.tool_permissions.resolve_target(task, target)
+                if target is not None
+                else runtime.tool_permissions.resolve(task, tool)
+            )
         except Exception:
             raise CatalogError("invalid_metadata") from None
     approval = "uncommitted_speech_only" if tool == "publish_ui" else "not_required"
@@ -347,6 +353,7 @@ def _mcp(runtime, query, guard):
                 "provenance": {
                     "config_sha256": server["config_sha256"],
                     "definition_sha256": server["definition_sha256"],
+                    "tool_sha256": tool.get("tool_sha256"),
                     "server_version": server["server_version"],
                 },
             }
@@ -372,12 +379,15 @@ def _mcp(runtime, query, guard):
                     "exact_tool_allowlist",
                     "current_disclosure",
                     "transport_grants",
-                    "owner_action_approval_unless_yolo",
+                    "current_exact_target_rule_or_host_approval",
                     "schema_revalidated_at_call",
                     "remote_effects_not_verified_by_response",
                 ]
                 row["permissions"] = _permissions(
-                    runtime, guard.rec.task if guard.rec is not None else None, "mcp_call"
+                    runtime,
+                    guard.rec.task if guard.rec is not None else None,
+                    "mcp_call",
+                    target={"kind": "mcp", "server_id": server["id"], "name": tool["name"]},
                 )
                 if "input_schema" in tool:
                     _schema(row, tool["input_schema"])

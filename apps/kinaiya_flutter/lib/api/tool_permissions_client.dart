@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import '../config/connection.dart';
 import '../config/service_root.dart';
 import 'tool_permissions.dart';
+import 'permission_targets.dart';
 
 class ToolPermissionFailure implements Exception {
   const ToolPermissionFailure(
@@ -161,6 +162,106 @@ class ToolPermissionsApi {
     null,
     ToolPermissionReceipt.fromJson,
   );
+
+  Future<PermissionTargetsPage> inspectTargets({
+    String kind = 'default',
+    String? sessionId,
+    String? taskId,
+    String? scopeId,
+    String? after,
+  }) {
+    final query = <String, String>{'limit': '20'};
+    if (after != null) {
+      if (!_exactTargetHash(after)) {
+        throw const ToolPermissionFailure('Invalid target cursor');
+      }
+      query['after'] = after;
+    }
+    if (scopeId != null) {
+      if (!_exactTargetHash(scopeId) ||
+          kind != 'default' ||
+          sessionId != null ||
+          taskId != null) {
+        throw const ToolPermissionFailure('Invalid saved target scope');
+      }
+      query['scope_id'] = scopeId;
+    } else {
+      if (!permissionScopeKinds.contains(kind) ||
+          (kind == 'session'
+              ? !_target(sessionId) || taskId != null
+              : sessionId != null) ||
+          (kind == 'task' ? !_target(taskId) : taskId != null)) {
+        throw const ToolPermissionFailure('Invalid target scope');
+      }
+      query.addAll({
+        'scope': kind,
+        if (sessionId != null) 'session_id': sessionId,
+        if (taskId != null) 'task_id': taskId,
+      });
+    }
+    return _request(
+      'GET',
+      '/v1/agent/options/tool-permission-targets',
+      null,
+      PermissionTargetsPage.fromJson,
+      query: query,
+    ).then((page) {
+      if ((scopeId != null && page.scopeId != scopeId) ||
+          (scopeId == null && page.scope.kind != kind) ||
+          (sessionId != null && page.scope.sessionId != sessionId) ||
+          (taskId != null && page.scope.taskId != taskId) ||
+          (after != null &&
+              page.targets.any((row) => row.target.id.compareTo(after) <= 0))) {
+        throw const ToolPermissionFailure(
+          'Permission target scope or page changed',
+        );
+      }
+      return page;
+    });
+  }
+
+  Future<PermissionTargetReceipt> changeTarget(
+    Map<String, Object?> request,
+    String scopeId,
+  ) {
+    final Map<String, Object?> body;
+    try {
+      body = permissionTargetChange(request);
+      if (!_exactTargetHash(scopeId)) {
+        throw const FormatException();
+      }
+    } catch (_) {
+      throw const ToolPermissionFailure('Invalid target permission change');
+    }
+    return _request('POST', '/v1/agent/options/tool-permission-targets', body, (
+      raw,
+    ) {
+      final receipt = PermissionTargetReceipt.fromJson(raw);
+      if (!receipt.matches(body, scopeId)) throw const FormatException();
+      return receipt;
+    });
+  }
+
+  Future<PermissionTargetReceipt> targetReceipt(String key) => _request(
+    'GET',
+    '/v1/agent/options/tool-permission-changes/${Uri.encodeComponent(_exactTargetKey(key))}',
+    null,
+    PermissionTargetReceipt.fromJson,
+  );
+
+  static bool _exactTargetHash(String value) =>
+      value.length == 64 &&
+      RegExp(r'[a-f0-9]{64}').matchAsPrefix(value)?.end == value.length;
+
+  static String _exactTargetKey(String value) {
+    if (value.isEmpty ||
+        value.length > 128 ||
+        RegExp(r'[A-Za-z0-9:._-]{1,128}').matchAsPrefix(value)?.end !=
+            value.length) {
+      throw const ToolPermissionFailure('Invalid target receipt key');
+    }
+    return value;
+  }
 
   Future<T> _request<T>(
     String method,

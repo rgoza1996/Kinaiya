@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 import '../api/tool_permissions.dart';
 import '../api/tool_permissions_client.dart';
 import 'design_tokens.dart';
+import 'options_permission_targets.dart';
 
 class OptionsToolPermissions extends StatefulWidget {
   const OptionsToolPermissions({
@@ -769,6 +770,16 @@ class _OptionsToolPermissionsState extends State<OptionsToolPermissions> {
                 ),
               ],
               for (final row in snapshot.tools) _toolCard(snapshot, row),
+              OptionsPermissionTargets(
+                api: widget.api,
+                active: widget.active,
+                scope: snapshot,
+                savedScopeId: _savedId,
+                onChanged: () {
+                  unawaited(_loadScope());
+                  unawaited(_loadSaved());
+                },
+              ),
             ],
             const SizedBox(height: 16),
             Text(
@@ -812,7 +823,7 @@ class _OptionsToolPermissionsState extends State<OptionsToolPermissions> {
               ),
             const SizedBox(height: 12),
             const Text(
-              'Saved Deny affects subsequent action admissions. Already admitted or running work may continue; this editor does not report cancellation or rollback. Other native tools, individual MCP/plugin rules and scoped network controls require separate native owners.',
+              'Saved Deny affects subsequent action admissions. Already admitted or running work may continue; this editor does not report cancellation or rollback. Plugin rules, general filesystem controls and scoped network controls require separate native owners.',
             ),
           ],
         ),

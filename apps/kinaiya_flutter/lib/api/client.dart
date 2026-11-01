@@ -26,6 +26,7 @@ import 'artifact_client.dart';
 import 'provider_client.dart';
 import 'tool_permissions_client.dart';
 import 'converse_model_client.dart';
+import 'auxiliary_route_client.dart';
 import '../config/service_root.dart';
 
 const _uuid = Uuid();
@@ -223,6 +224,11 @@ class KinaiyaClient {
     baseUrl: converseBase,
     ownerToken: _token,
     clientFactory: _agentWorkspaceClientFactory,
+  );
+  late final AuxiliaryRoutesApi auxiliaryRoutes = AuxiliaryRoutesApi(
+    baseUrl: agentBase,
+    ownerToken: _token,
+    clientFactory: _agentModelClientFactory,
   );
 
   final http.Client Function() _agentRuntimeClientFactory;
@@ -993,6 +999,7 @@ class KinaiyaClient {
       unawaited(modelSettings.close());
       unawaited(toolPermissions.close());
       unawaited(converseModels.close());
+      unawaited(auxiliaryRoutes.close());
       unawaited(runtimeSettings.close());
       artifacts.close();
     }
