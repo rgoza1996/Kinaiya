@@ -6,6 +6,7 @@ from pathlib import Path
 from packages.contracts import (
     agent_export,
     agent_submit,
+    authorizations,
     auxiliary_attempts,
     auxiliary_routes,
     companion,
@@ -53,6 +54,11 @@ for module in (
 
 # Owner policy requests are strict frozen models, separate from journal events.
 for cls in (
+    authorizations.AuthorizationIdentity,
+    authorizations.AuthorizationRevoke,
+    authorizations.AuthorizationRevokeReceipt,
+    authorizations.AuthorizationLookup,
+    authorizations.AuthorizationJournalProof,
     tool_permissions.PermissionScope,
     tool_permissions.ToolPermissionChange,
     tool_permissions.NativePermissionTarget,

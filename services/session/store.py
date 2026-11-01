@@ -1580,6 +1580,13 @@ class LocalJournal:
     async def append(self, request):
         return self.store.append(request, self.role)
 
+    async def lookup_authorization_revocation(self, request):
+        if self.role != "agent":
+            raise PermissionError("Authorization metadata lookup requires Agent")
+        from services.session.authorizations import lookup_revocation
+
+        return lookup_revocation(self.store, request)
+
     async def decisions_call_start(self, request):
         if self.role != "decisions":
             raise PermissionError("Decisions capture requires Decisions")

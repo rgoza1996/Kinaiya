@@ -701,7 +701,7 @@ def serve(args):
                     await asyncio.sleep(0.1)
             yield
             await runtime.close()
-            await journal.close()
+            await runtime.authorizations.close_journal(journal)
             await owner_journal.close()
             commands.close()
 

@@ -3,11 +3,14 @@ library;
 
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:http/http.dart' as http;
+
 import '../config/connection.dart';
 import '../config/service_root.dart';
 import 'tool_permissions.dart';
 import 'permission_targets.dart';
+import 'authorizations.dart';
 
 class ToolPermissionFailure implements Exception {
   const ToolPermissionFailure(
@@ -261,6 +264,59 @@ class ToolPermissionsApi {
       throw const ToolPermissionFailure('Invalid target receipt key');
     }
     return value;
+  }
+
+  Future<AuthorizationsPage> authorizations({String? after}) {
+    if (after != null &&
+        RegExp(r'apr_[a-f0-9]{16}').matchAsPrefix(after)?.end != after.length) {
+      throw const ToolPermissionFailure('Invalid authorization cursor');
+    }
+    return _request(
+      'GET',
+      '/v1/agent/options/authorizations',
+      null,
+      AuthorizationsPage.fromJson,
+      query: {'limit': '50', if (after != null) 'after': after},
+    ).then((page) {
+      if (after != null &&
+          page.authorizations.any(
+            (row) => row.identity.id.compareTo(after) <= 0,
+          )) {
+        throw const FormatException();
+      }
+      return page;
+    });
+  }
+
+  Future<AuthorizationReceipt> revokeAuthorization(
+    Map<String, Object?> original,
+  ) {
+    final body = authorizationRevoke(original);
+    return _request('POST', '/v1/agent/options/authorizations/revoke', body, (
+      raw,
+    ) {
+      final result = AuthorizationReceipt.fromJson(raw);
+      if (!result.matches(body)) throw const FormatException();
+      return result;
+    });
+  }
+
+  Future<AuthorizationLookup> lookupAuthorization(
+    Map<String, Object?> original,
+  ) {
+    final body = authorizationRevoke(original);
+    return _request(
+      'POST',
+      '/v1/agent/options/authorizations/revocations/lookup',
+      body,
+      (raw) {
+        final result = AuthorizationLookup.fromJson(raw);
+        if (result.receipt != null && !result.receipt!.matches(body)) {
+          throw const FormatException();
+        }
+        return result;
+      },
+    );
   }
 
   Future<T> _request<T>(

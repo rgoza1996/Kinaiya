@@ -400,6 +400,9 @@ class AgentRuntime:
         self._workspace_workers = set()
         self._workspace_watched = set()
         self._workspace_cleanup_failed = False
+        from services.agent.authorizations import AgentAuthorizations
+
+        self.authorizations = AgentAuthorizations(self)
 
     def workspace_operation_state(self):
         """Actual owners, including cancelled callers whose native work remains."""
@@ -2262,6 +2265,7 @@ class AgentRuntime:
             if rec.task.state not in TERMINAL:
                 rec.task.state = TaskState.PAUSED
                 rec.done.set()
+        await self.authorizations.drain()
         host, controller = self.mcp_host, self.mcp_controller
         hosts = (host, *tuple(getattr(controller, "_uncertain_hosts", ())))
         for retiring in hosts:
@@ -2410,6 +2414,9 @@ class AgentRuntime:
             # Intent is not a spend. The effect broker consumes it once after
             # its final source, scope, cancellation and revision checks.
             pending["approved"] = True
+            self.policy.review_approval(
+                approval_id, resolution.action_digest, resolution.objective_revision
+            )
             rec.resume.set()
             return {"approval_id": approval_id, "approved": True}
 
@@ -2572,6 +2579,9 @@ class AgentRuntime:
             self._approval_action_current(rec, pending)
             replacement = self.policy.reissue_approval(
                 approval_id, request.action_digest, request.objective_revision
+            )
+            self.authorizations.register(
+                rec, replacement, pending["tool"], pending["arguments"], previous=approval_id
             )
             rec.approval_wait_id = replacement.approval_id
             rec.pending = {
@@ -2824,6 +2834,7 @@ class AgentRuntime:
         """Terminal publication does not prove its worker or child has released."""
         return (
             self._closed
+            or bool(self.authorizations.tasks)
             or (self.model_settings is not None and self.model_settings.catalog_cleanup_busy)
             or any(
                 rec.task.state not in TERMINAL
@@ -3620,6 +3631,7 @@ class AgentRuntime:
         rec.resume.clear()
         rec.task.state = TaskState.AWAITING_APPROVAL
         try:
+            self.authorizations.register(rec, approval, tool, args)
             await self._append(
                 rec,
                 "approval.requested",

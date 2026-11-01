@@ -211,3 +211,12 @@ standard agent controls.
 ## Intelligent views
 
 Converse's saved **Interactive views** switch enables native rich artifacts or a readable summary/data fallback. It changes presentation only. Each result offers Pin, Close and a Results chooser to reopen retained publications; transcript collapse retains history and its owner. Table/diagram/choice/number controls persist validated view state. Ask buttons prefill the normal composer without submitting it. Provider selection, cloud disclosure, permission approval, Agent availability and ordinary Call/Tell/Stop controls keep their separate owners. See [ADR0068](adr/0068-intelligent-converse-artifacts.md).
+
+### Authorization activity (ADR0103)
+
+Permissions has source for separate broad service-grant inspection and bounded
+one-use owner-review activity. Exact approved-unspent permits can be revoked
+through their native identity/revision, with independent journal confirmation
+and positive historical receipt recovery. Missing history is unknown and a
+revocation never claims to cancel admitted work. Native and Flutter source
+independent review/static checks passed; CI and 8808 promotion remain pending.
