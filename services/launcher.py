@@ -800,6 +800,52 @@ def serve(args):
             )
         except (OSError, ValueError, RuntimeError, sqlite3.Error):
             runtime._stt_options_unavailable = True
+        from services.converse.tts_model_settings import TTSModelSettings
+        from services.settings.tts_factory import TTSBudgetPolicy
+
+        budget_policy = None
+        host_voice = None
+        host_info = None
+        try:
+            tts_choice = config.get("voice", {}).get("tts")
+            if tts_choice is not None:
+                from packages.providers.openrouter_speech import openrouter_tts_settings
+
+                declaration = openrouter_tts_settings(tts_choice)
+                budget_policy = TTSBudgetPolicy(
+                    Path(declaration["budget_path"]),
+                    declaration["budget_limit_usd"],
+                    args.workspace.resolve(),
+                )
+            elif config.get("resources", {}).get("enabled") is True:
+                from packages.contracts.models import ProviderInfo
+                from packages.providers.tts_backends import validate_voice
+
+                profile = config.get("voice", {}).get("profile", "Kokoro 82M")
+                host_voice = validate_voice(profile, config["resources"].get("tts_voice"))
+                host_info = ProviderInfo(
+                    provider="local-voice", model=profile, local=True, streaming=True
+                )
+        except (ValueError, KeyError, TypeError):
+            # A malformed independent host declaration grants no new budget.
+            budget_policy = None
+            host_voice = None
+            host_info = None
+        runtime._tts_options_configured = True
+        try:
+            runtime.tts_model_settings = TTSModelSettings(
+                runtime,
+                catalog,
+                speech,
+                args.data_dir.resolve() / "converse-tts-model.sqlite",
+                workspace=args.workspace.resolve(),
+                resource_state=resource_state,
+                host_info=host_info,
+                host_voice=host_voice,
+                budget_policy=budget_policy,
+            )
+        except (OSError, ValueError, RuntimeError, sqlite3.Error):
+            runtime._tts_options_unavailable = True
         windows = (
             WindowConverseController(runtime)
             if config.get("streaming_windows", {}).get("enabled", True)

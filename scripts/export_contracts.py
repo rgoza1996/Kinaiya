@@ -21,6 +21,7 @@ from packages.contracts import (
     models,
     stt_models,
     tool_permissions,
+    tts_models,
     workspace_settings,
 )
 
@@ -71,6 +72,10 @@ for cls in (
     stt_models.STTModelSelection,
     stt_models.STTModelChange,
     models.STTModelPin,
+    tts_models.TTSModelSelection,
+    tts_models.TTSModelChange,
+    tts_models.TTSModelPin,
+    tts_models.TTSSynthesisAdmission,
     decisions_models.DecisionsModelSelection,
     decisions_models.DecisionsModelChange,
     decisions_models.DecisionsModelPin,

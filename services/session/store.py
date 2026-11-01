@@ -61,6 +61,7 @@ ALLOWED_KINDS = {
         "delivery.updated",
         "converse.safety",
         "converse.window_state",
+        "converse.synthesis",
     },
     "agent": {
         "agent.command",
@@ -553,6 +554,16 @@ class Store:
                 validate_attempt(self, request)
             except (ValueError, KeyError, TypeError, UnicodeError, RecursionError) as exc:
                 raise JournalError("Invalid native auxiliary attempt provenance") from exc
+        if request.kind == "converse.synthesis" or (
+            request.kind == "delivery.updated"
+            and {"tts_model", "tts_operation_id"}.intersection(request.payload)
+        ):
+            from services.session.tts_provenance import validate_tts
+
+            try:
+                validate_tts(self, request, role)
+            except (ValueError, KeyError, TypeError, UnicodeError, RecursionError) as exc:
+                raise JournalError("Invalid native speech provenance") from exc
         if pin is not None and session.channel != "converse":
             raise JournalError("Memory context requires a Converse session")
         if request.kind == "conversation.window":

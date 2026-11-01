@@ -230,6 +230,7 @@ class SpeechTurnResponse(TypedTurnResponse):
 def create_app(runtime, auth, speech=None, window_controller=None, *, setup=None):
     from services.converse.memory_api import install_memory_controls
     from services.converse.stt_model_api import install_stt_model_controls
+    from services.converse.tts_model_api import install_tts_model_controls
 
     app = FastAPI(title="Kinaiya Converse", version="1.0")
     owner = [Depends(auth.require("owner"))]
@@ -277,6 +278,7 @@ def create_app(runtime, auth, speech=None, window_controller=None, *, setup=None
     )
     app.add_middleware(ModelApiOwnership)
     install_stt_model_controls(app, runtime, auth)
+    install_tts_model_controls(app, runtime, auth)
 
     @app.get("/health")
     async def health():
@@ -672,24 +674,40 @@ def create_app(runtime, auth, speech=None, window_controller=None, *, setup=None
     @app.post("/v1/converse/speech", dependencies=owner)
     async def audio(request: SpeechRequest, http_request: Request):
         _reserve_api_model(runtime, http_request)
-        if speech is None:
+        if speech is None and not getattr(runtime, "_tts_options_configured", False):
             raise HTTPException(503, "Configure a TTS provider in settings")
         try:
             runtime.check_speech_ready()
             event = await runtime.validate_speech(request.event_id, request.generation_epoch)
         except ValueError as exc:
             raise HTTPException(409, str(exc)) from exc
-        scoped = getattr(speech, "synthesize_scoped", None)
-        current = _cloud_tts_current(speech, event, scoped)
+        from services.converse.tts_operations import capture_tts_turn
+
+        try:
+            tts_turn = capture_tts_turn(runtime, event, request.generation_epoch, http_request)
+        except ValueError:
+            raise HTTPException(
+                409, "TTS selection, prior attempt or disclosure was refused"
+            ) from None
+        except RuntimeError:
+            raise HTTPException(503, "TTS model ownership is unavailable") from None
+        target = speech if tts_turn is None else tts_turn.lease.provider
+        scoped = getattr(target, "synthesize_scoped", None)
+        if tts_turn is not None and tts_turn.exact_openrouter:
+            scoped = tts_turn.scoped_synthesis
+        current = (
+            _cloud_tts_current(target, event, scoped) if tts_turn is None else tts_turn.current
+        )
 
         async def generate():
             async with aclosing(
                 runtime.speech_frames(
                     event,
                     request.generation_epoch,
-                    speech.synthesize,
+                    target.synthesize,
                     synthesize_scoped=scoped,
                     current=current,
+                    **({"tts_turn": tts_turn} if tts_turn is not None else {}),
                 )
             ) as frames:
                 async for chunk in frames:

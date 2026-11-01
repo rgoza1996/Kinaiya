@@ -205,8 +205,38 @@ class MetaSTTProfile(StrictSettings):
         return self
 
 
+class OpenRouterTTSProfile(StrictSettings):
+    kind: Literal["openrouter_tts"]
+    base_url: str = Field(min_length=1, max_length=2048)
+    model: Literal["hexgrad/kokoro-82m"]
+    voice: Literal["af_heart"]
+    allow_cloud: Literal[True]
+    credential: CredentialBinding
+    timeout_s: int = Field(default=120, ge=1, le=120)
+
+    @field_validator("allow_cloud", mode="before")
+    @classmethod
+    def explicit_cloud(cls, value):
+        if type(value) is not bool or value is not True:
+            raise ValueError("OpenRouter TTS requires explicit cloud authorization")
+        return value
+
+    @model_validator(mode="after")
+    def speech_origin(self):
+        self.base_url = _origin(self.base_url, cloud=True)
+        from packages.providers.openrouter_speech import _validate_origin
+
+        _validate_origin(self.base_url, self.timeout_s)
+        return self
+
+
 ProfileConfig = Annotated[
-    MetaProfile | CompatibleProfile | LMStudioProfile | LayaProfile | MetaSTTProfile,
+    MetaProfile
+    | CompatibleProfile
+    | LMStudioProfile
+    | LayaProfile
+    | MetaSTTProfile
+    | OpenRouterTTSProfile,
     Field(discriminator="kind"),
 ]
 
@@ -549,7 +579,9 @@ class ProviderCatalog:
                     binding["id"], binding["generation"]
                 )
                 profile["capability"] = {
-                    "declared_roles": ["stt"]
+                    "declared_roles": ["tts"]
+                    if kind == "openrouter_tts"
+                    else ["stt"]
                     if kind == "meta_stt"
                     else ["decisions"]
                     if kind == "laya"
