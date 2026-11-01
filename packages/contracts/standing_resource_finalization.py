@@ -165,7 +165,8 @@ def _model_kind(annotation):
 
 def _fields(value, kind):
     _graph(value)
-    if isinstance(value, BaseModel):
+    typed = isinstance(value, BaseModel)
+    if typed:
         if type(value) is not kind:
             raise ValueError(_ERROR)
         value = value.__dict__
@@ -176,6 +177,8 @@ def _fields(value, kind):
         child = value[name]
         nested = _model_kind(field.annotation)
         if nested is not None and child is not None:
+            if typed and type(child) is not nested:
+                raise ValueError(_ERROR)
             # Hand the native validator a complete dictionary, never an old
             # instance that its own nested validator might trust unchanged.
             result[name] = _fields(child, nested)
@@ -312,8 +315,11 @@ def _context_body(request, binding, closure, observation, *, validated=False):
         closure = checked_finalization(closure, StandingAdmissionClosure)
         observation = checked_finalization(observation, StandingResourceObservation)
     original = request.original
-    closure.validate_request(original)
-    observation.validate_request(original)
+    try:
+        closure.validate_request(original)
+        observation.validate_request(original)
+    except _FAILURES:
+        raise ValueError(_ERROR) from None
     initial = closure.initial
     reservation = observation.reservation
     if (
