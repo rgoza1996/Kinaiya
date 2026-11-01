@@ -59,6 +59,12 @@ class BodyTransport extends http.BaseClient {
 }
 
 class ScopeClient extends ConsentClient {
+  final _agentSessions = <String, SessionInfo>{};
+
+  @override
+  Future<SessionInfo> agentWorkspaceSession(String id) async =>
+      _agentSessions[id] ?? (throw StateError('No fixture session receipt'));
+
   // Accepted tasks now refresh the authoritative Agent workspace transcript.
   // This scope-counting fixture has no native history to add to the next draft.
   @override
@@ -116,6 +122,12 @@ class ScopeClient extends ConsentClient {
     ContentScope contentScope = ContentScope.localOnly,
   }) async {
     taskScopes.add(contentScope);
+    _agentSessions[sessionId] = SessionInfo(
+      sessionId: sessionId,
+      threadId: threadId,
+      epoch: epoch,
+      channel: 'agent',
+    );
     return cardTask();
   }
 
@@ -129,6 +141,12 @@ class ScopeClient extends ConsentClient {
     ContentScope contentScope = ContentScope.localOnly,
   }) async {
     commandScopes.add(contentScope);
+    _agentSessions[sessionId] = SessionInfo(
+      sessionId: sessionId,
+      threadId: threadId,
+      epoch: epoch,
+      channel: 'agent',
+    );
     return {'status': 'ok'};
   }
 
