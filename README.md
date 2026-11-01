@@ -494,15 +494,15 @@ $$
 
 A necessary permit predicate for an existing record is:
 
-```math
+$$
 \begin{aligned}
 \mathrm{Usable}(p,a,\theta_a,r,t_{\mathrm{wall}},t_{\mathrm{mono}})\iff{}&
 p.h=h(a,\theta_a,r)\land p.r=r\\
 &\land\neg p.\mathrm{used}\land p.\mathrm{retired}=\varnothing\\
-&\land t_{\mathrm{wall}}<p.e_{\mathrm{wall}}\\
-&\land(p.e_{\mathrm{mono}}=\varnothing\lor t_{\mathrm{mono}}<p.e_{\mathrm{mono}}).
+&\land t_{\mathrm{wall}}\lt p.e_{\mathrm{wall}}\\
+&\land(p.e_{\mathrm{mono}}=\varnothing\lor t_{\mathrm{mono}}\lt p.e_{\mathrm{mono}}).
 \end{aligned}
-```
+$$
 
 The monotonic deadline applies when present. This predicate is **not sufficient
 authorization**: the supervisor also rechecks native task/source currentness,
