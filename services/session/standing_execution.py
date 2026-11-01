@@ -229,6 +229,8 @@ class StandingExecutionOwner:
             )
             if actual != columns:
                 raise StandingUnavailable
+            if self._all(f"PRAGMA foreign_key_list({name})"):
+                raise StandingUnavailable
         unique = set()
         for row in self._all("PRAGMA index_list(standing_execution_claims)"):
             if row["unique"] == 1 and row["partial"] == 0:
