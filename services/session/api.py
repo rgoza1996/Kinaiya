@@ -41,11 +41,13 @@ from packages.contracts.interfaces import (
     AgentModeOff,
 )
 from packages.contracts.models import AppendRequest, PlaybackGeneration, SessionRequest
-from packages.contracts.standing_work import StandingUnavailable
+from packages.contracts.standing_work import StandingConflict, StandingUnavailable
 from packages.contracts.stt_settlement import STTPublication
 from services.common.auth import Auth
 from services.session.agent_control import AgentControl
+from services.session.standing_admission import StandingTaskOwner
 from services.session.standing_dispatch import StandingDispatchOwner
+from services.session.standing_execution import StandingExecutionOwner
 from services.session.standing_work import StandingOwner
 from services.session.standing_work_api import install_standing_owner_routes
 from services.session.store import JournalError, Store
@@ -95,6 +97,24 @@ def create_app(
         standing_dispatch_initialized = True
     except StandingUnavailable:
         pass
+    standing_execution_owner = StandingExecutionOwner(
+        store, control, standing_owner, standing_dispatch_owner, clock=standing_clock
+    )
+    standing_execution_initialized = False
+    try:
+        standing_execution_owner.register()
+        standing_execution_initialized = True
+    except (StandingConflict, StandingUnavailable):
+        pass
+    standing_task_owner = StandingTaskOwner(
+        store, control, standing_owner, standing_dispatch_owner, standing_execution_owner
+    )
+    standing_task_initialized = False
+    try:
+        standing_task_owner.register()
+        standing_task_initialized = True
+    except (StandingConflict, StandingUnavailable):
+        pass
     standing_operations = None
 
     @asynccontextmanager
@@ -119,20 +139,26 @@ def create_app(
                 raise
             finally:
                 try:
-                    standing_owner.close()
+                    standing_task_owner.close()
                 finally:
                     try:
-                        standing_dispatch_owner.close()
+                        standing_execution_owner.close()
                     finally:
                         try:
-                            control.close()
-                        except AgentControlUnavailable:
-                            # A poisoned connection has already failed closed.
-                            # Retirement remains unconfirmed after shutdown.
-                            app.state.agent_control_shutdown_unconfirmed = True
-                            logging.getLogger(__name__).warning(
-                                "Agent control shutdown could not confirm native generation retirement"
-                            )
+                            standing_owner.close()
+                        finally:
+                            try:
+                                standing_dispatch_owner.close()
+                            finally:
+                                try:
+                                    control.close()
+                                except AgentControlUnavailable:
+                                    # A poisoned connection has already failed closed.
+                                    # Retirement remains unconfirmed after shutdown.
+                                    app.state.agent_control_shutdown_unconfirmed = True
+                                    logging.getLogger(__name__).warning(
+                                        "Agent control shutdown could not confirm native generation retirement"
+                                    )
             if interrupted:
                 raise asyncio.CancelledError
 
@@ -144,8 +170,17 @@ def create_app(
     app.state.standing_owner_shutdown_unconfirmed = False
     app.state.standing_dispatch_owner = standing_dispatch_owner
     app.state.standing_dispatch_initialized = standing_dispatch_initialized
+    app.state.standing_execution_owner = standing_execution_owner
+    app.state.standing_execution_initialized = standing_execution_initialized
+    app.state.standing_task_owner = standing_task_owner
+    app.state.standing_task_initialized = standing_task_initialized
     standing_operations = install_standing_owner_routes(
-        app, standing_owner, auth, dispatch=standing_dispatch_owner
+        app,
+        standing_owner,
+        auth,
+        dispatch=standing_dispatch_owner,
+        execution=standing_execution_owner,
+        tasks=standing_task_owner,
     )
     app.state.standing_owner_operations = standing_operations
     authenticated = Depends(auth.require())

@@ -1,4 +1,4 @@
-"""Codex-authored bounded HTTP adapter for standing definitions and dispatch."""
+"""Codex-authored bounded HTTP adapter for standing definitions and execution."""
 
 import asyncio
 import re
@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse, Response
 from pydantic import TypeAdapter
 
 from packages.contracts.agent_control import ControlInstance
+from packages.contracts.standing_admission import StandingInitialProof, StandingTaskAdmission
 from packages.contracts.standing_dispatch import (
     MAX_STANDING_DISPATCH_REQUEST_BYTES,
     StandingDispatchActivation,
@@ -20,6 +21,12 @@ from packages.contracts.standing_dispatch import (
     StandingDispatchStopProof,
     StandingProducerReceipt,
     StandingProducerRenewal,
+)
+from packages.contracts.standing_execution import (
+    MAX_STANDING_EXECUTION_INTENT_BYTES,
+    StandingExecutionClaim,
+    StandingExecutionClaimAdmission,
+    StandingExecutionIntent,
 )
 from packages.contracts.standing_work import (
     MAX_STANDING_PROOF_BYTES,
@@ -45,6 +52,13 @@ _DISPATCH_BODIES = {
     "dispatch_stop": StandingDispatchStop,
     "producer_renew": StandingProducerRenewal,
 }
+_EXECUTION_BODIES = {
+    "execution_prepare",
+    "execution_lookup",
+    "task_admit",
+    "task_lookup",
+}
+_NULLABLE_EXECUTION = {"execution_lookup", "execution_unresolved", "task_lookup"}
 
 
 class StandingOwnerOperations:
@@ -54,9 +68,11 @@ class StandingOwnerOperations:
     Close can therefore wait for an uncooperative native callable to settle.
     """
 
-    def __init__(self, owner, *, dispatch=None):
+    def __init__(self, owner, *, dispatch=None, execution=None, tasks=None):
         self.owner = owner
         self.dispatch = dispatch
+        self.execution = execution
+        self.tasks = tasks
         self._closed = False
         self._operations = {}
 
@@ -98,6 +114,8 @@ class StandingOwnerOperations:
             if kind is StandingChange
             else MAX_STANDING_DISPATCH_REQUEST_BYTES
         )
+        if kind is StandingExecutionIntent:
+            maximum = MAX_STANDING_EXECUTION_INTENT_BYTES
         ingress_deadline = min(deadline, started + STANDING_INGRESS_SECONDS)
         remaining = ingress_deadline - time.monotonic()
         if remaining <= 0:
@@ -140,7 +158,20 @@ class StandingOwnerOperations:
             raise HTTPException(422, _INVALID)
         return {"after": after, "limit": int(raw_limit)}
 
-    def _call(self, action, argument, query, event, deadline):
+    @staticmethod
+    def _capability(request):
+        values = [
+            value
+            for key, value in request.scope["headers"]
+            if key.lower() == b"x-kinaiya-standing-capability"
+        ]
+        if not values:
+            return None
+        if len(values) != 1 or re.fullmatch(rb"[0-9a-f]{64}", values[0]) is None:
+            raise HTTPException(422, _INVALID)
+        return bytes.fromhex(values[0].decode("ascii"))
+
+    def _call(self, action, argument, query, event, deadline, *, capability=None):
         self._guard(event, deadline)
         try:
             if action == "change":
@@ -155,6 +186,23 @@ class StandingOwnerOperations:
             elif action == "page":
                 result = self.owner.page(**query)
                 kind = StandingResponsibilityPage
+            elif action == "execution_prepare" and self.execution is not None:
+                result = self.execution.prepare(argument, deadline=deadline, cancelled=event.is_set)
+                kind = StandingExecutionClaimAdmission
+            elif action == "execution_lookup" and self.execution is not None:
+                result = self.execution.lookup(argument)
+                kind = StandingExecutionClaim
+            elif action == "execution_unresolved" and self.execution is not None:
+                result = self.execution.unresolved()
+                kind = StandingExecutionClaim
+            elif action == "task_admit" and self.tasks is not None:
+                result = self.tasks.admit(
+                    argument, capability=capability, deadline=deadline, cancelled=event.is_set
+                )
+                kind = StandingTaskAdmission
+            elif action == "task_lookup" and self.tasks is not None:
+                result = self.tasks.lookup(argument)
+                kind = StandingInitialProof
             elif self.dispatch is None:
                 raise StandingUnavailable
             elif action == "dispatch_snapshot":
@@ -178,10 +226,12 @@ class StandingOwnerOperations:
             else:
                 raise StandingUnavailable
             self._guard(event, deadline)
+            if result is None and action in _NULLABLE_EXECUTION:
+                return b"null"
             if not isinstance(result, kind):
                 raise StandingUnavailable
             value = kind.model_validate(result)
-            if action in _DISPATCH_BODIES:
+            if action in _DISPATCH_BODIES or action in _EXECUTION_BODIES:
                 value = value.validate_request(argument)
             raw = canonical_bytes(value)
             if len(raw) > min(kind.wire_bytes, MAX_STANDING_PROOF_BYTES):
@@ -214,12 +264,18 @@ class StandingOwnerOperations:
         monitor = None
         try:
             query = self._query(request, action)
+            capability = self._capability(request) if action == "task_admit" else None
             if action in {"change", "lookup"}:
                 argument = await self._body(request, event, deadline, started)
             elif action in _DISPATCH_BODIES:
                 argument = await self._body(
                     request, event, deadline, started, kind=_DISPATCH_BODIES[action]
                 )
+            elif action in _EXECUTION_BODIES:
+                argument = await self._body(
+                    request, event, deadline, started, kind=StandingExecutionIntent
+                )
+                self._guard(event, min(deadline, started + STANDING_INGRESS_SECONDS))
             elif action == "snapshot":
                 try:
                     argument = TypeAdapter(ControlInstance).validate_python(argument, strict=True)
@@ -227,9 +283,13 @@ class StandingOwnerOperations:
                     raise HTTPException(422, _INVALID) from None
             ingress_done.set()
             self._guard(event, deadline)
-            task = asyncio.create_task(
-                asyncio.to_thread(self._call, action, argument, query, event, deadline)
-            )
+            if action == "task_admit":
+                native = asyncio.to_thread(
+                    self._call, action, argument, query, event, deadline, capability=capability
+                )
+            else:
+                native = asyncio.to_thread(self._call, action, argument, query, event, deadline)
+            task = asyncio.create_task(native)
             monitor = asyncio.create_task(self._disconnect(request, event, disconnected))
             return await self._thread_result(task, event)
         except (HTTPException, StandingConflict, StandingUnavailable):
@@ -317,9 +377,11 @@ class StandingOwnerOperations:
             )
 
 
-def install_standing_owner_routes(app, owner, auth, *, dispatch=None) -> StandingOwnerOperations:
-    """Install owner definitions/dispatch and Agent-only renewal in one hub."""
-    operations = StandingOwnerOperations(owner, dispatch=dispatch)
+def install_standing_owner_routes(
+    app, owner, auth, *, dispatch=None, execution=None, tasks=None
+) -> StandingOwnerOperations:
+    """Install standing controls and Agent-only execution in one actual-owner hub."""
+    operations = StandingOwnerOperations(owner, dispatch=dispatch, execution=execution, tasks=tasks)
     routes = APIRouter(prefix="/v1/standing", dependencies=[Depends(auth.require("owner"))])
     agent_routes = APIRouter(prefix="/v1/standing", dependencies=[Depends(auth.require("agent"))])
 
@@ -386,6 +448,26 @@ def install_standing_owner_routes(app, owner, auth, *, dispatch=None) -> Standin
     @agent_routes.post("/producer/renew")
     async def producer_renew(request: Request):
         return await respond(request, "producer_renew")
+
+    @agent_routes.post("/executions/prepare")
+    async def execution_prepare(request: Request):
+        return await respond(request, "execution_prepare")
+
+    @agent_routes.post("/executions/lookup")
+    async def execution_lookup(request: Request):
+        return await respond(request, "execution_lookup")
+
+    @agent_routes.get("/executions/unresolved")
+    async def execution_unresolved(request: Request):
+        return await respond(request, "execution_unresolved")
+
+    @agent_routes.post("/tasks/admit")
+    async def task_admit(request: Request):
+        return await respond(request, "task_admit")
+
+    @agent_routes.post("/tasks/lookup")
+    async def task_lookup(request: Request):
+        return await respond(request, "task_lookup")
 
     app.include_router(routes)
     app.include_router(agent_routes)
