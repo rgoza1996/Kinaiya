@@ -1,0 +1,105 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "state": {
+      "enum": [
+        "none",
+        "not_admitted",
+        "required"
+      ],
+      "title": "State",
+      "type": "string"
+    },
+    "session_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Session Id"
+    },
+    "thread_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Thread Id"
+    },
+    "epoch": {
+      "anyOf": [
+        {
+          "maximum": 9007199254740990,
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Epoch"
+    },
+    "idempotency_key": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Idempotency Key"
+    },
+    "request_sha256": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Request Sha256"
+    },
+    "audio_sha256": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Audio Sha256"
+    },
+    "stt_identity_sha256": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Stt Identity Sha256"
+    }
+  },
+  "required": [
+    "state",
+    "session_id",
+    "thread_id",
+    "epoch",
+    "idempotency_key",
+    "request_sha256",
+    "audio_sha256",
+    "stt_identity_sha256"
+  ],
+  "title": "STTPublication",
+  "type": "object"
+}

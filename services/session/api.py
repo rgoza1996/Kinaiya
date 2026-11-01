@@ -30,6 +30,7 @@ from packages.contracts.context import (
     context_json,
 )
 from packages.contracts.models import AppendRequest, PlaybackGeneration, SessionRequest
+from packages.contracts.stt_settlement import STTPublication
 from services.common.auth import Auth
 from services.session.store import JournalError, Store
 
@@ -99,6 +100,44 @@ def create_app(
     @app.post("/v1/transcript/entries")
     async def append(request: AppendRequest, role=authenticated):
         return store.append(request, role)
+
+    @app.post(
+        "/v1/transcript/stt-publications/lookup", dependencies=[Depends(auth.require("converse"))]
+    )
+    async def stt_publication_lookup(request: Request):
+        from fastapi.responses import JSONResponse
+
+        from packages.providers.whistle_ipc import decode_json
+        from services.session.stt_publications import lookup_publication
+
+        raw = bytearray()
+        try:
+            async with asyncio.timeout(5):
+                async for chunk in request.stream():
+                    if len(raw) + len(chunk) > 4096:
+                        raise HTTPException(
+                            413,
+                            "STT publication identity exceeds its bound",
+                            headers={"Cache-Control": "no-store"},
+                        )
+                    raw.extend(chunk)
+        except TimeoutError:
+            raise HTTPException(
+                408,
+                "STT publication lookup deadline expired",
+                headers={"Cache-Control": "no-store"},
+            ) from None
+        try:
+            original = STTPublication.model_validate(decode_json(bytes(raw), 4096))
+            return JSONResponse(
+                lookup_publication(store, original), headers={"Cache-Control": "no-store"}
+            )
+        except (ValueError, TypeError, RecursionError):
+            raise HTTPException(
+                503,
+                "Original STT publication proof is unavailable",
+                headers={"Cache-Control": "no-store"},
+            ) from None
 
     @app.post(
         "/v1/transcript/agent-export-admission",

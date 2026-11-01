@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 import '../api/stt_model_client.dart';
 import '../api/stt_model_settings.dart';
 import 'design_tokens.dart';
+import 'options_stt_admissions.dart';
 
 /// Embedded speech-to-text selection, independent of text and speech output.
 class OptionsSttModel extends StatefulWidget {
@@ -543,6 +544,15 @@ class _OptionsSttModelState extends State<OptionsSttModel> {
         ),
       );
     }
+    children.add(
+      OptionsSttAdmissions(
+        api: api,
+        active: widget.active,
+        onSettled: () {
+          if (mounted && widget.active()) unawaited(_load());
+        },
+      ),
+    );
     return DesignPanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

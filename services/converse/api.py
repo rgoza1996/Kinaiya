@@ -262,6 +262,9 @@ def create_app(runtime, auth, speech=None, window_controller=None, *, setup=None
                     for lease in runtime.stt_model_settings.leases
                 )
                 + runtime.stt_model_settings.unknown_admissions()
+                + len(runtime.stt_model_settings._reconciling)
+                + len(getattr(runtime.journal, "_submit_stt_closes", ()))
+                + int(getattr(runtime.journal, "_submit_cleanup_failed", False))
                 if getattr(runtime, "stt_model_settings", None) is not None
                 else len(runtime._stt_transport_closures)
             )
@@ -499,9 +502,13 @@ def create_app(runtime, auth, speech=None, window_controller=None, *, setup=None
                     if native is not None and not await native.current():
                         raise SpeechProviderError(409)
                     if native is not None:
-                        native.start_native()
-                    result = await _transcription(
-                        target, data, file.filename or "recording.wav", content_scope, scoped
+                        await native.start_native(data, current=native.current, publication="none")
+                    result = (
+                        await native.dispatch_native(data, current=native.current)
+                        if native is not None and native.native_binding is not None
+                        else await _transcription(
+                            target, data, file.filename or "recording.wav", content_scope, scoped
+                        )
                     )
                     if native is not None:
                         if (
@@ -625,9 +632,15 @@ def create_app(runtime, auth, speech=None, window_controller=None, *, setup=None
                     if native is not None and not await native.current(window_current):
                         raise SpeechProviderError(409)
                     if native is not None:
-                        native.start_native()
-                    result = await _transcription(
-                        target, data, "window.wav", request.content_scope, scoped
+                        await native.start_native(
+                            data, current=selected_current, publication="not_admitted"
+                        )
+                    result = (
+                        await native.dispatch_native(data, current=selected_current)
+                        if native is not None and native.native_binding is not None
+                        else await _transcription(
+                            target, data, "window.wav", request.content_scope, scoped
+                        )
                     )
                     if native is not None:
                         if (
