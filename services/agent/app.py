@@ -25,6 +25,11 @@ from packages.contracts.agent_submit import (
     AgentSubmitUnavailable,
     AgentSubmitUnconfirmed,
 )
+from packages.contracts.interfaces import (
+    AgentControlConflict,
+    AgentControlUnavailable,
+    AgentModeOff,
+)
 from packages.contracts.models import (
     ApprovalResolution,
     CommandRequest,
@@ -40,6 +45,8 @@ from services.agent.runtime import (
     TaskNotFound,
     TaskTerminal,
 )
+
+AGENT_STEER_REQUEST_TIMEOUT_S = 25.0
 
 
 class SubmissionReconcileRequest(TaskRequest):
@@ -96,6 +103,12 @@ def create_app(runtime: AgentRuntime, auth: Any, commands=None) -> FastAPI:
         }
 
     def _http(exc: Exception) -> HTTPException:
+        if isinstance(exc, AgentModeOff):
+            return HTTPException(403, str(AgentModeOff()))
+        if isinstance(exc, AgentControlConflict):
+            return HTTPException(409, str(AgentControlConflict()))
+        if isinstance(exc, AgentControlUnavailable):
+            return HTTPException(503, str(AgentControlUnavailable()))
         if isinstance(exc, AgentSubmitConflict):
             return HTTPException(status_code=409, detail=str(AgentSubmitConflict()))
         if isinstance(exc, AgentSubmitUnavailable):
@@ -146,10 +159,19 @@ def create_app(runtime: AgentRuntime, auth: Any, commands=None) -> FastAPI:
     async def steer_task(
         task_id: str, body: SteerRequest, actor: str = Depends(require_actor)
     ) -> Any:
+        operation = None
         try:
-            return await runtime.steer(task_id, body, actor=actor)
-        except Exception as exc:
-            raise _http(exc) from exc
+            operation = runtime._start_submit_operation(
+                lambda: runtime.steer(task_id, body, actor=actor)
+            )
+            return await runtime._await_submit_operation(operation, AGENT_STEER_REQUEST_TIMEOUT_S)
+        except BaseException as exc:
+            runtime.suppress_steer(task_id, body.idempotency_key, operation)
+            if operation is not None and not operation.done():
+                operation.cancel()
+            if isinstance(exc, Exception):
+                raise _http(exc) from exc
+            raise
 
     @app.post("/v1/agent/tasks/{task_id}/interrupt")
     async def interrupt_task(
