@@ -1,6 +1,33 @@
 # Kinaiya application screenshots
 
-## November 1, 2026 — current interface
+## November 1, 2026 — refreshed interface
+
+These captures show the running Flutter web app after the Agent workspace and
+Options UI refresh. Services are disconnected, so model controls and task
+execution are unavailable. No conversations, credentials, or fixture task
+results are shown. Select an image to open the complete capture.
+
+| Home | Converse | Agent workspace |
+| --- | --- | --- |
+| <a href="2026-11-01-ui-refresh/home.jpg"><img src="2026-11-01-ui-refresh/home.jpg" width="300" alt="Home with Kinaiya seated beneath the moon"></a> | <a href="2026-11-01-ui-refresh/converse.jpg"><img src="2026-11-01-ui-refresh/converse.jpg" width="300" alt="Converse character artwork and an empty conversation panel"></a> | <a href="2026-11-01-ui-refresh/agent.jpg"><img src="2026-11-01-ui-refresh/agent.jpg" width="300" alt="Agent workspace with resizable sidebars and an empty session list"></a> |
+| Character hub with no Agent session selected. | Character and conversation view, with no model connected. | Resizable sidebars, task details, and an empty workspace. |
+
+| Options | Models | Connection |
+| --- | --- | --- |
+| <a href="2026-11-01-ui-refresh/options.jpg"><img src="2026-11-01-ui-refresh/options.jpg" width="300" alt="Options category navigation and character artwork"></a> | <a href="2026-11-01-ui-refresh/models.jpg"><img src="2026-11-01-ui-refresh/models.jpg" width="300" alt="Model settings with services disconnected"></a> | <a href="2026-11-01-ui-refresh/connection.jpg"><img src="2026-11-01-ui-refresh/connection.jpg" width="300" alt="Connection settings with spaced service URL fields"></a> |
+| Category navigation and artwork. | Role-specific settings in the disconnected state. | Service connection and disclosure settings. |
+
+The captures came from source [`5b2513d8a1cf463947047f88706117a1c31fc42f`](https://github.com/rgoza1996/Kinaiya/commit/5b2513d8a1cf463947047f88706117a1c31fc42f),
+which includes the merged Agent UI refresh. They are complete browser JPEGs,
+without cropping, retouching, resizing, or re-encoding. The
+[capture manifest](2026-11-01-ui-refresh/manifest.json) records their hashes,
+dimensions, and preview conditions. These images demonstrate the interface,
+not live model readiness or completed work.
+
+<details>
+<summary>Earlier November 1 settings preview (before the UI refresh)</summary>
+
+## November 1, 2026 — earlier settings preview
 
 These are raw captures of the running Flutter application in the Settings integration preview. The preview exposes fixture model metadata and an empty Agent workspace. Capture involved inspection only: no inference, audio, task execution, model loading, or settings save. No generated conversation or task result is shown.
 
@@ -33,6 +60,8 @@ Select any image to open its complete JPEG.
 - All nine JPEGs retain their original complete bytes, without cropping, retouching, resizing, or re-encoding. Eight are 2065 × 1416 pixels; Converse is 2293 × 1573.
 - Home's visible device clock reads 07:32 on Sunday, November 1. Connection indicators and model labels describe the preview's fixture state; these images do not establish production readiness or completed work.
 - The [capture manifest](2026-11-01/manifest.json) records the view glossary, source, file hashes, dimensions, file timestamps, and provenance record time. File timestamps are labeled separately from the capture date.
+
+</details>
 
 ## Home — October 30, 2026
 
