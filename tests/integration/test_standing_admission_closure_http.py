@@ -27,6 +27,7 @@ from test_standing_execution_api import factory as factory
 
 from packages.contracts.agent_submit import AgentSubmitLookupRequest, AgentSubmitUnavailable
 from packages.contracts.client import JournalClient
+from packages.contracts.interfaces import AgentControlUnavailable
 from packages.contracts.standing_execution import StandingExecutionIntent
 from packages.contracts.standing_work import StandingConflict, StandingUnavailable
 
@@ -535,7 +536,7 @@ async def test_new64_actual_client_owners_block_new_and_old_calls_until_real_cle
             assert client._submit_exchanges == owners
             with pytest.raises(StandingUnavailable):
                 await call(client, False, data.packet, capability=SECRET)
-            with pytest.raises(StandingUnavailable):
+            with pytest.raises(AgentControlUnavailable):
                 await client.agent_control_state()
             query = AgentSubmitLookupRequest(
                 schema_version="1.0",
