@@ -313,9 +313,10 @@ class _LibraryWorkspaceState extends State<LibraryWorkspace> {
     final outputs =
         _outputs
             .where(
-              (row) => '${row.name} ${row.type} ${row.path}'
-                  .toLowerCase()
-                  .contains(query),
+              (row) =>
+                  '${row.name} ${row.type} ${row.path ?? ''} ${row.workspaceStatus ?? ''}'
+                      .toLowerCase()
+                      .contains(query),
             )
             .toList()
           ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
@@ -457,6 +458,7 @@ class _LibraryWorkspaceState extends State<LibraryWorkspace> {
                         DataColumn(label: Text('Name')),
                         DataColumn(label: Text('File type')),
                         DataColumn(label: Text('Created')),
+                        DataColumn(label: Text('Workspace')),
                         DataColumn(label: Text('Source')),
                       ],
                       rows: [
@@ -465,12 +467,27 @@ class _LibraryWorkspaceState extends State<LibraryWorkspace> {
                             cells: [
                               DataCell(
                                 Tooltip(
-                                  message: output.path,
+                                  message:
+                                      output.path ??
+                                      'Historical output with unknown workspace. No current-root path is inferred.',
                                   child: Text(output.name),
                                 ),
                               ),
                               DataCell(Text(output.type)),
                               DataCell(Text(_date(output.createdAt))),
+                              DataCell(
+                                Tooltip(
+                                  message: output.workspacePin == null
+                                      ? 'This historical record has no workspace identity. It is metadata only; no file is opened or resolved against the current root.'
+                                      : 'Workspace ${output.workspacePin!.workspaceId}\nRoot identity ${output.workspacePin!.rootIdentity}\nRevision ${output.workspacePin!.revision} · ${output.workspacePin!.source}\nRecorded path ${output.path}\nThis is receipt metadata, not a check that the file still exists.',
+                                  child: Text(switch (output.workspaceStatus) {
+                                    'current' => 'Matches active identity',
+                                    'historical' =>
+                                      'Recorded workspace identity',
+                                    _ => 'Workspace unknown',
+                                  }),
+                                ),
+                              ),
                               DataCell(
                                 TextButton(
                                   onPressed: () =>

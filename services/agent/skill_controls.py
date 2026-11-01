@@ -37,6 +37,14 @@ def require_skills(runtime):
 
 
 async def apply_skill_control(runtime, control: SkillControl):
+    return await runtime.owned_workspace_operation(
+        lambda: _apply_skill_control(runtime, control),
+        require_root=control.operation
+        in {"install", "install_archive", "update", "update_archive"},
+    )
+
+
+async def _apply_skill_control(runtime, control):
     service = require_skills(runtime)
     try:
         if control.operation == "inspect":

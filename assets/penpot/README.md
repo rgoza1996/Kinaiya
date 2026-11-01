@@ -40,13 +40,28 @@ Code review editors, with example inherited and custom model settings. The
 model dropdown demonstrates changing a selection in each harness. Values are
 prototype examples and do not save application settings.
 
-The provider catalog includes Meta Model API, an illustrative Meta account
-sign-in path, LM Studio and other local or cloud providers. The Meta account
-sign-in option is a design proposal whose compatibility requires confirmation;
-a [Muse Code subscription](https://dev.meta.ai/docs/muse-code/subscriptions) is
-for Muse Code. LM Studio shows its local endpoint and an optional token.
-The linked examples include direct audio and speech-to-text alternatives, and
-the motion preference switches between fade and instant prototype routes.
+The current provider catalog designs distinguish saved profile declarations from
+credential references and immutable generations. They include native Meta text,
+LM Studio, compatible endpoints and Laya declarations. Saving a profile does not
+prove readiness or make every adapter eligible for Agent text completion.
+Credentials are represented by synthetic references; the design contains no
+owner key. Earlier Meta account sign-in explorations are historical proposals,
+not an implemented authentication path.
+
+The current Models and Harness Customization boards show host versus exact
+catalog-generation selection, unavailable generations, inheritance, dedicated
+harness editors and five auxiliary text purposes. Converse, Decisions, STT and
+TTS on these boards remain explicitly host-managed; newer runtime increments
+require their own design synchronization. Memory demonstrates immutable local
+notes, source inspection, revision and dependent-note forgetting.
+
+Permissions now demonstrates Default, Workspace, Session and Task scope for
+exact native read_file, write_file and shell rules, with Allow/Ask/Deny or
+inheritance. Linked examples include unsaved edits, unknown-save receipt
+recovery, same-instance fencing and retired-scope reset. These operation rules
+do not imply blanket filesystem or network access. Search and individual MCP
+rule designs remain a later increment. Motion-on routes dissolve over 220ms;
+motion-off routes are instant. Examples never save runtime settings.
 
 The app implementation follows [ADR 0059](../../docs/adr/0059-home-and-optional-converse.md);
 the updated bubbles, transitions and speech behavior follow
@@ -100,3 +115,24 @@ instantly and do not implement the motion preference.
 Additional responsive layouts, error and permission states, interaction links,
 and refined character animation remain design work. Keep sample labels and
 status indicators distinguishable from the behavior of the running product.
+
+## Reviewed native Options synchronization
+
+The current Git LFS archive is the same **Kinaiya — Master design** file, revision
+53, modified `2026-11-01T03:41:42.925373Z`. It contains fourteen pages and 329
+real top-level boards (251 on the current page), excluding root sentinels.
+Archive size: **228,277,854 bytes**; SHA-256:
+`ba1f0e61d133eccb6539c3aee5504292a4ed61e77416e63e99fd98ef27e3f8be`.
+
+Sixty-two existing Options content areas were updated and sixty-two paired
+motion detail/state boards were added. All 267 prior board identities, names
+and geometry remain; the other thirteen pages and all 100 uploaded artwork
+metadata/blob paths remain byte-exact. A stacking-only repair restored native
+labels above their backgrounds without recreating artwork or interactions.
+
+Selected Models, Providers, profile editing, Permissions, Task edit and unknown
+receipt paths were visually reviewed. Offline archive analysis resolves 1,126
+native Options and 230 scoped permission links. This does not claim every
+prototype control was exercised or runtime acceptance completed. See the
+[review record](options-sync-review.json) and
+[synchronization notes](../../docs/penpot-options-sync-plan.md).

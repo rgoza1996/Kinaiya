@@ -54,7 +54,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from core.policy import ApprovalError, PolicyDenied, ToolPolicy
 from core.policy.tool_admission import MCPToolAdmission
-from services.agent.tools import build_bwrap_args
+from services.agent.tools import _readonly_bindings, build_bwrap_args
 
 from . import _stdio_relay
 
@@ -298,12 +298,14 @@ class MCPConfig(BaseModel):
         return _sanitize_url(self.url or "")
 
 
-def _bwrap_base_argv(config: MCPConfig, policy: ToolPolicy) -> list[str]:
+def _bwrap_base_argv(config: MCPConfig, policy: ToolPolicy, *, readonly_bindings=()) -> list[str]:
     """Bubblewrap argv without secrets. Fails closed without the sandbox."""
     if not policy.effective_shell:
         raise PolicyDenied(f"mcp stdio server {config.id!r} requires the shell grant")
     joined = shlex.join([config.command or "", *config.args])
-    argv, _isolated = build_bwrap_args(policy, joined, policy.network)
+    argv, _isolated = build_bwrap_args(
+        policy, joined, policy.network, readonly_bindings=readonly_bindings
+    )
     if len(argv) < 4 or argv[-3:-1] != ["/bin/bash", "-c"]:
         raise MCPTransportError("unexpected bubblewrap argv shape; refusing to launch")
     if not Path("/usr/bin/prlimit").is_file():
@@ -558,18 +560,40 @@ async def _bounded_stdio_transport(
             os.close(memfd)
         raise MCPTransportError("refusing to spawn: secret value present in argv")
     try:
-        process = await anyio.open_process(
-            argv,
-            env={"PATH": "/usr/bin:/bin"},
-            start_new_session=True,
-            pass_fds=pass_fds,
+        # Creation owns its explicit FDs until the native spawn really settles;
+        # actor cancellation cannot close/reuse them during a late spawn.
+        spawn = asyncio.create_task(
+            anyio.open_process(
+                argv,
+                env={"PATH": "/usr/bin:/bin"},
+                start_new_session=True,
+                pass_fds=pass_fds,
+            )
         )
+        interrupted = False
+        while not spawn.done():
+            try:
+                await asyncio.shield(spawn)
+            except asyncio.CancelledError:
+                interrupted = True
+        process = spawn.result()
     finally:
         if memfd is not None:
             try:
                 os.close(memfd)
             except OSError:
                 pass
+    if interrupted:
+        # The actor still owns the actual process. Reap before propagating the
+        # request to stop; a timed-out cleanup remains an explicit failure.
+        cleanup = asyncio.create_task(process.aclose())
+        while not cleanup.done():
+            try:
+                await asyncio.shield(cleanup)
+            except asyncio.CancelledError:
+                pass
+        cleanup.result()
+        raise asyncio.CancelledError
     read_writer, read_stream = anyio.create_memory_object_stream(0)
     write_stream, write_reader = anyio.create_memory_object_stream(0)
     err_holder: list[bytes] = [b""]
@@ -795,6 +819,7 @@ class _ServerActor:
 
         async def ensure() -> ClientSession:
             nonlocal session, secrets, stderr_holder, fatal, connection_grants
+            self._policy.check_workspace()
             current_grants = (self._policy.effective_shell, self._policy.network)
             if session is not None and connection_grants != current_grants:
                 await reset()
@@ -825,24 +850,25 @@ class _ServerActor:
                     resolved[name] = value
             secrets = list(resolved.values())
             if config.transport == "stdio":
-                base = _bwrap_base_argv(config, self._policy)
-                secret_env = {
-                    name: resolved[name] for name in config.env_secret_refs if name in resolved
-                }
-                argv, memfd = _secure_spawn_argv(base, secret_env)
-                pass_fds: tuple[int, ...] = (memfd,) if memfd is not None else ()
-                fatal = []
-                entered = await stack.enter_async_context(
-                    _bounded_stdio_transport(
-                        config.id,
-                        argv,
-                        list(resolved.values()),
-                        config.timeout_seconds,
-                        memfd,
-                        pass_fds,
-                        fatal,
+                with _readonly_bindings(self._policy) as (bindings, descriptors):
+                    base = _bwrap_base_argv(config, self._policy, readonly_bindings=bindings)
+                    secret_env = {
+                        name: resolved[name] for name in config.env_secret_refs if name in resolved
+                    }
+                    argv, memfd = _secure_spawn_argv(base, secret_env)
+                    pass_fds = (*descriptors, *((memfd,) if memfd is not None else ()))
+                    fatal = []
+                    entered = await stack.enter_async_context(
+                        _bounded_stdio_transport(
+                            config.id,
+                            argv,
+                            list(resolved.values()),
+                            config.timeout_seconds,
+                            memfd,
+                            pass_fds,
+                            fatal,
+                        )
                     )
-                )
                 read, write, err_holder = entered
                 stderr_holder = err_holder
             else:

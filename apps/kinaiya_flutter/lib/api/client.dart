@@ -17,6 +17,7 @@ import 'models.dart';
 import 'converse_setup.dart';
 import 'agent_workspace.dart';
 import 'agent_workspace_client.dart';
+import 'workspace_settings_client.dart';
 import 'agent_model_client.dart';
 import 'agent_model_settings.dart';
 import 'agent_runtime_client.dart';
@@ -252,6 +253,11 @@ class KinaiyaClient {
     baseUrl: agentBase,
     ownerToken: _token,
     clientFactory: _agentModelClientFactory,
+  );
+  late final WorkspaceSettingsApi workspaceSettings = WorkspaceSettingsApi(
+    baseUrl: agentBase,
+    ownerToken: _token,
+    clientFactory: _agentWorkspaceClientFactory,
   );
 
   final http.Client Function() _agentRuntimeClientFactory;
@@ -1032,6 +1038,7 @@ class KinaiyaClient {
       final classifier = decisionsModels;
       if (classifier != null) unawaited(classifier.close());
       unawaited(auxiliaryRoutes.close());
+      unawaited(workspaceSettings.close());
       unawaited(runtimeSettings.close());
       artifacts.close();
     }
