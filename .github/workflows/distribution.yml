@@ -1,0 +1,241 @@
+name: distribution
+on:
+  workflow_run:
+    workflows: [deterministic-ci]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Build and validate workflow artifacts only; never publish or attest
+        type: boolean
+        default: true
+      channel:
+        description: Stable requires a qualified final tag and independent approval
+        type: choice
+        options: [nightly, stable]
+        default: nightly
+      version:
+        description: Base X.Y.Z (not an alpha/prerelease version)
+        type: string
+        default: '0.1.0'
+      tag:
+        description: Existing vX.Y.Z tag for stable; leave empty for nightly
+        type: string
+        default: ''
+permissions:
+  contents: read
+concurrency:
+  group: kinaiya-distribution
+  cancel-in-progress: false
+jobs:
+  prepare:
+    if: >-
+      github.repository == 'rgoza1996/Kinaiya' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_branch == 'main' &&
+        github.event.workflow_run.head_repository.full_name == 'rgoza1996/Kinaiya'))
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      channel: ${{ steps.gate.outputs.channel }}
+      source_sha: ${{ steps.gate.outputs.source_sha }}
+      version: ${{ steps.gate.outputs.version }}
+      tag: ${{ steps.gate.outputs.tag }}
+      dry_run: ${{ steps.gate.outputs.dry_run }}
+      build_number: ${{ steps.gate.outputs.build_number }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - name: Qualify exact source and publishing protections
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_PUBLISH_ENABLED: ${{ vars.RELEASE_PUBLISH_ENABLED }}
+        run: python -m scripts.release_gate --event "$GITHUB_EVENT_PATH" --output "$GITHUB_OUTPUT"
+
+  build:
+    needs: prepare
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
+      CHANNEL: ${{ needs.prepare.outputs.channel }}
+      VERSION: ${{ needs.prepare.outputs.version }}
+      BUILD_NUMBER: ${{ needs.prepare.outputs.build_number }}
+      FLUTTER_SUPPRESS_ANALYTICS: 'true'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.prepare.outputs.source_sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - name: Verify release engineering contracts
+        run: |
+          python -m pip install --require-hashes -r requirements-dev.lock
+          python -m pytest tests/unit/test_distribution_releases.py tests/unit/test_distribution_build.py tests/unit/test_distribution_gate.py tests/unit/test_distribution_workflow.py -q
+      - name: Install pinned official Flutter SDK
+        run: |
+          git init "$RUNNER_TEMP/flutter"
+          git -C "$RUNNER_TEMP/flutter" remote add origin https://github.com/flutter/flutter.git
+          git -C "$RUNNER_TEMP/flutter" fetch --depth=1 origin refs/tags/3.47.8:refs/tags/3.47.8
+          test "$(git -C "$RUNNER_TEMP/flutter" rev-parse refs/tags/3.47.8)" = 737ba8f885dc774b53b442759999a312c9461e4e
+          git -C "$RUNNER_TEMP/flutter" checkout --detach 737ba8f885dc774b53b442759999a312c9461e4e
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/flutter/bin/flutter" --version
+      - name: Build matching prebuilt web client
+        working-directory: apps/kinaiya_flutter
+        run: |
+          flutter pub get --enforce-lockfile
+          flutter analyze
+          flutter test
+          flutter build web --release --no-web-resources-cdn --dart-define="KINAIYA_VERSION=$VERSION" --dart-define="KINAIYA_CHANNEL=$CHANNEL" --dart-define="KINAIYA_BUILD_NUMBER=$BUILD_NUMBER" --dart-define="KINAIYA_SOURCE_SHA=$SOURCE_SHA"
+      - name: Bundle twice and compare deterministic bytes
+        run: |
+          python -m scripts.build_release --output dist --channel "$CHANNEL" --version "$VERSION" --build-number "$BUILD_NUMBER" --source-sha "$SOURCE_SHA" --web-dir apps/kinaiya_flutter/build/web --web-source-sha "$SOURCE_SHA"
+          python -m scripts.build_release --output "$RUNNER_TEMP/repro" --channel "$CHANNEL" --version "$VERSION" --build-number "$BUILD_NUMBER" --source-sha "$SOURCE_SHA" --web-dir apps/kinaiya_flutter/build/web --web-source-sha "$SOURCE_SHA"
+          diff --recursive dist "$RUNNER_TEMP/repro"
+          python -m scripts.build_release --validate dist
+          python - <<'PY'
+          from pathlib import Path
+          from scripts.build_release import validate_bundle
+          from packages.distribution.releases import select_artifact
+          data = validate_bundle('dist')
+          select_artifact(data, 'web', 'any')
+          notes = f"# Kinaiya {data['version']} ({data['channel']})\n\nSource: `{data['source_sha']}`; build {data['build_number']}.\n\n"
+          notes += 'Experimental Linux source/runtime-lock and matching web assets. No signed mobile/store distribution is included. Voice/calling/provider and production qualification remain separate gates; this does not close #11 or #13. See docs/releases.md for compatibility, trust, recovery and blocked platform acceptance.\n'
+          Path('dist/release-notes.md').write_text(notes, encoding='utf-8')
+          PY
+      - name: Retain nonpublishing validation or release candidate
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-candidate-${{ needs.prepare.outputs.tag }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    needs: [prepare, build]
+    if: >-
+      needs.prepare.outputs.dry_run == 'false' &&
+      github.repository == 'rgoza1996/Kinaiya' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    environment:
+      name: ${{ format('release-{0}', needs.prepare.outputs.channel) }}
+    permissions:
+      contents: write
+      attestations: write
+      id-token: write
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPOSITORY: rgoza1996/Kinaiya
+      TAG: ${{ needs.prepare.outputs.tag }}
+      SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
+      CHANNEL: ${{ needs.prepare.outputs.channel }}
+      RELEASE_PUBLISH_ENABLED: ${{ vars.RELEASE_PUBLISH_ENABLED }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-candidate-${{ needs.prepare.outputs.tag }}
+          path: dist
+      - name: Recheck qualification after environment approval
+        run: |
+          git fetch origin main --tags
+          python -m scripts.release_gate --event "$GITHUB_EVENT_PATH" --output "$RUNNER_TEMP/final-gate"
+          grep -Fx "source_sha=$SOURCE_SHA" "$RUNNER_TEMP/final-gate"
+          python -m scripts.build_release --validate dist
+          python - <<'PY'
+          import os
+          from scripts.build_release import validate_bundle
+          from packages.distribution.releases import release_tag, select_artifact
+          data = validate_bundle('dist')
+          assert data['source_sha'] == os.environ['SOURCE_SHA']
+          assert data['channel'] == os.environ['CHANNEL']
+          assert release_tag(data) == os.environ['TAG']
+          select_artifact(data, 'web', 'any')
+          PY
+      - name: Attest complete bundle
+        uses: actions/attest-build-provenance@96b4a1ef7235a096b17240c259729fdd70c83d45 # v2
+        with:
+          subject-path: dist/*
+      - name: Stage draft release
+        run: |
+          if gh release view "$TAG" --repo "$REPOSITORY" >/dev/null 2>&1; then
+            echo 'Refusing to replace an existing release, including a previous draft.' >&2
+            exit 1
+          fi
+          flags=(--draft --latest=false --target "$SOURCE_SHA" --title "Kinaiya $TAG" --notes-file dist/release-notes.md)
+          if test "$CHANNEL" = stable; then
+            test "$(git rev-parse "refs/tags/$TAG^{commit}")" = "$SOURCE_SHA"
+            flags+=(--verify-tag)
+          else
+            set +e
+            git ls-remote --exit-code --tags origin "refs/tags/$TAG" > "$RUNNER_TEMP/tag-check"
+            status=$?
+            set -e
+            test "$status" = 2 # 0 means reused identity; other errors are not absence.
+            flags+=(--prerelease)
+          fi
+          gh release create "$TAG" dist/* --repo "$REPOSITORY" "${flags[@]}"
+      - name: Verify staged bytes and attestations
+        run: |
+          release_id=$(gh release view "$TAG" --repo "$REPOSITORY" --json databaseId --jq .databaseId)
+          gh api "repos/$REPOSITORY/releases/$release_id" > "$RUNNER_TEMP/staged.json"
+          jq -e --arg tag "$TAG" --arg sha "$SOURCE_SHA" '.draft == true and .tag_name == $tag and .target_commitish == $sha and all(.assets[]; .state == "uploaded")' "$RUNNER_TEMP/staged.json"
+          gh release download "$TAG" --repo "$REPOSITORY" --dir "$RUNNER_TEMP/staged-release"
+          python -m scripts.build_release --validate "$RUNNER_TEMP/staged-release"
+          diff --recursive dist "$RUNNER_TEMP/staged-release"
+          for file in "$RUNNER_TEMP/staged-release"/*; do
+            gh attestation verify "$file" --repo "$REPOSITORY" --cert-identity "https://github.com/$REPOSITORY/.github/workflows/distribution.yml@refs/heads/main" --deny-self-hosted-runners
+          done
+      - name: Publish complete release
+        run: |
+          if test "$CHANNEL" = stable; then
+            gh release edit "$TAG" --repo "$REPOSITORY" --draft=false --prerelease=false --latest
+          else
+            gh release edit "$TAG" --repo "$REPOSITORY" --draft=false --prerelease=true --latest=false
+          fi
+      - name: Read back published release
+        run: |
+          gh api "repos/$REPOSITORY/releases/tags/$TAG" > "$RUNNER_TEMP/published.json"
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          from packages.distribution.releases import ROOT
+          from scripts.build_release import validate_bundle
+          published = json.loads((Path(os.environ['RUNNER_TEMP']) / 'published.json').read_text())
+          data = validate_bundle('dist')
+          assert published['draft'] is False
+          assert published['prerelease'] is (data['channel'] == 'nightly')
+          assert published['tag_name'] == os.environ['TAG']
+          assert published['target_commitish'] == data['source_sha']
+          assets = {a['name']: a for a in published['assets']}
+          assert set(assets) == {p.name for p in Path('dist').iterdir()}
+          for path in Path('dist').iterdir():
+              asset = assets[path.name]
+              assert asset['state'] == 'uploaded' and asset['size'] == path.stat().st_size
+              assert asset['browser_download_url'] == f"{ROOT}/download/{os.environ['TAG']}/{path.name}"
+          PY
