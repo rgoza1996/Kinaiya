@@ -289,8 +289,10 @@ def graph_depth(value):
 
 def schema_pin():
     root = Path(__file__).resolve().parents[2] / "packages" / "contracts" / "schemas"
-    # Integrator may add these six schemas; old schemas remain byte-exact.
-    paths = sorted(path for path in root.glob("*.json") if path.stem not in CAPS)
+    # The original 184 stay exact; six finalization and two later #255 schemas
+    # are additive families whose names are explicitly outside this old pin.
+    additive = set(CAPS) | {"TranscriptScanPage", "TranscriptScanRequest"}
+    paths = sorted(path for path in root.glob("*.json") if path.stem not in additive)
     body = b"".join(path.name.encode() + b"\0" + path.read_bytes() + b"\0" for path in paths)
     return len(paths), hashlib.sha256(body).hexdigest()
 
