@@ -34,6 +34,7 @@ from packages.contracts import (
     stt_models,
     stt_settlement,
     tool_permissions,
+    transcript_scan,
     tts_models,
     workspace_settings,
 )
@@ -180,6 +181,8 @@ for cls in (
     standing_resource_finalization.StandingResourceFinalizeContext,
     standing_resource_finalization.StandingResourceFinalization,
     standing_resource_finalization.StandingResourceFinalizationReceipt,
+    transcript_scan.TranscriptScanRequest,
+    transcript_scan.TranscriptScanPage,
 ):
     (target / f"{cls.__name__}.json").write_text(
         json.dumps(cls.model_json_schema(), indent=2) + "\n"
