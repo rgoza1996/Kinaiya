@@ -85,6 +85,7 @@ ALLOWED_KINDS = {
         "routing.window_status",
     },
     "resources": {"resource.changed"},
+    "standing-supervisor": {"agent.standing-command"},
 }
 
 
@@ -425,6 +426,14 @@ class Store:
 
     def delete(self, session_id: str):
         with self.lock, self.db:
+            if (
+                self.db.execute(
+                    "SELECT 1 FROM entries WHERE session_id=? AND kind='agent.standing-command' LIMIT 1",
+                    (session_id,),
+                ).fetchone()
+                is not None
+            ):
+                raise JournalError("Admitted standing task history must be retained")
             self.db.execute("DELETE FROM sessions WHERE session_id=?", (session_id,))
 
     def entry(self, event_id: str) -> JournalEntry:
@@ -767,6 +776,8 @@ class Store:
         return event
 
     def append(self, request: AppendRequest, role: str) -> JournalEntry:
+        if request.kind == "agent.standing-command":
+            raise JournalError("Standing tasks require native admission")
         if (
             request.kind == "agent.command"
             and isinstance(request.payload, dict)
