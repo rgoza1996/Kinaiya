@@ -49,6 +49,7 @@ from packages.contracts.standing_admission import (
 from packages.contracts.standing_dispatch import StandingDispatchActivation
 from packages.contracts.standing_execution import (
     StandingExecutionIntent,
+    capability_digest,
     standing_initial_request,
 )
 from packages.contracts.standing_work import StandingConflict, StandingUnavailable
@@ -413,7 +414,12 @@ def test_lookup_requires_native_identity_but_neither_a_claim_nor_current_clocks(
     calls = native.wall.calls, native.mono.calls
     assert owner.lookup(value.request) is None
     for field, replacement in (("expected_backend", "f" * 32), ("expected_instance", uid(921))):
-        candidate = value.request.model_copy(update={field: replacement})
+        raw = value.request.model_dump(mode="json")
+        raw[field] = raw["producer"]["request"][field] = replacement
+        raw["capability_sha256"] = capability_digest(
+            raw["expected_backend"], raw["idempotency_key"], raw["executor_id"], SECRET
+        )
+        candidate = StandingExecutionIntent.model_validate(raw)
         unchanged(native, StandingConflict, lambda candidate=candidate: owner.lookup(candidate))
     unchanged(native, StandingConflict, lambda: owner.admit(value.request, capability=SECRET))
     assert database_state(native.store.db) == before
@@ -548,15 +554,18 @@ def test_higher_same_producer_heartbeat_can_admit_the_frozen_original_claim(prep
     assert prepared.claims.unresolved().request.producer == native.producer
 
 
-def test_a_different_current_producer_cannot_use_the_old_live_looking_prepared_packet(prepared):
+def test_a_different_current_producer_cannot_use_the_original_prepared_packet(prepared):
     native = prepared.native
     owner = prepared.task_owner()
-    native.mono.value += 1
+    native.mono.value = native.producer.expires_monotonic_ms
     replacement = native.dispatch.renew(
         native.producer.request.model_copy(update={"producer_id": uid(932)})
     )
     assert replacement.request.producer_id != prepared.request.producer.request.producer_id
-    assert native.mono.value < prepared.request.producer.expires_monotonic_ms
+    assert native.mono.value >= prepared.request.producer.expires_monotonic_ms
+    assert replacement.issued_monotonic_ms <= native.mono.value < replacement.expires_monotonic_ms
+    state = native.dispatch.snapshot()
+    assert state.producer == replacement and state.dispatch_ready
     unchanged(native, StandingConflict, lambda: owner.admit(prepared.request, capability=SECRET))
     assert owner.lookup(prepared.request) is None
 
