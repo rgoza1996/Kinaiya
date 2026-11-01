@@ -1,0 +1,76 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "role": {
+      "const": "stt",
+      "title": "Role",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "settled",
+        "unknown"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "backend_id": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Backend Id",
+      "type": "string"
+    },
+    "admission_id": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Admission Id",
+      "type": "string"
+    },
+    "identity_sha256": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Identity Sha256",
+      "type": "string"
+    },
+    "worker_settled": {
+      "title": "Worker Settled",
+      "type": "boolean"
+    },
+    "publication_settled": {
+      "title": "Publication Settled",
+      "type": "boolean"
+    },
+    "retired": {
+      "title": "Retired",
+      "type": "boolean"
+    },
+    "reason": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Reason",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "role",
+    "status",
+    "backend_id",
+    "admission_id",
+    "identity_sha256",
+    "worker_settled",
+    "publication_settled",
+    "retired",
+    "reason"
+  ],
+  "title": "STTAdmissionResult",
+  "type": "object"
+}

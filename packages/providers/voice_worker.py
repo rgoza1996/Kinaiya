@@ -11,6 +11,7 @@ import json
 import math
 import os
 import queue
+import sys
 import threading
 import time
 from contextlib import asynccontextmanager
@@ -23,6 +24,11 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from packages.providers.speech import RETAINED_TTS
+from packages.providers.stt_settlement import (
+    STTWorkerCleanupUnknown,
+    STTWorkerOperations,
+    install_stt_settlement,
+)
 from packages.providers.tts_backends import (
     AudioWaveform,
     TTSBackendError,
@@ -167,12 +173,16 @@ def create_app(
             "last_producer_cancelled": last_producer_cancelled,
         }
 
-    def recognize(data):
+    def recognize(data, expected_revision):
+        def check():
+            if allow_inference() != expected_revision:
+                raise HTTPException(409, "Native STT resource admission changed")
+
         nonlocal selected_stt_backend
-        allow_inference()
+        check()
         if stt_backend == "openai-whisper":
             with lock:
-                allow_inference()
+                check()
                 from packages.providers.openai_whisper_backend import (
                     OpenAIWhisperBackend,
                     STTInputError,
@@ -183,7 +193,7 @@ def create_app(
                         selected_stt_backend = OpenAIWhisperBackend(
                             stt_checkpoint, model=stt_model, device=device
                         )
-                    allow_inference()
+                    check()
                     result = selected_stt_backend.transcribe(data)
                 except STTInputError:
                     raise HTTPException(400, "Unsupported or invalid voice audio input") from None
@@ -202,12 +212,12 @@ def create_app(
                     or result.get("device") != "cuda:0"
                 ):
                     raise HTTPException(503, "The configured STT model is not on its required GPU")
-                allow_inference()
+                check()
                 return result
         from faster_whisper import WhisperModel
 
         with lock:
-            allow_inference()
+            check()
             if "stt" not in models:
                 models["stt"] = WhisperModel(
                     stt_model,
@@ -216,12 +226,12 @@ def create_app(
                     cpu_threads=4,
                     local_files_only=True,
                 )
-            allow_inference()
+            check()
             # A named temporary file survives SIGKILL. Decode from memory so
             # forced resource unload cannot leave an audio file on disk.
             segments, info = models["stt"].transcribe(io.BytesIO(data), beam_size=3, language="en")
             text = " ".join(s.text.strip() for s in segments).strip()
-            allow_inference()
+            check()
             return {
                 "text": text,
                 "language": info.language,
@@ -230,6 +240,26 @@ def create_app(
                 "model": stt_model,
             }
 
+    def recognize_settled(data, expected_revision):
+        try:
+            return recognize(data, expected_revision)
+        finally:
+            if device == "cuda":
+                # A returned Python frame alone is not a GPU completion proof.
+                # This runs only inside an actual owner-admitted invocation.
+                try:
+                    torch = sys.modules.get("torch")
+                    if torch is not None and torch.cuda.is_initialized():
+                        torch.cuda.synchronize("cuda:0")
+                except BaseException:
+                    quarantined.set()
+                    raise STTWorkerCleanupUnknown(
+                        "Native STT device settlement is unknown"
+                    ) from None
+
+    stt_operations = STTWorkerOperations(recognize_settled, allow_inference)
+    install_stt_settlement(app, auth, stt_operations)
+
     @app.post("/v1/audio/transcriptions", dependencies=[Depends(auth.require("converse", "owner"))])
     async def transcribe(file: Annotated[UploadFile, File()]):
         allow_inference()
@@ -237,7 +267,7 @@ def create_app(
         if len(data) > 10_000_000:
             raise HTTPException(413, "Audio exceeds temporary buffer limit")
         start = time.perf_counter()
-        result = await asyncio.to_thread(recognize, data)
+        result = await stt_operations.legacy(data)
         return {**result, "stt_seconds": time.perf_counter() - start, "retained_audio": False}
 
     class Synthesis(BaseModel):
@@ -559,6 +589,7 @@ def create_app(
             yield
         finally:
             shutting_down.set()
+            await stt_operations.close()
             remaining = tuple(sessions | producers)
             for stream in remaining:
                 stream.cancelled.set()

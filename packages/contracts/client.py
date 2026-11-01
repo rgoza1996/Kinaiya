@@ -147,6 +147,7 @@ class JournalClient:
             transport=transport,
         )
         self._submit_exchanges = set()
+        self._submit_stt_closes = set()
         self._submit_cleanup_failed = False
         self._submit_closed = False
 
@@ -254,6 +255,41 @@ class JournalClient:
         )
         response.raise_for_status()
         return JournalEntry.model_validate(response.json())
+
+    async def lookup_stt_publication(self, original):
+        """Narrow bounded metadata exchange; an absent row is never settlement."""
+        from packages.contracts.stt_settlement import STTPublication, validate_publication_proof
+        from packages.providers.whistle_ipc import decode_json
+
+        original = STTPublication.model_validate(original)
+        response = None
+        try:
+            async with asyncio.timeout(5):
+                response = await self.http.send(
+                    self.http.build_request(
+                        "POST", "/v1/transcript/stt-publications/lookup", json=original.model_dump()
+                    ),
+                    stream=True,
+                )
+                response.raise_for_status()
+                raw = bytearray()
+                async for part in response.aiter_bytes():
+                    if len(raw) + len(part) > 4096:
+                        raise ValueError("STT publication proof exceeds its bound")
+                    raw.extend(part)
+                return validate_publication_proof(decode_json(bytes(raw), 4096), original)
+        finally:
+            if response is not None:
+                closing = asyncio.create_task(response.aclose())
+                self._submit_stt_closes.add(closing)
+
+                def settled(task):
+                    self._submit_stt_closes.discard(task)
+                    if task.cancelled() or task.exception() is not None:
+                        self._submit_cleanup_failed = True
+
+                closing.add_done_callback(settled)
+                await asyncio.shield(closing)
 
     async def decisions_call_start(self, request):
         response = await self.http.post(
