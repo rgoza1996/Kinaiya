@@ -139,6 +139,7 @@ class ResourceCoordinator:
 
         self.standing_barrier = StandingBarrier(self)
         self._close_owner = None
+        self._retirement_complete = False
 
     async def bind_standing_claim(self, claim):
         return await self.standing_barrier.run("bind", claim)
@@ -1143,6 +1144,71 @@ class ResourceCoordinator:
             finally:
                 cleanup.release(root)
 
+    async def _join_journal_retirement(self, client):
+        from packages.contracts.client import JournalClient
+
+        if not isinstance(client, JournalClient):
+            return True
+        exchanges, stt_closes = client._submit_exchanges, client._submit_stt_closes
+        if type(exchanges) is not set or type(stt_closes) is not set:
+            raise StandingUnavailable
+        client._submit_closed = True
+
+        def registry_guard():
+            if (
+                client._submit_exchanges is not exchanges
+                or client._submit_stt_closes is not stt_closes
+                or len(exchanges) > 64
+            ):
+                raise StandingUnavailable
+
+        failed = False
+        while exchanges or stt_closes:
+            registry_guard()
+            current, closing = tuple(exchanges), tuple(stt_closes)
+            tasks = set(closing)
+            for exchange in current:
+                if (
+                    getattr(exchange, "owner", None) is not client
+                    or not isinstance(getattr(exchange, "task", None), asyncio.Task)
+                    or not hasattr(exchange, "close_task")
+                    or not hasattr(exchange, "response")
+                ):
+                    raise StandingUnavailable
+                tasks.add(exchange.task)
+                if exchange.close_task is not None:
+                    tasks.add(exchange.close_task)
+                elif exchange.task.done() and exchange.response is not None:
+                    raise StandingUnavailable
+            if any(not isinstance(task, asyncio.Task) for task in tasks):
+                raise StandingUnavailable
+            pending = {task for task in tasks if not task.done()}
+            if pending:
+                await asyncio.wait(pending)
+                registry_guard()
+            # A work task can create its original sole close after the first
+            # snapshot. Keep following that same exchange, never another closer.
+            for exchange in current:
+                if exchange.close_task is None:
+                    if exchange.task.done() and exchange.response is not None:
+                        raise StandingUnavailable
+                elif not isinstance(exchange.close_task, asyncio.Task):
+                    raise StandingUnavailable
+            for task in (*closing, *(exchange.close_task for exchange in current)):
+                if task is not None and task.done():
+                    failed |= task.cancelled() or task.exception() is not None
+            if not pending:
+                await asyncio.sleep(0)
+                registry_guard()
+                if any(exchange in exchanges for exchange in current) or any(
+                    task in stt_closes for task in closing
+                ):
+                    raise StandingUnavailable
+        registry_guard()
+        # False still confirms settlement of every original handle. Raising
+        # instead means ownership is unconfirmed and its transport must remain.
+        return not failed
+
     async def _retire_owned(self, cleanup, root):
         self._closing = True
         self.standing_barrier.shutdown()
@@ -1157,6 +1223,7 @@ class ResourceCoordinator:
             if self._closed:
                 return
             failure = None
+            retired = False
             try:
                 if self._text_lifecycle is not None or self._whistle_lifecycle is not None:
                     await self._stop_workers()
@@ -1165,6 +1232,7 @@ class ResourceCoordinator:
             finally:
                 try:
                     await self.manager.close()
+                    retired = True
                 except (Exception, asyncio.CancelledError) as exc:
                     failure = failure or exc
         # Join actual cleanup outside the controller lock, including a child
@@ -1173,7 +1241,30 @@ class ResourceCoordinator:
         cleanup.release(root)
         await cleanup.join()
         if cleanup.failed:
+            retired = False
             failure = failure or StandingUnavailable()
+        clients = [self.converse, self.journal]
+        if self.handoff_journal is not self.journal:
+            clients.append(self.handoff_journal)
+        # JournalClient.close has a bounded drain facade. Its return and HTTPX's
+        # closed flag cannot retire original exchange/sole-close owners. Join
+        # those callbacks before closing the transport, outside our lock.
+        for client in clients:
+            if client is not None and callable(getattr(client, "close", None)):
+                try:
+                    healthy = await self._join_journal_retirement(client)
+                except (Exception, asyncio.CancelledError) as exc:
+                    retired = False
+                    failure = failure or exc
+                    continue
+                if not healthy:
+                    retired = False
+                    failure = failure or StandingUnavailable()
+                try:
+                    await client.close()
+                except (Exception, asyncio.CancelledError) as exc:
+                    retired = False
+                    failure = failure or exc
         async with self.lock:
             try:
                 if failure is None:
@@ -1185,26 +1276,38 @@ class ResourceCoordinator:
                     self.state.save(
                         phase="failed", reason="Resource shutdown could not confirm release"
                     )
+            except (Exception, asyncio.CancelledError) as exc:
+                retired = False
+                failure = failure or exc
             finally:
                 self._closed = True
                 for retire in (self.standing_handoff._maybe_close, self.db.close, self.state.close):
                     try:
                         retire()
                     except (Exception, asyncio.CancelledError) as exc:
+                        retired = False
                         failure = failure or exc
-                clients = [self.converse, self.journal]
-                if self.handoff_journal is not self.journal:
-                    clients.append(self.handoff_journal)
-                for client in clients:
-                    if client is not None and callable(getattr(client, "close", None)):
-                        try:
-                            await client.close()
-                        except (Exception, asyncio.CancelledError) as exc:
-                            failure = failure or exc
+            self._retirement_complete = (
+                retired
+                and not cleanup.failed
+                and not cleanup.handles
+                and self.standing_handoff.db is None
+                and self.state._lock is None
+                and self.state._dir is None
+            )
             if failure is not None:
                 raise failure
 
     async def close(self):
+        # Only later callers may acknowledge independently positive retirement.
+        # Existing waiters still observe the original owner's historical error.
+        if (
+            self._retirement_complete
+            and self._close_owner is not None
+            and self._close_owner.done()
+            and not self._close_owner.cancelled()
+        ):
+            return
         self._closing = True
         self.standing_barrier.shutdown()
         if self._close_owner is None:
