@@ -5,7 +5,7 @@ from enum import StrEnum
 from typing import Any, Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_serializer, model_validator
 
 SCHEMA_VERSION = "1.0"
 ContentScope = Literal["local_only", "public_synthetic", "private_cloud_authorized"]
@@ -153,6 +153,17 @@ class AgentModelPin(WireModel):
     settings_revision: int = Field(ge=0)
     catalog_binding: CatalogModelBinding | None = None
     catalog_revision: int | None = Field(default=None, ge=0, le=9_007_199_254_740_990)
+
+    @model_serializer(mode="wrap")
+    def preserve_historical_catalog_shape(self, handler):
+        result = handler(self)
+        # Legacy accepted pins omitted these additive fields. Preserve that
+        # representation, including inside Task, rather than rewriting history
+        # with defaults. Explicit nulls and exact catalog references stay exact.
+        for name in ("catalog_binding", "catalog_revision"):
+            if name not in self.model_fields_set:
+                result.pop(name, None)
+        return result
 
     @model_validator(mode="after")
     def exact_catalog_pin(self):

@@ -541,7 +541,7 @@ async def test_historical_control_replay_needs_no_new_export_grant(env):
     ).hexdigest()
     old_result = {"status": "ok", "command": "status", "result": []}
     registry.db.execute(
-        "INSERT INTO commands VALUES (?,?,?,?)",
+        "INSERT INTO commands(session,key,digest,result) VALUES (?,?,?,?)",
         (session.session_id, body.idempotency_key, old_digest, json.dumps(old_result)),
     )
     registry.db.commit()
@@ -580,8 +580,10 @@ async def test_skill_created_task_inherits_owner_command_scope(env, command, sco
     )
     try:
         if not allowed:
-            with pytest.raises(PolicyDenied, match="disclosure"):
-                await registry.execute(body)
+            # Once reserved, a failed submission response cannot establish that
+            # admission never committed. Privacy still refuses all model work.
+            result = await registry.execute(body)
+            assert result["status"] == "unconfirmed"
             assert provider.calls == [] and await runtime.status() == []
         else:
             result = await registry.execute(body)
