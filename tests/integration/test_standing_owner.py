@@ -12,6 +12,7 @@ import json
 import sqlite3
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
@@ -1052,6 +1053,7 @@ async def test_total_25_second_timeout_retains_actual_commit_owner_until_settlem
             await close_task
 
 
+@pytest.mark.asyncio(loop_scope="function")
 async def test_64_actual_operation_cap_and_cancel_close_keep_owned_threads_until_they_settle(
     native, monkeypatch
 ):
@@ -1062,9 +1064,17 @@ async def test_64_actual_operation_cap_and_cancel_close_keep_owned_threads_until
     started, release = threading.Event(), threading.Event()
     observed_cancel = []
     guard = threading.Lock()
+    entered_count = 0
+    loop = asyncio.get_running_loop()
+    previous_executor = getattr(loop, "_default_executor", None)
+    executor = ThreadPoolExecutor(max_workers=64, thread_name_prefix="standing-cap64-owned")
 
     def blocked_change(request, *, deadline=None, cancelled=None):
-        started.set()
+        nonlocal entered_count
+        with guard:
+            entered_count += 1
+            if entered_count == 64:
+                started.set()
         assert release.wait(45), "Owned native call gate was not released"
         with guard:
             observed_cancel.append(cancelled is not None and cancelled())
@@ -1073,6 +1083,7 @@ async def test_64_actual_operation_cap_and_cancel_close_keep_owned_threads_until
     monkeypatch.setattr(native.owner, "change", blocked_change)
     tasks, close_task = [], None
     try:
+        loop.set_default_executor(executor)
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=app), base_url="http://session.test"
         ) as client:
@@ -1119,7 +1130,16 @@ async def test_64_actual_operation_cap_and_cancel_close_keep_owned_threads_until
             )
     finally:
         release.set()
-        await asyncio.gather(*tasks, return_exceptions=True)
-        if close_task is not None:
-            await close_task
-        await operations.close()
+        try:
+            try:
+                await asyncio.gather(*tasks, return_exceptions=True)
+                if close_task is not None:
+                    await close_task
+            finally:
+                await operations.close()
+        finally:
+            if previous_executor is not None:
+                loop.set_default_executor(previous_executor)
+            # With no prior pool, this function-scoped test loop retains only
+            # the joined executor reference until ordinary loop teardown.
+            executor.shutdown(wait=True)
