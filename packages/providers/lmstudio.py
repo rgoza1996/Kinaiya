@@ -8,6 +8,7 @@ high-level applyPromptTemplate convenience method cannot supply that stack.
 
 import asyncio
 import copy
+import hashlib
 import json
 import math
 import re
@@ -16,8 +17,14 @@ from contextlib import aclosing, asynccontextmanager
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
-from packages.contracts.agent_tools import agent_export_permitted
+from packages.contracts.agent_tools import (
+    agent_export_permitted,
+    capture_agent_export_admission,
+    capture_agent_export_check,
+    current_agent_tools,
+)
 from packages.contracts.models import ProviderInfo
+from packages.providers.completion_budget import PreparedComplete
 from packages.providers.prompt_budget import (
     MAX_SAFE_COUNT,
     PromptCountUnavailable,
@@ -322,8 +329,20 @@ class LMStudioProvider:
             proxy=None,
         )
 
-    async def _send(self, op, packet):
-        await op.socket.send(_encoded(packet))
+    async def _send(self, op, packet, *, check=None, admission=None, purpose="", on_send=None):
+        # Freeze the exact native frame before an admission callback can yield.
+        # Mark an RPC/prediction pending only once its real send is attempted;
+        # a refused admission must not leave cleanup waiting for an unsent call.
+        raw = _encoded(packet)
+        if check is not None:
+            check()
+        if admission is not None:
+            await admission(purpose, hashlib.sha256(raw.encode("utf-8")).hexdigest())
+        if check is not None:
+            check()
+        if on_send is not None:
+            on_send()
+        await op.socket.send(raw)
 
     async def _receive(self, op):
         raw = await op.socket.recv()
@@ -334,7 +353,7 @@ class LMStudioProvider:
             raise _refuse()
         return packet
 
-    async def _rpc(self, op, endpoint, parameter=None):
+    async def _rpc(self, op, endpoint, parameter=None, *, check=None, admission=None, purpose=""):
         if op.pending_call is not None:
             raise _refuse()
         op.call += 1
@@ -342,8 +361,13 @@ class LMStudioProvider:
         if parameter is not None:
             packet["parameter"] = parameter
         _encoded(packet)
-        op.pending_call = op.call
-        await self._send(op, packet)
+
+        def sending():
+            op.pending_call = packet["callId"]
+
+        await self._send(
+            op, packet, check=check, admission=admission, purpose=purpose, on_send=sending
+        )
         reply = await self._receive(op)
         if type(reply.get("callId")) is not int or reply.get("callId") != op.pending_call:
             raise _refuse()
@@ -353,6 +377,8 @@ class LMStudioProvider:
         if set(reply) != {"type", "callId", "result"} or reply.get("type") != "rpcResult":
             raise _refuse()
         op.pending_call = None
+        if check is not None:
+            check()
         return reply["result"]
 
     @asynccontextmanager
@@ -462,8 +488,8 @@ class LMStudioProvider:
             "llm.prediction.logProbs": {"checked": False, "value": 0},
         }
 
-    async def _snapshot(self, op):
-        loaded = await self._rpc(op, "listLoaded")
+    async def _snapshot(self, op, *, check=None):
+        loaded = await self._rpc(op, "listLoaded", check=check)
         if type(loaded) is not list or len(loaded) > 128:
             raise _refuse()
         selected = [m for m in loaded if type(m) is dict and m.get("identifier") == self.model]
@@ -475,11 +501,11 @@ class LMStudioProvider:
             "instanceReference": identity["instanceReference"],
         }
         current = await self._rpc(
-            op, "getModelInfo", {"specifier": specifier, "throwIfNotFound": True}
+            op, "getModelInfo", {"specifier": specifier, "throwIfNotFound": True}, check=check
         )
         if _identity(current, self.model) != identity:
             raise _refuse()
-        load = _fields(await self._rpc(op, "getLoadConfig", {"specifier": specifier}))
+        load = _fields(await self._rpc(op, "getLoadConfig", {"specifier": specifier}, check=check))
         context = load.get("llm.load.contextLength")
         if not _integer(context, 64) or self.max_tokens >= context:
             raise PromptCountUnavailable(
@@ -490,6 +516,7 @@ class LMStudioProvider:
                 op,
                 "getBasePredictionConfig",
                 {"specifier": specifier, "ignoreServerSessionConfig": True},
+                check=check,
             )
         )
         if any(key not in {"llm.prediction." + k for k in _BASE_KEYS} for key in base):
@@ -513,7 +540,7 @@ class LMStudioProvider:
             "context": context,
         }
 
-    async def _measure(self, op, history, snapshot):
+    async def _measure(self, op, history, snapshot, *, check=None, admission=None):
         _require_agent_export()
         history = _template_history(history)
         formatted = await self._rpc(
@@ -525,6 +552,9 @@ class LMStudioProvider:
                 "predictionConfigStack": snapshot["stack"],
                 "opts": {},
             },
+            check=check,
+            admission=admission,
+            purpose="complete_count",
         )
         _require_agent_export()
         if (
@@ -537,6 +567,9 @@ class LMStudioProvider:
             op,
             "countTokens",
             {"specifier": snapshot["specifier"], "inputString": formatted["formatted"]},
+            check=check,
+            admission=admission,
+            purpose="complete_count",
         )
         _require_agent_export()
         if (
@@ -591,6 +624,79 @@ class LMStudioProvider:
             raise PromptCountUnavailable(
                 "LM Studio exact prompt measurement is unavailable"
             ) from exc
+
+    async def prepare_complete(self, messages):
+        """Prepare a one-shot text request without retaining a native socket.
+
+        History selection can discard this callback synchronously. Complete
+        therefore reacquires a socket, proves that the same native model
+        instance/configuration/template/count still holds, and predicts under
+        that operation's lease. No prepared candidate keeps a server resource.
+        """
+        _require_agent_export()
+        owner, tools = asyncio.current_task(), current_agent_tools()
+        captured = capture_agent_export_check()
+        admission = capture_agent_export_admission()
+        history, config = _history(messages), self._configuration()
+        info, factory = self.info.model_dump(), self._transport_factory
+        cleanup_timeout = self._cleanup_timeout
+
+        def current():
+            if not captured() or not agent_export_permitted():
+                raise ProviderRefusal("Agent tool metadata disclosure changed")
+            if self._uncertain:
+                raise ProviderCleanupError(
+                    "LM Studio native cleanup is unconfirmed; reuse is blocked"
+                )
+            if (
+                asyncio.current_task() is not owner
+                or current_agent_tools() is not tools
+                or self._closed
+                or self._transport_factory is not factory
+                or self._cleanup_timeout != cleanup_timeout
+                or self.info.model_dump() != info
+            ):
+                raise PromptCountUnavailable("LM Studio complete prompt admission changed")
+            self._unchanged(messages, history, config)
+
+        try:
+            current()
+            async with asyncio.timeout(min(self.timeout, 10)):
+                async with self._operation() as op:
+                    snapshot = await self._snapshot(op, check=current)
+                    creation, measured, formatted = await self._measure(
+                        op, history, snapshot, check=current, admission=admission
+                    )
+                    if await self._snapshot(op, check=current) != snapshot:
+                        raise _refuse()
+                    current()
+            current()
+        except (ProviderCleanupError, ProviderRefusal, asyncio.CancelledError):
+            raise
+        except Exception as exc:
+            raise PromptCountUnavailable(
+                "LM Studio complete prompt measurement is unavailable"
+            ) from exc
+
+        async def generate():
+            current()
+            parts = []
+            async with aclosing(
+                self._stream(
+                    messages,
+                    expected=(snapshot, creation, measured, formatted),
+                    check=current,
+                    admission=admission,
+                )
+            ) as source:
+                async for text in source:
+                    parts.append(text)
+            # _stream exits only after native terminal, channel close and the
+            # actual socket close. Never return text across a changed authority.
+            current()
+            return "".join(parts)
+
+        return PreparedComplete(measured, generate)
 
     def _channel_packet(self, op, packet):
         if type(packet.get("channelId")) is not int or packet.get("channelId") != 1:
@@ -684,17 +790,31 @@ class LMStudioProvider:
             raise _refuse()
         return stats["stopReason"] in {"eosFound", "stopStringFound"}
 
-    async def stream(self, messages):
+    async def _stream(self, messages, *, expected=None, check=None, admission=None):
         try:
             _require_agent_export()
+            if check is not None:
+                check()
             history, config = _history(messages), self._configuration()
+
+            def current():
+                _require_agent_export()
+                if check is not None:
+                    check()
+                self._unchanged(messages, history, config)
+
             async with asyncio.timeout(self.timeout):
                 async with self._operation() as op:
-                    snapshot = await self._snapshot(op)
+                    snapshot = await self._snapshot(op, check=current)
+                    if expected is not None and snapshot != expected[0]:
+                        raise _refuse()
                     creation, measured, formatted_sha256 = await self._measure(
-                        op, history, snapshot
+                        op, history, snapshot, check=current, admission=admission
                     )
-                    if self._measurement is not None:
+                    if expected is not None:
+                        if (snapshot, creation, measured, formatted_sha256) != expected:
+                            raise _refuse()
+                    elif self._measurement is not None:
                         if self._measurement != (
                             _digest(history),
                             config,
@@ -702,9 +822,9 @@ class LMStudioProvider:
                             formatted_sha256,
                         ):
                             raise _refuse()
-                    if not measured.fits or await self._snapshot(op) != snapshot:
+                    if not measured.fits or await self._snapshot(op, check=current) != snapshot:
                         raise _refuse()
-                    self._unchanged(messages, history, config)
+                    current()
                     _encoded(
                         {
                             "type": "channelCreate",
@@ -713,11 +833,13 @@ class LMStudioProvider:
                             "creationParameter": creation,
                         }
                     )
+
                     # Counting and model snapshots yield independently. The
                     # request must still be disclosable at prediction admission.
-                    _require_agent_export()
-                    op.snapshot = snapshot
-                    op.channel_started = True
+                    def sending():
+                        op.snapshot = snapshot
+                        op.channel_started = True
+
                     await self._send(
                         op,
                         {
@@ -726,7 +848,12 @@ class LMStudioProvider:
                             "channelId": 1,
                             "creationParameter": creation,
                         },
+                        check=current,
+                        admission=admission,
+                        purpose="complete_generation",
+                        on_send=sending,
                     )
+                    current()
                     text_bytes, completed, pending = 0, False, ""
                     while not op.channel_closed:
                         message = self._channel_packet(op, await self._receive(op))
@@ -768,7 +895,7 @@ class LMStudioProvider:
                             text_bytes += len(fragment["content"].encode("utf-8"))
                             if text_bytes > _MAX_TEXT:
                                 raise _refuse()
-                            self._unchanged(messages, history, config)
+                            current()
                             pending += fragment["content"]
                             if re.search(r"</?think(?:>|\s)", pending, re.I):
                                 raise _refuse()
@@ -804,18 +931,23 @@ class LMStudioProvider:
                                 raise _refuse()
                         else:
                             raise _refuse()
-                    if await self._snapshot(op) != snapshot:
+                    if await self._snapshot(op, check=current) != snapshot:
                         raise _refuse()
-                    self._unchanged(messages, history, config)
+                    current()
                     if not completed:
                         raise _refuse()
                     if pending:
                         yield pending
-            self._unchanged(messages, history, config)
+            current()
         except (ProviderError, asyncio.CancelledError, GeneratorExit):
             raise
         except Exception as exc:
             raise ProviderError("LM Studio native transport failed") from exc
+
+    async def stream(self, messages):
+        async with aclosing(self._stream(messages)) as source:
+            async for text in source:
+                yield text
 
     async def complete(self, messages):
         parts = []

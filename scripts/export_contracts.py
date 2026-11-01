@@ -11,12 +11,22 @@ from packages.contracts import (
     memory,
     memory_catalog,
     memory_context,
+    memory_operations,
     models,
 )
 
 target = Path(__file__).resolve().parents[1] / "packages/contracts/schemas"
 target.mkdir(parents=True, exist_ok=True)
-for module in (models, companion, memory, memory_catalog, memory_context, context, agent_export):
+for module in (
+    models,
+    companion,
+    memory,
+    memory_catalog,
+    memory_context,
+    memory_operations,
+    context,
+    agent_export,
+):
     for name in dir(module):
         cls = getattr(module, name)
         if isinstance(cls, type) and issubclass(cls, models.WireModel):

@@ -268,6 +268,11 @@ class MemoryUseState {
 
 class MemoryFact {
   MemoryFact._(this.key, this.value);
+  factory MemoryFact(String key, Object? value) => MemoryFact.fromJson({
+    'schema_version': '1.0',
+    'key': key,
+    'value': value,
+  });
   factory MemoryFact.fromJson(Object? value) {
     final m = _object(value, {'schema_version', 'key', 'value'});
     final key = _string(m['key'], min: 1, max: 128);
@@ -285,6 +290,163 @@ class MemoryFact {
   }
   final String key;
   final Object? value;
+  Map<String, Object?> toJson() => {
+    'schema_version': '1.0',
+    'key': key,
+    'value': value,
+  };
+  bool matches(MemoryFact? other) =>
+      other != null && key == other.key && value == other.value;
+}
+
+String memoryOperationKey(Object? value) {
+  final key = _string(value, min: 1, max: 128);
+  final match = RegExp(r'^[!-~]+$').firstMatch(key);
+  if (match == null || match.end != key.length) _invalid();
+  return key;
+}
+
+/// Detached exact native request, reusable for explicit same-key reconciliation.
+Map<String, Object?> memoryContentRequest(Object? value, String operation) {
+  final capture = operation == 'capture';
+  if (!capture && operation != 'forget') _invalid();
+  final m = _object(value, {
+    ..._bindingKeys,
+    'expected_revision',
+    'idempotency_key',
+    if (capture) ...{
+      'kind',
+      'source_event_id',
+      'source_revision',
+      'body',
+      'fact',
+      'prerequisite_ids',
+    } else
+      'node_id',
+  });
+  final result = <String, Object?>{
+    ...MemoryBinding._from(m).toJson(),
+    'expected_revision': _integer(m['expected_revision']),
+    'idempotency_key': memoryOperationKey(m['idempotency_key']),
+  };
+  if (!capture) {
+    result['node_id'] = memoryIdentifier(m['node_id']);
+    return Map.unmodifiable(result);
+  }
+  final kind = _enum(m['kind'], {'assertion', 'observation', 'inference'});
+  final fact = m['fact'] == null ? null : MemoryFact.fromJson(m['fact']);
+  final parents = _identifiers(m['prerequisite_ids']);
+  if (kind == 'inference' ? fact != null || parents.isEmpty : fact == null) {
+    _invalid();
+  }
+  result.addAll({
+    'kind': kind,
+    'source_event_id': memoryIdentifier(m['source_event_id']),
+    'source_revision': _integer(m['source_revision'], min: 1),
+    'body': _text(m['body'], max: 2048, nonblank: true),
+    'fact': fact == null ? null : Map.unmodifiable(fact.toJson()),
+    'prerequisite_ids': parents,
+  });
+  return Map.unmodifiable(result);
+}
+
+class MemoryForgetResult {
+  MemoryForgetResult._(this.state, this.forgottenIds);
+  factory MemoryForgetResult.fromJson(Object? value) {
+    final m = _object(value, {'schema_version', 'state', 'forgotten_ids'});
+    final list = m['forgotten_ids'];
+    if (list is! List || list.length > 256) _invalid();
+    final ids = list.map(memoryIdentifier).toList();
+    if (ids.toSet().length != ids.length) _invalid();
+    return MemoryForgetResult._(
+      MemoryNamespaceState.fromJson(m['state']),
+      List.unmodifiable(ids),
+    );
+  }
+  final MemoryNamespaceState state;
+  final List<String> forgottenIds;
+  MemoryBinding get binding => state.binding;
+}
+
+class MemoryOperationReceipt {
+  MemoryOperationReceipt._(this.operationId, this.revision, this.nodeId);
+  factory MemoryOperationReceipt.fromJson(Object? value) {
+    final m = _object(value, {
+      'schema_version',
+      'operation_id',
+      'revision',
+      'node_id',
+    });
+    final id = _string(m['operation_id'], min: 64, max: 64);
+    if (!RegExp(r'^[a-f0-9]{64}$').hasMatch(id)) _invalid();
+    return MemoryOperationReceipt._(
+      id,
+      _integer(m['revision'], min: 1),
+      memoryIdentifier(m['node_id']),
+    );
+  }
+  final String operationId, nodeId;
+  final int revision;
+}
+
+class MemoryOperationLookup {
+  MemoryOperationLookup._(
+    this.binding,
+    this.operation,
+    this.idempotencyKey,
+    this.status,
+    this.receipt,
+    this.disposition,
+    this.mutationFenced,
+  );
+  factory MemoryOperationLookup.fromJson(Object? value) {
+    final m = _object(value, {
+      'schema_version',
+      'binding',
+      'operation',
+      'idempotency_key',
+      'status',
+      'receipt',
+      'disposition',
+      'mutation_fenced',
+    });
+    final status = _enum(m['status'], {'committed', 'not_found'});
+    final receipt = m['receipt'] == null
+        ? null
+        : MemoryOperationReceipt.fromJson(m['receipt']);
+    final disposition = m['disposition'] == null
+        ? null
+        : _enum(m['disposition'], {
+            'stored_active',
+            'stored_invalidated',
+            'stored_tainted',
+            'forgotten',
+            'unavailable',
+          });
+    if (status == 'committed'
+        ? receipt == null || disposition == null
+        : receipt != null || disposition != null) {
+      _invalid();
+    }
+    return MemoryOperationLookup._(
+      MemoryBinding.fromJson(m['binding']),
+      _enum(m['operation'], {'capture', 'forget'}),
+      memoryOperationKey(m['idempotency_key']),
+      status,
+      receipt,
+      disposition,
+      _boolean(m['mutation_fenced']),
+    );
+  }
+  final MemoryBinding binding;
+  final String operation, idempotencyKey, status;
+  final MemoryOperationReceipt? receipt;
+
+  /// Proves no new effect under the original request, not its prior outcome.
+  final bool mutationFenced;
+
+  /// Stored metadata only; not a current recall-eligibility claim.
+  final String? disposition;
 }
 
 class MemoryNode {

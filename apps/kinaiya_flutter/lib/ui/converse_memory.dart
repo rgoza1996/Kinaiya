@@ -1,6 +1,7 @@
 /// Owner-only Converse memory dialog (ADR 0052).
 ///
-/// Lists and inspects saved notes plus explicit saved-access and selected-use
+/// Lists and inspects saved notes plus explicit owner-curated capture, immutable
+/// revision, forgetting, saved-access and selected-use
 /// controls for the current Converse session/thread/epoch. Opening this
 /// dialog never creates a session, captures a note, configures a service,
 /// recalls context, measures a prompt or invokes inference. Inference flags
@@ -22,6 +23,7 @@
 library;
 
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -30,6 +32,7 @@ import '../api/client.dart';
 import '../api/memory_client.dart';
 import '../api/memory_models.dart';
 import '../state/app_state.dart';
+import 'converse_memory_editor.dart';
 
 /// Maximum unresolved owner scopes kept in RAM. New writes are refused at
 /// this bound instead of evicting another scope's latch.
@@ -59,6 +62,79 @@ class _WriteOp {
 /// RAM for the running owner app only; nothing here is persisted.
 final Map<String, List<_WriteOp>> _unresolvedOps = {};
 
+/// Content recovery retains the exact bounded request in owner RAM. Unlike an
+/// access toggle, a later namespace revision cannot identify a created note.
+/// Only an explicit same-key replay or owner inspection reconciles that result.
+class _ContentChange {
+  _ContentChange.capture({
+    required this.binding,
+    required this.revision,
+    required this.idempotencyKey,
+    required this.fence,
+    required this.fact,
+    required ConverseMemoryDraft draft,
+  }) : capture = true,
+       kind = draft.kind,
+       sourceId = draft.sourceEventId!,
+       sourceRevision = draft.sourceRevision!,
+       body = draft.body,
+       prerequisites = List.unmodifiable(draft.prerequisiteIds),
+       nodeId = null;
+
+  _ContentChange.forget({
+    required this.binding,
+    required this.revision,
+    required this.idempotencyKey,
+    required this.fence,
+    required this.nodeId,
+  }) : capture = false,
+       kind = null,
+       sourceId = null,
+       sourceRevision = null,
+       body = null,
+       fact = null,
+       prerequisites = const [];
+
+  final MemoryBinding binding;
+  final int revision;
+  final String idempotencyKey;
+  final _WriteOp fence;
+  final bool capture;
+  final String? kind, sourceId, body, nodeId;
+  final int? sourceRevision;
+  final MemoryFact? fact;
+  final List<String> prerequisites;
+  bool sending = false;
+  bool checking = false;
+  bool complete = false;
+  bool uncertain = false;
+  bool fenced = false;
+  bool releaseAcknowledged = false;
+  int attempts = 0;
+  String? notice;
+  String? receiptDetail;
+
+  Map<String, Object?> get request => {
+    ...binding.toJson(),
+    'expected_revision': revision,
+    'idempotency_key': idempotencyKey,
+    if (capture) ...{
+      'kind': kind,
+      'source_event_id': sourceId,
+      'source_revision': sourceRevision,
+      'body': body,
+      'fact': fact?.toJson(),
+      'prerequisite_ids': prerequisites,
+    } else
+      'node_id': nodeId,
+  };
+}
+
+final _contentChanges = <String, _ContentChange>{};
+final _contentSignal = ValueNotifier<int>(0);
+final _memoryDrafts = <String, ConverseMemoryDraft>{};
+const _draftBound = 16;
+
 String _canonicalEndpoint(String raw) {
   final uri = Uri.tryParse(raw.trim());
   if (uri == null || !uri.hasScheme || !uri.hasAuthority) return raw.trim();
@@ -77,18 +153,23 @@ String _scopeKey(String endpoint, MemoryBinding binding) =>
     '${binding.sessionId}\x00${binding.threadId}\x00${binding.epoch}';
 
 int _unresolvedScopeCount() {
-  var count = 0;
-  for (final ops in _unresolvedOps.values) {
-    if (ops.isNotEmpty) count++;
-  }
-  return count;
+  return {
+    for (final entry in _unresolvedOps.entries)
+      if (entry.value.isNotEmpty) entry.key,
+    for (final entry in _contentChanges.entries)
+      if (!entry.value.complete) entry.key,
+  }.length;
 }
 
 bool _scopeHasUnresolved(String key) =>
-    key.isNotEmpty && (_unresolvedOps[key]?.isNotEmpty ?? false);
+    key.isNotEmpty &&
+    ((_unresolvedOps[key]?.isNotEmpty ?? false) ||
+        (_contentChanges[key] != null && !_contentChanges[key]!.complete));
 
 bool _scopeHasUncertain(String key) =>
-    key.isNotEmpty && (_unresolvedOps[key]?.any((op) => op.uncertain) ?? false);
+    key.isNotEmpty &&
+    ((_unresolvedOps[key]?.any((op) => op.uncertain) ?? false) ||
+        (_contentChanges[key]?.uncertain ?? false));
 
 /// Records a latch before dispatch. Returns null when the bounded store is
 /// full for a new scope, in which case the caller refuses the write.
@@ -230,18 +311,31 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
 
   String? _notice;
   bool _refreshRequired = false;
+  ConverseMemoryDraft? _draft;
+  bool _editorOpen = false;
+  bool _sourceBusy = false;
+  int _sourceAction = 0;
+  String? _contentProblem;
+  String? _forgetFor;
+  bool _forgetConfirmed = false;
+  String? _lastContentNotice;
+  bool _manualForgetOpen = false;
+  bool _manualForgetConfirmed = false;
+  String _manualForgetId = '';
 
   @override
   void initState() {
     super.initState();
     _captureScope();
     widget.state.addListener(_onExternal);
+    _contentSignal.addListener(_onContentChange);
     _loadAll();
   }
 
   @override
   void dispose() {
     widget.state.removeListener(_onExternal);
+    _contentSignal.removeListener(_onContentChange);
     super.dispose();
   }
 
@@ -263,6 +357,17 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
       }
     }
     _binding = binding;
+    _lastContentNotice = _contentChanges[_namespaceKey]?.notice;
+    _draft = _memoryDrafts[_namespaceKey];
+    final draft = _draft;
+    if (draft != null &&
+        (!identical(draft.sourceOwner, _client) ||
+            draft.sourceGeneration != _generation)) {
+      // Draft text survives same-host reconnect. A previously inspected source
+      // must be read again under the current client/generation before creation.
+      draft.clearSource();
+    }
+    _editorOpen = _draft != null;
   }
 
   bool _scopeMatches() {
@@ -303,6 +408,7 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
       _invalidateReads();
       _nsAction++;
       _useAction++;
+      _sourceAction++;
       _ns = null;
       _nsError = null;
       _catalog = null;
@@ -317,6 +423,12 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
       _detailBusy = false;
       _nsBusy = false;
       _useBusy = false;
+      _sourceBusy = false;
+      _forgetFor = null;
+      _forgetConfirmed = false;
+      _manualForgetOpen = false;
+      _manualForgetConfirmed = false;
+      _manualForgetId = '';
       _pendingReads = 0;
       _refreshRequired = false;
       _notice =
@@ -337,11 +449,14 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
 
   void _refresh() {
     final lastUse = _ownsScope ? (_use ?? _lastUseForStop) : null;
+    final sameScope = _ownsScope;
+    if (!sameScope) _draft?.clearSource();
     _captureScope();
     setState(() {
       _invalidateReads();
       _nsAction++;
       _useAction++;
+      _sourceAction++;
       _ns = null;
       _nsError = null;
       _catalog = null;
@@ -356,9 +471,14 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
       _detailBusy = false;
       _nsBusy = false;
       _useBusy = false;
+      _sourceBusy = false;
+      _contentProblem = null;
+      _forgetFor = null;
+      _forgetConfirmed = false;
+      _manualForgetConfirmed = false;
       _pendingReads = 0;
       _refreshRequired = false;
-      _notice = null;
+      _notice = _contentChanges[_namespaceKey]?.notice ?? _draft?.lastOutcome;
     });
     _loadAll();
   }
@@ -420,6 +540,7 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
         _ns = result;
         _nsError = null;
         _settleNamespaceOps(_namespaceKey, result.revision);
+        _observeContentRevision(result.revision);
       } else {
         _nsError = _readProblem(failure!);
       }
@@ -459,6 +580,7 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
         _catalogError = null;
         _ns = result.state;
         _settleNamespaceOps(_namespaceKey, result.state.revision);
+        _observeContentRevision(result.state.revision);
         final active = <String>{
           for (final entry in result.entries)
             if (entry.state == 'active') entry.nodeId,
@@ -861,6 +983,748 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
     });
   }
 
+  bool get _contentBusy {
+    final operation = _contentChanges[_namespaceKey];
+    return operation != null && (operation.sending || operation.checking);
+  }
+
+  bool get _canChangeContent =>
+      _ownsScope &&
+      _pendingReads == 0 &&
+      !_nsBusy &&
+      !_useBusy &&
+      !_refreshRequired &&
+      _ns != null &&
+      !_scopeHasUnresolved(_namespaceKey);
+
+  void _observeContentRevision(int revision) {
+    final operation = _contentChanges[_namespaceKey];
+    if (operation != null && revision > operation.revision) {
+      // This fences future mutation under the old CAS. It does not identify
+      // which writer advanced it or establish the old request's outcome.
+      operation.fenced = true;
+    }
+  }
+
+  void _onContentChange() {
+    if (!mounted || !_scopeMatches()) return;
+    final operation = _contentChanges[_namespaceKey];
+    setState(() {
+      if (operation?.complete == true &&
+          operation?.notice != _lastContentNotice) {
+        _invalidateReads();
+        _ns = null;
+        _catalog = null;
+        _selected.clear();
+        _detail = null;
+        _detailFor = null;
+        _detailError = null;
+        _forgetFor = null;
+        _forgetConfirmed = false;
+        _refreshRequired = true;
+      }
+      _lastContentNotice = operation?.notice;
+    });
+  }
+
+  void _openEditor([MemoryNode? revised]) {
+    if (!_ownsScope || _scopeHasUnresolved(_namespaceKey)) return;
+    var draft = _memoryDrafts[_namespaceKey];
+    if (revised != null && draft?.hasContent == true) {
+      setState(() {
+        _notice =
+            'Your draft is kept. Discard it before starting a revision of another note.';
+        _editorOpen = true;
+      });
+      return;
+    }
+    if (draft == null) {
+      if (_memoryDrafts.length >= _draftBound) {
+        setState(
+          () => _notice =
+              'Sixteen conversation drafts are retained in this owner app. '
+              'Open one of those conversations and explicitly discard its draft before creating another.',
+        );
+        return;
+      }
+      draft = ConverseMemoryDraft();
+      _memoryDrafts[_namespaceKey] = draft;
+    }
+    if (revised != null) draft.revise(revised);
+    setState(() {
+      _draft = draft;
+      _editorOpen = true;
+      _contentProblem = null;
+    });
+  }
+
+  void _discardDraft() {
+    if (!_ownsScope || _contentBusy) return;
+    setState(() {
+      _sourceAction++;
+      _sourceBusy = false;
+      _draft?.clear();
+      _memoryDrafts.remove(_namespaceKey);
+      _draft = null;
+      _editorOpen = false;
+      _contentProblem = null;
+    });
+  }
+
+  void _inspectSource(String sourceId) {
+    final client = _client;
+    final binding = _binding;
+    final draft = _draft;
+    if (client == null ||
+        binding == null ||
+        draft == null ||
+        !_canChangeContent ||
+        _sourceBusy) {
+      return;
+    }
+    try {
+      memoryIdentifier(sourceId);
+    } on FormatException {
+      setState(() => _contentProblem = 'Use a valid existing source event ID.');
+      return;
+    }
+    final token = ++_sourceAction;
+    setState(() {
+      draft.sourceInput = sourceId;
+      draft.clearSource();
+      _sourceBusy = true;
+      _contentProblem = null;
+    });
+    unawaited(() async {
+      String? preview;
+      int? revision;
+      try {
+        // The memory-only transport owns response bounds, deadlines and real
+        // cleanup. A timeout cannot release an unsettled transport's capacity.
+        final inspected = await client.memory.inspectSource(binding, sourceId);
+        if (inspected.eventId != sourceId || inspected.binding != binding) {
+          throw const FormatException('Not an eligible memory source');
+        }
+        revision = inspected.revision;
+        final runes = inspected.text.runes.take(513).toList();
+        preview = String.fromCharCodes(runes.take(512));
+        if (runes.length > 512) preview += '…';
+      } catch (_) {
+        // Do not display untrusted error text or fetched private bodies.
+      }
+      if (!mounted ||
+          token != _sourceAction ||
+          !_scopeMatches() ||
+          !identical(_draft, draft) ||
+          draft.sourceInput != sourceId) {
+        return;
+      }
+      setState(() {
+        _sourceBusy = false;
+        if (revision != null) {
+          draft.sourceEventId = sourceId;
+          draft.sourceRevision = revision;
+          draft.sourcePreview = preview;
+          draft.sourceOwner = client;
+          draft.sourceGeneration = _generation;
+          _contentProblem = null;
+        } else {
+          _contentProblem =
+              'The source could not be inspected as a current finalized '
+              'authenticated user message in this conversation. Check its ID and owner connection.';
+        }
+      });
+    }());
+  }
+
+  void _createNote() {
+    final draft = _draft;
+    final binding = _binding;
+    final namespace = _ns;
+    final catalog = _catalog;
+    if (draft == null ||
+        binding == null ||
+        namespace == null ||
+        catalog == null ||
+        !_canChangeContent ||
+        !namespace.enabled ||
+        namespace.status != 'ready' ||
+        _sourceBusy ||
+        catalog.state.revision != namespace.revision) {
+      return;
+    }
+    final active = catalog.entries
+        .where((entry) => entry.state == 'active')
+        .map((entry) => entry.nodeId)
+        .toSet();
+    final problem = draft.validate(active);
+    if (problem != null) {
+      setState(() => _contentProblem = problem);
+      return;
+    }
+    MemoryFact? fact;
+    try {
+      fact = draft.fact;
+    } on FormatException {
+      setState(
+        () => _contentProblem =
+            'The typed fact is invalid. Check its key, value type and byte limits.',
+      );
+      return;
+    }
+    final fence = _recordOp(
+      _namespaceKey,
+      expectedRevision: namespace.revision,
+    );
+    if (fence == null) {
+      setState(
+        () => _contentProblem =
+            'Earlier owner requests are still unresolved. Refresh before creating a note.',
+      );
+      return;
+    }
+    final operation = _ContentChange.capture(
+      binding: binding,
+      revision: namespace.revision,
+      idempotencyKey: newIdempotencyKey(),
+      fence: fence,
+      fact: fact,
+      draft: draft,
+    );
+    _beginContentChange(operation);
+  }
+
+  void _forgetNote(MemoryNode node) {
+    if (!_canChangeContent ||
+        !_forgetConfirmed ||
+        _forgetFor != node.nodeId ||
+        node.state == 'forgotten') {
+      return;
+    }
+    _forgetNoteId(node.nodeId);
+  }
+
+  void _forgetNoteId(String nodeId) {
+    final namespace = _ns;
+    final binding = _binding;
+    if (namespace == null || binding == null || !_canChangeContent) return;
+    try {
+      memoryIdentifier(nodeId);
+    } on FormatException {
+      setState(() => _notice = 'Use a valid retained note ID.');
+      return;
+    }
+    final fence = _recordOp(
+      _namespaceKey,
+      expectedRevision: namespace.revision,
+    );
+    if (fence == null) {
+      setState(
+        () => _notice =
+            'Earlier owner requests are still unresolved. Refresh before forgetting notes.',
+      );
+      return;
+    }
+    _beginContentChange(
+      _ContentChange.forget(
+        binding: binding,
+        revision: namespace.revision,
+        idempotencyKey: newIdempotencyKey(),
+        fence: fence,
+        nodeId: nodeId,
+      ),
+    );
+  }
+
+  void _beginContentChange(_ContentChange operation) {
+    final key = _namespaceKey;
+    // Completed records are safe to release. Unresolved records are never
+    // evicted, and allocation uses the same bounded scope admission as toggles.
+    _contentChanges.removeWhere((_, value) => value.complete);
+    _contentChanges[key] = operation;
+    setState(() {
+      _invalidateReads();
+      _sourceAction++;
+      _sourceBusy = false;
+      _contentProblem = null;
+    });
+    _sendContent(key, operation);
+  }
+
+  void _sendContent(String key, _ContentChange operation) {
+    final client = _client;
+    if (client == null ||
+        !_ownsScope ||
+        key != _namespaceKey ||
+        operation.binding != _binding ||
+        operation.sending ||
+        operation.checking ||
+        operation.complete ||
+        !identical(_contentChanges[key], operation)) {
+      return;
+    }
+    operation.sending = true;
+    operation.attempts++;
+    operation.notice = operation.capture
+        ? 'Creating the owner-curated note…'
+        : 'Forgetting the note and its dependent closure…';
+    _contentSignal.value++;
+    unawaited(() async {
+      MemoryInspection? capture;
+      MemoryForgetResult? forgotten;
+      MemoryFailure? failure;
+      try {
+        if (operation.capture) {
+          capture = await client.memory.capture(
+            operation.binding,
+            expectedRevision: operation.revision,
+            idempotencyKey: operation.idempotencyKey,
+            kind: operation.kind!,
+            sourceEventId: operation.sourceId!,
+            sourceRevision: operation.sourceRevision!,
+            body: operation.body!,
+            fact: operation.fact,
+            prerequisiteIds: operation.prerequisites,
+          );
+        } else {
+          forgotten = await client.memory.forget(
+            operation.binding,
+            expectedRevision: operation.revision,
+            idempotencyKey: operation.idempotencyKey,
+            nodeId: operation.nodeId!,
+          );
+        }
+      } on MemoryFailure catch (e) {
+        failure = e;
+      } catch (_) {
+        // An unexpected client failure after admission cannot prove no write.
+        failure = const MemoryFailure(
+          'Memory outcome is unconfirmed',
+          unconfirmed: true,
+        );
+      }
+      operation.sending = false;
+      if (capture != null || forgotten != null) {
+        operation.complete = true;
+        operation.uncertain = false;
+        _removeOp(key, operation.fence.token);
+        final state = capture?.state ?? forgotten!.state;
+        _settleNamespaceOps(key, state.revision);
+        if (capture != null) {
+          operation.notice =
+              'Creation confirmed. Last reported state: ${capture.node.state}. '
+              'Refresh notes to inspect it. It has not been selected for use automatically.';
+          operation.receiptDetail =
+              'Note ${capture.node.nodeId} · Saved revision ${capture.state.revision}';
+          final draft = _memoryDrafts[key];
+          draft?.clear();
+          draft?.lastOutcome = operation.notice;
+        } else {
+          operation.notice = forgotten!.forgottenIds.isEmpty
+              ? 'The note was already forgotten. Refresh to inspect saved notes.'
+              : '${forgotten.forgottenIds.length} note(s) forgotten, including dependents. '
+                    'The source transcript and earlier copies remain. Refresh notes to inspect the result.';
+          operation.receiptDetail =
+              'Target ${operation.nodeId} · Saved revision ${forgotten.state.revision}';
+          final draft = _memoryDrafts[key];
+          if (draft != null &&
+              forgotten.forgottenIds.contains(draft.revisesNodeId)) {
+            draft.clear();
+          }
+        }
+      } else if (failure!.unconfirmed ||
+          operation.attempts > 1 ||
+          (!operation.capture && failure.status == 409)) {
+        operation.uncertain = true;
+        operation.fence.uncertain = true;
+        operation.notice =
+            '${operation.capture ? 'Creation' : 'Forget'} outcome unknown. '
+            'Check the saved result before making another note change.';
+      } else {
+        operation.complete = true;
+        _removeOp(key, operation.fence.token);
+        operation.notice =
+            'The request was refused. ${_readProblem(failure)} '
+            'Your note draft is kept.';
+      }
+      // Latch settlement is independent of any particular dialog lifetime.
+      // The listener itself fences ownership before changing visible state.
+      _contentSignal.value++;
+    }());
+  }
+
+  void _checkContent(_ContentChange operation, {String? scopeKey}) {
+    final client = _client;
+    final key = scopeKey ?? _namespaceKey;
+    final generation = _generation;
+    final visibleBinding = _binding;
+    if (client == null ||
+        !_ownsScope ||
+        operation.sending ||
+        operation.checking ||
+        operation.complete ||
+        _scopeKey(client.sessionBase, operation.binding) != key ||
+        !identical(_contentChanges[key], operation)) {
+      return;
+    }
+    operation.checking = true;
+    operation.notice = 'Checking the saved result…';
+    _contentSignal.value++;
+    unawaited(() async {
+      MemoryOperationLookup? receipt;
+      try {
+        receipt = await client.memory.lookupOperation(
+          operation.binding,
+          operation: operation.capture ? 'capture' : 'forget',
+          request: operation.request,
+        );
+      } catch (_) {
+        // Lookup failure cannot retire a pending mutation or prove absence.
+      }
+      operation.checking = false;
+      if (!mounted ||
+          !_scopeMatches() ||
+          !identical(_client, client) ||
+          _generation != generation ||
+          _binding != visibleBinding ||
+          !identical(_contentChanges[key], operation)) {
+        operation.notice =
+            'The connection or conversation changed during the check. '
+            'The earlier outcome is still unknown; check again when ready.';
+        _contentSignal.value++;
+        return;
+      }
+      if (receipt?.mutationFenced == true) {
+        // A later false result cannot undo a previously proven revision/epoch
+        // fence. This says nothing about whether the earlier write committed.
+        operation.fenced = true;
+      }
+      if (receipt?.status == 'committed') {
+        operation.complete = true;
+        operation.uncertain = false;
+        _removeOp(key, operation.fence.token);
+        final native = receipt!.receipt!;
+        operation.notice =
+            '${operation.capture ? 'Creation' : 'Forget'} '
+            'confirmed. Refresh notes to inspect their present state and use.';
+        operation.receiptDetail =
+            'Receipt ${native.operationId}\n'
+            'Saved revision ${native.revision} · Note ${native.nodeId}\n'
+            'Stored disposition: ${receipt.disposition}. Source freshness and '
+            'current recall eligibility have not been checked.';
+        if (operation.capture) {
+          final draft = _memoryDrafts[key];
+          draft?.clear();
+          draft?.lastOutcome = operation.notice;
+        }
+      } else if (receipt?.status == 'not_found') {
+        operation.notice =
+            'No saved receipt was found. The earlier outcome is still unknown.';
+      } else {
+        operation.notice =
+            'The saved result could not be checked. The earlier outcome is still unknown.';
+      }
+      _contentSignal.value++;
+    }());
+  }
+
+  List<Widget> _contentRecoverySection() {
+    final operation = _contentChanges[_namespaceKey];
+    if (operation == null) return const [];
+    return [
+      const SizedBox(height: 12),
+      Text(
+        operation.complete
+            ? 'Last note operation'
+            : 'Unresolved note operation',
+        style: const TextStyle(fontWeight: FontWeight.bold),
+      ),
+      if (operation.notice != null) Text(operation.notice!),
+      _operationDetails(operation),
+      if (!operation.complete) ...[
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            OutlinedButton.icon(
+              onPressed: _contentBusy ? null : () => _checkContent(operation),
+              icon: const Icon(Icons.receipt_long_outlined),
+              label: Text(
+                operation.checking ? 'Checking…' : 'Check saved result',
+              ),
+            ),
+            TextButton(
+              onPressed: _contentBusy || operation.fenced
+                  ? null
+                  : () => _sendContent(_namespaceKey, operation),
+              child: const Text('Retry same request'),
+            ),
+          ],
+        ),
+        Text(
+          operation.fenced
+              ? 'Checking only reads the saved receipt. You can also dismiss the request with its result still unknown.'
+              : 'Checking only reads the saved receipt. Retry may apply the original change; '
+                    'it uses the same request to prevent duplicates.',
+        ),
+        if (operation.fenced) _releaseContentControl(_namespaceKey, operation),
+      ],
+    ];
+  }
+
+  Widget _operationDetails(_ContentChange operation) => ExpansionTile(
+    tilePadding: EdgeInsets.zero,
+    childrenPadding: const EdgeInsets.only(bottom: 12),
+    title: const Text('Request details'),
+    children: [
+      Align(
+        alignment: Alignment.centerLeft,
+        child: SelectableText(
+          'Session ${operation.binding.sessionId}\n'
+          'Thread ${operation.binding.threadId} · Epoch ${operation.binding.epoch}\n'
+          'Request ${operation.idempotencyKey}\n'
+          'Expected namespace revision ${operation.revision}'
+          '${operation.receiptDetail == null ? '' : '\n${operation.receiptDetail}'}',
+        ),
+      ),
+    ],
+  );
+
+  Widget _releaseContentControl(String key, _ContentChange operation) {
+    final busy = operation.sending || operation.checking;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'This request can no longer create or forget a note. Its earlier result may still be unknown.',
+        ),
+        CheckboxListTile(
+          contentPadding: EdgeInsets.zero,
+          value: operation.releaseAcknowledged,
+          title: const Text(
+            'Keep the result as unknown and clear this pending request.',
+          ),
+          onChanged: busy
+              ? null
+              : (value) => setState(
+                  () => operation.releaseAcknowledged = value == true,
+                ),
+        ),
+        TextButton(
+          onPressed: busy || !operation.releaseAcknowledged
+              ? null
+              : () {
+                  final client = _client;
+                  if (client == null ||
+                      !_ownsScope ||
+                      !operation.fenced ||
+                      operation.complete ||
+                      operation.sending ||
+                      operation.checking ||
+                      !identical(_contentChanges[key], operation) ||
+                      _scopeKey(client.sessionBase, operation.binding) != key) {
+                    return;
+                  }
+                  _removeOp(key, operation.fence.token);
+                  _contentChanges.remove(key);
+                  setState(
+                    () => _notice =
+                        'Pending request cleared. Its earlier outcome remains unknown. Your draft is kept.',
+                  );
+                  _contentSignal.value++;
+                },
+          child: const Text('Dismiss pending request'),
+        ),
+      ],
+    );
+  }
+
+  List<Widget> _earlierContentSection() {
+    final client = _client;
+    if (client == null) return const [];
+    final earlier = _contentChanges.entries
+        .where(
+          (entry) =>
+              entry.key != _namespaceKey &&
+              _scopeKey(client.sessionBase, entry.value.binding) == entry.key,
+        )
+        .toList();
+    if (earlier.isEmpty) return const [];
+    return [
+      const SizedBox(height: 12),
+      const Text(
+        'Earlier conversation requests',
+        style: TextStyle(fontWeight: FontWeight.bold),
+      ),
+      const Text(
+        'Check saved results from earlier conversations. Historical requests are never retried here.',
+      ),
+      for (final entry in earlier)
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  entry.value.capture
+                      ? 'Earlier note creation'
+                      : 'Earlier forget request',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                if (entry.value.notice != null) Text(entry.value.notice!),
+                _operationDetails(entry.value),
+                if (!entry.value.complete)
+                  OutlinedButton.icon(
+                    onPressed: entry.value.sending || entry.value.checking
+                        ? null
+                        : () => _checkContent(entry.value, scopeKey: entry.key),
+                    icon: const Icon(Icons.receipt_long_outlined),
+                    label: Text(
+                      entry.value.checking ? 'Checking…' : 'Check saved result',
+                    ),
+                  ),
+                if (!entry.value.complete && entry.value.fenced)
+                  _releaseContentControl(entry.key, entry.value),
+              ],
+            ),
+          ),
+        ),
+    ];
+  }
+
+  List<Widget> _editorSection() {
+    final draft = _draft;
+    final namespace = _ns;
+    final catalog = _catalog;
+    return [
+      const SizedBox(height: 16),
+      Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          OutlinedButton.icon(
+            key: const ValueKey('memory-open-editor'),
+            onPressed: !_ownsScope || _scopeHasUnresolved(_namespaceKey)
+                ? null
+                : () => _openEditor(),
+            icon: const Icon(Icons.note_add_outlined),
+            label: Text(
+              draft == null ? 'Create a note…' : 'Continue note draft',
+            ),
+          ),
+          if (_editorOpen && draft != null)
+            TextButton(
+              onPressed: () => setState(() => _editorOpen = false),
+              child: const Text('Hide editor · Keep draft'),
+            ),
+          TextButton.icon(
+            onPressed: !_ownsScope || _scopeHasUnresolved(_namespaceKey)
+                ? null
+                : () => setState(() {
+                    _manualForgetOpen = !_manualForgetOpen;
+                    _manualForgetConfirmed = false;
+                  }),
+            icon: const Icon(Icons.delete_outline),
+            label: const Text('Forget by note ID…'),
+          ),
+        ],
+      ),
+      if (draft?.lastOutcome != null) Text(draft!.lastOutcome!),
+      if (_editorOpen && draft != null) ...[
+        const SizedBox(height: 8),
+        const Text(
+          'Drafts stay in this running owner app only. Closing Options or '
+          'reconnecting to this endpoint keeps them; restarting the app does not.',
+        ),
+        if (_scopeHasUnresolved(_namespaceKey))
+          const Text(
+            'An unresolved request retains its exact original payload in owner RAM for receipt lookup and identical retry. Discarding the draft does not erase that pending request.',
+          ),
+        if (namespace?.enabled != true)
+          const Text(
+            'Turn saved note access on before creating a note. Draft preparation does not enable access or recall.',
+          ),
+        ConverseMemoryEditor(
+          key: ValueKey((draft, draft.version)),
+          draft: draft,
+          entries: catalog?.entries ?? const [],
+          sources: {
+            for (final message
+                in widget.state.converseHistory.reversed
+                    .where(
+                      (message) =>
+                          message.role == 'user' &&
+                          message.eventId != null &&
+                          message.utteranceId == null,
+                    )
+                    .take(64))
+              message.eventId!: String.fromCharCodes(
+                message.text.runes.take(96),
+              ),
+          },
+          enabled: _canChangeContent,
+          canCreate:
+              namespace?.enabled == true &&
+              namespace?.status == 'ready' &&
+              catalog?.state.revision == namespace?.revision,
+          busy: _contentBusy,
+          sourceBusy: _sourceBusy,
+          problem: _contentProblem,
+          onChanged: () => setState(() => _contentProblem = null),
+          onInspectSource: _inspectSource,
+          onCreate: _createNote,
+          onDiscard: _discardDraft,
+        ),
+      ],
+      if (_manualForgetOpen) ...[
+        const SizedBox(height: 12),
+        const Text(
+          'Administrative forget by a known note ID remains available while saved access is off or the catalog is unavailable. '
+          'Native validation requires the current conversation and revision. '
+          'The note and its full dependent closure are erased; a corrupt graph may require erasing the complete namespace. '
+          'The source transcript, previous copies and disclosures remain. There is no undo.',
+        ),
+        TextFormField(
+          key: ValueKey(('memory-manual-forget', _namespaceKey)),
+          initialValue: _manualForgetId,
+          enabled: _canChangeContent,
+          maxLength: 128,
+          decoration: const InputDecoration(
+            labelText: 'Retained note ID to forget',
+          ),
+          onChanged: (value) => setState(() {
+            _manualForgetId = value;
+            _manualForgetConfirmed = false;
+          }),
+        ),
+        CheckboxListTile(
+          contentPadding: EdgeInsets.zero,
+          value: _manualForgetConfirmed,
+          title: const Text(
+            'I want to permanently forget this note and every dependent note.',
+          ),
+          onChanged: !_canChangeContent
+              ? null
+              : (value) =>
+                    setState(() => _manualForgetConfirmed = value == true),
+        ),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: FilledButton(
+            onPressed:
+                _canChangeContent &&
+                    _manualForgetConfirmed &&
+                    _manualForgetId.isNotEmpty
+                ? () => _forgetNoteId(_manualForgetId)
+                : null,
+            child: const Text('Forget note and dependents'),
+          ),
+        ),
+      ],
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
@@ -932,13 +1796,18 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
   Widget _body(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final children = <Widget>[
-      const Text('Choose saved notes to use in this conversation.'),
+      const Text(
+        'Inspect and curate local Converse notes, then explicitly choose which to use.',
+      ),
       const SizedBox(height: 8),
       ..._scopeSection(scheme),
       if (_pendingReads > 0) const Text('Loading saved notes…'),
       if (_ownsScope) ...[
         ..._namespaceSection(scheme),
+        ..._contentRecoverySection(),
+        ..._earlierContentSection(),
         ..._useSection(scheme),
+        ..._editorSection(),
         ..._notesSection(scheme),
         ..._footerSection(),
       ],
@@ -965,6 +1834,13 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
         ),
       ];
     }
+    if (!_scopeMatches()) {
+      return const [
+        Text(
+          'The displayed scope is no longer current. Choose Refresh to inspect the current conversation; no note change was sent.',
+        ),
+      ];
+    }
     if (session == null || binding == null) {
       return const [
         Text(
@@ -978,6 +1854,9 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
       Text(
         session.name.isEmpty ? 'This conversation' : session.name,
         style: TextStyle(color: scheme.onSurfaceVariant),
+      ),
+      SelectableText(
+        'Session ${binding.sessionId} · Thread ${binding.threadId} · Epoch ${binding.epoch}',
       ),
     ];
   }
@@ -1007,7 +1886,8 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
       ...header,
       Text(
         'Saved access: ${snapshot.enabled ? 'On' : 'Off'} · '
-        '${snapshot.nodeCount} note${snapshot.nodeCount == 1 ? '' : 's'} retained',
+        '${snapshot.nodeCount} note${snapshot.nodeCount == 1 ? '' : 's'} retained · '
+        'Namespace revision ${snapshot.revision}',
       ),
       if (snapshot.status == 'quarantined')
         const Text('Saved notes are quarantined and unavailable for use.'),
@@ -1181,10 +2061,18 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
       'Kind: ${node.kind}',
       'State: ${node.state}',
       if (node.body != null) 'Text: ${node.body}',
-      if (fact != null) 'Fact ${fact.key}: ${fact.value}',
+      if (fact != null)
+        'Fact ${fact.key} (${switch (fact.value) {
+          null => 'null',
+          String() => 'text',
+          bool() => 'boolean',
+          _ => 'integer',
+        }}): ${jsonEncode(fact.value)}',
       'Source event ${node.sourceEventId}, revision ${node.sourceRevision}, '
           'message ${node.sourceSequence}',
       'Scope: ${node.contentScope}, origin: ${node.provenance}',
+      'Namespace revision at inspection: ${inspection.state.revision}',
+      'Prerequisites: ${node.prerequisiteIds.isEmpty ? 'None' : node.prerequisiteIds.join(', ')}',
     ];
     return Container(
       width: double.infinity,
@@ -1202,6 +2090,78 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
             excludeSemantics: true,
             child: SelectableText(lines.join('\n')),
           ),
+          if (node.state != 'forgotten') ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: _canChangeContent ? () => _openEditor(node) : null,
+                  icon: const Icon(Icons.edit_note),
+                  label: const Text('Create revised note'),
+                ),
+                TextButton.icon(
+                  onPressed: !_canChangeContent
+                      ? null
+                      : () => setState(() {
+                          _forgetFor = node.nodeId;
+                          _forgetConfirmed = false;
+                        }),
+                  icon: const Icon(Icons.delete_outline),
+                  label: const Text('Forget…'),
+                ),
+              ],
+            ),
+            if (_forgetFor == node.nodeId) ...[
+              const Text(
+                'Forget permanently erases this retained note and every dependent note, '
+                'including their text and facts. The original transcript, previous copies '
+                'and disclosures remain. There is no undo. In a corrupt graph, native '
+                'recovery may erase the complete namespace conservatively.',
+              ),
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                value: _forgetConfirmed,
+                title: const Text(
+                  'I want to forget this note and its full dependent closure.',
+                ),
+                onChanged: _contentBusy
+                    ? null
+                    : (value) =>
+                          setState(() => _forgetConfirmed = value == true),
+              ),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  FilledButton(
+                    key: const ValueKey('memory-confirm-forget'),
+                    onPressed:
+                        _canChangeContent &&
+                            _forgetConfirmed &&
+                            _ns?.revision == inspection.state.revision
+                        ? () => _forgetNote(node)
+                        : null,
+                    child: const Text('Forget note and dependents'),
+                  ),
+                  TextButton(
+                    onPressed: _contentBusy
+                        ? null
+                        : () => setState(() {
+                            _forgetFor = null;
+                            _forgetConfirmed = false;
+                          }),
+                    child: const Text('Keep note'),
+                  ),
+                ],
+              ),
+              if (_ns?.revision != inspection.state.revision)
+                const Text(
+                  'The inspected revision differs from the current namespace. Refresh and inspect the note again before forgetting.',
+                ),
+            ],
+          ],
           Align(
             alignment: Alignment.centerRight,
             child: TextButton(
