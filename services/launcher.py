@@ -685,6 +685,16 @@ def serve(args):
             # Preserve the control plane so the owner can repair a removed or
             # unavailable saved profile. Task acceptance still refuses it.
             pass
+        from services.agent.capability_settings import CapabilitySettings
+
+        runtime._capabilities_configured = True
+        try:
+            runtime.capability_settings = CapabilitySettings(
+                runtime, args.data_dir.resolve() / "agent-capabilities.sqlite", workspace=workspace
+            )
+        except (OSError, ValueError, RuntimeError, sqlite3.Error):
+            runtime.capability_settings = None
+
         commands = Registry(
             runtime, owner_journal, path=args.data_dir / "commands.sqlite", profiles=profiles
         )
@@ -702,7 +712,7 @@ def serve(args):
                     await asyncio.sleep(0.1)
             yield
             await runtime.close()
-            await journal.close()
+            await runtime.authorizations.close_journal(journal)
             await owner_journal.close()
             commands.close()
 

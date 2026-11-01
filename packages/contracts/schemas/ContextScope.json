@@ -1,0 +1,97 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "session_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Session Id",
+      "type": "string"
+    },
+    "thread_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Thread Id",
+      "type": "string"
+    },
+    "epoch": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Epoch",
+      "type": "integer"
+    },
+    "source_event_ids": {
+      "items": {
+        "maxLength": 128,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "title": "Source Event Ids",
+      "type": "array"
+    },
+    "task_id": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Task Id"
+    },
+    "objective_revision": {
+      "anyOf": [
+        {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Objective Revision"
+    },
+    "harness_version": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Harness Version"
+    },
+    "through_sequence": {
+      "anyOf": [
+        {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Through Sequence"
+    }
+  },
+  "required": [
+    "session_id",
+    "thread_id",
+    "epoch",
+    "source_event_ids",
+    "task_id",
+    "objective_revision",
+    "harness_version",
+    "through_sequence"
+  ],
+  "title": "ContextScope",
+  "type": "object"
+}

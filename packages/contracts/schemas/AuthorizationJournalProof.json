@@ -1,0 +1,198 @@
+{
+  "$defs": {
+    "AuthorizationIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "approval_id": {
+          "maxLength": 20,
+          "minLength": 20,
+          "pattern": "^apr_[a-f0-9]{16}$",
+          "title": "Approval Id",
+          "type": "string"
+        },
+        "task_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Task Id",
+          "type": "string"
+        },
+        "session_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Session Id",
+          "type": "string"
+        },
+        "thread_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Thread Id",
+          "type": "string"
+        },
+        "epoch": {
+          "maximum": 9007199254740990,
+          "minimum": 1,
+          "title": "Epoch",
+          "type": "integer"
+        },
+        "objective_revision": {
+          "maximum": 9007199254740990,
+          "minimum": 1,
+          "title": "Objective Revision",
+          "type": "integer"
+        },
+        "tool": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Tool",
+          "type": "string"
+        },
+        "action_digest": {
+          "maxLength": 71,
+          "minLength": 71,
+          "pattern": "^sha256:[a-f0-9]{64}$",
+          "title": "Action Digest",
+          "type": "string"
+        },
+        "arguments_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Arguments Sha256",
+          "type": "string"
+        },
+        "source_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Source Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "approval_id",
+        "task_id",
+        "session_id",
+        "thread_id",
+        "epoch",
+        "objective_revision",
+        "tool",
+        "action_digest",
+        "arguments_sha256",
+        "source_sha256"
+      ],
+      "title": "AuthorizationIdentity",
+      "type": "object"
+    },
+    "AuthorizationRevoke": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "broker_instance": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Broker Instance",
+          "type": "string"
+        },
+        "idempotency_key": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9:._-]{1,128}$",
+          "title": "Idempotency Key",
+          "type": "string"
+        },
+        "identity": {
+          "$ref": "#/$defs/AuthorizationIdentity"
+        },
+        "expected_revision": {
+          "maximum": 9007199254740990,
+          "minimum": 0,
+          "title": "Expected Revision",
+          "type": "integer"
+        },
+        "expected_state": {
+          "const": "approved_unspent",
+          "title": "Expected State",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "broker_instance",
+        "idempotency_key",
+        "identity",
+        "expected_revision",
+        "expected_state"
+      ],
+      "title": "AuthorizationRevoke",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "request": {
+      "$ref": "#/$defs/AuthorizationRevoke"
+    },
+    "recorded": {
+      "title": "Recorded",
+      "type": "boolean"
+    },
+    "event_id": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Event Id"
+    },
+    "sequence": {
+      "anyOf": [
+        {
+          "maximum": 9007199254740990,
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Sequence"
+    },
+    "origin": {
+      "anyOf": [
+        {
+          "const": "agent-supervisor",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Origin"
+    }
+  },
+  "required": [
+    "schema_version",
+    "request",
+    "recorded",
+    "event_id",
+    "sequence",
+    "origin"
+  ],
+  "title": "AuthorizationJournalProof",
+  "type": "object"
+}

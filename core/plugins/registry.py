@@ -22,6 +22,7 @@ from __future__ import annotations
 import fcntl
 import hashlib
 import json
+import math
 import os
 import re
 import shutil
@@ -57,6 +58,19 @@ _PLUGIN_ID_RE = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
 
 def _sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
+
+
+def _bounded_owner_entries(directory: Path, prefix: str, limit: int) -> list[Path]:
+    """Bound enumeration before opening any metadata, including corrupt debris."""
+    result = []
+    for count, path in enumerate(directory.iterdir(), 1):
+        if count > limit + 64:
+            raise PluginStateError("owner metadata directory bound exceeded")
+        if path.name.startswith(prefix):
+            result.append(path)
+            if len(result) > limit:
+                raise PluginStateError("owner metadata record bound exceeded")
+    return sorted(result)
 
 
 def _canonical(obj: Any) -> bytes:
@@ -157,6 +171,15 @@ class PluginRegistry:
                 raise PluginStateError("registry subdirectory is a symlink")
             if self._active_file.is_symlink() or self._pins_file.is_symlink():
                 raise PluginStateError("registry state file is a symlink")
+            retained = (
+                any(self._versions.iterdir())
+                or any(self._reports.iterdir())
+                or (self.root / "audit.jsonl").exists()
+                or self._active_file.exists()
+                or self._pins_file.exists()
+            )
+            if retained and (not self._active_file.exists() or not self._pins_file.exists()):
+                raise PluginStateError("Retained plugin activation or pin state is missing")
             if not self._active_file.exists():
                 _atomic_write_json(self._active_file, {"plugins": {}})
             if not self._pins_file.exists():
@@ -282,7 +305,7 @@ class PluginRegistry:
         self._ensure_open()
         with self._thread:
             result = []
-            for directory in sorted(self._versions.iterdir()):
+            for directory in _bounded_owner_entries(self._versions, "v-", MAX_VERSIONS):
                 if directory.name.startswith("v-"):
                     _, meta = self._verified_source(directory.name)
                     result.append(
@@ -297,6 +320,123 @@ class PluginRegistry:
                     )
             if len(result) > MAX_VERSIONS:
                 raise PluginStateError("version bound exceeded")
+            return result
+
+    def owner_inventory(self) -> list[dict]:
+        """Complete registered-version state without executing a candidate.
+
+        Owner acceptance inputs and paths never leave this projection. Report
+        summaries describe stored evidence, not general execution readiness.
+        """
+        with self._thread:
+            rows = self.versions()
+            document = self._read_active_doc()
+            reports = []
+            paths = _bounded_owner_entries(self._reports, "rep-", MAX_REPORTS)
+            for path in paths:
+                report = self._load_report(path.stem)
+                patterns = {
+                    "report_id": r"rep-[A-Za-z0-9-]{1,60}",
+                    "version_id": r"v-[0-9a-f]{24}",
+                    "plugin_id": r"[a-z][a-z0-9_-]{0,63}",
+                    "source_sha256": r"[0-9a-f]{64}",
+                    "manifest_sha256": r"[0-9a-f]{64}",
+                    "suite_sha256": r"[0-9a-f]{64}",
+                }
+                if (
+                    any(
+                        type(report.get(key)) is not str
+                        or re.fullmatch(pattern, report[key]) is None
+                        for key, pattern in patterns.items()
+                    )
+                    or type(report.get("passed")) is not bool
+                    or type(report.get("created_at")) not in {int, float}
+                    or not math.isfinite(report["created_at"])
+                    or report["created_at"] < 0
+                ):
+                    raise PluginStateError("Report metadata is malformed")
+                # Private acceptance cases/results are never retained by the
+                # owner metadata inventory or returned in an Options page.
+                reports.append({key: report[key] for key in (*patterns, "passed", "created_at")})
+                del report
+            reports.sort(key=lambda report: (report["created_at"], report["report_id"]))
+            pins = self._read_pins()
+            if any(
+                key.startswith("task:")
+                and (
+                    re.fullmatch(r"task:[A-Za-z0-9_-]{1,128}:v-[0-9a-f]{24}", key) is None
+                    or key.rsplit(":", 1)[-1] != version
+                )
+                for key, version in pins.items()
+            ):
+                raise PluginStateError("Plugin task pin metadata is malformed")
+            result = []
+            for row in rows:
+                identity, version = row["plugin_id"], row["version_id"]
+                entry = document["plugins"].get(identity, {})
+                if not isinstance(entry, dict):
+                    raise PluginStateError("Invalid plugin activation state")
+                approved = False
+                try:
+                    self._approval(row, entry)
+                    approved = True
+                except PluginPromotionError:
+                    pass
+                except PluginStateError:
+                    pass
+                summaries = []
+                for report in reports:
+                    if report.get("version_id") != version:
+                        continue
+                    valid = (
+                        report.get("passed") is True
+                        and report.get("plugin_id") == identity
+                        and report.get("source_sha256") == row["source_sha256"]
+                        and report.get("manifest_sha256")
+                        == _sha256(
+                            PluginManifest.model_validate(row["manifest"]).canonical().encode()
+                        )
+                        and identity in self.suites
+                        and report.get("suite_sha256") == suite_hash_of(self.suites[identity])
+                    )
+                    summaries.append(
+                        {
+                            "report_id": report["report_id"],
+                            "passed": report.get("passed") is True,
+                            "current_binding": valid,
+                        }
+                    )
+                history = entry.get("history", [])
+                if not isinstance(history, list) or len(history) > MAX_VERSIONS:
+                    raise PluginStateError("Invalid plugin activation history")
+                rollback = bool(history and history[-1] == version)
+                rollback_approved = False
+                if rollback:
+                    try:
+                        self._approval(row, {**entry, "disabled": False})
+                        rollback_approved = True
+                    except (PluginPromotionError, PluginStateError):
+                        pass
+                result.append(
+                    {
+                        **row,
+                        "manifest_sha256": _sha256(
+                            PluginManifest.model_validate(row["manifest"]).canonical().encode()
+                        ),
+                        "active_version": entry.get("active"),
+                        "enabled": entry.get("disabled") is not True,
+                        "approved": approved,
+                        "rollback_eligible": rollback_approved,
+                        "suite_configured": identity in self.suites,
+                        "reports": summaries[-8:],
+                        "reports_total": len(summaries),
+                        "dependent_task_ids": sorted(
+                            key.split(":", 2)[1]
+                            for key, pinned in pins.items()
+                            if pinned == version and key.startswith("task:")
+                        ),
+                    }
+                )
             return result
 
     # -- integrity ------------------------------------------------------
@@ -447,6 +587,8 @@ class PluginRegistry:
             raise PluginPromotionError(f"unknown report: {exc}") from exc
         if not isinstance(doc, dict):
             raise PluginPromotionError("stored report invalid")
+        if doc.get("report_id") != report_id:
+            raise PluginPromotionError("stored report identity differs")
         return doc
 
     # -- evaluation -----------------------------------------------------

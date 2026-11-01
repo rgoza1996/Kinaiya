@@ -12,6 +12,7 @@ from packages.contracts.context import (
     ContextQualificationPage,
     ContextQualificationRequest,
 )
+from packages.contracts.context_usage import ContextSelection
 from packages.providers.prompt_budget import PromptCountUnavailable, PromptTokenCount
 from packages.providers.text import ProviderCleanupError, ProviderError
 from services.converse.delivery_context import window_context_projection
@@ -235,7 +236,31 @@ class ContextBudgetBuilder:
             messages.append({"role": "system", "content": projection.delivery})
         messages.extend(projection.messages)
         messages.append({"role": "user", "content": self.source.payload["text"]})
-        return replace(projection, messages=messages)
+        return replace(projection, messages=messages, history_messages=len(projection.messages))
+
+    def _selection(self, projection, pin, recall):
+        # Counts describe only eligible messages in the native pages examined.
+        # A suffix fit can stop paging early; unseen older history is unknown.
+        try:
+            examined = self._compile(
+                [entry for page in self.pages for entry in page], pin, recall
+            ).history_messages
+            kept = projection.history_messages
+            selection = ContextSelection(
+                unit="message",
+                kept=kept,
+                dropped=examined - kept,
+                examined=examined,
+                history_complete=self.exhausted,
+                measurement_attempts=self.measurements,
+            )
+        except (TypeError, ValueError):
+            # This additional pure projection supplies observation metadata only.
+            # It cannot replace or refuse the already selected measured prompt.
+            selection = None
+        return replace(
+            projection, history_selection=selection, history_watermark=self.through_sequence
+        )
 
     async def _measure(self, projection):
         self._check()
@@ -287,10 +312,12 @@ class ContextBudgetBuilder:
                 selected.pop(0)
                 projection = await self._measure(self._compile(selected, pin, recall))
             if overflow:
-                return projection
+                return self._selection(projection, pin, recall)
             if self.exhausted and index == len(self.pages):
-                return projection
-        return await self._measure(self._compile(selected, pin, recall))
+                return self._selection(projection, pin, recall)
+        return self._selection(
+            await self._measure(self._compile(selected, pin, recall)), pin, recall
+        )
 
     async def finalize(self, projection):
         """Refresh the selected request after memory fallback and before dispatch."""
@@ -312,4 +339,10 @@ class ContextBudgetBuilder:
             raise ContextBudgetStale()
         if not count.fits:
             raise ContextBudgetOverflow()
-        return measured
+        selection = projection.history_selection
+        return replace(
+            measured,
+            history_selection=None
+            if selection is None
+            else selection.model_copy(update={"measurement_attempts": self.measurements}),
+        )

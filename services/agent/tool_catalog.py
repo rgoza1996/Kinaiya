@@ -227,7 +227,11 @@ def _native(runtime, task, query):
         row = {
             **_identity("native", name),
             "description": definition["description"],
-            "availability": "configured" if configured else "not_configured",
+            "availability": "configured"
+            if configured
+            else "disabled_by_owner"
+            if snapshot.owner_disabled is not None and name in snapshot.owner_disabled
+            else "not_configured",
             "schema_state": "available",
             "schema_kind": "native_arguments",
             "protocol_version": snapshot.schema_version,
@@ -242,6 +246,8 @@ def _native(runtime, task, query):
 
 
 async def _skills(runtime, rec, query, guard):
+    if not runtime.tool_snapshot(rec.task if rec is not None else None).supports("skill_load"):
+        return []
     service = runtime.skill_service
     rows = await service.tool_metadata(
         runtime.provider_info_for(rec),
@@ -292,6 +298,8 @@ async def _skills(runtime, rec, query, guard):
 
 
 async def _plugins(runtime, rec, query, guard):
+    if not runtime.tool_snapshot(rec.task if rec is not None else None).supports("plugin_call"):
+        return []
     rows = await runtime.plugin_service.tool_metadata(
         runtime.provider_info_for(rec),
         plugin_id=query.name if query.selected else None,
@@ -328,6 +336,10 @@ async def _plugins(runtime, rec, query, guard):
 
 
 def _mcp(runtime, query, guard):
+    if not runtime.tool_snapshot(guard.rec.task if guard.rec is not None else None).supports(
+        "mcp_call"
+    ):
+        return []
     servers = runtime._model_mcp(guard.rec).cached_tool_metadata(
         query.server_id, tool=query.name if query.selected else None
     )

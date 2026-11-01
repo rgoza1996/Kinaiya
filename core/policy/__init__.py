@@ -48,6 +48,9 @@ class Approval:
     replacement_id: str | None = None
     replacement_expires_at: float | None = None
     deadline: float | None = None
+    # Native owner review is distinct from a rule-derived permit and its spend.
+    owner_reviewed: bool = False
+    revision: int = 0
 
 
 def action_digest(tool: str, arguments: dict[str, Any], objective_revision: int) -> str:
@@ -385,6 +388,7 @@ class ToolPolicy:
             approval.retired is None or approval.retired == "expired" and reason != "expired"
         ):
             approval.retired = reason
+            approval.revision += 1
             # Closed history is ordered by its most recent native transition.
             self._approvals[approval_id] = self._approvals.pop(approval_id)
         self.prune_approvals()
@@ -454,6 +458,7 @@ class ToolPolicy:
         original.replacement_expires_at = replacement.expires_at
         # New retained ownership replaces the old waiter's slot synchronously.
         original.retired = "reissued"
+        original.revision += 1
         self._approvals[approval_id] = self._approvals.pop(approval_id)
         self._approval_owners.discard(approval_id)
         self.prune_approvals()
@@ -462,12 +467,32 @@ class ToolPolicy:
     def peek_approval(self, approval_id: str) -> Approval | None:
         return self._approvals.get(approval_id)
 
+    def review_approval(self, approval_id: str, digest: str, revision: int) -> None:
+        approval = self.check_approval(approval_id, digest, revision)
+        if not approval.owner_reviewed:
+            approval.owner_reviewed = True
+            approval.revision += 1
+
+    def revoke_approval(self, approval_id: str, expected_revision: int) -> bool:
+        """CAS competes synchronously with the broker spend, never cancels it."""
+        approval = self._approvals.get(approval_id)
+        if (
+            approval is None
+            or self.approval_state(approval_id) != "pending"
+            or not approval.owner_reviewed
+            or approval.revision != expected_revision
+        ):
+            return False
+        self.retire_approval(approval_id, "revoked")
+        return True
+
     def consume_approval(
         self, approval_id: str, action_digest_: str, objective_revision: int
     ) -> Approval:
         """One-use, expiring, digest- and revision-bound approval spend."""
         approval = self.check_approval(approval_id, action_digest_, objective_revision)
         approval.used = True
+        approval.revision += 1
         self._approvals[approval_id] = self._approvals.pop(approval_id)
         self.prune_approvals()
         return approval

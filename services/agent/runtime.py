@@ -117,6 +117,7 @@ from services.agent.tools import (
     shell_directory,
     validate_write_arguments,
 )
+from services.context_usage import ContextObservations, captured_model
 
 
 class TaskNotFound(KeyError):
@@ -401,7 +402,10 @@ class AgentRuntime:
         self.journal = journal
         self.provider = provider
         self.model_settings = None
+        self.context_observations = ContextObservations("agent")
         self.runtime_settings = None
+        self.capability_settings = None
+        self._capabilities_configured = False
         self.tool_permissions = None
         self.workspace_settings = None
         self.projects = None
@@ -438,6 +442,9 @@ class AgentRuntime:
         self._workspace_workers = set()
         self._workspace_watched = set()
         self._workspace_cleanup_failed = False
+        from services.agent.authorizations import AgentAuthorizations
+
+        self.authorizations = AgentAuthorizations(self)
 
     def workspace_operation_state(self):
         """Actual owners, including cancelled callers whose native work remains."""
@@ -555,7 +562,7 @@ class AgentRuntime:
         except (OSError, ValueError, RuntimeError):
             raise PolicyDenied("Native workspace authority is unavailable") from None
 
-    async def owned_workspace_operation(self, invoke, *, require_root=True):
+    async def owned_workspace_operation(self, invoke, *, require_root=True, retain=None):
         """A caller timeout never releases a still-running native operation."""
         from services.agent.workspace_ownership import MAX_WORKSPACE_OPERATIONS, captured_context
 
@@ -566,6 +573,8 @@ class AgentRuntime:
             self._workspace_current()
         operation = asyncio.create_task(invoke())
         self._workspace_operations.add(operation)
+        if retain is not None:
+            retain(operation)
 
         def settled(task):
             if not task.cancelled():
@@ -1227,8 +1236,14 @@ class AgentRuntime:
             raise AgentSubmitUnavailable
         if self.model_settings is not None and self.model_settings.catalog_cleanup_busy:
             raise PolicyDenied("Catalog provider cleanup is unconfirmed; no new work accepted")
+        if self._capabilities_configured or self.capability_settings is not None:
+            # Historical submission reconciliation returned above. A genuinely
+            # new task cannot capture models under an unreadable tool owner.
+            self.tool_snapshot()
         if explicit_skill is not None and self.skill_service is None:
             raise PolicyDenied("Explicit skill invocation requires owner and configured skills")
+        if explicit_skill is not None and not self.tool_snapshot().supports("skill_load"):
+            raise PolicyDenied("Explicit skill invocation is disabled by native availability")
         from services.agent.workspace_ownership import captured_context
 
         workspace_context = captured_context(self)
@@ -2549,6 +2564,7 @@ class AgentRuntime:
             if rec.task.state not in TERMINAL:
                 rec.task.state = TaskState.PAUSED
                 rec.done.set()
+        await self.authorizations.drain()
         host, controller = self.mcp_host, self.mcp_controller
         hosts = (host, *tuple(getattr(controller, "_uncertain_hosts", ())))
         for retiring in hosts:
@@ -2559,6 +2575,8 @@ class AgentRuntime:
             await controller.close()
         elif host is not None:
             await host.close()
+        if self.capability_settings is not None:
+            await self.capability_settings.close()
         service, self.skill_service = self.skill_service, None
         if service is not None:
             service.close()
@@ -2696,6 +2714,9 @@ class AgentRuntime:
             )
             # Intent is not a spend. The effect broker consumes it once after
             # its final source, scope, cancellation and revision checks.
+            self.policy.review_approval(
+                approval_id, resolution.action_digest, resolution.objective_revision
+            )
             pending["approved"] = True
             rec.resume.set()
             return {"approval_id": approval_id, "approved": True}
@@ -2859,6 +2880,9 @@ class AgentRuntime:
             self._approval_action_current(rec, pending)
             replacement = self.policy.reissue_approval(
                 approval_id, request.action_digest, request.objective_revision
+            )
+            self.authorizations.register(
+                rec, replacement, pending["tool"], pending["arguments"], previous=approval_id
             )
             rec.approval_wait_id = replacement.approval_id
             rec.pending = {
@@ -3111,6 +3135,17 @@ class AgentRuntime:
         """Terminal publication does not prove its worker or child has released."""
         return (
             self._closed
+            or (
+                self.capability_settings is not None
+                and any(
+                    (
+                        self.capability_settings.operations,
+                        self.capability_settings.actual_operations,
+                        self.capability_settings.native_workers,
+                    )
+                )
+            )
+            or bool(self.authorizations.tasks)
             or (self.model_settings is not None and self.model_settings.catalog_cleanup_busy)
             or any(
                 rec.task.state not in TERMINAL
@@ -3121,7 +3156,7 @@ class AgentRuntime:
             )
         )
 
-    def tool_snapshot(self, task: Task | None = None) -> NativeToolSnapshot:
+    def host_tool_snapshot(self, task: Task | None = None) -> NativeToolSnapshot:
         """Native gateways, independently of action approval/target readiness."""
         harness = (
             task.harness_version
@@ -3149,6 +3184,23 @@ class AgentRuntime:
             ),
             catalog_available=True,
         )
+
+    def tool_snapshot(self, task: Task | None = None) -> NativeToolSnapshot:
+        snapshot = self.host_tool_snapshot(task)
+        owner = self.capability_settings
+        if owner is None:
+            if self._capabilities_configured:
+                raise PolicyDenied("Native capability availability is unavailable")
+            return snapshot
+        try:
+            revision, disabled = owner.mask()
+            return NativeToolSnapshot(
+                tuple(name for name in snapshot.available_tools if name not in disabled),
+                owner_disabled=disabled,
+                owner_revision=revision,
+            )
+        except (ValueError, RuntimeError, OSError, sqlite3.Error):
+            raise PolicyDenied("Native capability availability is unavailable") from None
 
     async def inspect_tools(self, arguments: dict, *, task_id: str | None = None) -> dict:
         """Authenticated API projection; never advance a task or create pins."""
@@ -3377,6 +3429,8 @@ class AgentRuntime:
         revision = rec.task.objective_revision
         revised = False
         text = None
+        context_observation = None
+        observation_operation = self.context_observations.new_operation()
 
         def current():
             nonlocal revised
@@ -3487,6 +3541,19 @@ class AgentRuntime:
                 raise PromptCountUnavailable("Native Agent export admission is invalid") from exc
             rec.task.content_scope = combine_scopes(rec.task.content_scope, receipt.effective_scope)
             current()
+            if (
+                purpose == "complete_generation"
+                and context_observation is not None
+                and request_sha256 == context_observation.measurement.request_sha256
+            ):
+                self.context_observations.record(
+                    operation_id=observation_operation,
+                    phase="generation_export_admitted",
+                    scope=context_observation.scope,
+                    model=context_observation.model,
+                    measurement=prepared.measurement,
+                    selection=context_observation.selection,
+                )
 
         messages = build_messages(
             rec.task.objective,
@@ -3507,6 +3574,31 @@ class AgentRuntime:
                     messages[:2], history_exchanges(messages[2:]), prepare, check
                 )
                 prepared = selection.prepared
+                if prepared.measurement is not None:
+                    context_observation = self.context_observations.record(
+                        operation_id=observation_operation,
+                        phase="prepared",
+                        scope={
+                            "session_id": rec.task.session_id,
+                            "thread_id": rec.task.thread_id,
+                            "epoch": rec.task.epoch,
+                            "source_event_ids": tuple(rec.task.source_event_ids),
+                            "task_id": rec.task.task_id,
+                            "objective_revision": revision,
+                            "harness_version": rec.task.harness_version,
+                            "through_sequence": None,
+                        },
+                        model=lambda: captured_model(provider, rec.task.model_pin),
+                        measurement=prepared.measurement,
+                        selection={
+                            "unit": "exchange",
+                            "kept": selection.kept_exchanges,
+                            "dropped": selection.dropped_exchanges,
+                            "examined": selection.kept_exchanges + selection.dropped_exchanges,
+                            "history_complete": True,
+                            "measurement_attempts": selection.measurement_attempts,
+                        },
+                    )
                 # Stay in this Task and exact tool scope. A child task would
                 # invalidate the provider's request-local admission binding.
                 text = await prepared.complete()
@@ -3907,6 +3999,7 @@ class AgentRuntime:
         rec.resume.clear()
         rec.task.state = TaskState.AWAITING_APPROVAL
         try:
+            self.authorizations.register(rec, approval, tool, args)
             await self._append(
                 rec,
                 "approval.requested",
