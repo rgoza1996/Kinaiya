@@ -16,6 +16,7 @@ from packages.contracts.stt_models import MAX_STT_REVISION, STTModelChange, STTM
 from packages.providers.disclosure import scope_allowed
 from packages.providers.text import ProviderCleanupError
 from services.converse.model_settings import OPERATION_NAMES, _decode, _digest, _encode
+from services.converse.stt_reconciliation import STTAdmissionRecovery
 from services.settings.provider_catalog import _storage
 from services.settings.stt_factory import inspect_stt_recipe, open_stt_recipe
 
@@ -87,9 +88,11 @@ class STTModelLease:
         self.cleanup = None
         self.cleanup_failed = False
         self.cleanup_unknown = False
+        self.cleanup_actual_failed = False
         self.settled = False
         self.admission_id = None
         self.admission_identity = None
+        self.admission_binding = None
 
     def current(self):
         if (
@@ -144,23 +147,24 @@ class STTModelLease:
             if getattr(self.target, "_cleanup_failed", False) or getattr(
                 self.provider, "_cleanup_failed", False
             ):
-                self.cleanup_failed = True
+                self.cleanup_failed = self.cleanup_actual_failed = True
             if self.selection.source == "catalog":
                 await self.provider.close()
                 http = getattr(self.provider, "http", None)
                 if http is not None:
                     http.headers.clear()
             # Never close the shared host composition: it also owns TTS.
-            if self.cleanup_failed or self.cleanup_unknown:
-                raise ProviderCleanupError("STT operation cleanup is unconfirmed")
         except BaseException:
-            self.cleanup_failed = True
+            self.cleanup_failed = self.cleanup_actual_failed = True
             raise
+        if self.cleanup_failed or self.cleanup_unknown:
+            self.cleanup_failed = True
+            raise ProviderCleanupError("STT operation cleanup is unconfirmed")
         self.settled = True
         self.owner._released(self)
 
 
-class STTModelSettings:
+class STTModelSettings(STTAdmissionRecovery):
     def __init__(
         self,
         runtime,
@@ -190,6 +194,8 @@ class STTModelSettings:
         self.backend_id = None
         self.leases = set()
         self._native_unsettled = set()
+        self._reconciling = {}
+        self._schema_version = 2
         self.closed = self._failed = self._db_closed = False
         self._owner_fd = None
         path = None if path is None else Path(os.path.abspath(path))
@@ -231,21 +237,20 @@ class STTModelSettings:
             raise
 
     def _schema(self):
-        if self.db.execute("PRAGMA user_version").fetchone()[0] != 1:
+        version = self._schema_version
+        if self.db.execute("PRAGMA user_version").fetchone()[0] != version:
             raise ValueError("STT storage schema is unavailable")
-        if (
-            self.db.execute(
-                "SELECT COUNT(*) FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'"
-            ).fetchone()[0]
-            != 3
-        ):
+        if self.db.execute(
+            "SELECT COUNT(*) FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'"
+        ).fetchone()[0] != (3 if version == 1 else 4):
             raise ValueError("STT storage schema is unavailable")
         objects = set(
             self.db.execute(
-                "SELECT CASE WHEN length(type)<=5 THEN type END, CASE WHEN length(name)<=32 THEN name END FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' LIMIT 4"
+                "SELECT CASE WHEN length(type)<=5 THEN type END, CASE WHEN length(name)<=32 THEN name END FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' LIMIT 5"
             )
         )
-        if objects != {("table", name) for name in _TABLES}:
+        tables = _TABLES | ({"stt_model_settlements"} if version == 2 else set())
+        if objects != {("table", name) for name in tables}:
             raise ValueError("STT storage schema is unavailable")
         columns = {
             "stt_model_state": [
@@ -260,7 +265,21 @@ class STTModelSettings:
                 ("request", "TEXT", 1, 0),
                 ("receipt", "TEXT", 1, 0),
             ],
-            "stt_model_admissions": [("id", "TEXT", 0, 1), ("identity", "TEXT", 1, 0)],
+            "stt_model_admissions": [("id", "TEXT", 0, 1), ("identity", "TEXT", 1, 0)]
+            + ([("binding", "TEXT", 0, 0)] if version == 2 else []),
+            **(
+                {
+                    "stt_model_settlements": [
+                        ("id", "TEXT", 0, 1),
+                        ("identity", "TEXT", 1, 0),
+                        ("binding", "TEXT", 1, 0),
+                        ("request", "TEXT", 1, 0),
+                        ("receipt", "TEXT", 1, 0),
+                    ]
+                }
+                if version == 2
+                else {}
+            ),
         }
         for table, expected in columns.items():
             if self.db.execute("SELECT COUNT(*) FROM pragma_table_info(?)", (table,)).fetchone()[
@@ -269,7 +288,7 @@ class STTModelSettings:
                 raise ValueError("STT storage schema is unavailable")
             actual = list(
                 self.db.execute(
-                    'SELECT CASE WHEN length(name)<=32 THEN name END, CASE WHEN length(type)<=7 THEN upper(type) END, "notnull", pk FROM pragma_table_info(?) LIMIT 5',
+                    'SELECT CASE WHEN length(name)<=32 THEN name END, CASE WHEN length(type)<=7 THEN upper(type) END, "notnull", pk FROM pragma_table_info(?) LIMIT 6',
                     (table,),
                 )
             )
@@ -296,6 +315,9 @@ class STTModelSettings:
                 (_encode({"source": "host", "catalog_binding": None}), secrets.token_hex(16)),
             )
             self.db.execute("PRAGMA user_version=1")
+        self._schema_version = self.db.execute("PRAGMA user_version").fetchone()[0]
+        if self._schema_version not in {1, 2}:
+            raise ValueError("STT storage schema is unavailable")
         self._schema()
         revision, selection = self._read()
         self._native_unsettled = set(self._admissions())
@@ -320,6 +342,17 @@ class STTModelSettings:
             or (not revision and selection.source != "host")
         ):
             raise ValueError("STT storage history is inconsistent")
+        if self._schema_version == 1:
+            # Validate all old state/receipts/admission bytes before additive migration.
+            # NULL never fabricates a worker identity for a legacy marker.
+            self.db.execute("ALTER TABLE stt_model_admissions ADD COLUMN binding TEXT")
+            self.db.execute(
+                "CREATE TABLE stt_model_settlements (id TEXT PRIMARY KEY,identity TEXT NOT NULL,binding TEXT NOT NULL,request TEXT NOT NULL,receipt TEXT NOT NULL)"
+            )
+            self.db.execute("PRAGMA user_version=2")
+            self._schema_version = 2
+            self._schema()
+        self._validate_settlements()
 
     def _ensure_store(self):
         if self.closed or self._failed or self._db_closed:
@@ -372,11 +405,17 @@ class STTModelSettings:
         if self.db.execute("SELECT COUNT(*) FROM stt_model_admissions").fetchone()[0] > LEASE_LIMIT:
             raise ValueError("STT admission history exceeds its bound")
         rows = self.db.execute(
-            "SELECT CASE WHEN typeof(id)='text' AND length(id)=32 THEN id END, CASE WHEN typeof(identity)='text' AND length(CAST(identity AS BLOB))<=2048 THEN identity END FROM stt_model_admissions LIMIT 65"
+            "SELECT CASE WHEN typeof(id)='text' AND length(id)=32 THEN id END, CASE WHEN typeof(identity)='text' AND length(CAST(identity AS BLOB))<=2048 THEN identity END"
+            + (
+                ", CASE WHEN binding IS NULL THEN NULL WHEN typeof(binding)='text' AND length(CAST(binding AS BLOB))<=8192 THEN binding ELSE '' END"
+                if self._schema_version == 2
+                else ",NULL"
+            )
+            + " FROM stt_model_admissions LIMIT 65"
         )
         result = {}
         revision, _ = self._read()
-        for key, encoded in rows:
+        for key, encoded, binding in rows:
             if type(key) is not str or re.fullmatch(r"[a-f0-9]{32}", key) is None:
                 raise ValueError("STT native admission identity is unavailable")
             pin = STTModelPin.model_validate(_decode(encoded, 2048))
@@ -387,6 +426,7 @@ class STTModelSettings:
                 or _encode(pin.model_dump()) != encoded
             ):
                 raise ValueError("STT native admission provenance is unavailable")
+            self._checked_binding(binding, encoded)
             result[key] = encoded
         return result
 
@@ -399,9 +439,10 @@ class STTModelSettings:
         }
         return len(set(observed) - live) + len(self._native_unsettled - set(observed))
 
-    def begin_native(self, lease):
+    def begin_native(self, lease, binding=None):
         if lease.admission_id is not None or lease not in self.leases or not lease.current():
             raise ValueError("STT native invocation is stale or already admitted")
+        encoded_binding = self._encode_binding(binding)
         self.db.execute("BEGIN IMMEDIATE")
         try:
             if (
@@ -416,7 +457,11 @@ class STTModelSettings:
             key = secrets.token_hex(16)
             lease.admission_id, lease.admission_identity = key, identity
             self._native_unsettled.add(key)
-            self.db.execute("INSERT INTO stt_model_admissions VALUES (?,?)", (key, identity))
+            lease.admission_binding = encoded_binding
+            self.db.execute(
+                "INSERT INTO stt_model_admissions (id,identity,binding) VALUES (?,?,?)",
+                (key, identity, encoded_binding),
+            )
             self.db.commit()
         except BaseException:
             if lease.admission_id is not None:
@@ -438,12 +483,18 @@ class STTModelSettings:
             raise RuntimeError("STT settlement does not own its original admission")
         self.db.execute("BEGIN IMMEDIATE")
         try:
-            observed = self._admissions()
-            if observed.get(lease.admission_id) != lease.admission_identity:
+            observed = self._admission_details()
+            if observed.get(lease.admission_id) != (
+                lease.admission_identity,
+                lease.admission_binding,
+            ):
                 raise RuntimeError("Owned STT admission settlement is unavailable")
+            self._retain_settlement(
+                lease.admission_id, lease.admission_identity, lease.admission_binding
+            )
             changed = self.db.execute(
-                "DELETE FROM stt_model_admissions WHERE id=? AND identity=?",
-                (lease.admission_id, lease.admission_identity),
+                "DELETE FROM stt_model_admissions WHERE id=? AND identity=? AND binding IS ?",
+                (lease.admission_id, lease.admission_identity, lease.admission_binding),
             ).rowcount
             if changed != 1:
                 raise RuntimeError("Owned STT admission settlement changed")
@@ -504,7 +555,8 @@ class STTModelSettings:
         return {
             **observed,
             "leases": len(self.leases),
-            "cleanup_pending": sum(
+            "cleanup_pending": len(self._reconciling)
+            + sum(
                 lease.cleanup is not None and not lease.settled and not lease.cleanup_failed
                 for lease in self.leases
             ),
@@ -769,7 +821,7 @@ class STTModelSettings:
         self._finish_close()
 
     def _finish_close(self):
-        if self.closed and not self.leases and not self._native_unsettled:
+        if self.closed and not self.leases and not self._native_unsettled and not self._reconciling:
             if not self._db_closed:
                 self.db.close()
                 self._db_closed = True

@@ -88,6 +88,11 @@ complete local append projection check, not a new generic strict transport.
 
 ## Unresolved local-worker gate
 
+Extension: [ADR 0100](0100-native-stt-worker-settlement.md) adds exact positive
+settlement for supported local Whisper workers and their original transcript
+publications. The limitation below still applies to unsupported/legacy markers,
+changed worker instances and missing required publication proof.
+
 Legacy Whisper uses `to_thread` in a separate service; a closed HTTP request
 does not prove its native decoder stopped. Managed workers also need actual
 settlement proof. Before dispatching such host work, STT durably records an

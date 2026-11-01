@@ -1,0 +1,343 @@
+{
+  "$defs": {
+    "AgentSteerAdmissionRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "expected_backend": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Expected Backend",
+          "type": "string"
+        },
+        "task": {
+          "$ref": "#/$defs/AgentTaskIdentity"
+        },
+        "actor": {
+          "enum": [
+            "owner",
+            "decisions"
+          ],
+          "title": "Actor",
+          "type": "string"
+        },
+        "request": {
+          "$ref": "#/$defs/AgentSteerChange"
+        },
+        "effective_content_scope": {
+          "enum": [
+            "public_synthetic",
+            "private_cloud_authorized",
+            "local_only"
+          ],
+          "title": "Effective Content Scope",
+          "type": "string"
+        },
+        "source_revisions": {
+          "items": {
+            "$ref": "#/$defs/AgentSteerSource"
+          },
+          "maxItems": 32,
+          "title": "Source Revisions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "schema_version",
+        "expected_backend",
+        "task",
+        "actor",
+        "request",
+        "effective_content_scope",
+        "source_revisions"
+      ],
+      "title": "AgentSteerAdmissionRequest",
+      "type": "object"
+    },
+    "AgentSteerChange": {
+      "additionalProperties": false,
+      "description": "Strict immutable projection of all six original SteerRequest fields.",
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "instruction": {
+          "maxLength": 16000,
+          "minLength": 1,
+          "title": "Instruction",
+          "type": "string"
+        },
+        "content_scope": {
+          "enum": [
+            "public_synthetic",
+            "private_cloud_authorized",
+            "local_only"
+          ],
+          "title": "Content Scope",
+          "type": "string"
+        },
+        "expected_objective_revision": {
+          "maximum": 9007199254740990,
+          "minimum": 1,
+          "title": "Expected Objective Revision",
+          "type": "integer"
+        },
+        "idempotency_key": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Idempotency Key",
+          "type": "string"
+        },
+        "source_event_ids": {
+          "items": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Source Event Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "schema_version",
+        "instruction",
+        "content_scope",
+        "expected_objective_revision",
+        "idempotency_key",
+        "source_event_ids"
+      ],
+      "title": "AgentSteerChange",
+      "type": "object"
+    },
+    "AgentSteerReceipt": {
+      "additionalProperties": false,
+      "description": "Committed intent only. Only the original direct created path may install it.",
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "disposition": {
+          "enum": [
+            "created",
+            "retained"
+          ],
+          "title": "Disposition",
+          "type": "string"
+        },
+        "status": {
+          "const": "intent_accepted",
+          "title": "Status",
+          "type": "string"
+        },
+        "request": {
+          "$ref": "#/$defs/AgentSteerAdmissionRequest"
+        },
+        "event_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Event Id",
+          "type": "string"
+        },
+        "sequence": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "control_revision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Control Revision",
+          "type": "integer"
+        },
+        "admission_mode": {
+          "enum": [
+            "on_demand",
+            "autonomous"
+          ],
+          "title": "Admission Mode",
+          "type": "string"
+        },
+        "target_objective_revision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Target Objective Revision",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schema_version",
+        "disposition",
+        "status",
+        "request",
+        "event_id",
+        "sequence",
+        "control_revision",
+        "admission_mode",
+        "target_objective_revision"
+      ],
+      "title": "AgentSteerReceipt",
+      "type": "object"
+    },
+    "AgentSteerSource": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "event_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Event Id",
+          "type": "string"
+        },
+        "revision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "content_scope": {
+          "enum": [
+            "public_synthetic",
+            "private_cloud_authorized",
+            "local_only"
+          ],
+          "title": "Content Scope",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "event_id",
+        "revision",
+        "content_scope"
+      ],
+      "title": "AgentSteerSource",
+      "type": "object"
+    },
+    "AgentTaskIdentity": {
+      "additionalProperties": false,
+      "description": "Immutable canonical native initial-submit identity, never a mutable Task.",
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "session_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Session Id",
+          "type": "string"
+        },
+        "thread_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Thread Id",
+          "type": "string"
+        },
+        "epoch": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Epoch",
+          "type": "integer"
+        },
+        "task_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Task Id",
+          "type": "string"
+        },
+        "submit_event_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Submit Event Id",
+          "type": "string"
+        },
+        "submit_sequence": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Submit Sequence",
+          "type": "integer"
+        },
+        "submit_idempotency_key": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Submit Idempotency Key",
+          "type": "string"
+        },
+        "submit_payload_digest": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Submit Payload Digest",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "session_id",
+        "thread_id",
+        "epoch",
+        "task_id",
+        "submit_event_id",
+        "submit_sequence",
+        "submit_idempotency_key",
+        "submit_payload_digest"
+      ],
+      "title": "AgentTaskIdentity",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Negative observation never fences a Task or steering attempt, including Off ABA.",
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "recorded",
+        "unobserved"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "request": {
+      "$ref": "#/$defs/AgentSteerAdmissionRequest"
+    },
+    "receipt": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AgentSteerReceipt"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "status",
+    "request",
+    "receipt"
+  ],
+  "title": "AgentSteerLookupResult",
+  "type": "object"
+}

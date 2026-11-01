@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 import '../config/connection.dart';
 import '../config/service_root.dart';
 import 'stt_model_settings.dart';
+import 'stt_admissions.dart';
 
 class SttModelFailure implements Exception {
   const SttModelFailure(this.message, {this.status, this.dispatched = false});
@@ -74,6 +75,27 @@ class SttModelsApi {
     null,
     SttModelsSnapshot.fromJson,
   );
+
+  Future<SttAdmissionInventory> admissions() => _request(
+    'GET',
+    '/v1/converse/options/stt-admissions',
+    null,
+    SttAdmissionInventory.fromJson,
+  );
+
+  Future<SttAdmissionOutcome> reconcileAdmission(Object? request) {
+    final body = sttAdmissionRequest(request);
+    return _request(
+      'POST',
+      '/v1/converse/options/stt-admissions/reconcile',
+      body,
+      (raw) {
+        final result = SttAdmissionOutcome.fromJson(raw);
+        if (!result.matches(body)) throw const FormatException();
+        return result;
+      },
+    );
+  }
 
   _KnownSttChange? _record(String key) {
     for (final record in _known) {

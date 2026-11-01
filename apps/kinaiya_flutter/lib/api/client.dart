@@ -23,12 +23,14 @@ import 'agent_model_client.dart';
 import 'agent_model_settings.dart';
 import 'agent_runtime_client.dart';
 import 'agent_runtime_settings.dart';
+import 'agent_control_client.dart';
 import 'library_models.dart';
 import 'artifact_client.dart';
 import 'provider_client.dart';
 import 'tool_permissions_client.dart';
 import 'converse_model_client.dart';
 import 'stt_model_client.dart';
+import 'tts_model_client.dart';
 import 'decisions_model_client.dart';
 import 'auxiliary_route_client.dart';
 import '../config/service_root.dart';
@@ -88,6 +90,7 @@ class KinaiyaClient {
     http.Client? httpClient,
     http.Client Function()? memoryClientFactory,
     http.Client Function()? sttModelClientFactory,
+    http.Client Function()? ttsModelClientFactory,
     http.Client Function()? decisionsClientFactory,
     http.Client Function()? decisionsModelClientFactory,
     http.Client Function()? agentWorkspaceClientFactory,
@@ -95,6 +98,7 @@ class KinaiyaClient {
     http.Client Function()? providerClientFactory,
     http.Client Function()? agentModelClientFactory,
     http.Client Function()? agentRuntimeClientFactory,
+    http.Client Function()? agentControlClientFactory,
   }) : sessionBase = normalizeServiceRoot(sessionBase),
        agentBase = normalizeServiceRoot(agentBase),
        converseBase = normalizeServiceRoot(converseBase),
@@ -110,6 +114,9 @@ class KinaiyaClient {
        _sttModelClientFactory =
            sttModelClientFactory ??
            (httpClient == null ? http.Client.new : _sttModelInjectionRequired),
+       _ttsModelClientFactory =
+           ttsModelClientFactory ??
+           (httpClient == null ? http.Client.new : _ttsModelInjectionRequired),
        _providerClientFactory =
            providerClientFactory ??
            (httpClient == null ? http.Client.new : _providerInjectionRequired),
@@ -129,7 +136,10 @@ class KinaiyaClient {
            (httpClient == null ? http.Client.new : _modelInjectionRequired),
        _agentRuntimeClientFactory =
            agentRuntimeClientFactory ??
-           (httpClient == null ? http.Client.new : _runtimeInjectionRequired);
+           (httpClient == null ? http.Client.new : _runtimeInjectionRequired),
+       _agentControlClientFactory =
+           agentControlClientFactory ??
+           (httpClient == null ? http.Client.new : _controlInjectionRequired);
 
   final String sessionBase;
   final String agentBase;
@@ -253,6 +263,15 @@ class KinaiyaClient {
     ownerToken: _token,
     clientFactory: _sttModelClientFactory,
   );
+  final http.Client Function() _ttsModelClientFactory;
+  static http.Client _ttsModelInjectionRequired() => throw StateError(
+    'TTS model settings require an independently injected transport',
+  );
+  late final TtsModelsApi ttsModels = TtsModelsApi(
+    baseUrl: converseBase,
+    ownerToken: _token,
+    clientFactory: _ttsModelClientFactory,
+  );
   final http.Client Function() _decisionsModelClientFactory;
   static http.Client _decisionsModelInjectionRequired() => throw StateError(
     'Decisions model transport requires its own injected factory',
@@ -290,6 +309,16 @@ class KinaiyaClient {
     clientFactory: _agentRuntimeClientFactory,
   );
 
+  final http.Client Function() _agentControlClientFactory;
+  static http.Client _controlInjectionRequired() => throw StateError(
+    'Agent mode transport requires its own injected factory',
+  );
+  late final AgentControlApi agentControl = AgentControlApi(
+    baseUrl: sessionBase,
+    ownerToken: _token,
+    clientFactory: _agentControlClientFactory,
+  );
+
   Future<ConverseSetup> converseSetup() async =>
       ConverseSetup.fromJson(await _get(converseBase, '/v1/converse/setup'));
 
@@ -311,6 +340,7 @@ class KinaiyaClient {
     String label = 'mock',
     http.Client Function()? memoryClientFactory,
     http.Client Function()? sttModelClientFactory,
+    http.Client Function()? ttsModelClientFactory,
     http.Client Function()? decisionsClientFactory,
     http.Client Function()? decisionsModelClientFactory,
     http.Client Function()? agentWorkspaceClientFactory,
@@ -318,6 +348,7 @@ class KinaiyaClient {
     http.Client Function()? providerClientFactory,
     http.Client Function()? agentModelClientFactory,
     http.Client Function()? agentRuntimeClientFactory,
+    http.Client Function()? agentControlClientFactory,
   }) : sessionBase = normalizeServiceRoot(sessionBase),
        agentBase = normalizeServiceRoot(agentBase),
        converseBase = normalizeServiceRoot(converseBase),
@@ -331,6 +362,8 @@ class KinaiyaClient {
        _memoryClientFactory = memoryClientFactory ?? http.Client.new,
        _sttModelClientFactory =
            sttModelClientFactory ?? _sttModelInjectionRequired,
+       _ttsModelClientFactory =
+           ttsModelClientFactory ?? _ttsModelInjectionRequired,
        _providerClientFactory =
            providerClientFactory ?? _providerInjectionRequired,
        _decisionsClientFactory =
@@ -342,7 +375,9 @@ class KinaiyaClient {
        _agentModelClientFactory =
            agentModelClientFactory ?? _modelInjectionRequired,
        _agentRuntimeClientFactory =
-           agentRuntimeClientFactory ?? _runtimeInjectionRequired {
+           agentRuntimeClientFactory ?? _runtimeInjectionRequired,
+       _agentControlClientFactory =
+           agentControlClientFactory ?? _controlInjectionRequired {
     _mockLabel = label;
   }
 
@@ -1059,12 +1094,14 @@ class KinaiyaClient {
       unawaited(toolPermissions.close());
       unawaited(converseModels.close());
       unawaited(sttModels.close());
+      unawaited(ttsModels.close());
       final classifier = decisionsModels;
       if (classifier != null) unawaited(classifier.close());
       unawaited(auxiliaryRoutes.close());
       unawaited(workspaceSettings.close());
       unawaited(capabilities.close());
       unawaited(runtimeSettings.close());
+      unawaited(agentControl.close());
       artifacts.close();
     }
   }

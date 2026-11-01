@@ -7,7 +7,6 @@ import '../api/agent_model_client.dart';
 import '../api/agent_runtime_settings.dart';
 import '../api/agent_workspace.dart';
 import '../api/client.dart';
-import '../api/converse_setup.dart';
 import '../config/options_catalog.dart';
 import '../config/options_navigation.dart';
 import '../presentation/controller.dart';
@@ -25,6 +24,7 @@ import 'options_provider_editor.dart';
 import 'options_tool_permissions.dart';
 import 'options_converse_model.dart';
 import 'options_stt_model.dart';
+import 'options_tts_model.dart';
 import 'options_decisions_model.dart';
 import 'options_auxiliary_routes.dart';
 import 'presentation_settings.dart';
@@ -58,7 +58,6 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
   String _query = '';
   final _search = TextEditingController();
   final _scaffold = GlobalKey<ScaffoldState>();
-  ConverseSetup? _converse;
   Map<String, Object?>? _agent;
   AgentModelsSnapshot? _models;
   AgentRuntimeSnapshot? _runtime;
@@ -66,7 +65,7 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
   OptionsRuntimeDraft? _legacyRuntimeDraft;
   OptionsRuntimeDraft? get _runtimeDraft =>
       _runtimeScope?.draft ?? _legacyRuntimeDraft;
-  String? _readError, _modelError, _runtimeError, _notice;
+  String? _modelError, _runtimeError, _notice;
   ({AgentModelApi owner, String backendId, String text})? _modelNotice;
   bool _loading = false, _savingPreference = false;
   int _read = 0, _connection = -1;
@@ -189,13 +188,12 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
     final generation = owner.connectionGeneration, request = ++_read;
     _connection = generation;
     setState(() {
-      _converse = null;
       _agent = null;
       _models = null;
       _runtime = null;
       _runtimeScope = null;
       _legacyRuntimeDraft = null;
-      _readError = _modelError = _runtimeError = null;
+      _modelError = _runtimeError = null;
       _loading = api != null;
     });
     if (api == null) return;
@@ -206,21 +204,6 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
         owner.ownsConnection(generation, api);
     // Independently failing services retain their own unknown state.
     final reads = <Future<void>>[
-      () async {
-        try {
-          final result = await api.converseSetup().timeout(
-            const Duration(seconds: 8),
-          );
-          if (current()) setState(() => _converse = result);
-        } catch (_) {
-          if (current()) {
-            setState(
-              () =>
-                  _readError = 'Converse model declarations could not be read.',
-            );
-          }
-        }
-      }(),
       () async {
         try {
           final result = await api.agentOptions();
@@ -913,34 +896,9 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
   List<Widget> get _errors => [
     if (widget.state.client == null)
       const Text('Connect to your host to inspect models and services.'),
-    if (_readError != null) Text(_readError!),
     if (_modelError != null) Text(_modelError!),
     if (_runtimeError != null) Text(_runtimeError!),
   ];
-
-  Widget _role(String id, String label) {
-    final role = _converse?.roles[id];
-    return DesignPanel(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _heading(label),
-          const SizedBox(height: 12),
-          _field(
-            'Configured model',
-            role?.label ?? (role == null ? 'Unavailable' : 'Not configured'),
-          ),
-          if (id == 'conversation')
-            _field('Reasoning', _converse?.reasoning ?? 'Unavailable'),
-          if (role != null) Text(role.reason),
-          const SizedBox(height: 8),
-          const Text(
-            'Host configuration · Changing this role requires a host update.',
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _modelDefaults() {
     final owner = widget.state, client = widget.state.client;
@@ -1177,7 +1135,15 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
             client != null &&
             owner.ownsConnection(generation, client),
       ),
-      _role('tts', 'Text to speech'),
+      OptionsTtsModel(
+        key: ObjectKey(client?.ttsModels),
+        api: client?.ttsModels,
+        active: () =>
+            mounted &&
+            identical(widget.state, owner) &&
+            client != null &&
+            owner.ownsConnection(generation, client),
+      ),
       const Text(
         'This host currently accepts text dialogue through transcription. Direct audio input and disabling transcription require a compatible native pipeline.',
       ),

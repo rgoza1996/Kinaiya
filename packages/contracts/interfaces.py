@@ -3,6 +3,12 @@
 from collections.abc import AsyncIterator
 from typing import Any, Protocol
 
+from packages.contracts.agent_control import (
+    AgentControlSnapshot,
+    AgentSteerAdmissionRequest,
+    AgentSteerLookupResult,
+    AgentSteerReceipt,
+)
 from packages.contracts.agent_submit import (
     AgentSubmitLookupRequest,
     AgentSubmitLookupResult,
@@ -17,7 +23,30 @@ from packages.contracts.models import (
 )
 
 
+class AgentControlUnavailable(RuntimeError):
+    def __init__(self):
+        super().__init__("Agent control outcome is unconfirmed")
+
+
+class AgentControlConflict(ValueError):
+    def __init__(self):
+        super().__init__("Agent control request conflicts with native state")
+
+
+class AgentModeOff(PermissionError):
+    def __init__(self):
+        super().__init__("Agent operating mode is off; accepted work may finish")
+
+
 class Journal(Protocol):
+    async def agent_control_backend(self) -> str: ...
+
+    async def agent_control_state(self) -> AgentControlSnapshot: ...
+
+    async def admit_steer(self, request: AgentSteerAdmissionRequest) -> AgentSteerReceipt: ...
+
+    async def lookup_steer(self, request: AgentSteerAdmissionRequest) -> AgentSteerLookupResult: ...
+
     async def append(self, request: AppendRequest) -> JournalEntry: ...
 
     async def read(

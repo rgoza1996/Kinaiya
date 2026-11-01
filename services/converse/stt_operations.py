@@ -7,6 +7,7 @@ from anyio import CancelScope
 
 from packages.contracts.models import AppendRequest, JournalEntry, SpeechWindow
 from services.converse.model_settings import _encode
+from services.converse.stt_reconciliation import native_client
 
 
 class STTOperation:
@@ -22,6 +23,8 @@ class STTOperation:
         self.publications = set()
         self.request_task = asyncio.current_task()
         self.admission = runtime.admission()
+        self.native_client = native_client(lease.provider)
+        self.native_binding = None
 
     async def current(self, validate=None):
         def bound():
@@ -56,6 +59,7 @@ class STTOperation:
         )
         if len(expected.model_dump_json().encode("utf-8")) > 65536:
             raise ValueError("STT publication exceeds the native journal bound")
+        self.lease.owner.admit_publication(self.lease, expected)
 
         async def append():
             observed = await controller.ingest(window)
@@ -90,26 +94,64 @@ class STTOperation:
             )
         return self.cleanup
 
-    def start_native(self):
+    async def start_native(self, data, *, current, publication):
         if self.started:
             raise ValueError("STT operation was already dispatched")
         if self.lease.uncertain_native_worker:
-            self.lease.owner.begin_native(self.lease)
+            prepared = (
+                None
+                if self.native_client is None
+                else await self.wait(self.native_client.prepare_native_stt(data, current=current))
+            )
+            if not await current():
+                raise RuntimeError("STT source or owner changed during metadata admission")
+            if prepared is not None:
+                from packages.contracts.stt_settlement import STTPublication
+
+                self.native_binding = {
+                    **prepared,
+                    "publication": STTPublication(
+                        state=publication,
+                        session_id=None,
+                        thread_id=None,
+                        epoch=None,
+                        idempotency_key=None,
+                        request_sha256=None,
+                        audio_sha256=None,
+                        stt_identity_sha256=None,
+                    ).model_dump(),
+                }
+            self.lease.owner.begin_native(self.lease, self.native_binding)
         self.started = True
+
+    async def dispatch_native(self, data, *, current):
+        if self.native_binding is None or not self.started:
+            raise RuntimeError("Native STT dispatch has no original reservation")
+        return await self.native_client.dispatch_native_stt(
+            data, self.native_binding, current=current
+        )
 
     async def _retire(self):
         try:
             if self.dependencies:
                 await asyncio.gather(*self.dependencies, return_exceptions=True)
+            if self.native_client is not None and self.native_client._native_exchanges:
+                await asyncio.gather(
+                    *tuple(self.native_client._native_exchanges), return_exceptions=True
+                )
+            if self.native_client is not None and self.native_client._native_closes:
+                await asyncio.gather(
+                    *tuple(self.native_client._native_closes), return_exceptions=True
+                )
             if any(
                 task.cancelled() or task.exception() is not None
                 for task in self.cleanup_dependencies
             ):
-                self.lease.cleanup_failed = True
+                self.lease.cleanup_failed = self.lease.cleanup_actual_failed = True
             if getattr(self.lease.target, "_cleanup_failed", False) or getattr(
                 self.lease.provider, "_cleanup_failed", False
             ):
-                self.lease.cleanup_failed = True
+                self.lease.cleanup_failed = self.lease.cleanup_actual_failed = True
             publication_failed = any(
                 task.cancelled() or task.exception() is not None for task in self.publications
             )
@@ -162,6 +204,18 @@ async def retire_converse_shared(runtime, journal, speech, windows=None):
     async def finish():
         while True:
             tasks = set(runtime._stt_finalizers) | set(runtime._stt_transport_closures)
+            stt_owner = runtime.stt_model_settings
+            if stt_owner is not None:
+                tasks.update(task for _, task in stt_owner._reconciling.values())
+            tasks.update(getattr(journal, "_submit_stt_closes", ()))
+            tasks.update(runtime._tts_finalizers)
+            for turn in runtime._tts_turns:
+                tasks.update(turn.publications)
+                tasks.update(
+                    task
+                    for task in (turn.cleanup, turn.producer_cleanup, turn.request_task)
+                    if task is not None
+                )
             for operation in runtime._stt_operations:
                 tasks.update(operation.dependencies)
                 tasks.update(
@@ -203,6 +257,10 @@ async def retire_converse_shared(runtime, journal, speech, windows=None):
         if owner is not None:
             busy = busy or bool(owner.leases) or bool(owner._native_unsettled)
             await owner.close()
+        tts_owner = runtime.tts_model_settings
+        if tts_owner is not None:
+            busy = busy or bool(tts_owner.leases) or bool(tts_owner._native_unsettled)
+            await tts_owner.close()
         if busy:
             # Native worker/publication/iterator uncertainty retains these
             # clients. A timeout or process-local reconnect is not settlement.

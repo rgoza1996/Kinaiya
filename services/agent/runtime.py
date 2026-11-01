@@ -27,6 +27,7 @@ import hashlib
 import json
 import sqlite3
 import time
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import SimpleNamespace
@@ -41,6 +42,14 @@ from harnesses.seed import (
     history_exchanges,
     observation_text,
     parse_action,
+)
+from packages.contracts.agent_control import (
+    AgentSteerAdmissionRequest,
+    AgentSteerChange,
+    AgentSteerLookupResult,
+    AgentSteerReceipt,
+    AgentSteerSource,
+    AgentTaskIdentity,
 )
 from packages.contracts.agent_submit import (
     AGENT_SUBMIT_ADMISSION_TIMEOUT_S,
@@ -59,7 +68,13 @@ from packages.contracts.agent_tools import (
     agent_tool_scope,
     native_tool_snapshot,
 )
-from packages.contracts.interfaces import Journal, TextProvider
+from packages.contracts.interfaces import (
+    AgentControlConflict,
+    AgentControlUnavailable,
+    AgentModeOff,
+    Journal,
+    TextProvider,
+)
 from packages.contracts.models import (
     AppendRequest,
     ApprovalReissue,
@@ -247,6 +262,9 @@ def _authenticated_retirement(
     return receipt
 
 
+_STEER_SOURCE_GUARD = ContextVar("kinaiya_steer_source_guard", default=None)
+
+
 @dataclass
 class _Record:
     task: Task
@@ -298,7 +316,27 @@ class _Record:
     submit_confirmed: bool = False
     # Immutable native initial-entry identity, independent of later steering.
     submit_identity: str | None = None
+    native_task_identity: AgentTaskIdentity | None = None
+    steer_attempt: _SteerAttempt | None = None
     workspace_context: Any | None = None
+
+
+@dataclass
+class _SteerAttempt:
+    record: _Record
+    original: AgentSteerChange
+    actor: str
+    digest: str
+    deadline: float
+    active: bool = True
+    sent: bool = False
+    installed: bool = False
+    proposal: AgentSteerAdmissionRequest | None = None
+    receipt: AgentSteerReceipt | None = None
+    owner: asyncio.Task | None = None
+
+    def suppress(self):
+        self.active = False
 
 
 @dataclass
@@ -788,6 +826,8 @@ class AgentRuntime:
             try:
                 resolved = await resolve(source_id)
             except Exception as exc:
+                if guard is not None:
+                    guard()
                 raise PolicyDenied(
                     f"decisions-routed {op} carries an unresolvable source {source_id!r}"
                 ) from exc
@@ -819,6 +859,8 @@ class AgentRuntime:
                         session_id, epoch, window.utterance_id
                     )
                 except Exception as exc:
+                    if guard is not None:
+                        guard()
                     raise PolicyDenied("Transcript-window source cannot be verified") from exc
                 if guard is not None:
                     guard()
@@ -835,7 +877,7 @@ class AgentRuntime:
                 raise PolicyDenied(f"decisions-routed {op} source {source_id!r} is not finalized")
             scopes.append(
                 await self._source_scope(source_id, resolved, guard=guard)
-                if guard is not None
+                if guard is not None and _STEER_SOURCE_GUARD.get() is None
                 else await self._source_scope(source_id, resolved)
             )
             if guard is not None:
@@ -888,14 +930,17 @@ class AgentRuntime:
 
     async def _source_scope(self, source_id, resolved, *, guard=None):
         if guard is None:
+            guard = _STEER_SOURCE_GUARD.get()
+        if guard is None:
             return await source_scope(self.journal, source_id, resolved)
 
         def read(method):
             async def guarded(*args, **kwargs):
                 guard()
-                result = await getattr(self.journal, method)(*args, **kwargs)
-                guard()
-                return result
+                try:
+                    return await getattr(self.journal, method)(*args, **kwargs)
+                finally:
+                    guard()
 
             return guarded
 
@@ -1337,6 +1382,12 @@ class AgentRuntime:
         except AgentSubmitConflict:
             pending.suppress()
             raise
+        except AgentModeOff:
+            pending.suppress()
+            # This direct, fully validated refusal applies only to this new
+            # attempt. Earlier uncertainty never reaches a fresh admission.
+            self._release_submit(pending, None)
+            raise
         except Exception:
             pending.suppress()
             raise AgentSubmitUnconfirmed from None
@@ -1352,6 +1403,7 @@ class AgentRuntime:
             return rec.task.model_copy(deep=True)
 
         rec.submit_sequence = receipt.entry.sequence
+        rec.native_task_identity = self._native_task_identity(receipt.entry)
         rec.submit_identity = _payload_hash(receipt.entry.model_dump(mode="json"))
         rec.submit_confirmed = True
         rec.task.error = None
@@ -1376,6 +1428,20 @@ class AgentRuntime:
             raise
         finally:
             self._release_submit(pending, rec)
+
+    @staticmethod
+    def _native_task_identity(entry):
+        return AgentTaskIdentity(
+            schema_version="1.0",
+            session_id=entry.session_id,
+            thread_id=entry.thread_id,
+            epoch=entry.epoch,
+            task_id=entry.payload["task_id"],
+            submit_event_id=entry.event_id,
+            submit_sequence=entry.sequence,
+            submit_idempotency_key=entry.payload["idempotency_key"],
+            submit_payload_digest=entry.payload["payload_digest"],
+        )
 
     @staticmethod
     def _check_submit_digest(rec, payload, digest, old_digest, *, entry=None) -> None:
@@ -1633,6 +1699,7 @@ class AgentRuntime:
         rec = _Record(
             task=task,
             recovered=True,
+            native_task_identity=self._native_task_identity(entry),
             submit_sequence=entry.sequence,
             submit_identity=_payload_hash(entry.model_dump(mode="json")),
             legacy_submit_scope="requested_content_scope" not in payload,
@@ -1796,101 +1863,305 @@ class AgentRuntime:
         raise AgentSubmitUnconfirmed
 
     # -- interface: steer ---------------------------------------------
+    def suppress_steer(self, task_id, key, owner=None):
+        rec = self._tasks.get(task_id)
+        attempt = rec.steer_attempt if rec is not None else None
+        if (
+            attempt is not None
+            and attempt.original.idempotency_key == key
+            and not attempt.installed
+            and (owner is None or attempt.owner is owner)
+        ):
+            attempt.suppress()
+
+    def _steer_open(self, attempt):
+        rec = attempt.record
+        self._check_completion_open(rec, require_active=True)
+        current = asyncio.current_task()
+        if (
+            self._closed
+            or not attempt.active
+            or rec.closing
+            or rec.cancel_requested
+            or self._tasks.get(rec.task.task_id) is not rec
+            or time.monotonic() >= attempt.deadline
+            or (current is not None and current.cancelling())
+        ):
+            attempt.suppress()
+            raise AgentControlUnavailable
+        if rec.task.objective_revision != attempt.original.expected_objective_revision:
+            raise StaleRevision("Task revision changed during native steering admission")
+        self._workspace_current(rec)
+
+    async def _steer_scope(self, rec, guard):
+        # Compute against actual reads without changing the live Task on refusal.
+        scopes = [rec.task.content_scope]
+        for source_id in tuple(rec.task.source_event_ids):
+            guard()
+            try:
+                source = await self.journal.resolve(source_id)
+                guard()
+                if (
+                    (source.session_id, source.thread_id, source.epoch)
+                    != (rec.task.session_id, rec.task.thread_id, rec.task.epoch)
+                    or source.kind not in {"conversation.user", "conversation.window"}
+                    or source.origin != "authenticated-user"
+                ):
+                    raise PolicyDenied("Task source disclosure cannot be verified")
+                scopes.append(await self._source_scope(source_id, source))
+            except Exception as exc:
+                guard()
+                raise PolicyDenied("Task source disclosure cannot be verified") from exc
+            finally:
+                guard()
+
+        def read(method):
+            async def guarded(*args, **kwargs):
+                guard()
+                try:
+                    return await getattr(self.journal, method)(*args, **kwargs)
+                finally:
+                    guard()
+
+            return guarded
+
+        journal = SimpleNamespace(entry=read("entry"), resolve=read("resolve"), read=read("read"))
+        closure = ContextScopeClosure(rec.task.session_id, rec.task.thread_id, rec.task.epoch)
+        for event_id in sorted(rec.context_event_ids):
+            entry = await journal.entry(event_id)
+            scopes.append(await context_scope(journal, entry, closure=closure))
+            guard()
+        return combine_scopes(*scopes)
+
+    async def _prepare_steer(self, attempt):
+        rec, request = attempt.record, attempt.original
+
+        def guard():
+            self._steer_open(attempt)
+
+        guard()
+        session = await self._require_session(rec.task.session_id)
+        guard()
+        if self._check_task_epoch(rec, session) is not None:
+            raise StaleRevision("Steering session changed")
+        scope = await self._steer_scope(rec, guard)
+        guard()
+        texts, source_scope = await self._source_authority_texts(
+            list(request.source_event_ids),
+            session_id=rec.task.session_id,
+            thread_id=rec.task.thread_id,
+            epoch=rec.task.epoch,
+            source_revision=None,
+            op="steer",
+            guard=guard,
+        )
+        guard()
+        if attempt.actor == "decisions" and request.instruction != "\n".join(texts):
+            raise PolicyDenied("Decisions steering does not match authenticated text")
+        observations = []
+        for source_id in request.source_event_ids:
+            guard()
+            resolved = await self.journal.resolve(source_id)
+            guard()
+            floor = await self._source_scope(source_id, resolved)
+            guard()
+            observations.append(
+                AgentSteerSource(
+                    schema_version="1.0",
+                    event_id=source_id,
+                    revision=resolved.payload.get("revision", 1),
+                    content_scope=floor,
+                )
+            )
+        effective = combine_scopes(scope, source_scope, request.content_scope)
+        if not scope_allowed(self.provider_for(rec).info, effective):
+            raise PolicyDenied("Steering disclosure does not permit the configured Agent provider")
+        backend = getattr(self.journal, "agent_control_backend", None)
+        if not callable(backend) or rec.native_task_identity is None:
+            raise AgentControlUnavailable
+        guard()
+        identity = await backend()
+        guard()
+        return AgentSteerAdmissionRequest(
+            schema_version="1.0",
+            expected_backend=identity,
+            task=rec.native_task_identity,
+            actor=attempt.actor,
+            request=request,
+            effective_content_scope=effective,
+            source_revisions=tuple(observations),
+        )
+
+    async def _fresh_steer(self, attempt):
+        rec, proposal = attempt.record, attempt.proposal
+
+        def guard():
+            self._steer_open(attempt)
+
+        guard()
+        session = await self._require_session(rec.task.session_id)
+        guard()
+        if self._check_task_epoch(rec, session) is not None:
+            raise StaleRevision("Steering session changed before installation")
+        floor = await self._steer_scope(rec, guard)
+        guard()
+        texts, source_scope = await self._source_authority_texts(
+            list(proposal.request.source_event_ids),
+            session_id=rec.task.session_id,
+            thread_id=rec.task.thread_id,
+            epoch=rec.task.epoch,
+            source_revision=None,
+            op="steer",
+            guard=guard,
+        )
+        guard()
+        if attempt.actor == "decisions" and proposal.request.instruction != "\n".join(texts):
+            raise PolicyDenied("Steering source changed before installation")
+        for observed in proposal.source_revisions:
+            guard()
+            resolved = await self.journal.resolve(observed.event_id)
+            guard()
+            if resolved.payload.get("revision", 1) != observed.revision:
+                raise PolicyDenied("Steering source revision changed before installation")
+        guard()
+        if await self.journal.agent_control_backend() != proposal.expected_backend:
+            raise AgentControlUnavailable
+        guard()
+        scope = combine_scopes(
+            rec.task.content_scope, floor, source_scope, proposal.effective_content_scope
+        )
+        if not scope_allowed(self.provider_for(rec).info, scope):
+            raise PolicyDenied("Steering disclosure changed before installation")
+        return scope
+
     async def steer(self, task_id: str, request: SteerRequest, actor: str = "owner") -> Task:
+        request = request.model_copy(deep=True)
+        original = AgentSteerChange.model_validate(request.model_dump(mode="json"))
         rec = self._get(task_id)
         await self._pending_submit_control(rec, request, actor, "steer")
-        self._check_actor(actor, list(request.source_event_ids), "steer")
-        if request.idempotency_key not in rec.steer_idem:
-            self._check_completion_open(rec, require_active=True)
-        instruction = request.instruction
-        source_scope = "public_synthetic"
-        if request.source_event_ids:
-            texts, source_scope = await self._validated_source_texts(
-                list(request.source_event_ids),
-                session_id=rec.task.session_id,
-                thread_id=rec.task.thread_id,
-                epoch=rec.task.epoch,
-                source_revision=None,
-                op="steer",
-                provider_info=self.provider_for(rec).info,
-            )
-            expected = "\n".join(texts)
-            if actor == "decisions" and instruction != expected:
-                raise PolicyDenied(
-                    "decisions-routed steer instruction does not match "
-                    "the resolved authenticated source text"
-                )
-            if actor == "decisions":
-                instruction = expected
-        if request.idempotency_key not in rec.steer_idem:
-            self._check_completion_open(rec, require_active=True)
-        payload = {
-            "instruction": instruction,
-            "expected_objective_revision": request.expected_objective_revision,
-            "source_event_ids": list(request.source_event_ids),
-            "content_scope": request.content_scope,
-        }
-        digest = _payload_hash(payload)
-        if request.idempotency_key in rec.steer_idem:
-            old_digest, _ = rec.steer_idem[request.idempotency_key]
-            if old_digest != digest:
+        self._check_actor(actor, list(original.source_event_ids), "steer")
+        digest = _payload_hash({"actor": actor, "request": original.model_dump(mode="json")})
+        cached = rec.steer_idem.get(original.idempotency_key)
+        if cached is not None:
+            if cached[0] != digest:
                 raise IdemConflict("idempotency key reuses a conflicting steer payload")
+            if original.source_event_ids:
+                texts, _ = await self._validated_source_texts(
+                    list(original.source_event_ids),
+                    session_id=rec.task.session_id,
+                    thread_id=rec.task.thread_id,
+                    epoch=rec.task.epoch,
+                    source_revision=None,
+                    op="steer",
+                    provider_info=self.provider_for(rec).info,
+                )
+                if actor == "decisions" and original.instruction != "\n".join(texts):
+                    raise PolicyDenied("Decisions steering does not match authenticated text")
             return rec.task.model_copy(deep=True)
-        if rec.task.state in TERMINAL:
-            raise TaskTerminal(f"task {task_id} is already {rec.task.state}")
+        previous = rec.steer_attempt
+        if previous is not None and not previous.installed:
+            if previous.digest != digest:
+                raise AgentControlConflict
+            if previous.proposal is not None and previous.sent and not previous.active:
+                lookup = getattr(self.journal, "lookup_steer", None)
+                if not callable(lookup):
+                    raise AgentControlUnavailable
+                operation = self._start_submit_operation(lambda: lookup(previous.proposal))
+                try:
+                    raw = await self._await_submit_operation(
+                        operation, AGENT_SUBMIT_LOOKUP_TIMEOUT_S
+                    )
+                    data = (
+                        raw.model_dump(mode="python")
+                        if isinstance(raw, AgentSteerLookupResult)
+                        else raw
+                    )
+                    observed = AgentSteerLookupResult.model_validate(data).validate_request(
+                        previous.proposal
+                    )
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    # Lookup is inspection after uncertainty. A later refusal
+                    # or invalid proof cannot classify the original as absent.
+                    raise AgentControlUnavailable from None
+                # Positive knowledge is inspection only; it cannot resurrect the
+                # suppressed direct-created opportunity or replace the goal.
+                previous.receipt = observed.receipt
+            raise AgentControlUnavailable
+        self._check_completion_open(rec, require_active=True)
         if rec.recovered and rec.worker is None:
             raise ValueError("Recovered work requires a new task; retire the paused task first")
         if rec.pending_steer is not None:
-            raise StaleRevision(
-                "Another steering revision is pending; wait for its applied acknowledgment"
-            )
-        if request.expected_objective_revision != rec.task.objective_revision:
-            raise StaleRevision(
-                f"stale revision {request.expected_objective_revision}; "
-                f"current is {rec.task.objective_revision}"
-            )
-        stale = self._check_task_epoch(rec, await self._require_session(rec.task.session_id))
-        if stale is not None:
-            raise StaleRevision(stale)
-        await self._task_scope(rec, require_open=True)
-        source_revisions = {
-            source_id: (await self.journal.resolve(source_id)).payload.get("revision", 1)
-            for source_id in request.source_event_ids
-        }
-        # Source/session reads may have overlapped the final completion fence.
-        # No record mutation or command append may follow a stale admission.
-        self._check_completion_open(rec, require_active=True)
-        if rec.pending_steer is not None:
-            raise StaleRevision(
-                "Another steering revision is pending; wait for its applied acknowledgment"
-            )
-        if request.expected_objective_revision != rec.task.objective_revision:
-            raise StaleRevision("Task revision changed during steering disclosure validation")
-        content_scope = combine_scopes(rec.task.content_scope, request.content_scope, source_scope)
-        if not scope_allowed(self.provider_for(rec).info, content_scope):
-            raise PolicyDenied("Steering disclosure does not permit the configured Agent provider")
-        rec.task.content_scope = content_scope
-        rec.steer_idem[request.idempotency_key] = (digest, task_id)
-        rec.pending_steer = {
-            "instruction": instruction,
-            "actor": actor,
-            "content_scope": content_scope,
-            "source_event_ids": list(request.source_event_ids),
-            "source_revisions": source_revisions,
-        }
-        # Wake an approval wait so steering applies promptly at the boundary.
-        rec.resume.set()
-        await self._append(
-            rec,
-            "agent.command",
-            {
-                "op": "steer-requested",
-                "actor": actor,
-                "instruction": request.instruction,
-                "expected_objective_revision": request.expected_objective_revision,
-            },
+            raise StaleRevision("Another steering revision is pending")
+        attempt = _SteerAttempt(
+            rec, original, actor, digest, time.monotonic() + 5.0, owner=asyncio.current_task()
         )
-        return rec.task.model_copy(deep=True)
+        rec.steer_attempt = attempt
+
+        def guard():
+            self._steer_open(attempt)
+
+        token = _STEER_SOURCE_GUARD.set(guard)
+        try:
+            attempt.proposal = await self._prepare_steer(attempt)
+            guard()
+            admit = getattr(self.journal, "admit_steer", None)
+            if not callable(admit):
+                raise AgentControlUnavailable
+            attempt.deadline = time.monotonic() + 15.0
+
+            async def send():
+                guard()
+                attempt.sent = True
+                return await admit(attempt.proposal)
+
+            operation = self._start_submit_operation(send)
+            raw = await self._await_submit_operation(operation, 15.0)
+            guard()
+            data = raw.model_dump(mode="python") if isinstance(raw, AgentSteerReceipt) else raw
+            receipt = AgentSteerReceipt.model_validate(data).validate_request(attempt.proposal)
+            attempt.receipt = receipt
+            if receipt.disposition != "created":
+                raise AgentControlUnavailable
+            attempt.deadline = time.monotonic() + 5.0
+            scope = await self._fresh_steer(attempt)
+            guard()
+            # No await separates the one live direct-created check and install.
+            rec.task.content_scope = scope
+            rec.steer_idem[original.idempotency_key] = (digest, task_id)
+            rec.pending_steer = {
+                "instruction": original.instruction,
+                "actor": actor,
+                "content_scope": scope,
+                "source_event_ids": list(original.source_event_ids),
+                "source_revisions": {
+                    item.event_id: item.revision for item in attempt.proposal.source_revisions
+                },
+                "intent_event_id": receipt.event_id,
+                "intent_digest": attempt.proposal.request_digest(),
+            }
+            attempt.installed = True
+            attempt.suppress()
+            rec.resume.set()
+            return rec.task.model_copy(deep=True)
+        except BaseException as exc:
+            # A failed read is also a continuation: completion/retirement may
+            # have won while the adapter was awaiting or resisting cancellation.
+            try:
+                if isinstance(exc, Exception):
+                    self._check_completion_open(rec, require_active=True)
+                    if attempt.active:
+                        guard()
+            finally:
+                attempt.suppress()
+                if (
+                    not attempt.sent or isinstance(exc, AgentModeOff)
+                ) and rec.steer_attempt is attempt:
+                    rec.steer_attempt = None
+            raise
+        finally:
+            _STEER_SOURCE_GUARD.reset(token)
 
     async def _apply_steer(self, rec: _Record) -> None:
         pending = rec.pending_steer
@@ -1930,6 +2201,9 @@ class AgentRuntime:
                 return
         rec.task.content_scope = combine_scopes(rec.task.content_scope, pending["content_scope"])
         await self._task_scope(rec)
+        self._check_completion_open(rec, require_active=True)
+        if self._closed or rec.closing or rec.cancel_requested:
+            raise AgentControlUnavailable
         rec.source_revisions.update(pending.get("source_revisions", {}))
         invalidated = [
             e.evidence_id
@@ -1982,6 +2256,8 @@ class AgentRuntime:
             "agent.command",
             {
                 "op": "steer-applied",
+                "steer_event_id": pending["intent_event_id"],
+                "intent_digest": pending["intent_digest"],
                 "objective_revision": rec.task.objective_revision,
                 "invalidated_evidence": invalidated,
             },
@@ -1992,6 +2268,12 @@ class AgentRuntime:
         self, task_id: str, request: InterruptRequest, actor: str = "owner"
     ) -> Task:
         rec = self._get(task_id)
+        if (
+            actor == "owner"
+            and request.expected_objective_revision == rec.task.objective_revision
+            and rec.steer_attempt is not None
+        ):
+            rec.steer_attempt.suppress()
         await self._pending_submit_control(rec, request, actor, "interrupt")
         if self._closed:
             raise ValueError("Agent is closing")
@@ -2045,6 +2327,8 @@ class AgentRuntime:
         already_requested = rec.cancel_requested
         recovered_paused = rec.task.state == TaskState.PAUSED and rec.worker is None
         rec.cancel_requested = True
+        if rec.steer_attempt is not None:
+            rec.steer_attempt.suppress()
         rec.task.state = TaskState.CANCEL_REQUESTED
         # Never wait for the model: signal, kill the child group, return.
         proc = rec.proc_slot.get("proc")
@@ -2227,6 +2511,9 @@ class AgentRuntime:
 
     async def close(self) -> None:
         self._closed = True
+        for rec in self._tasks.values():
+            if rec.steer_attempt is not None:
+                rec.steer_attempt.suppress()
         for preflight in self._submit_preflights:
             preflight.retire()
         for pending in self._pending_submits.values():

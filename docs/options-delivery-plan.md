@@ -17,7 +17,7 @@ corresponding acceptance evidence are present.
 
 | Group | Required outcome | Current delivered foundation / next work |
 | --- | --- | --- |
-| Models, providers, fallback routes | Independent Agent, Converse, Decisions, STT and TTS choices; supported reasoning/input/sampling controls; endpoint/local-model and protected credentials; explicit fallback order with private/cloud disclosure approval. | Agent defaults, exact-harness and five auxiliary text-purpose overrides exist (ADR0077/0082). The provider catalog and exact Agent task adapters are merged through #212 (ADR0086/0089). Converse text selection (#220, ADR0091) and ordered routes for the five auxiliary text purposes (#221, ADR0093) are merged. Independent Decisions selection is merged in #223 (ADR0098); the authenticated 8808 preview exposes all three increments. Independent STT selection is implemented in source under review (ADR0099), including durable unresolved-worker fencing. Positive worker reconciliation, TTS, primary/other-role fallback and broader sampling remain incomplete. Direct audio requires the actual transport and qualification. |
+| Models, providers, fallback routes | Independent Agent, Converse, Decisions, STT and TTS choices; supported reasoning/input/sampling controls; endpoint/local-model and protected credentials; explicit fallback order with private/cloud disclosure approval. | Agent defaults, exact-harness and five auxiliary text-purpose overrides exist (ADR0077/0082). The provider catalog and exact Agent task adapters are merged through #212 (ADR0086/0089). Converse text selection (#220, ADR0091) and ordered routes for the five auxiliary text purposes (#221, ADR0093) are merged. Independent Decisions selection is merged in #223 (ADR0098); the authenticated 8808 preview exposes all three increments. Independent STT selection is merged in PR225 (ADR0099), including durable unresolved-worker fencing; all five CI jobs passed and 8808 serves this source. Positive worker reconciliation is merged in PR229 (ADR0100) after all five CI jobs passed; independent TTS (ADR0101) is the subsequent source increment under review. Primary/other-role fallback and broader sampling remain incomplete. Direct audio requires the actual transport and qualification. |
 | Precise permissions | Allow/Ask/Deny for reads, writes, commands, network and individual tools; task/session/workspace/default scopes; active grants and approvals; approval behavior separate from actual sandbox access. | Service-wide native execution controls exist (ADR0084). Scoped read_file/write_file/shell rules and exact approval expiry/renewal are merged in #215 (ADR0096/0092); Search and exact MCP targets are merged in #221 (ADR0094). General read/network enforcement, remaining tools/plugins and active-grant inventory remain work. The [permission rollout](options-permission-plan.md) retains the broader admission obligations. |
 | Workspace and execution | Select/inspect the active root and readable/writable/protected folders; actual isolation state/network; supported execution backend and optional isolated Git worktree. | Native containment/Bubblewrap and execution inspection/relative starting directory exist (ADR0084). Owner root selection, read-only overlays, concrete root pins and an embedded editor are merged in #222 after all five CI jobs passed (ADR0097), and present in the authenticated 8808 preview. Alternate backends and coding worktrees remain work. |
 | Tools, skills, MCP, plugins | Individual/group enablement; MCP tool selection; source/version and active status. Distinguish installed, connected, enabled and authorized. | MCP management exists. ADR0102 adds protected native tool availability plus installed Skills/Plugins inspection, exact activation/evaluation/promotion/disable/rollback and embedded editors. Source and independent native/Flutter review are complete; final integration/CI/preview remain pending. Installation/update/removal, bound scope editing and uncertain multi-file activation reconciliation remain work. |
@@ -111,19 +111,32 @@ It retains classifier ownership and exact script/output provenance without
 adding conversational reasoning or speech settings. Agent model authority
 recovery is merged in #224 after all five CI jobs passed: an existing empty/truncated
 database must not mint another host-default selection. The current preview is
-frozen at the qualified #223 source and does not yet include #224's recovery
-follow-up. Consult their CI and preview records; neither increment closes an
+frozen at the qualified #225 source and includes #224's recovery follow-up. Consult their CI and preview records; neither increment closes an
 acceptance group. Preview classifiers are metadata-only synthetic fixtures;
 this browser review does not qualify actual Decisions inference.
 
 [ADR0099](adr/0099-independent-stt-model-settings.md) implements an independent
 STT owner, exact Meta transcription declarations, embedded Audio controls and
 server-captured transcript provenance. Native and Flutter source reviews,
-formatting/static analysis and schema determinism passed; exact-head CI and
-preview promotion remain pending. Unresolved local-worker admissions remain
+formatting/static analysis and schema determinism passed; all five CI jobs
+passed at c49d37584684ed3fa4196b8058086fe31c512220 and PR225 is merged.
+The 8808 preview serves this source with no speech worker installed; host STT
+is truthfully unavailable and no transcription was called. Unresolved local-worker admissions remain
 durable across restart and block inference/model changes until positive native
-settlement can be established. That reconciliation mechanism, TTS selection
-and real backend/device qualification remain work. No paid calls were made.
+settlement can be established. Supported positive local Whisper reconciliation is merged in PR229/ADR0100
+after all five CI jobs passed; TTS selection is ADR0101 below. Their CI/preview and real
+backend/device qualification remain separate work. No paid calls were made.
+
+[ADR0101](adr/0101-independent-tts-model-settings.md) adds independent TTS
+selection through Audio options: the existing host interface or exact Kokoro
+OpenRouter catalog generation with its fixed supported voice. It reuses the
+existing native budget path and unchanged ceiling/reservations, captures
+synthesis/frame/delivery provenance, and owns actual producer, playback and
+cleanup through cancellation. Native and Flutter source review/static analysis
+are separate from CI, preview and real model qualification, which are pending
+for this increment. Positive worker reconciliation, local voice reconfiguration
+and unified product-wide spending administration remain work. It creates no
+fresh allowance, performs no automatic synthesis and closes no acceptance group.
 
 [ADR0102](adr/0102-installed-capability-administration.md) adds protected native
 tool availability independently of permissions, complete installed skill/plugin

@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from packages.contracts import (
+    agent_control,
     agent_export,
     agent_submit,
     auxiliary_attempts,
@@ -21,7 +22,9 @@ from packages.contracts import (
     memory_operations,
     models,
     stt_models,
+    stt_settlement,
     tool_permissions,
+    tts_models,
     workspace_settings,
 )
 
@@ -51,6 +54,23 @@ for module in (
     json.dumps(converse_setup.ConverseSetup.model_json_schema(), indent=2) + "\n"
 )
 
+# These strict, immutable control types deliberately require every wire field;
+# they do not inherit the legacy event defaults from WireModel.
+for name in (
+    "AgentModeChange",
+    "AgentControlSnapshot",
+    "AgentModeReceipt",
+    "AgentModeLookupResult",
+    "AgentTaskIdentity",
+    "AgentSteerChange",
+    "AgentSteerSource",
+    "AgentSteerAdmissionRequest",
+    "AgentSteerReceipt",
+    "AgentSteerLookupResult",
+):
+    cls = getattr(agent_control, name)
+    (target / f"{name}.json").write_text(json.dumps(cls.model_json_schema(), indent=2) + "\n")
+
 # Owner policy requests are strict frozen models, separate from journal events.
 for cls in (
     tool_permissions.PermissionScope,
@@ -72,6 +92,18 @@ for cls in (
     stt_models.STTModelSelection,
     stt_models.STTModelChange,
     models.STTModelPin,
+    tts_models.TTSModelSelection,
+    tts_models.TTSModelChange,
+    tts_models.TTSModelPin,
+    tts_models.TTSSynthesisAdmission,
+    stt_settlement.STTWorkerReservation,
+    stt_settlement.STTWorkerOperation,
+    stt_settlement.STTWorkerProof,
+    stt_settlement.STTPublication,
+    stt_settlement.STTWorkerBinding,
+    stt_settlement.STTAdmissionReconcile,
+    stt_settlement.STTAdmissionInventory,
+    stt_settlement.STTAdmissionResult,
     decisions_models.DecisionsModelSelection,
     decisions_models.DecisionsModelChange,
     decisions_models.DecisionsModelPin,
