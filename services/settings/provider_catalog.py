@@ -379,10 +379,13 @@ def _storage(path, workspace, *, report_created=False):
         ):
             raise ValueError("Provider storage must be an owner-only regular file")
         db = sqlite3.connect(str(path))
-        actual = path.stat(follow_symlinks=False)
-        if (actual.st_dev, actual.st_ino) != (info.st_dev, info.st_ino):
+        try:
+            actual = path.stat(follow_symlinks=False)
+            if (actual.st_dev, actual.st_ino) != (info.st_dev, info.st_ino):
+                raise ValueError("Provider storage identity changed")
+        except BaseException:
             db.close()
-            raise ValueError("Provider storage identity changed")
+            raise
         return (db, created) if report_created else db
     finally:
         os.close(fd)
