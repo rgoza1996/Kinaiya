@@ -55,6 +55,35 @@ gap for that text role only. It is under source/static review; later PR-specific
 CI and runtime evidence remain separate. Decisions/STT/TTS editing, fallback,
 direct multimodal capture and the other full Options acceptance groups stay open.
 
+## November 1 handoff and standing-work prerequisites
+
+The owner handed the remaining Options and design work back from **Set up local
+Penpot for Kinaiya** through [#208](https://github.com/rgoza1996/Kinaiya/issues/208)
+and its linked issues. The handoff ended that chat's goal; the full product
+requirements remain active here. The timing-sensitive Converse recovery fixture
+in [#247](https://github.com/rgoza1996/Kinaiya/issues/247) was subsequently fixed
+and merged through [PR248](https://github.com/rgoza1996/Kinaiya/pull/248), with all
+five required CI jobs passing. This does not close the remaining Options groups.
+
+[#228](https://github.com/rgoza1996/Kinaiya/issues/228) now has independently
+qualified protected authorization, dispatch/producer metadata, retained execution
+claims, native initial-task acceptance and bounded client transports on the
+integration branch `codex/228-standing-work`. The latest prerequisite binds
+standing inference disclosure to the full accepted proof, exact model and
+captured scope; ordinary export cannot downgrade this task family. Its
+[evidence](../evaluation/evidence/standing-export-admission-2026-11-01.json)
+records the preserved failures, source corrections, 406 combined checks and
+135 affected checks after the final SQL-bound correction. These are distinct
+runs, not a count of unique tests. The [native API documentation](standing-work-api.md)
+describes the actual contracts and limits.
+
+These prerequisites are reviewable branch work, not a merged or running timed
+responsibility. Actual Agent worker integration is in progress. Recurrence,
+positive worker/effect/resource settlement, slot release, the durable inbox and
+embedded owner editor remain required before #228 acceptance or a feature PR.
+The historical source cutoff above and frozen 8808 settings preview are unchanged;
+this addendum establishes no live model/device or full-roadmap qualification.
+
 ## Milestone status
 
 The [native operating-mode prerequisite](adr/0105-agent-operating-modes.md) for
