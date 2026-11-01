@@ -228,6 +228,36 @@ class JournalClient:
         self._submit_cleanup_failed = False
         self._submit_closed = False
 
+    async def standing_renew(self, request):
+        from packages.contracts.standing_client import standing_renew
+
+        return await standing_renew(self, request)
+
+    async def standing_prepare(self, request):
+        from packages.contracts.standing_client import standing_prepare
+
+        return await standing_prepare(self, request)
+
+    async def standing_claim_lookup(self, request):
+        from packages.contracts.standing_client import standing_claim_lookup
+
+        return await standing_claim_lookup(self, request)
+
+    async def standing_unresolved(self):
+        from packages.contracts.standing_client import standing_unresolved
+
+        return await standing_unresolved(self)
+
+    async def standing_admit(self, request, *, capability=None):
+        from packages.contracts.standing_client import standing_admit
+
+        return await standing_admit(self, request, capability=capability)
+
+    async def standing_task_lookup(self, request):
+        from packages.contracts.standing_client import standing_task_lookup
+
+        return await standing_task_lookup(self, request)
+
     async def admit_submit(self, request: AppendRequest) -> AgentSubmitReceipt:
         deadline = asyncio.get_running_loop().time() + AGENT_SUBMIT_ADMISSION_TIMEOUT_S
         try:
