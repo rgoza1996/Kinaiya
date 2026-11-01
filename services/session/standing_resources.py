@@ -255,15 +255,16 @@ class StandingResourceOwner:
         # initial as an absent Task. Fetch at most two complete candidates.
         candidates = self._all(
             "WITH native AS (SELECT sequence,event_id,kind,"
+            "EXISTS(SELECT 1 FROM agent_submit_slots WHERE agent_submit_slots.event_id=entries.event_id) AS slotted,"
             "CASE WHEN typeof(request)='text' AND length(CAST(request AS BLOB)) BETWEEN 1 AND 65536 "
             "THEN CASE WHEN json_valid(request) THEN request END END AS req,"
             "CASE WHEN typeof(value)='text' AND length(CAST(value AS BLOB)) BETWEEN 1 AND 69632 "
             "THEN CASE WHEN json_valid(value) THEN value END END AS val FROM entries) "
-            "SELECT event_id FROM native WHERE (kind='agent.command' "
+            "SELECT event_id FROM native WHERE (slotted OR ((kind='agent.command' "
             "OR json_extract(req,'$.kind')='agent.command' OR json_extract(val,'$.kind')='agent.command') "
             "AND (req IS NULL OR val IS NULL OR json_type(req,'$.payload.op') IS NULL "
             "OR json_type(val,'$.payload.op') IS NULL OR json_extract(req,'$.payload.op')='submit' "
-            "OR json_extract(val,'$.payload.op')='submit') AND (req IS NULL OR val IS NULL "
+            "OR json_extract(val,'$.payload.op')='submit'))) AND (req IS NULL OR val IS NULL "
             "OR coalesce(json_type(req,'$.payload.task_id'),'')!='text' "
             "OR coalesce(json_type(val,'$.payload.task_id'),'')!='text' "
             "OR json_extract(req,'$.payload.task_id')=? OR json_extract(val,'$.payload.task_id')=? "
