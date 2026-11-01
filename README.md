@@ -705,11 +705,11 @@ native authorization fences.
 
 Content composition takes the most restrictive disclosure scope:
 
-$$
+```math
 \sigma_{\mathrm{combined}}=\max_{\preceq}\{\sigma_i\},\qquad
-\mathrm{public\_synthetic}\prec
-\mathrm{private\_cloud\_authorized}\prec\mathrm{local\_only}.
-$$
+\text{public/synthetic}\prec
+\text{private-cloud-authorized}\prec\text{local-only}.
+```
 
 Missing or invalid scopes remain local-only. Contributor accepts public/synthetic
 input only; other remote profiles may also accept explicitly private-cloud-authorized
