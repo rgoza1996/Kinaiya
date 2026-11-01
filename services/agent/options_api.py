@@ -18,8 +18,10 @@ from services.agent.model_settings import (
     ModelSettingsUnavailable,
 )
 from services.agent.runtime_settings import (
+    BoundRuntimeSettingsChange,
     RuntimeSettingsChange,
     RuntimeSettingsConflict,
+    RuntimeSettingsUnavailable,
     execution_metadata,
 )
 from services.agent.tool_permissions import ToolPermissionConflict
@@ -68,7 +70,13 @@ def router(runtime, auth):
                 if runtime.model_settings is not None
                 else runtime.provider.info.model_dump()
             )
-        except (OSError, ValueError, ModelSettingsUnavailable, sqlite3.Error) as exc:
+        except (
+            OSError,
+            ValueError,
+            ModelSettingsUnavailable,
+            RuntimeSettingsUnavailable,
+            sqlite3.Error,
+        ) as exc:
             raise HTTPException(503, "Agent settings are unavailable") from exc
         return {
             "schema_version": "1.0",
@@ -85,7 +93,13 @@ def router(runtime, auth):
         }
 
     @routes.post("/runtime")
-    async def change_runtime(request: RuntimeSettingsChange, response: Response):
+    async def change_runtime(
+        request: Annotated[
+            RuntimeSettingsChange | BoundRuntimeSettingsChange,
+            Body(discriminator="schema_version"),
+        ],
+        response: Response,
+    ):
         response.headers["Cache-Control"] = "no-store"
         if runtime.runtime_settings is None:
             raise HTTPException(503, "Execution settings are not enabled on this host")
@@ -170,11 +184,30 @@ def router(runtime, auth):
             raise HTTPException(404, "Execution settings receipt is unavailable")
         try:
             receipt = runtime.runtime_settings.receipt(key)
-        except (OSError, ValueError, sqlite3.Error) as exc:
+        except (RuntimeSettingsUnavailable, OSError, ValueError, sqlite3.Error) as exc:
             raise HTTPException(503, "Execution settings receipt is unavailable") from exc
         if receipt is None:
             raise HTTPException(404, "No committed execution settings receipt is visible")
         return receipt
+
+    @routes.post("/runtime-changes/lookup")
+    async def runtime_change_lookup(
+        request: Annotated[
+            RuntimeSettingsChange | BoundRuntimeSettingsChange,
+            Body(discriminator="schema_version"),
+        ],
+    ):
+        if runtime.runtime_settings is None:
+            raise HTTPException(503, "Execution settings are not enabled on this host")
+        async with runtime.integration_lock:
+            try:
+                return runtime.runtime_settings.lookup(request)
+            except RuntimeSettingsConflict as exc:
+                raise HTTPException(409, str(exc)) from exc
+            except (RuntimeSettingsUnavailable, OSError, ValueError, sqlite3.Error) as exc:
+                raise HTTPException(
+                    503, "Execution settings outcome is unconfirmed; inspect the exact receipt"
+                ) from exc
 
     @routes.post("/models")
     async def change_models(

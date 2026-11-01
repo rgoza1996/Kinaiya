@@ -64,7 +64,7 @@ Subsequent increments add owner note editing and protected provider catalog
 approval expiry before expanding scoped Ask rules. None closes an acceptance
 group; the remaining obligations stay in the table above.
 
-[ADR0090](adr/0090-scoped-native-tool-permissions.md) is the next implementation
+[ADR0096](adr/0096-scoped-native-tool-permissions.md) is the next implementation
 under review: four native scopes for the exact `read_file`, `write_file` and
 `shell` tools, independent action admission, protected CAS/receipt storage and
 an embedded editor. It does not establish blanket filesystem-read protection,
