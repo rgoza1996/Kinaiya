@@ -722,6 +722,44 @@ and must not be added to these 180 cases. Draft PR #259 still requires exact-hea
 full-project CI and the remaining physical/settlement chain; this does not
 complete #239, M7 or the roadmap.
 
+## Agent resource completion after worker retirement
+
+Agent now sends its existing `task_finished` notification from a separately
+retained operation after the original worker has ended successfully. Task outcome
+and `wait()` retain their existing meanings: a terminal task can precede cleanup.
+Failed and cancelled task outcomes can still notify after healthy worker cleanup.
+Before cleanup awaits, the runtime captures the actual worker, record, model
+lease and Resources client. Only successful release of the original lease, clear
+cleanup uncertainty and unchanged captured identities can arm the notification.
+Closing, recovered and nonterminal records cannot acquire this authority.
+
+The notification remains owned through its actual HTTP request and response
+close. Failed or cancelled notification stays unconfirmed without rewriting task
+work evidence or retrying the completion operation. The existing Resources
+client's same-key transport reconciliation remains unchanged.
+
+Shutdown keeps the existing bounded wait and retains the actual notification and
+dependent client closers beyond that wait. Each captured client has one original
+close operation, which waits for its matching notifications. Replacing the current
+client cannot drop the original client's cleanup or substitute the replacement's
+close. Pending and failed operations remain included in workspace accounting;
+repeated shutdown cannot create another closer for a failed original.
+
+At integrated source `e259c45`, 154 Agent, workspace, binding and restoration
+cases passed without failures, errors or skips; all 1,095 tracked implementation,
+test and build inputs stayed unchanged. The 24 new independently frozen cases
+include actual HTTP ownership and original-client replacement controls. The
+[verification record](../evaluation/evidence/agent-post-worker-resource-completion-2026-11-01.json)
+preserves the original 14 behavioral failures/eight controls and the two later
+review-derived failures. Earlier qualification groups overlap with the integrated
+run and must not be added to it.
+
+This repairs the live notification ordering and dependency lifetime. It is not
+a durable Agent retirement certificate, a physical Resources report, settlement
+or claim release. Full claim-wide preflight/effect/model ownership retirement and
+the native standing-work settlement chain remain unfinished, as does exact-head
+full CI for the changed source.
+
 ## Native dispatch gate
 
 `services/session/standing_dispatch.py` implements explicit registration,

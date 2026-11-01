@@ -407,6 +407,19 @@ CI is still required in draft [PR #259](https://github.com/rgoza1996/Kinaiya/pul
 Drained native context still supplies no physical report, settlement or
 claim/reservation release, and the remaining standing-work chain is unchanged.
 
+Agent's restoration notification now runs after the original worker and actual
+model cleanup end, with captured record/worker/lease/client guards. Shutdown
+retains each notification and its exact client's sole close operation; replacing
+the configured client cannot lose original cleanup. Pending and failed operations
+remain visible to the native workspace boundary, and task work evidence is
+preserved. The [post-worker completion contract](standing-work-api.md#agent-resource-completion-after-worker-retirement)
+and [evidence](../evaluation/evidence/agent-post-worker-resource-completion-2026-11-01.json)
+record 154 passing integrated cases at `e259c45`, including 24 independently
+frozen cases. Earlier failures and overlapping groups remain recorded. This is
+local runtime ordering, not full Agent retirement testimony or physical Resources
+finalization. Native settlement, active-claim release, recurrence and inbox work
+remain open; latest-head full-project CI is still required.
+
 ## Initial Agent submission durability
 
 The bounded [#199](https://github.com/rgoza1996/Kinaiya/issues/199) implementation
