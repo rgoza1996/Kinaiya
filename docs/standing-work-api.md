@@ -148,6 +148,12 @@ owner. Only the typed standing domain uses the larger byte caps; existing
 model, runtime and mode domains retain 4,096/16,384-byte limits. Redirects and
 compressed responses are not followed or accepted.
 
+Client read validation also binds the response to its caller: a snapshot must
+name the requested responsibility; each page item must follow the requested
+exclusive cursor and the page cannot exceed the requested limit. An internally
+valid proof for another request is refused. Change and lookup additionally bind
+the complete original mutation request.
+
 ## Dispatch protocol awaiting native integration
 
 `standing_dispatch.py` defines strict producer renewal, gate observation,

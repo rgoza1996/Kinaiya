@@ -91,7 +91,13 @@ class StandingOwnerApi {
         'GET',
         '/v1/standing/responsibilities/$responsibilityId',
         null,
-        StandingResponsibilitySnapshot.fromJson,
+        (value) {
+          final snapshot = StandingResponsibilitySnapshot.fromJson(value);
+          if (snapshot.responsibilityId != responsibilityId) {
+            throw const FormatException('Invalid standing work proof');
+          }
+          return snapshot;
+        },
       ),
     );
   }
@@ -108,7 +114,21 @@ class StandingOwnerApi {
       queryParameters: {if (after != null) 'after': after, 'limit': '$limit'},
     ).toString();
     return _wrap(
-      _transport.start('GET', path, null, StandingResponsibilityPage.fromJson),
+      _transport.start('GET', path, null, (value) {
+        final page = StandingResponsibilityPage.fromJson(value);
+        if (page.items.length > limit ||
+            (after != null &&
+                page.items.any(
+                  (record) =>
+                      record.receipt.request.responsibilityId.compareTo(
+                        after,
+                      ) <=
+                      0,
+                ))) {
+          throw const FormatException('Invalid standing work proof');
+        }
+        return page;
+      }),
     );
   }
 
