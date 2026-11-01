@@ -9,7 +9,13 @@ import shlex
 import sqlite3
 from pathlib import Path
 
-from packages.contracts.models import TERMINAL_STATES, AppendRequest, InterruptRequest, TaskRequest
+from packages.contracts.models import (
+    TERMINAL_STATES,
+    AppendRequest,
+    InterruptRequest,
+    ProviderInfo,
+    TaskRequest,
+)
 
 
 def parse(text):
@@ -131,6 +137,15 @@ class Registry:
         self._skills_truncated = False
         if service is None:
             return
+        settings = getattr(self.runtime, "model_settings", None)
+        configured = settings.default_info() if settings is not None else None
+        info = (
+            ProviderInfo.model_validate(configured)
+            if configured is not None
+            else self.runtime.provider.info
+            if settings is None
+            else None
+        )
         rows, after = [], 0
         for _ in range(8):
             page = await service.list_owner(after=after, limit=8)
@@ -159,13 +174,18 @@ class Registry:
             ):
                 continue
             available = row.get("enabled", False) and row.get("status") == "ready"
-            info = self.runtime.provider.info
-            contributor = info.provider == "meta" or "contributor" in info.model.lower()
+            contributor = info is not None and (
+                info.provider == "meta" or "contributor" in info.model.lower()
+            )
             scope = row.get("scope", "local_only")
-            available = available and (
-                info.local
-                or scope == "public_synthetic"
-                or (not contributor and scope == "private_cloud_authorized")
+            available = (
+                available
+                and info is not None
+                and (
+                    info.local
+                    or scope == "public_synthetic"
+                    or (not contributor and scope == "private_cloud_authorized")
+                )
             )
             self._skill_commands.append(
                 {

@@ -65,6 +65,57 @@ must occur in that profile's host-declared options. Null means the profile's
 configured effort. Models and provider addresses cannot be supplied inline.
 Unknown fields, invalid types/IDs and unsupported labels refuse.
 
+### Exact provider catalog selections (ADR0087)
+
+The additive `catalog_binding` selects a saved provider generation instead of a
+host profile. For example, an explicit Agent default change uses:
+
+```json
+{
+  "schema_version": "1.0",
+  "expected_revision": 4,
+  "idempotency_key": "example-owner-catalog-selection",
+  "harness_version": null,
+  "profile_id": null,
+  "reasoning": "none",
+  "catalog_binding": {
+    "id": "example-local-provider",
+    "generation": 2,
+    "configuration_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  }
+}
+```
+
+The illustrative digest must be replaced with the exact observed native
+configuration digest. A nonnull catalog binding and nonnull host `profile_id`
+are mutually exclusive. A catalog choice with `profile_id: null` is an explicit
+selection, not inheritance. With neither source, the existing inheritance rules
+still apply. Add `auxiliary_task` to select one of the five auxiliary purposes;
+all default/exact-harness precedence stays unchanged. Legacy host requests omit
+the new field and retain their original idempotency digest shape.
+
+Saved and effective catalog bindings contain `catalog_binding` and `reasoning`,
+instead of `profile_id` and `reasoning`. The existing exact-operation receipt
+returns that same binding. New state is bounded at 512 KiB; an already larger
+legacy state can still be reduced by a strictly shrinking owner change.
+
+The model snapshot adds `catalog_profiles` (at most 32) independently of host
+`profiles` (at most 32), catalog availability errors, and task-model cleanup
+ownership counts. Entries include their exact reference, declaration metadata,
+selectability/reason, reasoning options and unknown readiness/qualification.
+Meta requires an explicit measured context; LM Studio requires `none`; the
+compatible and Laya catalog kinds cannot provide measured Agent completion.
+An unavailable catalog does not hide independently configured host choices.
+
+Settings/model-selection inspection constructs no catalog adapter or key. New
+task acceptance captures a fresh primary and available auxiliary adapters with
+exact profile/credential generations. A later edit cannot retarget an accepted
+task. Retired versions remain unavailable until the owner explicitly selects a
+current generation. No automatic fallback occurs. The task model pin adds
+`catalog_binding` and `catalog_revision`; historical Task details expose these
+beside the existing model-settings revision without reconstructing a provider.
+See [ADR0087](adr/0087-agent-catalog-models.md) for admission and actual cleanup.
+
 Success returns an exact persisted receipt:
 
 ```json

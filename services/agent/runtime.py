@@ -25,6 +25,7 @@ import asyncio
 import copy
 import hashlib
 import json
+import sqlite3
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -266,6 +267,7 @@ class _Record:
     context_event_ids: set[str] = field(default_factory=set)
     explicit_skill: str | None = None
     auxiliary_providers: dict[str, TextProvider] = field(default_factory=dict)
+    model_lease: Any | None = None
     foreign_context: bool = False
     used_skills: set[str] = field(default_factory=set)
     plugin_versions: dict[str, str] = field(default_factory=dict)
@@ -327,6 +329,32 @@ class AgentRuntime:
     def provider_for(self, rec=None):
         """A task retains its native provider; owner defaults affect future work."""
         return rec.provider if rec is not None and rec.provider is not None else self.provider
+
+    def _owner_provider_selection(self):
+        """Owner metadata only; never construct a catalog adapter or resolve keys."""
+        try:
+            if self.model_settings is not None:
+                return self.model_settings.selection_info(None)
+            return self.provider.info, None
+        except (ValueError, RuntimeError, OSError, sqlite3.Error, SystemExit):
+            raise PolicyDenied("Owner model selection is unavailable") from None
+
+    def provider_info_for(self, rec=None):
+        if rec is not None:
+            return self.provider_for(rec).info
+        return self._owner_provider_selection()[0]
+
+    def owner_provider_context(self):
+        """Immutable metadata stamp for one owner inspection, never authority."""
+        info, pin = self._owner_provider_selection()
+        return json.dumps(
+            {
+                "provider": info.model_dump(mode="json"),
+                "pin": pin.model_dump(mode="json") if pin is not None else None,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
 
     # -- journal ------------------------------------------------------
     def _append_request(self, rec: _Record, kind: str, payload: dict[str, Any]) -> AppendRequest:
@@ -588,6 +616,11 @@ class AgentRuntime:
                 await self._append(rec, "agent.command", {"op": "disclosure-narrowed"})
         # A steer or profile change can land while native reads above await.
         rec.task.content_scope = combine_scopes(rec.task.content_scope, scope)
+        if rec.recovered:
+            # Recovery restores evidence and sticky disclosure floors, never a
+            # live adapter. Do not consult/rebind the current owner default for
+            # a historical task, including when that default is unavailable.
+            raise PolicyDenied("Recovered work has no live model; resubmit as new work")
         if not scope_allowed(self.provider_for(rec).info, rec.task.content_scope):
             raise PolicyDenied("Task disclosure does not permit the configured Agent provider")
 
@@ -679,80 +712,102 @@ class AgentRuntime:
         # Genuinely new work only: configured skills, harness/model choice,
         # and full export disclosure gates. Receipt reads return above
         # without consulting providers, settings, or harness eligibility.
+        if self._closed:
+            raise PolicyDenied("Agent is closing; no new work was accepted")
+        if self.model_settings is not None and self.model_settings.catalog_cleanup_busy:
+            raise PolicyDenied("Catalog provider cleanup is unconfirmed; no new work accepted")
         if explicit_skill is not None and self.skill_service is None:
             raise PolicyDenied("Explicit skill invocation requires owner and configured skills")
+        model_lease = None
+        content_scope = combine_scopes(request.content_scope, source_scope)
         try:
+            harness_version = self.session_harness(session.harness_version)
             if self.model_settings is not None:
-                harness_version = self.session_harness(session.harness_version)
-                task_provider, model_pin = self.model_settings.selection(harness_version)
+                task_provider, model_pin, auxiliary_providers, auxiliary_pins, model_lease = (
+                    self.model_settings.task_selection(harness_version, content_scope)
+                )
             else:
-                harness_version = self.session_harness(session.harness_version)
                 task_provider, model_pin = self.provider, None
-        except (HarnessError, OSError, ValueError, RuntimeError) as exc:
+                auxiliary_providers, auxiliary_pins = {}, {}
+        except (HarnessError, OSError, ValueError, RuntimeError, sqlite3.Error) as exc:
             raise PolicyDenied(
                 "The session's pinned harness or model selection is unavailable"
             ) from exc
-        if request.source_event_ids:
-            if not scope_allowed(task_provider.info, source_scope):
+        try:
+            if request.source_event_ids and not scope_allowed(task_provider.info, source_scope):
                 raise PolicyDenied(
                     "Source disclosure does not permit the configured Agent provider"
                 )
-        content_scope = combine_scopes(request.content_scope, source_scope)
-        if not scope_allowed(task_provider.info, content_scope):
-            raise PolicyDenied("Task disclosure does not permit the configured Agent provider")
-        task = Task(
-            session_id=request.session_id,
-            thread_id=request.thread_id,
-            epoch=request.epoch,
-            objective=objective,
-            content_scope=content_scope,
-            objective_revision=request.source_revision,
-            state=TaskState.ACCEPTED,
-            source_event_ids=list(request.source_event_ids),
-            idempotency_key=request.idempotency_key,
-            harness_version=harness_version,
-            model_pin=model_pin,
-        )
-        auxiliary_providers, auxiliary_pins = (
-            self.model_settings.auxiliary_selection(harness_version)
-            if self.model_settings is not None
-            else ({}, {})
-        )
-        task.auxiliary_models = auxiliary_pins
-        rec = _Record(
-            task=task,
-            provider=task_provider if self.model_settings is not None else None,
-            explicit_skill=explicit_skill,
-            auxiliary_providers=auxiliary_providers,
-        )
-        if request.source_event_ids:
-            rec.source_revisions = dict.fromkeys(request.source_event_ids, request.source_revision)
+            if not scope_allowed(task_provider.info, content_scope):
+                raise PolicyDenied("Task disclosure does not permit the configured Agent provider")
+            task = Task(
+                session_id=request.session_id,
+                thread_id=request.thread_id,
+                epoch=request.epoch,
+                objective=objective,
+                content_scope=content_scope,
+                objective_revision=request.source_revision,
+                state=TaskState.ACCEPTED,
+                source_event_ids=list(request.source_event_ids),
+                idempotency_key=request.idempotency_key,
+                harness_version=harness_version,
+                model_pin=model_pin,
+            )
+            task.auxiliary_models = auxiliary_pins
+            rec = _Record(
+                task=task,
+                provider=task_provider if self.model_settings is not None else None,
+                explicit_skill=explicit_skill,
+                auxiliary_providers=auxiliary_providers,
+                model_lease=model_lease,
+            )
+            if request.source_event_ids:
+                rec.source_revisions = dict.fromkeys(
+                    request.source_event_ids, request.source_revision
+                )
+        except BaseException:
+            if model_lease is not None:
+                model_lease.start_close()
+            raise
         self._tasks[task.task_id] = rec
         self._submit_idem[idem_key] = (digest, task.task_id)
-        await self._append(
-            rec,
-            "agent.command",
-            {
-                "op": "submit",
-                "actor": actor,
-                "session_id": request.session_id,
-                "thread_id": request.thread_id,
-                "epoch": request.epoch,
-                "objective": objective,
-                "objective_revision": task.objective_revision,
-                "source_event_ids": list(request.source_event_ids),
-                "source_revision": request.source_revision,
-                "requested_content_scope": request.content_scope,
-                "idempotency_key": request.idempotency_key,
-                "payload_digest": digest,
-                "harness_version": task.harness_version,
-                "model_pin": model_pin.model_dump(mode="json") if model_pin is not None else None,
-                "auxiliary_models": {
-                    key: value.model_dump(mode="json") for key, value in auxiliary_pins.items()
+        try:
+            await self._append(
+                rec,
+                "agent.command",
+                {
+                    "op": "submit",
+                    "actor": actor,
+                    "session_id": request.session_id,
+                    "thread_id": request.thread_id,
+                    "epoch": request.epoch,
+                    "objective": objective,
+                    "objective_revision": task.objective_revision,
+                    "source_event_ids": list(request.source_event_ids),
+                    "source_revision": request.source_revision,
+                    "requested_content_scope": request.content_scope,
+                    "idempotency_key": request.idempotency_key,
+                    "payload_digest": digest,
+                    "harness_version": task.harness_version,
+                    "model_pin": model_pin.model_dump(mode="json")
+                    if model_pin is not None
+                    else None,
+                    "auxiliary_models": {
+                        key: value.model_dump(mode="json") for key, value in auxiliary_pins.items()
+                    },
+                    "explicit_skill": explicit_skill,
                 },
-                "explicit_skill": explicit_skill,
-            },
-        )
+            )
+        except BaseException:
+            # The append may have committed without its ACK. Do not start work
+            # or rebind this pin; preserve an inspectable stopped record and
+            # independently retain close ownership for its unused adapters.
+            rec.task.state = TaskState.PAUSED
+            rec.task.error = "Initial task acceptance is unconfirmed; no work started"
+            rec.done.set()
+            if model_lease is not None:
+                model_lease.start_close()
+            raise
         rec.worker = asyncio.create_task(self._run(rec))
         return task.model_copy(deep=True)
 
@@ -1482,7 +1537,7 @@ class AgentRuntime:
                 await self._task_scope(rec, persist=False)
             except PolicyDenied:
                 if task.state not in TERMINAL:
-                    task.error = "Recovered task disclosure does not permit this Agent provider"
+                    task.error = "Recovered work has no live model; resubmit as new work"
             pins = plugin_pins.get(task_id, {})
             if len(pins) > 16 or any(
                 not isinstance(k, str) or not isinstance(v, str) for k, v in pins.items()
@@ -1563,12 +1618,16 @@ class AgentRuntime:
 
     def runtime_settings_busy(self) -> bool:
         """Terminal publication does not prove its worker or child has released."""
-        return self._closed or any(
-            rec.task.state not in TERMINAL
-            or (rec.worker is not None and not rec.worker.done())
-            or rec.proc_slot.get("proc") is not None
-            or rec.retire_lock.locked()
-            for rec in self._tasks.values()
+        return (
+            self._closed
+            or (self.model_settings is not None and self.model_settings.catalog_cleanup_busy)
+            or any(
+                rec.task.state not in TERMINAL
+                or (rec.worker is not None and not rec.worker.done())
+                or rec.proc_slot.get("proc") is not None
+                or rec.retire_lock.locked()
+                for rec in self._tasks.values()
+            )
         )
 
     def tool_snapshot(self, task: Task | None = None) -> NativeToolSnapshot:
@@ -1595,10 +1654,7 @@ class AgentRuntime:
                 bool(task.auxiliary_models)
                 if task is not None
                 else self.model_settings is not None
-                and any(
-                    self.model_settings.auxiliary_available(name)
-                    for name in self.model_settings.base
-                )
+                and self.model_settings.auxiliary_configured(harness)
             ),
             catalog_available=True,
         )
@@ -1685,7 +1741,7 @@ class AgentRuntime:
 
     def _model_mcp(self, rec=None):
         return (
-            ModelScopedMCP(self.mcp_host, self.provider_for(rec).info)
+            ModelScopedMCP(self.mcp_host, self.provider_info_for(rec))
             if self.mcp_host is not None
             else None
         )
@@ -2073,26 +2129,38 @@ class AgentRuntime:
             else:
                 await self._fail(rec, f"runtime error: {exc}")
         finally:
-            if self.skill_service is not None:
-                await self.skill_service.release_task(rec.task.task_id)
-            if self.plugin_service is not None:
-                await self.plugin_service.release_task(rec.task.task_id)
-            if self.resource_client is not None and rec.task.state in TERMINAL and not rec.closing:
-                try:
-                    await self.resource_client.task_finished(rec.task.task_id)
-                except Exception:
-                    # Native task evidence remains authoritative. Restoration
-                    # is a separate unconfirmed resource transition.
-                    print(
-                        json.dumps(
-                            {
-                                "service": "agent",
-                                "resource_restore": "unconfirmed",
-                                "task_id": rec.task.task_id,
-                            }
-                        ),
-                        flush=True,
-                    )
+            try:
+                await self._release_task_resources(rec)
+            finally:
+                if rec.model_lease is not None:
+                    try:
+                        await rec.model_lease.close()
+                    except ProviderCleanupError:
+                        # Work evidence is not rewritten by unconfirmed close.
+                        # The native lease remains busy and retains capacity.
+                        pass
+
+    async def _release_task_resources(self, rec):
+        if self.skill_service is not None:
+            await self.skill_service.release_task(rec.task.task_id)
+        if self.plugin_service is not None:
+            await self.plugin_service.release_task(rec.task.task_id)
+        if self.resource_client is not None and rec.task.state in TERMINAL and not rec.closing:
+            try:
+                await self.resource_client.task_finished(rec.task.task_id)
+            except Exception:
+                # Native task evidence remains authoritative. Restoration
+                # is a separate unconfirmed resource transition.
+                print(
+                    json.dumps(
+                        {
+                            "service": "agent",
+                            "resource_restore": "unconfirmed",
+                            "task_id": rec.task.task_id,
+                        }
+                    ),
+                    flush=True,
+                )
 
     async def _verify_finish_files(self, rec: _Record) -> str | None:
         """Re-read every file written in the current revision before accepting finish.

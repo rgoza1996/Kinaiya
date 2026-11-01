@@ -283,28 +283,43 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
 
   bool _validReceipt(_ModelChange operation, Map<String, Object?> result) {
     final body = operation.body, binding = result['binding'];
+    bool matchesBinding() {
+      final catalog = body['catalog_binding'];
+      if (catalog == null && body['profile_id'] == null) return binding == null;
+      try {
+        final saved = AgentModelBinding.fromJson(binding);
+        return saved.reasoning == body['reasoning'] &&
+            (catalog == null
+                ? saved.catalogBinding == null &&
+                      saved.profileId == body['profile_id']
+                : saved.profileId == null &&
+                      saved.catalogBinding ==
+                          AgentCatalogBinding.fromJson(catalog));
+      } on FormatException {
+        return false;
+      }
+    }
+
     return result['schema_version'] == '1.0' &&
         result['change_boundary'] == 'new_tasks' &&
         result['idempotency_key'] == body['idempotency_key'] &&
         result['revision'] == (body['expected_revision'] as int) + 1 &&
         result['harness_version'] == body['harness_version'] &&
         result['auxiliary_task'] == body['auxiliary_task'] &&
-        (body['profile_id'] == null
-            ? binding == null
-            : binding is Map &&
-                  binding['profile_id'] == body['profile_id'] &&
-                  binding['reasoning'] == body['reasoning']);
+        matchesBinding();
   }
 
   Future<void> _saveModel(
     String? profile,
     String? reasoning, {
     String? auxiliaryTask,
+    AgentCatalogBinding? catalogBinding,
   }) async {
     final endpoint = _endpoint, models = _models;
     if (endpoint == null || models == null || _pending != null) {
       return;
     }
+    if (profile != null && catalogBinding != null) return;
     if (_modelChanges.length >= 16) {
       setState(
         () => _notice =
@@ -318,6 +333,7 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
       'idempotency_key': newIdempotencyKey(),
       'harness_version': _page == OptionsPage.harnesses ? _harness : null,
       'profile_id': profile,
+      if (catalogBinding != null) 'catalog_binding': catalogBinding.toJson(),
       'reasoning': reasoning,
       if (auxiliaryTask != null) 'auxiliary_task': auxiliaryTask,
     });
@@ -1028,6 +1044,8 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
         models: models,
         busy: _pending != null,
         onSave: _saveModel,
+        onSaveCatalog: (catalog, reasoning) =>
+            _saveModel(null, reasoning, catalogBinding: catalog),
       )
     else
       _unavailable(
@@ -1046,6 +1064,12 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
         busy: _pending != null,
         onSave: (purpose, profile, reasoning) =>
             _saveModel(profile, reasoning, auxiliaryTask: purpose),
+        onSaveCatalog: (purpose, catalog, reasoning) => _saveModel(
+          null,
+          reasoning,
+          auxiliaryTask: purpose,
+          catalogBinding: catalog,
+        ),
       ),
   ]);
 
@@ -1077,6 +1101,8 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
             harness: _harness,
             busy: _pending != null,
             onSave: _saveModel,
+            onSaveCatalog: (catalog, reasoning) =>
+                _saveModel(null, reasoning, catalogBinding: catalog),
           )
         else
           _unavailable(
@@ -1095,6 +1121,12 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
             busy: _pending != null,
             onSave: (purpose, profile, reasoning) =>
                 _saveModel(profile, reasoning, auxiliaryTask: purpose),
+            onSaveCatalog: (purpose, catalog, reasoning) => _saveModel(
+              null,
+              reasoning,
+              auxiliaryTask: purpose,
+              catalogBinding: catalog,
+            ),
           ),
       ]);
     }
@@ -1132,7 +1164,7 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
                 _models == null
                     ? 'Unavailable'
                     : _models!.harnesses.containsKey(row.versionId)
-                    ? 'Custom · ${_models!.effective(row.versionId).profileId}'
+                    ? 'Custom · ${_models!.bindingLabel(_models!.effective(row.versionId))}'
                     : 'Inherits Agent default',
               ),
               Text('${row.kind} · ${row.eligibility}'),

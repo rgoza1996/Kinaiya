@@ -1067,7 +1067,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
           if (_screen == 'list')
             _panel([
               const Text(
-                'Save provider connections and credentials on this computer. Assigning these profiles to active models is not available yet.',
+                'Save provider connections and credentials on this computer. Select them for Agent in Models or Harness Customization. Other roles are still configured on the host.',
               ),
               Wrap(
                 spacing: 12,

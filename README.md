@@ -261,9 +261,10 @@ reasoning overrides affect new tasks; accepted tasks retain their provider and
 inspectable model pin. The [owner API](docs/agent-options-api.md) persists settings
 and receipts without placing active provider credentials in model preferences.
 The [Providers catalog](docs/adr/0086-owner-provider-catalog.md) adds native
-profile and protected credential-generation forms. Catalog saves do not yet
-apply providers to a role; Converse/STT/TTS/Decisions model editing remains
-host-managed. These new
+profile and protected credential-generation forms. [Agent model selection](docs/adr/0087-agent-catalog-models.md)
+captures exact saved versions in fresh task-owned primary/auxiliary adapters;
+saving a provider profile alone does not select it. Converse/STT/TTS/Decisions
+model editing remains host-managed. These new
 controls still require the runtime/concurrency acceptance described in the ADR.
 Global and per-harness [auxiliary text models](docs/adr/0082-task-pinned-auxiliary-models.md)
 support explicit analysis, compression, title, delegated reasoning and harness

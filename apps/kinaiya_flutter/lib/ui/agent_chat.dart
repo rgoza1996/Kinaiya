@@ -1017,6 +1017,22 @@ class _AgentChatState extends State<AgentChat> {
             _detail('Provider', '${pin['provider']}'),
             _detail('Model profile', '${pin['profile_id']}'),
             _detail('Reasoning', '${pin['reasoning'] ?? 'Profile default'}'),
+            _detail('Model settings revision', '${pin['settings_revision']}'),
+            if (pin['catalog_binding'] case final Map reference) ...[
+              _detail('Saved provider', '${reference['id']}'),
+              _detail('Provider version', '${reference['generation']}'),
+              _detail('Catalog revision', '${pin['catalog_revision']}'),
+              ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                title: const Text('Saved provider identity'),
+                children: [
+                  _detail(
+                    'Configuration SHA256',
+                    '${reference['configuration_sha256']}',
+                  ),
+                ],
+              ),
+            ],
           ],
           _detail('Session', task.sessionId),
           _detail(

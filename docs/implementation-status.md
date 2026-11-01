@@ -34,6 +34,14 @@ evidence. Automatic memory extraction/retention, catalog role application,
 ordered fallback, direct multimodal/camera and the remaining full Options groups
 stay open. This addendum does not change the historical source cutoff.
 
+[ADR0087](adr/0087-agent-catalog-models.md) subsequently adds explicit Agent
+catalog selection for defaults, exact harnesses and five auxiliary text purposes,
+fresh bounded task-owned adapters, exact version pins, retired-generation refusal
+and retained cleanup ownership. This supersedes the catalog-application gap for
+Agent only. Catalog role application for Converse/Decisions/STT/TTS, ordered
+fallback and broader model qualification remain unfinished. Static review and
+analysis do not establish fresh inference quality or full settings coverage.
+
 ## Milestone status
 
 The original [milestone exit gates](../Roadmap.md#24-milestone-roadmap) and AT01–AT48 remain unchanged. Additional owner-refinement scenarios AT49–AT61 supplement them; AT62–AT63 record the October 31 distinction between model choice, profile recommendations and architectural comparisons. These additions claim no new runtime behavior or passed acceptance. Links to tests describe existing coverage, not a new execution of those tests during documentation editing.

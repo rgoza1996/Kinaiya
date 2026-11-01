@@ -107,6 +107,10 @@ def router(runtime, auth):
                 raise HTTPException(
                     400, "Model change refused; refresh the available profiles"
                 ) from exc
+            except sqlite3.Error as exc:
+                raise HTTPException(
+                    503, "Model change outcome is unconfirmed; inspect the exact receipt"
+                ) from exc
 
     @routes.get("/model-selection")
     async def model_selection(
@@ -121,14 +125,14 @@ def router(runtime, auth):
                     "provider": runtime.provider.info.model_dump(),
                     "pin": None,
                 }
-            provider, pin = runtime.model_settings.selection(version)
+            info, pin = runtime.model_settings.selection_info(version)
             return {
                 "schema_version": "1.0",
                 "harness_version": version,
-                "provider": provider.info.model_dump(),
+                "provider": info.model_dump(),
                 "pin": pin.model_dump(),
             }
-        except (HarnessError, OSError, ValueError, RuntimeError) as exc:
+        except (HarnessError, OSError, ValueError, RuntimeError, sqlite3.Error) as exc:
             raise HTTPException(409, "Harness model selection is unavailable") from exc
 
     @routes.get("/model-changes/{key}")

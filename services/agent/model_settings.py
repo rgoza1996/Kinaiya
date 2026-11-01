@@ -1,11 +1,12 @@
 """Protected owner defaults; each accepted task captures its own provider.
 
-Only host-configured profiles are selectable. This store contains references
-and reasoning labels, never endpoints, credentials, prompts or permissions.
+Host profiles and exact native catalog generations are selectable. This store
+contains references and reasoning, never endpoints, keys, prompts or permissions.
 """
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import re
@@ -13,12 +14,20 @@ import sqlite3
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from packages.contracts.models import AgentModelPin, AuxiliaryTask
+from packages.contracts.models import AgentModelPin, AuxiliaryTask, CatalogModelBinding
+from packages.providers.disclosure import scope_allowed
+from services.settings.provider_factory import (
+    UnavailableHostProvider,
+    declaration_info,
+    inspect_recipe,
+    open_recipe,
+)
 
 HOST_PROFILE = "host-default"
 EFFORTS = {"none", "minimal", "low", "medium", "high", "xhigh"}
+MAX_SETTINGS_BYTES = 512 * 1024
 AUXILIARY_TASKS = {
     "analysis": "Analysis",
     "compression": "Context compression",
@@ -41,6 +50,13 @@ class ModelSettingsChange(BaseModel):
     profile_id: str | None = Field(default=None, min_length=1, max_length=80)
     reasoning: str | None = Field(default=None, min_length=1, max_length=16)
     auxiliary_task: AuxiliaryTask | None = None
+    catalog_binding: CatalogModelBinding | None = None
+
+    @model_validator(mode="after")
+    def distinct_sources(self):
+        if self.profile_id is not None and self.catalog_binding is not None:
+            raise ValueError("Choose a host profile or an exact catalog generation")
+        return self
 
 
 class AgentModelSettings:
@@ -54,6 +70,8 @@ class AgentModelSettings:
         host_factory=None,
         auxiliary_factories=None,
         auxiliary_host_factory=None,
+        catalog=None,
+        resource_state=None,
     ):
         if (
             len(factories) > 31
@@ -62,6 +80,9 @@ class AgentModelSettings:
         ):
             raise ValueError("Agent profile names must be unique bounded labels")
         self.factories = dict(factories)
+        self.catalog = catalog
+        self.resource_state = resource_state
+        self.catalog_leases = set()
         self.host_factory = host_factory
         self.auxiliary_factories = dict(auxiliary_factories or {})
         self.auxiliary_host_factory = auxiliary_host_factory
@@ -70,8 +91,10 @@ class AgentModelSettings:
         self.auxiliary_instances = {}
         self.auxiliary_failures = set()
         self.instances = {(HOST_PROFILE, None): provider}
-        self.base = {HOST_PROFILE: provider}
-        self.failures = set()
+        self.base = (
+            {} if isinstance(provider, UnavailableHostProvider) else {HOST_PROFILE: provider}
+        )
+        self.failures = {HOST_PROFILE} if isinstance(provider, UnavailableHostProvider) else set()
         self.levels = {}
         declarations = reasoning_levels or {}
         if set(declarations) - {HOST_PROFILE, *factories}:
@@ -185,21 +208,25 @@ class AgentModelSettings:
         for target, binding in bindings:
             if target is not None and re.fullmatch(r"seed-v1|v-[a-f0-9]{24}", target) is None:
                 raise ValueError("Stored harness model identity is invalid")
-            if (
-                not isinstance(binding, dict)
-                or set(binding) != {"profile_id", "reasoning"}
-                or not self.valid_profile_id(binding["profile_id"])
-                or (
-                    binding["reasoning"] is not None
-                    and (
-                        type(binding["reasoning"]) is not str or binding["reasoning"] not in EFFORTS
-                    )
-                )
+            if not isinstance(binding, dict) or set(binding) not in (
+                {"profile_id", "reasoning"},
+                {"catalog_binding", "reasoning"},
+            ):
+                raise ValueError("Stored Agent model binding is invalid")
+            if "catalog_binding" in binding:
+                CatalogModelBinding.model_validate(binding["catalog_binding"])
+            elif not self.valid_profile_id(binding["profile_id"]):
+                raise ValueError("Stored Agent model binding is invalid")
+            if "reasoning" not in binding or (
+                binding["reasoning"] is not None
+                and (type(binding["reasoning"]) is not str or binding["reasoning"] not in EFFORTS)
             ):
                 raise ValueError("Stored Agent model binding is invalid")
         return revision, body
 
     def resolve(self, binding):
+        if "catalog_binding" in binding:
+            raise ValueError("Catalog providers require a task-owned model lease")
         name, effort = binding["profile_id"], binding["reasoning"]
         if name not in self.base or (effort is not None and effort not in self.levels[name]):
             raise ValueError("Selected Agent model profile is unavailable; choose another profile")
@@ -213,6 +240,8 @@ class AgentModelSettings:
         return self.instances[key]
 
     def resolve_auxiliary(self, binding):
+        if "catalog_binding" in binding:
+            raise ValueError("Catalog auxiliary providers require a task-owned model lease")
         name, effort = binding["profile_id"], binding["reasoning"]
         if name not in self.base or (effort is not None and effort not in self.levels[name]):
             raise ValueError("Selected auxiliary profile is unavailable")
@@ -246,8 +275,8 @@ class AgentModelSettings:
             self.auxiliary_instances[key] = candidate
         return self.auxiliary_instances[key]
 
-    def selection(self, harness_version, auxiliary_task=None):
-        revision, body = self._read()
+    @staticmethod
+    def _binding(body, harness_version, auxiliary_task=None):
         binding = body["harnesses"].get(harness_version, body["default"])
         if auxiliary_task is not None:
             if auxiliary_task not in AUXILIARY_TASKS:
@@ -257,6 +286,11 @@ class AgentModelSettings:
                 .get(harness_version, {})
                 .get(auxiliary_task, body["auxiliary"].get(auxiliary_task, binding))
             )
+        return binding
+
+    def selection(self, harness_version, auxiliary_task=None):
+        revision, body = self._read()
+        binding = self._binding(body, harness_version, auxiliary_task)
         provider = (
             self.resolve(binding) if auxiliary_task is None else self.resolve_auxiliary(binding)
         )
@@ -268,6 +302,116 @@ class AgentModelSettings:
             reasoning=self.effort(provider),
             settings_revision=revision,
         )
+
+    def selection_info(self, harness_version, auxiliary_task=None):
+        """Inspect declarations without constructing any adapter or key."""
+        revision, body = self._read()
+        binding = self._binding(body, harness_version, auxiliary_task)
+        if "catalog_binding" not in binding:
+            name, effort = binding["profile_id"], binding["reasoning"]
+            if name not in self.base or (effort is not None and effort not in self.levels[name]):
+                raise ValueError("Selected Agent model profile is unavailable")
+            info = self.base[name].info
+            return info, AgentModelPin(
+                profile_id=name,
+                provider=info.provider,
+                model=info.model,
+                local=info.local,
+                reasoning=self.effort(self.base[name]) if effort is None else effort,
+                settings_revision=revision,
+            )
+        recipe = inspect_recipe(self.catalog, binding["catalog_binding"], binding["reasoning"])
+        info = recipe.info
+        return info, AgentModelPin(
+            profile_id=recipe.binding.id,
+            provider=info.provider,
+            model=info.model,
+            local=info.local,
+            reasoning=recipe.reasoning,
+            settings_revision=revision,
+            catalog_binding=recipe.binding,
+            catalog_revision=recipe.catalog_revision,
+        )
+
+    @property
+    def catalog_cleanup_busy(self):
+        return any(lease.cleanup is not None and not lease.settled for lease in self.catalog_leases)
+
+    def task_selection(self, harness_version, content_scope):
+        """Capture fresh catalog adapters only for genuinely new accepted work."""
+        from services.agent.task_model_lease import TaskModelLease
+
+        if self.catalog_cleanup_busy:
+            # An uncertain native operation can use the same backend as a
+            # host profile. Changing selection cannot release its ownership.
+            raise ValueError("Catalog provider cleanup is unconfirmed; no new work accepted")
+        revision, body = self._read()
+        lease = None
+
+        def select(purpose=None):
+            nonlocal lease
+            binding = self._binding(body, harness_version, purpose)
+            if "catalog_binding" not in binding:
+                provider = (
+                    self.resolve(binding) if purpose is None else self.resolve_auxiliary(binding)
+                )
+                pin = AgentModelPin(
+                    profile_id=binding["profile_id"],
+                    provider=provider.info.provider,
+                    model=provider.info.model,
+                    local=provider.info.local,
+                    reasoning=self.effort(provider),
+                    settings_revision=revision,
+                )
+                return provider, pin
+            recipe = inspect_recipe(self.catalog, binding["catalog_binding"], binding["reasoning"])
+            if not scope_allowed(recipe.info, content_scope):
+                raise ValueError("Input disclosure does not permit the catalog model")
+            if lease is None:
+                if len(self.catalog_leases) >= 64 or any(
+                    item.failed for item in self.catalog_leases
+                ):
+                    raise ValueError("Catalog model ownership requires cleanup or capacity")
+                lease = TaskModelLease(self.catalog_leases.discard)
+                self.catalog_leases.add(lease)
+            provider, recipe = open_recipe(
+                self.catalog,
+                binding["catalog_binding"],
+                binding["reasoning"],
+                auxiliary=purpose is not None,
+                resource_state=self.resource_state,
+            )
+            lease.own(provider)
+            info = recipe.info
+            if provider.info != info or self.effort(provider) != recipe.reasoning:
+                raise ValueError("Catalog adapter differs from its captured recipe")
+            return provider, AgentModelPin(
+                profile_id=recipe.binding.id,
+                provider=info.provider,
+                model=info.model,
+                local=info.local,
+                reasoning=recipe.reasoning,
+                settings_revision=revision,
+                catalog_binding=recipe.binding,
+                catalog_revision=recipe.catalog_revision,
+            )
+
+        try:
+            provider, pin = select()
+            if not scope_allowed(provider.info, content_scope):
+                raise ValueError("Input disclosure does not permit the selected model")
+            auxiliary, pins = {}, {}
+            for purpose in AUXILIARY_TASKS:
+                try:
+                    auxiliary[purpose], pins[purpose] = select(purpose)
+                except (ValueError, RuntimeError, OSError, sqlite3.Error, SystemExit):
+                    # An unavailable purpose stays unavailable; no replacement.
+                    continue
+            return provider, pin, auxiliary, pins, lease
+        except BaseException:
+            if lease is not None:
+                lease.start_close()
+            raise
 
     def auxiliary_selection(self, harness_version):
         providers, pins = {}, {}
@@ -281,14 +425,57 @@ class AgentModelSettings:
         return providers, pins
 
     def auxiliary_available(self, name):
-        try:
-            self.resolve_auxiliary({"profile_id": name, "reasoning": None})
-            return True
-        except (Exception, SystemExit):
+        """Configured native interface only; never construct or probe on reads."""
+        return self._host_auxiliary_declared({"profile_id": name, "reasoning": None})
+
+    def _host_auxiliary_declared(self, binding):
+        name, effort = binding["profile_id"], binding["reasoning"]
+        if (
+            name not in self.base
+            or (effort is not None and effort not in self.levels[name])
+            or (name, effort) in self.auxiliary_failures
+        ):
             return False
+        cached = self.auxiliary_instances.get((name, effort))
+        provider = self.base[name] if cached is None else cached
+        adapter = getattr(provider, "provider", provider)
+        factory = (
+            self.auxiliary_host_factory
+            if name == HOST_PROFILE
+            else self.auxiliary_factories.get(name)
+        )
+        return callable(getattr(adapter, "prepare_complete", None)) and (
+            not getattr(adapter, "structured_actions", False)
+            or (cached is None and factory is not None)
+        )
+
+    def auxiliary_configured(self, harness_version):
+        """Effective declared routes, not model readiness or task qualification."""
+        try:
+            _, body = self._read()
+        except (ValueError, RuntimeError, OSError, sqlite3.Error):
+            return False
+        for purpose in AUXILIARY_TASKS:
+            binding = self._binding(body, harness_version, purpose)
+            if "catalog_binding" not in binding:
+                if self._host_auxiliary_declared(binding):
+                    return True
+                continue
+            try:
+                inspect_recipe(self.catalog, binding["catalog_binding"], binding["reasoning"])
+                return True
+            except (ValueError, RuntimeError, OSError, sqlite3.Error):
+                continue
+        return False
 
     def snapshot(self):
         revision, body = self._read()
+        catalog_error = None
+        try:
+            catalog_profiles = self._catalog_profiles()
+        except (ValueError, RuntimeError, OSError, sqlite3.Error):
+            catalog_profiles = []
+            catalog_error = "Provider catalog is unavailable; host profiles remain independent"
         return {
             "schema_version": "1.0",
             "revision": revision,
@@ -308,16 +495,79 @@ class AgentModelSettings:
                     "reasoning": self.effort(self.base[name]) if name in self.base else None,
                     "reasoning_options": list(self.levels[name]),
                     "auxiliary_selectable": name in self.base and self.auxiliary_available(name),
+                    "qualification": "not_checked",
+                    "readiness": "unknown",
                 }
                 for name in [HOST_PROFILE, *sorted(self.factories)]
             ],
+            "catalog_profiles": catalog_profiles,
+            "catalog_error": catalog_error,
+            "limits": {"settings_bytes": MAX_SETTINGS_BYTES},
+            "catalog_model_ownership": {
+                "leases": len(self.catalog_leases),
+                "limit": 64,
+                "cleanup_pending": sum(
+                    item.cleanup is not None and not item.settled and not item.failed
+                    for item in self.catalog_leases
+                ),
+                "cleanup_failed": sum(item.failed for item in self.catalog_leases),
+            },
         }
+
+    def _catalog_profiles(self):
+        if self.catalog is None:
+            return []
+        profiles = self.catalog.snapshot()["profiles"]
+        items = []
+        for profile in profiles:
+            reference = {key: profile[key] for key in ("id", "generation", "configuration_sha256")}
+            config = profile["config"]
+            selectable = False
+            reason = "Catalog generation is unavailable for new selection"
+            if profile["removed"]:
+                reason = "Catalog generation is retired for new tasks"
+            elif not profile["credential_available"]:
+                reason = "Credential generation is retired or unavailable"
+            elif config["kind"] in {"compatible", "laya"}:
+                reason = "This adapter has no measured Agent complete interface"
+            elif config["kind"] == "meta" and config["context_tokens"] is None:
+                reason = "An explicit Meta context limit is required for measured requests"
+            try:
+                inspect_recipe(self.catalog, reference)
+                selectable = True
+                reason = "Measured completion interface; readiness and model quality are unverified"
+            except (ValueError, RuntimeError, OSError, sqlite3.Error):
+                pass
+            kind = config["kind"]
+            items.append(
+                {
+                    "id": profile["id"],
+                    "label": profile["label"],
+                    "catalog_binding": reference,
+                    "selectable": selectable,
+                    "auxiliary_selectable": selectable,
+                    "provider": declaration_info(config).model_dump(),
+                    "reasoning": config.get("reasoning_effort"),
+                    "reasoning_options": ["none", "minimal", "low", "medium", "high", "xhigh"]
+                    if kind == "meta"
+                    else ["none"]
+                    if kind == "lmstudio"
+                    else [],
+                    "reason": reason,
+                    "qualification": "not_checked",
+                    "readiness": "unknown",
+                }
+            )
+        return items
 
     def change(self, request: ModelSettingsChange):
         # Preserve exact legacy receipts for requests without the additive field.
-        payload = request.model_dump(
-            exclude={"auxiliary_task"} if request.auxiliary_task is None else set()
-        )
+        excluded = {
+            field
+            for field in ("auxiliary_task", "catalog_binding")
+            if getattr(request, field) is None
+        }
+        payload = request.model_dump(exclude=excluded)
         digest = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
         # A single transaction binds the state and receipt. Lost responses can
         # be retried with the same key/body without applying another change.
@@ -334,6 +584,9 @@ class AgentModelSettings:
                 self.db.rollback()
                 return json.loads(prior[1])
             revision, body = self._read()
+            previous_bytes = self.db.execute(
+                "SELECT length(CAST(body AS BLOB)) FROM settings WHERE id=1"
+            ).fetchone()[0]
             if revision != request.expected_revision:
                 raise ModelSettingsConflict("Agent model settings changed; refresh before saving")
             if revision >= 9_007_199_254_740_990:
@@ -352,7 +605,14 @@ class AgentModelSettings:
                     ):
                         raise ValueError("Too many harness auxiliary overrides")
                     routes = body["harness_auxiliary"].setdefault(target, {})
-                if request.profile_id is None:
+                if request.catalog_binding is not None:
+                    binding = {
+                        "catalog_binding": request.catalog_binding.model_dump(),
+                        "reasoning": request.reasoning,
+                    }
+                    inspect_recipe(self.catalog, binding["catalog_binding"], binding["reasoning"])
+                    routes[purpose] = binding
+                elif request.profile_id is None:
                     if request.reasoning is not None:
                         raise ValueError("Inherited auxiliary choice cannot override reasoning")
                     routes.pop(purpose, None)
@@ -363,6 +623,18 @@ class AgentModelSettings:
                     routes[purpose] = binding
                 if target is not None and not routes:
                     body["harness_auxiliary"].pop(target, None)
+            elif request.catalog_binding is not None:
+                binding = {
+                    "catalog_binding": request.catalog_binding.model_dump(),
+                    "reasoning": request.reasoning,
+                }
+                inspect_recipe(self.catalog, binding["catalog_binding"], binding["reasoning"])
+                if target is None:
+                    body["default"] = binding
+                else:
+                    if target not in body["harnesses"] and len(body["harnesses"]) >= 1000:
+                        raise ValueError("Too many harness model overrides")
+                    body["harnesses"][target] = binding
             elif request.profile_id is None:
                 if target is None or request.reasoning is not None:
                     raise ValueError("Only a harness can inherit the Agent default")
@@ -386,9 +658,16 @@ class AgentModelSettings:
                 "change_boundary": "new_tasks",
                 **({"auxiliary_task": purpose} if purpose is not None else {}),
             }
+            encoded = json.dumps(body)
+            encoded_bytes = len(encoded.encode("utf-8"))
+            if encoded_bytes > MAX_SETTINGS_BYTES and encoded_bytes >= previous_bytes:
+                # Existing larger host-only stores remain readable, and the
+                # owner may remove overrides until they fit. New references
+                # cannot grow the Options response beyond its client budget.
+                raise ValueError("Agent model settings exceed the 512 KiB state limit")
             self.db.execute(
                 "UPDATE settings SET revision=?, body=? WHERE id=1",
-                (revision + 1, json.dumps(body)),
+                (revision + 1, encoded),
             )
             self.db.execute(
                 "INSERT INTO operations VALUES (?, ?, ?)",
@@ -406,12 +685,18 @@ class AgentModelSettings:
 
     def default_info(self):
         try:
-            return self.selection(None)[0].info.model_dump()
-        except ValueError:
+            return self.selection_info(None)[0].model_dump()
+        except (ValueError, RuntimeError, OSError, sqlite3.Error):
             return None
 
     async def close(self):
         try:
+            # Only the task owner may start closing its adapters after actual
+            # request cleanup. Shutdown can wait for existing closes, never
+            # cut off an active provider because a worker deadline elapsed.
+            closing = [lease.cleanup for lease in self.catalog_leases if lease.cleanup is not None]
+            if closing:
+                await asyncio.wait(closing, timeout=5)
             for instance in {
                 id(getattr(value, "provider", value)): getattr(value, "provider", value)
                 for value in [*self.instances.values(), *self.auxiliary_instances.values()]
