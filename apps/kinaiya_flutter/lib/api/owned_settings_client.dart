@@ -8,7 +8,7 @@ import '../config/connection.dart';
 import '../config/service_root.dart';
 import 'provider_settings.dart' show providerJsonDecode;
 
-enum SettingsDomain { model, runtime, control }
+enum SettingsDomain { model, runtime, control, standing }
 
 class OwnedSettingsFailure implements Exception {
   const OwnedSettingsFailure(
@@ -49,12 +49,16 @@ class OwnedSettingsTransport {
     SettingsDomain.model => 'Model',
     SettingsDomain.runtime => 'Execution settings',
     SettingsDomain.control => 'Agent mode',
+    SettingsDomain.standing => 'Standing work',
   };
   String get _connectionLabel => switch (domain) {
     SettingsDomain.model => 'model',
     SettingsDomain.runtime => 'execution settings',
     SettingsDomain.control => 'Agent mode',
+    SettingsDomain.standing => 'standing work',
   };
+  int get _requestBytes => domain == SettingsDomain.standing ? 131072 : 4096;
+  int get _responseBytes => domain == SettingsDomain.standing ? 262144 : 16384;
   final String baseUrl, _token;
   final http.Client Function() _factory;
   final Duration resultTimeout, cleanupTimeout;
@@ -105,7 +109,7 @@ class OwnedSettingsTransport {
     http.Request request;
     try {
       final bytes = body == null ? <int>[] : utf8.encode(jsonEncode(body));
-      if (bytes.length > 4096) {
+      if (bytes.length > _requestBytes) {
         return _failure(
           OwnedSettingsFailure('$_label request exceeds its bound'),
         );
@@ -119,7 +123,7 @@ class OwnedSettingsTransport {
           if (body != null) 'Content-Type': 'application/json',
         });
       if (body != null) request.bodyBytes = bytes;
-      owner = _SettingsRequest(_factory(), cleanupTimeout);
+      owner = _SettingsRequest(_factory(), cleanupTimeout, _responseBytes);
     } catch (_) {
       return _failure(OwnedSettingsFailure('$_label transport is unavailable'));
     }
@@ -218,9 +222,10 @@ class _SettingsStatus implements Exception {
 }
 
 class _SettingsRequest {
-  _SettingsRequest(this.client, this.cleanupTimeout);
+  _SettingsRequest(this.client, this.cleanupTimeout, this.responseBytes);
   final http.Client client;
   final Duration cleanupTimeout;
+  final int responseBytes;
   final Completer<void> settled = Completer<void>();
   void Function()? onSettled;
   StreamIterator<List<int>>? _reader;
@@ -261,7 +266,8 @@ class _SettingsRequest {
           !{'', 'identity'}.contains(
             (response.headers['content-encoding'] ?? '').trim().toLowerCase(),
           ) ||
-          (response.contentLength != null && response.contentLength! > 16384)) {
+          (response.contentLength != null &&
+              response.contentLength! > responseBytes)) {
         throw const FormatException();
       }
       final bytes = <int>[];
@@ -269,7 +275,9 @@ class _SettingsRequest {
       while (more) {
         if (_closed) throw const FormatException();
         final chunk = _reader!.current;
-        if (bytes.length + chunk.length > 16384) throw const FormatException();
+        if (bytes.length + chunk.length > responseBytes) {
+          throw const FormatException();
+        }
         bytes.addAll(chunk);
         more = await _reader!.moveNext();
       }
