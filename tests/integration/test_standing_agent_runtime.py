@@ -29,8 +29,13 @@ from packages.contracts.agent_tools import (
 from packages.contracts.client import JournalClient
 from packages.contracts.models import Task, TaskRequest, TaskState
 from packages.contracts.standing_admission import StandingTaskAdmission
-from packages.contracts.standing_execution import StandingExecutionIntent
+from packages.contracts.standing_execution import StandingExecutionClaim, StandingExecutionIntent
 from packages.contracts.standing_export import StandingExportRequest
+from packages.contracts.standing_resource_finalization import (
+    StandingResourceBindingRequest,
+    checked_finalization,
+    finalization_bytes,
+)
 from packages.contracts.standing_work import StandingChange, StandingChangeReceipt
 from packages.providers.completion_budget import PreparedComplete
 from packages.providers.prompt_budget import PromptTokenCount, request_digest
@@ -220,6 +225,40 @@ class Stack:
 async def stack(factory, tmp_path):
     opened = []
 
+    class NativeResourceBinder(JournalClient):
+        """Default supervisor dependency backed by actual Resources-role Session IO."""
+
+        def __init__(self, value):
+            super().__init__(
+                "http://standing.test",
+                "r" * 32,
+                transport=httpx.ASGITransport(app=value.env.app),
+            )
+            self.value = value
+
+        async def bind_standing_claim(self, claim):
+            claim = checked_finalization(claim, StandingExecutionClaim)
+            assert finalization_bytes(claim) == finalization_bytes(self.value.claim)
+            request = StandingResourceBindingRequest(
+                schema_version="1.0",
+                claim=claim,
+                resource_backend="b" * 32,
+                resource_instance="00000000-0000-4000-8000-000000000991",
+            )
+            receipt = await self.standing_resource_bind(request)
+            return receipt.validate_request(request).validate_claim(claim)
+
+        async def join(self):
+            while self._submit_exchanges:
+                tasks = {
+                    task
+                    for exchange in self._submit_exchanges
+                    for task in (exchange.task, exchange.close_task)
+                    if task is not None
+                }
+                await asyncio.gather(*tasks, return_exceptions=True)
+                await asyncio.sleep(0)
+
     async def make():
         env = await factory()
         workspace = tmp_path / f"worker-{len(opened)}"
@@ -273,6 +312,8 @@ async def stack(factory, tmp_path):
         packet = StandingExecutionIntent.model_validate(raw)
         claim = (await journal.standing_prepare(packet)).validate_request(packet).claim
         value.original, value.claim = packet, claim
+        value.fixture_resource_binder = NativeResourceBinder(value)
+        runtime.standing_resource_client = value.fixture_resource_binder
         return value
 
     try:
@@ -286,10 +327,19 @@ async def stack(factory, tmp_path):
                 if provider.close_gate is not None:
                     provider.close_gate.set()
                 provider.close_error = None
-            if not value.runtime_closed:
-                if value.runtime.workspace_settings is None:
-                    value.runtime.workspace_settings = value.workspace_owner
-                await asyncio.wait_for(value.runtime.close(), 8)
+            try:
+                if not value.runtime_closed:
+                    if value.runtime.workspace_settings is None:
+                        value.runtime.workspace_settings = value.workspace_owner
+                    await asyncio.wait_for(value.runtime.close(), 8)
+            finally:
+                # New binding oracles deliberately replace the configured client;
+                # the original default still owns its native exchanges and close.
+                binder = getattr(value, "fixture_resource_binder", None)
+                if binder is not None:
+                    await asyncio.wait_for(binder.close(), 5)
+                    await asyncio.wait_for(binder.join(), 5)
+                    assert binder.http.is_closed and not binder._submit_exchanges
             await asyncio.wait_for(value.journal.close(), 5)
 
 
