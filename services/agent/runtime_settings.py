@@ -17,6 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from core.policy import PolicyDenied
 from services.agent.tools import bwrap_path, shell_directory
+from services.settings.provider_catalog import _storage as _open_protected_storage
 
 _UUID = r"[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}"
 _MAX_REVISION = 9_007_199_254_740_990
@@ -138,26 +139,22 @@ class AgentRuntimeSettings:
     def __init__(self, runtime, *, path=None):
         self.runtime = runtime
         self.instance = str(uuid.uuid4())
-        if path is not None:
-            path = Path(path).resolve()
-            if path.is_relative_to(runtime.policy.workspace):
-                raise ValueError("Execution settings must be outside the worker workspace")
-            try:
-                path.parent.mkdir(parents=True, exist_ok=True)
-            except OSError:
-                raise RuntimeSettingsUnavailable from None
         self._failed = False
         self._closed = False
         self.backend_id = None
         try:
-            self.db = self._storage(
-                lambda: sqlite3.connect(str(path) if path is not None else ":memory:")
-            )
-            if path is not None:
-                self._storage(lambda: path.chmod(0o600))
+            if path is None:
+                self.db = self._storage(lambda: sqlite3.connect(":memory:"))
+                created = True
+            else:
+                self.db, created = self._storage(
+                    lambda: _open_protected_storage(
+                        path, runtime.policy.workspace, report_created=True
+                    )
+                )
             self._execute("PRAGMA synchronous=FULL")
             with self._transaction():
-                self._initialize_authority()
+                self._initialize_authority(created=created)
             # Observe the committed identity before exposing a usable controller.
             with self._transaction():
                 _, active = self._authority()
@@ -226,13 +223,17 @@ class AgentRuntimeSettings:
             self._rollback()
             raise
 
-    def _initialize_authority(self):
+    def _initialize_authority(self, *, created=False):
         marker = self._one("PRAGMA user_version")[0]
         objects = dict(
             self._all("SELECT name,type FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'")
         )
         legacy = {"settings": "table", "operations": "table"}
         if marker == 0 and not objects:
+            # An existing empty/truncated store cannot establish that its saved
+            # policy and writer identity never existed. Never restore defaults.
+            if not created:
+                raise RuntimeSettingsUnavailable
             self._execute(
                 "CREATE TABLE settings (id INTEGER PRIMARY KEY CHECK(id=1), "
                 "revision INTEGER NOT NULL, body TEXT NOT NULL)"
