@@ -121,6 +121,12 @@ def _hash(domain, body):
 class _Resource(_Closed):
     schema_version: Literal["1.0"]
 
+    def __setattr__(self, name, value):
+        raise ValueError(_ERROR) from None
+
+    def __delattr__(self, name):
+        raise ValueError(_ERROR) from None
+
     @model_validator(mode="wrap")
     @classmethod
     def resource_graph(cls, value, handler):
