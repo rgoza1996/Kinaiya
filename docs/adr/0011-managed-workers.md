@@ -65,7 +65,9 @@ effects) with lazy re-exports in `packages/resources/__init__.py`:
   explicit failure — `stop-incomplete` for known-owned survivors,
   `ownership-unverified` for unattributable occupants or unavailable
   enumeration — never a false stopped state and never unsafe group signalling.
-  Handles are released only after verified cleanup (or terminally by `close`).
+  Handles are released only after verified cleanup. A failed `close` retains
+  verified handles and incarnation metadata so the same manager can retry;
+  it continues refusing new starts and attempts every other worker.
   A cleanly stopped worker records no owned group, so idempotent `stop` does
   not inspect or signal a formerly owned numeric group. `start`/`restart` of
   a failed or old incarnation first verifies cleanup and refuses with

@@ -1,0 +1,162 @@
+{
+  "requirements": [
+    "https://github.com/rgoza1996/Kinaiya/issues/9",
+    "https://github.com/rgoza1996/Kinaiya/issues/239"
+  ],
+  "scope": "Generic Resources completion follows actual task-owned model retirement and prior releases. No #228 or standing dependency; not physical GPU/model release certification.",
+  "base": "88cb6bb082600555bfd85bc71c2691ff553f3811",
+  "qualified_source": "0af654fc5003af8bea9cdf3d8fbcbc6e6e534526",
+  "source_sha256": {
+    "services/agent/runtime.py": "456ac92318d287f9e75d5a9b688551bf0d36f918ca93af785ca5fb6acfd6d83d",
+    "services/agent/task_model_lease.py": "c9081cfae0012408d396401cdcab8170a758bdd07da807fa33f6eeed6ede2c70"
+  },
+  "oracles": {
+    "test_only_commit": "990c96b5e81388547600e21635abf38bff85b7b4",
+    "test_sha256": "04df84f345e7fa63db99dddb8180f148e5863b56c3980b141836fdb91bfea031",
+    "independently_frozen_origin": "2f87566bb62f915dbb1a835adce0b3aa1e6240d0",
+    "adaptation_receipt_sha256": "f467118e1d6ddd69a4da2e3428119e5986479d8540ec2048f81436feeb848470",
+    "adaptation": "Excluded standing-only imports/fixtures/cases. Ordinary optional diagnostic reads _cleanup_uncertain with false fallback. Five original test bodies/assertions unchanged; one additional ordinary cancelled-close waiter case. Integrator adapted the frozen tests after reviewing WIP fix; not a newly independent oracle exercise.",
+    "cold": {
+      "bundle": "239-main-resource-restore-cold-nq3qo6g6",
+      "receipt_sha256": "c416c0134a3a14646e55cdb01f626d248c1fc8631391f0d31e22b8c3c6fd4148",
+      "manifest_sha256": "a7fa408de29b69ace99039a4b7613485b7eac837554dd83bdc724277d796e4af",
+      "head": "990c96b5e81388547600e21635abf38bff85b7b4",
+      "head_preserved": true,
+      "exit_code": 1,
+      "pins_preserved": true,
+      "test_sha256": {
+        "tests/integration/test_agent_resource_restore_retirement.py": "04df84f345e7fa63db99dddb8180f148e5863b56c3980b141836fdb91bfea031"
+      },
+      "tests": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "5",
+          "skipped": "0",
+          "tests": "9",
+          "time": "1.030",
+          "timestamp": "2026-11-01T10:29:45.405967-08:00",
+          "hostname": "roggoz"
+        }
+      ],
+      "arguments": [
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-W",
+        "error",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "-o",
+        "junit_family=xunit1",
+        "tests/integration/test_agent_resource_restore_retirement.py"
+      ]
+    },
+    "cold_summary": "5 behavioral failures,4 passing controls,zero errors/skips in1.03s. No main production patch existed yet; original log retained."
+  },
+  "verification": {
+    "affected": {
+      "bundle": "239-main-resource-restore-final-a4voo0o4",
+      "receipt_sha256": "76471902e57a03189b9778c6ca8519961bbfab4b85edf56e70520290d47e729b",
+      "manifest_sha256": "8755322fb61b46dfe897dc9f40b07d3969b9e31e00ea10939ce8d08a62ee50dd",
+      "head": "0af654fc5003af8bea9cdf3d8fbcbc6e6e534526",
+      "head_preserved": true,
+      "exit_code": 0,
+      "pins_preserved": true,
+      "test_sha256": {
+        "tests/integration/test_agent_resource_restore_retirement.py": "04df84f345e7fa63db99dddb8180f148e5863b56c3980b141836fdb91bfea031",
+        "tests/integration/test_auxiliary_models.py": "2cff8937a12886c2514d194b8700dfc6d901fb22232a907554fe4a1efcd28050",
+        "tests/integration/test_compute_plugin_agent.py": "7614d21c6a199706ea0f2ccc22fca154e09bf28b9a49c47294b345d723b28e81",
+        "tests/integration/test_execution_catalog_cleanup.py": "a5eb8b123f086ea31e6c0fa48a573e5635f0597b4400eb3a347d0f7849fc3043",
+        "tests/integration/test_resource_handoff.py": "f515cf1e8d3a041b0892d78027252254972495993c25bbc23f57140a3bff9c8b",
+        "tests/integration/test_skills_agent.py": "c1910ce08136de220cc46e6186f5c84e05fe79a2ae4f3b5cc897f16c6c651471",
+        "tests/unit/test_agent_runtime.py": "a71b5844974b896cf39e943d74204b072d7daba57f931be6c8425eeddc8c635f"
+      },
+      "tests": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "0",
+          "skipped": "0",
+          "tests": "159",
+          "time": "34.260",
+          "timestamp": "2026-11-01T10:36:21.660466-08:00",
+          "hostname": "roggoz"
+        }
+      ],
+      "arguments": [
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-W",
+        "error",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "-o",
+        "junit_family=xunit1",
+        "tests/integration/test_agent_resource_restore_retirement.py",
+        "tests/unit/test_agent_runtime.py",
+        "tests/integration/test_execution_catalog_cleanup.py",
+        "tests/integration/test_auxiliary_models.py",
+        "tests/integration/test_resource_handoff.py",
+        "tests/integration/test_skills_agent.py",
+        "tests/integration/test_compute_plugin_agent.py"
+      ]
+    },
+    "summary": "159 passed in34.27s:9 new cases and150 existing affected cases,zero failures/errors/skips. Warnings treated as errors.",
+    "all_old_python_testfiles_byte_exact": 236,
+    "static_bundle": "239-main-resource-restore-static-mlvaafyx",
+    "static_receipt_sha256": "eee58a8cf7592cfc0c4a84010a282a9307fe7abc03ada694dc5ca12d11e34aef",
+    "static_commands": [
+      {
+        "command": [
+          "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/ruff",
+          "check",
+          "services/agent/runtime.py",
+          "tests/integration/test_agent_resource_restore_retirement.py"
+        ],
+        "exit_code": 0,
+        "output_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+      },
+      {
+        "command": [
+          "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/ruff",
+          "format",
+          "--check",
+          "services/agent/runtime.py",
+          "tests/integration/test_agent_resource_restore_retirement.py"
+        ],
+        "exit_code": 0,
+        "output_sha256": "3bc53bf3e981a98a34a852e175bf9b77af841edea74fca595d9aedcbaf9a4938"
+      },
+      {
+        "command": [
+          "git",
+          "diff",
+          "--check",
+          "88cb6bb"
+        ],
+        "exit_code": 0,
+        "output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ],
+    "cleanup": "Fixture gates opened in finally; real runtime workers and shielded TaskModelLease cleanup joined; actual journals/store and ResourceSpy closed. New cancelled-close waiter case separately joins surviving native cleanup before teardown."
+  },
+  "review": {
+    "attribution": "Separate Codex source author and read-only source reviewer, integrator adapted original independent frozen tests. This is not a newly independent oracle exercise or human approval.",
+    "source_sha256": "456ac92318d287f9e75d5a9b688551bf0d36f918ca93af785ca5fb6acfd6d83d",
+    "result": "No actionable findings in source/TaskModelLease review: sticky request/discard/release/close uncertainty, cancellation, old release order and always-close, terminal work truth and no-client/no-lease/closing/nonterminal guards checked."
+  },
+  "limits": [
+    "Synthetic controlled inference and ResourceClient callback spy; actual runtime/journal/lease exercised. Ordinary test fixture manually owns the exact captured adapter, not qualification of catalog model selection.",
+    "No #228 dependency, standing Resources finalization, recurrence, inbox, active-slot release or full roadmap completion.",
+    "No Meta/provider calls, sign-language or other live inference, device/model/dependency/configuration changes or live-port promotion.",
+    "Full exact-head CI remains a separate PR gate; existing overlapping WIP and author runs are not added to this159 total."
+  ]
+}

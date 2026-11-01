@@ -14,7 +14,13 @@ import 'widgets.dart';
 abstract final class AgentDesign {
   static const double workspaceWidth = 260;
   static const double detailsWidth = 300;
-  static const double conversationMaxWidth = 1120;
+  static const double detailsMinWidth = 220;
+  static const double sidebarMinWidth = 224;
+  static const double sidebarCollapsedWidth = 48;
+  static const double sidebarCollapseThreshold = 96;
+  static const double sidebarExpandThreshold = 128;
+  static const double conversationMinWidth = 440;
+  static const double sidebarResizeWidth = 24;
   static const double wideBreakpoint = 1080;
   static const double detailsBreakpoint = 1360;
   static const double composerBreakpoint = 620;
@@ -54,29 +60,40 @@ TextStyle? agentMutedStyle(BuildContext context, [TextStyle? base]) {
 }
 
 /// Left workspace panel: theme surface with a single outline border.
-BoxDecoration agentWorkspaceDecoration(BuildContext context) {
+BoxDecoration agentWorkspaceDecoration(
+  BuildContext context, {
+  bool showBorder = true,
+}) {
   final scheme = Theme.of(context).colorScheme;
   return BoxDecoration(
     color: scheme.surfaceContainerLow,
-    border: Border(right: BorderSide(color: scheme.outlineVariant)),
+    border: showBorder
+        ? Border(right: BorderSide(color: scheme.outlineVariant))
+        : null,
   );
 }
 
 /// Right details panel: theme surface with a single outline border.
-BoxDecoration agentDetailsDecoration(BuildContext context) {
+BoxDecoration agentDetailsDecoration(
+  BuildContext context, {
+  bool showBorder = true,
+}) {
   final scheme = Theme.of(context).colorScheme;
   return BoxDecoration(
     color: scheme.surfaceContainerLow,
-    border: Border(left: BorderSide(color: scheme.outlineVariant)),
+    border: showBorder
+        ? Border(left: BorderSide(color: scheme.outlineVariant))
+        : null,
   );
 }
 
-/// Composer strip: theme surface with a top outline border.
+/// Composer surface: a complete outline keeps its edges visible in wide chat.
 BoxDecoration agentComposerDecoration(BuildContext context) {
   final scheme = Theme.of(context).colorScheme;
   return BoxDecoration(
     color: scheme.surfaceContainerLow,
-    border: Border(top: BorderSide(color: scheme.outlineVariant)),
+    border: Border.all(color: scheme.outlineVariant),
+    borderRadius: BorderRadius.circular(KinaiyaDesign.radius),
   );
 }
 

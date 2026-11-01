@@ -51,3 +51,29 @@ class DesignPanel extends StatelessWidget {
     child: child,
   );
 }
+
+/// Frames a multi-pane workspace using the active presentation palette.
+class WorkspaceFrame extends StatelessWidget {
+  const WorkspaceFrame({super.key, required this.inset, required this.child});
+
+  final bool inset;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = BorderRadius.circular(inset ? KinaiyaDesign.radius : 0);
+    return Padding(
+      padding: EdgeInsets.all(inset ? 12 : 0),
+      child: DecoratedBox(
+        position: DecorationPosition.foreground,
+        decoration: BoxDecoration(
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outlineVariant,
+          ),
+          borderRadius: radius,
+        ),
+        child: ClipRRect(borderRadius: radius, child: child),
+      ),
+    );
+  }
+}

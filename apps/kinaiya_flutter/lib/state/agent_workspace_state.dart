@@ -29,6 +29,7 @@ class _AgentWorkspaceData {
   Future<void>? catalogRefresh;
   bool identitySelecting = false;
   bool historyMore = false;
+  String? verifiedHistoryScope;
   int catalogRead = 0, sessionRead = 0, selection = 0, historyRead = 0;
   SessionInfo? lastSession;
 }
@@ -50,6 +51,9 @@ extension AgentWorkspaceState on AppState {
       _agentWorkspace.sessionError == null;
   bool get agentSessionsHaveMore => _agentWorkspace.nextCursor != null;
   bool get agentHistoryHasMore => _agentWorkspace.historyMore;
+  bool get agentHistoryVerified =>
+      agentSession != null &&
+      _agentWorkspace.verifiedHistoryScope == _agentScope(agentSession!);
   String? get agentHarnessError => _agentWorkspace.catalogError;
   String? get agentSessionsError => _agentWorkspace.sessionError;
   String? get agentHistoryError => _agentWorkspace.historyError;
@@ -123,6 +127,7 @@ extension AgentWorkspaceState on AppState {
     data.sessions = const [];
     data.catalogCursor = data.nextCursor = null;
     data.catalogError = data.sessionError = data.historyError = null;
+    data.verifiedHistoryScope = null;
     if (clear) {
       data.harness = null;
       data.lastSession = null;
@@ -332,6 +337,7 @@ extension AgentWorkspaceState on AppState {
     data.historyLoading = true;
     data.identitySelecting = true;
     data.historyError = null;
+    data.verifiedHistoryScope = null;
     // Until authoritative identity arrives, the old destination cannot receive new work.
     agentSession = null;
     agentHistory.clear();
@@ -426,6 +432,18 @@ extension AgentWorkspaceState on AppState {
               ChatMsg(role: 'user', text: text, eventId: entry.eventId),
             );
           }
+        } else if (entry.kind == 'agent.tool') {
+          final activity = AgentToolActivity.fromJournal(entry);
+          if (activity != null) {
+            messages.add(
+              ChatMsg(
+                role: 'tool',
+                text: '',
+                eventId: entry.eventId,
+                toolActivity: activity,
+              ),
+            );
+          }
         } else if (entry.kind == 'agent.outcome') {
           final summary = entry.payload['summary'];
           final error = entry.payload['error'];
@@ -471,6 +489,7 @@ extension AgentWorkspaceState on AppState {
       }
       agentCursor = cursor;
       data.historyMore = entries.length == 200;
+      data.verifiedHistoryScope = _agentScope(session);
       _saveAgentWorkspace();
     } catch (_) {
       if (current()) {

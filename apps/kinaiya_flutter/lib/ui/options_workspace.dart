@@ -474,184 +474,199 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, bounds) {
       final wide =
-          bounds.maxWidth /
+          (bounds.maxWidth - 24).clamp(0.0, double.infinity) /
               MediaQuery.textScalerOf(context).scale(1).clamp(1, 2) >=
           880;
       return Scaffold(
         key: _scaffold,
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         drawer: wide ? null : Drawer(child: SafeArea(child: _navigation())),
-        body: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (wide) SizedBox(width: 264, child: _navigation()),
-            if (wide) const VerticalDivider(width: 1),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 20, 16, 12),
-                    child: Row(
-                      children: [
-                        if (!wide)
+        body: WorkspaceFrame(
+          key: const ValueKey('options-workspace-frame'),
+          inset: wide,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (wide) SizedBox(width: 264, child: _navigation()),
+              if (wide) const VerticalDivider(width: 1),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 20, 16, 12),
+                      child: Row(
+                        children: [
+                          if (!wide)
+                            IconButton(
+                              tooltip: 'Options navigation',
+                              icon: const Icon(Icons.menu),
+                              onPressed: () =>
+                                  _scaffold.currentState?.openDrawer(),
+                            ),
+                          Expanded(
+                            child: Text(
+                              _pageTitle,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.headlineSmall
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                          ),
                           IconButton(
-                            tooltip: 'Options navigation',
-                            icon: const Icon(Icons.menu),
-                            onPressed: () =>
-                                _scaffold.currentState?.openDrawer(),
+                            tooltip: 'Refresh options',
+                            onPressed: _loading ? null : _refresh,
+                            icon: const Icon(Icons.refresh),
                           ),
-                        Expanded(
-                          child: Text(
-                            _pageTitle,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.headlineSmall
-                                ?.copyWith(fontWeight: FontWeight.w700),
+                          IconButton(
+                            key: const Key('settings-close'),
+                            tooltip: 'Close options',
+                            onPressed: widget.onClose,
+                            icon: const Icon(Icons.close),
                           ),
-                        ),
-                        IconButton(
-                          tooltip: 'Refresh options',
-                          onPressed: _loading ? null : _refresh,
-                          icon: const Icon(Icons.refresh),
-                        ),
-                        IconButton(
-                          key: const Key('settings-close'),
-                          tooltip: 'Close options',
-                          onPressed: widget.onClose,
-                          icon: const Icon(Icons.close),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (_loading) const LinearProgressIndicator(minHeight: 2),
-                  if (_notice != null)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 8,
+                        ],
                       ),
-                      child: Semantics(liveRegion: true, child: Text(_notice!)),
                     ),
-                  if (_visibleModelNotice case final notice?)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 8,
-                      ),
-                      child: Semantics(liveRegion: true, child: Text(notice)),
+                    const Divider(
+                      key: ValueKey('options-content-heading-divider'),
+                      height: 1,
                     ),
-                  if (_pending case final pending?)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 8,
+                    if (_loading) const LinearProgressIndicator(minHeight: 2),
+                    if (_notice != null)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 8,
+                        ),
+                        child: Semantics(
+                          liveRegion: true,
+                          child: Text(_notice!),
+                        ),
                       ),
-                      child: DesignPanel(
-                        padding: const EdgeInsets.all(12),
-                        child: Wrap(
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          spacing: 12,
-                          runSpacing: 8,
-                          children: [
-                            Text(pending.notice),
-                            TextButton(
-                              onPressed:
-                                  agentModelWrites.canLookup(
-                                    pending,
-                                    widget.state.client!.modelSettings,
-                                    _models?.writeAuthority,
-                                  )
-                                  ? _checkModelSave
-                                  : null,
-                              child: const Text('Check save status'),
-                            ),
-                            if (agentModelWrites.canRetry(
-                              pending,
-                              widget.state.client!.modelSettings,
-                              _models?.writeAuthority,
-                            ))
+                    if (_visibleModelNotice case final notice?)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 8,
+                        ),
+                        child: Semantics(liveRegion: true, child: Text(notice)),
+                      ),
+                    if (_pending case final pending?)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 8,
+                        ),
+                        child: DesignPanel(
+                          padding: const EdgeInsets.all(12),
+                          child: Wrap(
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            spacing: 12,
+                            runSpacing: 8,
+                            children: [
+                              Text(pending.notice),
                               TextButton(
-                                onPressed: () => _retryModel(pending),
-                                child: const Text('Retry the same save'),
+                                onPressed:
+                                    agentModelWrites.canLookup(
+                                      pending,
+                                      widget.state.client!.modelSettings,
+                                      _models?.writeAuthority,
+                                    )
+                                    ? _checkModelSave
+                                    : null,
+                                child: const Text('Check save status'),
                               ),
-                          ],
+                              if (agentModelWrites.canRetry(
+                                pending,
+                                widget.state.client!.modelSettings,
+                                _models?.writeAuthority,
+                              ))
+                                TextButton(
+                                  onPressed: () => _retryModel(pending),
+                                  child: const Text('Retry the same save'),
+                                ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                  if (_runtimeScope?.notice case final notice?)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 8,
+                    if (_runtimeScope?.notice case final notice?)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 8,
+                        ),
+                        child: Semantics(liveRegion: true, child: Text(notice)),
                       ),
-                      child: Semantics(liveRegion: true, child: Text(notice)),
-                    ),
-                  if (_runtimePending case final pending?)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 8,
-                      ),
-                      child: DesignPanel(
-                        padding: const EdgeInsets.all(12),
-                        child: Wrap(
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          spacing: 12,
-                          runSpacing: 8,
-                          children: [
-                            Text(pending.notice),
-                            TextButton(
-                              onPressed:
-                                  agentRuntimeWrites.canLookup(
-                                    pending,
-                                    widget.state.client!.runtimeSettings,
-                                    _runtime?.writeAuthority,
-                                  )
-                                  ? _checkRuntimeSave
-                                  : null,
-                              child: const Text('Check execution save status'),
-                            ),
-                            if (agentRuntimeWrites.canRetry(
-                              pending,
-                              widget.state.client!.runtimeSettings,
-                              _runtime?.writeAuthority,
-                            ))
+                    if (_runtimePending case final pending?)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 8,
+                        ),
+                        child: DesignPanel(
+                          padding: const EdgeInsets.all(12),
+                          child: Wrap(
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            spacing: 12,
+                            runSpacing: 8,
+                            children: [
+                              Text(pending.notice),
                               TextButton(
-                                onPressed: () => _retryRuntime(pending),
+                                onPressed:
+                                    agentRuntimeWrites.canLookup(
+                                      pending,
+                                      widget.state.client!.runtimeSettings,
+                                      _runtime?.writeAuthority,
+                                    )
+                                    ? _checkRuntimeSave
+                                    : null,
                                 child: const Text(
-                                  'Retry the same execution save',
+                                  'Check execution save status',
                                 ),
                               ),
-                          ],
+                              if (agentRuntimeWrites.canRetry(
+                                pending,
+                                widget.state.client!.runtimeSettings,
+                                _runtime?.writeAuthority,
+                              ))
+                                TextButton(
+                                  onPressed: () => _retryRuntime(pending),
+                                  child: const Text(
+                                    'Retry the same execution save',
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    Expanded(
+                      child: Padding(
+                        padding: _page == OptionsPage.overview
+                            ? EdgeInsets.zero
+                            : EdgeInsets.fromLTRB(
+                                wide ? 32 : 16,
+                                8,
+                                wide ? 32 : 16,
+                                24,
+                              ),
+                        child: UiFadeTransition(
+                          alignment: Alignment.topLeft,
+                          enabled:
+                              widget
+                                  .presentation
+                                  .preferences
+                                  .animateTransitions &&
+                              !widget.presentation.preferences.reducedMotion,
+                          transitionKey: '${_page.name}:${_harness ?? ''}',
+                          child: _content(),
                         ),
                       ),
                     ),
-                  Expanded(
-                    child: Padding(
-                      padding: EdgeInsets.fromLTRB(
-                        wide ? 32 : 16,
-                        8,
-                        wide ? 32 : 16,
-                        24,
-                      ),
-                      child: UiFadeTransition(
-                        alignment: Alignment.topLeft,
-                        enabled:
-                            widget
-                                .presentation
-                                .preferences
-                                .animateTransitions &&
-                            !widget.presentation.preferences.reducedMotion,
-                        transitionKey: '${_page.name}:${_harness ?? ''}',
-                        child: _content(),
-                      ),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       );
     },
@@ -665,14 +680,25 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
         padding: EdgeInsets.zero,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 24, 20, 18),
-            child: Text(
-              'Options',
-              style: Theme.of(context).textTheme.titleLarge,
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 48),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                heightFactor: 1,
+                child: Text(
+                  'Options',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ),
             ),
           ),
+          const Divider(
+            key: ValueKey('options-sidebar-heading-divider'),
+            height: 1,
+          ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+            padding: const EdgeInsets.fromLTRB(12, 16, 12, 0),
             child: TextField(
               key: const Key('settings-search'),
               controller: _search,
@@ -766,33 +792,35 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
     );
   }
 
+  Widget _overview() => LayoutBuilder(
+    builder: (context, bounds) {
+      if (!widget.presentation.preferences.showCharacter) {
+        return const SizedBox.expand();
+      }
+      final selection = widget.presentation.selected;
+      if (selection?.packageJson == null) {
+        return Image.asset(
+          'assets/design/kinaiya-options-gear-v1.png',
+          key: const ValueKey('options-overview-artwork'),
+          semanticLabel: 'Kinaiya cradles a gear in front of the full moon',
+          width: double.infinity,
+          height: double.infinity,
+          fit: BoxFit.contain,
+        );
+      }
+      return Center(
+        child: MascotWidget(
+          pack: selection!.pack,
+          bundle: selection.bundle,
+          mood: 'idle',
+          size: bounds.biggest.shortestSide,
+        ),
+      );
+    },
+  );
+
   Widget _content() => switch (_page) {
-    OptionsPage.overview => SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Choose a category to get started.'),
-          const SizedBox(height: 32),
-          if (widget.presentation.preferences.showCharacter)
-            if (widget.presentation.selected?.packageJson == null)
-              Image.asset(
-                'assets/design/kinaiya-options-gear-v1.png',
-                semanticLabel:
-                    'Kinaiya cradles a gear in front of the full moon',
-                fit: BoxFit.contain,
-              )
-            else if (widget.presentation.selected case final selection?)
-              Center(
-                child: MascotWidget(
-                  pack: selection.pack,
-                  bundle: selection.bundle,
-                  mood: 'idle',
-                  size: 320,
-                ),
-              ),
-        ],
-      ),
-    ),
+    OptionsPage.overview => _overview(),
     OptionsPage.models => _modelDefaults(),
     OptionsPage.harnesses => _harnesses(),
     OptionsPage.providers => _providers(),

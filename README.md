@@ -10,11 +10,15 @@ Converse is optional. Agent stays available for coding, research, files, and oth
 
 ## See the interface
 
-![Kinaiya Home with its moonlit character, navigation sidebar, and floating setup controls](assets/screenshots/kinaiya-home-2026-10-30.png)
+| Converse | Agent workspace | Options |
+| --- | --- | --- |
+| <a href="assets/screenshots/2026-11-01/12-converse.jpg"><img src="assets/screenshots/2026-11-01/12-converse.jpg" width="300" alt="Converse with character artwork and an empty conversation panel"></a> | <a href="assets/screenshots/2026-11-01/07-agent-workspace.jpg"><img src="assets/screenshots/2026-11-01/07-agent-workspace.jpg" width="300" alt="Agent workspace with harnesses, empty sessions and task details"></a> | <a href="assets/screenshots/2026-11-01/10-options-connected.jpg"><img src="assets/screenshots/2026-11-01/10-options-connected.jpg" width="300" alt="Options category navigation and character artwork"></a> |
 
-*Application screenshot supplied by the owner, October 30, 2026: Home with the setup bubbles open. This capture shows the disconnected state; newer Options controls have landed since it was taken. [Capture details](assets/screenshots/README.md).*
+*Actual application captures, November 1, 2026, showing fixture model metadata and an empty Agent workspace. Select an image to open the complete raw capture.*
 
-Explore the [editable interface designs](assets/penpot/README.md) for Converse, Agent, Options, and intelligent views. Those boards are design references with illustrative content; the image above is a capture of the application.
+See the [full application gallery and capture provenance](assets/screenshots/README.md) for Home, floating controls, Models, Tools, Permissions, About, and the dated October 30 image.
+
+Explore the [editable interface designs](assets/penpot/README.md) for Converse, Agent, Options, and intelligent views. Those boards are design references with illustrative content.
 
 ## Why Kinaiya
 
@@ -62,7 +66,7 @@ Kinaiya pairs a personable, real-time voice experience with an agent that can do
 
 The long-term product scope also includes resource-aware operation, provider choice, durable work, skills and MCP tools, mobile calling, and optional intelligent UI. Those are planned capabilities, not promises that every feature will ship in one release.
 
-The [Roadmap 0.3.1](Roadmap.md) retains the October 30 reconciliation and adds the October 31 clarification on model choice, stack recommendations and architectural performance research. The [implementation and acceptance ledger](docs/implementation-status.md) retains a historical runtime cutoff at source `f92f6d1` and separately records later bounded increments; read those addenda and their ADRs for subsequent changes, not as a freshly requalified full-product snapshot. Partial resource/ecosystem/mobile foundations do not establish completion of the full product scope above.
+The [Roadmap 0.3.2](Roadmap.md) retains the October 30 reconciliation, October 31 model-choice/performance clarification and November 1 optional Omni Converse paths. The [implementation and acceptance ledger](docs/implementation-status.md) retains a historical runtime cutoff at source `f92f6d1` and separately records later bounded increments; read those addenda and their ADRs for subsequent changes, not as a freshly requalified full-product snapshot. Partial resource/ecosystem/mobile foundations do not establish completion of the full product scope above.
 
 
 ## Status
@@ -486,11 +490,12 @@ $$
 h=\mathrm{SHA256}(\mathrm{CanonicalJSON}(a,\mathrm{Normalize}(\theta_a),r)).
 $$
 
-A necessary permit predicate is:
+A necessary permit predicate for an existing record is:
 
 $$
 \begin{aligned}
-\mathrm{Usable}(p,a,r,t)\iff{}&p.h=h(a,r)\land p.r=r\\
+\mathrm{Usable}(p,a,\theta_a,r,t_{\mathrm{wall}},t_{\mathrm{mono}})\iff{}&
+p.h=h(a,\theta_a,r)\land p.r=r\\
 &\land\neg p.\mathrm{used}\land p.\mathrm{retired}=\varnothing\\
 &\land t_{\mathrm{wall}}<p.e_{\mathrm{wall}}\\
 &\land(p.e_{\mathrm{mono}}=\varnothing\lor t_{\mathrm{mono}}<p.e_{\mathrm{mono}}).
@@ -731,4 +736,3 @@ The planned demonstration is a focused slice through the larger roadmap:
 6. At least one verified Meta integration is exercised if the event requirements, account access, and applicable terms allow it.
 
 Meta is a target integration, not a product dependency. Model and API availability must be verified during implementation; the core stays provider-configurable. A Meta-generated character variant is a stretch demonstration, not a requirement on the voice-response path.
-

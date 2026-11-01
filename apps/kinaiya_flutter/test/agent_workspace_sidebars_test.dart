@@ -3,6 +3,52 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kinaiya_flutter/ui/agent_workspace_sidebars.dart';
 
 void main() {
+  testWidgets('harness search is labelled and filters the displayed entries', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AgentHarnessSidebar(
+            entries: const [
+              HarnessSidebarEntry(
+                id: 'alpha',
+                name: 'Alpha',
+                kind: 'context_selector.v1',
+                description: 'First harness',
+                active: false,
+                selectable: false,
+              ),
+              HarnessSidebarEntry(
+                id: 'beta',
+                name: 'Beta',
+                kind: 'context_selector.v1',
+                description: 'Second harness',
+                active: false,
+                selectable: false,
+              ),
+            ],
+            selectedId: null,
+            collapsed: false,
+            loading: false,
+            error: null,
+            onToggle: () {},
+            onRefresh: () {},
+            onSelect: (_) {},
+          ),
+        ),
+      ),
+    );
+    expect(find.bySemanticsLabel(RegExp('Search harnesses')), findsWidgets);
+    await tester.enterText(find.byType(TextField), 'Beta');
+    await tester.pump();
+    expect(find.byKey(const Key('harness-beta')), findsOneWidget);
+    expect(find.byKey(const Key('harness-alpha')), findsNothing);
+    expect(tester.takeException(), isNull);
+    semantics.dispose();
+  });
+
   testWidgets(
     'unapproved metadata stays inspectable; core and initial build invoke nothing',
     (tester) async {

@@ -15,6 +15,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../api/client.dart';
+import '../api/agent_activity.dart';
 import '../api/models.dart';
 import '../api/decisions_model_settings.dart';
 import '../api/agent_workspace.dart';
@@ -38,6 +39,7 @@ class ChatMsg {
     this.utteranceId,
     this.windowIndex = -1,
     this.windowRevision = 0,
+    this.toolActivity,
   });
   final String role; // 'user' | 'kinaiya' | 'system'
   final String text;
@@ -47,6 +49,7 @@ class ChatMsg {
   final String? utteranceId;
   final int windowIndex;
   final int windowRevision;
+  final AgentToolActivity? toolActivity;
 }
 
 class AppState extends ChangeNotifier {

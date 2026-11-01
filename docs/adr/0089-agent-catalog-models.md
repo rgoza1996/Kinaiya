@@ -72,6 +72,15 @@ starts no work and independently retains unused-adapter cleanup ownership.
 An adapter close failure retains capacity and is exposed as cleanup pending or
 failed; it does not rewrite already published task completion evidence.
 
+The Agent's generic Resources completion notification follows successful
+skill/plugin release and the exact task model lease's positively returned close.
+Pending or cancelled close and earlier uncertain request cleanup suppress that
+notification, even if a later adapter close succeeds. The actual lease retains
+its own cleanup operation through waiter cancellation. Tasks without a lease
+retain their existing notification behavior when cleanup is otherwise confirmed;
+closing/nonterminal tasks still suppress it. This ordering does not certify
+physical GPU release or change the authoritative work outcome.
+
 The existing runtime busy boundary includes model cleanup, so an execution
 settings change cannot treat terminal publication alone as idle. Shutdown waits
 for owned cleanup; it does not manufacture successful close from cancellation.
