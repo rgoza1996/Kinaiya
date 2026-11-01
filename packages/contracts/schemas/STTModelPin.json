@@ -1,0 +1,148 @@
+{
+  "$defs": {
+    "CatalogModelBinding": {
+      "additionalProperties": false,
+      "description": "Explicit immutable native provider reference, never a display alias.",
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "generation": {
+          "maximum": 64,
+          "minimum": 1,
+          "title": "Generation",
+          "type": "integer"
+        },
+        "configuration_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Configuration Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "generation",
+        "configuration_sha256"
+      ],
+      "title": "CatalogModelBinding",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Native transcription target; undeclared host identity stays unknown.",
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "role": {
+      "const": "stt",
+      "default": "stt",
+      "title": "Role",
+      "type": "string"
+    },
+    "source": {
+      "enum": [
+        "host",
+        "catalog"
+      ],
+      "title": "Source",
+      "type": "string"
+    },
+    "backend_id": {
+      "maxLength": 32,
+      "minLength": 32,
+      "title": "Backend Id",
+      "type": "string"
+    },
+    "instance_id": {
+      "maxLength": 32,
+      "minLength": 32,
+      "title": "Instance Id",
+      "type": "string"
+    },
+    "settings_revision": {
+      "maximum": 9007199254740990,
+      "minimum": 0,
+      "title": "Settings Revision",
+      "type": "integer"
+    },
+    "catalog_revision": {
+      "anyOf": [
+        {
+          "maximum": 9007199254740990,
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Catalog Revision"
+    },
+    "catalog_binding": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CatalogModelBinding"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "provider": {
+      "anyOf": [
+        {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Provider"
+    },
+    "model": {
+      "anyOf": [
+        {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Model"
+    },
+    "local": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Local"
+    }
+  },
+  "required": [
+    "source",
+    "backend_id",
+    "instance_id",
+    "settings_revision",
+    "catalog_revision",
+    "catalog_binding",
+    "provider",
+    "model",
+    "local"
+  ],
+  "title": "STTModelPin",
+  "type": "object"
+}

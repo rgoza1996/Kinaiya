@@ -17,9 +17,9 @@ corresponding acceptance evidence are present.
 
 | Group | Required outcome | Current delivered foundation / next work |
 | --- | --- | --- |
-| Models, providers, fallback routes | Independent Agent, Converse, Decisions, STT and TTS choices; supported reasoning/input/sampling controls; endpoint/local-model and protected credentials; explicit fallback order with private/cloud disclosure approval. | Agent defaults, exact-harness and five auxiliary text-purpose overrides exist (ADR0077/0082). The provider catalog and exact Agent task adapters are merged through #212 (ADR0086/0089). Converse text selection (#220, ADR0091) and ordered routes for the five auxiliary text purposes (#221, ADR0093) are under review. Decisions/STT/TTS editors, primary/other-role fallback and broader sampling remain incomplete. Direct audio requires the actual transport and qualification. |
-| Precise permissions | Allow/Ask/Deny for reads, writes, commands, network and individual tools; task/session/workspace/default scopes; active grants and approvals; approval behavior separate from actual sandbox access. | Service-wide native execution controls exist (ADR0084). Scoped read_file/write_file/shell rules and exact approval expiry/renewal are under review in #215 (ADR0096/0092); Search and exact MCP targets follow in #221 (ADR0094). General read/network enforcement, remaining tools/plugins and active-grant inventory remain work. The [permission rollout](options-permission-plan.md) retains the broader admission obligations. |
-| Workspace and execution | Select/inspect the active root and readable/writable/protected folders; actual isolation state/network; supported execution backend and optional isolated Git worktree. | Native containment/Bubblewrap and execution inspection/relative starting directory exist (ADR0084). Owner root selection, read-only overlays, concrete root pins and an embedded editor are implemented in source under review (ADR0097); actual CI and preview qualification are pending. Alternate backends and coding worktrees remain work. |
+| Models, providers, fallback routes | Independent Agent, Converse, Decisions, STT and TTS choices; supported reasoning/input/sampling controls; endpoint/local-model and protected credentials; explicit fallback order with private/cloud disclosure approval. | Agent defaults, exact-harness and five auxiliary text-purpose overrides exist (ADR0077/0082). The provider catalog and exact Agent task adapters are merged through #212 (ADR0086/0089). Converse text selection (#220, ADR0091) and ordered routes for the five auxiliary text purposes (#221, ADR0093) are merged. Independent Decisions selection is merged in #223 (ADR0098); the authenticated 8808 preview exposes all three increments. Independent STT selection is implemented in source under review (ADR0099), including durable unresolved-worker fencing. Positive worker reconciliation, TTS, primary/other-role fallback and broader sampling remain incomplete. Direct audio requires the actual transport and qualification. |
+| Precise permissions | Allow/Ask/Deny for reads, writes, commands, network and individual tools; task/session/workspace/default scopes; active grants and approvals; approval behavior separate from actual sandbox access. | Service-wide native execution controls exist (ADR0084). Scoped read_file/write_file/shell rules and exact approval expiry/renewal are merged in #215 (ADR0096/0092); Search and exact MCP targets are merged in #221 (ADR0094). General read/network enforcement, remaining tools/plugins and active-grant inventory remain work. The [permission rollout](options-permission-plan.md) retains the broader admission obligations. |
+| Workspace and execution | Select/inspect the active root and readable/writable/protected folders; actual isolation state/network; supported execution backend and optional isolated Git worktree. | Native containment/Bubblewrap and execution inspection/relative starting directory exist (ADR0084). Owner root selection, read-only overlays, concrete root pins and an embedded editor are merged in #222 after all five CI jobs passed (ADR0097), and present in the authenticated 8808 preview. Alternate backends and coding worktrees remain work. |
 | Tools, skills, MCP, plugins | Individual/group enablement; MCP tool selection; source/version and active status. Distinguish installed, connected, enabled and authorized. | MCP management exists. General native tool selection and a unified skills/plugin inspection/editor remain work. |
 | Context and history | Actual used/available model context, response reserve, supported compaction thresholds and model/provider provenance. Distinguish retained transcript from reduced prompt context. | Measured prompt admission and explicit auxiliary compression calls exist. Automatic compaction, usage and general limit editors remain work. |
 | Memory and retention | View/edit/select/forget Converse notes; approved capture/proposals; separate transcript, raw-audio and diagnostic policies; reviewable export/deletion. | Selection/use and transcript-pinned capture, immutable revised notes, explicit forget and historical receipt recovery are embedded in Options (ADR0085). Retention, backend replacement and general history management remain work. |
@@ -64,8 +64,8 @@ Subsequent increments add owner note editing and protected provider catalog
 approval expiry before expanding scoped Ask rules. None closes an acceptance
 group; the remaining obligations stay in the table above.
 
-[ADR0096](adr/0096-scoped-native-tool-permissions.md) is the next implementation
-under review: four native scopes for the exact `read_file`, `write_file` and
+[ADR0096](adr/0096-scoped-native-tool-permissions.md) is merged in #215:
+four native scopes for the exact `read_file`, `write_file` and
 `shell` tools, independent action admission, protected CAS/receipt storage and
 an embedded editor. It does not establish blanket filesystem-read protection,
 individual MCP/plugin or scoped network rules, active-grant inventory or the
@@ -76,28 +76,51 @@ preview promotion; source presence alone does not close these obligations.
 owned role editor: Converse text, exact eligible catalog generations/reasoning,
 settled-operation CAS, captured stream leases and pins, and receipt-first UI
 recovery. Decisions, STT/TTS, ordered fallback and real multimodal qualification
-remain incomplete. This is source under review; consult its PR for actual CI and
-preview evidence before treating it as delivered.
+remain incomplete. This increment is merged in #220; all five CI jobs passed,
+and the authenticated 8808 preview exposes the embedded Converse text editor.
 
 [ADR0093](adr/0093-auxiliary-fallback-routes.md) records native ordered routes
 for the five auxiliary text purposes: exact task-captured catalog/credential
 generations, narrow pre-generation advancement, actual cleanup ownership, and
-closed attempt provenance. Native and embedded route-editor source is implemented
-under review; exact-head CI and preview verification remain pending. Primary and
+closed attempt provenance. Native and embedded route-editor source is merged in
+#221 after all five CI jobs passed; the authenticated 8808 preview loads its
+metadata and editor. Primary and
 other role/modality fallbacks remain work.
 
 [ADR0094](adr/0094-native-and-mcp-permission-targets.md) adds native Search and
 exact MCP target rules while preserving the legacy three-tool protocol. Passive
-inventory, stale-binding refusal, and one-use actor-queue admission are native
-source under review. The target owner API/editor is implemented and statically
-reviewed; exact-head CI and preview verification remain pending. Neither
+inventory, stale-binding refusal, and one-use actor-queue admission are merged
+in #221 after all five CI jobs passed. The target owner API/editor is implemented;
+its source review and metadata inspection do not qualify actual external MCP
+execution. Neither
 increment closes an acceptance group, adds a task network firewall, or replaces
 the outstanding obligations above.
 
 [ADR0097](adr/0097-workspace-owner-selection.md) adds explicit native root and
 read-only-folder selection, saved/active separation, immutable runtime guards,
 captured root identity, actual-operation retirement and an embedded editor.
-Source review and integration are in progress; this is not a preview or live
-isolation qualification. Historical unpinned outputs remain readable with an
+This increment is merged in #222 after all five CI jobs passed and is present
+in the authenticated 8808 preview. Live isolation qualification remains separate.
+Historical unpinned outputs remain readable with an
 unknown root rather than being resolved through today's workspace. No actual
 workspace has been changed by implementing this increment.
+
+Independent Decisions model selection is merged in #223 (ADR0098) after all five
+CI jobs passed, and its embedded editor was visually reviewed on 8808.
+It retains classifier ownership and exact script/output provenance without
+adding conversational reasoning or speech settings. Agent model authority
+recovery is merged in #224 after all five CI jobs passed: an existing empty/truncated
+database must not mint another host-default selection. The current preview is
+frozen at the qualified #223 source and does not yet include #224's recovery
+follow-up. Consult their CI and preview records; neither increment closes an
+acceptance group. Preview classifiers are metadata-only synthetic fixtures;
+this browser review does not qualify actual Decisions inference.
+
+[ADR0099](adr/0099-independent-stt-model-settings.md) implements an independent
+STT owner, exact Meta transcription declarations, embedded Audio controls and
+server-captured transcript provenance. Native and Flutter source reviews,
+formatting/static analysis and schema determinism passed; exact-head CI and
+preview promotion remain pending. Unresolved local-worker admissions remain
+durable across restart and block inference/model changes until positive native
+settlement can be established. That reconciliation mechanism, TTS selection
+and real backend/device qualification remain work. No paid calls were made.

@@ -162,9 +162,25 @@ def setup_state(runtime, host=None):
             if conversation.configured
             else "Selected Converse model is unavailable. Inspect model options."
         )
+    stt = host.stt if host else _role()
+    if getattr(runtime, "_stt_options_configured", False):
+        owner = getattr(runtime, "stt_model_settings", None)
+        try:
+            if owner is None or runtime._stt_options_unavailable:
+                raise ValueError("STT selection unavailable")
+            stt_info = owner.selected_info()
+            stt = (
+                _role(source="runtime")
+                if stt_info is None
+                else _role(stt_info.provider, stt_info.model, source="runtime")
+            )
+            stt.reason = "Selected through Audio options; identity or readiness may be unknown."
+        except (ValueError, RuntimeError, OSError):
+            stt = _role(source="runtime")
+            stt.reason = "Selected STT is unavailable. Inspect Audio options."
     roles = SetupRoles(
         conversation=conversation,
-        stt=host.stt if host else _role(),
+        stt=stt,
         tts=host.tts if host else _role(),
         decisions=host.decisions if host else _role(),
     )

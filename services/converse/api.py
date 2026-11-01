@@ -24,6 +24,7 @@ from services.converse.embedding import (
     runtime_model_settings,
     runtime_provider_info,
 )
+from services.converse.stt_operations import stt_operation
 
 _STT_CLOSE_OWNERS = set()
 _STT_OWNERS = set()
@@ -132,25 +133,32 @@ def _cloud_tts_current(speech, event, scoped):
     return current
 
 
-async def _transcribe_connected(request, operation):
+async def _transcribe_connected(request, operation, *, native=None):
     """Bodies are already parsed; one receive owner now watches disconnect.
 
     HTTP cleanup may outlive the bounded request wait. Retain that close task;
     Whistle's broker separately owns native cancellation/reaping. This does
     not establish that a legacy Whisper native thread has stopped.
     """
-    if len(_STT_OWNERS) >= 32:
+    owners = _STT_OWNERS if native is None else native.runtime._stt_transports
+    closes = _STT_CLOSE_OWNERS if native is None else native.runtime._stt_transport_closures
+    if len(owners) >= 32:
         raise HTTPException(503, "STT transport cleanup is busy")
     owner = object()
-    _STT_OWNERS.add(owner)
+    owners.add(owner)
 
     async def disconnected():
         while (await request.receive())["type"] != "http.disconnect":
             pass
 
-    work = asyncio.create_task(operation())
-    watcher = asyncio.create_task(disconnected())
+    work = watcher = None
     try:
+        work = asyncio.create_task(operation())
+        if native is not None:
+            native.dependencies.add(work)
+        watcher = asyncio.create_task(disconnected())
+        if native is not None:
+            native.dependencies.add(watcher)
         await asyncio.wait((work, watcher), return_when=asyncio.FIRST_COMPLETED)
         # Give a simultaneously available disconnect its receive turn before
         # accepting text or allowing the audio-window append below.
@@ -161,19 +169,25 @@ async def _transcribe_connected(request, operation):
     except SpeechProviderError as exc:
         raise HTTPException(exc.status_code, str(exc)) from exc
     finally:
-        watcher.cancel()
-        if not work.done():
+        if watcher is not None:
+            watcher.cancel()
+        if work is not None and not work.done():
             work.cancel()
 
         async def close():
             try:
-                await asyncio.gather(work, watcher, return_exceptions=True)
+                await asyncio.gather(
+                    *(task for task in (work, watcher) if task is not None), return_exceptions=True
+                )
             finally:
-                _STT_OWNERS.discard(owner)
+                owners.discard(owner)
 
         cleanup = asyncio.create_task(close())
-        _STT_CLOSE_OWNERS.add(cleanup)
-        cleanup.add_done_callback(_STT_CLOSE_OWNERS.discard)
+        closes.add(cleanup)
+        cleanup.add_done_callback(closes.discard)
+        if native is not None:
+            native.dependencies.add(cleanup)
+            native.cleanup_dependencies.add(cleanup)
         with CancelScope(shield=True):
             await asyncio.wait((cleanup,), timeout=1)
 
@@ -215,6 +229,7 @@ class SpeechTurnResponse(TypedTurnResponse):
 
 def create_app(runtime, auth, speech=None, window_controller=None, *, setup=None):
     from services.converse.memory_api import install_memory_controls
+    from services.converse.stt_model_api import install_stt_model_controls
 
     app = FastAPI(title="Kinaiya Converse", version="1.0")
     owner = [Depends(auth.require("owner"))]
@@ -230,8 +245,27 @@ def create_app(runtime, auth, speech=None, window_controller=None, *, setup=None
                 if window_controller is not None
                 else 0
             ),
-            "stt": len(_STT_OWNERS),
-            "stt_cleanup": len(_STT_CLOSE_OWNERS),
+            "stt": len(runtime._stt_transports)
+            + len(runtime._stt_operations)
+            + (
+                len(runtime.stt_model_settings.leases)
+                if runtime.stt_model_settings is not None
+                else 0
+            )
+            if getattr(runtime, "_stt_options_configured", False)
+            else len(_STT_OWNERS),
+            "stt_cleanup": (
+                len(runtime._stt_transport_closures)
+                + sum(
+                    lease.cleanup_failed or lease.cleanup_unknown
+                    for lease in runtime.stt_model_settings.leases
+                )
+                + runtime.stt_model_settings.unknown_admissions()
+                if getattr(runtime, "stt_model_settings", None) is not None
+                else len(runtime._stt_transport_closures)
+            )
+            if getattr(runtime, "_stt_options_configured", False)
+            else len(_STT_CLOSE_OWNERS),
         }
 
     runtime._model_operations_extra = model_operation_extras
@@ -242,6 +276,7 @@ def create_app(runtime, auth, speech=None, window_controller=None, *, setup=None
         allow_headers=["Authorization", "Content-Type"],
     )
     app.add_middleware(ModelApiOwnership)
+    install_stt_model_controls(app, runtime, auth)
 
     @app.get("/health")
     async def health():
@@ -436,25 +471,75 @@ def create_app(runtime, auth, speech=None, window_controller=None, *, setup=None
         _reserve_api_model(runtime, request)
         if not runtime.enabled:
             raise HTTPException(409, "Converse is off; direct Agent Chat remains available")
-        if speech is None:
+        if speech is None and not getattr(runtime, "_stt_options_configured", False):
             raise HTTPException(503, "Configure an STT provider in settings")
-        current = _cloud_stt_current(runtime, speech, content_scope)
-        data = await file.read(10_000_001)
-        if len(data) > 10_000_000:
-            raise HTTPException(413, "Recording exceeds 10 MB temporary limit")
-        if not runtime.enabled:
-            raise HTTPException(409, "Converse is off; direct Agent Chat remains available")
-        transcript = await _transcribe_connected(
-            request,
-            lambda: _transcription(
-                speech, data, file.filename or "recording.wav", content_scope, current
-            ),
-        )
-        return {**transcript, "content_scope": content_scope}
+        try:
+            async with stt_operation(runtime, content_scope) as native:
+                target = speech if native is None else native.provider
+                current = (
+                    _cloud_stt_current(runtime, speech, content_scope)
+                    if native is None
+                    else native.current
+                )
+                data = (
+                    await file.read(10_000_001)
+                    if native is None
+                    else await native.wait(file.read(10_000_001))
+                )
+                if len(data) > 10_000_000:
+                    raise HTTPException(413, "Recording exceeds 10 MB temporary limit")
+                if not runtime.enabled:
+                    raise HTTPException(409, "Converse is off; direct Agent Chat remains available")
+                # Local host interfaces retain their historical positional API.
+                scoped = current if native is None or native.lease.pin.local is False else None
+
+                async def selected_transcription():
+                    if native is not None and not await native.current():
+                        raise SpeechProviderError(409)
+                    if native is not None:
+                        native.start_native()
+                    result = await _transcription(
+                        target, data, file.filename or "recording.wav", content_scope, scoped
+                    )
+                    if native is not None:
+                        if (
+                            type(result) is not dict
+                            or type(result.get("text")) is not str
+                            or len(result["text"]) > 16000
+                            or len(result["text"].encode("utf-8")) > 64000
+                        ):
+                            raise SpeechProviderError(502)
+                        native.transcription_confirmed = True
+                    return result
+
+                transcript = await _transcribe_connected(
+                    request,
+                    selected_transcription,
+                    native=native,
+                )
+                if native is not None and not await native.current():
+                    raise HTTPException(409, "STT source or owner changed before delivery")
+                return {
+                    **{key: value for key, value in transcript.items() if key != "stt_model"},
+                    "content_scope": content_scope,
+                    **(
+                        {}
+                        if native is None
+                        else {"stt_model": native.lease.pin.model_dump(mode="json")}
+                    ),
+                }
+        except ValueError:
+            raise HTTPException(409, "STT selection or recording disclosure was refused") from None
+        except RuntimeError:
+            raise HTTPException(
+                503, "STT selection or operation ownership is unavailable"
+            ) from None
 
     @app.post("/v1/converse/windows", dependencies=owner)
     async def window(request: SpeechWindow, http_request: Request):
         _reserve_api_model(runtime, http_request)
+        if request.stt_model is not None:
+            raise HTTPException(400, "STT provenance is captured by native audio admission only")
         if window_controller is None:
             raise HTTPException(503, "Streaming conversation control is unavailable")
         if not runtime.enabled:
@@ -468,8 +553,12 @@ def create_app(runtime, auth, speech=None, window_controller=None, *, setup=None
     @app.post("/v1/converse/audio/windows", dependencies=owner)
     async def audio_window(request: AudioWindow, http_request: Request):
         _reserve_api_model(runtime, http_request)
-        if window_controller is None or speech is None:
+        if window_controller is None or (
+            speech is None and not getattr(runtime, "_stt_options_configured", False)
+        ):
             raise HTTPException(503, "Configure streaming conversation control and STT")
+        if request.stt_model is not None:
+            raise HTTPException(400, "STT provenance is captured by native audio admission only")
         if not runtime.enabled:
             raise HTTPException(409, "Converse is off; direct Agent Chat remains available")
         try:
@@ -489,7 +578,9 @@ def create_app(runtime, auth, speech=None, window_controller=None, *, setup=None
         except (KeyError, ValueError) as exc:
             raise HTTPException(409, "Unknown or obsolete audio-window scope") from exc
         if previous is not None and previous.payload.get("revision") == request.revision:
-            expected = request.model_dump(exclude={"audio_base64", "text", "audio_sha256"})
+            expected = request.model_dump(
+                exclude={"audio_base64", "text", "audio_sha256", "stt_model"}
+            )
             if previous.payload.get("audio_sha256") != digest or any(
                 previous.payload.get(k) != v for k, v in expected.items()
             ):
@@ -513,23 +604,70 @@ def create_app(runtime, auth, speech=None, window_controller=None, *, setup=None
             except (KeyError, ValueError):
                 return False
 
-        current = _cloud_stt_current(runtime, speech, request.content_scope, window_current)
-        started = time.monotonic()
-        transcript = await _transcribe_connected(
-            http_request,
-            lambda: _transcription(speech, data, "window.wav", request.content_scope, current),
-        )
-        fields = request.model_dump(exclude={"audio_base64"})
-        fields.update(text=transcript.get("text", "").strip(), audio_sha256=digest)
         try:
-            entry = await window_controller.ingest(SpeechWindow.model_validate(fields))
-        except ValueError as exc:
-            raise HTTPException(409, str(exc)) from exc
-        return {
-            "entry": entry.model_dump(mode="json"),
-            "stt_ms": (time.monotonic() - started) * 1000,
-            "retained_audio": False,
-        }
+            async with stt_operation(runtime, request.content_scope) as native:
+                target = speech if native is None else native.provider
+
+                async def selected_current():
+                    return await native.current(window_current)
+
+                current = (
+                    _cloud_stt_current(runtime, speech, request.content_scope, window_current)
+                    if native is None
+                    else selected_current
+                )
+                scoped = current if native is None or native.lease.pin.local is False else None
+                started = time.monotonic()
+
+                async def selected_transcription():
+                    if native is not None and not await native.current(window_current):
+                        raise SpeechProviderError(409)
+                    if native is not None:
+                        native.start_native()
+                    result = await _transcription(
+                        target, data, "window.wav", request.content_scope, scoped
+                    )
+                    if native is not None:
+                        if (
+                            type(result) is not dict
+                            or type(result.get("text")) is not str
+                            or len(result["text"]) > 16000
+                            or len(result["text"].encode("utf-8")) > 64000
+                        ):
+                            raise SpeechProviderError(502)
+                        native.transcription_confirmed = True
+                    return result
+
+                transcript = await _transcribe_connected(
+                    http_request,
+                    selected_transcription,
+                    native=native,
+                )
+                if native is not None and not await native.current(window_current):
+                    raise HTTPException(409, "STT source or owner changed before publication")
+                fields = request.model_dump(exclude={"audio_base64", "stt_model"})
+                fields.update(text=transcript.get("text", "").strip(), audio_sha256=digest)
+                if native is not None:
+                    fields["stt_model"] = native.lease.pin.model_dump(mode="json")
+                captured_window = SpeechWindow.model_validate(fields)
+                entry = (
+                    await window_controller.ingest(captured_window)
+                    if native is None
+                    else await native.publish(window_controller, captured_window)
+                )
+                return {
+                    "entry": entry.model_dump(mode="json"),
+                    "stt_ms": (time.monotonic() - started) * 1000,
+                    "retained_audio": False,
+                }
+        except ValueError:
+            raise HTTPException(
+                409, "STT source, selection or recording disclosure was refused"
+            ) from None
+        except RuntimeError:
+            raise HTTPException(
+                503, "STT selection or operation ownership is unavailable"
+            ) from None
 
     @app.post("/v1/converse/speech", dependencies=owner)
     async def audio(request: SpeechRequest, http_request: Request):

@@ -6,7 +6,7 @@ import 'package:crypto/crypto.dart';
 
 const providerMaxRevision = 9007199254740990;
 const providerEfforts = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh'];
-const providerKinds = ['meta', 'lmstudio', 'compatible', 'laya'];
+const providerKinds = ['meta', 'lmstudio', 'compatible', 'laya', 'meta_stt'];
 const providerOperations = [
   'profile_upsert',
   'profile_remove',
@@ -82,6 +82,7 @@ Map<String, Object?> providerConfig(Object? value) {
   final raw = _map(value);
   final kind = raw['kind'];
   if (!providerKinds.contains(kind)) _bad();
+  if (kind == 'meta_stt') return _metaSttConfig(raw);
   final allowed = <String>{'kind', 'base_url', 'model', 'allow_cloud'};
   if (kind != 'laya') allowed.addAll(['max_tokens', 'reasoning_effort']);
   if (kind != 'lmstudio') allowed.add('credential');
@@ -191,6 +192,62 @@ Map<String, Object?> providerConfig(Object? value) {
   return Map.unmodifiable(result);
 }
 
+/// The dedicated audio declaration never acquires text-generation defaults.
+Map<String, Object?> _metaSttConfig(Map<String, Object?> raw) {
+  const fields = {
+    'kind',
+    'base_url',
+    'model',
+    'allow_cloud',
+    'credential',
+    'timeout_s',
+  };
+  if (raw.keys.any((key) => !fields.contains(key))) _bad();
+  final endpoint = _text(raw['base_url'], 2048);
+  final model = _text(raw['model'], 256);
+  final cloud = _flag(raw['allow_cloud']);
+  final Uri uri;
+  try {
+    uri = Uri.parse(endpoint);
+  } on FormatException {
+    _bad();
+  }
+  final authorityStart = endpoint.indexOf('://') + 3;
+  final pathStart = endpoint.indexOf('/', authorityStart);
+  final path = pathStart < 0 ? '' : endpoint.substring(pathStart);
+  final local = {'localhost', '127.0.0.1', '::1'}.contains(uri.host);
+  if (!{'http', 'https'}.contains(uri.scheme) ||
+      !uri.hasAuthority ||
+      uri.host.isEmpty ||
+      uri.userInfo.isNotEmpty ||
+      uri.hasQuery ||
+      uri.hasFragment ||
+      uri.port < 1 ||
+      uri.port > 65535 ||
+      RegExp(r'[\s\\\x00-\x1f\x7f]').hasMatch(endpoint) ||
+      endpoint.codeUnits.any((c) => c > 127) ||
+      uri.host.codeUnits.any((c) => c > 127) ||
+      (!local && uri.scheme != 'https') ||
+      !cloud ||
+      path.replaceFirst(RegExp(r'/+$'), '') != '/v1' ||
+      model != 'muse-voice-transcribe-1.0') {
+    _bad();
+  }
+  final credential = ProviderCredentialBinding.fromJson(raw['credential']);
+  return Map.unmodifiable({
+    'kind': 'meta_stt',
+    'base_url': endpoint.replaceFirst(RegExp(r'/+$'), ''),
+    'model': model,
+    'allow_cloud': true,
+    'credential': credential.toJson(),
+    'timeout_s': _integer(
+      raw.containsKey('timeout_s') ? raw['timeout_s'] : 120,
+      1,
+      300,
+    ),
+  });
+}
+
 Object? _canonical(Object? value) => value is Map<String, Object?>
     ? {
         for (final key in value.keys.toList()..sort())
@@ -221,21 +278,30 @@ class ProviderProfile {
     }
     final roles = capability['declared_roles'],
         inputs = capability['supported_inputs'];
+    final stt = config['kind'] == 'meta_stt';
     if (roles is! List ||
         roles.isEmpty ||
         roles.length > 4 ||
         roles.toSet().length != roles.length ||
-        roles.any(
-          (r) => !{'agent', 'converse', 'decisions', 'auxiliary'}.contains(r),
-        ) ||
+        (stt
+            ? roles.length != 1 || roles.single != 'stt'
+            : roles.any(
+                (r) => !{
+                  'agent',
+                  'converse',
+                  'decisions',
+                  'auxiliary',
+                }.contains(r),
+              )) ||
         inputs is! List ||
         inputs.length != 1 ||
-        inputs.single != 'text') {
+        inputs.single != (stt ? 'audio' : 'text')) {
       _bad();
     }
     declaredRoles = List.unmodifiable(roles.cast<String>());
     measuredComplete = _flag(capability['measured_complete_interface']);
     measuredStream = _flag(capability['measured_stream_interface']);
+    if (stt && (measuredComplete || measuredStream)) _bad();
   }
   late final String id, label, configurationSha256;
   late final int generation;
