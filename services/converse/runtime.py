@@ -3,7 +3,7 @@
 import asyncio
 import re
 from collections.abc import Callable
-from contextlib import aclosing, asynccontextmanager
+from contextlib import aclosing, asynccontextmanager, contextmanager
 from dataclasses import dataclass, field
 from itertools import islice
 
@@ -150,6 +150,9 @@ class TextOperation:
     cleanup_failed: bool = False
     memory_lease: object = None
     provider: object = None
+    model_lease: object = None
+    model_dependencies: set = field(default_factory=set)
+    consumer_done: asyncio.Event = field(default_factory=asyncio.Event)
     content_scope: str = "local_only"
 
     def cancel(self):
@@ -231,6 +234,10 @@ class ConverseRuntime:
         self._active = {}
         self._text = {}
         self._text_admitting = set()
+        self.model_settings = None
+        self._model_options_unavailable = False
+        self._model_preparing = set()
+        self._model_operations_extra = lambda: {"windows": 0, "stt": 0, "stt_cleanup": 0}
         self._window_text_ready = None
         self._speech = {}
         self._dedupe_locks = {}
@@ -406,10 +413,10 @@ class ConverseRuntime:
     def _check_typed_disclosure(self, request, provider=None):
         """Fail closed before denied text reaches any provider call or error."""
         request_scope = self._request_scope(request)
-        provider = provider or self.provider
-        if not scope_allowed(provider.info, request_scope):
+        info = self.selected_provider_info() if provider is None else provider.info
+        if not scope_allowed(info, request_scope):
             raise ValueError("Typed input scope is not permitted for the selected provider")
-        if not scope_allowed(provider.info, self.personality_scope):
+        if not scope_allowed(info, self.personality_scope):
             raise ValueError("Personality scope is not permitted for the selected provider")
         return request_scope
 
@@ -643,6 +650,79 @@ class ConverseRuntime:
         """Read-only admission hook; stopping never waits for readiness."""
         return session_id not in self._text and session_id not in self._text_admitting
 
+    @contextmanager
+    def model_preparation(self):
+        """Reserve before the first authority await, including dedupe readback.
+
+        Replays never capture a model. Keeping their bounded preparation visible
+        nevertheless prevents a settings CAS from racing new-operation admission.
+        """
+        if len(self._model_preparing) >= 128:
+            raise RuntimeError("Converse model admission is busy")
+        token = object()
+        self._model_preparing.add(token)
+        try:
+            yield
+        finally:
+            self._model_preparing.discard(token)
+
+    def model_operations(self):
+        return {
+            "preparing": len(self._model_preparing),
+            "text": len(self._text),
+            "text_admitting": len(self._text_admitting),
+            "speech": sum(len(group) for group in self._speech.values()),
+            "playback_pending": len(self._playback_start)
+            + sum(
+                epoch.stop is not None and not epoch.stop.covers(epoch.stop.desired_generation)
+                for epoch in self.playback.values()
+            ),
+            "memory_pending": len(self.memory.leases),
+            **self._model_operations_extra(),
+        }
+
+    def selected_provider_info(self):
+        if self._model_options_unavailable:
+            raise RuntimeError("Converse model options are unavailable")
+        if self.model_settings is not None:
+            return self.model_settings.selected_info()
+        return self.provider.info
+
+    def capture_model(self, operation):
+        if self._model_options_unavailable:
+            raise RuntimeError("Converse model options are unavailable")
+        if self.model_settings is None:
+            operation.provider = self.provider
+        else:
+            operation.model_lease = self.model_settings.capture()
+            operation.provider = operation.model_lease.provider
+
+    def model_current(self, operation):
+        lease = operation.model_lease
+        return lease.current() if lease is not None else self.provider is operation.provider
+
+    @staticmethod
+    def model_payload(operation):
+        lease = operation.model_lease
+        return {} if lease is None else {"role_model": lease.pin.model_dump(mode="json")}
+
+    @staticmethod
+    def attach_memory_lease(operation, lease):
+        operation.memory_lease = lease
+        operation.model_dependencies.add(lease)
+
+    @staticmethod
+    async def settle_model_dependencies(operation):
+        # Recall/count/publication tasks can outlive their cancelled waiter.
+        # Memory retains our own cleanup task too; exclude that back-reference.
+        current = asyncio.current_task()
+        for lease in operation.model_dependencies:
+            tasks = {task for task in lease.tasks if task is not current}
+            if tasks:
+                await asyncio.gather(*tasks, return_exceptions=True)
+            if lease.failed:
+                operation.cleanup_failed = True
+
     def text_status(self):
         operations = list(self._text.values())
         failed = sum(operation.cleanup_failed for operation in operations)
@@ -667,10 +747,8 @@ class ConverseRuntime:
             and playback is not None
             and playback.scope == (operation.session_epoch, operation.thread_id)
             and playback.accepts(operation.generation)
-            and (
-                operation.memory_lease is None
-                or (operation.memory_lease.current() and self.provider is operation.provider)
-            )
+            and self.model_current(operation)
+            and (operation.memory_lease is None or operation.memory_lease.current())
         )
 
     async def _watch_text(self, operation):
@@ -695,7 +773,8 @@ class ConverseRuntime:
 
     async def _finish_text_cleanup(self, operation):
         try:
-            await asyncio.gather(operation.task, return_exceptions=True)
+            if operation.task is not None:
+                await asyncio.gather(operation.task, return_exceptions=True)
             if operation.monitor is not None:
                 operation.stopped.set()
                 operation.monitor.cancel()
@@ -703,8 +782,21 @@ class ConverseRuntime:
             close = getattr(operation.iterator, "aclose", None)
             if callable(close):
                 await close()
+            # Queued deltas and their immutable journal appends still belong to
+            # this operation after the provider's iterator has reached EOF.
+            await operation.consumer_done.wait()
+            await self.settle_model_dependencies(operation)
+            if operation.model_lease is not None:
+                if operation.cleanup_failed:
+                    operation.model_lease.cleanup_failed = True
+                else:
+                    await asyncio.shield(operation.model_lease.start_close())
+                    if operation.model_lease.cleanup_failed:
+                        operation.cleanup_failed = True
         except (Exception, asyncio.CancelledError):
             operation.cleanup_failed = True
+            if operation.model_lease is not None:
+                operation.model_lease.cleanup_failed = True
         if not operation.cleanup_failed:
             self._release_text(operation)
 
@@ -1062,20 +1154,23 @@ class ConverseRuntime:
     async def events(self, request: ConverseRequest):
         turn = TextTurn(self._text_cleanup_timeout)
         try:
-            async with aclosing(self._events(request, turn)) as events:
-                async for event in events:
-                    yield event
+            with self.model_preparation():
+                async with aclosing(self._events(request, turn)) as events:
+                    async for event in events:
+                        yield event
         finally:
             if turn.reserved:
                 self._text_admitting.discard(request.session_id)
             operation = turn.operation
             if operation is not None:
                 operation.cancel()
+                operation.consumer_done.set()
                 try:
-                    if operation.task is None:
-                        self._release_text(operation)
-                    else:
-                        await self._wait_text_cleanup((operation.cleanup,), turn.wait_remaining)
+                    if operation.cleanup is None:
+                        operation.cleanup = asyncio.create_task(
+                            self._finish_text_cleanup(operation)
+                        )
+                    await self._wait_text_cleanup((operation.cleanup,), turn.wait_remaining)
                 finally:
                     if operation.memory_lease is not None:
                         if operation.cleanup_failed:
@@ -1084,7 +1179,8 @@ class ConverseRuntime:
 
     async def _events(self, request, turn):
         admission = self.admission()
-        request_scope = self._check_typed_disclosure(request)
+        # A historical replay does not consult today's provider or credential.
+        request_scope = self._request_scope(request)
         session = await self.journal.session(request.session_id)
         if session.channel != "converse" or (session.epoch, session.thread_id) != (
             request.epoch,
@@ -1120,6 +1216,7 @@ class ConverseRuntime:
             else:
                 if not self.admission_current(admission):
                     raise RuntimeError("Converse availability changed during turn admission")
+                self._check_typed_disclosure(request)
                 slots = self._text.keys() | self._text_admitting
                 if request.session_id not in slots and len(slots) >= self._text_capacity:
                     raise RuntimeError("Text-provider cleanup capacity is busy; try again later")
@@ -1160,6 +1257,8 @@ class ConverseRuntime:
                 self._text[request.session_id] = operation
                 self._text_admitting.discard(request.session_id)
                 turn.reserved = False
+                self.capture_model(operation)
+                self._check_typed_disclosure(request, operation.provider)
                 source = await self.journal.append(
                     AppendRequest(
                         session_id=request.session_id,
@@ -1173,6 +1272,7 @@ class ConverseRuntime:
                             "input_mode": request.input_mode,
                             "generation_epoch": generation,
                             "content_scope": request_scope,
+                            **self.model_payload(operation),
                         },
                         idempotency_key=request.idempotency_key,
                     )
@@ -1186,8 +1286,7 @@ class ConverseRuntime:
             return
         # Pin the actual transport after awaited admission. Projection and inference
         # must use the same target even if owner configuration changes meanwhile.
-        provider = self.provider
-        operation.provider = provider
+        provider = operation.provider
         self._check_typed_disclosure(request, provider)
         messages = [{"role": "system", "content": self.personality}]
         delivery = [
@@ -1239,7 +1338,7 @@ class ConverseRuntime:
                 provider,
                 personality=self.personality,
                 runtime_id=self._runtime_id,
-                current=lambda: self.provider is provider and self._text_current(operation),
+                current=lambda: self._text_current(operation),
             )
             if self.context_budgeted
             else None
@@ -1261,8 +1360,8 @@ class ConverseRuntime:
                         provider,
                         compile_context,
                         operation.cancel,
-                        lambda: self.provider is provider and self._text_current(operation),
-                        lambda lease: setattr(operation, "memory_lease", lease),
+                        lambda: self._text_current(operation),
+                        lambda lease: self.attach_memory_lease(operation, lease),
                         budgeted_builder=budget.build if budget is not None else None,
                     )
                     operation.memory_lease = lease
@@ -1384,6 +1483,7 @@ class ConverseRuntime:
                         "chunk_id": new_id(),
                         "delivery": "generated",
                         "content_scope": operation.content_scope,
+                        **self.model_payload(operation),
                         **self.memory_payload(operation.memory_lease),
                     },
                     causes=[source.event_id],

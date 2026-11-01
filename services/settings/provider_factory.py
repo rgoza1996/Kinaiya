@@ -1,4 +1,4 @@
-"""Native measured Agent recipes; inspection never constructs adapters or keys."""
+"""Native measured text recipes; inspection never constructs adapters or keys."""
 
 import json
 from dataclasses import dataclass
@@ -15,26 +15,29 @@ class UnavailableHostProvider:
     model settings exclude this marker from selectable host profiles.
     """
 
+    def __init__(self, role="Agent"):
+        self.role = role
+
     @property
     def info(self):
         from packages.providers.text import ProviderError
 
-        raise ProviderError("Host Agent profile is unavailable")
+        raise ProviderError(f"Host {self.role} profile is unavailable")
 
     async def prepare_complete(self, messages):
         from packages.providers.text import ProviderError
 
-        raise ProviderError("Host Agent profile is unavailable")
+        raise ProviderError(f"Host {self.role} profile is unavailable")
 
     async def complete(self, messages):
         from packages.providers.text import ProviderError
 
-        raise ProviderError("Host Agent profile is unavailable")
+        raise ProviderError(f"Host {self.role} profile is unavailable")
 
     def stream(self, messages):
         from packages.providers.text import ProviderError
 
-        raise ProviderError("Host Agent profile is unavailable")
+        raise ProviderError(f"Host {self.role} profile is unavailable")
 
     async def close(self):
         pass
@@ -69,7 +72,9 @@ def declaration_info(config):
     )
 
 
-def _recipe(catalog, binding, reasoning):
+def _recipe(catalog, binding, reasoning, role="agent"):
+    if role not in {"agent", "converse"}:
+        raise ValueError("Unsupported measured text role")
     binding = CatalogModelBinding.model_validate(binding)
     profile = catalog.profile(binding.id, binding.generation, for_new=True)
     if profile["configuration_sha256"] != binding.configuration_sha256:
@@ -82,10 +87,15 @@ def _recipe(catalog, binding, reasoning):
         effort = "none"
     elif kind == "meta":
         if config["context_tokens"] is None or reasoning not in {None, *EFFORTS}:
-            raise ValueError("Meta Agent requests require explicit measured context limits")
+            label = "Agent" if role == "agent" else "Converse"
+            raise ValueError(f"Meta {label} requests require explicit measured context limits")
         effort = config["reasoning_effort"] if reasoning is None else reasoning
     else:
-        raise ValueError("This catalog adapter cannot measure Agent complete requests")
+        raise ValueError(
+            "This catalog adapter cannot measure Agent complete requests"
+            if role == "agent"
+            else "This catalog adapter cannot measure Converse streaming requests"
+        )
     revision = catalog._revision()[0]
     return CatalogRecipe(
         binding,
@@ -95,12 +105,12 @@ def _recipe(catalog, binding, reasoning):
     )
 
 
-def inspect_recipe(catalog, binding, reasoning=None):
+def inspect_recipe(catalog, binding, reasoning=None, *, role="agent"):
     if catalog is None:
         raise ValueError("Provider catalog is unavailable")
     catalog.db.execute("BEGIN")
     try:
-        recipe = _recipe(catalog, binding, reasoning)
+        recipe = _recipe(catalog, binding, reasoning, role)
         catalog.db.commit()
         return recipe
     except BaseException:
@@ -108,7 +118,9 @@ def inspect_recipe(catalog, binding, reasoning=None):
         raise
 
 
-def open_recipe(catalog, binding, reasoning=None, *, auxiliary=False, resource_state=None):
+def open_recipe(
+    catalog, binding, reasoning=None, *, auxiliary=False, resource_state=None, role="agent"
+):
     """Capture one coherent current generation/key, then construct locally.
 
     The read snapshot is new-selection admission. A subsequent owner rotation
@@ -118,7 +130,7 @@ def open_recipe(catalog, binding, reasoning=None, *, auxiliary=False, resource_s
         raise ValueError("Provider catalog is unavailable")
     catalog.db.execute("BEGIN")
     try:
-        recipe = _recipe(catalog, binding, reasoning)
+        recipe = _recipe(catalog, binding, reasoning, role)
         config = recipe.config
         reference = config.get("credential")
         key = (
@@ -152,10 +164,10 @@ def open_recipe(catalog, binding, reasoning=None, *, auxiliary=False, resource_s
             max_tokens=config["max_tokens"],
             context_tokens=config["context_tokens"],
             reasoning_effort=recipe.reasoning,
-            structured_actions=not auxiliary,
+            structured_actions=role == "agent" and not auxiliary,
         )
     if resource_state is not None:
         from services.resources.providers import ResourceBoundProvider
 
-        provider = ResourceBoundProvider(provider, resource_state, "agent")
+        provider = ResourceBoundProvider(provider, resource_state, role)
     return provider, recipe

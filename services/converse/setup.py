@@ -144,19 +144,44 @@ def setup_state(runtime, host=None):
     """Read live operation counters and the configured provider declaration only."""
     if isinstance(host, HostSetupUnavailable):
         raise ValueError("Host setup projection is unavailable")
-    info = runtime.provider.info
+    from packages.providers.text import ProviderError
+
+    settings = runtime.model_settings
+    try:
+        info = runtime.selected_provider_info()
+        conversation = _role(info.provider, info.model, source="runtime")
+    except (ProviderError, ValueError, RuntimeError):
+        conversation = _role(source="runtime")
+    if settings is not None:
+        conversation.reason = (
+            "Selected through Converse model options; readiness is not checked."
+            if conversation.configured
+            else "Selected Converse model is unavailable. Inspect model options."
+        )
     roles = SetupRoles(
-        conversation=_role(info.provider, info.model, source="runtime"),
+        conversation=conversation,
         stt=host.stt if host else _role(),
         tts=host.tts if host else _role(),
         decisions=host.decisions if host else _role(),
     )
     inputs = SetupInputs(supported=["text"], selected=["text"])
+    try:
+        effort = (
+            settings.selected_reasoning()
+            if settings is not None
+            else host.reasoning
+            if host
+            else "unavailable"
+        ) or "unavailable"
+    except (ProviderError, ValueError, RuntimeError):
+        effort = "unavailable"
     reasoning = SetupReasoning(
-        selected=host.reasoning if host else "unavailable",
-        options=[host.reasoning if host else "unavailable"],
+        selected=effort,
+        options=[effort],
         reason=(
-            "Configured on host. Changing reasoning requires a service restart."
+            "Selected through Converse model options."
+            if settings is not None
+            else "Configured on host. Changing reasoning requires a service restart."
             if host
             else "Reasoning configuration is not declared by this embedded runtime."
         ),

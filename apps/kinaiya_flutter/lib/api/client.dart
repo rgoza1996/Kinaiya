@@ -21,6 +21,7 @@ import 'library_models.dart';
 import 'artifact_client.dart';
 import 'provider_client.dart';
 import 'tool_permissions_client.dart';
+import 'converse_model_client.dart';
 import '../config/service_root.dart';
 
 const _uuid = Uuid();
@@ -194,6 +195,11 @@ class KinaiyaClient {
   late final ToolPermissionsApi toolPermissions = ToolPermissionsApi(
     baseUrl: agentBase,
     sessionBase: sessionBase,
+    ownerToken: _token,
+    clientFactory: _agentWorkspaceClientFactory,
+  );
+  late final ConverseModelsApi converseModels = ConverseModelsApi(
+    baseUrl: converseBase,
     ownerToken: _token,
     clientFactory: _agentWorkspaceClientFactory,
   );
@@ -943,6 +949,7 @@ class KinaiyaClient {
       decisionInspections.close();
       unawaited(_agentWorkspaceReader.close());
       unawaited(toolPermissions.close());
+      unawaited(converseModels.close());
       artifacts.close();
     }
   }
