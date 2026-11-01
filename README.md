@@ -10,11 +10,15 @@ Converse is optional. Agent stays available for coding, research, files, and oth
 
 ## See the interface
 
-![Kinaiya Home with its moonlit character, navigation sidebar, and floating setup controls](assets/screenshots/kinaiya-home-2026-10-30.png)
+| Converse | Agent workspace | Options |
+| --- | --- | --- |
+| <a href="assets/screenshots/2026-11-01/12-converse.jpg"><img src="assets/screenshots/2026-11-01/12-converse.jpg" width="300" alt="Converse with character artwork and an empty conversation panel"></a> | <a href="assets/screenshots/2026-11-01/07-agent-workspace.jpg"><img src="assets/screenshots/2026-11-01/07-agent-workspace.jpg" width="300" alt="Agent workspace with harnesses, empty sessions and task details"></a> | <a href="assets/screenshots/2026-11-01/10-options-connected.jpg"><img src="assets/screenshots/2026-11-01/10-options-connected.jpg" width="300" alt="Options category navigation and character artwork"></a> |
 
-*Application screenshot supplied by the owner, October 30, 2026: Home with the setup bubbles open. This capture shows the disconnected state; newer Options controls have landed since it was taken. [Capture details](assets/screenshots/README.md).*
+*Actual application captures, November 1, 2026, showing fixture model metadata and an empty Agent workspace. Select an image to open the complete raw capture.*
 
-Explore the [editable interface designs](assets/penpot/README.md) for Converse, Agent, Options, and intelligent views. Those boards are design references with illustrative content; the image above is a capture of the application.
+See the [full application gallery and capture provenance](assets/screenshots/README.md) for Home, floating controls, Models, Tools, Permissions, About, and the dated October 30 image.
+
+Explore the [editable interface designs](assets/penpot/README.md) for Converse, Agent, Options, and intelligent views. Those boards are design references with illustrative content.
 
 ## Why Kinaiya
 
