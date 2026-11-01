@@ -32,6 +32,12 @@ async def consult_model(runtime, rec, arguments):
     except (UnicodeError, ValueError):
         raise ToolFailure("Auxiliary prompt exceeds its UTF-8 limit") from None
     purpose = arguments["purpose"]
+    lease = rec.model_lease
+    route = None if lease is None else lease.auxiliary_routes.get(purpose)
+    if route is not None:
+        from services.agent.auxiliary_fallback import consult_route
+
+        return await consult_route(runtime, rec, arguments, route)
     provider = rec.auxiliary_providers.get(purpose)
     pin = rec.task.auxiliary_models.get(purpose)
     if provider is None or pin is None:
@@ -47,7 +53,8 @@ async def consult_model(runtime, rec, arguments):
         tuple(sorted(rec.context_event_ids)),
         tuple(rec.task.source_event_ids),
         tuple(sorted(rec.source_revisions.items())),
-        runtime._grants(),
+        runtime._grants(rec),
+        runtime._permission_fingerprint(rec),
         rec.task.content_scope,
         rec.foreign_context,
     )
@@ -86,7 +93,8 @@ async def consult_model(runtime, rec, arguments):
                 tuple(sorted(rec.context_event_ids)),
                 tuple(rec.task.source_event_ids),
                 tuple(sorted(rec.source_revisions.items())),
-                runtime._grants(),
+                runtime._grants(rec),
+                runtime._permission_fingerprint(rec),
                 rec.task.content_scope,
                 rec.foreign_context,
             )

@@ -7,6 +7,7 @@ from pathlib import Path
 
 from packages.contracts.agent_tools import agent_export_scope
 from packages.providers.completion_budget import PreparedComplete
+from packages.providers.pre_generation import PreGenerationUnavailable
 from packages.providers.prompt_budget import PromptCountUnavailable, PromptTokenCount
 from packages.providers.text import ProviderCleanupError, ProviderError, ScriptedProvider
 from services.resources.state import read_record
@@ -192,9 +193,22 @@ class ResourceBoundProvider:
                     prepared.discard()
                     raise PromptCountUnavailable("Complete prompt resource policy changed")
                 with agent_export_scope(current):
-                    return await prepared.complete()
+                    try:
+                        return await prepared.complete()
+                    except PreGenerationUnavailable:
+                        if not current():
+                            raise PromptCountUnavailable(
+                                "Complete prompt resource policy changed"
+                            ) from None
+                        raise
 
             return PreparedComplete(prepared.measurement, generate, fixture=prepared.fixture)
+        except PreGenerationUnavailable:
+            if isinstance(prepared, PreparedComplete):
+                prepared.discard()
+            if not current():
+                raise PromptCountUnavailable("Complete prompt resource policy changed") from None
+            raise
         except (ProviderCleanupError, asyncio.CancelledError):
             if isinstance(prepared, PreparedComplete):
                 prepared.discard()

@@ -58,3 +58,38 @@ ADR0084 and the owner Options API implement native execution preferences plus
 the Permissions, Workspace and Execution editors. This is the first increment
 of #208; none of the twelve broad acceptance groups is closed by that increment.
 Check the associated PR for checks actually run and any remaining failures.
+
+Subsequent increments add owner note editing and protected provider catalog
+(ADR0085/0086), then exact Agent catalog selection (ADR0089). ADR0092 addresses
+approval expiry before expanding scoped Ask rules. None closes an acceptance
+group; the remaining obligations stay in the table above.
+
+[ADR0096](adr/0096-scoped-native-tool-permissions.md) is the next implementation
+under review: four native scopes for the exact `read_file`, `write_file` and
+`shell` tools, independent action admission, protected CAS/receipt storage and
+an embedded editor. It does not establish blanket filesystem-read protection,
+individual MCP/plugin or scoped network rules, active-grant inventory or the
+remaining full permission acceptance. See the PR for actual verification and
+preview promotion; source presence alone does not close these obligations.
+
+[ADR0091](adr/0091-converse-text-model-settings.md) adds the next independently
+owned role editor: Converse text, exact eligible catalog generations/reasoning,
+settled-operation CAS, captured stream leases and pins, and receipt-first UI
+recovery. Decisions, STT/TTS, ordered fallback and real multimodal qualification
+remain incomplete. This is source under review; consult its PR for actual CI and
+preview evidence before treating it as delivered.
+
+[ADR0093](adr/0093-auxiliary-fallback-routes.md) records native ordered routes
+for the five auxiliary text purposes: exact task-captured catalog/credential
+generations, narrow pre-generation advancement, actual cleanup ownership, and
+closed attempt provenance. Native and embedded route-editor source is implemented
+under review; exact-head CI and preview verification remain pending. Primary and
+other role/modality fallbacks remain work.
+
+[ADR0094](adr/0094-native-and-mcp-permission-targets.md) adds native Search and
+exact MCP target rules while preserving the legacy three-tool protocol. Passive
+inventory, stale-binding refusal, and one-use actor-queue admission are native
+source under review. The target owner API/editor is implemented and statically
+reviewed; exact-head CI and preview verification remain pending. Neither
+increment closes an acceptance group, adds a task network firewall, or replaces
+the outstanding obligations above.

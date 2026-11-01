@@ -1,0 +1,23 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "protocol_version": {
+      "const": "1.0",
+      "title": "Protocol Version",
+      "type": "string"
+    },
+    "schema_sha256": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Schema Sha256",
+      "type": "string"
+    }
+  },
+  "required": [
+    "protocol_version",
+    "schema_sha256"
+  ],
+  "title": "NativePermissionBinding",
+  "type": "object"
+}

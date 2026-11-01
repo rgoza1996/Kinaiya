@@ -144,7 +144,7 @@ class _OptionsRuntimeEditorState extends State<OptionsRuntimeEditor> {
           children: [
             Text(
               permissions
-                  ? 'Native file and command permissions'
+                  ? 'Service-wide execution controls'
                   : workspace
                   ? 'Approved workspace'
                   : 'Execution limits and isolation',
@@ -232,7 +232,7 @@ class _OptionsRuntimeEditorState extends State<OptionsRuntimeEditor> {
               ),
               const Text(
                 'Pending action approvals remain on their Agent tasks. '
-                'Read rules, individual tool rules and additional setting scopes are not part of this editor yet.',
+                'The scoped tool editor is separate. These service-wide settings do not replace per-tool rules or other native access boundaries.',
               ),
             ] else if (workspace) ...[
               _field('Workspace root', execution.workspace),

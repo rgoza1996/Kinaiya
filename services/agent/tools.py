@@ -28,6 +28,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from core.policy import ApprovalError, PolicyDenied, ToolPolicy
+from core.policy.tool_admission import admit_native_tool, check_native_arguments
 from core.supervision import (
     command_evidence,
     file_evidence,
@@ -389,6 +390,15 @@ async def run_shell(
 ) -> tuple[str, Evidence]:
     if not isinstance(command, str) or not command.strip():
         raise ToolFailure("shell requires a non-empty command string")
+    check_native_arguments(
+        policy,
+        "shell",
+        {
+            "command": command,
+            "timeout_s": timeout_s,
+            "objective_revision": objective_revision,
+        },
+    )
     cap = policy.shell_timeout_s
     if type(cap) not in {int, float} or not math.isfinite(cap) or not 1 <= cap <= SHELL_MAX_TIMEOUT:
         raise ToolFailure("Native shell timeout policy is unavailable")
@@ -508,9 +518,20 @@ def run_read(
     maximum = READ_LIMIT * 4
     if type(max_bytes) is not int or not 1 <= max_bytes <= maximum:
         raise ToolFailure("read_file max_bytes must be an integer from 1 to 262144")
+    check_native_arguments(
+        policy,
+        "read_file",
+        {
+            "path": path,
+            "max_bytes": max_bytes,
+            "objective_revision": objective_revision,
+        },
+    )
     try:
         resolved = policy.check_read(path)
         data, observed = _read_file_snapshot(policy, resolved, maximum)
+    except ApprovalError:
+        raise
     except PolicyDenied:
         raise PolicyDenied("read_file: path is outside the allowed file scope") from None
     except (OSError, ValueError, TypeError, RuntimeError):
@@ -618,6 +639,15 @@ def run_write(
     data = content.encode("utf-8")
     if len(data) > READ_LIMIT * 4:
         raise ToolFailure("write_file exceeds the 256 KiB per-action limit")
+    check_native_arguments(
+        policy,
+        "write_file",
+        {
+            "path": path,
+            "content": content,
+            "objective_revision": objective_revision,
+        },
+    )
     resolved = policy.check_write(
         path, approval_id=approval_id, digest=digest, objective_revision=objective_revision
     )
@@ -675,12 +705,28 @@ def run_search(
     path: str | None,
     objective_revision: int,
     max_results: int = SEARCH_MATCH_LIMIT,
+    *,
+    approval_id=None,
+    digest=None,
 ) -> tuple[str, Evidence]:
     try:
         rx = re.compile(pattern)
     except re.error as exc:
         raise ToolFailure(f"search: invalid regex: {exc}") from exc
+    check_native_arguments(
+        policy,
+        "search",
+        {
+            "pattern": pattern,
+            "path": path,
+            "max_results": max_results,
+            "objective_revision": objective_revision,
+        },
+    )
     scope = policy.check_search(path)
+    admit_native_tool(
+        policy, "search", approval_id=approval_id, digest=digest, revision=objective_revision
+    )
     if not scope.exists():
         raise ToolFailure(f"search: scope does not exist: {path!s}")
     hits: list[str] = []

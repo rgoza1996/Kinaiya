@@ -81,6 +81,7 @@ class AppState extends ChangeNotifier {
   bool _trustedInjection = false;
   int _connectionGeneration = 0;
   int _agentInferenceRead = 0;
+  int _converseInferenceRead = 0;
 
   /// Live connection epoch. Views capture this before an await and drop
   /// late completions when it changes (reconnect/disconnect/dispose).
@@ -217,6 +218,10 @@ class AppState extends ChangeNotifier {
   /// evidence for current character activity until the next successful read.
   bool tasksStatusStale = true;
   List<ApprovalRequest> approvals = [];
+
+  /// Agent+Session backend/owner RAM only. Converse URL changes do not retire
+  /// unknown exact approval-renewal outcomes.
+  final Map<String, ApprovalReissueAttempt> approvalReissues = {};
   List<CommandDef>? commands; // null: registry unavailable (honest).
   bool commandsAvailable = false;
 
@@ -285,9 +290,11 @@ class AppState extends ChangeNotifier {
   /// Compares service endpoints and the owner credential in memory only.
   /// Never logs, serializes or exposes the token; equality only.
   bool _sameBackend(ConnectionProfile a, ConnectionProfile b) =>
+      _sameAgentBackend(a, b) && a.converseUrl == b.converseUrl;
+
+  bool _sameAgentBackend(ConnectionProfile a, ConnectionProfile b) =>
       a.sessionUrl == b.sessionUrl &&
       a.agentUrl == b.agentUrl &&
-      a.converseUrl == b.converseUrl &&
       a.ownerToken == b.ownerToken;
 
   /// Positive per-role provider verification plus disclosure consent.
@@ -324,14 +331,20 @@ class AppState extends ChangeNotifier {
   /// [sessionAuthenticated] alone; inference submissions require the
   /// per-role flag as well.
   bool get agentCanInfer => sessionAuthenticated && agentInferenceAllowed;
-  bool get converseCanInfer => sessionAuthenticated && converseInferenceAllowed;
+  bool get converseCanInfer =>
+      sessionAuthenticated &&
+      converseInferenceAllowed &&
+      client?.converseModels.hasUnconfirmedChange != true;
 
   void connect(ConnectionProfile profile, {KinaiyaClient? injected}) {
     _resetArtifacts();
     _saveAgentWorkspace();
     final previous = connection;
     final backendChanged = previous != null && !_sameBackend(previous, profile);
+    final agentBackendChanged =
+        previous != null && !_sameAgentBackend(previous, profile);
     _invalidateAgentWorkspace(clear: backendChanged);
+    if (agentBackendChanged) approvalReissues.clear();
     tasksStatusStale = true;
     client?.close();
     _noticesPoll?.cancel();
@@ -452,6 +465,7 @@ class AppState extends ChangeNotifier {
     final api = client;
     if (api == null) return;
     final inferenceRead = _agentInferenceRead;
+    final converseRead = _converseInferenceRead;
     try {
       await api.listSessions().timeout(const Duration(seconds: 10));
       if (generation != _connectionGeneration || !identical(api, client)) {
@@ -505,15 +519,18 @@ class AppState extends ChangeNotifier {
             agentOnline &&
             providerAllows(agentInfo, connection!.backendProfile);
       }
-      converseOnline = states[1];
-      converseProvider = converseInfo is Map<String, Object?>
-          ? converseInfo as Map<String, Object?>
-          : converseInfo is Map
-          ? (converseInfo as Map).cast<String, Object?>()
-          : null;
-      final consent = connection!.backendProfile;
-      converseInferenceAllowed =
-          converseOnline && providerAllows(converseInfo, consent);
+      if (converseRead == _converseInferenceRead) {
+        converseOnline = states[1];
+        converseProvider = converseInfo is Map<String, Object?>
+            ? converseInfo as Map<String, Object?>
+            : converseInfo is Map
+            ? (converseInfo as Map).cast<String, Object?>()
+            : null;
+        converseInferenceAllowed =
+            converseOnline &&
+            !api.converseModels.hasUnconfirmedChange &&
+            providerAllows(converseInfo, connection!.backendProfile);
+      }
       connected =
           sessionAuthenticated &&
           (agentInferenceAllowed || converseInferenceAllowed);
@@ -555,6 +572,7 @@ class AppState extends ChangeNotifier {
     } catch (_) {
       if (generation != _connectionGeneration) return;
       _agentInferenceRead++;
+      _converseInferenceRead++;
       sessionAuthenticated = false;
       agentInferenceAllowed = false;
       converseInferenceAllowed = false;
@@ -581,6 +599,51 @@ class AppState extends ChangeNotifier {
     connected =
         sessionAuthenticated &&
         (agentInferenceAllowed || converseInferenceAllowed);
+    notifyListeners();
+  }
+
+  /// A current health observation cannot settle a model POST that may still
+  /// commit later. Exact retained model changes keep Converse inference gated
+  /// across reconnections until receipt or explicit revision-fenced release.
+  int invalidateConverseInference() {
+    final request = ++_converseInferenceRead;
+    converseInferenceAllowed = false;
+    converseProvider = null;
+    connected = sessionAuthenticated && agentInferenceAllowed;
+    notifyListeners();
+    return request;
+  }
+
+  Future<void> revalidateConverseInference({bool invalidate = true}) async {
+    final api = client, profile = connection;
+    final generation = _connectionGeneration;
+    if (api == null || profile == null) return;
+    // A metadata-only editor read must not interrupt an unchanged live call.
+    // Save dispatch uses the explicit invalidation path before any POST.
+    final request = invalidate
+        ? invalidateConverseInference()
+        : ++_converseInferenceRead;
+    bool current() =>
+        ownsConnection(generation, api) && request == _converseInferenceRead;
+    if (!current()) return;
+    try {
+      final provider = await api.converseModels.providerInfo();
+      if (!current()) return;
+      converseOnline = true;
+      converseProvider = provider?.body;
+      converseInferenceAllowed =
+          !api.converseModels.hasUnconfirmedChange &&
+          providerAllows(provider?.body, profile.backendProfile);
+      connected =
+          sessionAuthenticated &&
+          (agentInferenceAllowed || converseInferenceAllowed);
+    } catch (_) {
+      if (!current()) return;
+      converseOnline = false;
+      converseProvider = null;
+      converseInferenceAllowed = false;
+      connected = sessionAuthenticated && agentInferenceAllowed;
+    }
     notifyListeners();
   }
 

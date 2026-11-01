@@ -16,11 +16,19 @@ Authentication failures use the existing service authentication errors.
 The launcher projects only explicit model identities from its startup
 configuration. It discards endpoint URLs, artifact paths, secrets, credential
 references and unrelated settings before handing the declaration to Converse.
-There is no setup POST. A host model change still requires configuring and
-restarting the appropriate service. Inspecting setup does not change owner intent,
+There is no setup POST. Other host-managed role changes still require configuring
+and restarting the appropriate service. Inspecting setup does not change owner intent,
 resource policy, disclosure consent, permissions, sessions, memory, captures,
 playback, or independent Agent/Decisions operation. Client presentation preferences
 have a separate owner and persistence mechanism.
+
+The separate [Converse text model owner](adr/0091-converse-text-model-settings.md)
+now permits explicit eligible text-model/reasoning selection through the embedded
+Models page, while all actual Converse operations and cleanup are settled.
+That newer API supersedes the restart-only limitation for Converse text alone.
+This setup endpoint remains read-only and its revision is never CAS authority
+for that editor. Conversation/reasoning declarations reflect the saved active
+text selection; other roles retain their host declarations.
 
 The display projection is optional and cannot prevent Converse startup. A valid
 provider may use an opaque model alias, such as an absolute local identifier, that
@@ -62,7 +70,7 @@ role has:
 | `mutable` | Always false in version 1. |
 | `reason` | Explains host configuration, unavailable metadata, and restart requirements. |
 
-The conversation declaration comes from `runtime.provider.info`, not a request or
+The conversation declaration comes from the native selected provider metadata, not a request or
 model output. The other roles describe startup configuration in the host that
 launched Converse; their separate processes may be stopped, unloaded, changed or
 unavailable. No readiness or GPU placement claim is made. An embedded runtime

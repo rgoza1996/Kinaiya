@@ -272,16 +272,7 @@ class _AgentChatState extends State<AgentChat> {
         final maxPages = _s.tasks.length ~/ 100 + 2;
         for (var index = 0; index < maxPages; index++) {
           for (final approval in page!.approvals) {
-            if (!approval.isExpired &&
-                _s.tasks.any(
-                  (task) =>
-                      task.taskId == approval.taskId &&
-                      task.state == 'awaiting_approval' &&
-                      task.objectiveRevision == approval.objectiveRevision &&
-                      task.sessionId == approval.sessionId &&
-                      task.threadId == approval.threadId &&
-                      task.epoch == approval.epoch,
-                )) {
+            if (_s.tasks.any((task) => _approvalMatchesTask(approval, task))) {
               found.add(approval);
             }
           }
@@ -334,12 +325,7 @@ class _AgentChatState extends State<AgentChat> {
           final approval = ApprovalRequest.fromEntry(e);
           final matching = _s.tasks.where((t) => t.taskId == approval.taskId);
           if (!resolved.contains(approval.approvalId) &&
-              !approval.isExpired &&
-              matching.any(
-                (t) =>
-                    t.state == 'awaiting_approval' &&
-                    t.objectiveRevision == approval.objectiveRevision,
-              )) {
+              matching.any((task) => _approvalMatchesTask(approval, task))) {
             found.add(approval);
           }
         }
@@ -1041,15 +1027,21 @@ class _AgentChatState extends State<AgentChat> {
     if (!_s.ownsConnection(generation, api)) return;
     // Deterministic owner approval: works without inference.
     if (!_s.sessionAuthenticated) return;
-    if (approval.isExpired) {
-      _s.agentNotice = 'That approval expired and cannot be reused.';
-      _s.removeApproval(approval.approvalId);
+    if (ok && approval.isExpired) {
+      _s.agentNotice =
+          'That approval expired. Renew it to review a new request.';
+      _s.touch();
       return;
     }
-    if (task != null && task.objectiveRevision != approval.objectiveRevision) {
+    if (_s.approvalReissues.containsKey(approval.approvalId)) {
       _s.agentNotice =
-          'That task moved to a newer revision; this approval cannot apply.';
-      _s.removeApproval(approval.approvalId);
+          'Check the pending renewal outcome before acting on this request.';
+      _s.touch();
+      return;
+    }
+    if (_s.tasksStatusStale || !_approvalMatchesTask(approval, task)) {
+      _s.agentNotice = 'Refresh the task before deciding on this approval.';
+      _s.touch();
       return;
     }
     try {
@@ -1063,10 +1055,90 @@ class _AgentChatState extends State<AgentChat> {
       if (!mounted || !_s.ownsConnection(generation, api)) return;
       _s.removeApproval(approval.approvalId);
       await _refreshTasks();
-    } on ApiException {
+    } on ApiException catch (error) {
       if (!_s.ownsConnection(generation, api)) return;
-      _s.agentNotice = "Couldn't record that decision. Check the connection.";
+      _s.agentNotice = error.status == 403 || error.status == 409
+          ? 'Refresh the task and current request; the approval may have expired or changed.'
+          : "Couldn't record that decision. Check the connection.";
       _s.touch();
+    }
+  }
+
+  bool _approvalMatchesTask(ApprovalRequest approval, AgentTask? task) =>
+      task != null &&
+      task.taskId == approval.taskId &&
+      (task.state == 'awaiting_approval' ||
+          (approval.isExpired && task.state == 'paused')) &&
+      task.objectiveRevision == approval.objectiveRevision &&
+      task.sessionId == approval.sessionId &&
+      task.threadId == approval.threadId &&
+      task.epoch == approval.epoch;
+
+  Future<void> _renewApproval(ApprovalRequest approval, AgentTask? task) async {
+    final owner = _s;
+    final api = owner.client;
+    final generation = owner.connectionGeneration;
+    if (api == null ||
+        !owner.sessionAuthenticated ||
+        !owner.ownsConnection(generation, api)) {
+      return;
+    }
+    var attempt = owner.approvalReissues[approval.approvalId];
+    if (attempt == null) {
+      if (!approval.isExpired ||
+          !approval.reissueSupported ||
+          owner.tasksStatusStale ||
+          !_approvalMatchesTask(approval, task)) {
+        owner.agentNotice = 'Refresh the expired request before renewing it.';
+        owner.touch();
+        return;
+      }
+      if (owner.approvalReissues.length >= 64) {
+        owner.agentNotice =
+            'Confirm existing renewal outcomes before starting another.';
+        owner.touch();
+        return;
+      }
+      attempt = ApprovalReissueAttempt(approval);
+      owner.approvalReissues[approval.approvalId] = attempt;
+    }
+    if (attempt.inFlight) return;
+    attempt.inFlight = true;
+    owner.touch();
+    bool ownsView() =>
+        mounted &&
+        identical(widget.state, owner) &&
+        owner.sessionAuthenticated &&
+        owner.ownsConnection(generation, api);
+    bool current() =>
+        ownsView() &&
+        identical(owner.approvalReissues[approval.approvalId], attempt);
+    try {
+      // State notifications may synchronously replace the active connection.
+      if (!current()) return;
+      final receipt = await api.reissueApproval(attempt);
+      if (!current()) return;
+      owner.approvalReissues.remove(approval.approvalId);
+      owner.approvals = owner.approvals
+          .where((row) => row.approvalId != approval.approvalId)
+          .toList();
+      owner.agentNotice = receipt.replacementStatus == 'pending'
+          ? 'Renewal recorded. Review and approve the new request separately.'
+          : 'Renewal recorded. Replacement status: ${receipt.replacementStatus}. Refresh to inspect the current request.';
+      owner.touch();
+      if (ownsView()) await _refreshTasks();
+    } catch (error) {
+      if (!current()) return;
+      owner.agentNotice = error is ApiException && error.status == 410
+          ? 'Renewal receipt unavailable. Outcome remains unconfirmed; inspect the task or retry the same renewal.'
+          : 'Renewal outcome unconfirmed. Retry the same renewal to check its recorded outcome.';
+      owner.touch();
+      if (ownsView()) await _refreshTasks();
+    } finally {
+      // An old connection cannot publish into its replacement. The same RAM
+      // request remains available for exact retry after reconnect or tab close.
+      attempt.inFlight = false;
+      if (current()) owner.touch();
     }
   }
 
@@ -1376,7 +1448,7 @@ class _AgentChatState extends State<AgentChat> {
               ? 'Not verified'
               : '${_s.agentProvider!['provider']} · ${_s.agentProvider!['model']}',
         ),
-        _detail('Pending approvals', '${_s.approvals.length}'),
+        _detail('Approval requests', '${_s.approvals.length}'),
         Text(
           'Inspecting a task does not change the recipient of a new instruction. Use its Steer or Stop control to affect that task.',
           style: agentMutedStyle(
@@ -1453,6 +1525,14 @@ class _AgentChatState extends State<AgentChat> {
                 _pendingSubmissionCard(attempt),
               for (final a in _s.approvals)
                 _approvalCard(a, tasksById[a.taskId]),
+              for (final attempt in _s.approvalReissues.values)
+                if (!_s.approvals.any(
+                  (a) => a.approvalId == attempt.approval.approvalId,
+                ))
+                  _approvalCard(
+                    attempt.approval,
+                    tasksById[attempt.approval.taskId],
+                  ),
               if (_s.agentHistoryLoading) const LinearProgressIndicator(),
               if (_s.agentHistoryError != null)
                 Padding(
@@ -1782,6 +1862,13 @@ class _AgentChatState extends State<AgentChat> {
         .join(' ');
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
+    final renewal = _s.approvalReissues[approval.approvalId];
+    final available =
+        _s.sessionAuthenticated &&
+        _s.client != null &&
+        !_s.tasksStatusStale &&
+        _approvalMatchesTask(approval, task) &&
+        renewal == null;
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       color: scheme.tertiaryContainer,
@@ -1795,7 +1882,7 @@ class _AgentChatState extends State<AgentChat> {
               label:
                   'Approval requested for ${approval.tool} on task ${approval.taskId}',
               child: Text(
-                'Approval: ${approval.tool}',
+                '${approval.isExpired ? 'Expired approval' : 'Approval'}: ${approval.tool}',
                 style: textTheme.titleSmall,
               ),
             ),
@@ -1816,8 +1903,20 @@ class _AgentChatState extends State<AgentChat> {
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: Text(
-                  'Expired: this approval cannot be reused.',
+                  approval.reissueSupported
+                      ? 'Expired. Renew the request to review a new approval, or Deny to retire it.'
+                      : 'Expired. This host does not expose renewal; stop the task to retire it.',
                   style: textTheme.bodyMedium?.copyWith(color: scheme.error),
+                ),
+              ),
+            if (renewal != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  renewal.inFlight
+                      ? 'Checking renewal…'
+                      : 'Renewal outcome unconfirmed. Retry the same renewal to inspect its recorded outcome.',
+                  style: textTheme.bodyMedium,
                 ),
               ),
             Wrap(
@@ -1825,16 +1924,32 @@ class _AgentChatState extends State<AgentChat> {
               runSpacing: 8,
               children: [
                 FilledButton(
-                  onPressed: approval.isExpired
+                  onPressed: approval.isExpired || !available
                       ? null
                       : () => _resolve(approval, task, true),
                   child: const Text('Approve'),
                 ),
                 const SizedBox(width: 8),
                 OutlinedButton(
-                  onPressed: () => _resolve(approval, task, false),
+                  onPressed: available
+                      ? () => _resolve(approval, task, false)
+                      : null,
                   child: const Text('Deny'),
                 ),
+                if (approval.isExpired || renewal != null)
+                  OutlinedButton(
+                    onPressed:
+                        renewal?.inFlight == true ||
+                            !_s.sessionAuthenticated ||
+                            _s.client == null ||
+                            (renewal == null &&
+                                (!available || !approval.reissueSupported))
+                        ? null
+                        : () => _renewApproval(approval, task),
+                    child: Text(
+                      renewal == null ? 'Renew request' : 'Retry renewal',
+                    ),
+                  ),
               ],
             ),
           ],

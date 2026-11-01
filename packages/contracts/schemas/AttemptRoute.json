@@ -1,0 +1,231 @@
+{
+  "$defs": {
+    "AttemptCandidate": {
+      "additionalProperties": false,
+      "properties": {
+        "ordinal": {
+          "maximum": 3,
+          "minimum": 1,
+          "title": "Ordinal",
+          "type": "integer"
+        },
+        "model_pin": {
+          "$ref": "#/$defs/AttemptModelPin"
+        },
+        "cloud_scope": {
+          "enum": [
+            "local_only",
+            "public_synthetic",
+            "private_cloud_authorized"
+          ],
+          "title": "Cloud Scope",
+          "type": "string"
+        },
+        "credential": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AttemptCredential"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "ordinal",
+        "model_pin",
+        "cloud_scope",
+        "credential"
+      ],
+      "title": "AttemptCandidate",
+      "type": "object"
+    },
+    "AttemptCredential": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "generation": {
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Generation",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "generation"
+      ],
+      "title": "AttemptCredential",
+      "type": "object"
+    },
+    "AttemptModelPin": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "profile_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+          "title": "Profile Id",
+          "type": "string"
+        },
+        "provider": {
+          "enum": [
+            "meta",
+            "lmstudio"
+          ],
+          "title": "Provider",
+          "type": "string"
+        },
+        "model": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Model",
+          "type": "string"
+        },
+        "local": {
+          "title": "Local",
+          "type": "boolean"
+        },
+        "reasoning": {
+          "anyOf": [
+            {
+              "enum": [
+                "none",
+                "minimal",
+                "low",
+                "medium",
+                "high",
+                "xhigh"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Reasoning"
+        },
+        "settings_revision": {
+          "maximum": 9007199254740990,
+          "minimum": 0,
+          "title": "Settings Revision",
+          "type": "integer"
+        },
+        "catalog_binding": {
+          "$ref": "#/$defs/CatalogModelBinding"
+        },
+        "catalog_revision": {
+          "maximum": 9007199254740990,
+          "minimum": 0,
+          "title": "Catalog Revision",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schema_version",
+        "profile_id",
+        "provider",
+        "model",
+        "local",
+        "reasoning",
+        "settings_revision",
+        "catalog_binding",
+        "catalog_revision"
+      ],
+      "title": "AttemptModelPin",
+      "type": "object"
+    },
+    "CatalogModelBinding": {
+      "additionalProperties": false,
+      "description": "Explicit immutable native provider reference, never a display alias.",
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "generation": {
+          "maximum": 64,
+          "minimum": 1,
+          "title": "Generation",
+          "type": "integer"
+        },
+        "configuration_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Configuration Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "generation",
+        "configuration_sha256"
+      ],
+      "title": "CatalogModelBinding",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "purpose": {
+      "enum": [
+        "analysis",
+        "compression",
+        "title_generation",
+        "delegation",
+        "harness_design"
+      ],
+      "title": "Purpose",
+      "type": "string"
+    },
+    "harness_version": {
+      "anyOf": [
+        {
+          "pattern": "^(seed-v1|v-[a-f0-9]{24})$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Harness Version"
+    },
+    "settings_revision": {
+      "maximum": 9007199254740990,
+      "minimum": 0,
+      "title": "Settings Revision",
+      "type": "integer"
+    },
+    "route_revision": {
+      "maximum": 9007199254740990,
+      "minimum": 0,
+      "title": "Route Revision",
+      "type": "integer"
+    },
+    "candidates": {
+      "items": {
+        "$ref": "#/$defs/AttemptCandidate"
+      },
+      "maxItems": 3,
+      "minItems": 1,
+      "title": "Candidates",
+      "type": "array"
+    }
+  },
+  "required": [
+    "purpose",
+    "harness_version",
+    "settings_revision",
+    "route_revision",
+    "candidates"
+  ],
+  "title": "AttemptRoute",
+  "type": "object"
+}

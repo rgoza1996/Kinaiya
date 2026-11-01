@@ -20,6 +20,9 @@ import 'options_model_editor.dart';
 import 'options_runtime_editor.dart';
 import 'agent_runtime_writes.dart';
 import 'options_provider_editor.dart';
+import 'options_tool_permissions.dart';
+import 'options_converse_model.dart';
+import 'options_auxiliary_routes.dart';
 import 'presentation_settings.dart';
 import 'settings_controls.dart';
 import 'setup_dialog.dart';
@@ -933,49 +936,84 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
     );
   }
 
-  Widget _modelDefaults() => _scroll([
-    const Text(
-      'Model defaults by role. Harness-specific choices live in Harness Customization.',
-    ),
-    ..._errors,
-    _role('conversation', 'Converse'),
-    if (_modelReadOnlyReason case final reason?) Text(reason),
-    if (_models case final models?)
-      OptionsModelEditor(
-        key: const ValueKey('agent-default-model-editor'),
-        models: models,
-        busy: _modelBusy,
-        onSave: _saveModel,
-        onSaveCatalog: (catalog, reasoning) =>
-            _saveModel(null, reasoning, catalogBinding: catalog),
-      )
-    else
-      _unavailable(
-        'Agent default',
-        'Connect to an updated Agent host to manage model profiles.',
+  Widget _modelDefaults() {
+    final owner = widget.state, client = widget.state.client;
+    final generation = owner.connectionGeneration;
+    bool current() =>
+        mounted &&
+        identical(widget.state, owner) &&
+        client != null &&
+        owner.ownsConnection(generation, client);
+    bool ownsConnection() =>
+        client != null && owner.ownsConnection(generation, client);
+    return _scroll([
+      const Text(
+        'Model defaults by role. Harness-specific choices live in Harness Customization.',
       ),
-    _role('decisions', 'Decisions'),
-    const Text(
-      'Decisions classifies typed questions. It has no conversational reasoning or voice setting.',
-    ),
-    if (_models case final models?)
-      OptionsAuxiliaryModels(
-        models: models,
-        initialPurpose: _auxiliaryPurpose,
-        onPurposeChanged: (value) => _auxiliaryPurpose = value,
-        busy: _modelBusy,
-        onSave: (purpose, profile, reasoning) =>
-            _saveModel(profile, reasoning, auxiliaryTask: purpose),
-        onSaveCatalog: (purpose, catalog, reasoning) => _saveModel(
-          null,
-          reasoning,
-          auxiliaryTask: purpose,
-          catalogBinding: catalog,
+      ..._errors,
+      OptionsConverseModel(
+        key: ObjectKey(client),
+        api: client?.converseModels,
+        active: current,
+        onInvalidate: () {
+          if (current()) owner.invalidateConverseInference();
+        },
+        onSettled: () async {
+          if (ownsConnection()) {
+            await owner.revalidateConverseInference(invalidate: false);
+          }
+        },
+      ),
+      if (_modelReadOnlyReason case final reason?) Text(reason),
+      if (_models case final models?)
+        OptionsModelEditor(
+          key: const ValueKey('agent-default-model-editor'),
+          models: models,
+          busy: _modelBusy,
+          onSave: _saveModel,
+          onSaveCatalog: (catalog, reasoning) =>
+              _saveModel(null, reasoning, catalogBinding: catalog),
+        )
+      else
+        _unavailable(
+          'Agent default',
+          'Connect to an updated Agent host to manage model profiles.',
         ),
+      _role('decisions', 'Decisions'),
+      const Text(
+        'Decisions classifies typed questions. It has no conversational reasoning or voice setting.',
       ),
-  ]);
+      if (_models case final models?)
+        OptionsAuxiliaryModels(
+          models: models,
+          initialPurpose: _auxiliaryPurpose,
+          onPurposeChanged: (value) => _auxiliaryPurpose = value,
+          busy: _modelBusy,
+          onSave: (purpose, profile, reasoning) =>
+              _saveModel(profile, reasoning, auxiliaryTask: purpose),
+          onSaveCatalog: (purpose, catalog, reasoning) => _saveModel(
+            null,
+            reasoning,
+            auxiliaryTask: purpose,
+            catalogBinding: catalog,
+          ),
+        ),
+      OptionsAuxiliaryRoutes(
+        key: ObjectKey(client?.auxiliaryRoutes),
+        api: client?.auxiliaryRoutes,
+        active: current,
+      ),
+    ]);
+  }
 
   Widget _harnesses() {
+    final owner = widget.state, client = widget.state.client;
+    final generation = owner.connectionGeneration;
+    bool current() =>
+        mounted &&
+        identical(widget.state, owner) &&
+        client != null &&
+        owner.ownsConnection(generation, client);
     final rows = widget.state.agentHarnesses;
     if (_harness != null) {
       AgentHarness? selected;
@@ -1031,6 +1069,13 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
               catalogBinding: catalog,
             ),
           ),
+        OptionsAuxiliaryRoutes(
+          key: ValueKey('harness-routes-$_harness-${identityHashCode(client)}'),
+          api: client?.auxiliaryRoutes,
+          active: current,
+          harness: _harness,
+          allowConfigure: harness != null && harness.selectable,
+        ),
       ]);
     }
     return _scroll([
@@ -1134,30 +1179,63 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
     ),
   ]);
   Widget _permissions() {
-    if (_runtime != null) return _runtimeSettings();
+    final owner = widget.state, client = widget.state.client;
+    final generation = owner.connectionGeneration;
     final permissions = _agent?['permissions'];
+    final snapshot = _runtime, draft = _runtimeDraft;
     return _scroll([
-      const Text(
-        'Effective host grants. A model choice does not grant access or approve actions.',
+      OptionsToolPermissions(
+        key: ObjectKey(client),
+        api: client?.toolPermissions,
+        active: () =>
+            mounted &&
+            identical(widget.state, owner) &&
+            client != null &&
+            owner.ownsConnection(generation, client),
+        currentSessionId: owner.agentSession?.sessionId,
+        currentTaskIds: owner.tasks.map((task) => task.taskId).toList(),
       ),
       ..._errors,
-      for (final row in const [
-        ('allow_write', 'File writes'),
-        ('allow_shell', 'Shell commands'),
-        ('network', 'Network access'),
-        ('yolo', 'YOLO approval mode'),
-      ])
-        _field(
-          row.$2,
-          permissions is Map && permissions[row.$1] is bool
-              ? permissions[row.$1] == true
-                    ? 'Allowed by host policy'
-                    : 'Not granted by this host flag'
-              : 'Unavailable',
+      if (_runtimeReadOnlyReason case final reason?) Text(reason),
+      if (snapshot != null && draft != null)
+        OptionsRuntimeEditor(
+          key: ObjectKey(draft),
+          snapshot: snapshot,
+          draft: draft,
+          page: _page,
+          saving: _runtimeBusy,
+          onSave: _saveRuntime,
+          onReset: () {
+            final scope = _runtimeScope;
+            if (scope != null &&
+                identical(scope.draft, draft) &&
+                identical(scope.snapshot, snapshot)) {
+              agentRuntimeWrites.reset(scope);
+            }
+          },
+        )
+      else ...[
+        const Text(
+          'Service-wide host grants. A model choice does not grant access or approve actions.',
         ),
-      const Text(
-        'Use the owner Agent permission controls to change grants. Existing approval and isolation checks remain in force.',
-      ),
+        for (final row in const [
+          ('allow_write', 'File writes'),
+          ('allow_shell', 'Shell commands'),
+          ('network', 'Network access'),
+          ('yolo', 'YOLO approval mode'),
+        ])
+          _field(
+            row.$2,
+            permissions is Map && permissions[row.$1] is bool
+                ? permissions[row.$1] == true
+                      ? 'Allowed by host policy'
+                      : 'Not granted by this host flag'
+                : 'Unavailable',
+          ),
+        const Text(
+          'Service-wide execution controls are unavailable from this host. Existing approval and isolation checks remain in force.',
+        ),
+      ],
     ]);
   }
 

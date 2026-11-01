@@ -271,8 +271,10 @@ and replay behavior; new UI writes require observed runtime authority.
 The [Providers catalog](docs/adr/0086-owner-provider-catalog.md) adds native
 profile and protected credential-generation forms. [Agent model selection](docs/adr/0089-agent-catalog-models.md)
 captures exact saved versions in fresh task-owned primary/auxiliary adapters;
-saving a provider profile alone does not select it. Converse/STT/TTS/Decisions
-model editing remains host-managed. These new
+saving a provider profile alone does not select it. Independent
+[Converse text model settings](docs/adr/0091-converse-text-model-settings.md)
+select an eligible exact catalog generation while actual Converse operations
+and cleanup are settled. STT/TTS/Decisions model editing remains host-managed. These new
 controls still require the runtime/concurrency acceptance described in the ADR.
 Global and per-harness [auxiliary text models](docs/adr/0082-task-pinned-auxiliary-models.md)
 support explicit analysis, compression, title, delegated reasoning and harness
@@ -283,8 +285,8 @@ and planned controls. Stable semantics use the [supplied Penpot presentation](do
 The [updated Home and optional Converse design](docs/adr/0059-home-and-optional-converse.md)
 shares one live conversation owner: Home keeps the seated water scene, while the
 optional interaction view adds close-up artwork, transcript and composer. Home's
-mascot/Setup opens model declarations and local view visibility. Converse model hot-swap,
-camera/direct-audio input remain unavailable in the production app. Owner
+mascot/Setup opens model declarations and local view visibility. Text model choice
+lives in Options / Models; camera/direct-audio input remains unavailable in the production app. Owner
 Projects group Agent sessions; Generated Documents and Generated Media list
 native output receipts with time, type and source session. These libraries do
 not scan workspace folders or grant file access.

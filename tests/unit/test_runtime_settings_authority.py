@@ -453,6 +453,8 @@ def legacy_database(path):
         "change_boundary": "settled_service",
     }
     raw = json.dumps(receipt, indent=3)
+    # Match the owner-only file produced by the legacy native controller.
+    path.touch(mode=0o600)
     with sqlite3.connect(path) as db:
         db.execute(
             "CREATE TABLE settings (id INTEGER PRIMARY KEY CHECK(id=1), "
@@ -521,6 +523,8 @@ def test_partially_initialized_or_foreign_store_is_not_a_fresh_database(
     make_settings, tmp_path, schema
 ):
     path = tmp_path / "partial.sqlite"
+    # Exercise schema refusal after passing the independent file-mode guard.
+    path.touch(mode=0o600)
     with sqlite3.connect(path) as db:
         db.execute(schema)
     with pytest.raises(native.RuntimeSettingsUnavailable):

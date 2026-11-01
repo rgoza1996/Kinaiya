@@ -1,0 +1,29 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "kind": {
+      "const": "mcp",
+      "title": "Kind",
+      "type": "string"
+    },
+    "server_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Server Id",
+      "type": "string"
+    },
+    "name": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    }
+  },
+  "required": [
+    "kind",
+    "server_id",
+    "name"
+  ],
+  "title": "MCPPermissionTarget",
+  "type": "object"
+}

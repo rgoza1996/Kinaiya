@@ -11,6 +11,12 @@ The owner requested reconciliation before further feature work. Inputs were the 
 
 ## October 31 Options increment
 
+[ADR0092](adr/0092-approval-expiry-renewal.md) adds visible paused approval
+expiry, exact owner renewal into a separately reviewed permit and bounded
+broker history. It preserves final one-use enforcement and unknown-receipt
+handling. Static checks and PR-specific CI remain distinct; broader scoped
+read/per-tool permission rules are still unfinished.
+
 The owner-confirmed [full Options goal](options-delivery-plan.md) is tracked by
 [#208](https://github.com/rgoza1996/Kinaiya/issues/208), alongside ongoing #196
 and multimodal #204. [ADR0084](adr/0084-owner-execution-settings.md) adds native
@@ -41,6 +47,13 @@ and retained cleanup ownership. This supersedes the catalog-application gap for
 Agent only. Catalog role application for Converse/Decisions/STT/TTS, ordered
 fallback and broader model qualification remain unfinished. Static review and
 analysis do not establish fresh inference quality or full settings coverage.
+
+[ADR0091](adr/0091-converse-text-model-settings.md) adds Converse text selection
+through its own protected store and native operation leases, with a separate
+embedded editor and exact unknown-save recovery. This supersedes the application
+gap for that text role only. It is under source/static review; later PR-specific
+CI and runtime evidence remain separate. Decisions/STT/TTS editing, fallback,
+direct multimodal capture and the other full Options acceptance groups stay open.
 
 ## Milestone status
 

@@ -1,0 +1,34 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "purpose": {
+      "enum": [
+        "analysis",
+        "compression",
+        "title_generation",
+        "delegation",
+        "harness_design"
+      ],
+      "title": "Purpose",
+      "type": "string"
+    },
+    "harness_version": {
+      "anyOf": [
+        {
+          "pattern": "^(seed-v1|v-[a-f0-9]{24})$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Harness Version"
+    }
+  },
+  "required": [
+    "purpose",
+    "harness_version"
+  ],
+  "title": "AuxiliaryRouteScope",
+  "type": "object"
+}

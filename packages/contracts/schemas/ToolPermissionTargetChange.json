@@ -1,0 +1,302 @@
+{
+  "$defs": {
+    "MCPPermissionBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "config_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Config Sha256",
+          "type": "string"
+        },
+        "tool_sha256": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 64,
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Tool Sha256"
+        }
+      },
+      "required": [
+        "config_sha256",
+        "tool_sha256"
+      ],
+      "title": "MCPPermissionBinding",
+      "type": "object"
+    },
+    "MCPPermissionTarget": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "mcp",
+          "title": "Kind",
+          "type": "string"
+        },
+        "server_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Server Id",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "server_id",
+        "name"
+      ],
+      "title": "MCPPermissionTarget",
+      "type": "object"
+    },
+    "NativePermissionBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "protocol_version": {
+          "const": "1.0",
+          "title": "Protocol Version",
+          "type": "string"
+        },
+        "schema_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Schema Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocol_version",
+        "schema_sha256"
+      ],
+      "title": "NativePermissionBinding",
+      "type": "object"
+    },
+    "NativePermissionTarget": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "native",
+          "title": "Kind",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "name"
+      ],
+      "title": "NativePermissionTarget",
+      "type": "object"
+    },
+    "PermissionScope": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "default",
+            "workspace",
+            "session",
+            "task"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "workspace_id": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Workspace Id"
+        },
+        "session_id": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Session Id"
+        },
+        "thread_id": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Thread Id"
+        },
+        "epoch": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Epoch"
+        },
+        "task_id": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Task Id"
+        },
+        "objective_revision": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Objective Revision"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "PermissionScope",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Additive target protocol; legacy tool requests and receipts stay 1.0.",
+  "properties": {
+    "schema_version": {
+      "const": "1.1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "expected_revision": {
+      "maximum": 9007199254740990,
+      "minimum": 0,
+      "title": "Expected Revision",
+      "type": "integer"
+    },
+    "expected_state": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Expected State",
+      "type": "string"
+    },
+    "idempotency_key": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9:._-]{1,128}$",
+      "title": "Idempotency Key",
+      "type": "string"
+    },
+    "scope": {
+      "$ref": "#/$defs/PermissionScope"
+    },
+    "target": {
+      "discriminator": {
+        "mapping": {
+          "mcp": "#/$defs/MCPPermissionTarget",
+          "native": "#/$defs/NativePermissionTarget"
+        },
+        "propertyName": "kind"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/NativePermissionTarget"
+        },
+        {
+          "$ref": "#/$defs/MCPPermissionTarget"
+        }
+      ],
+      "title": "Target"
+    },
+    "binding": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/NativePermissionBinding"
+        },
+        {
+          "$ref": "#/$defs/MCPPermissionBinding"
+        }
+      ],
+      "title": "Binding"
+    },
+    "mode": {
+      "anyOf": [
+        {
+          "enum": [
+            "allow",
+            "ask",
+            "deny"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Mode"
+    }
+  },
+  "required": [
+    "schema_version",
+    "expected_revision",
+    "expected_state",
+    "idempotency_key",
+    "scope",
+    "target",
+    "binding",
+    "mode"
+  ],
+  "title": "ToolPermissionTargetChange",
+  "type": "object"
+}

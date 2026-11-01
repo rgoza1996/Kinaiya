@@ -7,14 +7,18 @@ from packages.contracts import (
     agent_control,
     agent_export,
     agent_submit,
+    auxiliary_attempts,
+    auxiliary_routes,
     companion,
     context,
+    converse_models,
     converse_setup,
     memory,
     memory_catalog,
     memory_context,
     memory_operations,
     models,
+    tool_permissions,
 )
 
 target = Path(__file__).resolve().parents[1] / "packages/contracts/schemas"
@@ -59,3 +63,26 @@ for name in (
 ):
     cls = getattr(agent_control, name)
     (target / f"{name}.json").write_text(json.dumps(cls.model_json_schema(), indent=2) + "\n")
+
+# Owner policy requests are strict frozen models, separate from journal events.
+for cls in (
+    tool_permissions.PermissionScope,
+    tool_permissions.ToolPermissionChange,
+    tool_permissions.NativePermissionTarget,
+    tool_permissions.MCPPermissionTarget,
+    tool_permissions.NativePermissionBinding,
+    tool_permissions.MCPPermissionBinding,
+    tool_permissions.ToolPermissionTargetChange,
+    auxiliary_routes.AuxiliaryRouteScope,
+    auxiliary_routes.AuxiliaryRouteCandidate,
+    auxiliary_routes.AuxiliaryRoute,
+    auxiliary_routes.AuxiliaryRouteChange,
+    auxiliary_attempts.AttemptRoute,
+    auxiliary_attempts.AuxiliaryAttempt,
+    converse_models.ConverseModelSelection,
+    converse_models.ConverseModelChange,
+    converse_models.RoleModelPin,
+):
+    (target / f"{cls.__name__}.json").write_text(
+        json.dumps(cls.model_json_schema(), indent=2) + "\n"
+    )

@@ -97,6 +97,7 @@ class AgentModelSettings:
         auxiliary_host_factory=None,
         catalog=None,
         resource_state=None,
+        workspace=None,
     ):
         if (
             len(factories) > 31
@@ -108,6 +109,7 @@ class AgentModelSettings:
         self.catalog = catalog
         self.resource_state = resource_state
         self.catalog_leases = set()
+        self.auxiliary_routes = None
         self.host_factory = host_factory
         self.auxiliary_factories = dict(auxiliary_factories or {})
         self.auxiliary_host_factory = auxiliary_host_factory
@@ -159,6 +161,34 @@ class AgentModelSettings:
         except BaseException:
             self._poison()
             raise
+        from services.agent.auxiliary_routes import (
+            AgentAuxiliaryRoutes,
+            AuxiliaryRouteUnavailable,
+            UnavailableAuxiliaryRoutes,
+            UnconfiguredAuxiliaryRoutes,
+        )
+
+        try:
+            route_path = (
+                path.with_name(path.name + ".auxiliary-routes.sqlite") if path is not None else None
+            )
+            if path is not None:
+                # A pre-release stem-derived name can alias distinct backends.
+                # Never migrate, choose it, or infer empty configuration from
+                # its existence; an owner must resolve that ambiguous authority.
+                old_path = path.with_name(path.stem + "-auxiliary-routes.sqlite")
+                try:
+                    old_path.lstat()
+                except FileNotFoundError:
+                    pass
+                else:
+                    raise AuxiliaryRouteUnavailable
+            if route_path is not None and workspace is None:
+                self.auxiliary_routes = UnconfiguredAuxiliaryRoutes(route_path)
+            else:
+                self.auxiliary_routes = AgentAuxiliaryRoutes(self, route_path, workspace=workspace)
+        except (ValueError, RuntimeError, OSError, sqlite3.Error):
+            self.auxiliary_routes = UnavailableAuxiliaryRoutes()
 
     def _ensure_store(self):
         if self._failed or self._closed:
@@ -677,7 +707,10 @@ class AgentModelSettings:
 
     @property
     def catalog_cleanup_busy(self):
-        return any(lease.cleanup is not None and not lease.settled for lease in self.catalog_leases)
+        return any(
+            lease.retiring or lease.failed or (lease.cleanup is not None and not lease.settled)
+            for lease in self.catalog_leases
+        )
 
     def task_selection(self, harness_version, content_scope):
         """Capture fresh catalog adapters only for genuinely new accepted work."""
@@ -689,6 +722,17 @@ class AgentModelSettings:
             raise ValueError("Catalog provider cleanup is unconfirmed; no new work accepted")
         revision, body = self._read()
         lease = None
+
+        def ensure_lease():
+            nonlocal lease
+            if lease is None:
+                if len(self.catalog_leases) >= 64 or any(
+                    item.failed for item in self.catalog_leases
+                ):
+                    raise ValueError("Catalog model ownership requires cleanup or capacity")
+                lease = TaskModelLease(self.catalog_leases.discard)
+                self.catalog_leases.add(lease)
+            return lease
 
         def select(purpose=None):
             nonlocal lease
@@ -711,13 +755,7 @@ class AgentModelSettings:
                 if purpose is None:
                     raise PolicyDenied("Input disclosure does not permit the catalog model")
                 raise ValueError("Input disclosure does not permit the catalog model")
-            if lease is None:
-                if len(self.catalog_leases) >= 64 or any(
-                    item.failed for item in self.catalog_leases
-                ):
-                    raise ValueError("Catalog model ownership requires cleanup or capacity")
-                lease = TaskModelLease(self.catalog_leases.discard)
-                self.catalog_leases.add(lease)
+            ensure_lease()
             provider, recipe = open_recipe(
                 self.catalog,
                 binding["catalog_binding"],
@@ -745,12 +783,59 @@ class AgentModelSettings:
             if not scope_allowed(provider.info, content_scope):
                 raise PolicyDenied("Input disclosure does not permit the selected model")
             auxiliary, pins = {}, {}
+            try:
+                route_revision, routes = self.auxiliary_routes.configured(
+                    harness_version, AUXILIARY_TASKS
+                )
+            except (ValueError, RuntimeError, OSError, sqlite3.Error):
+                # Optional route state cannot disable independent primary work.
+                # Unknown overrides also cannot authorize legacy replacement.
+                route_revision, routes = None, None
             for purpose in AUXILIARY_TASKS:
+                captures = None
                 try:
-                    auxiliary[purpose], pins[purpose] = select(purpose)
+                    if routes is None:
+                        continue
+                    if purpose not in routes:
+                        auxiliary[purpose], pins[purpose] = select(purpose)
+                        continue
+                    from packages.contracts.auxiliary_routes import AuxiliaryRoute
+                    from services.agent.auxiliary_route_task import CapturedAuxiliaryRoute
+                    from services.settings.provider_factory import capture_recipes
+
+                    route = AuxiliaryRoute.model_validate(routes[purpose])
+                    ensure_lease()
+                    captures = capture_recipes(
+                        self.catalog,
+                        [
+                            (candidate.catalog_binding, candidate.reasoning)
+                            for candidate in route.candidates
+                        ],
+                    )
+                    captured = CapturedAuxiliaryRoute(
+                        purpose=purpose,
+                        harness_version=harness_version,
+                        settings_revision=revision,
+                        route_revision=route_revision,
+                        candidates=route.candidates,
+                        captures=captures,
+                        lease=lease,
+                        resource_state=self.resource_state,
+                    )
+                    lease.auxiliary_routes[purpose] = captured
+                    captures = None  # The lease now owns every captured key.
+                    auxiliary[purpose], pins[purpose] = captured, captured.pin()
                 except (ValueError, RuntimeError, OSError, sqlite3.Error, SystemExit):
+                    if captures is not None:
+                        for capture in captures:
+                            capture.release()
                     # An unavailable purpose stays unavailable; no replacement.
                     continue
+            if lease is not None and not lease.adapters and not lease.auxiliary_routes:
+                # No adapter, native operation or captured authority exists.
+                self.catalog_leases.discard(lease)
+                lease.settled = True
+                lease = None
             return provider, pin, auxiliary, pins, lease
         except BaseException:
             if lease is not None:
@@ -797,6 +882,10 @@ class AgentModelSettings:
         """Effective declared routes, not model readiness or task qualification."""
         try:
             _, body = self._read()
+            if self.auxiliary_routes is not None:
+                _, routes = self.auxiliary_routes.configured(harness_version, AUXILIARY_TASKS)
+                if routes:
+                    return True
         except (ValueError, RuntimeError, OSError, sqlite3.Error):
             return False
         for purpose in AUXILIARY_TASKS:
@@ -838,6 +927,7 @@ class AgentModelSettings:
             "auxiliary_tasks": [
                 {"id": key, "label": label} for key, label in AUXILIARY_TASKS.items()
             ],
+            "auxiliary_routes_state": self.auxiliary_routes.status(),
             "profiles": [
                 {
                     "id": name,
@@ -858,7 +948,8 @@ class AgentModelSettings:
                 "leases": len(self.catalog_leases),
                 "limit": 64,
                 "cleanup_pending": sum(
-                    item.cleanup is not None and not item.settled and not item.failed
+                    bool(item.retiring)
+                    or (item.cleanup is not None and not item.settled and not item.failed)
                     for item in self.catalog_leases
                 ),
                 "cleanup_failed": sum(item.failed for item in self.catalog_leases),
@@ -1084,4 +1175,6 @@ class AgentModelSettings:
                 if close is not None:
                     await close()
         finally:
+            if self.auxiliary_routes is not None:
+                self.auxiliary_routes.close()
             self.db.close()

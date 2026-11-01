@@ -25,6 +25,7 @@ from packages.contracts.agent_tools import (
 )
 from packages.contracts.models import ProviderInfo
 from packages.providers.completion_budget import PreparedComplete
+from packages.providers.pre_generation import PreGenerationUnavailable
 from packages.providers.prompt_budget import (
     MAX_SAFE_COUNT,
     PromptCountUnavailable,
@@ -268,6 +269,7 @@ class LMStudioProvider:
         allow_cloud=False,
         transport_factory=None,
         pin_complete_identity=False,
+        pre_generation_proofs=False,
     ):
         try:
             url = urlparse(base_url)
@@ -297,6 +299,7 @@ class LMStudioProvider:
             or not 1 <= timeout <= 900
             or type(allow_cloud) is not bool
             or type(pin_complete_identity) is not bool
+            or type(pre_generation_proofs) is not bool
         ):
             raise ProviderError("Unsupported LM Studio native configuration")
         self.model, self.max_tokens, self.reasoning_effort = model, max_tokens, reasoning_effort
@@ -310,6 +313,7 @@ class LMStudioProvider:
         self._measurement = None
         self._pin_complete_identity = pin_complete_identity
         self._complete_snapshot = None
+        self._pre_generation_proofs = pre_generation_proofs
 
     def _configuration(self):
         return (
@@ -319,7 +323,7 @@ class LMStudioProvider:
             self.reasoning_effort,
             self.timeout,
             self._pin_complete_identity,
-        )
+        ) + (("pre-generation-proofs-v1",) if self._pre_generation_proofs else ())
 
     async def _connect(self):
         if self._transport_factory is not None:
@@ -401,7 +405,12 @@ class LMStudioProvider:
         op = _Operation()
         self._active = op
         try:
-            op.socket = await self._connect()
+            try:
+                op.socket = await self._connect()
+            except ConnectionRefusedError:
+                if self._transport_factory is None and self._pre_generation_proofs:
+                    raise PreGenerationUnavailable("endpoint_refused") from None
+                raise
             await self._send(
                 op,
                 {
@@ -504,6 +513,17 @@ class LMStudioProvider:
         if type(loaded) is not list or len(loaded) > 128:
             raise _refuse()
         selected = [m for m in loaded if type(m) is dict and m.get("identifier") == self.model]
+        if not selected:
+            # A valid native loaded-model inventory is affirmative absence.
+            # Malformed rows, duplicate aliases, identity drift and RPC errors
+            # remain refusals. The enclosing operation must still really close.
+            if op.channel_started or not self._pre_generation_proofs:
+                raise _refuse()
+            for model in loaded:
+                if type(model) is not dict or type(model.get("identifier")) is not str:
+                    raise _refuse()
+                _identity(model, model["identifier"])
+            raise PreGenerationUnavailable("model_not_loaded")
         if len(selected) != 1:
             raise _refuse()
         identity = _identity(selected[0], self.model)
@@ -690,6 +710,9 @@ class LMStudioProvider:
                         raise _refuse()
                     current()
             current()
+        except PreGenerationUnavailable:
+            current()
+            raise
         except (ProviderCleanupError, ProviderRefusal, asyncio.CancelledError):
             raise
         except Exception as exc:
@@ -700,16 +723,20 @@ class LMStudioProvider:
         async def generate():
             current()
             parts = []
-            async with aclosing(
-                self._stream(
-                    messages,
-                    expected=(snapshot, creation, measured, formatted),
-                    check=current,
-                    admission=admission,
-                )
-            ) as source:
-                async for text in source:
-                    parts.append(text)
+            try:
+                async with aclosing(
+                    self._stream(
+                        messages,
+                        expected=(snapshot, creation, measured, formatted),
+                        check=current,
+                        admission=admission,
+                    )
+                ) as source:
+                    async for text in source:
+                        parts.append(text)
+            except PreGenerationUnavailable:
+                current()
+                raise
             # _stream exits only after native terminal, channel close and the
             # actual socket close. Never return text across a changed authority.
             current()

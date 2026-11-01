@@ -34,7 +34,8 @@ from types import SimpleNamespace
 from typing import Any
 
 from core.extensions import HarnessError
-from core.policy import ApprovalError, PolicyDenied, ToolPolicy
+from core.policy import ApprovalError, ApprovalReceiptUnavailable, PolicyDenied, ToolPolicy
+from core.policy.tool_admission import SCOPED_BUILTINS, MCPToolAdmission, native_tool_admission
 from harnesses.seed import (
     ARTIFACT_RECEIPT_LIMIT,
     build_messages,
@@ -76,6 +77,8 @@ from packages.contracts.interfaces import (
 )
 from packages.contracts.models import (
     AppendRequest,
+    ApprovalReissue,
+    ApprovalReissueReceipt,
     ApprovalResolution,
     Evidence,
     InterruptRequest,
@@ -112,6 +115,7 @@ from services.agent.tools import (
     run_search,
     run_shell,
     run_write,
+    shell_directory,
     validate_write_arguments,
 )
 
@@ -272,6 +276,8 @@ class _Record:
     history: list[dict[str, str]] = field(default_factory=list)
     catalog_guards: dict[str, Any] = field(default_factory=dict)
     pending: dict[str, Any] | None = None
+    approval_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    approval_wait_id: str | None = None
     pending_steer: dict[str, Any] | None = None
     last_tool_ok: bool | None = None
     # Aggregate failure of required work or UI publication in this revision.
@@ -396,6 +402,7 @@ class AgentRuntime:
         self.provider = provider
         self.model_settings = None
         self.runtime_settings = None
+        self.tool_permissions = None
         self.projects = None
         self.workspace = Path(workspace)
         self.policy = policy
@@ -2302,6 +2309,9 @@ class AgentRuntime:
         settings, self.runtime_settings = self.runtime_settings, None
         if settings is not None:
             settings.close()
+        permissions, self.tool_permissions = self.tool_permissions, None
+        if permissions is not None:
+            permissions.close()
 
     # -- approvals ------------------------------------------------------
     async def pending_approvals(
@@ -2317,24 +2327,28 @@ class AgentRuntime:
                 continue
             pending = rec.pending
             if (
-                rec.task.state != TaskState.AWAITING_APPROVAL
+                rec.task.state not in {TaskState.AWAITING_APPROVAL, TaskState.PAUSED}
                 or pending is None
                 or pending.get("approved")
                 or rec.pending_steer is not None
             ):
                 continue
             session_id = rec.task.session_id
-            if await self._epoch_error(rec) is not None:
+            stale = await self._epoch_error(rec)
+            if (
+                stale is not None
+                and self.policy.approval_state(pending["approval_id"]) != "expired"
+            ):
                 continue
             permit = self.policy.peek_approval(pending["approval_id"])
             if (
                 rec.pending is not pending
-                or rec.task.state != TaskState.AWAITING_APPROVAL
+                or rec.task.state not in {TaskState.AWAITING_APPROVAL, TaskState.PAUSED}
                 or pending.get("approved")
                 or rec.pending_steer is not None
                 or permit is None
                 or permit.used
-                or permit.expires_at <= time.time()
+                or self.policy.approval_state(permit.approval_id) not in {"pending", "expired"}
                 or permit.objective_revision != rec.task.objective_revision
             ):
                 continue
@@ -2350,6 +2364,9 @@ class AgentRuntime:
                     action_digest=permit.action_digest,
                     objective_revision=permit.objective_revision,
                     expires_at=permit.expires_at,
+                    status="expired"
+                    if self.policy.approval_state(permit.approval_id) == "expired"
+                    else "pending",
                     reason=pending.get("reason", "tool_permission"),
                 )
             )
@@ -2364,44 +2381,240 @@ class AgentRuntime:
     ) -> dict[str, Any]:
         if actor != "owner":
             raise PolicyDenied(f"approval resolve requires owner, got {actor!r}")
-        for rec in self._tasks.values():
+        rec = self._approval_record(approval_id)
+        async with rec.approval_lock:
             pending = rec.pending
-            if pending is not None and pending["approval_id"] == approval_id:
-                break
-        else:
-            raise ApprovalError(f"unknown or superseded approval {approval_id!r}")
+            self._approval_binding(rec, pending, approval_id, resolution)
+            if resolution.approved:
+                stale = await self._epoch_error(rec)
+                if stale is not None:
+                    raise StaleRevision(stale)
+                await self._task_scope(rec)
+            self._approval_binding(rec, pending, approval_id, resolution)
+            if resolution.approved:
+                self._approval_action_current(rec, pending)
+                if self.policy.approval_state(approval_id) == "expired":
+                    await self._expire_approval(rec, pending)
+                    raise ApprovalError("Approval expired; renew and review the replacement")
+                self.policy.check_approval(
+                    approval_id, resolution.action_digest, resolution.objective_revision
+                )
+            await self._append(
+                rec,
+                "approval.resolved",
+                {
+                    "approval_id": approval_id,
+                    "approved": resolution.approved,
+                    "objective_revision": resolution.objective_revision,
+                },
+            )
+            self._approval_binding(rec, pending, approval_id, resolution)
+            if not resolution.approved:
+                self.policy.retire_approval(approval_id, "denied")
+                rec.pending = None
+                rec.resume.set()
+                await self._fail(rec, "owner denied the requested approval")
+                return {"approval_id": approval_id, "approved": False}
+            if self.policy.approval_state(approval_id) == "expired":
+                await self._expire_approval(rec, pending)
+                raise ApprovalError("Approval expired before review confirmation; renew it")
+            self.policy.check_approval(
+                approval_id, resolution.action_digest, resolution.objective_revision
+            )
+            # Intent is not a spend. The effect broker consumes it once after
+            # its final source, scope, cancellation and revision checks.
+            pending["approved"] = True
+            rec.resume.set()
+            return {"approval_id": approval_id, "approved": True}
+
+    def _approval_record(self, approval_id):
+        for rec in self._tasks.values():
+            if rec.pending is not None and rec.pending["approval_id"] == approval_id:
+                return rec
+        raise ApprovalError(f"unknown or superseded approval {approval_id!r}")
+
+    def _approval_binding(self, rec, pending, approval_id, request):
         reservation = self._pending_submits.get((rec.task.session_id, rec.task.idempotency_key))
         if reservation is not None and reservation.record is rec and not rec.submit_confirmed:
             raise AgentSubmitUnconfirmed
-        if resolution.objective_revision != rec.task.objective_revision:
-            raise StaleRevision("approval resolution targets a stale objective revision")
-        if resolution.action_digest != pending["digest"]:
-            raise ApprovalError("approval resolution digest does not match the pending action")
         if rec.task.state in TERMINAL:
-            raise TaskTerminal("task already terminal; approval is moot")
-        stale = await self._epoch_error(rec)
-        if stale is not None:
-            raise StaleRevision(stale)
-        if resolution.approved:
+            raise TaskTerminal("Task already terminal; approval is moot")
+        if (
+            self._closed
+            or rec.closing
+            or rec.cancel_requested
+            or rec.recovered
+            or rec.completion_pending
+            or rec.pending is not pending
+            or pending is None
+            or pending["approval_id"] != approval_id
+            or rec.pending_steer is not None
+            or rec.task.state not in {TaskState.AWAITING_APPROVAL, TaskState.PAUSED}
+        ):
+            raise ApprovalError("Approval is no longer awaiting owner review")
+        if request.objective_revision != rec.task.objective_revision:
+            raise StaleRevision("Approval targets a stale objective revision")
+        if request.action_digest != pending["digest"]:
+            raise ApprovalError("Approval digest does not match the pending action")
+
+    def _approval_action_current(self, rec, pending):
+        tool, args = pending["tool"], pending["arguments"]
+        self._validate_catalog_history(rec)
+        if (
+            self.policy.digest_for(tool, args, rec.task.objective_revision) != pending["digest"]
+            or self._permission_denies(rec, tool, args)
+            or not self.tool_snapshot(rec.task).supports(tool)
+        ):
+            raise ApprovalError("Pending action is no longer eligible under native policy")
+        original_target = pending.get("permission_target")
+        if original_target is not None and tool in {"search", "mcp_call"}:
+            current_target = self._permission_decision(rec, tool, args)
+            if current_target is None or original_target["binding"] != current_target["binding"]:
+                raise ApprovalError("Pending target binding changed; review a new action")
+        if tool == "read_file":
+            self.policy.resolve_path(args.get("path", ""))
+            maximum = args.get("max_bytes", 65536)
+            if type(maximum) is not int or not 1 <= maximum <= 262144:
+                raise ApprovalError("Pending read exceeds its native bound")
+        elif tool == "write_file":
+            validate_write_arguments(args, rec.task.objective_revision)
+            self.policy.resolve_path(args["path"])
+            self.policy._deny_readonly_write(args["path"])
+        elif tool == "shell":
+            shell_directory(self.policy)
+        elif tool == "search":
+            self.policy.check_search(args.get("path"))
+        elif tool == "mcp_call":
+            scoped = self._model_mcp(rec)
+            rows = (
+                scoped.cached_tool_metadata(args.get("server_id"), tool=args.get("tool"))
+                if scoped is not None
+                else []
+            )
+            if not any(
+                row["enabled"]
+                and row["transport_grant"]
+                and args.get("tool") in row["allowed_tools"]
+                for row in rows
+            ):
+                raise ApprovalError("Pending MCP action is no longer owner configured")
+
+    async def _expire_approval(self, rec, pending):
+        """Called under approval_lock; expire once and retain the visible action."""
+        if pending.get("status") == "expired":
+            return
+        self.policy.retire_approval(pending["approval_id"], "expired")
+        pending["status"] = "expired"
+        pending["approved"] = False
+        rec.task.state = TaskState.PAUSED
+        rec.task.error = "Approval expired; renew it for review or deny the action"
+        try:
+            await self._append(
+                rec,
+                "approval.resolved",
+                {
+                    "approval_id": pending["approval_id"],
+                    "approved": False,
+                    "reason": "expired",
+                    "objective_revision": rec.task.objective_revision,
+                },
+            )
+            await self._append(
+                rec,
+                "agent.state",
+                {
+                    "state": "paused",
+                    "reason": "approval_expired",
+                    "approval_id": pending["approval_id"],
+                },
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            # The metadata append may have committed. Keep native expiry and
+            # the visible paused waiter; never retry an effect or infer success.
+            rec.task.error = "Approval expired; journal confirmation is unavailable"
+
+    def _reissue_receipt(self, original):
+        return ApprovalReissueReceipt(
+            previous_approval_id=original.approval_id,
+            approval_id=original.replacement_id,
+            action_digest=original.action_digest,
+            objective_revision=original.objective_revision,
+            expires_at=original.replacement_expires_at,
+            replacement_status=self.policy.approval_state(original.replacement_id),
+        ).model_dump(mode="json")
+
+    async def reissue_approval(self, approval_id, request: ApprovalReissue, actor="owner"):
+        if actor != "owner":
+            raise PolicyDenied("Approval renewal requires owner")
+        original = self.policy.peek_approval(approval_id)
+        if original is None:
+            raise ApprovalReceiptUnavailable(
+                "Approval renewal receipt is unavailable; inspect current task"
+            )
+        if (original.action_digest, original.objective_revision) != (
+            request.action_digest,
+            request.objective_revision,
+        ):
+            raise ApprovalError("Approval renewal does not match the original action")
+        if original.replacement_id is not None:
+            return self._reissue_receipt(original)
+        rec = self._approval_record(approval_id)
+        async with rec.approval_lock:
+            if original.replacement_id is not None:
+                return self._reissue_receipt(original)
+            pending = rec.pending
+            self._approval_binding(rec, pending, approval_id, request)
+            stale = await self._epoch_error(rec)
+            if stale is not None:
+                raise StaleRevision(stale)
             await self._task_scope(rec)
-        await self._append(
-            rec,
-            "approval.resolved",
-            {
-                "approval_id": approval_id,
-                "approved": resolution.approved,
-                "objective_revision": resolution.objective_revision,
-            },
-        )
-        if not resolution.approved:
-            rec.pending = None
-            await self._fail(rec, "owner denied the requested approval")
-            return {"approval_id": approval_id, "approved": False}
-        # Record intent; the one-use spend happens at execution under the
-        # current revision, so a racing steer still invalidates it.
-        pending["approved"] = True
-        rec.resume.set()
-        return {"approval_id": approval_id, "approved": True}
+            self._approval_binding(rec, pending, approval_id, request)
+            self._approval_action_current(rec, pending)
+            if self.policy.approval_state(approval_id) != "expired":
+                raise ApprovalError("Only an expired approval can be renewed")
+            await self._expire_approval(rec, pending)
+            self._approval_binding(rec, pending, approval_id, request)
+            # Expiry publication yielded. Revalidate current native source and
+            # disclosure before allocating the replacement, without inference.
+            stale = await self._epoch_error(rec)
+            if stale is not None:
+                raise StaleRevision(stale)
+            await self._task_scope(rec)
+            self._approval_binding(rec, pending, approval_id, request)
+            self._approval_action_current(rec, pending)
+            replacement = self.policy.reissue_approval(
+                approval_id, request.action_digest, request.objective_revision
+            )
+            rec.approval_wait_id = replacement.approval_id
+            rec.pending = {
+                **pending,
+                "approval_id": replacement.approval_id,
+                "approved": False,
+                "status": "pending",
+            }
+            rec.task.state = TaskState.AWAITING_APPROVAL
+            rec.task.error = None
+            try:
+                await self._append(
+                    rec,
+                    "approval.requested",
+                    {
+                        "approval_id": replacement.approval_id,
+                        "previous_approval_id": approval_id,
+                        "tool": pending["tool"],
+                        "arguments": pending["arguments"],
+                        "action_digest": pending["digest"],
+                        "objective_revision": request.objective_revision,
+                        "expires_at": replacement.expires_at,
+                        "reason": pending.get("reason", "tool_permission"),
+                    },
+                )
+            finally:
+                # Lost metadata ACK cannot erase the replacement or its timer.
+                rec.resume.set()
+            return self._reissue_receipt(original)
 
     def approval_for_task(self, task_id: str) -> str | None:
         rec = self._get(task_id)
@@ -2559,7 +2772,48 @@ class AgentRuntime:
     def _plugin_task(rec):
         return SimpleNamespace(task_id=rec.task.task_id, plugin_versions=rec.plugin_versions)
 
-    def _grants(self) -> str:
+    def _permission_decision(self, rec, tool, args=None):
+        if self.tool_permissions is None or tool not in SCOPED_BUILTINS | {"mcp_call"}:
+            return None
+        try:
+            if tool == "mcp_call":
+                if args is None:
+                    return None
+                return self.tool_permissions.resolve_target(
+                    rec.task if rec is not None else None,
+                    {
+                        "kind": "mcp",
+                        "server_id": args.get("server_id", ""),
+                        "name": args.get("tool", ""),
+                    },
+                )
+            return self.tool_permissions.resolve(rec.task if rec is not None else None, tool)
+        except (OSError, ValueError, RuntimeError, sqlite3.Error):
+            raise PolicyDenied("Native scoped permission state is unavailable") from None
+
+    def _permission_fingerprint(self, rec=None):
+        if self.tool_permissions is None:
+            return None
+        try:
+            return self.tool_permissions.fingerprint(rec.task if rec is not None else None)
+        except (OSError, ValueError, RuntimeError, sqlite3.Error):
+            raise PolicyDenied("Native scoped permission state is unavailable") from None
+
+    def _permission_denies(self, rec, tool, args=None):
+        decision = self._permission_decision(rec, tool, args)
+        return self.policy.denies(tool) or (
+            decision is not None and decision["effective"] == "deny"
+        )
+
+    def _permission_asks(self, rec, tool, args=None):
+        decision = self._permission_decision(rec, tool, args)
+        return (
+            decision["effective"] == "ask"
+            if decision is not None
+            else self.policy.needs_approval(tool)
+        )
+
+    def _grants(self, rec=None) -> str:
         grants = (
             f"write={self.policy.effective_write} "
             f"shell={self.policy.effective_shell} "
@@ -2571,6 +2825,11 @@ class AgentRuntime:
             grants += (
                 f" shell_directory={self.policy.shell_working_directory!r}"
                 f" shell_timeout_s={self.policy.shell_timeout_s}"
+            )
+        if self.tool_permissions is not None:
+            grants += " native_tool_rules=" + ",".join(
+                f"{tool}:{self._permission_decision(rec, tool)['effective']}"
+                for tool in sorted(SCOPED_BUILTINS)
             )
         return grants
 
@@ -2833,7 +3092,8 @@ class AgentRuntime:
                 rec.explicit_skill,
                 frozenset(rec.used_skills),
                 tuple(sorted(rec.plugin_versions.items())),
-                self._grants(),
+                self._grants(rec),
+                self._permission_fingerprint(rec),
                 policy.workspace,
                 policy.protected_roots,
                 policy.readonly_roots,
@@ -2958,7 +3218,7 @@ class AgentRuntime:
             revision,
             list(rec.task.source_event_ids),
             history,
-            self._grants(),
+            self._grants(rec),
             self._mcp_server_ids(rec),
             self.skill_service is not None,
             self.plugin_service is not None,
@@ -3298,7 +3558,7 @@ class AgentRuntime:
             self._model_mcp(rec)._check(args.get("server_id", ""))
         sources = (
             await self._uncommitted_speech_sources(rec)
-            if not self.policy.denies(tool)
+            if not self._permission_denies(rec, tool, args)
             and tool in {"write_file", "shell", "mcp_call", "publish_ui"}
             else []
         )
@@ -3308,10 +3568,15 @@ class AgentRuntime:
         if sources:
             await self._await_approval(rec, tool, args, digest, raw, reason="uncommitted_speech")
             return
-        if tool in ("write_file", "shell") and self.policy.needs_approval(tool):
+        if tool in SCOPED_BUILTINS | {"mcp_call"} and self._permission_asks(rec, tool, args):
             await self._await_approval(rec, tool, args, digest, raw)
             return
-        if tool == "mcp_call" and self.mcp_host is not None and not self.policy.yolo:
+        if (
+            tool == "mcp_call"
+            and self.tool_permissions is None
+            and self.mcp_host is not None
+            and not self.policy.yolo
+        ):
             # Every mcp_call needs the existing digest/revision/expiry/one-use
             # owner approval. YOLO skips this per-action approval only; the
             # host still enforces enabled state, the exact allowlist, and
@@ -3350,7 +3615,8 @@ class AgentRuntime:
         *,
         reason: str = "tool_permission",
     ) -> None:
-        approval = self.policy.create_approval(digest, rec.task.objective_revision)
+        approval = self.policy.create_approval(digest, rec.task.objective_revision, retained=True)
+        rec.approval_wait_id = approval.approval_id
         rec.pending = {
             "approval_id": approval.approval_id,
             "digest": digest,
@@ -3358,63 +3624,260 @@ class AgentRuntime:
             "arguments": args,
             "approved": False,
             "reason": reason,
+            "status": "pending",
+            "permission_target": self._permission_decision(rec, tool, args),
         }
         # Clear before publishing: an owner can resolve the durable request while
         # the append HTTP response is still in flight. Never erase that signal.
         rec.resume.clear()
         rec.task.state = TaskState.AWAITING_APPROVAL
-        await self._append(
-            rec,
-            "approval.requested",
-            {
-                "approval_id": approval.approval_id,
-                "tool": tool,
-                "arguments": args,
-                "action_digest": digest,
-                "objective_revision": rec.task.objective_revision,
-                "expires_at": approval.expires_at,
-                "reason": reason,
-            },
-        )
-        while True:
-            await rec.resume.wait()
-            rec.resume.clear()
-            if rec.cancel_requested or rec.closing:
-                await self._cancel(rec)
+        try:
+            await self._append(
+                rec,
+                "approval.requested",
+                {
+                    "approval_id": approval.approval_id,
+                    "tool": tool,
+                    "arguments": args,
+                    "action_digest": digest,
+                    "objective_revision": rec.task.objective_revision,
+                    "expires_at": approval.expires_at,
+                    "reason": reason,
+                },
+            )
+            while True:
+                # Recheck at most one second later even after a wall-clock
+                # adjustment. This timer owns no model, journal or effect call.
+                try:
+                    await asyncio.wait_for(rec.resume.wait(), timeout=1)
+                except TimeoutError:
+                    pass
+                rec.resume.clear()
+                if rec.cancel_requested or rec.closing:
+                    await self._cancel(rec)
+                    return
+                if rec.task.state in TERMINAL:
+                    return
+                if rec.pending_steer is not None:
+                    rec.pending = None
+                    rec.history.append({"role": "assistant", "content": raw})
+                    rec.history.append(
+                        {
+                            "role": "user",
+                            "content": observation_text(
+                                False, "action superseded by steer; re-plan under the new revision"
+                            ),
+                        }
+                    )
+                    await self._apply_steer(rec)
+                    return
+                async with rec.approval_lock:
+                    pending = rec.pending
+                    if pending is None:
+                        return
+                    current_id = pending["approval_id"]
+                    state = self.policy.approval_state(current_id)
+                    if state == "expired":
+                        await self._expire_approval(rec, pending)
+                        continue
+                    if state != "pending":
+                        raise ApprovalError("Waiting approval is no longer available")
+                    if not pending.get("approved"):
+                        continue
+                    permit = self.policy.peek_approval(current_id)
+                    if rec.task.objective_revision != permit.objective_revision:
+                        raise ApprovalError("Approval went stale; no action was executed")
+                    rec.task.state = TaskState.RUNNING
+                try:
+                    await self._dispatch(rec, tool, args, digest, raw, approval_id=current_id)
+                except ApprovalError:
+                    # A supplied permit is spent before native effects. If it
+                    # expired during async source validation, keep this exact
+                    # action paused rather than asking the model to retry it.
+                    if (
+                        self.policy.approval_state(current_id) != "expired"
+                        or rec.cancel_requested
+                        or rec.closing
+                        or rec.pending_steer is not None
+                        or rec.task.objective_revision != permit.objective_revision
+                    ):
+                        raise
+                    if rec.history and rec.history[-1] == {"role": "assistant", "content": raw}:
+                        rec.history.pop()
+                    async with rec.approval_lock:
+                        if rec.pending is not None and rec.pending is not pending:
+                            raise ApprovalError("Pending approval changed before expiry") from None
+                        rec.pending = pending
+                        await self._expire_approval(rec, pending)
+                    continue
                 return
-            # Steering at the boundary supersedes the narrow approval.
-            if rec.pending_steer is not None:
+        finally:
+            # Includes denial, steering, task/worker cancellation, publication
+            # failures and real dispatch cleanup. Reissue updates this one slot;
+            # an unbounded list of previous permits is never kept by the task.
+            current_id, rec.approval_wait_id = rec.approval_wait_id, None
+            if current_id is not None:
+                self.policy.release_approval(current_id)
+            if rec.pending is not None and rec.pending["approval_id"] == current_id:
                 rec.pending = None
-                rec.history.append({"role": "assistant", "content": raw})
-                rec.history.append(
-                    {
-                        "role": "user",
-                        "content": observation_text(
-                            False, "action superseded by steer; re-plan under the new revision"
-                        ),
-                    }
+
+    async def _run_scoped_builtin(
+        self, rec, tool, args, digest, revision, approval_id, *, reviewed, speech_review, audit
+    ):
+        policy = self.policy
+        if tool == "read_file":
+            arguments = {"path": args.get("path", ""), "max_bytes": args.get("max_bytes", 65536)}
+        elif tool == "write_file":
+            arguments = {"path": args["path"], "content": args["content"]}
+        elif tool == "search":
+            arguments = {
+                "pattern": str(args.get("pattern", "")),
+                "path": args.get("path"),
+                "max_results": 50,
+            }
+        elif tool == "mcp_call":
+            arguments = {
+                "server_id": args.get("server_id", ""),
+                "tool": args.get("tool", ""),
+                "arguments": copy.deepcopy(args.get("arguments", {})),
+            }
+        else:
+            arguments = {
+                "command": str(args.get("command", "")),
+                "timeout_s": float(args.get("timeout_s", 60)),
+            }
+
+        async def invoke():
+            if tool == "read_file":
+                return run_read(policy, arguments["path"], arguments["max_bytes"], revision)
+            if tool == "write_file":
+                return run_write(
+                    policy,
+                    arguments["path"],
+                    arguments["content"],
+                    revision,
+                    approval_id=approval_id,
+                    digest=digest,
                 )
-                await self._apply_steer(rec)
-                return
-            pending = rec.pending
-            if pending is None:  # denied path already failed the task
-                return
-            if not pending.get("approved"):
-                continue
-            if rec.task.objective_revision != approval.objective_revision:
-                rec.pending = None
-                rec.history.append({"role": "assistant", "content": raw})
-                rec.history.append(
-                    {
-                        "role": "user",
-                        "content": observation_text(False, "approval went stale; re-plan"),
-                    }
+            if tool == "search":
+                return run_search(
+                    policy,
+                    arguments["pattern"],
+                    arguments["path"],
+                    revision,
+                    arguments["max_results"],
+                    approval_id=approval_id,
+                    digest=digest,
                 )
-                rec.task.state = TaskState.RUNNING
-                return
-            rec.task.state = TaskState.RUNNING
-            await self._dispatch(rec, tool, args, digest, raw, approval_id=approval.approval_id)
-            return
+            if tool == "mcp_call":
+                return await run_mcp_call(
+                    self._model_mcp(rec),
+                    policy,
+                    arguments["server_id"],
+                    arguments["tool"],
+                    arguments["arguments"],
+                    revision,
+                    approval_id=approval_id,
+                    digest=digest,
+                    admission=mcp_admission,
+                )
+            return await run_shell(
+                policy,
+                arguments["command"],
+                arguments["timeout_s"],
+                revision,
+                approval_id=approval_id,
+                digest=digest,
+                proc_slot=rec.proc_slot,
+            )
+
+        permissions = self.tool_permissions
+        mcp_admission = None
+        captured_mcp_host = self.mcp_host
+        if permissions is None:
+            return await invoke()
+        frozen_args = copy.deepcopy(args)
+        fingerprint = self._permission_fingerprint(rec)
+        decision = self._permission_decision(rec, tool, args)
+
+        def current():
+            if (
+                self._closed
+                or rec.closing
+                or rec.cancel_requested
+                or rec.recovered
+                or not rec.submit_confirmed
+                or rec.completion_pending
+                or rec.pending_steer is not None
+                or rec.task.state != TaskState.RUNNING
+                or self._tasks.get(rec.task.task_id) is not rec
+                or rec.task.objective_revision != revision
+                or self.policy is not policy
+                or self.tool_permissions is not permissions
+                or args != frozen_args
+                or policy.digest_for(tool, args, revision) != digest
+                or self._permission_fingerprint(rec) != fingerprint
+                or self._permission_decision(rec, tool, args) != decision
+                or not self.tool_snapshot(rec.task).supports(tool)
+            ):
+                raise PolicyDenied("Native action authority changed before admission")
+            if tool == "mcp_call":
+                if self.mcp_host is not captured_mcp_host:
+                    raise PolicyDenied("Native MCP host changed before admission")
+                self._model_mcp(rec)._check(arguments["server_id"])
+                self._validate_catalog_history(rec)
+
+        if tool == "mcp_call":
+
+            async def async_current():
+                await self._task_scope(rec, persist=False)
+                stale = await self._epoch_error(rec)
+                if stale is not None:
+                    raise PolicyDenied("MCP source authority changed before admission")
+                sources_now = await self._uncommitted_speech_sources(rec)
+                if bool(sources_now) != speech_review:
+                    raise PolicyDenied("MCP speech review authority changed before admission")
+                stale = await self._epoch_error(rec)
+                if stale is not None:
+                    raise PolicyDenied("MCP session authority changed before admission")
+
+            mcp_admission = MCPToolAdmission(
+                policy=policy,
+                tool=tool,
+                arguments=frozen_args,
+                broker_arguments=arguments,
+                digest=digest,
+                revision=revision,
+                decision=decision,
+                current=current,
+                approval_id=approval_id,
+                reviewed=reviewed,
+                speech_review=speech_review,
+                async_current=async_current,
+            )
+            try:
+                return await invoke()
+            finally:
+                mcp_admission.active = False
+                audit.update(mcp_admission.provenance)
+
+        with native_tool_admission(
+            policy=policy,
+            tool=tool,
+            arguments=frozen_args,
+            broker_arguments={**arguments, "objective_revision": revision},
+            digest=digest,
+            revision=revision,
+            decision=decision,
+            current=current,
+            approval_id=approval_id,
+            reviewed=reviewed,
+            speech_review=speech_review,
+        ) as admission:
+            try:
+                return await invoke()
+            finally:
+                audit.update(admission.provenance)
 
     async def _dispatch(
         self,
@@ -3434,7 +3897,7 @@ class AgentRuntime:
             return
         sources = (
             await self._uncommitted_speech_sources(rec)
-            if not self.policy.denies(tool)
+            if not self._permission_denies(rec, tool, args)
             and tool in {"write_file", "shell", "mcp_call", "publish_ui"}
             else []
         )
@@ -3466,6 +3929,16 @@ class AgentRuntime:
                     rec.history.append({"role": "assistant", "content": raw})
                 rec.history.append({"role": "user", "content": observation_text(False, str(exc))})
                 return
+        if approval_id is not None:
+            self.policy.check_approval(approval_id, digest, revision)
+        pending_review = rec.pending
+        reviewed = bool(
+            approval_id is not None
+            and pending_review is not None
+            and pending_review.get("approved")
+            and (pending_review["approval_id"], pending_review["digest"], pending_review["tool"])
+            == (approval_id, digest, tool)
+        )
         if sources:
             pending = rec.pending
             if (
@@ -3483,10 +3956,13 @@ class AgentRuntime:
             # There is no await between this grant check and the broker's
             # matching synchronous permission check.
             if tool == "publish_ui" or (
-                tool == "write_file"
-                and self.policy.effective_write
-                or tool == "shell"
-                and self.policy.effective_shell
+                self.tool_permissions is None
+                and (
+                    tool == "write_file"
+                    and self.policy.effective_write
+                    or tool == "shell"
+                    and self.policy.effective_shell
+                )
             ):
                 self.policy.consume_approval(approval_id, digest, revision)
         if raw and tool not in {"publish_ui", "tool_catalog"}:
@@ -3494,8 +3970,9 @@ class AgentRuntime:
         if approval_id is not None:
             # One-use intent is now committed to this exact execution.
             rec.pending = None
+        permission_admission = {}
         try:
-            if self.policy.denies(tool):
+            if self._permission_denies(rec, tool, args):
                 raise PolicyDenied("Native action is disabled by owner policy")
             if not self.tool_snapshot(rec.task).supports(tool):
                 raise ToolFailure(f"Tool {tool!r} is unavailable for this task")
@@ -3505,35 +3982,17 @@ class AgentRuntime:
                 from services.agent.context import select_context
 
                 out, evidence = await select_context(self, rec.task, args)
-            elif tool == "read_file":
-                out, evidence = run_read(
-                    self.policy,
-                    args.get("path", ""),
-                    args.get("max_bytes", 65536),
+            elif tool in SCOPED_BUILTINS | {"mcp_call"}:
+                out, evidence = await self._run_scoped_builtin(
+                    rec,
+                    tool,
+                    args,
+                    digest,
                     revision,
-                )
-            elif tool == "write_file":
-                out, evidence = run_write(
-                    self.policy,
-                    args["path"],
-                    args["content"],
-                    revision,
-                    approval_id=approval_id,
-                    digest=digest,
-                )
-            elif tool == "search":
-                out, evidence = run_search(
-                    self.policy, str(args.get("pattern", "")), args.get("path"), revision
-                )
-            elif tool == "shell":
-                out, evidence = await run_shell(
-                    self.policy,
-                    str(args.get("command", "")),
-                    float(args.get("timeout_s", 60)),
-                    revision,
-                    approval_id=approval_id,
-                    digest=digest,
-                    proc_slot=rec.proc_slot,
+                    approval_id,
+                    reviewed=reviewed,
+                    speech_review=bool(sources),
+                    audit=permission_admission,
                 )
             elif tool == "mcp_list":
                 out, evidence = await run_mcp_list(
@@ -3542,17 +4001,6 @@ class AgentRuntime:
                     revision,
                     after=args.get("after", 0),
                     tool=args.get("tool"),
-                )
-            elif tool == "mcp_call":
-                out, evidence = await run_mcp_call(
-                    self._model_mcp(rec),
-                    self.policy,
-                    args.get("server_id", ""),
-                    args.get("tool", ""),
-                    args.get("arguments", {}),
-                    revision,
-                    approval_id=approval_id,
-                    digest=digest,
                 )
             elif tool in {"skills_list", "skill_load"}:
                 out, evidence = await self._skill_result(rec, tool, args)
@@ -3615,7 +4063,16 @@ class AgentRuntime:
             await self._append(
                 rec,
                 "agent.tool",
-                {"tool": tool, "ok": False, "evidence": exc.evidence.model_dump(mode="json")},
+                {
+                    "tool": tool,
+                    "ok": False,
+                    "evidence": exc.evidence.model_dump(mode="json"),
+                    **(
+                        {"permission_admission": permission_admission}
+                        if permission_admission
+                        else {}
+                    ),
+                },
             )
             rec.last_tool_ok = False
             self._effect_result(rec, tool, ok=False)
@@ -3623,11 +4080,25 @@ class AgentRuntime:
                 rec.failed_plugin = True
             rec.history.append({"role": "user", "content": observation_text(False, str(exc))})
             return
-        except (ToolFailure, PolicyDenied, ApprovalError, OSError) as exc:
+        except (ToolFailure, PolicyDenied, OSError) as exc:
+            if isinstance(exc, ApprovalError) and approval_id is not None:
+                raise
             rec.last_tool_ok = False
             self._effect_result(rec, tool, ok=False)
             if tool == "plugin_call":
                 rec.failed_plugin = True
+            if permission_admission:
+                await self._append(
+                    rec,
+                    "agent.tool",
+                    {
+                        "tool": tool,
+                        "ok": False,
+                        "permission_admission": permission_admission,
+                        "admission_only": True,
+                        "effect_state": "not_established",
+                    },
+                )
             rec.history.append({"role": "user", "content": observation_text(False, str(exc))})
             return
         rec.task.evidence.append(evidence)
@@ -3644,7 +4115,16 @@ class AgentRuntime:
             await self._append(
                 rec,
                 "agent.tool",
-                {"tool": tool, "ok": True, "evidence": evidence.model_dump(mode="json")},
+                {
+                    "tool": tool,
+                    "ok": True,
+                    "evidence": evidence.model_dump(mode="json"),
+                    **(
+                        {"permission_admission": permission_admission}
+                        if permission_admission
+                        else {}
+                    ),
+                },
             )
         except Exception:
             if tool != "publish_ui":

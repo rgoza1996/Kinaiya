@@ -1,0 +1,66 @@
+{
+  "additionalProperties": false,
+  "description": "Historical renewal identity plus the replacement's current observation.",
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "status": {
+      "const": "reissued",
+      "default": "reissued",
+      "title": "Status",
+      "type": "string"
+    },
+    "previous_approval_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Previous Approval Id",
+      "type": "string"
+    },
+    "approval_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Approval Id",
+      "type": "string"
+    },
+    "action_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Action Digest",
+      "type": "string"
+    },
+    "objective_revision": {
+      "minimum": 1,
+      "title": "Objective Revision",
+      "type": "integer"
+    },
+    "expires_at": {
+      "exclusiveMinimum": 0,
+      "title": "Expires At",
+      "type": "number"
+    },
+    "replacement_status": {
+      "enum": [
+        "pending",
+        "expired",
+        "used",
+        "retired",
+        "unavailable"
+      ],
+      "title": "Replacement Status",
+      "type": "string"
+    }
+  },
+  "required": [
+    "previous_approval_id",
+    "approval_id",
+    "action_digest",
+    "objective_revision",
+    "expires_at",
+    "replacement_status"
+  ],
+  "title": "ApprovalReissueReceipt",
+  "type": "object"
+}

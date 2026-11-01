@@ -529,6 +529,11 @@ def serve(args):
         runtime.runtime_settings = AgentRuntimeSettings(
             runtime, path=args.data_dir / "agent-runtime-settings.sqlite"
         )
+        from services.agent.tool_permissions import AgentToolPermissions
+
+        runtime.tool_permissions = AgentToolPermissions(
+            runtime, path=args.data_dir / "agent-tool-permissions.sqlite"
+        )
         profiles = {
             name: (
                 lambda profile=profile: provider(
@@ -591,6 +596,7 @@ def serve(args):
             auxiliary_host_factory=model_factory(host_profile, auxiliary=True),
             catalog=catalog,
             resource_state=resource_state,
+            workspace=runtime.policy.workspace,
         )
         try:
             runtime.provider = runtime.model_settings.selection(None)[0]
@@ -622,13 +628,27 @@ def serve(args):
         app = create_app(runtime, auth, commands)
         app.router.lifespan_context = agent_lifespan
     elif service == "converse":
+        import sqlite3
+
         from services.converse.api import create_app
         from services.converse.intent import ConverseIntent
         from services.converse.memory_adapter import SessionMemoryAdapter
+        from services.converse.model_settings import ConverseModelSettings
         from services.converse.runtime import ConverseRuntime
         from services.converse.setup import safe_host_setup
         from services.converse.windows import WindowConverseController
         from services.decisions.runtime import OutcomeWorker
+        from services.settings.provider_catalog import ProviderCatalog
+        from services.settings.provider_factory import UnavailableHostProvider
+
+        try:
+            catalog = ProviderCatalog(
+                args.data_dir.resolve() / "providers.sqlite",
+                args.workspace.resolve(),
+                env_refs=config.get("provider_credential_references", {}),
+            )
+        except (OSError, ValueError, RuntimeError, sqlite3.Error):
+            catalog = None
 
         journal = JournalClient(config["session_url"], tokens["converse"])
         initial_enabled = True
@@ -645,15 +665,19 @@ def serve(args):
             }
         except ValueError:
             memory_adapters = {}
-        runtime = ConverseRuntime(
-            journal,
-            provider(
+        try:
+            host_provider = provider(
                 config,
                 "converse",
                 resource_state=resource_state,
                 service_token=tokens["converse"],
                 workspace=args.workspace.resolve(),
-            ),
+            )
+        except (OSError, ValueError, RuntimeError, KeyError, TypeError, ImportError, SystemExit):
+            host_provider = UnavailableHostProvider("Converse")
+        runtime = ConverseRuntime(
+            journal,
+            host_provider,
             intent=intent,
             resources_managed=resources_enabled,
             memory_adapters=memory_adapters,
@@ -663,13 +687,31 @@ def serve(args):
             # A launch-time availability fence, installed before observers or
             # the listener exist. It must not rewrite the durable owner choice.
             runtime.enabled = False
-        speech = converse_speech(config, tokens["converse"], resource_state=resource_state)
+        setup = safe_host_setup(config)
+        try:
+            runtime.model_settings = ConverseModelSettings(
+                runtime,
+                catalog,
+                args.data_dir.resolve() / "converse-model.sqlite",
+                host_reasoning=getattr(setup, "reasoning", None),
+                resource_state=resource_state,
+                workspace=args.workspace.resolve(),
+            )
+        except (OSError, ValueError, RuntimeError, sqlite3.Error):
+            # A missing/corrupt saved role is unavailable. Never silently use
+            # the host profile in place of the owner's persisted selection.
+            runtime._model_options_unavailable = True
+        try:
+            speech = converse_speech(config, tokens["converse"], resource_state=resource_state)
+        except (OSError, ValueError, RuntimeError, KeyError, TypeError, ImportError, SystemExit):
+            speech = None
+            runtime.speech_unavailable = True
         windows = (
             WindowConverseController(runtime)
             if config.get("streaming_windows", {}).get("enabled", True)
             else None
         )
-        app = create_app(runtime, auth, speech, windows, setup=safe_host_setup(config))
+        app = create_app(runtime, auth, speech, windows, setup=setup)
 
         @asynccontextmanager
         async def converse_lifespan(app):
@@ -691,6 +733,8 @@ def serve(args):
                 observer, *([window_observer] if window_observer else []), return_exceptions=True
             )
             await runtime.close()
+            if runtime.model_settings is not None:
+                await runtime.model_settings.close()
             await journal.close()
             if speech:
                 await speech.close()
@@ -741,7 +785,7 @@ def serve(args):
 
         # Each independent owner service can manage the same protected catalog.
         # Saving a declaration never hot-swaps any role or starts inference.
-        if service != "agent":
+        if service not in {"agent", "converse"}:
             try:
                 catalog = ProviderCatalog(
                     args.data_dir.resolve() / "providers.sqlite",
