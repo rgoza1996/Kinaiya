@@ -23,6 +23,7 @@ from packages.contracts import (
     memory_context,
     memory_operations,
     models,
+    standing_admission,
     standing_dispatch,
     standing_execution,
     standing_work,
@@ -159,6 +160,8 @@ for cls in (
     standing_execution.StandingExecutionIntent,
     standing_execution.StandingExecutionClaim,
     standing_execution.StandingExecutionClaimAdmission,
+    standing_admission.StandingInitialProof,
+    standing_admission.StandingTaskAdmission,
 ):
     (target / f"{cls.__name__}.json").write_text(
         json.dumps(cls.model_json_schema(), indent=2) + "\n"

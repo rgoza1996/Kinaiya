@@ -216,6 +216,15 @@ bytes. The unchanged owner/Decisions parser refuses this new family. Native
 admission must still join the full retained claim and protected authorization
 before assigning a `standing-supervisor` origin and appending that proposal.
 
+`StandingInitialProof` and `StandingTaskAdmission` separately describe the later
+claim-to-initial-entry binding. Their raw/canonical caps are 163,840 and 180,224
+bytes. The proof binds every request field plus the existing native event ID,
+sequence, UTC timestamp and `standing-supervisor` origin. Its digest uses
+`kinaiya.standing.initial.v1\0`. Raw entries require all thirteen fields; typed
+native entries must already contain their actual metadata. Validation never
+generates replacement metadata. Reconstructing a detached JournalEntry or
+parsing a `created` disposition does not establish native acceptance or launch.
+
 The [contract evidence](../evaluation/evidence/standing-execution-contract-2026-11-01.json)
 records the independent frozen checks, original missing-capability baseline,
 source review and additive schema export. Native claim storage and the working

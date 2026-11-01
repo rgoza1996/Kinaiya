@@ -90,5 +90,50 @@
     "No public execution route, producer, native claim/admission, provider inference, tool execution, positive settlement, inbox or editor qualified by this increment.",
     "This is not full issue #228, M7 or roadmap completion. No full-project CI or PR for metadata-only standing work.",
     "No paid/model calls, dependency installs, live service/settings changes or spend allowance increases."
-  ]
+  ],
+  "initial_entry_proof": {
+    "author_commit": "0984f63f1e6befac9c68d5540e2dba0df18d8b06",
+    "source_sha256": "bcedb2f3252bf31b012a3439234cdf5c9d0208dbbd0832522ed91da792c68435",
+    "independent_oracles": {
+      "frozen_commit": "a3412c8",
+      "file": "tests/unit/test_standing_admission_contract.py",
+      "sha256": "edca79ee5313ab2e395c39e3ae12b04043801dd47d6d3099d5830ed3297e2bf8",
+      "frozen_before_source_consultation": true,
+      "stdlib_golden_entry_digest": "c3129fef6eff8b209d811fc1c1e0c79b4f196b58329a0afc74ca9af22b7b5f58",
+      "cold_baseline": {
+        "failed": 26,
+        "passed": 1,
+        "classification": "Runtime missing-module capability failures; independent fixture control passed",
+        "receipt_sha256": "74d045e017586e3238ced417c22417e37ca303daa594e6bb1f0caa8179f698be",
+        "manifest_sha256": "a27cabb3813ff15e16b2d2dd9a2e29e61ddbc58e339ad48fb06b9acdccee32b1"
+      },
+      "unchanged_first_qualification": {
+        "passed": 89,
+        "new_cases": 27,
+        "prior_execution_cases": 62,
+        "failed": 0,
+        "pytest_seconds": 1.47,
+        "warnings_as_errors": true,
+        "receipt_sha256": "c2e042df5e6ac2ce6095afb2f5856a47c6276a432e5faec4ce99588e7706bf5d",
+        "manifest_sha256": "edcb2ef74065408579dd7e3e9a2fe31f23c15baa20a5b9c28fd4736b7b863793"
+      }
+    },
+    "review": {
+      "actionable_static_findings": 0,
+      "receipt_sha256": "2958915916f4249451a480a160f93123075e8ec8a605902b7805f292db02991f",
+      "scope": "Read-only full311-line source against frozen v1/v2 boundary; no test execution"
+    },
+    "schema_export": {
+      "new": 2,
+      "previous_count": 174,
+      "total_count": 176,
+      "previous_bytes_unchanged": true,
+      "two_exports_byte_identical": true,
+      "receipt_sha256": "ff54996526bf3db6382632d4e08ba38089c603ab82ec52a425e12a9068bc4569"
+    },
+    "static_checks": "Ruff and format passed for new source/oracle and exporter",
+    "author_bookkeeping_failure": "Post-commit evidence seal script used stale base guard once; corrected without production/probe changes; original failure retained in author bundle",
+    "author_receipt_sha256": "e5c57e56d01068f991171aa10db7405b298a6ba889892e16add37ad3af3ca8ce",
+    "limitations": "Pure entry/proof grammar only; no native task admission, selection, execution or settlement is implemented by these models."
+  }
 }
