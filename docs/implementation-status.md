@@ -79,6 +79,12 @@ repair and pass afterward; 44 existing plugin cases and all 36 affected
 intelligent-UI cases pass with ownership warnings treated as errors. Independent
 probes and the original failed broad run are retained in the same evidence.
 
+Initial CI342 passed all five jobs before main advanced through the independent
+STT settings increment. The clean combined merge retains both native authorities
+and client cleanup paths; unchanged 52-case native and 78-case focused client
+checks passed again. Updated exact-head review and CI remain separate merge
+gates; the initial green run does not qualify a newer combined tree.
+
 The subsequent [bound model-save repair](adr/0088-bound-model-settings-writes.md)
 addresses [#191](https://github.com/rgoza1996/Kinaiya/issues/191): stable native
 backend identity, fenced writer generations, exact historical receipt recovery
