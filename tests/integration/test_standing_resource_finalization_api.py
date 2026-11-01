@@ -17,10 +17,11 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import httpx
 import pytest
-from test_standing_closure_final_writer import ActualLock
+import test_standing_execution_api as old_api
 from test_standing_dispatch_api import headers, rows
 from test_standing_execution_api import SECRET, close_env, original, prepared
 from test_standing_execution_api import factory as factory
@@ -37,6 +38,7 @@ from packages.contracts.standing_work import (
     StandingConflict,
     StandingUnavailable,
 )
+from services.session.store import Store
 
 BIND = "/v1/standing/resources/binding"
 BIND_LOOKUP = BIND + "/lookup"
@@ -114,12 +116,93 @@ def packet(name, raw):
     return getattr(module, name).model_validate(copy.deepcopy(raw))
 
 
+class ObservedConnection(sqlite3.Connection):
+    """The real native connection, with dormant hooks installed at creation."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.boundary = None
+        self.statement_count = 0
+
+    def execute(self, sql, parameters=()):
+        cursor = super().execute(sql, parameters)
+        self.statement_count += 1
+        if self.boundary is not None:
+            self.boundary.after_execute(sql)
+        return cursor
+
+    def commit(self):
+        if self.boundary is not None:
+            return self.boundary.commit()
+        return super().commit()
+
+    def rollback(self):
+        if self.boundary is not None:
+            return self.boundary.rollback()
+        return super().rollback()
+
+    def close(self):
+        if self.boundary is not None:
+            return self.boundary.close()
+        return super().close()
+
+
+class ObservedLock:
+    """Retain one actual RLock while arming retirement observation later."""
+
+    def __init__(self, lock):
+        self.lock = lock
+        self.control = None
+        self.retirement_thread = None
+        self.retirement_entered = threading.Event()
+        self.retired_before_lock = False
+
+    def arm(self, control):
+        self.control = control
+        self.retirement_thread = None
+        self.retirement_entered.clear()
+        self.retired_before_lock = False
+
+    def __getattr__(self, name):
+        return getattr(self.lock, name)
+
+    def __enter__(self):
+        if threading.get_ident() == self.retirement_thread:
+            self.retired_before_lock = self.control.instance is None
+            self.retirement_entered.set()
+        return self.lock.__enter__()
+
+    def __exit__(self, *args):
+        return self.lock.__exit__(*args)
+
+
+class ObservedStore(Store):
+    """Prepare instrumentation before create_app constructs native owners."""
+
+    def __init__(self, path):
+        connect = sqlite3.connect
+
+        def observed_connect(*args, **kwargs):
+            return connect(*args, **{**kwargs, "factory": ObservedConnection})
+
+        # Store initialization is synchronous. No native owner exists yet, and
+        # the actual SQLite connection is created with its final identity.
+        with patch.object(sqlite3, "connect", observed_connect):
+            super().__init__(path)
+        self.lock = ObservedLock(self.lock)
+
+
 @pytest.fixture
 async def native_factory(factory, record_property):
     opened = []
 
     async def make(path=None):
-        env = await factory(path)
+        # Reuse the unchanged old ASGI setup while supplying its Store before
+        # any owner can pin the native connection and lifecycle lock.
+        with patch.object(old_api, "Store", ObservedStore):
+            env = await factory(path)
+        assert isinstance(env.store.db, ObservedConnection)
+        assert isinstance(env.store.lock, ObservedLock)
         opened.append(env)
         return env
 
@@ -364,11 +447,16 @@ class SqlBoundary:
         self.wrote = self.fired = self.closed = False
         self.entered, self.release = threading.Event(), threading.Event()
 
-    def __getattr__(self, name):
-        return getattr(self.connection, name)
+    def arm(self):
+        assert isinstance(self.connection, ObservedConnection)
+        assert self.connection.boundary is None
+        self.connection.boundary = self
 
-    def execute(self, sql, args=()):
-        cursor = self.connection.execute(sql, args)
+    def disarm(self):
+        assert self.connection.boundary is self
+        self.connection.boundary = None
+
+    def after_execute(self, sql):
         normalized = " ".join(sql.upper().split())
         if normalized.startswith("INSERT") and self.table.upper() in normalized:
             self.wrote = True
@@ -379,25 +467,24 @@ class SqlBoundary:
                 assert self.release.wait(8), "Native SQL gate was not released"
             if self.phase == "rollback-poison":
                 raise RuntimeError(MARKER)
-        return cursor
 
     def commit(self):
         if self.wrote and not self.fired and self.phase in {"before", "after"}:
             self.fired = True
             if self.phase == "after":
-                self.connection.commit()
+                sqlite3.Connection.commit(self.connection)
             raise RuntimeError(MARKER)
-        return self.connection.commit()
+        return sqlite3.Connection.commit(self.connection)
 
     def rollback(self):
         if self.wrote and self.phase == "rollback-poison":
             self.fired = True
             raise RuntimeError(MARKER)
-        return self.connection.rollback()
+        return sqlite3.Connection.rollback(self.connection)
 
     def close(self):
         self.closed = True
-        return self.connection.close()
+        return sqlite3.Connection.close(self.connection)
 
 
 async def test_old_native_claim_admission_reservation_closure_routes_remain_compatible(env):
@@ -454,6 +541,38 @@ async def test_registered_state_hooks_passive_constructor_and_exact_native_side_
     assert rows(env.store) == before
     assert ledger_table(env, ("claim_id", "request"))
     assert ledger_table(env, ("claim_id", "report"))
+
+
+@pytest.mark.parametrize("replacement", ("connection", "lock"))
+async def test_later_store_identity_replacement_is_rejected_before_any_sql(env, replacement):
+    data = await seed(env)
+    owner(env)
+    connection, lock = env.store.db, env.store.lock
+    before, statements = rows(env.store), connection.statement_count
+
+    class ForeignConnection:
+        def __init__(self):
+            self.calls = 0
+
+        def __getattr__(self, name):
+            return getattr(connection, name)
+
+        def execute(self, *args, **kwargs):
+            self.calls += 1
+            raise AssertionError("Replacement connection reached SQL")
+
+    foreign = ForeignConnection()
+    if replacement == "connection":
+        env.store.db = foreign
+    else:
+        env.store.lock = threading.RLock()
+    try:
+        safe_response(await post(env, BIND, data.binding), 503)
+        assert foreign.calls == 0
+        assert connection.statement_count == statements
+    finally:
+        env.store.db, env.store.lock = connection, lock
+    assert rows(env.store) == before and not connection.in_transaction
 
 
 @pytest.mark.parametrize("admitted,reserved", ((False, False), (True, False), (True, True)))
@@ -787,12 +906,12 @@ async def test_real_commit_fault_before_or_after_commit_retains_only_actual_dura
     )
     connection, before = env.store.db, immutable_rows(env)
     fault = SqlBoundary(connection, table, phase=phase)
-    env.store.db = fault
+    fault.arm()
     try:
         safe_response(await post(env, path, raw), 503)
         assert fault.fired and fault.wrote and not connection.in_transaction
     finally:
-        env.store.db = connection
+        fault.disarm()
     expected = int(phase == "after")
     assert connection.execute(f'SELECT count(*) FROM "{table}"').fetchone()[0] == expected
     found = safe_response(
@@ -822,7 +941,7 @@ async def test_actual_blocking_sql_counts_toward_native_deadline_and_cancellatio
     connection, before = env.store.db, rows(env.store)
     gate = SqlBoundary(connection, table, phase="gate")
     cancelled = threading.Event()
-    env.store.db = gate
+    gate.arm()
     try:
         with ThreadPoolExecutor(max_workers=1) as pool:
             future = pool.submit(
@@ -843,7 +962,7 @@ async def test_actual_blocking_sql_counts_toward_native_deadline_and_cancellatio
                 await asyncio.to_thread(future.result, 5)
     finally:
         gate.release.set()
-        env.store.db = connection
+        gate.disarm()
     assert gate.fired and gate.wrote and not connection.in_transaction
     assert rows(env.store) == before
 
@@ -863,8 +982,9 @@ async def test_actual_controller_retirement_during_sql_prevents_first_commit(env
     before = immutable_rows(env)
     gate = SqlBoundary(connection, table, phase="gate")
     control = env.app.state.agent_control
-    observed = ActualLock(lock, control)
-    env.store.db, env.store.lock = gate, observed
+    observed = lock
+    observed.arm(control)
+    gate.arm()
     retirement = None
 
     def retire():
@@ -888,7 +1008,7 @@ async def test_actual_controller_retirement_during_sql_prevents_first_commit(env
                 await asyncio.to_thread(retirement.result, 5)
     finally:
         gate.release.set()
-        env.store.db, env.store.lock = connection, lock
+        gate.disarm()
     assert gate.fired and gate.wrote
     assert not connection.in_transaction and not env.store._agent_submit_unavailable
     assert connection.execute(f'SELECT count(*) FROM "{table}"').fetchone()[0] == 0
@@ -902,7 +1022,7 @@ async def test_rollback_failure_poison_closes_actual_connection_without_releasin
     connection = env.store.db
     before = immutable_rows(env)
     fault = SqlBoundary(connection, table, phase="rollback-poison")
-    env.store.db = fault
+    fault.arm()
     try:
         safe_response(await post(env, REPORT, data.report), 503)
         assert fault.fired and fault.wrote and fault.closed
@@ -910,7 +1030,7 @@ async def test_rollback_failure_poison_closes_actual_connection_without_releasin
         with pytest.raises(sqlite3.ProgrammingError):
             connection.execute("SELECT 1")
     finally:
-        env.store.db = connection
+        fault.disarm()
     observer = sqlite3.connect(f"file:{env.path}?mode=ro", uri=True)
     try:
         observer.row_factory = sqlite3.Row
