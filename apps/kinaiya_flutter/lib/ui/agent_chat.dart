@@ -429,6 +429,11 @@ class _AgentChatState extends State<AgentChat> {
 
   void _syncConnectionDraft() {
     _historyJump++;
+    // Invalidating the callback does not stop a ScrollPosition's animation.
+    // Retire the old scope's movement before replacement history is displayed.
+    if (_historyScroll.hasClients) {
+      _historyScroll.jumpTo(_historyScroll.offset);
+    }
     _historyKeys.clear();
     _lastJumpedMessage = null;
     _steerScopes.clear();
