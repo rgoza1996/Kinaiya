@@ -1090,15 +1090,20 @@ async def test_owner_default_provider_change_keeps_accepted_task_provider(env):
     replacement = MeasuredFixture(lambda *_: finish())
     replacement.info = replacement.info.model_copy(update={"model": "synthetic-owner-default"})
     runtime = AgentRuntime(
-        GatedJournal(env.store, "agent"), provider, env.store.path.rsplit("/", 1)[0],
+        GatedJournal(env.store, "agent"),
+        provider,
+        env.store.path.rsplit("/", 1)[0],
         ToolPolicy(env.store.path.rsplit("/", 1)[0]),
     )
     env.runtimes.append(runtime)
     task = await runtime.submit(
         TaskRequest(
-            session_id=env.session.session_id, thread_id=env.session.thread_id,
-            epoch=env.session.epoch, objective="Inspect selected context.",
-            content_scope="public_synthetic", idempotency_key="owner-provider-default",
+            session_id=env.session.session_id,
+            thread_id=env.session.thread_id,
+            epoch=env.session.epoch,
+            objective="Inspect selected context.",
+            content_scope="public_synthetic",
+            idempotency_key="owner-provider-default",
         )
     )
     try:
@@ -1452,9 +1457,12 @@ async def test_resolved_window_revision_cannot_supply_tail_for_an_old_continuati
         env.key += 1
         return env.store.append(
             AppendRequest(
-                session_id=env.session.session_id, thread_id=env.session.thread_id,
-                epoch=env.session.epoch, kind="conversation.window",
-                payload=payload.model_dump(mode="json"), idempotency_key=f"synthetic-{env.key}",
+                session_id=env.session.session_id,
+                thread_id=env.session.thread_id,
+                epoch=env.session.epoch,
+                kind="conversation.window",
+                payload=payload.model_dump(mode="json"),
+                idempotency_key=f"synthetic-{env.key}",
             ),
             "owner",
         )
@@ -1509,8 +1517,10 @@ async def test_client_retains_sole_actual_close_after_cancellation_and_latches_u
         assert not client._submit_exchanges and stream.closed == 1
         assert stream.cancelled == 1
         assert len(exchanges) == 1 and not exchanges[0].close_task.cancelled()
-        assert isinstance(exchanges[0].close_task.exception(), RuntimeError) if fail_close else (
-            exchanges[0].close_task.exception() is None
+        assert (
+            isinstance(exchanges[0].close_task.exception(), RuntimeError)
+            if fail_close
+            else (exchanges[0].close_task.exception() is None)
         )
         assert client._submit_cleanup_failed is fail_close
         if fail_close:
@@ -1529,7 +1539,9 @@ async def test_client_cooperative_cancelled_actual_close_retains_sticky_uncertai
     request = scan_request(env.session)
     stream = ClosingStream(canonical(native_response(request)), resist_cancel=False)
     client = JournalClient(
-        BASE, "synthetic", transport=httpx.MockTransport(
+        BASE,
+        "synthetic",
+        transport=httpx.MockTransport(
             lambda _: httpx.Response(
                 200, stream=stream, headers={"Content-Type": "application/json"}
             )
