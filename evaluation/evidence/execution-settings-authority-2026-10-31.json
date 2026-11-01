@@ -1,0 +1,294 @@
+{
+  "issue": 213,
+  "date": "2026-10-31 America/Los_Angeles",
+  "base": "4ecb6d42474d7e1c6579f62ad5d7819181c56e7f",
+  "attribution": "Codex authors, root integration and independent Codex reviewer; not human approval; no paid Muse calls",
+  "contract_sha256": "1ad2ee9e2c57ed1a96608e8a925b438aec3e0340d8ca90e92ac870006c1811f7",
+  "author_commits": {
+    "native": "454baca28b77285d77f5224b525a3ca2bd7aa0d1",
+    "client": "ca14a6c5f588bde26067f8b93d95f9e5a621f330",
+    "catalog_cleanup_test": "bcd5b14745d9b53b9797883c5cf31820c471aa58"
+  },
+  "integration_commits": [
+    "2156e55496433e3ce4f7e2bb8708f6875b17e6c6",
+    "6cf94b663e5dad36557d588104e14aef1c2361b3",
+    "66b6ef072f4c023e23aaf25b14c502a2178331e0",
+    "9e4999376b88b768445913a392e0d83039e4921a"
+  ],
+  "production_sha256": {
+    "apps/kinaiya_flutter/lib/api/agent_runtime_settings.dart": "c3e7d479c91a89d7edb96fb3f0c5da25354babde8058d5927a91983709af3f2d",
+    "apps/kinaiya_flutter/lib/api/agent_model_client.dart": "8ef52e45541e077fd9b18216bcde903197e8fd3df26bffd4257eb7561b4331aa",
+    "apps/kinaiya_flutter/lib/api/client.dart": "ee813017444fb071ef25c6fd611f49f906752faca23bb2bafe58d09fcf33f93c",
+    "apps/kinaiya_flutter/lib/ui/options_workspace.dart": "d3aa928cc093fe83a15fdf8c13e5ace5ff7c3335b0f568ab1b72aeefe1989ade",
+    "apps/kinaiya_flutter/lib/api/owned_settings_client.dart": "0dd87c527bf981e1714e40babd9acf5ee964dba184e33b585172c336352e09ac",
+    "apps/kinaiya_flutter/lib/api/agent_runtime_client.dart": "65b24bb428e037c31c8ccdcf27d7ccd7675944f45dba02adf0a675e3f3dcadae",
+    "apps/kinaiya_flutter/lib/ui/agent_runtime_writes.dart": "b914a815d306faffe5cee757485aa5ec7f281303845bf1c849002c1b19ed093c",
+    "services/agent/runtime_settings.py": "03ccb0b4c8cc724e11d68bbb75e18255cf04baba8eb2cbffabf1f302f704d298",
+    "services/agent/options_api.py": "a705cdeea01db107b066d0e828ba4d29112d70c8c7f746396e81bd6e418c9d44"
+  },
+  "new_test_sha256": {
+    "apps/kinaiya_flutter/test/agent_runtime_settings_test.dart": "5d398e6f345d467ed2a5867c8b42035e719a3785ea42581108e7ef6d5761be2e",
+    "apps/kinaiya_flutter/test/agent_runtime_transport_test.dart": "5b8c81cf4c02f1359b9660d178b6483a3dbf33b5f8acd4431ebe785a36c240ae",
+    "apps/kinaiya_flutter/test/agent_runtime_writes_test.dart": "50908f9b316972543118466abf83f1fcef8d129bea20bfc77946ea5cb4ce0661",
+    "apps/kinaiya_flutter/test/runtime_write_workspace_test.dart": "773877eff9e3ab071efe908fff2af3733e7f46cfe03bd3f7cc428e89fdcbcb6a",
+    "tests/unit/test_runtime_settings_authority.py": "f28596cc5b80135c8723002242df1461c3f58106bc7622d8d8edfaa2fe8b3586",
+    "tests/integration/test_runtime_change_authority.py": "e2af1517ae7905bde42ddc7fbe5732ad63e9bfe7a703429632de0f4509c771f6",
+    "tests/integration/test_execution_catalog_cleanup.py": "a5eb8b123f086ea31e6c0fa48a573e5635f0597b4400eb3a347d0f7849fc3043"
+  },
+  "baseline": {
+    "independent_frozen": {
+      "passed": 12,
+      "failed": 29,
+      "errors": 0,
+      "skipped": 0,
+      "direct_existing_defect_failures": 9,
+      "absent_new_capability_failures": 20,
+      "test_sha256": "e2af1517ae7905bde42ddc7fbe5732ad63e9bfe7a703429632de0f4509c771f6",
+      "receipt_sha256": "3d9ad0901702623be8eba5b519e9416aabc6e927b1dc9ac54e4c0792eec1e3f9"
+    },
+    "native_author_corrected_controls": "5 passed / 2 substantive failures; initial new helper collision and exact logs retained."
+  },
+  "retained_corrections": [
+    "Native author new helper parameter collision corrected without weakening assertions; initial logs preserved. Commit fault injector targets real DML rather than preliminary read-only transactions.",
+    "Two new Dart tests initially assumed public result implied actual settlement; bounded waits for the actual counters corrected those new tests. Early diagnostics were not fully pinned; final qualifying runs are pinned.",
+    "Independent model comparison diagnostic initially differed on const-token instrumentation; corrected comparison only, with no production or test edits.",
+    "Root schema script initially imported editable primary checkout; it failed before export. Corrected isolated-root PYTHONPATH and individual exit statuses passed without installs or primary changes.",
+    "Replacement fixture readiness was absent at first 1-second yield; the same owned running session was resumed and completed. No extra server or failed acceptance test.",
+    "Upstream main advanced through PR212 while qualification ran. Three combined production files changed; initial pins/checks remain under initial_qualification and combined checks were rerun. ADR renumbered0090 because main owns0089."
+  ],
+  "resource_limits": {
+    "shared_actual_model_runtime_owners": 32,
+    "logical_pending_per_domain": 16,
+    "retained_runtime_draft_scopes": 16,
+    "mutation_owners_per_operation": 2,
+    "lookup_owners_per_operation": 1,
+    "request_bytes": 4096,
+    "proof_bytes": 16384,
+    "total_result_seconds": 10,
+    "cleanup_wait_seconds": 1,
+    "display_seconds": 8,
+    "draft_eviction": "Only clean idle scopes; dirty or unresolved scopes retained; full retention makes another scope visibly read-only.",
+    "ordinary_metadata_reads": "Separate existing bounds; not a whole-application HTTP cap."
+  },
+  "final_merge_gate": {
+    "required": [
+      "Python 3.11 full non-live suite/schema/audit",
+      "Python 3.12 full non-live suite/schema/audit",
+      "Flutter full suite/analysis/format/browser bridge/owner and companion web",
+      "Android owner and companion APK",
+      "iOS owner and companion unsigned simulator"
+    ],
+    "exact_final_head": true,
+    "observed_results_location": "Associated PR and retained CI receipts; no unobserved CI success claimed here."
+  },
+  "limits": [
+    "Legacy runtime1.0 first writes/digests/receipts and UUID36 state semantics preserved; new UI writes are bound1.1.",
+    "Quiesce older native binaries before migration. Protected authenticated runtime store must not be forked or rolled back.",
+    "Fence concerns settings writes, not a distributed task/policy lease or general external exactly-once effects.",
+    "Native replay/receipt proves historical save; current policy and process-local YOLO require separate active observation.",
+    "Client retained operations/drafts are RAM-only; helper persists synthetic request for protocol restart tests.",
+    "Full broad Python suite is delegated to required final-head CI rather than a duplicate local full run.",
+    "No live user deployment, dependency installation, paid inference or user model/config/port changes; no human voice/browser or physical-device call qualification.",
+    "Full Options208 and original roadmap acceptance gates remain open."
+  ],
+  "initial_qualification": {
+    "base": "62b613f837937d865ca3c94261b2bb27a2ff7858",
+    "production_sha256": {
+      "apps/kinaiya_flutter/lib/api/agent_runtime_settings.dart": "c3e7d479c91a89d7edb96fb3f0c5da25354babde8058d5927a91983709af3f2d",
+      "apps/kinaiya_flutter/lib/api/agent_model_client.dart": "8ef52e45541e077fd9b18216bcde903197e8fd3df26bffd4257eb7561b4331aa",
+      "apps/kinaiya_flutter/lib/api/client.dart": "08b8c7c1c9eff36f541a278f4eece0b37682783afb27767651c4e9179aa4ab22",
+      "apps/kinaiya_flutter/lib/ui/options_workspace.dart": "9abb2edd21546bfc7008a1255ce1c5024ed80884fb3047573e86d7de9effc8ab",
+      "apps/kinaiya_flutter/lib/api/owned_settings_client.dart": "0dd87c527bf981e1714e40babd9acf5ee964dba184e33b585172c336352e09ac",
+      "apps/kinaiya_flutter/lib/api/agent_runtime_client.dart": "65b24bb428e037c31c8ccdcf27d7ccd7675944f45dba02adf0a675e3f3dcadae",
+      "apps/kinaiya_flutter/lib/ui/agent_runtime_writes.dart": "b914a815d306faffe5cee757485aa5ec7f281303845bf1c849002c1b19ed093c",
+      "services/agent/runtime_settings.py": "03ccb0b4c8cc724e11d68bbb75e18255cf04baba8eb2cbffabf1f302f704d298",
+      "services/agent/options_api.py": "6d11b14546386fe83d2ace41f7cd8156b93b3d253136feb7006971951d405a39"
+    },
+    "preserved": {
+      "existing_python_tests": 225,
+      "existing_dart_test_support_files": 84,
+      "native_model_settings_sha256": "a9d639fc2273bbe3aa5f5b4603f1dda443aab25e54557967235d2951d110e88b",
+      "legacy_runtime_AST": [
+        "ExecutionPreferences",
+        "RuntimeSettingsChange",
+        "_digest",
+        "execution_metadata",
+        "_current",
+        "_state",
+        "_apply",
+        "existing eligibility tail of _check"
+      ],
+      "model_client_assessment": "Independent source-token lifecycle/admission/deadline specialization comparison and unchanged tests; not claimed as a Dart AST proof."
+    },
+    "observed_checks": {
+      "native_author": {
+        "passed": 153,
+        "own_new": 72,
+        "unchanged_regressions": 81,
+        "pytest_seconds": 4.4,
+        "seal_receipt_sha256": "b2b9623d74f5aceb443b1edbe05d86c8e434b0969e3db721e88fc21ce0af2a18"
+      },
+      "independent_native": {
+        "passed": 41,
+        "failed": 0,
+        "errors": 0,
+        "skipped": 0,
+        "frozen_test_unchanged": true,
+        "receipt_sha256": "8082b8bb4b8557945cab4cbeba122788a0c250bbc3486697439661999f99f092",
+        "static_review_sha256": "d5129853452ea506b1d257fae0482df0492447a9b77327ca472b7254d1f980a6"
+      },
+      "flutter_author": {
+        "full_passed": 929,
+        "focused_passed": 42,
+        "new_runtime_passed": 20,
+        "unchanged_model_passed": 22,
+        "full_analysis": "no issues",
+        "format": "11 files, zero changes",
+        "receipt_sha256": "77aaa037be2fb1b985188940991c3982a648df8a8e6a1a26a59a1759b077840e"
+      },
+      "independent_client": {
+        "focused_passed": 42,
+        "failed": 0,
+        "source_pins_unchanged": true,
+        "receipt_sha256": "3aa23fc1b90e5b5e6438a122c45c53eec060dd5776bbbec9acc816bf8c1f99fe",
+        "static_review_sha256": "7f1331abbe3e3a34acddcfcdec1daa650cb3415ae9a7a2a043ac1869fac96e87"
+      },
+      "root_static": {
+        "ruff": "pass",
+        "format": "543 files already formatted",
+        "actual_schema_export": "pass with isolated-root PYTHONPATH",
+        "schema_diff": "unchanged",
+        "diff_check": "pass",
+        "receipt_sha256": "74d60a9c92ab1f8c5b2259298587e8d1b32e1123e459bd0b68fc92104bec3c43"
+      },
+      "actual_http_interop": {
+        "implementation": "Actual pinned Dart runtime API to production native HTTP/SQLite; synthetic auth and ScriptedProvider with zero inference",
+        "passed_phases": [
+          "save and canonical normalized directory",
+          "same database process restart",
+          "replacement database at the same loopback URL"
+        ],
+        "historical_receipt_unchanged": true,
+        "historical_yolo_true_not_reapplied": true,
+        "retired_writer_fenced": true,
+        "future_revision_unobserved_unfenced": true,
+        "foreign_write_http_status": 409,
+        "foreign_lookup_http_status": 409,
+        "readonly_sql_original": {
+          "revision": 1,
+          "operations": 1
+        },
+        "readonly_sql_replacement": {
+          "revision": 0,
+          "operations": 0
+        },
+        "owned_servers_started": 3,
+        "owned_servers_exit_zero": 3,
+        "finalizers_zero_model_calls": 3,
+        "owned_servers_remaining": 0,
+        "receipt_sha256": "4b3a120066196e2eb07e9d9843d380abee43ddd61751f4de0453417fbb0b2d1d",
+        "manifest_sha256": "198cc31b81a577f543e588ecc1a99dd08943018fe95d4b94fcb6c777b61633a9"
+      }
+    },
+    "original_public_record_sha256": "37857a337abc780a57f1e1fe8a87c3ae31e69b8c41a0d58443a9029f19f8a3fa"
+  },
+  "upstream_integration": {
+    "combined_commit": "66b6ef072f4c023e23aaf25b14c502a2178331e0",
+    "catalog_pr": 212,
+    "scope": "Upstream catalog model selection and actual cleanup gates retained; no new catalog inference or full independent PR212 audit claimed."
+  },
+  "preserved": {
+    "existing_main_test_support_files": 309,
+    "all_byte_equal": true,
+    "comparison_base": "4ecb6d42474d7e1c6579f62ad5d7819181c56e7f",
+    "upstream_native_model_settings_sha256": "5f569b3e893b8e7fec4f32fd4af4d7a1e7124ce3611f5721fb4c89b990537a52",
+    "upstream_dart_model_settings_sha256": "9b7a0332fe977bdf8df57b512c0f9944451f995207bbf803725615bbe8cdec12",
+    "scope": "Combined-delta review plus prior full runtime/client source review; not an independent full audit of PR212."
+  },
+  "observed_checks": {
+    "independent_native": {
+      "passed": 41,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "head": "66b6ef072f4c023e23aaf25b14c502a2178331e0",
+      "frozen_test_unchanged": true,
+      "receipt_sha256": "52237df321ab6b606ee73e05d320539b4b4cd255aa0ea4f989d736de03614360"
+    },
+    "independent_client": {
+      "focused_passed": 42,
+      "failed": 0,
+      "head": "66b6ef072f4c023e23aaf25b14c502a2178331e0",
+      "receipt_sha256": "e5d3a5398e27c5399c71be959b6b604aab9ffc4cabd997fec9fe9cad731b46bf"
+    },
+    "independent_combined_static": {
+      "head": "66b6ef072f4c023e23aaf25b14c502a2178331e0",
+      "actionable_findings": [],
+      "receipt_sha256": "9f8668405546d6b1e0ab5a99c3ef00adba569cb0a96fe92f9a15ad8521da033e"
+    },
+    "full_flutter": {
+      "passed": 929,
+      "seconds": 68.56278550800198,
+      "source_pins_unchanged": true,
+      "receipt_sha256": "3ae711e371e72ad6f39e973c48de8896bd38b1bb5323fe3fe41c7aca14f8b348"
+    },
+    "dart_static": {
+      "full_analysis": "no issues",
+      "format": "182 files, zero changes",
+      "receipt_sha256": "3e11dbc4d4bccd41a57f348fb95c202068efaa3587cc59e1e01329f987599d0c"
+    },
+    "catalog_cleanup": {
+      "new_passed": 3,
+      "unchanged_regressions_passed": 98,
+      "inference_calls": 0,
+      "scope": "Real Agent runtime/settings/SQLite and TaskModelLease ownership; synthetic gated adapter close, no provider construction or paid calls",
+      "author_receipt_sha256": "5777c4ca97ac9210ebefa1268a1d91eb8ad57feaa5d23339f57544ce9ea712b7",
+      "independent_passed": 3,
+      "independent_errors": 0,
+      "independent_skipped": 0,
+      "independent_actionable_findings": [],
+      "independent_receipt_sha256": "c45a4c22ea721a1307aaaca7f7c1873682c3893651263e7fc8430cccd6c005d7"
+    },
+    "root_static": {
+      "ruff": "pass",
+      "format": "550 files already formatted",
+      "actual_schema_export": "pass with isolated-root PYTHONPATH",
+      "schema_diff": "unchanged",
+      "diff_check": "pass",
+      "head": "9e4999376b88b768445913a392e0d83039e4921a",
+      "receipt_sha256": "bfa38f79be6f4610a97cc65ff3acd753ccc2d99a90d98cc0b6c76bbc109df471"
+    },
+    "actual_http_interop": {
+      "head": "66b6ef072f4c023e23aaf25b14c502a2178331e0",
+      "actual_dart_production_http_sqlite": true,
+      "all_three_client_phases_passed": true,
+      "all_three_servers_exit_zero": true,
+      "observed_finalizers_zero_model_calls": true,
+      "owned_servers_remaining": 0,
+      "historical_yolo_not_reapplied": true,
+      "original_receipt_unchanged": true,
+      "foreign_write_and_lookup_409": true,
+      "read_only_sql": {
+        "a": {
+          "revision": 1,
+          "operations": 1
+        },
+        "b": {
+          "revision": 0,
+          "operations": 0
+        }
+      },
+      "receipt_sha256": "79217814c13442c49ceb582760b54c1ee79c49ac8bb477d1a4e6aecd6233c851",
+      "manifest_sha256": "c5c66665ad3dce9451af67162b7e218c6e705061d411de78cea09a60cce1ff93"
+    }
+  },
+  "integration_ci_repair": {
+    "issue": 218,
+    "evidence": "voice-disconnect-completion-2026-10-31.json",
+    "source": "CI308 disclosed an unchanged voice sender/disconnect completion race; separate narrow repair commit, all execution production/test pins unchanged",
+    "original_ci_receipt_sha256": "ee2b3d4f1f8f7e2237c1964dc99b1da4e4b72ee0b94a70867491ed0c2ab9c6a4",
+    "original_ci_all_jobs_passed": false,
+    "original_ci_python311": "1 failed /7743 passed",
+    "final_gate": "Updated exact-final-head CI and review remain required; no failed-run merge"
+  }
+}

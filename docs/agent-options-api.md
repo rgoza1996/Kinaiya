@@ -24,7 +24,7 @@ not inference, endpoint readiness, permission expansion or harness promotion.
 
 ## Inspect
 
-### Scoped native operation rules (ADR0090, implementation under review)
+### Scoped native operation rules (ADR0096, implementation under review)
 
 `GET /v1/agent/options/tool-permissions?scope=default|workspace|session|task`
 resolves the scope on the native host. Session and Task choices also require
@@ -51,7 +51,7 @@ tool, mode, key and committed revision. A missing receipt is not failure proof.
 `GET /v1/agent/options/tool-permission-scopes?limit=20&after=...` pages saved
 scope identities for inspection/reset. Storage caps are 1,024 rules and 10,000
 receipts. All routes require the authenticated owner; reads apply no settings.
-See [ADR0090](adr/0090-scoped-native-tool-permissions.md) for native admission,
+See [ADR0096](adr/0096-scoped-native-tool-permissions.md) for native admission,
 retained-context semantics and the same-instance revision fence that can allow
 explicit release of stale RAM tracking without deciding its historical outcome.
 
@@ -381,6 +381,13 @@ service `instance_id`, `source` (`host_configuration` or `owner_saved`), actual
 `yolo_scope: "service_instance"`, `effective_write`, `effective_shell`, `busy`,
 `change_boundary: "settled_service"` and `execution` metadata.
 
+[ADR0090](adr/0090-bound-execution-settings-writes.md) defines additive runtime
+`write_authority`: `mutation_version: "1.1"`, a durable 32-hex `backend_id`, the
+existing 36-character UUID `instance_id`, and strict boolean `writable`.
+This belongs to the runtime-settings store, independently of model settings.
+New UI writes require supported writable authority; legacy inspection remains
+available without it. See the PR for implementation and verification status.
+
 The same `execution` inspection is also returned at the outer level. It contains
 the actual workspace, shell directory or null and its validity, the shell's
 `read_only`/`read_write` workspace mount (or `unavailable` when its starting
@@ -391,7 +398,8 @@ environment (cleared host environment, PATH `/usr/bin:/bin`, HOME `/tmp`),
 `sandbox_optional: false` and `workspace_mutable: false`. It is owner-only, not
 tool/model context, does not enumerate secrets, and executes no isolation probe.
 
-`POST /v1/agent/options/runtime` accepts only:
+`POST /v1/agent/options/runtime` accepts strict legacy 1.0 or bound 1.1 requests.
+The legacy form remains:
 
 ```json
 {
@@ -419,6 +427,15 @@ aliases. Dot/redundant separators normalize before digest/receipt creation.
 The command owner revalidates it for every launch. Root relocation, arbitrary
 environment, alternate backends and provider settings are not accepted fields.
 
+The new 1.1 form has the same fields plus required `expected_backend` and
+`expected_instance`, copied from the observed runtime write authority. The
+expected instance is the existing service UUID, not a model-settings writer ID.
+Keep the canonical normalized body/key unchanged for every retry and lookup.
+Legacy 1.0 retains first writes and exact historical digest/receipt behavior:
+its opaque state token already binds the service instance and actual policy.
+Both versions require the persisted active writer for a new application; an
+older still-open controller cannot regain authority after a newer registration.
+
 The native owner requires settled tasks, workers, child processes and retirement
 cleanup, retires MCP transports, then rechecks revision, actual state and worker
 ownership. A transaction stores preferences and receipt before synchronous native
@@ -432,6 +449,9 @@ Success returns schema, `status: "settings_saved"`, incremented `revision`, exac
 YOLO does not restore from this store after restart. A historical receipt proves
 that save, not current active values. Retry with the identical normalized body/key
 returns the receipt without reapplying it or retiring transports again.
+Bound 1.1 receipts use schema 1.1 and additionally contain the original
+`backend_id`; their `service_instance` is the original expected instance.
+Legacy receipts receive no added identity fields or changed schema.
 
 `GET /v1/agent/options/runtime-changes/{key}` reads that exact receipt. Key/body,
 revision/state or pending-work conflicts return 409; invalid native path/bounds
@@ -441,3 +461,28 @@ currently visible, not proof an earlier request cannot still commit. Inspect
 active values after confirmation, including after restart or another owner
 change. Different pending execution changes require reconciliation first.
 Inspection and execution-settings routes use `Cache-Control: no-store`.
+
+`POST /v1/agent/options/runtime-changes/lookup` accepts the complete original
+request. Its 1.1 response contains `backend_id`, the complete canonical `request`,
+`status` (`recorded` or `unobserved`), `receipt` (original receipt or null), and
+strict boolean `mutation_fenced`. Native lookup serializes receipt/digest,
+database identity, persisted revision and active writer in one transaction.
+A foreign bound backend returns 409; corrupt/unreadable evidence returns fixed
+503, never absence. A recorded result proves the original save, not active values.
+
+For a bound unobserved request, `mutation_fenced` is true only when its original
+writer is permanently retired or the persisted revision is strictly greater
+than its expected revision. Busy state, changed path/YOLO/state token, a future
+revision, a 404 or matching active values cannot establish that proof. Mutable
+state can return to its earlier value. An unobserved legacy request always stays
+unfenced because its opaque token cannot identify an original backend/writer.
+
+Client recovery uses the original private owner credential, canonical endpoint
+and runtime database identity. Same-scope reopen/reconnect preserves the body;
+another scope hides the retained operation. There is no automatic retry.
+Model/runtime requests share at most 32 actual transport/late-cleanup owners;
+each domain retains at most 16 logical operations and each operation two mutation
+and one lookup owners. Request/proof bounds are 4,096/16,384 bytes, total result
+deadline 10 seconds including awaited cleanup, cleanup wait one second and
+display deadline eight seconds. A timeout, logical settlement or unconfirmed
+close does not release actual ownership or erase an earlier uncertain dispatch.
