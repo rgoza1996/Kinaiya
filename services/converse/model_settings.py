@@ -204,8 +204,8 @@ class ConverseModelSettings:
             if workspace is None:
                 raise ValueError("Protected Converse model settings require the worker workspace")
             path = Path(os.path.abspath(path))
-            existing = path.exists()
-            self.db = _storage(path, workspace)
+            self.db, created = _storage(path, workspace, report_created=True)
+            existing = not created
         else:
             self.db = sqlite3.connect(":memory:")
         try:

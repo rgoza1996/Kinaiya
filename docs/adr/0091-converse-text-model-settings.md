@@ -32,6 +32,10 @@ owner or corrupt/unavailable store makes the role unavailable; it never silently
 falls back to the host model. Catalog unavailability remains independent of a
 valid host declaration.
 
+Fresh initialization requires affirmative atomic new-file creation, rather than
+a separate existence check followed by an open that could recreate a removed
+store. An existing empty or incomplete file remains unavailable.
+
 The native change boundary is `settled_converse_operations`. New settings may
 commit only while admission reservations, typed operations, window work and
 buffered publication, speech, transcription, memory work, playback cleanup and

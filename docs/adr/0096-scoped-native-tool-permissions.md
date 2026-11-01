@@ -1,4 +1,4 @@
-# 0090: Scoped owner rules for native tool admission
+# 0096: Scoped owner rules for native tool admission
 
 October 31, 2026. Implementation under review for
 [#208](https://github.com/rgoza1996/Kinaiya/issues/208). This increment does not

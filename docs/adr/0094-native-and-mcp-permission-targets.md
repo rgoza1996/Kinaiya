@@ -3,7 +3,7 @@
 October 31, 2026. Native, owner API, and embedded editor source is implemented
 under review for [#208](https://github.com/rgoza1996/Kinaiya/issues/208).
 Exact-head CI and preview verification remain pending. This extends
-[ADR0090](0090-scoped-native-tool-permissions.md), preserves its legacy requests
+[ADR0096](0096-scoped-native-tool-permissions.md), preserves its legacy requests
 and receipts, and does not close the full precise-permissions acceptance group.
 
 ## Inventory and editable targets
@@ -124,7 +124,7 @@ can be explicitly rebound to the reviewed current identity. Removed targets
 remain inspectable/resettable, and their retained drafts remain visible even
 when absent from the loaded inventory page.
 
-As in ADR0090, an unconfirmed save retains its unchanged body/key. Missing
+As in ADR0096, an unconfirmed save retains its unchanged body/key. Missing
 receipt or HTTP404 is not negative proof. After receipt lookup, an authoritative
 same-instance revision strictly above the original CAS revision can fence any
 new commit of that old request, allowing explicit release of RAM tracking only.

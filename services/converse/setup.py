@@ -14,6 +14,7 @@ from packages.contracts.converse_setup import (
     SetupRole,
     SetupRoles,
 )
+from services.converse.embedding import runtime_model_settings, runtime_provider_info
 
 _RESTART = "Configured on host. Changing this model requires a service restart."
 _HOST_RESTART = (
@@ -146,12 +147,15 @@ def setup_state(runtime, host=None):
         raise ValueError("Host setup projection is unavailable")
     from packages.providers.text import ProviderError
 
-    settings = runtime.model_settings
+    settings = runtime_model_settings(runtime)
     try:
-        info = runtime.selected_provider_info()
-        conversation = _role(info.provider, info.model, source="runtime")
+        info = runtime_provider_info(runtime)
     except (ProviderError, ValueError, RuntimeError):
         conversation = _role(source="runtime")
+    else:
+        # An unavailable owner is different from an invalid display identity.
+        # Refuse unsafe metadata through the API's fixed no-store error boundary.
+        conversation = _role(info.provider, info.model, source="runtime")
     if settings is not None:
         conversation.reason = (
             "Selected through Converse model options; readiness is not checked."
