@@ -54,7 +54,21 @@ def _tree(value: Any) -> None:
         if depth > 12 or nodes > 2048:
             raise ValueError(_ERROR)
         if isinstance(item, BaseModel):
-            item = item.model_dump(mode="python", warnings=False)
+            # model_copy can place forbidden fields in the actual instance;
+            # model_dump silently drops them. Inspect closure before any dump,
+            # including nested models and Pydantic's separate field metadata.
+            fields = type(item).model_fields
+            values = getattr(item, "__dict__", None)
+            supplied = getattr(item, "__pydantic_fields_set__", None)
+            if (
+                type(values) is not dict
+                or values.keys() != fields.keys()
+                or type(supplied) is not set
+                or not supplied <= fields.keys()
+                or getattr(item, "__pydantic_extra__", {}) is not None
+            ):
+                raise ValueError(_ERROR)
+            item = values
         if type(item) is dict:
             if any(type(key) is not str for key in item):
                 raise ValueError(_ERROR)
@@ -109,11 +123,11 @@ class _Closed(BaseModel):
     @classmethod
     def checked_object(cls, value, handler):
         try:
+            _tree(value)
             if isinstance(value, cls):
-                value = value.model_dump(mode="python", warnings=False)
+                value = dict(value.__dict__)
             if type(value) is not dict:
                 raise ValueError(_ERROR)
-            _tree(value)
             result = handler(value)
             if len(_encode(result)) > cls.wire_bytes:
                 raise ValueError(_ERROR)
@@ -137,7 +151,7 @@ def canonical_bytes(model: BaseModel) -> bytes:
     try:
         if not isinstance(model, BaseModel):
             raise ValueError(_ERROR)
-        value = type(model).model_validate(model.model_dump(mode="python", warnings=False))
+        value = _checked(model, type(model))
         return _encode(value)
     except (ValueError, TypeError, UnicodeError, RecursionError, OverflowError):
         raise ValueError(_ERROR) from None
@@ -270,7 +284,7 @@ def authorization_digest(request: StandingChange, revision: int) -> str:
             raise ValueError(_ERROR)
         if not 1 <= revision <= _MAX_INT:
             raise ValueError(_ERROR)
-        original = StandingChange.model_validate(request.model_dump(mode="python", warnings=False))
+        original = _checked(request, StandingChange)
         body = {
             "responsibility_id": original.responsibility_id,
             "revision": revision,
@@ -309,7 +323,7 @@ class StandingChangeReceipt(_Closed):
 
     def validate_request(self, request: StandingChange) -> Self:
         try:
-            result = type(self).model_validate(self.model_dump(mode="python", warnings=False))
+            result = _checked(self, type(self))
             if not isinstance(request, StandingChange):
                 raise ValueError(_PROOF_ERROR)
             if canonical_bytes(result.request) != canonical_bytes(request):
@@ -333,7 +347,10 @@ class DailyOccurrence(_Closed):
 def _checked(model, kind):
     if not isinstance(model, kind):
         raise ValueError(_ERROR)
-    return kind.model_validate(model.model_dump(mode="python", warnings=False))
+    _tree(model)
+    # Preserve nested typed instances for strict revalidation instead of first
+    # flattening an incorrectly typed copied value into an acceptable dict.
+    return kind.model_validate(dict(model.__dict__))
 
 
 def _candidates(local: datetime, zone: ZoneInfo) -> list[datetime]:
