@@ -1,11 +1,20 @@
 """Shared wire models; service authentication supplies provenance, never request JSON."""
 
+import re
+import unicodedata
 from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any, Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, model_serializer, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_serializer,
+    model_validator,
+)
 
 from packages.contracts.workspace_settings import WorkspacePin
 
@@ -142,6 +151,66 @@ class CatalogModelBinding(BaseModel):
     id: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
     generation: int = Field(ge=1, le=64)
     configuration_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class STTModelPin(BaseModel):
+    """Native transcription target; undeclared host identity stays unknown."""
+
+    model_config = ConfigDict(
+        extra="forbid", strict=True, frozen=True, revalidate_instances="always"
+    )
+    schema_version: Literal["1.0"] = "1.0"
+    role: Literal["stt"] = "stt"
+    source: Literal["host", "catalog"]
+    backend_id: str = Field(min_length=32, max_length=32)
+    instance_id: str = Field(min_length=32, max_length=32)
+    settings_revision: int = Field(ge=0, le=9_007_199_254_740_990)
+    catalog_revision: int | None = Field(ge=0, le=9_007_199_254_740_990)
+    catalog_binding: CatalogModelBinding | None
+    provider: str | None = Field(min_length=1, max_length=256)
+    model: str | None = Field(min_length=1, max_length=256)
+    local: bool | None
+
+    @field_validator("backend_id", "instance_id")
+    @classmethod
+    def exact_identity(cls, value):
+        if re.fullmatch(r"[a-f0-9]{32}", value) is None:
+            raise ValueError("Invalid STT owner identity")
+        return value
+
+    @field_validator("provider", "model")
+    @classmethod
+    def display_identity(cls, value):
+        if value is not None and (
+            len(value.encode("utf-8")) > 256
+            or any(unicodedata.category(char).startswith("C") for char in value)
+            or value.startswith(("/", "."))
+            or "\\" in value
+            or re.match(r"^[A-Za-z]:/", value)
+            or "://" in value
+            or ".." in value.split("/")
+        ):
+            raise ValueError("Invalid STT display identity")
+        return value
+
+    @model_validator(mode="after")
+    def exact_source(self):
+        declared = (self.provider is not None, self.model is not None, self.local is not None)
+        if any(declared) and not all(declared):
+            raise ValueError("STT declaration is wholly known or unknown")
+        if self.source == "host":
+            if self.catalog_binding is not None or self.catalog_revision is not None:
+                raise ValueError("Host STT cannot claim catalog provenance")
+        else:
+            if self.catalog_binding is None or self.catalog_revision is None or not all(declared):
+                raise ValueError("Catalog STT needs exact declaration provenance")
+            binding = CatalogModelBinding.model_validate(self.catalog_binding.model_dump())
+            if (
+                re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}", binding.id) is None
+                or re.fullmatch(r"[a-f0-9]{64}", binding.configuration_sha256) is None
+            ):
+                raise ValueError("Invalid STT catalog provenance")
+        return self
 
 
 class AgentModelPin(WireModel):
@@ -282,9 +351,17 @@ class SpeechWindow(WireModel):
     user_speaking: bool = Field(strict=True)
     capture_ended: bool = Field(default=False, strict=True)
     audio_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    stt_model: STTModelPin | None = None
     content_scope: Literal["local_only", "public_synthetic", "private_cloud_authorized"] = (
         "local_only"
     )
+
+    @model_serializer(mode="wrap")
+    def preserve_historical_stt_shape(self, handler):
+        result = handler(self)
+        if self.stt_model is None:
+            result.pop("stt_model", None)
+        return result
 
     @model_validator(mode="after")
     def window_bounds(self):

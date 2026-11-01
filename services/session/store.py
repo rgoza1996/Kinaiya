@@ -593,6 +593,10 @@ class Store:
                 window = SpeechWindow.model_validate(request.payload)
             except ValueError as exc:
                 raise JournalError("Invalid transcript-window payload") from exc
+            if window.stt_model is not None and role != "converse":
+                raise JournalError(
+                    "Only native Converse audio admission may publish STT provenance"
+                )
             if session.channel != "converse" or (
                 window.session_id,
                 window.thread_id,

@@ -181,8 +181,32 @@ class LayaProfile(TextProfile):
         return self
 
 
+class MetaSTTProfile(StrictSettings):
+    kind: Literal["meta_stt"]
+    base_url: str = Field(min_length=1, max_length=2048)
+    model: Literal["muse-voice-transcribe-1.0"]
+    allow_cloud: Literal[True]
+    credential: CredentialBinding
+    timeout_s: int = Field(default=120, ge=1, le=300)
+
+    @field_validator("allow_cloud", mode="before")
+    @classmethod
+    def explicit_cloud(cls, value):
+        if type(value) is not bool or value is not True:
+            raise ValueError("Meta STT requires explicit cloud authorization")
+        return value
+
+    @model_validator(mode="after")
+    def buffered_voice(self):
+        self.base_url = _origin(self.base_url, cloud=True)
+        from packages.providers.meta_speech import _validate_origin
+
+        _validate_origin(self.base_url, self.timeout_s)
+        return self
+
+
 ProfileConfig = Annotated[
-    MetaProfile | CompatibleProfile | LMStudioProfile | LayaProfile,
+    MetaProfile | CompatibleProfile | LMStudioProfile | LayaProfile | MetaSTTProfile,
     Field(discriminator="kind"),
 ]
 
@@ -525,12 +549,14 @@ class ProviderCatalog:
                     binding["id"], binding["generation"]
                 )
                 profile["capability"] = {
-                    "declared_roles": ["decisions"]
+                    "declared_roles": ["stt"]
+                    if kind == "meta_stt"
+                    else ["decisions"]
                     if kind == "laya"
                     else ["agent", "converse", "auxiliary"]
                     if kind == "lmstudio"
                     else ["agent", "converse", "decisions", "auxiliary"],
-                    "supported_inputs": ["text"],
+                    "supported_inputs": ["audio"] if kind == "meta_stt" else ["text"],
                     "measured_complete_interface": kind == "lmstudio"
                     or (kind == "meta" and profile["config"]["context_tokens"] is not None),
                     "measured_stream_interface": kind == "lmstudio"
