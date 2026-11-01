@@ -1,0 +1,94 @@
+{
+  "requirement": "https://github.com/rgoza1996/Kinaiya/issues/228",
+  "scope": "Six pure standing execution contracts and explicit initial builder; no native reservation or worker launch",
+  "implementation": {
+    "author_commit": "f3992e22db1c0029319c51e246725edb0226df23",
+    "integrated_commit": "3314cfae56e990811f65933c5123e17dee031dab",
+    "source_sha256": "a190b5eec029a36271bde8850a1d128824d94e20422ed108b636dce058f31038"
+  },
+  "independent_oracles": {
+    "commit": "fcef7152f41b0f4a1e253caf13e23a158bbeed2f",
+    "file": "tests/unit/test_standing_execution_contract.py",
+    "sha256": "6f4e1abbd17808eaa8f5c1c930c877327bcc95232911f82560890b84e38fdc61",
+    "frozen_before_source_consultation": true,
+    "author_receipt_sha256": "cfd31f4ee26353f0b38aad1fca7ff364977e5901d43d16eb2f61ad655912a94b",
+    "cold_baseline": {
+      "failed": 60,
+      "passed": 2,
+      "failure_class": "actual runtime missing-module capability failures; legacy positive controls passed",
+      "receipt_sha256": "c27797e9cb8da0bb4e3c2c7f41e8dc2c228a39e8f12e308fe6074b6790bc3cc4",
+      "manifest_sha256": "2f1bc0ba7030fceabecf8f0876f908e55ee332f8dff216443456e102045f4d2b"
+    },
+    "unchanged_first_qualification": {
+      "passed": 62,
+      "failed": 0,
+      "pytest_seconds": 0.45,
+      "warnings_as_errors": true,
+      "receipt_sha256": "7079aed43382d11ea2b0ab7327d6b471d4773ab1a2800ef7ebea4381b26fd765",
+      "manifest_sha256": "d5a89fd7bf3cdee6f81f25ac074603bb9eb3575c8487d5a225840638b125fbe3"
+    }
+  },
+  "existing_contract_regressions": {
+    "passed": 546,
+    "failed": 0,
+    "pytest_seconds": 1.19,
+    "warnings_as_errors": true,
+    "files": [
+      "tests/unit/test_agent_submit_contract.py",
+      "tests/unit/test_agent_submit_contract_supplement.py",
+      "tests/unit/test_standing_work_contract.py",
+      "tests/unit/test_standing_work_time.py",
+      "tests/unit/test_standing_work_owner_contract.py",
+      "tests/unit/test_standing_dispatch_contract.py"
+    ],
+    "evidence": "Root tools.exec_command session44612 completed exit0; existing source and assertions unchanged"
+  },
+  "independent_source_review": {
+    "receipt_sha256": "0028300745b267f622cceeaa20ec3449d7db1e3f78dc2dd6cbec95a8f66849b2",
+    "manifest_sha256": "6f4e8d669aa56f76cc592cd557ffc68c827ea6868a59df86c521121167dc2a1b",
+    "actionable_findings": 0,
+    "source_commit": "3314cfae56e990811f65933c5123e17dee031dab",
+    "scope": "Read-only full module against frozen v1/v2 boundary; no suite reruns"
+  },
+  "schema_export": {
+    "previous_schema_count": 168,
+    "previous_schema_bytes_unchanged": true,
+    "added": 6,
+    "total": 174,
+    "two_exports_byte_identical": true,
+    "receipt_sha256": "e552574eb22371d32778f279e549a83a223c27dc5f2b6f9cce3490a438b6588b"
+  },
+  "static_checks": {
+    "ruff": "Passed on new module, new oracle and exporter",
+    "format": "3 files already formatted"
+  },
+  "preserved_setup_failures": [
+    {
+      "kind": "Oracle author provisional legacy Decisions fixture lacked required authenticated source",
+      "correction": "Added synthetic authenticated source before digest; assertions unchanged; first failure retained in oracle author bundle"
+    },
+    {
+      "kind": "Root first pytest startup exit3 before collection",
+      "cause": "Unset pytest-asyncio fixture scope produced a deprecation warning under -Werror",
+      "correction": "Passed -o asyncio_default_fixture_loop_scope=function, preserving source/tests and all warnings as errors",
+      "receipt_sha256": "68656425d34a2c0480de8e078e054c50d3b18ed53af5bc18b018aed82e156675",
+      "classification": "Setup failure, not semantic or cold behavior result; corrected classification retained in cold baseline receipt"
+    }
+  ],
+  "runtime": {
+    "python": "3.12.3",
+    "python_path": "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+    "qualification_pythonpath": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya",
+    "pytest_options": [
+      "-B",
+      "-W error",
+      "-p no:cacheprovider",
+      "-o asyncio_default_fixture_loop_scope=function"
+    ]
+  },
+  "limitations": [
+    "No public execution route, producer, native claim/admission, provider inference, tool execution, positive settlement, inbox or editor qualified by this increment.",
+    "This is not full issue #228, M7 or roadmap completion. No full-project CI or PR for metadata-only standing work.",
+    "No paid/model calls, dependency installs, live service/settings changes or spend allowance increases."
+  ]
+}

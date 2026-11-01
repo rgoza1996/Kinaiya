@@ -186,6 +186,41 @@ records independent frozen cases, existing transport regressions and actual
 Dart HTTP/Session/SQLite checks. It does not qualify a scheduler, Agent standing
 worker, inbox or editor.
 
+## Execution proposal contract
+
+`packages/contracts/standing_execution.py` adds six strict immutable packet types:
+`StandingOccurrence`, `StandingExecutionModelPin`, `StandingExecutionTask`,
+`StandingExecutionIntent`, `StandingExecutionClaim` and
+`StandingExecutionClaimAdmission`. They describe a complete original execution
+proposal and retained claim proof. They do not create a native reservation,
+authorize a model/tool call or launch a task. Their raw and canonical caps are,
+respectively, 4,096, 8,192, 65,536, 131,072, 147,456 and 163,840 bytes.
+
+An occurrence binds the backend, responsibility, authorization revision and
+digests, local date, resolved UTC instant and offset. Its identity excludes the
+producer, task and dispatch attempt; the full intent digest also binds those
+fields, the complete task/model/workspace pins and executor capability hash.
+Claim identity and record hashes use separate domains. Every proof is checked
+against the full original request. Native schedule eligibility and producer
+liveness require joined native state; packet timestamps do not establish them.
+
+Only a contextual hash of a transient 32-byte original-process capability is
+carried. The secret has no DTO, journal, Task or prompt field. Future native
+admission, close and settlement must verify that private capability; reading a
+historical claim must never let another process adopt a launch or attest cleanup.
+
+The pure `standing_initial_request` builder emits the explicit
+`agent.standing-command` / `standing` family with no fabricated conversation
+sources. It checks the real existing AppendRequest serialization cap of 65,536
+bytes. The unchanged owner/Decisions parser refuses this new family. Native
+admission must still join the full retained claim and protected authorization
+before assigning a `standing-supervisor` origin and appending that proposal.
+
+The [contract evidence](../evaluation/evidence/standing-execution-contract-2026-11-01.json)
+records the independent frozen checks, original missing-capability baseline,
+source review and additive schema export. Native claim storage and the working
+editor → occurrence → Agent → settled inbox chain remain unqualified.
+
 ## Native dispatch gate
 
 `services/session/standing_dispatch.py` implements explicit registration,

@@ -24,6 +24,7 @@ from packages.contracts import (
     memory_operations,
     models,
     standing_dispatch,
+    standing_execution,
     standing_work,
     stt_models,
     stt_settlement,
@@ -152,6 +153,12 @@ for cls in (
     standing_dispatch.StandingDispatchActivationLookup,
     standing_dispatch.StandingDispatchStop,
     standing_dispatch.StandingDispatchStopProof,
+    standing_execution.StandingOccurrence,
+    standing_execution.StandingExecutionModelPin,
+    standing_execution.StandingExecutionTask,
+    standing_execution.StandingExecutionIntent,
+    standing_execution.StandingExecutionClaim,
+    standing_execution.StandingExecutionClaimAdmission,
 ):
     (target / f"{cls.__name__}.json").write_text(
         json.dumps(cls.model_json_schema(), indent=2) + "\n"
