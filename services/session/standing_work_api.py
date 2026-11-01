@@ -1,0 +1,315 @@
+"""Codex-authored bounded owner HTTP adapter for native standing definitions."""
+
+import asyncio
+import re
+import threading
+import time
+
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import JSONResponse, Response
+from pydantic import TypeAdapter
+
+from packages.contracts.agent_control import ControlInstance
+from packages.contracts.standing_work import (
+    MAX_STANDING_PROOF_BYTES,
+    MAX_STANDING_REQUEST_BYTES,
+    StandingChange,
+    StandingChangeLookup,
+    StandingChangeReceipt,
+    StandingConflict,
+    StandingResponsibilityPage,
+    StandingResponsibilitySnapshot,
+    StandingUnavailable,
+    canonical_bytes,
+)
+
+MAX_STANDING_OPERATIONS = 64
+STANDING_OPERATION_SECONDS = 25.0
+STANDING_INGRESS_SECONDS = 5.0
+_INVALID = "Invalid standing work request"
+_MEDIA = "Standing work requires identity JSON"
+
+
+class StandingOwnerOperations:
+    """Own actual ingress/thread/serialization work beyond facade deadlines.
+
+    No close/timeout path cancels a thread facade and calls the thread stopped.
+    Close can therefore wait for an uncooperative native callable to settle.
+    """
+
+    def __init__(self, owner):
+        self.owner = owner
+        self._closed = False
+        self._operations = {}
+
+    @property
+    def active_operations(self) -> int:
+        return len(self._operations)
+
+    def _settled(self, task):
+        self._operations.pop(task, None)
+        if not task.cancelled():
+            task.exception()
+
+    async def close(self) -> None:
+        self._closed = True
+        while self._operations:
+            tasks = tuple(self._operations)
+            for event in self._operations.values():
+                event.set()
+            # Shield every real owner. Cancellation of close does not release
+            # capacity or stop native work; a later close may still await it.
+            await asyncio.gather(*(asyncio.shield(task) for task in tasks), return_exceptions=True)
+
+    @staticmethod
+    def _guard(event, deadline):
+        if event.is_set() or time.monotonic() >= deadline:
+            event.set()
+            raise StandingUnavailable
+
+    async def _body(self, request, event, deadline, started):
+        if request.headers.get("content-type", "").split(";", 1)[
+            0
+        ].strip().lower() != "application/json" or request.headers.get(
+            "content-encoding", "identity"
+        ).strip().lower() not in {"", "identity"}:
+            raise HTTPException(415, _MEDIA)
+        raw = bytearray()
+        ingress_deadline = min(deadline, started + STANDING_INGRESS_SECONDS)
+        remaining = ingress_deadline - time.monotonic()
+        if remaining <= 0:
+            event.set()
+            raise StandingUnavailable
+        try:
+            async with asyncio.timeout(remaining):
+                async for chunk in request.stream():
+                    self._guard(event, ingress_deadline)
+                    if len(raw) + len(chunk) > MAX_STANDING_REQUEST_BYTES:
+                        raise HTTPException(422, _INVALID)
+                    raw.extend(chunk)
+            self._guard(event, ingress_deadline)
+        except TimeoutError:
+            event.set()
+            raise StandingUnavailable from None
+        try:
+            return StandingChange.from_json(bytes(raw))
+        except ValueError:
+            raise HTTPException(422, _INVALID) from None
+
+    @staticmethod
+    def _query(request, action):
+        allowed = {"after", "limit"} if action == "page" else set()
+        if any(
+            key not in allowed or len(request.query_params.getlist(key)) != 1
+            for key in request.query_params
+        ):
+            raise HTTPException(422, _INVALID)
+        if action != "page":
+            return {}
+        after = request.query_params.get("after")
+        if after is not None:
+            try:
+                after = TypeAdapter(ControlInstance).validate_python(after, strict=True)
+            except ValueError:
+                raise HTTPException(422, _INVALID) from None
+        raw_limit = request.query_params.get("limit", "20")
+        if re.fullmatch(r"[1-9][0-9]?", raw_limit) is None or not 1 <= int(raw_limit) <= 20:
+            raise HTTPException(422, _INVALID)
+        return {"after": after, "limit": int(raw_limit)}
+
+    def _call(self, action, argument, query, event, deadline):
+        self._guard(event, deadline)
+        try:
+            if action == "change":
+                result = self.owner.change(argument, deadline=deadline, cancelled=event.is_set)
+                kind = StandingChangeReceipt
+            elif action == "lookup":
+                result = self.owner.lookup(argument)
+                kind = StandingChangeLookup
+            elif action == "snapshot":
+                result = self.owner.snapshot(argument)
+                kind = StandingResponsibilitySnapshot
+            else:
+                result = self.owner.page(**query)
+                kind = StandingResponsibilityPage
+            self._guard(event, deadline)
+            if not isinstance(result, kind):
+                raise StandingUnavailable
+            value = kind.model_validate(result)
+            raw = canonical_bytes(value)
+            if len(raw) > min(kind.wire_bytes, MAX_STANDING_PROOF_BYTES):
+                raise StandingUnavailable
+            self._guard(event, deadline)
+            return raw
+        except (StandingConflict, StandingUnavailable):
+            raise
+        except Exception:
+            raise StandingUnavailable from None
+
+    @staticmethod
+    async def _thread_result(task, event):
+        interrupted = False
+        while True:
+            try:
+                result = await asyncio.shield(task)
+                if interrupted:
+                    raise asyncio.CancelledError
+                return result
+            except asyncio.CancelledError:
+                event.set()
+                if task.done():
+                    raise
+                interrupted = True
+
+    async def _execute(
+        self, request, action, argument, event, deadline, started, ingress_done, disconnected
+    ):
+        monitor = None
+        try:
+            query = self._query(request, action)
+            if action in {"change", "lookup"}:
+                argument = await self._body(request, event, deadline, started)
+            elif action == "snapshot":
+                try:
+                    argument = TypeAdapter(ControlInstance).validate_python(argument, strict=True)
+                except ValueError:
+                    raise HTTPException(422, _INVALID) from None
+            ingress_done.set()
+            self._guard(event, deadline)
+            task = asyncio.create_task(
+                asyncio.to_thread(self._call, action, argument, query, event, deadline)
+            )
+            monitor = asyncio.create_task(self._disconnect(request, event, disconnected))
+            return await self._thread_result(task, event)
+        except (HTTPException, StandingConflict, StandingUnavailable):
+            raise
+        except BaseException as error:
+            event.set()
+            if isinstance(error, asyncio.CancelledError):
+                raise
+            raise StandingUnavailable from None
+        finally:
+            ingress_done.set()
+            if monitor is not None:
+                monitor.cancel()
+                # This cleanup belongs to the retained actual operation, not
+                # the bounded public facade. A resistant receive keeps its slot.
+                await asyncio.gather(monitor, return_exceptions=True)
+
+    @staticmethod
+    async def _disconnect(request, event, disconnected):
+        try:
+            while True:
+                message = await request.receive()
+                if message["type"] == "http.disconnect":
+                    event.set()
+                    disconnected.set()
+                    return
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            event.set()
+            disconnected.set()
+
+    async def run(self, request, action, argument=None):
+        if self._closed or len(self._operations) >= MAX_STANDING_OPERATIONS:
+            raise StandingUnavailable
+        started = time.monotonic()
+        deadline = started + STANDING_OPERATION_SECONDS
+        event = threading.Event()
+        ingress_done = asyncio.Event()
+        disconnected = asyncio.Event()
+        task = asyncio.create_task(
+            self._execute(
+                request, action, argument, event, deadline, started, ingress_done, disconnected
+            )
+        )
+        self._operations[task] = event
+        task.add_done_callback(self._settled)
+        ingress = asyncio.create_task(ingress_done.wait())
+        disconnect_waiter = None
+        try:
+            done, _ = await asyncio.wait(
+                (task, ingress),
+                timeout=max(
+                    0, min(deadline, started + STANDING_INGRESS_SECONDS) - time.monotonic()
+                ),
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            if not done:
+                event.set()
+                raise StandingUnavailable
+            if task.done():
+                self._guard(event, deadline)
+                return task.result()
+            disconnect_waiter = asyncio.create_task(disconnected.wait())
+            done, _ = await asyncio.wait(
+                (task, disconnect_waiter),
+                timeout=max(0, deadline - time.monotonic()),
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            if task not in done or disconnect_waiter in done:
+                event.set()
+                raise StandingUnavailable
+            self._guard(event, deadline)
+            return task.result()
+        except asyncio.CancelledError:
+            event.set()
+            raise
+        finally:
+            for waiter in (ingress, disconnect_waiter):
+                if waiter is not None:
+                    waiter.cancel()
+            await asyncio.gather(
+                *(waiter for waiter in (ingress, disconnect_waiter) if waiter is not None),
+                return_exceptions=True,
+            )
+
+
+def install_standing_owner_routes(app, owner, auth) -> StandingOwnerOperations:
+    """Install owner-only routes; registration belongs to Session startup."""
+    operations = StandingOwnerOperations(owner)
+    routes = APIRouter(prefix="/v1/standing", dependencies=[Depends(auth.require("owner"))])
+
+    @app.middleware("http")
+    async def standing_no_store(request, call_next):
+        protected = request.url.path == "/v1/standing" or request.url.path.startswith(
+            "/v1/standing/"
+        )
+        try:
+            response = await call_next(request)
+        except Exception:
+            if not protected:
+                raise
+            response = JSONResponse(status_code=503, content={"detail": str(StandingUnavailable())})
+        if protected:
+            response.headers["Cache-Control"] = "no-store"
+        return response
+
+    async def respond(request, action, argument=None):
+        try:
+            raw = await operations.run(request, action, argument)
+        except StandingConflict:
+            raise HTTPException(409, str(StandingConflict())) from None
+        except StandingUnavailable:
+            raise HTTPException(503, str(StandingUnavailable())) from None
+        return Response(raw, media_type="application/json", headers={"Cache-Control": "no-store"})
+
+    @routes.post("/changes")
+    async def change(request: Request):
+        return await respond(request, "change")
+
+    @routes.post("/changes/lookup")
+    async def lookup(request: Request):
+        return await respond(request, "lookup")
+
+    @routes.get("/responsibilities")
+    async def page(request: Request):
+        return await respond(request, "page")
+
+    @routes.get("/responsibilities/{responsibility_id}")
+    async def snapshot(request: Request, responsibility_id: str):
+        return await respond(request, "snapshot", responsibility_id)
+
+    app.include_router(routes)
+    return operations
