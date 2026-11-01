@@ -195,7 +195,8 @@
     "receipt_sha256": "ad0cd32460d038433dc9d4d3489c72e4ac2288031fedd350b483044890777081",
     "independent_count_and_fixture_addendum_sha256": "08e6f142367d4d1fe819e6ffa0c169416054bafedced501242c874457e55a63e",
     "prior_count_scope": "Earlier184 counts covered assertions inside definitions in the firstfive modules. Raw module traversal includes one additional unchanged module-level assertion:185 plus124 in intelligent-ui gives309. Earlier seals are retained.",
-    "freeze_v5_sha256": "37b3f98361ef0187e5479c522fd36ff7bbc784e2d955266336ee40d9c60d9331"
+    "freeze_v5_sha256": "37b3f98361ef0187e5479c522fd36ff7bbc784e2d955266336ee40d9c60d9331",
+    "scope": "Initial4da79c2405a4e140834dbe55634a70a8425c89c2 qualification before PR225. Current source comparison is upstream_integration.preservation against main770b828; this older base63eff comparison is not a current-source claim."
   },
   "retained_failures_and_corrections": [
     "Initial native integration:45pass/1fail plus one teardown error; independent full-request projection, lookup classification, poisoned shutdown and bootstrap fault probes exposed further native defects. Frozen tests/probes were retained while production was corrected.",
