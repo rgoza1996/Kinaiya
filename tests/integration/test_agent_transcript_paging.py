@@ -625,10 +625,11 @@ async def test_stale_continuation_never_exposes_a_new_tail(env, change):
     holder = {}
 
     def choose(provider, messages):
-        if len(provider.calls) == 1:
+        calls = len(original.calls) + len(replacement.calls)
+        if calls == 1:
             return page_action(target.event_id, max_chars=100)
         ok, value = observation(messages)
-        if len(provider.calls) == 2:
+        if calls == 2:
             assert ok, value
             args = continuation(value, value["entries"][0])
             if change == "revision":
@@ -643,17 +644,35 @@ async def test_stale_continuation_never_exposes_a_new_tail(env, change):
             elif change == "scope":
                 args["scope_token"] = "0" * 64
             elif change == "provider":
-                holder["runtime"].provider = MeasuredFixture(lambda *_: finish())
+                assert holder["runtime"]._tasks[holder["task_id"]].provider is replacement
+                assert holder["runtime"].provider is original
             else:
                 env.store.reset(env.session.session_id)
             return page_action(target.event_id, **args)
         errors.append((ok, value))
         return finish()
 
-    provider = MeasuredFixture(choose)
+    original = MeasuredFixture(choose)
+    replacement = MeasuredFixture(choose)
+    replacement.info = replacement.info.model_copy(update={"model": "synthetic-replacement"})
+
+    class SwitchingJournal(LocalJournal):
+        async def append(self, request):
+            result = await super().append(request)
+            if (
+                change == "provider"
+                and request.kind == "agent.tool"
+                and request.payload.get("tool") == "read_transcript"
+                and request.payload.get("ok") is True
+            ):
+                # Change the accepted adapter between generations, after the
+                # first read completed; owner defaults do not repin a task.
+                holder["runtime"]._tasks[request.payload["task_id"]].provider = replacement
+            return result
+
     runtime = AgentRuntime(
-        LocalJournal(env.store, "agent"),
-        provider,
+        SwitchingJournal(env.store, "agent"),
+        original,
         env.store.path.rsplit("/", 1)[0],
         ToolPolicy(env.store.path.rsplit("/", 1)[0]),
     )
@@ -669,11 +688,16 @@ async def test_stale_continuation_never_exposes_a_new_tail(env, change):
             idempotency_key="stale-page",
         )
     )
+    holder["task_id"] = task.task_id
     final = await runtime.wait(task.task_id, timeout=5)
     await runtime.close()
-    assert not provider.failures
+    assert not original.failures and not replacement.failures
     assert final.state == "failed" or errors and not errors[-1][0]
-    assert "SYNTHETIC_NEW_TAIL" not in json.dumps(provider.calls)
+    if change == "provider":
+        assert len(original.calls) == 1 and len(replacement.calls) == 2
+        assert errors and not errors[-1][0]
+        assert original.info != replacement.info
+    assert "SYNTHETIC_NEW_TAIL" not in json.dumps([*original.calls, *replacement.calls])
 
 
 async def test_filtered_empty_scan_page_advances_to_public_history_with_fixed_snapshot(env):
@@ -845,10 +869,10 @@ async def test_client_refuses_mismatched_malformed_or_unbounded_transport(env, f
 
 
 class ClosingStream(httpx.AsyncByteStream):
-    def __init__(self, raw, *, fail_close=False):
-        self.raw, self.fail_close = raw, fail_close
+    def __init__(self, raw, *, fail_close=False, resist_cancel=True):
+        self.raw, self.fail_close, self.resist_cancel = raw, fail_close, resist_cancel
         self.entered, self.release = asyncio.Event(), asyncio.Event()
-        self.closed = 0
+        self.closed = self.cancelled = 0
 
     async def __aiter__(self):
         yield self.raw
@@ -856,9 +880,29 @@ class ClosingStream(httpx.AsyncByteStream):
     async def aclose(self):
         self.closed += 1
         self.entered.set()
-        await self.release.wait()
+        while not self.release.is_set():
+            try:
+                await self.release.wait()
+            except asyncio.CancelledError:
+                self.cancelled += 1
+                if not self.resist_cancel:
+                    raise
         if self.fail_close:
             raise RuntimeError("Synthetic actual close failure")
+
+
+async def join_actual_exchanges(client):
+    exchanges = tuple(client._submit_exchanges)
+    await asyncio.gather(*(exchange.task for exchange in exchanges), return_exceptions=True)
+    await asyncio.gather(
+        *(exchange.close_task for exchange in exchanges if exchange.close_task is not None),
+        return_exceptions=True,
+    )
+    # Actual handles can be done before their registry/sticky callbacks run.
+    await asyncio.sleep(0)
+    assert all(exchange.task.done() for exchange in exchanges)
+    assert all(exchange.close_task is None or exchange.close_task.done() for exchange in exchanges)
+    return exchanges
 
 
 async def test_real_sqlite_gate_fixture_and_native_teardown_control(env):
@@ -877,16 +921,19 @@ async def test_real_sqlite_gate_fixture_and_native_teardown_control(env):
 
 
 async def test_missing_text_remains_nonconversation_metadata_but_explicit_nonstring_refuses(env):
-    row = append(env)
+    env.key += 1
+    row = env.store.append(
+        AppendRequest(
+            session_id=env.session.session_id,
+            thread_id=env.session.thread_id,
+            epoch=env.session.epoch,
+            kind="agent.tool",
+            payload={"content_scope": "public_synthetic", "native_note": "synthetic non-speech"},
+            idempotency_key=f"synthetic-{env.key}",
+        ),
+        "agent",
+    )
     raw = row.model_dump(mode="json")
-    raw["payload"] = {"content_scope": "public_synthetic", "native_note": "synthetic non-speech"}
-    raw["kind"] = "agent.command"
-    raw["origin"] = "agent-supervisor"
-    with env.gate.inner:
-        env.gate.inner.execute(
-            "UPDATE entries SET kind=?,value=? WHERE event_id=?",
-            (raw["kind"], json.dumps(raw), row.event_id),
-        )
     observations = []
 
     def choose(provider, messages):
@@ -896,7 +943,7 @@ async def test_missing_text_remains_nonconversation_metadata_but_explicit_nonstr
         observations.append((ok, value))
         if len(provider.calls) == 2:
             assert ok and value["entries"][0]["text"] == ""
-            assert value["entries"][0]["kind"] == "agent.command"
+            assert value["entries"][0]["kind"] == "agent.tool"
             assert value["entries"][0]["origin"] == "agent-supervisor"
             assert value["entries"][0]["metadata"] == raw["payload"]
             raw["payload"]["text"] = 7
@@ -1005,13 +1052,67 @@ async def test_provider_replacement_during_native_read_cannot_publish_a_page(env
     )
     try:
         assert await asyncio.wait_for(entered.wait(), 1) is True
-        runtime.provider = replacement
+        assert runtime._tasks[task.task_id].provider is provider
+        assert provider.info == replacement.info
+        runtime._tasks[task.task_id].provider = replacement
     finally:
         release.set()
     final = await runtime.wait(task.task_id, timeout=5)
     await runtime.close()
     assert final.state == "failed"
+    assert len(provider.calls) == 1
     assert row.payload["text"] not in json.dumps([*provider.calls, *replacement.calls])
+
+
+async def test_owner_default_provider_change_keeps_accepted_task_provider(env):
+    row = append(env, "SYNTHETIC_ACCEPTED_PROVIDER_CONTEXT")
+    entered, release = asyncio.Event(), asyncio.Event()
+
+    class GatedJournal(LocalJournal):
+        async def resolve(self, event_id):
+            value = await super().resolve(event_id)
+            if event_id == row.event_id:
+                entered.set()
+                await release.wait()
+            return value
+
+    pages = []
+
+    def choose(provider, messages):
+        if len(provider.calls) == 1:
+            return page_action(row.event_id)
+        ok, page = observation(messages)
+        assert ok, page
+        pages.append(page)
+        return finish()
+
+    provider = MeasuredFixture(choose)
+    replacement = MeasuredFixture(lambda *_: finish())
+    replacement.info = replacement.info.model_copy(update={"model": "synthetic-owner-default"})
+    runtime = AgentRuntime(
+        GatedJournal(env.store, "agent"), provider, env.store.path.rsplit("/", 1)[0],
+        ToolPolicy(env.store.path.rsplit("/", 1)[0]),
+    )
+    env.runtimes.append(runtime)
+    task = await runtime.submit(
+        TaskRequest(
+            session_id=env.session.session_id, thread_id=env.session.thread_id,
+            epoch=env.session.epoch, objective="Inspect selected context.",
+            content_scope="public_synthetic", idempotency_key="owner-provider-default",
+        )
+    )
+    try:
+        assert await asyncio.wait_for(entered.wait(), 1) is True
+        assert runtime._tasks[task.task_id].provider is provider
+        runtime.provider = replacement
+    finally:
+        release.set()
+    final = await runtime.wait(task.task_id, timeout=5)
+    await runtime.close()
+    assert not provider.failures
+    assert final.state == "succeeded", final.error
+    assert pages[0]["entries"][0]["text"] == row.payload["text"]
+    assert runtime._tasks[task.task_id].provider is provider and not replacement.calls
 
 
 async def test_retained_page_disclosure_withdrawal_blocks_next_measured_generation(env):
@@ -1123,8 +1224,10 @@ async def test_client_deadline_bounds_wait_without_releasing_pending_actual_clos
         stream.release.set()
         if task is not None:
             await asyncio.gather(task, return_exceptions=True)
+        await join_actual_exchanges(client)
         await client.close()
     assert not client._submit_exchanges and stream.closed == 1
+    assert client._submit_cleanup_failed is False
 
 
 async def test_native_scan_shares_64_actual_operation_slots_with_old_standing_routes(
@@ -1346,8 +1449,14 @@ async def test_resolved_window_revision_cannot_supply_tail_for_an_old_continuati
             user_speaking=False,
             content_scope="public_synthetic",
         )
-        return append(
-            env, text, kind="conversation.window", payload=payload.model_dump(mode="json")
+        env.key += 1
+        return env.store.append(
+            AppendRequest(
+                session_id=env.session.session_id, thread_id=env.session.thread_id,
+                epoch=env.session.epoch, kind="conversation.window",
+                payload=payload.model_dump(mode="json"), idempotency_key=f"synthetic-{env.key}",
+            ),
+            "owner",
         )
 
     row = window(1, "x" * 2300 + "SYNTHETIC_OLD_WINDOW_TAIL")
@@ -1396,11 +1505,13 @@ async def test_client_retains_sole_actual_close_after_cancellation_and_latches_u
             await task
         assert len(client._submit_exchanges) == 1 and stream.closed == 1
         stream.release.set()
-        for _ in range(100):
-            if not client._submit_exchanges:
-                break
-            await asyncio.sleep(0)
+        exchanges = await join_actual_exchanges(client)
         assert not client._submit_exchanges and stream.closed == 1
+        assert stream.cancelled == 1
+        assert len(exchanges) == 1 and not exchanges[0].close_task.cancelled()
+        assert isinstance(exchanges[0].close_task.exception(), RuntimeError) if fail_close else (
+            exchanges[0].close_task.exception() is None
+        )
         assert client._submit_cleanup_failed is fail_close
         if fail_close:
             with pytest.raises((ValueError, RuntimeError, PermissionError)):
@@ -1410,4 +1521,39 @@ async def test_client_retains_sole_actual_close_after_cancellation_and_latches_u
         stream.release.set()
         if task is not None:
             await asyncio.gather(task, return_exceptions=True)
+        await join_actual_exchanges(client)
+        await client.close()
+
+
+async def test_client_cooperative_cancelled_actual_close_retains_sticky_uncertainty(env):
+    request = scan_request(env.session)
+    stream = ClosingStream(canonical(native_response(request)), resist_cancel=False)
+    client = JournalClient(
+        BASE, "synthetic", transport=httpx.MockTransport(
+            lambda _: httpx.Response(
+                200, stream=stream, headers={"Content-Type": "application/json"}
+            )
+        ),
+    )
+    task = asyncio.create_task(client.transcript_scan(request))
+    try:
+        await asyncio.wait_for(stream.entered.wait(), 1)
+        exchanges = tuple(client._submit_exchanges)
+        assert len(exchanges) == 1 and stream.closed == 1
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        await join_actual_exchanges(client)
+        assert exchanges[0].close_task.cancelled()
+        assert stream.cancelled == 1 and stream.closed == 1
+        assert not client._submit_exchanges and client._submit_cleanup_failed is True
+        stream.release.set()
+        await asyncio.sleep(0)
+        assert client._submit_cleanup_failed is True and stream.closed == 1
+        with pytest.raises((ValueError, RuntimeError, PermissionError)):
+            await client.transcript_scan(request)
+    finally:
+        stream.release.set()
+        await asyncio.gather(task, return_exceptions=True)
+        await join_actual_exchanges(client)
         await client.close()
