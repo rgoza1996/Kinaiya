@@ -1,0 +1,86 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "protocol": {
+      "const": "native_stt_settlement_v1",
+      "title": "Protocol",
+      "type": "string"
+    },
+    "worker_instance": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Worker Instance",
+      "type": "string"
+    },
+    "audio_sha256": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Audio Sha256",
+      "type": "string"
+    },
+    "operation_id": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Operation Id",
+      "type": "string"
+    },
+    "request_sha256": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Request Sha256",
+      "type": "string"
+    },
+    "state": {
+      "enum": [
+        "reserved",
+        "running",
+        "settled",
+        "unknown"
+      ],
+      "title": "State",
+      "type": "string"
+    },
+    "settled": {
+      "title": "Settled",
+      "type": "boolean"
+    },
+    "outcome": {
+      "anyOf": [
+        {
+          "enum": [
+            "completed",
+            "failed",
+            "not_dispatched"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Outcome"
+    }
+  },
+  "required": [
+    "schema_version",
+    "protocol",
+    "worker_instance",
+    "audio_sha256",
+    "operation_id",
+    "request_sha256",
+    "state",
+    "settled",
+    "outcome"
+  ],
+  "title": "STTWorkerProof",
+  "type": "object"
+}

@@ -1,0 +1,39 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "expected_backend": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Expected Backend",
+      "type": "string"
+    },
+    "admission_id": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Admission Id",
+      "type": "string"
+    },
+    "identity_sha256": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Identity Sha256",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "expected_backend",
+    "admission_id",
+    "identity_sha256"
+  ],
+  "title": "STTAdmissionReconcile",
+  "type": "object"
+}
