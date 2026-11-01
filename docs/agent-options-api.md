@@ -1,5 +1,18 @@
 # Agent Options API
 
+## Approval expiry and renewal
+
+The existing owner approval list retains expired actions with additive
+`status:pending|expired`. Expiry pauses the same action; approving an expired
+request is refused. Owners may deny, stop, or explicitly renew through
+`POST /v1/approvals/{old_id}/reissue` with strict `ApprovalReissue` fields
+`schema_version`, `action_digest` and `objective_revision`. This creates a fresh
+unapproved request. Typed `ApprovalReissueReceipt` retains both IDs, exact
+digest/revision, replacement expiry and current `replacement_status`.
+The same old-ID/body replays its receipt without allocating another replacement.
+HTTP410 means bounded history is unavailable, not failure proof. See
+[ADR0092](adr/0092-approval-expiry-renewal.md) for native ownership and UI recovery.
+
 Implements [#188](https://github.com/rgoza1996/Kinaiya/issues/188) and
 [ADR0077](adr/0077-options-workspace-and-harness-models.md).
 Bound model mutations and recovery are specified by
@@ -10,6 +23,37 @@ Every route requires authenticated owner access. Metadata is local inspection,
 not inference, endpoint readiness, permission expansion or harness promotion.
 
 ## Inspect
+
+### Scoped native operation rules (ADR0096, implementation under review)
+
+`GET /v1/agent/options/tool-permissions?scope=default|workspace|session|task`
+resolves the scope on the native host. Session and Task choices also require
+`session_id` or `task_id` respectively. An exact `scope_id` instead inspects a
+saved scope, including one whose task revision or session epoch has retired.
+The snapshot returns the instance identity, global revision/state fingerprint,
+canonical scope, liveness and three rows for `read_file`, `write_file`, `shell`.
+Each row distinguishes its saved override, effective mode/source and host
+hard-denial ceiling. These controls do not cover every filesystem or network
+channel.
+
+`POST /v1/agent/options/tool-permissions` accepts strict
+`ToolPermissionChange {schema_version, expected_revision, expected_state,
+idempotency_key, scope, tool, mode}`. A null mode resets only that exact rule;
+new grants require a live native scope. Saved retired scopes remain resettable.
+The change boundary is `next_action_admission`, independent of the service-wide
+execution editor's settled-worker gate. Task rules bind objective revision;
+session rules bind thread and epoch. Ask remains human review under YOLO;
+Allow cannot remove hard denial, sandbox, disclosure or speech-consent checks.
+
+`GET /v1/agent/options/tool-permission-changes/{key}` returns the historical
+`permission_saved` receipt with the original CAS state/revision, exact scope,
+tool, mode, key and committed revision. A missing receipt is not failure proof.
+`GET /v1/agent/options/tool-permission-scopes?limit=20&after=...` pages saved
+scope identities for inspection/reset. Storage caps are 1,024 rules and 10,000
+receipts. All routes require the authenticated owner; reads apply no settings.
+See [ADR0096](adr/0096-scoped-native-tool-permissions.md) for native admission,
+retained-context semantics and the same-instance revision fence that can allow
+explicit release of stale RAM tracking without deciding its historical outcome.
 
 ### Unconfirmed Agent submissions and task commands
 

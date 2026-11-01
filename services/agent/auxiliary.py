@@ -47,7 +47,8 @@ async def consult_model(runtime, rec, arguments):
         tuple(sorted(rec.context_event_ids)),
         tuple(rec.task.source_event_ids),
         tuple(sorted(rec.source_revisions.items())),
-        runtime._grants(),
+        runtime._grants(rec),
+        runtime._permission_fingerprint(rec),
         rec.task.content_scope,
         rec.foreign_context,
     )
@@ -86,7 +87,8 @@ async def consult_model(runtime, rec, arguments):
                 tuple(sorted(rec.context_event_ids)),
                 tuple(rec.task.source_event_ids),
                 tuple(sorted(rec.source_revisions.items())),
-                runtime._grants(),
+                runtime._grants(rec),
+                runtime._permission_fingerprint(rec),
                 rec.task.content_scope,
                 rec.foreign_context,
             )

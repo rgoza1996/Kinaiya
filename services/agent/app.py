@@ -18,7 +18,7 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ConfigDict
 
-from core.policy import ApprovalError, PolicyDenied
+from core.policy import ApprovalError, ApprovalReceiptUnavailable, PolicyDenied
 from packages.commands import Registry
 from packages.contracts.agent_submit import (
     AgentSubmitConflict,
@@ -26,6 +26,8 @@ from packages.contracts.agent_submit import (
     AgentSubmitUnconfirmed,
 )
 from packages.contracts.models import (
+    ApprovalReissue,
+    ApprovalReissueReceipt,
     ApprovalResolution,
     CommandRequest,
     InterruptRequest,
@@ -96,6 +98,8 @@ def create_app(runtime: AgentRuntime, auth: Any, commands=None) -> FastAPI:
         }
 
     def _http(exc: Exception) -> HTTPException:
+        if isinstance(exc, ApprovalReceiptUnavailable):
+            return HTTPException(status_code=410, detail=str(exc))
         if isinstance(exc, AgentSubmitConflict):
             return HTTPException(status_code=409, detail=str(AgentSubmitConflict()))
         if isinstance(exc, AgentSubmitUnavailable):
@@ -275,6 +279,15 @@ def create_app(runtime: AgentRuntime, auth: Any, commands=None) -> FastAPI:
     ) -> Any:
         try:
             return await runtime.resolve_approval(approval_id, body, actor=actor)
+        except Exception as exc:
+            raise _http(exc) from exc
+
+    @app.post("/v1/approvals/{approval_id}/reissue", response_model=ApprovalReissueReceipt)
+    async def reissue_approval(
+        approval_id: str, body: ApprovalReissue, actor: str = Depends(require_owner)
+    ) -> Any:
+        try:
+            return await runtime.reissue_approval(approval_id, body, actor=actor)
         except Exception as exc:
             raise _http(exc) from exc
 

@@ -349,7 +349,7 @@ def _stored_receipt(value, key):
     return receipt
 
 
-def _storage(path, workspace):
+def _storage(path, workspace, *, report_created=False):
     path = Path(os.path.abspath(path))
     if path != path.resolve() or path.is_relative_to(Path(workspace).resolve()):
         raise ValueError("Provider storage must be outside the worker workspace without aliases")
@@ -357,7 +357,18 @@ def _storage(path, workspace):
     parent = path.parent.stat()
     if parent.st_uid != os.geteuid() or parent.st_mode & 0o022:
         raise ValueError("Provider storage directory must be owner controlled")
-    fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    flags = os.O_RDWR | os.O_NOFOLLOW | os.O_CLOEXEC
+    created = False
+    if report_created:
+        try:
+            fd = os.open(path, flags | os.O_CREAT | os.O_EXCL, 0o600)
+            created = True
+        except FileExistsError:
+            # An existing empty file is not proof that its native state never
+            # existed. This open must not recreate a concurrently removed file.
+            fd = os.open(path, flags)
+    else:
+        fd = os.open(path, flags | os.O_CREAT, 0o600)
     try:
         info = os.fstat(fd)
         if (
@@ -372,7 +383,7 @@ def _storage(path, workspace):
         if (actual.st_dev, actual.st_ino) != (info.st_dev, info.st_ino):
             db.close()
             raise ValueError("Provider storage identity changed")
-        return db
+        return (db, created) if report_created else db
     finally:
         os.close(fd)
 
