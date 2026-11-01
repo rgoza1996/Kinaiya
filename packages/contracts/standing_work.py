@@ -12,7 +12,7 @@ from datetime import UTC, date, datetime, time, timedelta
 from typing import Annotated, Any, ClassVar, Literal, Self
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from packages.contracts.agent_control import (
     BackendId,
@@ -22,6 +22,7 @@ from packages.contracts.agent_control import (
     Digest,
     NextRevision,
     PositiveInteger,
+    Revision,
     SafeId,
     agent_control_json,
 )
@@ -30,6 +31,7 @@ from packages.contracts.workspace_settings import WorkspacePin
 MAX_STANDING_REQUEST_BYTES = 131072
 MAX_STANDING_CANONICAL_BYTES = 114688
 MAX_STANDING_RECEIPT_BYTES = 131072
+MAX_STANDING_SNAPSHOT_BYTES = 147456
 MAX_STANDING_PROOF_BYTES = 262144
 # Two canonical requests leave this total reserve for receipt/proof metadata.
 STANDING_PROOF_RESERVE_BYTES = 32768
@@ -43,6 +45,20 @@ _PROOF_ERROR = "Standing work proof does not match the original request"
 _DATE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}\Z")
 _TIME = re.compile(r"(?:[01][0-9]|2[0-3]):[0-5][0-9]\Z")
 _INSTANT = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z\Z")
+
+
+class StandingConflict(ValueError):
+    """A definite native authority conflict, without an input-bearing reason."""
+
+    def __init__(self):
+        super().__init__("Standing work conflicts with retained authority")
+
+
+class StandingUnavailable(RuntimeError):
+    """Native proof or persistence is unavailable, not confirmed absent."""
+
+    def __init__(self):
+        super().__init__("Standing work authority is unavailable")
 
 
 def _tree(value: Any) -> None:
@@ -138,7 +154,8 @@ class _Closed(BaseModel):
     @classmethod
     def from_json(cls, raw: bytes) -> Self:
         try:
-            return cls.model_validate(standing_json(raw, maximum=MAX_STANDING_REQUEST_BYTES))
+            maximum = max(MAX_STANDING_REQUEST_BYTES, cls.wire_bytes)
+            return cls.model_validate(standing_json(raw, maximum=maximum))
         except (ValueError, TypeError, RecursionError):
             raise ValueError(_ERROR) from None
 
@@ -331,6 +348,164 @@ class StandingChangeReceipt(_Closed):
             return result
         except (ValueError, TypeError, UnicodeError, RecursionError, OverflowError):
             raise ValueError(_PROOF_ERROR) from None
+
+
+def record_digest(
+    receipt: StandingChangeReceipt,
+    activation: Literal["pending", "armed"],
+    authorized_from_utc: str | None,
+) -> str:
+    """Bind a saved definition to an explicit post-commit activation observation."""
+    try:
+        receipt = _checked(receipt, StandingChangeReceipt)
+        if type(activation) is not str or activation not in ("pending", "armed"):
+            raise ValueError(_ERROR)
+        if activation == "pending":
+            if authorized_from_utc is not None:
+                raise ValueError(_ERROR)
+        else:
+            _utc(authorized_from_utc)
+            validate_authorization_at(receipt.request.authorization, authorized_from_utc)
+        body = {
+            "receipt": receipt.model_dump(mode="json"),
+            "activation": activation,
+            "authorized_from_utc": authorized_from_utc,
+        }
+        return hashlib.sha256(b"kinaiya.standing.record.v1\0" + _encode(body)).hexdigest()
+    except (ValueError, TypeError, UnicodeError, RecursionError, OverflowError):
+        raise ValueError(_ERROR) from None
+
+
+class StandingRecord(_Closed):
+    """Saved definition and activation proof; neither is proof of execution."""
+
+    wire_bytes: ClassVar[int] = MAX_STANDING_RECEIPT_BYTES
+    schema_version: Literal["1.0"]
+    receipt: StandingChangeReceipt
+    activation: Literal["pending", "armed"]
+    authorized_from_utc: str | None
+    record_digest: Digest
+
+    @model_validator(mode="after")
+    def activation_proof(self):
+        if self.record_digest != record_digest(
+            self.receipt, self.activation, self.authorized_from_utc
+        ):
+            raise ValueError(_PROOF_ERROR)
+        return self
+
+
+class StandingCurrent(_Closed):
+    """Minimal current revision/authority projection without another full request."""
+
+    wire_bytes: ClassVar[int] = 4096
+    schema_version: Literal["1.0"]
+    backend_id: BackendId
+    instance_id: ControlInstance
+    responsibility_id: ControlInstance
+    revision: Revision
+    control_writable: bool
+
+
+class StandingResponsibilitySnapshot(StandingCurrent):
+    """Current definition with a separately observed Session writer generation."""
+
+    wire_bytes: ClassVar[int] = MAX_STANDING_SNAPSHOT_BYTES
+    record: StandingRecord | None
+
+    @model_validator(mode="after")
+    def current_definition(self):
+        if self.record is None:
+            if self.revision != 0:
+                raise ValueError(_PROOF_ERROR)
+        elif (
+            self.revision != self.record.receipt.revision
+            or self.backend_id != self.record.receipt.backend_id
+            or self.responsibility_id != self.record.receipt.request.responsibility_id
+        ):
+            raise ValueError(_PROOF_ERROR)
+        return self
+
+
+class StandingChangeLookup(_Closed):
+    """Full-original proof; only native issued-generation history proves retirement."""
+
+    wire_bytes: ClassVar[int] = MAX_STANDING_PROOF_BYTES
+    schema_version: Literal["1.0"]
+    status: Literal["recorded", "unobserved"]
+    request: StandingChange
+    current: StandingCurrent
+    request_instance: Literal["current", "retired"]
+    receipt: StandingChangeReceipt | None
+    mutation_fenced: bool
+
+    @model_validator(mode="after")
+    def original_observation(self):
+        if (
+            self.current.backend_id != self.request.expected_backend
+            or self.current.responsibility_id != self.request.responsibility_id
+            or (self.request_instance == "current")
+            != (self.current.instance_id == self.request.expected_instance)
+        ):
+            raise ValueError(_PROOF_ERROR)
+        if self.status == "recorded":
+            if self.receipt is None or self.mutation_fenced:
+                raise ValueError(_PROOF_ERROR)
+            self.receipt.validate_request(self.request)
+            if self.current.revision < self.receipt.revision:
+                raise ValueError(_PROOF_ERROR)
+        else:
+            fenced = (
+                self.request_instance == "retired"
+                or self.current.revision > self.request.expected_revision
+            )
+            if self.receipt is not None or self.mutation_fenced != fenced:
+                raise ValueError(_PROOF_ERROR)
+        return self
+
+    def validate_request(self, request: StandingChange) -> Self:
+        try:
+            result = _checked(self, type(self))
+            if not isinstance(request, StandingChange):
+                raise ValueError(_PROOF_ERROR)
+            if canonical_bytes(result.request) != canonical_bytes(request):
+                raise ValueError(_PROOF_ERROR)
+            return result
+        except (ValueError, TypeError, UnicodeError, RecursionError, OverflowError):
+            raise ValueError(_PROOF_ERROR) from None
+
+
+class StandingResponsibilityPage(_Closed):
+    """Byte/node-bounded whole records; the cursor names the last returned ID."""
+
+    wire_bytes: ClassVar[int] = MAX_STANDING_PROOF_BYTES
+    schema_version: Literal["1.0"]
+    backend_id: BackendId
+    instance_id: ControlInstance
+    control_writable: bool
+    items: tuple[StandingRecord, ...] = Field(max_length=20)
+    next_cursor: ControlInstance | None
+
+    @field_validator("items", mode="before")
+    @classmethod
+    def immutable_items(cls, value):
+        if type(value) not in (list, tuple):
+            raise ValueError(_ERROR)
+        return tuple(value)
+
+    @model_validator(mode="after")
+    def ordered_records(self):
+        previous = None
+        for record in self.items:
+            current = record.receipt.request.responsibility_id
+            if record.receipt.backend_id != self.backend_id or (
+                previous is not None and current <= previous
+            ):
+                raise ValueError(_PROOF_ERROR)
+            previous = current
+        if self.next_cursor is not None and self.next_cursor != previous:
+            raise ValueError(_PROOF_ERROR)
+        return self
 
 
 class DailyOccurrence(_Closed):
