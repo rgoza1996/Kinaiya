@@ -11,6 +11,7 @@ carry validated journal source references, enforced by the runtime.
 
 from __future__ import annotations
 
+import sqlite3
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
@@ -268,8 +269,14 @@ def create_app(runtime: AgentRuntime, auth: Any, commands=None) -> FastAPI:
 
     @app.post("/v1/commands/execute")
     async def command_execute(body: CommandRequest, actor: str = Depends(require_owner)):
+        from services.agent.model_settings import ModelSettingsUnavailable
+
         try:
             return await commands.execute(body, actor)
+        except (ModelSettingsUnavailable, sqlite3.Error) as exc:
+            raise HTTPException(
+                503, "Command outcome is unconfirmed; inspect its exact receipt"
+            ) from exc
         except Exception as exc:
             raise _http(exc) from exc
 

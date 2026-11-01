@@ -25,7 +25,7 @@ from packages.contracts.models import (
 )
 from packages.providers.text import ScriptedProvider
 from services.agent.app import create_app
-from services.agent.model_settings import AgentModelSettings, ModelSettingsChange
+from services.agent.model_settings import AgentModelSettings, BoundModelSettingsChange
 from services.agent.runtime import AgentRuntime, IdemConflict, StaleRevision
 from services.agent.skill_service import SkillService
 from services.common.auth import Auth
@@ -149,9 +149,12 @@ async def restarted(
                 path=models_path,
             )
             if retired_profile:
+                authority = runtime.model_settings.snapshot()["write_authority"]
                 runtime.model_settings.change(
-                    ModelSettingsChange(
-                        schema_version="1.0",
+                    BoundModelSettingsChange(
+                        schema_version="1.1",
+                        expected_backend=authority["backend_id"],
+                        expected_instance=authority["instance_id"],
                         expected_revision=0,
                         idempotency_key="select-original",
                         profile_id="retired-profile",
