@@ -540,7 +540,10 @@ class StandingHandoff:
         except asyncio.CancelledError:
             capture.suppress()
             operation.cancel()
-            raise
+            caller = asyncio.current_task()
+            if caller is not None and caller.cancelling():
+                raise
+            raise StandingUnavailable from None
 
     def _maybe_close(self):
         if self.closed and not self.operations and not self.native and self.db is not None:
