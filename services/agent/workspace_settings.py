@@ -441,6 +441,32 @@ class AgentWorkspaceSettings:
             raise WorkspaceUnavailable
         return active
 
+    def authority_stamp(self):
+        """Current-write freshness only; never recurse through owner tokens."""
+        state = self._state()
+        active = self._active
+        available = (
+            state[2] == self.instance
+            and self._transition is None
+            and not self._cleanup_failed
+            and (self._apply_pending is None or self._apply_pending.done())
+            and self._active_error is None
+            and active is not None
+            and self._matches_runtime(active)
+            and active.pin.settings_revision == state[0]
+            and active.pin.root_identity == state[4]
+            and active.settings() == state[3]
+        )
+        return {
+            "backend_id": state[1],
+            "instance_id": self.instance,
+            "active_instance": state[2],
+            "saved_revision": state[0],
+            "saved_root_identity": state[4],
+            "available": available,
+            "active_pin": active.pin.model_dump(mode="json") if available else None,
+        }
+
     def _operation_state(self):
         if self._operations is None:
             return None

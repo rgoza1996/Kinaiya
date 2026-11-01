@@ -48,6 +48,12 @@ plugin installers validate before durable commit and apply synchronously after
 it. An unconfirmed application leaves active state unavailable; it never
 substitutes the host root.
 
+Execution-settings state tokens also bind the native workspace backend/instance,
+saved revision/root identity and actual active phase. A same-path root repair
+therefore makes an older execution draft stale. This stamp does not recurse
+through either owner's state token; exact historical execution receipts still
+replay before the current-write check and are never rewritten.
+
 File tools retain a root descriptor. Shell and MCP stdio pass only explicitly
 owned descriptors to Bubblewrap FD mounts, retaining them until real spawn
 settles. A late child remains owned until actual exit. Root inspection and
