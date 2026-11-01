@@ -272,9 +272,7 @@ async def test_committed_native_receipt_precedes_skill_discovery_with_a_fresh_ou
     assert_no_current_reads(owner, guards)
 
 
-async def test_non_model_null_intent_keeps_existing_interrupted_dispatch_behavior(
-    owner, monkeypatch
-):
+async def test_non_model_null_intent_remains_unconfirmed_without_redispatch(owner, monkeypatch):
     command = request(owner, text="/status")
     dispatch = AsyncMock(side_effect=RuntimeError("Synthetic interrupted ordinary command"))
     monkeypatch.setattr(owner.commands, "_dispatch", dispatch)
@@ -285,9 +283,9 @@ async def test_non_model_null_intent_keeps_existing_interrupted_dispatch_behavio
     result = await owner.commands.execute(command)
     assert result == {
         "schema_version": "1.0",
-        "status": "error",
+        "status": "unconfirmed",
         "command": None,
-        "error": "Interrupted dispatch; inspect state before a new request",
+        "error": "Command dispatch is unconfirmed; retry this exact command to check its receipt",
     }
     assert command_row(owner, command) == original_row
     dispatch.assert_awaited_once()

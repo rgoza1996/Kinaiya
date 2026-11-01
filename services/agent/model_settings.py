@@ -16,7 +16,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_serializer, model_validator
 
 from core.policy import PolicyDenied
 from packages.contracts.models import AgentModelPin, AuxiliaryTask, CatalogModelBinding
@@ -60,6 +60,16 @@ class ModelSettingsChange(BaseModel):
     reasoning: str | None = Field(default=None, min_length=1, max_length=16)
     auxiliary_task: AuxiliaryTask | None = None
     catalog_binding: CatalogModelBinding | None = None
+
+    @model_serializer(mode="wrap")
+    def preserve_historical_catalog_shape(self, handler):
+        result = handler(self)
+        # Host-only historical requests omitted this additive field, including
+        # bound 1.1 requests. Defaults must not rewrite their public wire shape.
+        # Explicit nulls and immutable catalog references keep their own shape.
+        if "catalog_binding" not in self.model_fields_set:
+            result.pop("catalog_binding", None)
+        return result
 
     @model_validator(mode="after")
     def distinct_sources(self):
