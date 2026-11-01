@@ -483,3 +483,26 @@ async def test_resource_owner_http_maps_only_typed_capture_refusals(
         )
     assert response.status_code == status and response.headers.get("cache-control") == "no-store"
     assert MARKER not in response.text and len(response.content) < 256
+
+
+async def test_actual_closed_coordinator_refuses_new_task_action_before_sql_or_gateway(handoffs):
+    env = await handoffs()
+    await env.coordinator.close()
+    payload = {**env.payload, "idempotency_key": "new-action-after-actual-close"}
+    before = tuple(env.session.store.db.iterdump())
+    sends = len(env.transport.requests)
+    with pytest.raises(StandingUnavailable):
+        await env.coordinator.action(payload)
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=resource_app(env.coordinator, AUTH)),
+        base_url="http://resources.test",
+    ) as client:
+        response = await client.post(
+            "/v1/resources/actions",
+            json=payload,
+            headers={"Authorization": "Bearer " + "o" * 32},
+        )
+    assert response.status_code == 503 and response.headers.get("cache-control") == "no-store"
+    assert MARKER not in response.text and len(response.content) < 256
+    assert len(env.transport.requests) == sends
+    assert tuple(env.session.store.db.iterdump()) == before
