@@ -1,4 +1,5 @@
 import asyncio
+import copy
 
 import httpx
 
@@ -7,6 +8,20 @@ from packages.contracts.agent_export import (
     AgentExportAdmission,
     AgentExportRequest,
     agent_export_json,
+)
+from packages.contracts.agent_submit import (
+    AGENT_SUBMIT_ADMISSION_TIMEOUT_S,
+    AGENT_SUBMIT_LOOKUP_TIMEOUT_S,
+    MAX_AGENT_SUBMIT_BYTES,
+    MAX_AGENT_SUBMIT_LOOKUP_BYTES,
+    MAX_AGENT_SUBMIT_RESPONSE_BYTES,
+    AgentSubmitConflict,
+    AgentSubmitLookupRequest,
+    AgentSubmitLookupResult,
+    AgentSubmitReceipt,
+    AgentSubmitUnavailable,
+    agent_submit_json,
+    submit_request,
 )
 from packages.contracts.agent_workspace import AgentSessionPage, AgentSessionPageRequest
 from packages.contracts.context import (
@@ -17,9 +32,102 @@ from packages.contracts.context import (
     ContextQualificationRequest,
     context_json,
 )
-from packages.contracts.models import JournalEntry, PlaybackGeneration, Session
+from packages.contracts.models import AppendRequest, JournalEntry, PlaybackGeneration, Session
 
 AGENT_EXPORT_TIMEOUT_S = 15
+_SUBMIT_CLOSE_DRAIN_S = 1.0
+
+
+class _SubmitExchange:
+    """Keep late acquisition and actual response cleanup owned after public refusal."""
+
+    def __init__(self, owner, request, proposal, result_type, deadline):
+        self.owner = owner
+        self.response = None
+        self.close_task = None
+        self.close_started = False
+        self.abandoned = False
+        self.work_cancel_requested = False
+        self.close_cancel_requested = False
+        owner._submit_exchanges.add(self)
+        self.task = asyncio.create_task(self._run(request, proposal, result_type, deadline))
+        self.task.add_done_callback(self._settled)
+
+    def _settled(self, task):
+        if not task.cancelled():
+            task.exception()
+        if self.task.done() and (self.close_task is None or self.close_task.done()):
+            self.owner._submit_exchanges.discard(self)
+
+    def abandon(self):
+        self.abandoned = True
+        if not self.task.done() and not self.work_cancel_requested:
+            self.work_cancel_requested = True
+            self.task.cancel()
+        # Never cancel a close before its coroutine has actually acquired the
+        # response. A close scheduled for a late arrival must still run once.
+        if self.close_started and not self.close_task.done() and not self.close_cancel_requested:
+            self.close_cancel_requested = True
+            self.close_task.cancel()
+
+    async def _close(self):
+        self.close_started = True
+        await self.response.aclose()
+
+    async def _run(self, request, proposal, result_type, deadline):
+        try:
+            if self.abandoned or asyncio.get_running_loop().time() >= deadline:
+                raise AgentSubmitUnavailable()
+            self.response = await self.owner.http.send(request, stream=True, follow_redirects=False)
+            if self.abandoned:
+                raise AgentSubmitUnavailable()
+            response = self.response
+            if response.status_code == 409:
+                raise AgentSubmitConflict()
+            if response.status_code != 200:
+                raise AgentSubmitUnavailable()
+            if (
+                response.headers.get("content-encoding", "identity").strip(" \t").lower()
+                != "identity"
+                or response.headers.get("content-type", "").split(";", 1)[0].strip(" \t").lower()
+                != "application/json"
+            ):
+                raise AgentSubmitUnavailable()
+            declared = response.headers.get("content-length")
+            length = None
+            if declared is not None:
+                declared = declared.strip(" \t")
+                if (
+                    "transfer-encoding" in response.headers
+                    or not declared.isascii()
+                    or not declared.isdigit()
+                    or len(declared) > 8
+                    or int(declared) > MAX_AGENT_SUBMIT_RESPONSE_BYTES
+                ):
+                    raise AgentSubmitUnavailable()
+                length = int(declared)
+            raw = bytearray()
+            # HTTPX aiter_raw/aiter_bytes auto-close at EOF. Reading the raw
+            # identity stream keeps the sole close in our independently owned
+            # task, whose completion (not response.is_closed) proves cleanup.
+            async for chunk in response.stream:
+                if (
+                    not isinstance(chunk, bytes)
+                    or len(raw) + len(chunk) > MAX_AGENT_SUBMIT_RESPONSE_BYTES
+                ):
+                    raise AgentSubmitUnavailable()
+                raw.extend(chunk)
+            if length is not None and length != len(raw):
+                raise AgentSubmitUnavailable()
+            if self.abandoned or asyncio.get_running_loop().time() >= deadline:
+                raise AgentSubmitUnavailable()
+            parsed = agent_submit_json(bytes(raw), maximum=MAX_AGENT_SUBMIT_RESPONSE_BYTES)
+            return result_type.model_validate(parsed).validate_request(proposal)
+        finally:
+            if self.response is not None:
+                self.close_task = asyncio.create_task(self._close())
+                self.close_task.add_done_callback(self._settled)
+                await asyncio.shield(self.close_task)
 
 
 class JournalClient:
@@ -30,6 +138,69 @@ class JournalClient:
             timeout=15,
             transport=transport,
         )
+        self._submit_exchanges = set()
+        self._submit_closed = False
+
+    async def admit_submit(self, request: AppendRequest) -> AgentSubmitReceipt:
+        deadline = asyncio.get_running_loop().time() + AGENT_SUBMIT_ADMISSION_TIMEOUT_S
+        try:
+            proposal = submit_request(request)
+        except Exception:
+            raise AgentSubmitUnavailable() from None
+        return await self._submit(
+            "/v1/transcript/agent-submits",
+            proposal,
+            AgentSubmitReceipt,
+            MAX_AGENT_SUBMIT_BYTES,
+            deadline,
+        )
+
+    async def lookup_submit(self, request: AgentSubmitLookupRequest) -> AgentSubmitLookupResult:
+        deadline = asyncio.get_running_loop().time() + AGENT_SUBMIT_LOOKUP_TIMEOUT_S
+        try:
+            if isinstance(request, AgentSubmitLookupRequest):
+                request = request.model_dump(mode="python")
+            proposal = AgentSubmitLookupRequest.model_validate(copy.deepcopy(request), strict=True)
+        except Exception:
+            raise AgentSubmitUnavailable() from None
+        return await self._submit(
+            "/v1/transcript/agent-submits/lookup",
+            proposal,
+            AgentSubmitLookupResult,
+            MAX_AGENT_SUBMIT_LOOKUP_BYTES,
+            deadline,
+        )
+
+    async def _submit(self, path, proposal, result_type, maximum, deadline):
+        exchange = None
+        try:
+            loop = asyncio.get_running_loop()
+            wire = proposal.model_dump_json().encode("utf-8")
+            if self._submit_closed or len(wire) > maximum or loop.time() >= deadline:
+                raise AgentSubmitUnavailable()
+            request = self.http.build_request(
+                "POST",
+                path,
+                content=wire,
+                headers={"Content-Type": "application/json", "Accept-Encoding": "identity"},
+            )
+            exchange = _SubmitExchange(self, request, proposal, result_type, deadline)
+            finished, _pending = await asyncio.wait(
+                {exchange.task}, timeout=max(0, deadline - loop.time())
+            )
+            if not finished or exchange.abandoned or loop.time() >= deadline:
+                raise AgentSubmitUnavailable()
+            return exchange.task.result()
+        except asyncio.CancelledError:
+            if exchange is not None:
+                exchange.abandon()
+            raise
+        except AgentSubmitConflict:
+            raise AgentSubmitConflict() from None
+        except Exception:
+            if exchange is not None:
+                exchange.abandon()
+            raise AgentSubmitUnavailable() from None
 
     async def agent_export_admission(self, request):
         request = AgentExportRequest.model_validate(request)
@@ -251,4 +422,17 @@ class JournalClient:
         response.raise_for_status()
 
     async def close(self):
-        await self.http.aclose()
+        self._submit_closed = True
+        for exchange in tuple(self._submit_exchanges):
+            exchange.abandon()
+        try:
+            await self.http.aclose()
+        finally:
+            pending = {
+                task
+                for exchange in self._submit_exchanges
+                for task in (exchange.task, exchange.close_task)
+                if task is not None and not task.done()
+            }
+            if pending:
+                await asyncio.wait(pending, timeout=_SUBMIT_CLOSE_DRAIN_S)

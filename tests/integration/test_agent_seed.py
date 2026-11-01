@@ -23,12 +23,14 @@ from services.agent import AgentRuntime, create_app
 from services.agent import tools as agent_tools
 from services.agent.tools import ShellUnavailable, ToolFailure, run_shell
 from services.common.auth import Auth
+from tests.agent_submit_double import InMemorySubmitProtocol
 
 SESSION = Session(session_id="s9", thread_id="t9", channel="agent", epoch=1)
 
 
-class InMemoryJournal:
+class InMemoryJournal(InMemorySubmitProtocol):
     def __init__(self) -> None:
+        super().__init__()
         self.entries: list[JournalEntry] = []
         self._seq = 0
 

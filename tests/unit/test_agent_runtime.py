@@ -29,14 +29,16 @@ from services.agent.runtime import (
     TaskNotFound,
     TaskTerminal,
 )
+from tests.agent_submit_double import InMemorySubmitProtocol
 
 assert isinstance(Journal, object)  # interface imported for conformance
 
 
-class InMemoryJournal:
+class InMemoryJournal(InMemorySubmitProtocol):
     """Narrowly scoped test double implementing the contracts Journal."""
 
     def __init__(self, session: Session) -> None:
+        super().__init__()
         self.session_obj = session
         self.entries: list[JournalEntry] = []
         self._seq = 0

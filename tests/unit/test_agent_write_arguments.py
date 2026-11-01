@@ -19,12 +19,14 @@ from packages.contracts.models import (
 )
 from packages.providers.completion_budget import PreparedComplete
 from services.agent.runtime import AgentRuntime
+from tests.agent_submit_double import InMemorySubmitProtocol
 
 SESSION = Session(session_id="s1", thread_id="t1", channel="agent", epoch=1)
 
 
-class InMemoryJournal:
+class InMemoryJournal(InMemorySubmitProtocol):
     def __init__(self, session):
+        super().__init__()
         self.session_obj = session
         self.entries = []
         self._seq = 0

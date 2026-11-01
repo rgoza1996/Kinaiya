@@ -192,6 +192,28 @@ and [broker regressions](../tests/integration/test_agent_retained_disclosure.py)
 Missing or over-bound provenance refuses the request rather than dropping a
 dependency. This does not qualify general repository work or a new model default.
 
+## Initial Agent submission durability
+
+The bounded [#199](https://github.com/rgoza1996/Kinaiya/issues/199) implementation
+uses atomic native submission slots, strict original-request provenance and owned
+client cleanup. Unconfirmed acceptance remains paused with a fixed HTTP503;
+negative observations cannot release an uncertain key for another admission.
+Only the original direct creation receipt can permit one local launch after fresh
+authority checks. Retained and recovered receipts preserve native identity and
+model pins without execution, including authentic pre-scope local-only records.
+Task ID collisions refuse rather than substitute another session or overwrite a
+retained task. See [ADR0085](adr/0085-agent-submit-admission.md).
+
+The [verification record](../evaluation/evidence/agent-submit-admission-2026-10-31.json)
+binds source/tests and the lead's 396 passing integrated cases, additional
+overlapping review groups, initial failures and corrections. Existing assertions
+remain intact while test journals explicitly implement the new native protocol.
+The interrupted earlier full local run is not a pass; applicable exact-head CI is
+required in the associated PR before merge. This is an M1/M6 reliability slice,
+not general task reliability, a durable outbox, distributed execution lease or
+exactly-once third-party effects. Upgrade requires quiescing old Agent and Session
+writers; no running preview was changed during this verification.
+
 ## Agent completion durability
 
 The bounded [#167](https://github.com/rgoza1996/Kinaiya/issues/167) repair uses

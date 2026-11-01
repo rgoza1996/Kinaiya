@@ -353,6 +353,16 @@ records unreconciled effects without copying old execution context into the new
 epoch. Unacknowledged retirement stays paused until explicitly reconciled; MCP
 management remains blocked while any work is nonterminal.
 
+Initial Agent submissions use [native admission](docs/adr/0085-agent-submit-admission.md)
+to commit the journal entry and its logical idempotency slot together. An
+unconfirmed acknowledgment stays paused and returns an explicit HTTP503; a RAM
+entry alone cannot establish acceptance. Exact retries reconcile the original
+native identity and model pins without starting another worker. Only the direct
+validated creation receipt can start work after fresh authority checks; a retained
+or recovered receipt grants no execution. Upgrade requires quiescing old Agent
+and Session writers because generic initial-submit append is no longer accepted.
+This does not provide exactly-once third-party tool effects or automatic resume.
+
 An optional [isolated compute-plugin host](docs/adr/0016-compute-plugins.md) can
 retain ordinary Python/JSON algorithms independently of the LLM that authored
 them. Owner-held acceptance suites and reviewed promotion gate activation;

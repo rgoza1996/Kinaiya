@@ -18,6 +18,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from core.policy import ApprovalError, PolicyDenied
 from packages.commands import Registry
+from packages.contracts.agent_submit import (
+    AgentSubmitConflict,
+    AgentSubmitUnavailable,
+    AgentSubmitUnconfirmed,
+)
 from packages.contracts.models import (
     ApprovalResolution,
     CommandRequest,
@@ -83,6 +88,12 @@ def create_app(runtime: AgentRuntime, auth: Any, commands=None) -> FastAPI:
         }
 
     def _http(exc: Exception) -> HTTPException:
+        if isinstance(exc, AgentSubmitConflict):
+            return HTTPException(status_code=409, detail=str(AgentSubmitConflict()))
+        if isinstance(exc, AgentSubmitUnavailable):
+            return HTTPException(status_code=503, detail=str(AgentSubmitUnavailable()))
+        if isinstance(exc, AgentSubmitUnconfirmed):
+            return HTTPException(status_code=503, detail=str(AgentSubmitUnconfirmed()))
         if isinstance(exc, TaskNotFound):
             return HTTPException(status_code=404, detail=str(exc))
         if isinstance(exc, (StaleRevision, IdemConflict, TaskTerminal)):
