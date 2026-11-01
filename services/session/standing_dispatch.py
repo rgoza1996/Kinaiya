@@ -573,6 +573,31 @@ class StandingDispatchOwner:
             return self._state(meta, gate, activation, producer)
 
     @_native
+    def stop_context(self) -> StandingDispatchStop:
+        """Read one current-target template without fencing or assigning a writer."""
+        with self._transaction():
+            meta, generations, gate, activation, _ = self._observation()
+            instance = meta["instance_id"]
+            if instance is None:
+                if gate["epoch"]:
+                    if activation is None:
+                        raise StandingUnavailable
+                    instance = activation.mode_receipt.service_instance
+                else:
+                    if not generations:
+                        raise StandingUnavailable
+                    instance = min(generations)
+            self._known(instance, generations, stored=True)
+            return StandingDispatchStop(
+                schema_version="1.0",
+                expected_backend=meta["backend_id"],
+                expected_instance=instance,
+                issued_epoch=gate["epoch"],
+                activation_digest=activation.activation_digest if activation is not None else None,
+                expected_fence_token=gate["fence_token"],
+            )
+
+    @_native
     def activate(
         self, request: StandingDispatchActivation, *, deadline=None, cancelled=None
     ) -> StandingDispatchActivationReceipt:
