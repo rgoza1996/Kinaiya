@@ -20,6 +20,8 @@ from types import SimpleNamespace
 
 import httpx
 import pytest
+from test_standing_resources_registration import factory as factory
+from test_standing_resources_registration import gateway, ordinary, query
 
 from packages.contracts.models import SessionRequest, SpeechWindow
 from packages.providers.speech import SpeechClient
@@ -98,7 +100,22 @@ async def wait_for(predicate, timeout=5):
 
 
 @pytest.fixture
-async def env(tmp_path, monkeypatch):
+async def ordinary_handoff(factory):
+    native = await factory()
+    identity = ordinary(
+        native.store,
+        task_id="public-synthetic-completed-task",
+        key="managed-whistle-native-ordinary",
+    )
+    async with gateway(native) as journal:
+        context = await journal.resource_task_context(query(identity.task_id))
+        assert context.family == "ordinary" and context.standing is None
+        assert context.ordinary == identity
+        yield journal
+
+
+@pytest.fixture
+async def env(tmp_path, monkeypatch, ordinary_handoff):
     if (
         sys.platform != "linux"
         or platform.machine() != "x86_64"
@@ -128,6 +145,7 @@ async def env(tmp_path, monkeypatch):
         manager,
         ResourceState(tmp_path / "state/resources-state.json"),
         Control(),
+        handoff_journal=ordinary_handoff,
         memory_probe=lambda: 8 * 1024**3,
     )
     await coordinator.initialize()
