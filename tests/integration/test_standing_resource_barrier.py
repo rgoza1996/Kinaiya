@@ -955,10 +955,31 @@ async def test_cooperative_cancelled_capture_close_never_becomes_positive_after_
     value.boundary.path, value.boundary.phase = NATIVE_RESERVE, "cooperative-close"
     operation = capture(value)
     await asyncio.wait_for(value.boundary.entered.wait(), 5)
+    exchanges = [
+        exchange
+        for exchange in value.gateway._submit_exchanges
+        if exchange.response is not None and exchange.response.request.url.path == NATIVE_RESERVE
+    ]
+    captures = [
+        attempt.task
+        for attempt in value.coordinator.standing_handoff.attempts.values()
+        if attempt.payload["task_id"] == value.packet.task.task_id
+    ]
+    assert len(exchanges) == len(captures) == 1
+    exchange, original_capture = exchanges[0], captures[0]
+    original_close = exchange.close_task
+    assert exchange.close_started and original_close is not None and not original_close.done()
     operation.cancel()
     with pytest.raises(asyncio.CancelledError):
         await operation
+    # Inject the intended actual-close fault; facade cancellation only
+    # suppresses later capture phases and does not prove its close was cancelled.
+    original_close.cancel()
     value.boundary.release.set()
+    await asyncio.wait_for(
+        asyncio.gather(exchange.task, original_close, original_capture, return_exceptions=True), 5
+    )
+    assert original_close.cancelled()
     await asyncio.wait_for(join_client(value.gateway), 5)
     assert value.gateway._submit_exchanges == set()
     assert value.gateway._submit_cleanup_failed is True
