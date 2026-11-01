@@ -3,6 +3,11 @@
 from collections.abc import AsyncIterator
 from typing import Any, Protocol
 
+from packages.contracts.agent_submit import (
+    AgentSubmitLookupRequest,
+    AgentSubmitLookupResult,
+    AgentSubmitReceipt,
+)
 from packages.contracts.models import (
     AppendRequest,
     JournalEntry,
@@ -52,6 +57,10 @@ class Journal(Protocol):
     async def window_control(
         self, session_id: str, epoch: int, agent_interrupt: bool = False
     ) -> JournalEntry | None: ...
+
+    async def admit_submit(self, request: AppendRequest) -> AgentSubmitReceipt: ...
+
+    async def lookup_submit(self, request: AgentSubmitLookupRequest) -> AgentSubmitLookupResult: ...
 
 
 class TextProvider(Protocol):

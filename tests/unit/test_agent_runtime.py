@@ -7,6 +7,7 @@ from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 
 import pytest
+from conftest import InMemorySubmitProtocol
 
 from core.policy import ApprovalError, PolicyDenied, ToolPolicy
 from packages.contracts.interfaces import Journal
@@ -33,10 +34,11 @@ from services.agent.runtime import (
 assert isinstance(Journal, object)  # interface imported for conformance
 
 
-class InMemoryJournal:
+class InMemoryJournal(InMemorySubmitProtocol):
     """Narrowly scoped test double implementing the contracts Journal."""
 
     def __init__(self, session: Session) -> None:
+        super().__init__()
         self.session_obj = session
         self.entries: list[JournalEntry] = []
         self._seq = 0

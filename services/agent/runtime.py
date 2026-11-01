@@ -41,6 +41,18 @@ from harnesses.seed import (
     observation_text,
     parse_action,
 )
+from packages.contracts.agent_submit import (
+    AGENT_SUBMIT_ADMISSION_TIMEOUT_S,
+    AGENT_SUBMIT_LOOKUP_TIMEOUT_S,
+    AgentSubmitConflict,
+    AgentSubmitLookupRequest,
+    AgentSubmitLookupResult,
+    AgentSubmitReceipt,
+    AgentSubmitUnavailable,
+    AgentSubmitUnconfirmed,
+    submit_entry,
+    submit_request,
+)
 from packages.contracts.agent_tools import (
     NativeToolSnapshot,
     agent_tool_scope,
@@ -122,6 +134,8 @@ class _PublicationUncertain(ToolFailure):
 
 
 TERMINAL = {TaskState.SUCCEEDED, TaskState.FAILED, TaskState.CANCELLED}
+MAX_PENDING_SUBMITS = 128
+MAX_SUBMIT_OPERATIONS = 128
 
 
 def _payload_hash(payload: dict[str, Any]) -> str:
@@ -276,6 +290,50 @@ class _Record:
     # confirmation or restart recovery can settle it. Never append a competing
     # cancellation/failure or accept another revision while it is uncertain.
     completion_pending: bool = False
+    submit_confirmed: bool = False
+    # Immutable native initial-entry identity, independent of later steering.
+    submit_identity: str | None = None
+
+
+@dataclass
+class _PendingSubmit:
+    request: TaskRequest
+    actor: str
+    digest: str
+    record: _Record
+    proposal: AppendRequest
+    suppressed: asyncio.Future[None]
+    launch_open: bool = True
+    admission: asyncio.Task | None = None
+    lookup: asyncio.Task | None = None
+    receipt: AgentSubmitReceipt | None = None
+    controls: dict[tuple[str, str], str] = field(default_factory=dict)
+    authority_deadline: float | None = None
+    launched: bool = False
+
+    def suppress(self) -> None:
+        # This latch closes synchronously, before cancellation or any readback.
+        self.launch_open = False
+        if not self.suppressed.done():
+            self.suppressed.set_result(None)
+        self.record.done.set()
+        # Native submission/lookup uses the journal client, never these model
+        # adapters. A suppressed launch can close its unused captured keys now;
+        # late receipt knowledge cannot revive them or schedule inference.
+        if not self.launched and self.record.model_lease is not None:
+            self.record.model_lease.start_close()
+
+
+@dataclass(eq=False)
+class _SubmitPreflight:
+    deadline: float
+    open: bool = True
+    pending: _PendingSubmit | None = None
+
+    def retire(self, *, suppress=True) -> None:
+        self.open = False
+        if suppress and self.pending is not None:
+            self.pending.suppress()
 
 
 class AgentRuntime:
@@ -324,6 +382,10 @@ class AgentRuntime:
         # Scoped (session_id, idempotency_key) so keys never collide across
         # sessions; restored by recover for terminal and paused tasks alike.
         self._submit_idem: dict[tuple[str, str], tuple[str, str]] = {}
+        self._pending_submits: dict[tuple[str, str], _PendingSubmit] = {}
+        self._submit_operations: set[asyncio.Task] = set()
+        self._submit_waiters: set[asyncio.Future] = set()
+        self._submit_preflights: set[_SubmitPreflight] = set()
         self._closed = False
 
     def provider_for(self, rec=None):
@@ -464,6 +526,7 @@ class AgentRuntime:
         epoch: int,
         source_revision: int | None,
         op: str,
+        guard=None,
     ) -> tuple[list[str], str]:
         """Resolve authenticated source authority without provider disclosure.
 
@@ -472,18 +535,24 @@ class AgentRuntime:
         supersession and interruption are checked here; export disclosure is
         enforced separately by the caller.
         """
+        if guard is not None:
+            guard()
         resolve = getattr(self.journal, "resolve", None)
         if resolve is None:
             raise PolicyDenied(f"decisions-routed {op} cannot be validated: journal has no resolve")
         texts: list[str] = []
         scopes: list[str] = []
         for source_id in source_event_ids:
+            if guard is not None:
+                guard()
             try:
                 resolved = await resolve(source_id)
             except Exception as exc:
                 raise PolicyDenied(
                     f"decisions-routed {op} carries an unresolvable source {source_id!r}"
                 ) from exc
+            if guard is not None:
+                guard()
             if (
                 resolved.session_id != session_id
                 or resolved.thread_id != thread_id
@@ -502,6 +571,8 @@ class AgentRuntime:
                     f"decisions-routed {op} source {source_id!r} is not authenticated"
                 )
             if resolved.kind == "conversation.window":
+                if guard is not None:
+                    guard()
                 try:
                     window = SpeechWindow.model_validate(resolved.payload)
                     latest = await self.journal.latest_window(
@@ -509,16 +580,26 @@ class AgentRuntime:
                     )
                 except Exception as exc:
                     raise PolicyDenied("Transcript-window source cannot be verified") from exc
+                if guard is not None:
+                    guard()
                 if latest is None or latest.payload.get("text") != window.text:
                     raise PolicyDenied("Transcript-window instruction was superseded")
                 control = await self.journal.window_control(session_id, epoch, agent_interrupt=True)
+                if guard is not None:
+                    guard()
                 if control is not None and control.payload["source_sequence"] > resolved.sequence:
                     raise PolicyDenied(
                         "Later authenticated interruption supersedes this instruction"
                     )
             elif resolved.payload.get("final") is not True:
                 raise PolicyDenied(f"decisions-routed {op} source {source_id!r} is not finalized")
-            scopes.append(await self._source_scope(source_id, resolved))
+            scopes.append(
+                await self._source_scope(source_id, resolved, guard=guard)
+                if guard is not None
+                else await self._source_scope(source_id, resolved)
+            )
+            if guard is not None:
+                guard()
             current_revision = resolved.payload.get("revision", 1)
             if source_revision is not None and source_revision != current_revision:
                 raise PolicyDenied(
@@ -542,6 +623,7 @@ class AgentRuntime:
         source_revision: int | None,
         op: str,
         provider_info=None,
+        guard=None,
     ) -> tuple[list[str], str]:
         """Resolve decisions-carried sources to exact authenticated user text.
 
@@ -556,6 +638,7 @@ class AgentRuntime:
             epoch=epoch,
             source_revision=source_revision,
             op=op,
+            **({"guard": guard} if guard is not None else {}),
         )
         if not scope_allowed(
             provider_info if provider_info is not None else self.provider.info, scope
@@ -563,8 +646,23 @@ class AgentRuntime:
             raise PolicyDenied("Source disclosure does not permit the configured Agent provider")
         return texts, scope
 
-    async def _source_scope(self, source_id, resolved):
-        return await source_scope(self.journal, source_id, resolved)
+    async def _source_scope(self, source_id, resolved, *, guard=None):
+        if guard is None:
+            return await source_scope(self.journal, source_id, resolved)
+
+        def read(method):
+            async def guarded(*args, **kwargs):
+                guard()
+                result = await getattr(self.journal, method)(*args, **kwargs)
+                guard()
+                return result
+
+            return guarded
+
+        # Only the existing source-chain reads are delegated. The guard cannot
+        # supply native admission, provenance, defaults or a successful receipt.
+        journal = SimpleNamespace(entry=read("entry"), resolve=read("resolve"), read=read("read"))
+        return await source_scope(journal, source_id, resolved)
 
     async def _task_scope(self, rec, *, persist=True, require_open=False):
         """Recheck source floors and the actual target provider at each continuation."""
@@ -628,10 +726,20 @@ class AgentRuntime:
     async def submit(
         self, request: TaskRequest, actor: str = "owner", *, explicit_skill: str | None = None
     ) -> Task:
-        # Management checks and task acceptance share one boundary. A task
-        # cannot appear between the idle check and a server definition swap.
-        async with self.integration_lock:
-            return await self._submit(request, actor, explicit_skill=explicit_skill)
+        return await self._submit(
+            request.model_copy(deep=True), actor, explicit_skill=explicit_skill
+        )
+
+    async def reconcile_submit(
+        self, request: TaskRequest, actor: str = "owner", *, explicit_skill: str | None = None
+    ) -> Task:
+        """Observe an exact prior submission without opening a new launch opportunity."""
+        return await self._submit(
+            request.model_copy(deep=True),
+            actor,
+            explicit_skill=explicit_skill,
+            reconcile_only=True,
+        )
 
     def session_harness(self, pinned: str | None) -> str:
         """Native registry policy, never caller/model assertions, grants a pin."""
@@ -650,8 +758,78 @@ class AgentRuntime:
         return version
 
     async def _submit(
-        self, request: TaskRequest, actor: str = "owner", *, explicit_skill: str | None = None
+        self,
+        request: TaskRequest,
+        actor: str = "owner",
+        *,
+        explicit_skill: str | None = None,
+        reconcile_only: bool = False,
     ) -> Task:
+        self._check_actor(actor, list(request.source_event_ids), "submit")
+        async with self.integration_lock:
+            preflight = _SubmitPreflight(time.monotonic() + AGENT_SUBMIT_LOOKUP_TIMEOUT_S)
+            self._submit_preflights.add(preflight)
+            try:
+                operation = self._start_submit_operation(
+                    lambda: self._prepare_submit(
+                        request,
+                        actor,
+                        explicit_skill=explicit_skill,
+                        preflight=preflight,
+                        reconcile_only=reconcile_only,
+                    )
+                )
+                prepared = await self._await_submit_operation(
+                    operation, preflight.deadline - time.monotonic()
+                )
+                self._submit_open(preflight=preflight)
+            except BaseException:
+                preflight.retire()
+                raise
+            finally:
+                self._submit_preflights.discard(preflight)
+            preflight.retire(suppress=False)
+        if isinstance(prepared, Task):
+            return prepared
+        return await self._admit_submit(prepared)
+
+    def _submit_open(self, *, preflight=None, pending=None, deadline=None) -> None:
+        current = asyncio.current_task()
+        expired = deadline is not None and time.monotonic() >= deadline
+        if preflight is not None:
+            expired = expired or not preflight.open or time.monotonic() >= preflight.deadline
+        if (
+            self._closed
+            or expired
+            or (current is not None and current.cancelling())
+            or (
+                pending is not None
+                and (
+                    not pending.launch_open
+                    or pending.record.closing
+                    or pending.record.cancel_requested
+                )
+            )
+        ):
+            if preflight is not None:
+                preflight.retire()
+            if pending is not None:
+                pending.suppress()
+            raise AgentSubmitUnavailable
+
+    async def _prepare_submit(
+        self,
+        request: TaskRequest,
+        actor: str,
+        *,
+        explicit_skill: str | None,
+        preflight: _SubmitPreflight,
+        reconcile_only: bool = False,
+    ) -> Task | _PendingSubmit:
+        def guard():
+            self._submit_open(preflight=preflight)
+
+        guard()
         self._check_actor(actor, list(request.source_event_ids), "submit")
         if explicit_skill is not None:
             if actor != "owner":
@@ -659,6 +837,7 @@ class AgentRuntime:
             if not isinstance(explicit_skill, str) or not 1 <= len(explicit_skill) <= 256:
                 raise ValueError("Invalid explicit skill id")
         session = await self._require_session(request.session_id)
+        guard()
         if (request.thread_id, request.epoch) != (session.thread_id, session.epoch):
             raise StaleRevision(
                 f"submit targets thread {request.thread_id} epoch {request.epoch}; "
@@ -674,6 +853,7 @@ class AgentRuntime:
                 epoch=request.epoch,
                 source_revision=request.source_revision,
                 op="submit",
+                guard=guard,
             )
             expected = "\n".join(texts)
             if actor == "decisions" and objective != expected:
@@ -696,24 +876,72 @@ class AgentRuntime:
             payload["explicit_skill"] = explicit_skill
         digest = _payload_hash(payload)
         idem_key = (request.session_id, request.idempotency_key)
-        if idem_key in self._submit_idem:
-            old_digest, task_id = self._submit_idem[idem_key]
-            if old_digest != digest:
-                old_payload = {
-                    key: value for key, value in payload.items() if key != "content_scope"
-                }
-                if not (
-                    self._get(task_id).legacy_submit_scope
-                    and request.content_scope == "local_only"
-                    and old_digest == _payload_hash(old_payload)
-                ):
-                    raise IdemConflict("idempotency key reuses a conflicting submit payload")
-            return self._copy(task_id)
-        # Genuinely new work only: configured skills, harness/model choice,
-        # and full export disclosure gates. Receipt reads return above
-        # without consulting providers, settings, or harness eligibility.
-        if self._closed:
-            raise PolicyDenied("Agent is closing; no new work was accepted")
+        guard()
+        confirmed = self._submit_idem.get(idem_key)
+        if confirmed is not None:
+            old_digest, task_id = confirmed
+            rec = self._get(task_id)
+            if rec.submit_confirmed:
+                self._check_submit_digest(rec, payload, digest, old_digest)
+                return self._copy(task_id)
+        pending = self._pending_submits.get(idem_key)
+        if pending is not None:
+            if pending.digest != digest:
+                raise IdemConflict("idempotency key reuses a conflicting submit payload")
+            if pending.launch_open:
+                raise AgentSubmitUnconfirmed
+            deadline = preflight.deadline
+            try:
+                result = await self._lookup_submit(request, deadline, pending)
+                if result.status != "recorded":
+                    raise AgentSubmitUnconfirmed
+                AgentSubmitReceipt(disposition="retained", entry=result.entry).validate_request(
+                    pending.proposal
+                )
+                rec = await self._hydrate_submit(result.entry, deadline, guard=guard)
+            except (AgentSubmitConflict, asyncio.CancelledError):
+                raise
+            except Exception:
+                raise AgentSubmitUnconfirmed from None
+            self._release_submit(pending, rec)
+            return rec.task.model_copy(deep=True)
+
+        # A native winner precedes every current provider, harness and skill check.
+        deadline = preflight.deadline
+        result = await self._lookup_submit(request, deadline)
+        guard()
+        if result.status == "recorded":
+            winner = result.entry
+            self._check_submit_digest(
+                None, payload, digest, winner.payload["payload_digest"], entry=winner
+            )
+            rec = await self._hydrate_submit(winner, deadline, guard=guard)
+            return rec.task.model_copy(deep=True)
+
+        if reconcile_only:
+            # Unobserved is not failure evidence: an older admission may still
+            # commit. Receipt checks never construct models or reserve new work.
+            raise AgentSubmitUnconfirmed
+
+        # Management remains excluded until selection and the frozen reservation.
+        guard()
+        confirmed = self._submit_idem.get(idem_key)
+        if confirmed is not None:
+            old_digest, task_id = confirmed
+            rec = self._get(task_id)
+            if rec.submit_confirmed:
+                self._check_submit_digest(rec, payload, digest, old_digest)
+                return self._copy(task_id)
+        pending = self._pending_submits.get(idem_key)
+        if pending is not None:
+            if pending.digest != digest:
+                raise IdemConflict("idempotency key reuses a conflicting submit payload")
+            raise AgentSubmitUnconfirmed
+        if (
+            len(self._pending_submits) >= MAX_PENDING_SUBMITS
+            or len(self._submit_operations) >= MAX_SUBMIT_OPERATIONS
+        ):
+            raise AgentSubmitUnavailable
         if self.model_settings is not None and self.model_settings.catalog_cleanup_busy:
             raise PolicyDenied("Catalog provider cleanup is unconfirmed; no new work accepted")
         if explicit_skill is not None and self.skill_service is None:
@@ -738,6 +966,7 @@ class AgentRuntime:
                 raise PolicyDenied(
                     "Source disclosure does not permit the configured Agent provider"
                 )
+            content_scope = combine_scopes(request.content_scope, source_scope)
             if not scope_allowed(task_provider.info, content_scope):
                 raise PolicyDenied("Task disclosure does not permit the configured Agent provider")
             task = Task(
@@ -752,68 +981,553 @@ class AgentRuntime:
                 idempotency_key=request.idempotency_key,
                 harness_version=harness_version,
                 model_pin=model_pin,
+                auxiliary_models=auxiliary_pins,
             )
-            task.auxiliary_models = auxiliary_pins
             rec = _Record(
                 task=task,
-                provider=task_provider if self.model_settings is not None else None,
+                provider=task_provider,
                 explicit_skill=explicit_skill,
-                auxiliary_providers=auxiliary_providers,
+                auxiliary_providers=dict(auxiliary_providers),
                 model_lease=model_lease,
             )
             if request.source_event_ids:
                 rec.source_revisions = dict.fromkeys(
                     request.source_event_ids, request.source_revision
                 )
-        except BaseException:
-            if model_lease is not None:
-                model_lease.start_close()
-            raise
-        self._tasks[task.task_id] = rec
-        self._submit_idem[idem_key] = (digest, task.task_id)
-        try:
-            await self._append(
-                rec,
-                "agent.command",
-                {
-                    "op": "submit",
-                    "actor": actor,
-                    "session_id": request.session_id,
-                    "thread_id": request.thread_id,
-                    "epoch": request.epoch,
-                    "objective": objective,
-                    "objective_revision": task.objective_revision,
-                    "source_event_ids": list(request.source_event_ids),
-                    "source_revision": request.source_revision,
-                    "requested_content_scope": request.content_scope,
-                    "idempotency_key": request.idempotency_key,
-                    "payload_digest": digest,
-                    "harness_version": task.harness_version,
-                    "model_pin": model_pin.model_dump(mode="json")
-                    if model_pin is not None
-                    else None,
-                    "auxiliary_models": {
-                        key: value.model_dump(mode="json") for key, value in auxiliary_pins.items()
+            proposal = submit_request(
+                self._append_request(
+                    rec,
+                    "agent.command",
+                    {
+                        "op": "submit",
+                        "actor": actor,
+                        "session_id": request.session_id,
+                        "thread_id": request.thread_id,
+                        "epoch": request.epoch,
+                        "objective": objective,
+                        "objective_revision": task.objective_revision,
+                        "source_event_ids": list(request.source_event_ids),
+                        "source_revision": request.source_revision,
+                        "requested_content_scope": request.content_scope,
+                        "idempotency_key": request.idempotency_key,
+                        "payload_digest": digest,
+                        "harness_version": task.harness_version,
+                        "model_pin": model_pin.model_dump(mode="json")
+                        if model_pin is not None
+                        else None,
+                        "auxiliary_models": {
+                            key: value.model_dump(mode="json")
+                            for key, value in auxiliary_pins.items()
+                        },
+                        "explicit_skill": explicit_skill,
                     },
-                    "explicit_skill": explicit_skill,
-                },
+                )
             )
+            pending = _PendingSubmit(
+                request=request,
+                actor=actor,
+                digest=digest,
+                record=rec,
+                proposal=proposal,
+                suppressed=asyncio.get_running_loop().create_future(),
+            )
+            # Public uncertainty never mutates the accepted native proposal.
+            task.state = TaskState.PAUSED
+            task.summary = ""
+            task.error = str(AgentSubmitUnconfirmed())
+            guard()
+            if task.task_id in self._tasks:
+                raise AgentSubmitUnavailable
+            preflight.pending = pending
+            self._pending_submits[idem_key] = pending
+            self._tasks[task.task_id] = rec
+
+            return pending
         except BaseException:
-            # The append may have committed without its ACK. Do not start work
-            # or rebind this pin; preserve an inspectable stopped record and
-            # independently retain close ownership for its unused adapters.
-            rec.task.state = TaskState.PAUSED
-            rec.task.error = "Initial task acceptance is unconfirmed; no work started"
-            rec.done.set()
             if model_lease is not None:
                 model_lease.start_close()
             raise
-        rec.worker = asyncio.create_task(self._run(rec))
-        return task.model_copy(deep=True)
+
+    async def _admit_submit(self, pending: _PendingSubmit) -> Task:
+        rec, proposal = pending.record, pending.proposal
+        request, digest = pending.request, pending.digest
+        idem_key = (request.session_id, request.idempotency_key)
+        try:
+            admit = getattr(self.journal, "admit_submit", None)
+            if not callable(admit):
+                raise AgentSubmitUnavailable
+
+            async def send():
+                self._submit_open(pending=pending)
+                return await admit(proposal.model_copy(deep=True))
+
+            pending.admission = self._start_submit_operation(send, pending)
+            raw = await self._await_submit_operation(
+                pending.admission, AGENT_SUBMIT_ADMISSION_TIMEOUT_S, pending
+            )
+            receipt = self._submit_receipt(raw, proposal)
+            pending.receipt = receipt
+        except asyncio.CancelledError:
+            pending.suppress()
+            raise
+        except AgentSubmitConflict:
+            pending.suppress()
+            raise
+        except Exception:
+            pending.suppress()
+            raise AgentSubmitUnconfirmed from None
+        if self._closed:
+            pending.suppress()
+            raise AgentSubmitUnconfirmed
+        if receipt.disposition == "retained":
+            pending.suppress()
+            rec = await self._hydrate_submit(
+                receipt.entry, time.monotonic() + AGENT_SUBMIT_LOOKUP_TIMEOUT_S
+            )
+            self._release_submit(pending, rec)
+            return rec.task.model_copy(deep=True)
+
+        rec.submit_sequence = receipt.entry.sequence
+        rec.submit_identity = _payload_hash(receipt.entry.model_dump(mode="json"))
+        rec.submit_confirmed = True
+        rec.task.error = None
+        self._submit_idem[idem_key] = (digest, rec.task.task_id)
+        try:
+            # Only this direct created response has a launch opportunity.
+            pending.authority_deadline = time.monotonic() + AGENT_SUBMIT_LOOKUP_TIMEOUT_S
+            authority = self._start_submit_operation(lambda: self._fresh_submit_authority(pending))
+            await self._await_submit_operation(authority, AGENT_SUBMIT_LOOKUP_TIMEOUT_S, pending)
+            if not pending.launch_open or self._closed or rec.closing or rec.cancel_requested:
+                pending.suppress()
+                return rec.task.model_copy(deep=True)
+            pending.launch_open = False
+            rec.task.state = TaskState.ACCEPTED
+            rec.worker = asyncio.create_task(self._run(rec))
+            pending.launched = True
+            return rec.task.model_copy(deep=True)
+        except BaseException:
+            pending.suppress()
+            if rec.task.state not in TERMINAL:
+                rec.task.error = "Submission confirmed; local execution was not started"
+            raise
+        finally:
+            self._release_submit(pending, rec)
+
+    @staticmethod
+    def _check_submit_digest(rec, payload, digest, old_digest, *, entry=None) -> None:
+        if old_digest == digest:
+            return
+        legacy = (
+            rec.legacy_submit_scope
+            if rec is not None
+            else ("requested_content_scope" not in entry.payload)
+        )
+        if (
+            legacy
+            and payload["content_scope"] == "local_only"
+            and old_digest
+            == _payload_hash(
+                {key: value for key, value in payload.items() if key != "content_scope"}
+            )
+        ):
+            return
+        if rec is None:
+            raise AgentSubmitConflict
+        raise IdemConflict("idempotency key reuses a conflicting submit payload")
+
+    @staticmethod
+    def _submit_receipt(raw, proposal) -> AgentSubmitReceipt:
+        detached = copy.deepcopy(
+            raw.model_dump(mode="python") if isinstance(raw, AgentSubmitReceipt) else raw
+        )
+        return AgentSubmitReceipt.model_validate(detached).validate_request(proposal)
+
+    def _start_submit_operation(self, invoke, pending=None) -> asyncio.Task:
+        if self._closed or len(self._submit_operations) >= MAX_SUBMIT_OPERATIONS:
+            raise AgentSubmitUnavailable
+
+        async def call():
+            return await invoke()
+
+        operation = asyncio.create_task(call())
+        self._submit_operations.add(operation)
+
+        def settled(task):
+            self._submit_operations.discard(task)
+            try:
+                value = task.result()
+                if pending is not None:
+                    pending.receipt = self._submit_receipt(value, pending.proposal)
+            except BaseException:
+                if pending is not None:
+                    pending.suppress()
+            # No readback, dependency access or launch happens in a late callback.
+
+        operation.add_done_callback(settled)
+        return operation
+
+    async def _await_submit_operation(self, operation, timeout, pending=None):
+        deadline = time.monotonic() + max(0, timeout)
+        if len(self._submit_waiters) >= MAX_SUBMIT_OPERATIONS:
+            if pending is not None:
+                pending.suppress()
+            raise AgentSubmitUnavailable
+        abort = asyncio.get_running_loop().create_future()
+        self._submit_waiters.add(abort)
+        waiters = {operation, abort}
+        if pending is not None:
+            waiters.add(pending.suppressed)
+        try:
+            if time.monotonic() >= deadline:
+                if pending is not None:
+                    pending.suppress()
+                operation.cancel()
+                raise AgentSubmitUnavailable
+            done, _ = await asyncio.wait(
+                waiters,
+                timeout=max(0, deadline - time.monotonic()),
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            # A completed task can win scheduling after the total budget elapsed.
+            # Its result is knowledge, never a late execution authorization.
+            if time.monotonic() >= deadline:
+                if pending is not None:
+                    pending.suppress()
+                operation.cancel()
+                raise AgentSubmitUnavailable
+            if operation in done:
+                return operation.result()
+            if pending is not None:
+                pending.suppress()
+            operation.cancel()
+            raise AgentSubmitUnavailable
+        except asyncio.CancelledError:
+            if pending is not None:
+                pending.suppress()
+            operation.cancel()
+            raise
+        finally:
+            self._submit_waiters.discard(abort)
+            abort.cancel()
+
+    async def _lookup_submit(self, request, deadline, pending=None):
+        query = AgentSubmitLookupRequest(
+            session_id=request.session_id,
+            thread_id=request.thread_id,
+            epoch=request.epoch,
+            idempotency_key=request.idempotency_key,
+        )
+        lookup = getattr(self.journal, "lookup_submit", None)
+        if not callable(lookup):
+            raise AgentSubmitUnavailable
+        try:
+            operation = pending.lookup if pending is not None else None
+            if operation is None or operation.done():
+                operation = self._start_submit_operation(
+                    lambda: lookup(query.model_copy(deep=True))
+                )
+                if pending is not None:
+                    pending.lookup = operation
+            raw = await self._await_submit_operation(operation, deadline - time.monotonic())
+            if self._closed:
+                raise AgentSubmitUnavailable
+            detached = copy.deepcopy(
+                raw.model_dump(mode="python") if isinstance(raw, AgentSubmitLookupResult) else raw
+            )
+            return AgentSubmitLookupResult.model_validate(detached).validate_request(query)
+        except (AgentSubmitConflict, asyncio.CancelledError):
+            raise
+        except Exception:
+            raise AgentSubmitUnavailable from None
+
+    async def _fresh_submit_authority(self, pending) -> None:
+        rec, request = pending.record, pending.request
+
+        def guard():
+            self._submit_open(pending=pending, deadline=pending.authority_deadline)
+
+        guard()
+        session = await self._require_session(request.session_id)
+        guard()
+        if self._check_task_epoch(rec, session):
+            raise StaleRevision("Submission session changed before execution")
+        if request.source_event_ids:
+            texts, scope = await self._source_authority_texts(
+                list(request.source_event_ids),
+                session_id=request.session_id,
+                thread_id=request.thread_id,
+                epoch=request.epoch,
+                source_revision=request.source_revision,
+                op="submit",
+                guard=guard,
+            )
+            guard()
+            if pending.actor == "decisions" and request.objective != "\n".join(texts):
+                raise PolicyDenied("Submitted instruction changed before execution")
+            rec.task.content_scope = combine_scopes(rec.task.content_scope, scope)
+            if not scope_allowed(self.provider_for(rec).info, rec.task.content_scope):
+                raise PolicyDenied("Task disclosure does not permit the configured Agent provider")
+        guard()
+        session = await self._require_session(request.session_id)
+        guard()
+        if self._check_task_epoch(rec, session):
+            raise StaleRevision("Submission session changed before execution")
+
+    def _release_submit(self, pending, winner) -> None:
+        if not pending.launched and pending.record.model_lease is not None:
+            pending.record.model_lease.start_close()
+        key = (pending.request.session_id, pending.request.idempotency_key)
+        if self._pending_submits.get(key) is pending:
+            self._pending_submits.pop(key)
+        if (
+            winner is not pending.record
+            and self._tasks.get(pending.record.task.task_id) is pending.record
+        ):
+            self._tasks.pop(pending.record.task.task_id)
+
+    def _check_submit_record(self, rec: _Record, entry: JournalEntry) -> None:
+        identity = _payload_hash(entry.model_dump(mode="json"))
+        if rec.submit_identity is not None:
+            if rec.submit_identity != identity:
+                raise AgentSubmitUnavailable
+            return
+        # An unconfirmed reservation may acquire its canonical proof without
+        # comparing the mutable public Task or granting another launch.
+        pending = self._pending_submits.get((entry.session_id, entry.payload["idempotency_key"]))
+        if pending is None or pending.record is not rec or pending.launch_open:
+            raise AgentSubmitUnavailable
+        try:
+            AgentSubmitReceipt(disposition="retained", entry=entry).validate_request(
+                pending.proposal
+            )
+        except ValueError:
+            raise AgentSubmitUnavailable from None
+
+    async def _hydrate_submit(self, entry, deadline, *, guard=None) -> _Record:
+        if guard is not None:
+            guard()
+        entry = submit_entry(entry)
+        existing = self._tasks.get(entry.payload["task_id"])
+        if existing is not None:
+            self._check_submit_record(existing, entry)
+            if existing.submit_confirmed:
+                return existing
+        operation = self._start_submit_operation(
+            lambda: self._read_submit_record(entry, deadline, guard=guard)
+        )
+        try:
+            rec = await self._await_submit_operation(operation, deadline - time.monotonic())
+            if self._closed:
+                raise AgentSubmitUnavailable
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            raise AgentSubmitUnavailable from None
+        if guard is not None:
+            guard()
+        self._submit_open(deadline=deadline)
+        existing = self._tasks.get(rec.task.task_id)
+        if existing is not None:
+            self._check_submit_record(existing, entry)
+            if existing.submit_confirmed:
+                return existing
+        rec.submit_confirmed = True
+        self._tasks[rec.task.task_id] = rec
+        self._submit_idem[(entry.session_id, entry.payload["idempotency_key"])] = (
+            entry.payload["payload_digest"],
+            rec.task.task_id,
+        )
+        return rec
+
+    async def _read_submit_record(self, entry, deadline, *, guard=None) -> _Record:
+        def check():
+            self._submit_open(deadline=deadline)
+            if guard is not None:
+                guard()
+
+        check()
+        payload = entry.payload
+        task = Task(
+            task_id=payload["task_id"],
+            session_id=entry.session_id,
+            thread_id=entry.thread_id,
+            epoch=entry.epoch,
+            objective=payload["objective"],
+            objective_revision=payload["objective_revision"],
+            state=TaskState.PAUSED,
+            source_event_ids=list(payload["source_event_ids"]),
+            content_scope=payload.get("content_scope", "local_only"),
+            idempotency_key=payload["idempotency_key"],
+            harness_version=payload["harness_version"],
+            model_pin=payload.get("model_pin"),
+            auxiliary_models=payload.get("auxiliary_models", {}),
+            summary="recovered paused; uncertain writes not retried; resubmit to continue",
+        )
+        rec = _Record(
+            task=task,
+            recovered=True,
+            submit_sequence=entry.sequence,
+            submit_identity=_payload_hash(entry.model_dump(mode="json")),
+            legacy_submit_scope="requested_content_scope" not in payload,
+            explicit_skill=payload.get("explicit_skill"),
+        )
+        # Retain only typed retirement hashes, the latest snapshot/pins and the
+        # cumulative scope. A byte-limited page is not evidence of final absence.
+        retirements: dict[tuple[int, str], str] = {}
+        after = entry.sequence - 1
+        while True:
+            check()
+            batch = await self.journal.read(after=after, limit=200, task_id=task.task_id)
+            check()
+            if not batch:
+                break
+            for event in batch:
+                if event.sequence <= after:
+                    raise AgentSubmitUnavailable
+                after = event.sequence
+                if event.origin != "agent-supervisor" or event.task_refs != [task.task_id]:
+                    continue
+                if (event.session_id, event.thread_id) != (task.session_id, task.thread_id):
+                    continue
+                if event.kind == "agent.retirement":
+                    try:
+                        claimed = TaskRetirement.model_validate(event.payload)
+                    except ValueError:
+                        continue
+                    # Bind the revision after the final authoritative snapshot.
+                    identity = task.model_copy(
+                        update={"objective_revision": claimed.objective_revision}
+                    )
+                    receipt = _authenticated_retirement(event, identity, entry.sequence)
+                    if receipt is not None:
+                        retirements[(receipt.objective_revision, receipt.request_key_sha256)] = (
+                            receipt.request_digest
+                        )
+                    continue
+                if event.epoch != task.epoch:
+                    continue
+                task.content_scope = combine_scopes(
+                    task.content_scope, event.payload.get("content_scope", "local_only")
+                )
+                pins = event.payload.get("plugin_versions", {})
+                if (
+                    type(pins) is not dict
+                    or len(pins) > 16
+                    or any(type(k) is not str or type(v) is not str for k, v in pins.items())
+                ):
+                    raise AgentSubmitUnavailable
+                rec.plugin_versions = dict(pins)
+                prefix = f"agent:{task.task_id}:{event.kind}:"
+                if event.idempotency_key.startswith(prefix):
+                    suffix = event.idempotency_key[len(prefix) :]
+                    if suffix.isdecimal() and len(suffix) <= 19:
+                        rec.journal_seq = max(rec.journal_seq, int(suffix))
+                if event.kind == "agent.outcome" and isinstance(event.payload.get("task"), dict):
+                    snapshot = Task.model_validate(event.payload["task"])
+                    if (
+                        snapshot.task_id,
+                        snapshot.session_id,
+                        snapshot.thread_id,
+                        snapshot.epoch,
+                        snapshot.idempotency_key,
+                    ) != (
+                        task.task_id,
+                        task.session_id,
+                        task.thread_id,
+                        task.epoch,
+                        task.idempotency_key,
+                    ):
+                        raise AgentSubmitUnavailable
+                    snapshot.harness_version = task.harness_version
+                    snapshot.model_pin = task.model_pin
+                    snapshot.auxiliary_models = task.auxiliary_models
+                    snapshot.content_scope = combine_scopes(
+                        task.content_scope, snapshot.content_scope
+                    )
+                    if snapshot.state not in TERMINAL:
+                        snapshot.state = TaskState.PAUSED
+                        snapshot.summary = (
+                            "recovered paused; uncertain writes not retried; resubmit to continue"
+                        )
+                    if task.state not in TERMINAL or snapshot.state in TERMINAL:
+                        task = rec.task = snapshot
+            # Cooperative yielding makes the total deadline effective even for
+            # adapters whose async reads return immediately on every page.
+            await asyncio.sleep(0)
+        check()
+        if task.state not in TERMINAL:
+            rec.retirement_keys = {
+                key: digest
+                for (revision, key), digest in retirements.items()
+                if revision == task.objective_revision
+            }
+            if rec.retirement_keys:
+                task.state = TaskState.CANCELLED
+                task.error = "cancelled by owner"
+                task.summary = RETIRED_SUMMARY
+        rec.done.set()
+        return rec
+
+    async def _pending_submit_control(self, rec, request, actor, op) -> None:
+        key = (rec.task.session_id, rec.task.idempotency_key)
+        pending = self._pending_submits.get(key)
+        if pending is None or pending.record is not rec or rec.submit_confirmed:
+            return
+        self._check_actor(actor, list(request.source_event_ids), op)
+
+        def guard():
+            if self._closed:
+                raise AgentSubmitUnconfirmed
+            self._submit_open()
+
+        guard()
+        session = await self._require_session(rec.task.session_id)
+        if self._closed:
+            raise AgentSubmitUnconfirmed
+        if self._check_task_epoch(rec, session):
+            raise StaleRevision("Submission control targets a stale session")
+        if request.source_event_ids:
+            texts, _ = await self._validated_source_texts(
+                list(request.source_event_ids),
+                session_id=rec.task.session_id,
+                thread_id=rec.task.thread_id,
+                epoch=rec.task.epoch,
+                source_revision=getattr(request, "source_revision", None),
+                op=op,
+                provider_info=self.provider_for(rec).info,
+                guard=guard,
+            )
+            if self._closed:
+                raise AgentSubmitUnconfirmed
+            if op == "steer" and actor == "decisions" and request.instruction != "\n".join(texts):
+                raise PolicyDenied(
+                    "decisions-routed steer instruction does not match authenticated text"
+                )
+        if request.expected_objective_revision != rec.task.objective_revision:
+            raise StaleRevision("Submission control targets a stale objective revision")
+        digest = _payload_hash(
+            request.model_dump(mode="json", exclude={"schema_version", "idempotency_key"})
+        )
+        control_key = (op, request.idempotency_key)
+        old = pending.controls.get(control_key)
+        if old is not None and old != digest:
+            raise IdemConflict(f"idempotency key reuses a conflicting {op} payload")
+        if old is None and len(pending.controls) >= MAX_PENDING_SUBMITS:
+            raise AgentSubmitUnconfirmed
+        # Confirmation may have arrived during authentication. Normal controls
+        # may proceed only after the initial native acceptance is known.
+        if rec.submit_confirmed:
+            return
+        pending.controls[control_key] = digest
+        if op == "interrupt":
+            pending.suppress()
+            rec.cancel_requested = True
+        raise AgentSubmitUnconfirmed
 
     # -- interface: steer ---------------------------------------------
     async def steer(self, task_id: str, request: SteerRequest, actor: str = "owner") -> Task:
         rec = self._get(task_id)
+        await self._pending_submit_control(rec, request, actor, "steer")
         self._check_actor(actor, list(request.source_event_ids), "steer")
         if request.idempotency_key not in rec.steer_idem:
             self._check_completion_open(rec, require_active=True)
@@ -1006,9 +1720,10 @@ class AgentRuntime:
     async def interrupt(
         self, task_id: str, request: InterruptRequest, actor: str = "owner"
     ) -> Task:
+        rec = self._get(task_id)
+        await self._pending_submit_control(rec, request, actor, "interrupt")
         if self._closed:
             raise ValueError("Agent is closing")
-        rec = self._get(task_id)
         self._check_completion_open(rec)
         if rec.recovered and rec.task.state == TaskState.PAUSED and rec.worker is None:
             if actor != "owner":
@@ -1241,6 +1956,22 @@ class AgentRuntime:
 
     async def close(self) -> None:
         self._closed = True
+        for preflight in self._submit_preflights:
+            preflight.retire()
+        for pending in self._pending_submits.values():
+            pending.suppress()
+            pending.record.closing = True
+            pending.record.cancel_requested = True
+        for waiter in self._submit_waiters:
+            if not waiter.done():
+                waiter.set_result(None)
+        operations = list(self._submit_operations)
+        for operation in operations:
+            operation.cancel()
+        if operations:
+            # asyncio.wait does not join resistant cancellation indefinitely.
+            # Unsettled operations remain strongly owned until their callbacks run.
+            await asyncio.wait(operations, timeout=1.0)
         workers: list[tuple[_Record, asyncio.Task[None]]] = []
         for rec in self._tasks.values():
             if rec.task.state in TERMINAL:
@@ -1362,6 +2093,9 @@ class AgentRuntime:
                 break
         else:
             raise ApprovalError(f"unknown or superseded approval {approval_id!r}")
+        reservation = self._pending_submits.get((rec.task.session_id, rec.task.idempotency_key))
+        if reservation is not None and reservation.record is rec and not rec.submit_confirmed:
+            raise AgentSubmitUnconfirmed
         if resolution.objective_revision != rec.task.objective_revision:
             raise StaleRevision("approval resolution targets a stale objective revision")
         if resolution.action_digest != pending["digest"]:
@@ -1402,159 +2136,106 @@ class AgentRuntime:
             return await self._recover()
 
     async def _recover(self) -> list[Task]:
-        """Rebuild task state from the journal without re-executing anything.
-
-        Reads the journal in bounded pages (<=200 entries, the journal
-        maximum). Terminal tasks are restored from their complete outcome
-        snapshots so Converse can ground on them, and submit idempotency is
-        restored under scoped (session, idempotency) keys. Uncertain
-        non-terminal work resumes as paused: the owner must explicitly
-        resubmit. No worker is ever recreated, so an acknowledged write is
-        never replayed after a restart.
-        """
-        seen: dict[str, dict[str, Any]] = {}
-        submit_sequences: dict[str, int] = {}
-        outcomes: dict[str, dict[str, Any]] = {}
-        retirements: dict[str, list[JournalEntry]] = {}
-        plugin_pins: dict[str, dict[str, str]] = {}
-        journal_numbers: dict[str, int] = {}
-        task_scopes: dict[str, str] = {}
+        """Restore status without treating JSON history as native slot authority."""
+        submissions: dict[str, JournalEntry] = {}
         after = 0
         while True:
+            if self._closed:
+                raise AgentSubmitUnavailable
             batch = await self.journal.read(after=after, limit=200)
             if not batch:
                 break
-            after = batch[-1].sequence
-            for entry in batch:
-                refs = entry.task_refs or []
-                if entry.origin == "agent-supervisor":
-                    for ref in refs:
-                        task_scopes[ref] = combine_scopes(
-                            task_scopes.get(ref, "public_synthetic"),
-                            entry.payload.get("content_scope", "local_only"),
-                        )
-                        prefix = f"agent:{ref}:{entry.kind}:"
-                        key = entry.idempotency_key
-                        if key.startswith(prefix):
-                            suffix = key[len(prefix) :]
-                            if suffix.isdecimal() and len(suffix) <= 19:
-                                journal_numbers[ref] = max(journal_numbers.get(ref, 0), int(suffix))
-                if entry.origin == "agent-supervisor" and isinstance(
-                    entry.payload.get("plugin_versions"), dict
-                ):
-                    for ref in refs:
-                        plugin_pins[ref] = dict(entry.payload["plugin_versions"])
-                if entry.kind == "agent.command" and entry.payload.get("op") == "submit":
-                    for ref in refs:
-                        if ref not in seen and (
-                            entry.origin == "agent-supervisor"
-                            and refs == [ref]
-                            and entry.payload.get("task_id") == ref
-                            and entry.payload.get("session_id") == entry.session_id
-                            and entry.payload.get("thread_id") == entry.thread_id
-                            and entry.payload.get("epoch") == entry.epoch
-                        ):
-                            submit_sequences[ref] = entry.sequence
-                        seen.setdefault(ref, entry.payload)
-                elif entry.kind == "agent.outcome":
-                    for ref in refs:
-                        outcomes[ref] = entry.payload
-                elif entry.kind == "agent.retirement":
-                    for ref in refs:
-                        retirements.setdefault(ref, []).append(entry)
-        recovered: list[Task] = []
-        for task_id, payload in seen.items():
+            for event in batch:
+                if event.sequence <= after:
+                    raise AgentSubmitUnavailable
+                after = event.sequence
+                if event.kind != "agent.command" or event.payload.get("op") != "submit":
+                    continue
+                try:
+                    entry = submit_entry(event)
+                except ValueError:
+                    continue
+                task_id = entry.payload["task_id"]
+                previous = submissions.get(task_id)
+                if previous is not None and previous != entry:
+                    raise AgentSubmitUnavailable
+                submissions[task_id] = entry
+        staged: dict[str, _Record] = {}
+        staged_entries: dict[str, JournalEntry] = {}
+        confirmed: dict[tuple[str, str], tuple[str, str]] = {}
+        for task_id, entry in submissions.items():
             if task_id in self._tasks:
+                self._check_submit_record(self._tasks[task_id], entry)
                 continue
-            digest = payload.get("payload_digest")
-            if digest is not None and payload.get("session_id") and payload.get("idempotency_key"):
-                self._submit_idem[(payload["session_id"], payload["idempotency_key"])] = (
-                    digest,
+            if self._closed:
+                raise AgentSubmitUnavailable
+            session = await self._require_session(entry.session_id)
+            current = (session.thread_id, session.epoch) == (entry.thread_id, entry.epoch)
+            deadline = time.monotonic() + AGENT_SUBMIT_LOOKUP_TIMEOUT_S
+            if current:
+                result = await self._lookup_submit(
+                    AgentSubmitLookupRequest(
+                        session_id=entry.session_id,
+                        thread_id=entry.thread_id,
+                        epoch=entry.epoch,
+                        idempotency_key=entry.payload["idempotency_key"],
+                    ),
+                    deadline,
+                )
+                if result.status != "recorded":
+                    raise AgentSubmitUnavailable
+                entry = result.entry
+                task_id = entry.payload["task_id"]
+            if task_id in self._tasks:
+                self._check_submit_record(self._tasks[task_id], entry)
+                continue
+            previous = staged_entries.get(task_id)
+            if previous is not None:
+                if previous != entry:
+                    raise AgentSubmitUnavailable
+                continue
+            operation = self._start_submit_operation(
+                lambda entry=entry, deadline=deadline: self._read_submit_record(entry, deadline)
+            )
+            try:
+                rec = await self._await_submit_operation(operation, deadline - time.monotonic())
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                raise AgentSubmitUnavailable from None
+            rec.submit_confirmed = current
+            staged[task_id] = rec
+            staged_entries[task_id] = entry
+            if current:
+                confirmed[(entry.session_id, entry.payload["idempotency_key"])] = (
+                    entry.payload["payload_digest"],
                     task_id,
                 )
-            if task_id in outcomes:
-                snapshot = outcomes[task_id].get("task")
-                if snapshot is None:
-                    continue  # outcome without a snapshot cannot be grounded
-                task = Task.model_validate(
-                    {
-                        **snapshot,
-                        "content_scope": combine_scopes(
-                            snapshot.get("content_scope", "local_only"),
-                            task_scopes.get(task_id, "local_only"),
-                        ),
-                    }
-                )
-                if task.state not in TERMINAL:
-                    task.state = TaskState.PAUSED
-                    task.summary = (
-                        "recovered paused; outcome snapshot was non-terminal; "
-                        "uncertain writes not retried; resubmit to continue"
-                    )
-            else:
-                task = Task(
-                    task_id=task_id,
-                    session_id=payload.get("session_id", ""),
-                    thread_id=payload.get("thread_id", ""),
-                    epoch=payload.get("epoch", 1),
-                    objective=payload.get("objective", ""),
-                    content_scope=combine_scopes(
-                        payload.get("content_scope", "local_only"),
-                        task_scopes.get(task_id, "local_only"),
-                    ),
-                    objective_revision=payload.get("objective_revision", 1),
-                    state=TaskState.PAUSED,
-                    summary=(
-                        "recovered paused; uncertain writes not retried; resubmit to continue"
-                    ),
-                    source_event_ids=list(payload.get("source_event_ids", [])),
-                    idempotency_key=payload.get("idempotency_key", task_id),
-                    harness_version=payload.get("harness_version", "seed-v1"),
-                    model_pin=payload.get("model_pin"),
-                    auxiliary_models=payload.get("auxiliary_models", {}),
-                )
-            rec = _Record(
-                task=task,
-                recovered=True,
-                submit_sequence=submit_sequences.get(task_id, 0),
-                legacy_submit_scope="requested_content_scope" not in payload,
-            )
-            if task.state not in TERMINAL:
-                # A valid native receipt retires the work without replay;
-                # malformed or mismatched receipts never settle anything, and
-                # a native terminal execution outcome always wins.
-                for entry in retirements.get(task_id, []):
-                    receipt = _authenticated_retirement(entry, task, rec.submit_sequence)
-                    if receipt is None:
-                        continue
-                    rec.retirement_keys[receipt.request_key_sha256] = receipt.request_digest
-                if rec.retirement_keys:
-                    task.state = TaskState.CANCELLED
-                    task.error = "cancelled by owner"
-                    task.summary = RETIRED_SUMMARY
-            rec.journal_seq = journal_numbers.get(task_id, 0)
-            try:
-                await self._task_scope(rec, persist=False)
-            except PolicyDenied:
-                if task.state not in TERMINAL:
-                    task.error = "Recovered work has no live model; resubmit as new work"
-            pins = plugin_pins.get(task_id, {})
-            if len(pins) > 16 or any(
-                not isinstance(k, str) or not isinstance(v, str) for k, v in pins.items()
-            ):
-                raise ValueError("Recovered plugin pins are invalid")
-            rec.plugin_versions = pins
-            rec.done.set()
-            self._tasks[task_id] = rec
-            recovered.append(task.model_copy(deep=True))
+        if self._closed:
+            raise AgentSubmitUnavailable
         if self.plugin_service is not None:
             await self.plugin_service.recover_pins(
                 {
                     task_id: rec.plugin_versions
-                    for task_id, rec in self._tasks.items()
+                    for task_id, rec in {**staged, **self._tasks}.items()
                     if rec.task.state not in TERMINAL
                 }
             )
+        if self._closed:
+            raise AgentSubmitUnavailable
+        for task_id, entry in staged_entries.items():
+            if task_id in self._tasks:
+                self._check_submit_record(self._tasks[task_id], entry)
+        recovered = []
+        for task_id, rec in staged.items():
+            if task_id not in self._tasks:
+                self._tasks[task_id] = rec
+                recovered.append(rec.task.model_copy(deep=True))
+        # No failed or partial recovery installs an authoritative cache path.
+        for key, (digest, task_id) in confirmed.items():
+            rec = self._tasks[task_id]
+            if rec.submit_confirmed and rec.worker is None:
+                self._submit_idem[key] = (digest, task_id)
         return recovered
 
     # -- internals --------------------------------------------------------

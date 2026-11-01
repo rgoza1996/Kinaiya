@@ -11,6 +11,16 @@ from packages.contracts.agent_export import (
     AgentExportRequest,
     agent_export_json,
 )
+from packages.contracts.agent_submit import (
+    MAX_AGENT_SUBMIT_BYTES,
+    MAX_AGENT_SUBMIT_LOOKUP_BYTES,
+    MAX_AGENT_SUBMIT_RESPONSE_BYTES,
+    AgentSubmitConflict,
+    AgentSubmitLookupRequest,
+    AgentSubmitUnavailable,
+    agent_submit_json,
+    submit_request,
+)
 from packages.contracts.agent_workspace import AgentSessionPageRequest
 from packages.contracts.context import (
     MAX_CONTEXT_REQUEST_BYTES,
@@ -111,6 +121,84 @@ def create_app(
         except (ValueError, RecursionError):
             raise HTTPException(422, "Invalid Agent export admission request") from None
         return store.agent_export_admission(body)
+
+    @app.post("/v1/transcript/agent-submits")
+    async def agent_submits(request: Request, role: str = Depends(auth.require("agent"))):
+        if (
+            request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+            != "application/json"
+        ):
+            raise HTTPException(415, "Agent submit admission requires JSON")
+        encoding = request.headers.get("content-encoding", "")
+        if encoding and encoding.strip().lower() not in ("", "identity"):
+            raise HTTPException(415, "Agent submit admission encoding is not supported")
+        raw = bytearray()
+        async for chunk in request.stream():
+            if len(raw) + len(chunk) > MAX_AGENT_SUBMIT_BYTES:
+                raise HTTPException(422, "Invalid Agent submit request") from None
+            raw.extend(chunk)
+        try:
+            data = agent_submit_json(bytes(raw), maximum=MAX_AGENT_SUBMIT_BYTES)
+            proposal = submit_request(data)
+        except (ValueError, RecursionError):
+            raise HTTPException(422, "Invalid Agent submit request") from None
+        try:
+            receipt = store.admit_submit(proposal, role)
+        except AgentSubmitConflict:
+            raise HTTPException(
+                409, "Agent submission key conflicts with retained scope or content"
+            ) from None
+        except AgentSubmitUnavailable:
+            raise HTTPException(503, "Agent submission admission is unavailable") from None
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(503, "Agent submission admission is unavailable") from None
+        try:
+            if len(receipt.model_dump_json().encode("utf-8")) > MAX_AGENT_SUBMIT_RESPONSE_BYTES:
+                raise ValueError
+        except (ValueError, RecursionError):
+            raise HTTPException(503, "Agent submission admission is unavailable") from None
+        return receipt
+
+    @app.post("/v1/transcript/agent-submits/lookup")
+    async def agent_submit_lookup(request: Request, role: str = Depends(auth.require("agent"))):
+        if (
+            request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+            != "application/json"
+        ):
+            raise HTTPException(415, "Agent submit lookup requires JSON")
+        encoding = request.headers.get("content-encoding", "")
+        if encoding and encoding.strip().lower() not in ("", "identity"):
+            raise HTTPException(415, "Agent submit lookup encoding is not supported")
+        raw = bytearray()
+        async for chunk in request.stream():
+            if len(raw) + len(chunk) > MAX_AGENT_SUBMIT_LOOKUP_BYTES:
+                raise HTTPException(422, "Invalid Agent submit lookup request") from None
+            raw.extend(chunk)
+        try:
+            data = agent_submit_json(bytes(raw), maximum=MAX_AGENT_SUBMIT_LOOKUP_BYTES)
+            body = AgentSubmitLookupRequest.model_validate(data)
+        except (ValueError, RecursionError):
+            raise HTTPException(422, "Invalid Agent submit lookup request") from None
+        try:
+            result = store.lookup_submit(body, role)
+        except AgentSubmitConflict:
+            raise HTTPException(
+                409, "Agent submission key conflicts with retained scope or content"
+            ) from None
+        except AgentSubmitUnavailable:
+            raise HTTPException(503, "Agent submission admission is unavailable") from None
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(503, "Agent submission admission is unavailable") from None
+        try:
+            if len(result.model_dump_json().encode("utf-8")) > MAX_AGENT_SUBMIT_RESPONSE_BYTES:
+                raise ValueError
+        except (ValueError, RecursionError):
+            raise HTTPException(503, "Agent submission admission is unavailable") from None
+        return result
 
     @app.get("/v1/transcript", dependencies=[Depends(auth.require())])
     async def read(
