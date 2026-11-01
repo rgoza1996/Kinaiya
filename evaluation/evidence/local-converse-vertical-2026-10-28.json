@@ -1,0 +1,256 @@
+{
+  "PCM": {
+    "1": {
+      "decoded_seconds": 0.13333333333333333,
+      "first_PCM_elapsed_s": 70.69908614899032,
+      "frames": 1,
+      "nonzero_PCM_bytes": 4849,
+      "samples": 3200
+    },
+    "2": {
+      "decoded_seconds": 6.0,
+      "first_PCM_elapsed_s": 78.60539033298846,
+      "frames": 45,
+      "nonzero_PCM_bytes": 198117,
+      "samples": 144000
+    }
+  },
+  "actual_unmodified_Qwen_reply_chunks": [
+    "I can't create a file named \"proof\" with only the number seven.",
+    "Let me know if you'd like help with something else!"
+  ],
+  "budget": {
+    "admission_ceiling_usd": 22,
+    "all_requested_and_resolved_models": "muse-spark-1.3-contributor",
+    "billing_reported_usd": null,
+    "cache_aware_conservative_guard_including_retained_reservations_usd": "3.6693408540000007",
+    "call_count": 5,
+    "call_ids": [
+      1430,
+      1431,
+      1432,
+      1433,
+      1434
+    ],
+    "development_budget_usd": 25,
+    "new_Contributor_catalog_estimate_usd": "0.001493072",
+    "qualifications": [
+      "These are the root-retained gateway usage and budget records, independently arithmetically checked. No observer gateway/network call or credentials read.",
+      "Catalog estimates and conservative admission guards are not provider invoices. Missing reported billing remains null; retained uncertain reservations were not released.",
+      "The two native task submit/outcome windows contain2 and3 matching sequential Contributor records respectively; no request prompt or response body was inspected.",
+      "Native protocol/Qwen refusal/physical-playback/full49 limitations in actual-review.json remain unchanged. No harness or model rerun."
+    ],
+    "retained_reservations_usd": "1.55581005",
+    "total_Contributor_catalog_estimate_usd": "1.0567654020000004",
+    "usage_delta": {
+      "cached_input_tokens": 2786,
+      "input_tokens": 7901,
+      "output_tokens": 4880
+    }
+  },
+  "date_qualification": "Observation belongs to October28 America/Los_Angeles; event timestamps retained in original raw receipts.",
+  "first_observation_elapsed_s": 0.48226084699854255,
+  "first_observation_utc": "2026-10-29T01:49:34.611884+00:00",
+  "issues": [
+    4,
+    49,
+    97
+  ],
+  "limits": [
+    "No runner/runtime/model execution or import by reviewer, no provider/network/service calls, no signals/adoption, no private auth/state/config/tails or binary model/asset contents read. Original evidence untouched.",
+    "Actual generated raw SSE/PCM NDJSON and observation logs cross-checked; only two exact public workspace proof files read. Private tail and copied fixture binary hashes not independently recomputed.",
+    "The 103 asset/runtime entries match before/after retained receipts; reviewer did not rehash underlying model/runtime assets.",
+    "Paid gateway call count, uncertainty/reservations and budget settlement are outside this receipt; root performs separate after-ledger audit. Baseline last_call_id1429/guard3.666354710 observed from authorized budget-before receipt only.",
+    "No native/API request counter is exposed after off. Exclusion relies on durable owner off, exact reaped groups/unchanged native lifecycle and released broker slots through final cut; local submission counters are qualified.",
+    "Observed process leaders are absent now and authenticated native receipts prove recorded group release. No independent global process-group scan, private credential-file reinspection or global filesystem-erasure claim.",
+    "CPU/RSS/HWM/affinity/fence values are sampled for owned processes, not latency distributions or complete memory accounting. Voice/Laya Seccomp0/offline settings do not establish OS network isolation.",
+    "First PCM is decoded generated audio only: no physical playback/hearing claim. Sole pending receive is source-bound recorded harness state, not a retrospective kernel socket-state trace.",
+    "This proves one finalized batch-STT/voice-text/local-Qwen/local-Laya/approved-cloud-Agent slice. It does not close full49, retained/incremental windows, realtime performance, conversational quality or default promotion.",
+    "One run with two Agent tasks; no repeated StageB failure matrix, physical microphone/speaker, audible quality, realtime, retained incremental windows, all clarification cases, full M2/#49 or default promotion.",
+    "Automated independent audit is not independent human acceptance. Existing exact-source PR96 CI validates software separately; this actual experiment is not a paid CI test."
+  ],
+  "performance_qualification": "Elapsed values are run timeline, not standalone latency. PCM was decoded but not physically played or heard. CPU speech recognition and synthesis remain slower than realtime; no p95 or audible latency claim.",
+  "protocol": {
+    "approval_requested_order_qualification": "same-host wall-clock observation compared with native created_at plus strict journal sequence; not a distributed-clock proof",
+    "cleanup_confirmed": true,
+    "counts": {
+      "Agent_paid_call_structural_max": 24,
+      "Agent_paid_calls_measured_here": false,
+      "harness_Qwen_turn_submissions": 1,
+      "harness_STT_submissions": 1,
+      "native_Agent_tasks": 2,
+      "native_Agent_tool_actions": 3,
+      "native_TTS_producer_completions": 2,
+      "recorded_stale_speech_409": 1
+    },
+    "grounded_notice": "The Agent reports a verified result: Created file proof containing only the number seven.",
+    "independent_checks_passed": 185,
+    "journal_events": 23,
+    "notice_generated_by_second_dialogue_call": false,
+    "observation_records": 1849,
+    "ordering": {
+      "first_native_write_sequence": 11,
+      "first_outcome_sequence": 12,
+      "first_owner_resolve_native_sequence": 10,
+      "first_owner_resolve_send_elapsed_s": 71.16028279697639,
+      "first_text_elapsed_s": 47.50630806299159,
+      "grounded_notice_sequence": 13,
+      "off_sequence": 17,
+      "second_outcome_sequence": 23,
+      "second_submit_sequence": 18,
+      "sole_pending_read_gate_elapsed_s": 70.69919102999847
+    },
+    "passed": true,
+    "public_file_proofs": {
+      "proof": {
+        "bytes": 1,
+        "sha256": "7902699be42c8a8e46fbbb4501726517e86b22c56a189f7625a6da49081b2451"
+      },
+      "proof-off": {
+        "bytes": 1,
+        "sha256": "2c624232cdd221771294dfbb310aca000a0df6ac8b66b696d90ef06fdefb64a3"
+      }
+    },
+    "recorded_owned_processes_absent_at_audit": true,
+    "runner_elapsed_seconds": 129.52692473499337,
+    "supervisor_elapsed_seconds": 132.21990939800162
+  },
+  "provenance": {
+    "PCM1_sha256": "e68bbe163d6c0fc44dee2405b5ed58da271528a648867e7a31d6b073f4b42dbd",
+    "PCM2_sha256": "21f1175a286ca2079c039f90e8b0fad4a5cfc5d7bd77e53ddbff174a4215cd34",
+    "SSE_sha256": "97d347e89e3273c66059704426b84ed817d04f7989f72497b661e82951560e56",
+    "durable_allowlisted_files": 36,
+    "durable_bundle_manifest_sha256": "5c716514e1c8a2c144e2bd4aca6cf16d27ae0cce7549d217522a8f542a3b3fb5",
+    "durable_local_bundle": ".dev-run/local-converse-proof-yavy5v8q",
+    "frozen_plan_sha256": "2d7ec32966a65efb4b005fa07600e02f2b3318a5776b161b73fe72e86dbefd34",
+    "frozen_script_sha256": "7f38c4a3fd8dbf4a2672127dd555ee5f1d8eb3ab8e309ff3e04fa2e1d51bbb3b",
+    "independent_budget_addendum_sha256": "03e009a02ca95939c81f8f61aa9296b4f6b2c3f3b907b5c408955f03400b850e",
+    "independent_review_sha256": "2dc96150cd79717ba0d01dfff11021299f091b247f87c3a02e5e94e1fea5283e",
+    "observations_sha256": "aae8bcc78f81f773bfb7e29210e70ae961c8dd71ebbc12bb833b7cfe8c609ad8",
+    "original_artifacts_retained": true,
+    "private_state_auth_and_tails_excluded": true,
+    "public_input_wav_sha256": "90ad6ae5b041513e102ebd39d48ccfe8c5c7ac87e732338ec8f0aa2ffff23d9b",
+    "public_recipe": "frozen harness/plan/config/scenario/source and runtime metadata retained locally in that bundle; not a portable or independently runnable CI job",
+    "result_sha256": "cb3e65100a67aaec6b842f11e5d81bd578492c76b9d32624eac664a6d396a1e1"
+  },
+  "providers": {
+    "Agent": {
+      "backend_effort_reported": false,
+      "input_scope": "public_synthetic",
+      "model": "muse-spark-1.3-contributor",
+      "provider": "Meta",
+      "requested_reasoning_effort": "xhigh"
+    },
+    "Decisions": {
+      "device": "cpu",
+      "model": "kinaiya-v4",
+      "provider": "local Laya",
+      "revisions": {
+        "kinaiya-v4": null
+      }
+    },
+    "STT": {
+      "actual": {
+        "content_scope": "public_synthetic",
+        "profile": "experimental_buffered_cpu",
+        "provider": "whistle",
+        "text": "Please create a new file named proof containing only the number seven."
+      },
+      "model": "Whistle, pinned cactus CPU engine",
+      "profile": "experimental_buffered_cpu"
+    },
+    "TTS": {
+      "device": "cpu",
+      "synthesis_mode": "native_streaming",
+      "tts_artifact_revision": "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4",
+      "tts_profile": "VibeVoice Realtime 0.5B",
+      "tts_voice": "en-Carter_man"
+    },
+    "dialogue": {
+      "active_or_retained": false,
+      "cleanup_failed": false,
+      "manifest_sha256": "6684dbd38572a450d11fb0d666e684cab3667ecec02e3d4e3e2029fd1f6af4bc",
+      "max_input_tokens": 2048,
+      "max_new_tokens": 128,
+      "model": "Qwen/Qwen3-0.6B",
+      "profile": "qwen3_0.6b_cpu_experimental",
+      "request_timeout_s": 120.0,
+      "worker_ready": true
+    }
+  },
+  "quality_result": {
+    "defect_issue": 97,
+    "model_outputs_replaced_or_retried": false,
+    "natural_response_gate_passed": false,
+    "qualification": "The actual local dialogue declined the file request. Protocol success does not validate response quality or task-awareness. Agent independently completed work; output was preserved without tuning."
+  },
+  "sampled_inner_metrics": {
+    "laya": {
+      "CPU_affinity": [
+        "0-15"
+      ],
+      "NoNewPrivs": [
+        "0"
+      ],
+      "Seccomp": [
+        "0"
+      ],
+      "peak_HWM_kB": 2834372,
+      "peak_RSS_kB": 2056028,
+      "sampled_CPU_seconds_delta": 2.38,
+      "samples": 156
+    },
+    "qwen3": {
+      "CPU_affinity": [
+        "0-1"
+      ],
+      "NoNewPrivs": [
+        "1"
+      ],
+      "Seccomp": [
+        "2"
+      ],
+      "peak_HWM_kB": 4886708,
+      "peak_RSS_kB": 2887172,
+      "sampled_CPU_seconds_delta": 5.09,
+      "samples": 157
+    },
+    "voice": {
+      "CPU_affinity": [
+        "0-15"
+      ],
+      "NoNewPrivs": [
+        "0"
+      ],
+      "Seccomp": [
+        "0"
+      ],
+      "peak_HWM_kB": 6508336,
+      "peak_RSS_kB": 6136720,
+      "sampled_CPU_seconds_delta": 75.36,
+      "samples": 155
+    },
+    "whistle": {
+      "CPU_affinity": [
+        "0-1"
+      ],
+      "NoNewPrivs": [
+        "1"
+      ],
+      "Seccomp": [
+        "2"
+      ],
+      "peak_HWM_kB": 74640,
+      "peak_RSS_kB": 74640,
+      "sampled_CPU_seconds_delta": 50.9,
+      "samples": 155
+    }
+  },
+  "schema_version": 1,
+  "scope": "One actual finalized batch-voice local Converse / local Decisions / separately authorized cloud Agent rehearsal. Protocol passed; natural dialogue quality failed.",
+  "source": {
+    "files": 137,
+    "head": "a750998f5ef6302b3e40b69ca8fb5737544dae8b",
+    "tree": "4a6668b6c2e222c8634b6896dddd7b4b3b7df465"
+  }
+}
