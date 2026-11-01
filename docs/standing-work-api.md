@@ -493,6 +493,84 @@ adds no public launch API, running recurrence/producer, standing Stop/steering
 adapter, restart Task hydration, positive settlement, inbox or owner editor.
 Those remain required for #228 acceptance.
 
+## Task-bound Resources registration
+
+The Resources handoff now resolves a Task against the native Session before
+preemption, unloading or worker control. Missing, malformed or ambiguous native
+identity cannot become an ordinary Task. Genuine ordinary Tasks retain their
+existing handoff behavior; unbound owner actions remain separate.
+
+Five additive strict packets in `packages/contracts/standing_resources.py`
+preserve the complete original identity and domain-separated digests:
+
+- `TaskResourceQuery`: exact existing Resources Task ID; 4,096-byte limit.
+- `TaskResourceContext`: full standing initial proof or ordinary native submit
+  identity, plus Session backend and original query; 180,224-byte limit.
+- `StandingResourceReservation`: the standing context, stable Resources backend,
+  actual controller instance, old action digest and preallocated lease identity;
+  196,608-byte limit. The action digest retains the old payload's exact omissions
+  and canonicalization; no private fields enter the old action packet.
+- `StandingResourceReservationReceipt`: full request, its digest and
+  `created`/`retained` disposition; 212,992-byte limit.
+- `StandingResourceObservation`: full-original claim/closure joins, immutable
+  bootstrap coverage and optional reservation metadata; 212,992-byte limit.
+
+The new authenticated Session POST routes are:
+
+| Route | Required role | Request |
+|---|---|---|
+| `/v1/standing/resources/context` | Resources | `TaskResourceQuery` |
+| `/v1/standing/resources/reserve` | Resources | `StandingResourceReservation` |
+| `/v1/standing/resources/observe` | Agent | `StandingExecutionIntent` |
+
+These routes share the existing 64 actual operation owners, five-second ingress
+limit and 25-second whole-operation deadline. They reject the private admission
+capability header. `JournalClient.resource_task_context`,
+`standing_resource_reserve` and `standing_resource_observe` bind the full reply
+to the original request and retain actual transport cleanup ownership.
+
+`StandingResourceOwner` is registered explicitly after the native Task owner.
+Its two protected tables retain the native backend, a bootstrap journal sequence
+captured once, and the complete reservation. Reads never bootstrap or repair
+storage. Ordinary discovery checks native submit slots and both bounded journal
+projections; a corrupt slot cannot disappear merely because its serialized
+operation was changed. First registration shares the Store transaction and
+permanent admission-closure fence: close-first refuses registration, while a
+previously committed exact reservation remains historical after closure, Stop
+or controller replacement. Accepted work does not need renewed scheduling
+eligibility to retain its history.
+
+The actual Resources coordinator owns a separate protected connection to its
+existing action database. It registers its stable backend/current instance
+before startup worker actions and retains a complete local pending intent
+before asking Session to reserve. Only a direct, timely `created` receipt held
+by that same unsuppressed RAM attempt permits a new handoff. The full receipt
+must be durably stored before effects, and the resulting lease uses the original
+preallocated identity. The 25-second capture deadline covers context lookup,
+registration and final validation before the first effect; it is not a new
+whole-hardware-action deadline. Existing locality, measured headroom, readiness,
+owner-Off and native worker-identity checks still apply.
+
+Lost, malformed, late or retained replies never launch effects. Any retained
+local intent, including an acknowledged one, suppresses automatic startup
+restoration rather than pretending restart proved cleanup. Old action replay
+and pending semantics remain unchanged. Missing gateway or suppressed capture
+raises a fixed `StandingUnavailable`/HTTP 503; definite identity conflicts use
+`StandingConflict`/HTTP 409. Actual caller cancellation remains cancellation.
+Failure of this capability does not remove unbound owner Off, inspection or
+cleanup. Failed worker close retains verified process handles for retry rather
+than dropping cleanup authority.
+
+This increment provides registration and observations only. An absent
+reservation, coverage metadata, a generic Resources `ok`, terminal Task state or
+a missing Resource client is **not** a no-lease or cleanup certificate. No claim
+is released; the single lifetime claim and reservation remain bounded and
+retained. Exact positive Resources finalization, original-worker/effect settlement,
+safe active-slot release, recurrence, the durable inbox and embedded editor are
+still required. The [registration evidence](../evaluation/evidence/standing-resource-registration-2026-11-01.json)
+separates real disposable-process/SQLite/HTTP checks from unqualified live
+hardware, model and provider behavior.
+
 ## Native dispatch gate
 
 `services/session/standing_dispatch.py` implements explicit registration,
