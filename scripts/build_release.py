@@ -13,6 +13,7 @@ import re
 import subprocess
 import tarfile
 from pathlib import Path, PurePosixPath
+from typing import Any, cast
 
 from packages.distribution.releases import (
     ROOT,
@@ -231,6 +232,16 @@ def build_release(
     return data
 
 
+class _ReleaseTarInfo(tarfile.TarInfo):
+    def _proc_member(self, archive):
+        # TarInfo normally consumes PAX/GNU metadata before yielding members.
+        # Reject it here, before an attacker-controlled size reaches that parser.
+        if self.type not in (tarfile.REGTYPE, tarfile.AREGTYPE):
+            raise ReleaseError("Release archive must contain only regular USTAR files")
+        # The stdlib's private extension-dispatch hook has no typeshed stub.
+        return cast(Any, tarfile.TarInfo)._proc_member(self, archive)
+
+
 def validate_bundle(directory):
     """Verify digests and stream bounded regular-file archives without extracting."""
     directory = Path(directory)
@@ -245,7 +256,7 @@ def validate_bundle(directory):
             continue
         seen, total, archive_identity = set(), 0, None
         try:
-            with tarfile.open(path, "r|gz") as archive:
+            with tarfile.open(path, "r|gz", tarinfo=_ReleaseTarInfo) as archive:
                 for member in archive:
                     validate_archive_name(member.name)
                     folded = member.name.casefold()

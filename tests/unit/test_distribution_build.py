@@ -317,3 +317,50 @@ def test_local_validation_rejects_unsafe_or_partial_archives(source_repo, tmp_pa
     (output / "release-manifest.json").write_text(json.dumps(data))
     with pytest.raises(ReleaseError):
         validate_bundle(output)
+
+
+@pytest.mark.parametrize(
+    "header_type", [tarfile.XHDTYPE, tarfile.XGLTYPE, tarfile.GNUTYPE_LONGNAME]
+)
+def test_validation_rejects_hidden_extension_headers_before_consuming_metadata(
+    source_repo, tmp_path, monkeypatch, header_type
+):
+    import hashlib
+    import io
+
+    from scripts import build_release as builder
+
+    output = tmp_path / "out"
+    data = builder.build_release(
+        source_repo,
+        output,
+        channel="stable",
+        version="0.2.0",
+        build_number=124,
+        source_sha=git(source_repo, "rev-parse", "HEAD"),
+    )
+    path = output / data["artifacts"][0]["name"]
+    with tarfile.open(path, "r:gz") as archive:
+        files = []
+        for member in archive:
+            extracted = archive.extractfile(member)
+            assert extracted is not None
+            with extracted:
+                files.append((member, extracted.read()))
+    with tarfile.open(path, "w:gz", format=tarfile.USTAR_FORMAT) as archive:
+        member = tarfile.TarInfo("hidden-extension")
+        member.type = header_type
+        payload = b"131072 comment=" + b"x" * (131072 - 16) + b"\n"
+        if header_type == tarfile.GNUTYPE_LONGNAME:
+            payload = b"README.md\0" + b"\0" * 131062
+        member.size = len(payload)
+        archive.addfile(member, io.BytesIO(payload))
+        for original, content in files:
+            archive.addfile(original, io.BytesIO(content))
+    data["artifacts"][0]["size"] = path.stat().st_size
+    data["artifacts"][0]["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+    (output / "release-manifest.json").write_text(json.dumps(data))
+    monkeypatch.setattr(builder, "MAX_FILE_BYTES", 65536)
+    monkeypatch.setattr(builder, "MAX_TOTAL_BYTES", 100000)
+    with pytest.raises(ReleaseError):
+        builder.validate_bundle(output)
