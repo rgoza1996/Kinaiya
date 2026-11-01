@@ -95,7 +95,7 @@ class SessionGateway(httpx.AsyncBaseTransport):
         if request.url.path == CONTEXT and self.mode == "context-gate":
             self.entered.set()
             await resistant(self.release)
-        if request.url.path == RESERVE:
+        if request.url.path == RESERVE and response.status_code == 200:
             assert response.status_code == 200
             assert self.session.store.db.execute(f"SELECT count(*) FROM {ROWS}").fetchone()[0] == 1
             if self.mode == "lost":
@@ -121,7 +121,9 @@ class SessionGateway(httpx.AsyncBaseTransport):
 async def handoffs(factory, tmp_path):
     opened = []
 
-    async def make(*, session=None, path=None, mode="normal", missing_gateway=False):
+    async def make(
+        *, session=None, path=None, mode="normal", missing_gateway=False, pending_restart=False
+    ):
         feature()
         session = session or await factory()
         if not hasattr(session, "standing_packet"):
@@ -197,10 +199,13 @@ async def handoffs(factory, tmp_path):
         )
         opened.append(env)
         await coordinator.initialize()
-        assert startup == ["whistle"]
-        assert coordinator.status()["workers"]["whistle"]["ready"]
-        assert runtime.enabled and coordinator.state.record.phase == "ready"
-        assert (await action(coordinator, "profile", profile="local_work_priority"))["ok"]
+        if pending_restart:
+            assert_pending_without_start(env)
+        else:
+            assert startup == ["whistle"]
+            assert coordinator.status()["workers"]["whistle"]["ready"]
+            assert runtime.enabled and coordinator.state.record.phase == "ready"
+            assert (await action(coordinator, "profile", profile="local_work_priority"))["ok"]
         original_preview, original_save = coordinator._handoff_may_preempt, coordinator._save
 
         def registered_before_effect():
@@ -251,8 +256,39 @@ async def handoffs(factory, tmp_path):
             await env.journal.close()
             await asyncio.wait_for(join_client(env.journal), 4)
             assert all(stream.closed and stream.closes == 1 for stream in env.transport.streams)
-            row = env.coordinator.manager.status()["workers"]["whistle"]
-            assert row["state"] == "stopped" and row["owned_pid"] is None
+            await assert_stopped_worker(env)
+
+
+async def assert_stopped_worker(env):
+    """Join the actual process; a retained diagnostic PID is not live ownership."""
+    manager = env.coordinator.manager
+    row = manager.status()["workers"]["whistle"]
+    managed = manager._workers["whistle"]
+    assert row["state"] == "stopped" and not row["ready"] and row["owned_pgid"] is None
+    assert managed.pending_spawn is None and managed.pending_cleanup is None
+    assert all(
+        task.done() and not task.cancelled() and task.exception() is None for task in managed.drains
+    )
+    if managed.process is None:
+        assert env.startup == [] and row["owned_pid"] is None and row["stop_evidence"] is None
+    else:
+        code = await asyncio.wait_for(managed.process.wait(), 2)
+        proof = row["stop_evidence"]
+        assert code is not None and managed.process.returncode == code
+        assert proof["pid"] == row["owned_pid"] == managed.process.pid
+        assert proof["reaped"] and proof["group_empty"] and proof["ownership_verified"]
+        assert proof["residual_pids"] == [] and manager.owned_identity("whistle") is None
+
+
+def assert_pending_without_start(env):
+    """Pending registration is preserved unknown; this fixture starts no process."""
+    row = env.coordinator.manager.status()["workers"]["whistle"]
+    managed = env.coordinator.manager._workers["whistle"]
+    assert env.startup == [] and env.coordinator.state.record.phase == "failed"
+    assert row["state"] == "stopped" and not row["ready"]
+    assert row["owned_pid"] is None and row["owned_pgid"] is None and managed.process is None
+    assert managed.pending_spawn is None and managed.pending_cleanup is None
+    assert len(env.coordinator.db.execute(f"SELECT request FROM {LOCAL_ROWS}").fetchall()) == 1
 
 
 def no_handoff_effects(env, pid):
@@ -294,7 +330,8 @@ async def test_real_worker_release_uses_exact_preallocated_native_registered_lea
         and row["stop_evidence"]["reaped"]
         and row["stop_evidence"]["group_empty"]
     )
-    assert row["owned_pid"] is None and before > 0 and not env.runtime.enabled
+    assert before > 0 and not env.runtime.enabled
+    await assert_stopped_worker(env)
     sends = len(env.transport.requests)
     assert await coordinator.action(copy.deepcopy(env.payload)) == result
     assert len(env.transport.requests) == sends
@@ -320,7 +357,17 @@ async def test_real_saved_but_lost_or_retained_ack_never_permits_effects_or_repl
         await env.coordinator.action(env.payload)
     no_handoff_effects(env, pid)
     before = env.coordinator.db.execute(f"SELECT request,receipt FROM {LOCAL_ROWS}").fetchone()
-    assert before is not None and before[1] is None
+    assert before is not None
+    if mode == "lost":
+        assert before[1] is None
+    else:
+        request = feature().StandingResourceReservation.from_json(before[0].encode())
+        receipt = feature().StandingResourceReservationReceipt.from_json(before[1].encode())
+        assert receipt.validate_request(request).disposition == "retained"
+        assert receipt.canonical_bytes().decode() == before[1]
+        assert (
+            env.session.store.db.execute(f"SELECT request FROM {ROWS}").fetchone()[0] == before[0]
+        )
     assert env.session.store.db.execute(f"SELECT count(*) FROM {ROWS}").fetchone()[0] == 1
     sends = len(env.transport.requests)
     with pytest.raises(StandingUnavailable):
@@ -375,12 +422,7 @@ async def test_coordinator_close_suppresses_late_ack_but_joins_real_worker_and_t
     await asyncio.wait_for(asyncio.shield(closing), 4)
     await asyncio.wait_for(join_client(env.journal), 3)
     assert not {"quiescing", "unloading", "local_work"}.intersection(env.phases)
-    row = env.coordinator.manager.status()["workers"]["whistle"]
-    assert (
-        row["owned_pid"] is None
-        and row["stop_evidence"]["reaped"]
-        and row["stop_evidence"]["group_empty"]
-    )
+    await assert_stopped_worker(env)
 
 
 @pytest.mark.parametrize("failure", ("missing", "unavailable"))
@@ -450,16 +492,18 @@ async def test_restart_keeps_original_pending_unknown_and_never_relaunches(hando
         await first.coordinator.action(first.payload)
     original = first.coordinator.db.execute(f"SELECT request FROM {LOCAL_ROWS}").fetchone()[0]
     await first.coordinator.close()
-    second = await handoffs(session=first.session, path=first.path)
+    second = await handoffs(session=first.session, path=first.path, pending_restart=True)
     assert second.coordinator.controller_id != first.coordinator.controller_id
     assert (
         second.coordinator.db.execute(f"SELECT request FROM {LOCAL_ROWS}").fetchone()[0] == original
     )
-    pid = second.coordinator.manager.status()["workers"]["whistle"]["owned_pid"]
     with pytest.raises(StandingUnavailable):
         await second.coordinator.action(copy.deepcopy(first.payload))
     assert second.transport.requests == []
-    no_handoff_effects(second, pid)
+    assert_pending_without_start(second)
+    assert second.previews == 0
+    assert not {"quiescing", "unloading", "local_work"}.intersection(second.phases)
+    assert second.coordinator.db.execute(f"SELECT receipt FROM {LOCAL_ROWS}").fetchone()[0] is None
 
 
 @pytest.mark.parametrize("kind,status", ((StandingUnavailable, 503), (StandingConflict, 409)))
