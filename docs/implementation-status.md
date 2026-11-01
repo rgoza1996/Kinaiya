@@ -86,6 +86,15 @@ affected regressions; these runs overlap. Independent reviews exposed and closed
 final-validation deadline and typed-v2 subset gaps. Inference is synthetic and
 provider-wire transport is offline; neither establishes live model readiness.
 
+The subsequent [permanent admission closure](standing-work-api.md#permanent-admission-closure)
+orders recovery against first task acceptance in the same native transaction.
+Close-first prevents later admission; admit-first preserves the exact accepted
+proof. Historical lookup and a lost acknowledgement preserve that fence without
+claim release. [Closure evidence](../evaluation/evidence/standing-admission-closure-2026-11-01.json)
+records independent native/API/client checks, preserved missing-capability and
+first-run failures, and the separately diagnosed old-control error-family
+fixture correction. All prior packet schemas remain unchanged.
+
 This remains reviewable branch work, not a merged or running timed responsibility.
 Recurrence, standing controls/recovery, positive worker/effect/resource settlement,
 slot release, the durable inbox and embedded owner editor remain required before

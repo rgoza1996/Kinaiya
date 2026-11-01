@@ -8,9 +8,11 @@ Requirement: [#228](https://github.com/rgoza1996/Kinaiya/issues/228), within
 This branch implements the authorization owner, native dispatch gate and their
 authenticated Session APIs, immutable authorization/dispatch Dart proofs and bounded
 transport, native claim reservations and atomic initial-task admission with
-authenticated execution APIs. A saved or armed authorization is **not** a scheduled task,
+authenticated execution APIs, permanent admission closure and an internal adapter
+to the actual Agent worker.
+A saved or armed authorization is **not** a scheduled task,
 producer-health claim, execution receipt or completed responsibility. Native
-worker integration, an actual Agent producer, positive execution settlement,
+producer integration, positive execution settlement,
 the inbox and embedded owner editor still require integration. Autonomous stays
 unavailable in the current ordinary mode API. This document does not qualify M7
 or the full issue.
@@ -38,6 +40,8 @@ generation. Authentication and the listed role are checked before body ingress:
 | POST | `/v1/standing/tasks/admit` | agent | `StandingTaskAdmission` |
 | POST | `/v1/standing/tasks/lookup` | agent | `StandingInitialProof` or null |
 | POST | `/v1/standing/tasks/export-admission` | agent | `StandingExportAdmission` |
+| POST | `/v1/standing/tasks/close-admission` | agent | `StandingAdmissionClosure` |
+| POST | `/v1/standing/tasks/closure-lookup` | agent | `StandingAdmissionClosure` or null |
 
 Owner, Converse, Decisions and Resources credentials cannot renew a producer.
 All six dispatch/producer routes reject query fields. Activation and its lookup
@@ -296,16 +300,19 @@ another launch opportunity. Lookup remains available at controller capacity
 without fabricating a current writer. No operation releases the unresolved claim.
 Initial acceptance alone starts no Agent worker and proves no settled effects.
 
-The five execution routes are Agent-only, reject all query fields and share the
-existing 64-operation hub with definition and dispatch routes. Their four POSTs
+Preparation, claim and initial-task routes are Agent-only, reject all query fields
+and share the existing 64-operation hub with definition and dispatch routes.
+Their four POSTs
 accept the same complete `StandingExecutionIntent`, bounded to 131,072 raw and
 canonical bytes. Responses use the respective contract bounds: prepare 163,840,
 claim reads 147,456, task admission 180,224 and task lookup 163,840 bytes. Only the
 three reads permit JSON null; absence does not prove failure or release authority.
 
-Only `/tasks/admit` accepts `X-Kinaiya-Standing-Capability`: exactly one value of
-64 lowercase hexadecimal characters, decoded to 32 transient bytes. Missing is
-allowed for retained replay; first admission still requires the correct secret.
+`/tasks/admit` and `/tasks/close-admission` accept
+`X-Kinaiya-Standing-Capability`: exactly one value of
+64 lowercase hexadecimal characters, decoded to 32 transient bytes. Admission
+allows an omitted secret for retained replay; first admission and every close
+still require the correct secret.
 Malformed or duplicate headers are refused. The capability is neither persisted
 nor returned, and browser CORS does not expose this private header. Authentication
 precedes body, query and capability parsing. Actual native work remains owned
@@ -318,14 +325,53 @@ diagnosed fixture corrections and qualification results. These use actual SQLite
 and ASGI operations with synthetic credentials and no inference. They do not
 qualify a scheduler, provider, worker, inbox, owner editor or full issue #228.
 
+## Permanent admission closure
+
+`StandingTaskOwner.close_admission` permanently closes the first-admission
+opportunity for one complete prepared original. It requires the exact transient
+capability, including on replay. It shares the Store lock and transaction
+boundary with first task admission. If admission wins, the closure retains its
+exact native initial proof. If closure wins, the proof is null and later first
+admission is refused. An exact retained admission remains historical metadata.
+
+The immutable `StandingAdmissionClosure` binds the full intent digest, claim
+identity and optional initial proof with the domain
+`kinaiya.standing.admission-closure.v1\0`. Native storage joins the entire actual
+claim and journal proof, rather than treating the digest alone as authority.
+Two additive protected tables retain the backend/version and closure. Partial,
+malformed, oversized or contradictory storage is unavailable; lookup cannot
+repair it or create a fence.
+
+Closing existing authority does not require a live producer, current Autonomous
+mode, unexpired occurrence or still-enabled authorization. A new close does
+require the current native writer. Historical closure lookup is clock-free and
+survives controller replacement, Stop and disable. No matching claim or no
+recorded closure returns null from lookup; a conflicting complete original is
+refused. A lost or late COMMIT acknowledgement can leave a durable closure and
+must be reconciled with the same original.
+
+Both new routes share the existing 64 actual operation owners, 5-second ingress
+and absolute 25-second deadline. Requests accept the same 131,072-byte intent;
+closures are bounded to 180,224 bytes. Only closure lookup permits JSON null.
+Neither operation releases a claim or establishes worker, file-effect, provider
+or Resources settlement. Those remain separate acceptance gates.
+
+The [closure evidence](../evaluation/evidence/standing-admission-closure-2026-11-01.json)
+retains independent missing-capability baselines, the first combined run,
+the separately diagnosed old-control error-family fixture correction and
+unchanged native/API/client qualification. It distinguishes closure from
+the still-required positive settlement and recurrence integration.
+
 ## Python Agent transport
 
 `JournalClient` exposes `standing_renew`, `standing_prepare`,
 `standing_claim_lookup`, `standing_unresolved`, `standing_admit` and
-`standing_task_lookup`. These six methods send strict frozen originals to the
-Agent-only routes above. Only admission accepts the optional exact 32-byte
+`standing_task_lookup`, `standing_export_admission`,
+`standing_close_admission` and `standing_closure_lookup`. These methods send
+strict frozen originals to the Agent-only routes above. Admission and closure
+accept the optional exact 32-byte
 capability; it is sent as the private header and is not put in a public packet.
-The three nullable reads accept a validated absence without treating it as a
+The nullable reads accept a validated absence without treating it as a
 failed dispatch or permission to retry work.
 
 Each standing exchange has a 25-second absolute deadline covering serialization,
