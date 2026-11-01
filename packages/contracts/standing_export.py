@@ -42,6 +42,11 @@ def _complete(value, kind):
 
 
 def _export(value, kind):
+    if (
+        isinstance(value, BaseModel)
+        and type(value.__dict__.get("provider")) is not AgentExportProviderInfo
+    ):
+        raise ValueError(_ERROR)
     raw = _complete(value, kind)
     provider = _complete(raw["provider"], AgentExportProviderInfo)
     raw["provider"] = AgentExportProviderInfo.model_validate(provider, strict=True)
