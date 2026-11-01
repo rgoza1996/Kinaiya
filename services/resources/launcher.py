@@ -401,11 +401,13 @@ def resource_app(args, config, auth, tokens, root):
         response.raise_for_status()
         return response.json()
 
+    resource_journal = JournalClient(config["session_url"], tokens["resources"])
     coordinator = ResourceCoordinator(
         manager,
         state,
         ConverseControl(config.get("converse_url", "http://127.0.0.1:8762"), tokens["resources"]),
-        journal=JournalClient(config["session_url"], tokens["resources"]),
+        journal=resource_journal,
+        handoff_journal=resource_journal,
         task_status=task_status,
         minimum_free_bytes=settings.minimum_free_bytes,
         before_start=before_start,

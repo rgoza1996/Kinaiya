@@ -9,6 +9,7 @@ import sqlite3
 import stat
 
 from packages.contracts.models import AppendRequest, new_id
+from packages.contracts.standing_work import StandingConflict, StandingUnavailable
 from packages.resources.processes import _mem_available_bytes
 from services.converse.intent import ConverseIntent, OwnerIntentConflict
 from services.resources.state import PROFILES
@@ -40,6 +41,7 @@ class ResourceCoordinator:
         converse,
         *,
         journal=None,
+        handoff_journal=None,
         task_status=None,
         memory_probe=_mem_available_bytes,
         minimum_free_bytes=128 * 1024 * 1024,
@@ -81,6 +83,7 @@ class ResourceCoordinator:
         )
         self.controller_id = new_id()
         self.journal, self.task_status = journal, task_status
+        self.handoff_journal = handoff_journal
         self.memory_probe, self.minimum = memory_probe, minimum_free_bytes
         self.local_converse_unmanaged = local_converse_unmanaged
         self.before_start = before_start
@@ -127,6 +130,9 @@ class ResourceCoordinator:
             "CREATE TABLE IF NOT EXISTS actions (key TEXT PRIMARY KEY, digest TEXT, result TEXT)"
         )
         self.db.commit()
+        from services.resources.standing_handoff import StandingHandoff
+
+        self.standing_handoff = StandingHandoff(self)
 
     def register_text_lifecycle(self, *, abort, drain, release):
         """Register trusted selected-broker hooks once; never a second owner."""
@@ -230,7 +236,20 @@ class ResourceCoordinator:
             self.publication_pending = True
 
     async def initialize(self):
+        handoff_ready = False
+        try:
+            await self.standing_handoff.register()
+            handoff_ready = True
+        except StandingUnavailable:
+            # A failed task gateway never disables independent owner cleanup.
+            pass
         async with self.lock:
+            if not handoff_ready or self.standing_handoff.retained:
+                await self._save(
+                    phase="failed",
+                    reason="Retained resource handoff ownership is unconfirmed; inspect before restoring",
+                )
+                return
             if self.state.record.lease_id or self.state.record.phase in {
                 "quiescing",
                 "unloading",
@@ -288,6 +307,14 @@ class ResourceCoordinator:
         self.local_converse_unmanaged = self._provider_is_unmanaged(health)
 
     async def action(self, payload):
+        if payload.get("operation") == "handoff" and payload.get("task_id") is not None:
+            return await self.standing_handoff.run(payload, self._registered_action)
+        return await self._registered_action(payload)
+
+    async def _registered_action(self, payload, *, capture=None):
+        bound = payload.get("operation") == "handoff" and payload.get("task_id") is not None
+        if bound:
+            self.standing_handoff.require(payload, capture)
         # A new authenticated off/handoff request must beat a Whistle restart
         # already awaiting readiness under the lifecycle lock. A replay/conflict
         # must not revoke legitimate current work. The existing durable action
@@ -309,6 +336,8 @@ class ResourceCoordinator:
             )
         if preempt and payload["operation"] == "handoff":
             preempt = await self._handoff_may_preempt(payload)
+            if bound:
+                self.standing_handoff.require(payload, capture)
             if preempt:
                 # Another same-key action can finish while preview awaits,
                 # including a rejection that changes no resource revision.
@@ -320,10 +349,12 @@ class ResourceCoordinator:
                     is None
                 )
         if preempt:
+            if bound:
+                capture.begin_effects()
             self._whistle_preemptions += int(self._has_whistle)
             self._qwen3_preemptions += int(self._has_text)
         try:
-            return await self._action(payload)
+            return await self._action(payload, capture=capture)
         finally:
             if preempt:
                 self._whistle_preemptions -= int(self._has_whistle)
@@ -535,7 +566,7 @@ class ResourceCoordinator:
                 ) from exc
             return identity
 
-    async def _action(self, payload):
+    async def _action(self, payload, *, capture=None):
         encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
         key, operation = payload["idempotency_key"], payload["operation"]
         digest = hashlib.sha256(encoded.encode()).hexdigest()
@@ -555,6 +586,8 @@ class ResourceCoordinator:
                         "error": "Interrupted resource action; inspect status before a new request",
                     }
                 )
+            if operation == "handoff" and payload.get("task_id") is not None:
+                self.standing_handoff.require(payload, capture)
             with self.db:
                 self.db.execute("INSERT INTO actions VALUES(?,?,NULL)", (key, digest))
             intent_change = None
@@ -569,7 +602,7 @@ class ResourceCoordinator:
                         )
                     await self._save(profile=profile)
                 elif operation == "handoff":
-                    await self._handoff_locked(payload)
+                    await self._handoff_locked(payload, capture=capture)
                 elif operation == "restore":
                     await self._restore_locked()
                 elif operation == "converse":
@@ -599,6 +632,8 @@ class ResourceCoordinator:
                 self.state.save(
                     phase="failed", reason="Resource action interrupted; inspect status"
                 )
+                raise
+            except (StandingConflict, StandingUnavailable):
                 raise
             except OwnerIntentConflict as exc:
                 observed = exc.observed
@@ -759,12 +794,17 @@ class ResourceCoordinator:
             raise failure
         return results
 
-    async def _handoff_locked(self, payload):
+    async def _handoff_locked(self, payload, *, capture=None):
+        bound = payload.get("task_id") is not None
+        if bound:
+            self.standing_handoff.require(payload, capture)
         if self.state.record.profile == "conversation_priority":
             raise ValueError(
                 "Conversation priority queues demanding local work; select local work priority for handoff"
             )
         self._provider_locality(await self.converse.health())
+        if bound:
+            self.standing_handoff.require(payload, capture)
         if self.local_converse_unmanaged:
             raise ValueError(
                 "The local Converse text worker is not managed; its release cannot be verified"
@@ -794,15 +834,25 @@ class ResourceCoordinator:
         task_id = payload.get("task_id")
         if task_id and self.task_status:
             task = await self.task_status(task_id)
+            if bound:
+                self.standing_handoff.require(payload, capture)
             if task.get("state") in {"succeeded", "failed", "cancelled", "paused"}:
                 raise ValueError("The bound task is inactive; no resource handoff was started")
+        if bound:
+            capture.begin_effects()
         await self._save(
             phase="quiescing",
             reason=payload.get("reason", "Explicit local work handoff"),
             restore_gpu_bytes=restore_gpu,
         )
+        if bound:
+            self.standing_handoff.require(payload, capture)
         await self.converse.enabled(False)
+        if bound:
+            self.standing_handoff.require(payload, capture)
         await self._save(phase="unloading")
+        if bound:
+            self.standing_handoff.require(payload, capture)
         workers = self.manager.status()["workers"]
         released = set()
         for worker_id in ("whistle", self.text_worker_id):
@@ -829,7 +879,11 @@ class ResourceCoordinator:
         await self._save(
             restore_bytes=max(self.state.record.restore_bytes, sum(measured) + self.minimum)
         )
+        if bound:
+            self.standing_handoff.require(payload, capture)
         stopped = await self._stop_workers()
+        if bound:
+            self.standing_handoff.require(payload, capture)
         if any(
             item.get("stop_evidence", {}).get("rss_before_bytes") is None
             and not (item.get("worker_id") in released and item.get("release_confirmed"))
@@ -853,6 +907,8 @@ class ResourceCoordinator:
                 raise RuntimeError("Insufficient measured GPU headroom; admission refused")
         if task_id and self.task_status:
             task = await self.task_status(task_id)
+            if bound:
+                self.standing_handoff.require(payload, capture)
             if task.get("state") in {"succeeded", "failed", "cancelled", "paused"}:
                 await self._restore_locked()
                 return
@@ -860,7 +916,9 @@ class ResourceCoordinator:
             phase="local_work",
             required_bytes=required,
             required_gpu_bytes=required_gpu,
-            lease_id=new_id(),
+            lease_id=capture.request.lease_id
+            if bound and capture.request is not None
+            else new_id(),
             lease_task_id=task_id,
         )
 
@@ -962,6 +1020,7 @@ class ResourceCoordinator:
 
     async def close(self):
         self._closing = True
+        await self.standing_handoff.close()
         async with self.lock:
             if self._closed:
                 return
@@ -993,5 +1052,7 @@ class ResourceCoordinator:
                 await self.converse.close()
                 if self.journal and hasattr(self.journal, "close"):
                     await self.journal.close()
+                if self.handoff_journal is not self.journal and self.handoff_journal is not None:
+                    await self.handoff_journal.close()
             if failure is not None:
                 raise failure
