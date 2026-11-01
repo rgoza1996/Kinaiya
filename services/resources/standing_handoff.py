@@ -479,6 +479,8 @@ class StandingHandoff:
     async def run(self, payload, invoke):
         started = time.monotonic()
         payload = _freeze(payload)
+        if self.owner._closed:
+            raise StandingUnavailable
         # Existing durable actions retain their exact old replay/conflict and
         # pending semantics before any new gateway, schema or ownership read.
         if self.owner.db.execute(
