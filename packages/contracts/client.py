@@ -546,6 +546,11 @@ class JournalClient:
         response.raise_for_status()
         return [JournalEntry.model_validate(value) for value in response.json()]
 
+    async def transcript_scan(self, request):
+        from packages.contracts.transcript_scan_client import transcript_scan
+
+        return await transcript_scan(self, request)
+
     async def recent(self, **kwargs):
         response = await self.http.get("/v1/transcript/recent", params=kwargs)
         response.raise_for_status()

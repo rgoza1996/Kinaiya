@@ -1698,6 +1698,11 @@ class Store:
     def close(self):
         self.db.close()
 
+    def transcript_scan(self, request):
+        from services.session.transcript_scan import transcript_scan
+
+        return transcript_scan(self, request)
+
 
 class LocalJournal:
     """In-process adapter used by tests and single-service development, same authority checks."""
@@ -1758,6 +1763,11 @@ class LocalJournal:
 
     async def read(self, **kwargs):
         return self.store.read(**kwargs)
+
+    async def transcript_scan(self, request):
+        if self.role != "agent":
+            raise PermissionError("Transcript scan requires Agent")
+        return self.store.transcript_scan(request)
 
     async def recent(self, **kwargs):
         return self.store.recent(**kwargs)

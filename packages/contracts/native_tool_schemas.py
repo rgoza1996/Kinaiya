@@ -285,6 +285,14 @@ _SCHEMAS = {
                 "event_ids": _array(_string(1), 0, 20, default=[]),
                 "after": _integer(0, default=0),
                 "limit": _integer(1, 20, default=8),
+                "paged": {"type": "boolean"},
+                "entry_view": _nullable({"enum": ["resolved", "immutable"]}),
+                "offset": _integer(0, _SAFE_INTEGER, default=0),
+                "max_chars": _integer(1, 12000, default=2000),
+                "expected_revision": _nullable(_integer(1, _SAFE_INTEGER)),
+                "expected_entry_sha256": _nullable(_string(64, 64, pattern=r"^[0-9a-f]{64}$")),
+                "scope_token": _nullable(_string(64, 64, pattern=r"^[0-9a-f]{64}$")),
+                "through_sequence": _nullable(_integer(0, _SAFE_INTEGER)),
             }
         )
     ),
@@ -460,15 +468,21 @@ _METADATA = {
         ],
     },
     "read_transcript": {
-        "description": "Read bounded authorized transcript references for the task session epoch.",
-        "source": ["services/agent/runtime.py:AgentRuntime._read_transcript"],
+        "description": "Read complete transcript text through bounded authorized pages for the task session epoch.",
+        "source": [
+            "services/agent/runtime.py:AgentRuntime._read_transcript",
+            "services/agent/transcript_pages.py:read_transcript",
+        ],
         "requirements": ["transcript_session_epoch", "entry_disclosure"],
         "constraints": [
-            "Nonempty event_ids select exact references; after and limit do not further restrict those IDs.",
-            "Each entry contributes at most 2000 text characters and the response at most 12000.",
+            "Prefer paged:true. One event_id selects resolved or immutable entry_view; offset>0 requires expected_revision, expected_entry_sha256 and scope_token from the prior page.",
+            "Discovery pages use immutable views and native fixed through_sequence; continue with both through_sequence and scope_token plus next_after until scan_exhausted.",
+            "Paged max_chars defaults to 2000 and is at most 12000; responses contain at most 12000 text characters and 131072 UTF-8 JSON bytes. Metadata, provenance and current disclosure are native checks.",
+            "New continuation arguments require paged:true. ID mode requires after=0, limit=1 and no through_sequence. Discovery forbids resolved view, nonzero offset and expected entry fields.",
+            "Retained context stays bounded to 128 roots and 256 provenance nodes; repeated slices reuse the same root.",
         ],
         "legacy_behavior": [
-            "Dispatch int-coerces limit and after, clamps negative after to zero, and does not shape-check each event ID before journal lookup; extra keys are ignored."
+            "Without paged:true the result remains a list; nonempty event_ids select resolved references independently of after/limit. Legacy limit/after coercions remain. Clipped entries explicitly carry entry_view, truncated, total_chars and a paged continuation hint; aggregate omission refuses."
         ],
     },
     "select_context": {

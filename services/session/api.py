@@ -139,6 +139,7 @@ def create_app(
         pass
     standing_operations = None
     standing_resource_finalization_operations = None
+    transcript_scan_operations = None
 
     @asynccontextmanager
     async def lifespan(_app):
@@ -147,16 +148,20 @@ def create_app(
         finally:
 
             async def close_operations():
-                # Fence both entry points before waiting for either actual
+                # Fence every entry point before waiting for an actual
                 # operation owner; their shared registry stays globally bounded.
                 standing_operations._closed = True
                 standing_resource_finalization_operations._closed = True
+                transcript_scan_operations._closed = True
                 for event in standing_operations._operations.values():
                     event.set()
                 try:
-                    await standing_resource_finalization_operations.close()
+                    await transcript_scan_operations.close()
                 finally:
-                    await standing_operations.close()
+                    try:
+                        await standing_resource_finalization_operations.close()
+                    finally:
+                        await standing_operations.close()
 
             shutdown = asyncio.create_task(close_operations())
             interrupted = False
@@ -236,6 +241,12 @@ def create_app(
         app, standing_resource_finalization_owner, auth, shared=standing_operations
     )
     app.state.standing_resource_finalization_operations = standing_resource_finalization_operations
+    from services.session.transcript_scan_api import install_transcript_scan_routes
+
+    transcript_scan_operations = install_transcript_scan_routes(
+        app, store, auth, shared=standing_operations
+    )
+    app.state.transcript_scan_operations = transcript_scan_operations
     authenticated = Depends(auth.require())
     app.add_middleware(
         CORSMiddleware,
@@ -252,7 +263,7 @@ def create_app(
             path.startswith(
                 ("/v1/agent-control", "/v1/transcript/agent-steers", "/v1/transcript/agent-submits")
             )
-            or path == "/v1/standing"
+            or path in {"/v1/standing", "/v1/transcript/scan"}
             or path.startswith("/v1/standing/")
         ):
             # This outer layer also sees CORS preflights, which can finish
