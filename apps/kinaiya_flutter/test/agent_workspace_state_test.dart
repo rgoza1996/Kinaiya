@@ -74,6 +74,36 @@ JournalEntry entry(
   payload: {'op': 'submit', 'objective': text},
 );
 
+JournalEntry toolEntry(
+  int sequence, {
+  String origin = 'agent-supervisor',
+  int epoch = 1,
+  String taskRef = 'task-a',
+  Map<String, Object?>? payload,
+}) => JournalEntry(
+  eventId: 'tool-event-$sequence',
+  sequence: sequence,
+  sessionId: 'a',
+  threadId: 'thread-a',
+  epoch: epoch,
+  kind: 'agent.tool',
+  origin: origin,
+  taskRefs: [taskRef],
+  payload:
+      payload ??
+      {
+        'task_id': 'task-a',
+        'tool': 'shell',
+        'ok': true,
+        'evidence': {
+          'summary': 'shell exit=0: synthetic command',
+          'output': '<literal output>',
+          'exit_code': 0,
+          'objective_revision': 2,
+        },
+      },
+);
+
 class WorkspaceApi extends KinaiyaClient {
   WorkspaceApi()
     : super(
@@ -130,7 +160,10 @@ class WorkspaceApi extends KinaiyaClient {
     required String sessionId,
     int after = 0,
   }) async => historyHook == null
-      ? (history[sessionId] ?? []).where((x) => x.sequence > after).toList()
+      ? (history[sessionId] ?? [])
+            .where((x) => x.sequence > after)
+            .take(200)
+            .toList()
       : historyHook!(sessionId);
   @override
   Future<SessionInfo> createAgentSession(
@@ -193,6 +226,98 @@ void main() {
       await state.selectAgentSession('b');
       expect(state.agentDraft, 'Draft B');
       expect(state.agentHistory.length, 1);
+    },
+  );
+  test('projects only scoped, attributable recorded tool activity', () async {
+    final api = WorkspaceApi()
+      ..history['a'] = [
+        entry('a', 1),
+        toolEntry(2),
+        toolEntry(3, origin: 'owner'),
+        toolEntry(4, epoch: 2),
+        toolEntry(5, taskRef: 'different-task'),
+        toolEntry(
+          6,
+          payload: {
+            'task_id': 'task-a',
+            'tool': 'shell',
+            'ok': false,
+            'admission_only': true,
+            'effect_state': 'not_established',
+          },
+        ),
+      ];
+    final state = wired(api);
+    addTearDown(state.dispose);
+    await state.selectAgentSession('a');
+    expect(state.agentHistory.map((message) => message.eventId), [
+      'event-a-1',
+      'tool-event-2',
+      'tool-event-6',
+    ]);
+    final activity = state.agentHistory[1].toolActivity!;
+    expect(activity.tool, 'shell');
+    expect(activity.taskId, 'task-a');
+    expect(activity.revision, 2);
+    expect(activity.summary, 'shell exit=0: synthetic command');
+    expect(activity.output, '<literal output>');
+    expect(activity.status, 'Recorded success');
+    expect(
+      state.agentHistory[2].toolActivity!.status,
+      'Result not established',
+    );
+    await state.refreshAgentHistory();
+    expect(state.agentHistory.length, 3);
+    await state.selectAgentSession('b');
+    expect(state.agentHistory, isEmpty);
+    await state.selectAgentSession('a');
+    expect(state.agentHistory[1].toolActivity!.output, '<literal output>');
+  });
+  test(
+    'recorded activity stays ordered across bounded history pages',
+    () async {
+      final api = WorkspaceApi()
+        ..history['a'] = [
+          entry('a', 1),
+          for (var i = 2; i <= 202; i++) toolEntry(i),
+        ];
+      final state = wired(api);
+      addTearDown(state.dispose);
+      await state.selectAgentSession('a');
+      expect(state.agentHistory.length, 200);
+      expect(state.agentHistoryHasMore, isTrue);
+      await state.refreshAgentHistory();
+      expect(state.agentHistory.length, 202);
+      expect(state.agentHistory.last.eventId, 'tool-event-202');
+      expect(state.agentHistoryHasMore, isFalse);
+      await state.refreshAgentHistory();
+      expect(state.agentHistory.length, 202);
+    },
+  );
+  test(
+    'tool output is bounded and unestablished results stay explicit',
+    () async {
+      final api = WorkspaceApi()
+        ..history['a'] = [
+          toolEntry(
+            1,
+            payload: {
+              'task_id': 'task-a',
+              'tool': 'shell',
+              'evidence': {
+                'output': List.filled(8100, 'x').join(),
+                'objective_revision': 1,
+              },
+            },
+          ),
+        ];
+      final state = wired(api);
+      addTearDown(state.dispose);
+      await state.selectAgentSession('a');
+      final activity = state.agentHistory.single.toolActivity!;
+      expect(activity.status, 'Result not established');
+      expect(activity.output, endsWith('…[display truncated]'));
+      expect(activity.output!.length, lessThan(8100));
     },
   );
   test(
