@@ -86,6 +86,7 @@ class _SetupDialogState extends State<SetupDialog> {
   @override
   Widget build(BuildContext context) {
     final form = SingleChildScrollView(
+      padding: const EdgeInsets.only(top: 8),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -98,11 +99,13 @@ class _SetupDialogState extends State<SetupDialog> {
               ),
               keyboardType: TextInputType.url,
             ),
+            const SizedBox(height: 16),
             TextField(
               controller: _agent,
               decoration: const InputDecoration(labelText: 'Agent service URL'),
               keyboardType: TextInputType.url,
             ),
+            const SizedBox(height: 16),
             TextField(
               controller: _converse,
               decoration: const InputDecoration(
@@ -110,6 +113,7 @@ class _SetupDialogState extends State<SetupDialog> {
               ),
               keyboardType: TextInputType.url,
             ),
+            const SizedBox(height: 16),
             TextField(
               controller: _decisions,
               decoration: const InputDecoration(
@@ -119,6 +123,7 @@ class _SetupDialogState extends State<SetupDialog> {
               ),
               keyboardType: TextInputType.url,
             ),
+            const SizedBox(height: 16),
             TextField(
               controller: _token,
               decoration: const InputDecoration(
@@ -129,7 +134,8 @@ class _SetupDialogState extends State<SetupDialog> {
               enableSuggestions: false,
               autocorrect: false,
             ),
-            if (kIsWeb)
+            if (kIsWeb) ...[
+              const SizedBox(height: 8),
               TextButton.icon(
                 onPressed: () async {
                   final token = await chooseCredential();
@@ -143,10 +149,12 @@ class _SetupDialogState extends State<SetupDialog> {
                 icon: const Icon(Icons.folder_open),
                 label: const Text('Load local access token'),
               ),
+            ],
           ],
           const SizedBox(height: 12),
           DropdownButtonFormField<BackendProfile>(
             initialValue: _profile,
+            isExpanded: true,
             decoration: const InputDecoration(
               labelText: 'Inference disclosure',
             ),

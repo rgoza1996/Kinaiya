@@ -22,7 +22,9 @@ Start the configured Python services separately. Export an owner-only credential
 
 **Settings** opens the persistent [Options workspace](../../docs/adr/0077-options-workspace-and-harness-models.md).
 Categories live in its sidebar; paired categories open separate sections with
-Back navigation. The overview uses the approved Kinaiya/gear illustration.
+Back navigation. The overview automatically fits the complete approved
+Kinaiya/gear illustration into the available workspace.
+Character visibility and imported packs follow the presentation preferences.
 Appearance, character, voice, memory, connection and MCP controls stay inside
 Options. Home/Converse and Agent remain mounted, preserving drafts, audio and
 sessions. Opening or navigating settings does not start inference or work.
@@ -200,6 +202,20 @@ promotion. Historical null associations remain explicit. Task cards follow the
 selected session, while pending approvals remain global. Unsupported inspection,
 uncertain creation and unavailable versions are visible. See the
 [sidebar ownership and verification limits](../../docs/adr/0065-agent-sidebars.md).
+
+On wide screens, drag the divider beside any Agent sidebar to resize it or drag
+it toward its outer edge to collapse it. The divider remains visible and can be
+dragged outward to reopen the sidebar; its arrow also reopens it at the previous
+width. Focused dividers respond to the left and right arrow keys. Widths adapt
+to the available window and are remembered while the view remains mounted, not
+across app restarts.
+
+The conversation groups recorded tool activity under expandable summaries.
+Recorded shell output appears as selectable monospace text; the recorded shell
+summary may be shorter than the original command. No tool is run by opening a
+group. The message rail jumps to loaded recorded messages; load additional history
+before expecting markers for it. The [workspace plan](../../docs/agent-workspace-panel-plan.md)
+describes the proposed Files and Browser panels. An interactive terminal is deferred.
 
 Agent Chat consumes the backend command registry, including canonical names, aliases, descriptions and argument hints. Only explicit single-line Agent command input dispatches controls. Quoted/code/path/escaped slash text stays literal; unknown commands never become inference tasks. Commands, new/resume sessions, actual task state and digest/revision-bound approvals use the real backend. Converse has no command UI or parser.
 

@@ -2,13 +2,17 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'agent_operating_mode_panel.dart';
 
 import '../api/client.dart';
+import '../api/agent_activity.dart';
 import '../api/models.dart';
 import '../config/options_navigation.dart';
 import '../state/app_state.dart';
 import 'agent_design.dart';
+import 'agent_activity.dart';
+import 'design_tokens.dart';
 import 'agent_workspace_sidebars.dart';
 import 'mcp_settings.dart';
 import 'settings_controls.dart';
@@ -51,6 +55,188 @@ class _AgentSubmissions {
       forOwner(api).any((attempt) => attempt.request.sameScope(session));
 
   static void notify() => changed.value++;
+}
+
+/// A divider keeps its drag origin while the parent rebuilds during resizing.
+class _SidebarResizeHandle extends StatefulWidget {
+  const _SidebarResizeHandle({
+    super.key,
+    required this.label,
+    required this.width,
+    required this.minimum,
+    required this.maximum,
+    required this.growsRight,
+    required this.collapsed,
+    required this.restoreWidth,
+    required this.onResize,
+    required this.onCollapse,
+    required this.onExpand,
+  });
+
+  final String label;
+  final double width, minimum, maximum, restoreWidth;
+  final bool growsRight, collapsed;
+  final ValueChanged<double> onResize, onCollapse, onExpand;
+
+  @override
+  State<_SidebarResizeHandle> createState() => _SidebarResizeHandleState();
+}
+
+class _SidebarResizeHandleState extends State<_SidebarResizeHandle> {
+  bool _focused = false;
+  bool _hovered = false;
+  double? _dragWidth, _dragStartWidth;
+  bool? _dragCollapsed;
+
+  void _resizeBy(double delta) {
+    if (widget.collapsed) {
+      if (delta > 0) {
+        widget.onExpand(
+          widget.restoreWidth.clamp(widget.minimum, widget.maximum),
+        );
+      }
+      return;
+    }
+    if (delta < 0 && widget.width <= widget.minimum) {
+      widget.onCollapse(widget.width);
+      return;
+    }
+    widget.onResize(
+      (widget.width + delta).clamp(widget.minimum, widget.maximum),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final nextWidth =
+        (widget.collapsed ? widget.restoreWidth : widget.width + 24).clamp(
+          widget.minimum,
+          widget.maximum,
+        );
+    final previousWidth = (widget.width - 24).clamp(
+      widget.minimum,
+      widget.maximum,
+    );
+    return Semantics(
+      label: 'Resize ${widget.label}',
+      hint:
+          'Drag or use the left and right arrow keys to expand, resize, or collapse.',
+      enabled: true,
+      focusable: true,
+      value: widget.collapsed
+          ? 'Collapsed'
+          : '${widget.width.round()} pixels wide',
+      increasedValue: '${nextWidth.round()} pixels wide',
+      decreasedValue: widget.collapsed || widget.width <= widget.minimum
+          ? 'Collapsed'
+          : '${previousWidth.round()} pixels wide',
+      slider: true,
+      onIncrease: () => _resizeBy(24),
+      onDecrease: () => _resizeBy(-24),
+      child: Focus(
+        onFocusChange: (focused) => setState(() => _focused = focused),
+        onKeyEvent: (node, event) {
+          if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+            return KeyEventResult.ignored;
+          }
+          if (event.logicalKey == LogicalKeyboardKey.arrowLeft ||
+              event.logicalKey == LogicalKeyboardKey.arrowRight) {
+            final movesRight =
+                event.logicalKey == LogicalKeyboardKey.arrowRight;
+            _resizeBy(movesRight == widget.growsRight ? 24 : -24);
+            return KeyEventResult.handled;
+          }
+          return KeyEventResult.ignored;
+        },
+        child: MouseRegion(
+          cursor: SystemMouseCursors.resizeColumn,
+          onEnter: (_) => setState(() => _hovered = true),
+          onExit: (_) => setState(() => _hovered = false),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onHorizontalDragStart: (_) {
+              _dragWidth = widget.width;
+              _dragStartWidth = widget.width;
+              _dragCollapsed = widget.collapsed;
+            },
+            onHorizontalDragUpdate: (event) {
+              final delta = event.delta.dx * (widget.growsRight ? 1 : -1);
+              final rawWidth = ((_dragWidth ?? widget.width) + delta).clamp(
+                double.negativeInfinity,
+                widget.maximum,
+              );
+              _dragWidth = rawWidth;
+              if (_dragCollapsed == true) {
+                if (rawWidth >= AgentDesign.sidebarExpandThreshold) {
+                  _dragCollapsed = false;
+                  final expanded = rawWidth.clamp(
+                    widget.minimum,
+                    widget.maximum,
+                  );
+                  // Continue resizing immediately after the minimum-width snap.
+                  _dragWidth = expanded;
+                  _dragStartWidth = expanded;
+                  widget.onExpand(expanded);
+                }
+              } else if (rawWidth <= AgentDesign.sidebarCollapseThreshold) {
+                _dragCollapsed = true;
+                widget.onCollapse(_dragStartWidth ?? widget.width);
+                _dragWidth = AgentDesign.sidebarCollapsedWidth;
+              } else {
+                widget.onResize(rawWidth.clamp(widget.minimum, widget.maximum));
+              }
+            },
+            onHorizontalDragEnd: (_) {
+              _dragWidth = null;
+              _dragCollapsed = null;
+            },
+            onHorizontalDragCancel: () {
+              _dragWidth = null;
+              _dragCollapsed = null;
+            },
+            child: Container(
+              width: AgentDesign.sidebarResizeWidth,
+              decoration: BoxDecoration(
+                color: _hovered || _focused
+                    ? Color.alphaBlend(
+                        Theme.of(
+                          context,
+                        ).colorScheme.primary.withValues(alpha: .08),
+                        Theme.of(context).colorScheme.surfaceContainerLow,
+                      )
+                    : Theme.of(context).colorScheme.surfaceContainerLow,
+                border: widget.growsRight
+                    ? Border(
+                        right: BorderSide(
+                          color: Theme.of(context).colorScheme.outlineVariant,
+                        ),
+                      )
+                    : Border(
+                        left: BorderSide(
+                          color: Theme.of(context).colorScheme.outlineVariant,
+                        ),
+                      ),
+              ),
+              child: Center(
+                child: Container(
+                  width: _hovered || _focused ? 4 : 3,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: _hovered || _focused
+                        ? Theme.of(context).colorScheme.primary
+                        : Theme.of(
+                            context,
+                          ).colorScheme.onSurfaceVariant.withValues(alpha: .65),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// Direct Agent Chat: real worker surface with tools, evidence, approvals
@@ -107,10 +293,17 @@ class _AgentChatState extends State<AgentChat> {
   }
 
   late final TextEditingController _input;
+  final ScrollController _historyScroll = ScrollController();
+  final Map<String, GlobalKey> _historyKeys = {};
+  int _historyJump = 0;
+  String? _lastJumpedMessage;
   bool _detailsInline = false;
   bool _harnessCollapsed = false,
       _sessionsCollapsed = false,
       _showDetails = true;
+  double _harnessWidth = 246;
+  double _sessionsWidth = 260;
+  double _detailsWidth = AgentDesign.detailsWidth;
   int _lastSelection = 0;
   String? _lastSessionScope;
   String? _selectedTaskId;
@@ -180,6 +373,8 @@ class _AgentChatState extends State<AgentChat> {
     _s.removeListener(_handleStateChange);
     _AgentSubmissions.changed.removeListener(_handleSubmissionChange);
     _input.dispose();
+    _historyJump++;
+    _historyScroll.dispose();
     for (final c in _steer.values) {
       c.dispose();
     }
@@ -233,6 +428,9 @@ class _AgentChatState extends State<AgentChat> {
   }
 
   void _syncConnectionDraft() {
+    _historyJump++;
+    _historyKeys.clear();
+    _lastJumpedMessage = null;
     _steerScopes.clear();
     _selectedTaskId = null;
     if (_input.text != _s.agentDraft) _input.text = _s.agentDraft;
@@ -255,6 +453,26 @@ class _AgentChatState extends State<AgentChat> {
     final session = _s.agentSession;
     if (api == null || !mounted) return;
     if (!_s.ownsConnection(generation, api)) return;
+    if (session != null) {
+      final owner = _s;
+      final selection = owner.agentSelectionGeneration;
+      // initState can start task discovery during a build. History reads notify
+      // synchronously, so start them only after the frame has finished.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted ||
+            !identical(_s, owner) ||
+            !owner.ownsConnection(generation, api) ||
+            !owner.ownsAgentSelection(selection, session) ||
+            !owner.sessionAuthenticated ||
+            !owner.agentHistoryVerified ||
+            owner.agentHistoryLoading ||
+            owner.agentHistoryHasMore ||
+            owner.agentHistoryError != null) {
+          return;
+        }
+        unawaited(owner.refreshAgentHistory());
+      });
+    }
     try {
       final tasks = await api.listTasks();
       if (!ownsRead()) return;
@@ -1163,10 +1381,12 @@ class _AgentChatState extends State<AgentChat> {
     ],
   );
 
-  Widget _composer() => Container(
-    decoration: agentComposerDecoration(context),
-    child: SafeArea(
-      top: false,
+  Widget _composer() => SafeArea(
+    top: false,
+    child: Container(
+      key: const ValueKey('agent-composer-surface'),
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+      decoration: agentComposerDecoration(context),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
         child: LayoutBuilder(
@@ -1227,7 +1447,28 @@ class _AgentChatState extends State<AgentChat> {
     ),
   );
 
+  Widget _noticeBanner({
+    required Key key,
+    required String message,
+    VoidCallback? onDismiss,
+  }) => Card(
+    key: key,
+    margin: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+    shape: agentCardShape(context),
+    clipBehavior: Clip.antiAlias,
+    child: MaterialBanner(
+      content: Text(message),
+      actions: [
+        if (onDismiss == null)
+          const SizedBox.shrink()
+        else
+          TextButton(onPressed: onDismiss, child: const Text('DISMISS')),
+      ],
+    ),
+  );
+
   Widget _harnessSidebar({bool sheet = false}) => AgentHarnessSidebar(
+    showBorder: sheet,
     entries: [
       for (final item in _s.agentHarnesses)
         HarnessSidebarEntry(
@@ -1274,6 +1515,7 @@ class _AgentChatState extends State<AgentChat> {
   );
 
   Widget _sessionSidebar({bool sheet = false}) => AgentSessionSidebar(
+    showBorder: sheet,
     entries: [
       for (final session in _s.agentWorkspaceSessions)
         SessionSidebarEntry(
@@ -1379,243 +1621,492 @@ class _AgentChatState extends State<AgentChat> {
     );
   }
 
-  Widget _details(AgentTask? task) => Container(
-    width: AgentDesign.detailsWidth,
-    decoration: agentDetailsDecoration(context),
-    child: ListView(
-      padding: const EdgeInsets.all(20),
+  Widget _details(AgentTask? task, {VoidCallback? onCollapse}) => Container(
+    key: const ValueKey('agent-details-panel'),
+    decoration: agentDetailsDecoration(context, showBorder: onCollapse == null),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('Task details', style: Theme.of(context).textTheme.titleLarge),
-        const SizedBox(height: 8),
-        Text(
-          task == null
-              ? 'Select a task on the left or in the conversation.'
-              : 'Task inspection; new instructions use the selected session.',
-          style: agentMutedStyle(
-            context,
-            Theme.of(context).textTheme.bodySmall,
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 4, 4),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Task details',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ),
+              if (onCollapse != null)
+                IconButton(
+                  tooltip: 'Collapse details',
+                  onPressed: onCollapse,
+                  icon: const Icon(Icons.chevron_right),
+                ),
+            ],
           ),
         ),
-        const SizedBox(height: 16),
-        if (task == null)
-          const Text('Choose a task to inspect its status and evidence.')
-        else ...[
-          _detail('Objective', task.objective),
-          _detail('Current state', task.state),
-          _detail('Objective revision', '${task.objectiveRevision}'),
-          _detail('Task', task.taskId),
-          if (task.modelPin case final pin?) ...[
-            _detail('Model', '${pin['model']}'),
-            _detail('Provider', '${pin['provider']}'),
-            _detail('Model profile', '${pin['profile_id']}'),
-            _detail('Reasoning', '${pin['reasoning'] ?? 'Profile default'}'),
-            _detail('Model settings revision', '${pin['settings_revision']}'),
-            if (pin['catalog_binding'] case final Map reference) ...[
-              _detail('Saved provider', '${reference['id']}'),
-              _detail('Provider version', '${reference['generation']}'),
-              _detail('Catalog revision', '${pin['catalog_revision']}'),
-              ExpansionTile(
-                tilePadding: EdgeInsets.zero,
-                title: const Text('Saved provider identity'),
-                children: [
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+            children: [
+              Text(
+                task == null
+                    ? 'Select a task on the left or in the conversation.'
+                    : 'Task inspection; new instructions use the selected session.',
+                style: agentMutedStyle(
+                  context,
+                  Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+              const SizedBox(height: 16),
+              if (task == null)
+                const Text('Choose a task to inspect its status and evidence.')
+              else ...[
+                _detail('Objective', task.objective),
+                _detail('Current state', task.state),
+                _detail('Objective revision', '${task.objectiveRevision}'),
+                _detail('Task', task.taskId),
+                if (task.modelPin case final pin?) ...[
+                  _detail('Model', '${pin['model']}'),
+                  _detail('Provider', '${pin['provider']}'),
+                  _detail('Model profile', '${pin['profile_id']}'),
                   _detail(
-                    'Configuration SHA256',
-                    '${reference['configuration_sha256']}',
+                    'Reasoning',
+                    '${pin['reasoning'] ?? 'Profile default'}',
                   ),
+                  _detail(
+                    'Model settings revision',
+                    '${pin['settings_revision']}',
+                  ),
+                  if (pin['catalog_binding'] case final Map reference) ...[
+                    _detail('Saved provider', '${reference['id']}'),
+                    _detail('Provider version', '${reference['generation']}'),
+                    _detail('Catalog revision', '${pin['catalog_revision']}'),
+                    ExpansionTile(
+                      tilePadding: EdgeInsets.zero,
+                      title: const Text('Saved provider identity'),
+                      children: [
+                        _detail(
+                          'Configuration SHA256',
+                          '${reference['configuration_sha256']}',
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
+                _detail('Session', task.sessionId),
+                _detail(
+                  'Recorded harness',
+                  task.harnessVersion ?? 'Unknown historical harness',
+                ),
+                _detail(
+                  'Evidence',
+                  task.evidence.isEmpty
+                      ? 'No completion evidence recorded.'
+                      : '${task.evidence.length} recorded items; inspect the receipts in the task card.',
+                ),
+                if (task.remainingRequiredWork.isNotEmpty)
+                  _detail(
+                    'Remaining work',
+                    task.remainingRequiredWork.join('\n'),
+                  ),
+              ],
+              const Divider(),
+              const SizedBox(height: 16),
+              _detail(
+                'Current Agent provider',
+                _s.agentProvider == null
+                    ? 'Not verified'
+                    : '${_s.agentProvider!['provider']} · ${_s.agentProvider!['model']}',
+              ),
+              _detail('Approval requests', '${_s.approvals.length}'),
+              Text(
+                'Inspecting a task does not change the recipient of a new instruction. Use its Steer or Stop control to affect that task.',
+                style: agentMutedStyle(
+                  context,
+                  Theme.of(context).textTheme.bodySmall,
+                ),
               ),
             ],
-          ],
-          _detail('Session', task.sessionId),
-          _detail(
-            'Recorded harness',
-            task.harnessVersion ?? 'Unknown historical harness',
-          ),
-          _detail(
-            'Evidence',
-            task.evidence.isEmpty
-                ? 'No completion evidence recorded.'
-                : '${task.evidence.length} recorded items; inspect the receipts in the task card.',
-          ),
-          if (task.remainingRequiredWork.isNotEmpty)
-            _detail('Remaining work', task.remainingRequiredWork.join('\n')),
-        ],
-        const Divider(),
-        const SizedBox(height: 16),
-        _detail(
-          'Current Agent provider',
-          _s.agentProvider == null
-              ? 'Not verified'
-              : '${_s.agentProvider!['provider']} · ${_s.agentProvider!['model']}',
-        ),
-        _detail('Approval requests', '${_s.approvals.length}'),
-        Text(
-          'Inspecting a task does not change the recipient of a new instruction. Use its Steer or Stop control to affect that task.',
-          style: agentMutedStyle(
-            context,
-            Theme.of(context).textTheme.bodySmall,
           ),
         ),
       ],
     ),
   );
 
-  Widget _conversation(bool wide, AgentTask? selected) {
+  Widget _collapsedDetails() => Container(
+    key: const ValueKey('agent-details-collapsed'),
+    width: AgentDesign.sidebarCollapsedWidth,
+    decoration: agentDetailsDecoration(context, showBorder: false),
+    child: Column(
+      children: [
+        const SizedBox(height: 8),
+        IconButton(
+          tooltip: 'Expand details',
+          onPressed: () => setState(() => _showDetails = true),
+          icon: const Icon(Icons.chevron_left),
+        ),
+      ],
+    ),
+  );
+
+  List<ChatMsg> get _navigationMessages => _s.agentHistory
+      .where(
+        (message) =>
+            message.eventId != null &&
+            (message.role == 'user' || message.role == 'kinaiya'),
+      )
+      .toList();
+
+  GlobalKey _historyKey(String id) =>
+      _historyKeys.putIfAbsent(id, GlobalKey.new);
+
+  Future<void> _jumpToHistory(String eventId) async {
+    final generation = ++_historyJump;
+    final selection = _s.agentSelectionGeneration;
+    final connection = _s.connectionGeneration;
+    bool current() =>
+        mounted &&
+        generation == _historyJump &&
+        selection == _s.agentSelectionGeneration &&
+        connection == _s.connectionGeneration &&
+        _historyScroll.hasClients;
+    if (!current()) return;
+    var lower = 0.0;
+    var upper = _historyScroll.position.maxScrollExtent;
+    var upperBounded = false;
+    var direction = 1.0;
+    var sawHistory = false;
+    for (var attempt = 0; attempt < 48 && current(); attempt++) {
+      final messages = _navigationMessages;
+      final target = messages.indexWhere(
+        (message) => message.eventId == eventId,
+      );
+      if (target < 0) return;
+      final targetContext = _historyKeys[eventId]?.currentContext;
+      final targetRender = targetContext?.findRenderObject();
+      if (targetContext != null &&
+          targetContext.mounted &&
+          targetRender?.attached == true) {
+        await Scrollable.ensureVisible(
+          targetContext,
+          alignment: .1,
+          duration: const Duration(milliseconds: 180),
+        );
+        if (current()) setState(() => _lastJumpedMessage = eventId);
+        return;
+      }
+      final position = _historyScroll.position;
+      if (!upperBounded) upper = position.maxScrollExtent;
+      final mountedIndexes = <int>[];
+      for (var i = 0; i < messages.length; i++) {
+        final render = _historyKeys[messages[i].eventId]?.currentContext
+            ?.findRenderObject();
+        if (render?.attached == true) mountedIndexes.add(i);
+      }
+      double next;
+      if (mountedIndexes.isEmpty) {
+        if (sawHistory) {
+          // The last jump may have passed all message rows into task cards.
+          if (direction > 0) {
+            upper = position.pixels;
+            upperBounded = true;
+          } else {
+            lower = position.pixels;
+          }
+          next = (lower + upper) / 2;
+        } else if (attempt == 0 && position.pixels > 0) {
+          // Start above the history when the current viewport contains only
+          // task cards; their height gives no reliable message position.
+          next = 0;
+        } else {
+          next = position.pixels + position.viewportDimension;
+        }
+      } else if (target < mountedIndexes.first) {
+        sawHistory = true;
+        upper = position.pixels;
+        upperBounded = true;
+        direction = -1;
+        next = (lower + upper) / 2;
+      } else if (target > mountedIndexes.last) {
+        sawHistory = true;
+        lower = position.pixels;
+        direction = 1;
+        next = (lower + upper) / 2;
+      } else {
+        next = position.pixels + direction * position.viewportDimension / 2;
+      }
+      next = next.clamp(0, position.maxScrollExtent);
+      if ((next - position.pixels).abs() < 1) break;
+      _historyScroll.jumpTo(next);
+      await WidgetsBinding.instance.endOfFrame;
+    }
+    if (mounted && current()) {
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        const SnackBar(content: Text('Could not reach that recorded message.')),
+      );
+    }
+  }
+
+  Widget _historyRail(List<ChatMsg> messages) => SizedBox(
+    width: 32,
+    child: ListView.builder(
+      key: const ValueKey('agent-history-rail'),
+      itemCount: messages.length,
+      itemBuilder: (context, index) {
+        final message = messages[index];
+        final id = message.eventId!;
+        final label =
+            'Jump to ${message.role == 'user' ? 'your' : 'Agent'} message ${index + 1} of ${messages.length}';
+        return Tooltip(
+          message: label,
+          child: Semantics(
+            label: label,
+            button: true,
+            selected: _lastJumpedMessage == id,
+            onTap: () => unawaited(_jumpToHistory(id)),
+            child: InkWell(
+              excludeFromSemantics: true,
+              onTap: () => unawaited(_jumpToHistory(id)),
+              child: SizedBox(
+                height: 30,
+                child: Center(
+                  child: Container(
+                    width: _lastJumpedMessage == id ? 15 : 9,
+                    height: 3,
+                    decoration: BoxDecoration(
+                      color: _lastJumpedMessage == id
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(context).colorScheme.onSurfaceVariant,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    ),
+  );
+
+  List<Widget> _historyWidgets() {
+    final widgets = <Widget>[];
+    final history = _s.agentHistory;
+    final markerIds = _navigationMessages
+        .map((message) => message.eventId)
+        .toSet();
+    _historyKeys.removeWhere((id, _) => !markerIds.contains(id));
+    for (var index = 0; index < history.length;) {
+      final message = history[index];
+      final activity = message.toolActivity;
+      if (activity == null) {
+        Widget bubble = MessageBubble(
+          role: message.role,
+          text: message.text,
+          note: message.note,
+          speaker: 'Agent',
+        );
+        if (message.eventId != null &&
+            (message.role == 'user' || message.role == 'kinaiya')) {
+          bubble = KeyedSubtree(
+            key: _historyKey(message.eventId!),
+            child: bubble,
+          );
+        }
+        widgets.add(bubble);
+        index++;
+        continue;
+      }
+      final group = <AgentToolActivity>[activity];
+      index++;
+      while (index < history.length) {
+        final next = history[index].toolActivity;
+        if (next == null ||
+            next.taskId != activity.taskId ||
+            next.revision != activity.revision) {
+          break;
+        }
+        group.add(next);
+        index++;
+      }
+      widgets.add(
+        AgentActivityGroup(
+          key: ValueKey('agent-activity-group-${activity.eventId}'),
+          activities: group,
+        ),
+      );
+    }
+    return widgets;
+  }
+
+  Widget _conversation() {
     final tasksById = {for (final t in _s.tasks) t.taskId: t};
     final sessionTasks = _s.selectedAgentTasks;
+    final markers = _navigationMessages;
     return Column(
+      key: const ValueKey('agent-conversation'),
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Direct Agent Chat',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  _s.agentSession?.name.isNotEmpty == true
-                      ? 'Session: ${_s.agentSession!.name}'
-                      : _s.agentHistoryLoading
-                      ? 'Verifying session…'
-                      : 'Choose a session or create one for the selected harness.',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: agentMutedStyle(
-                    context,
-                    Theme.of(context).textTheme.bodyMedium,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (!_s.commandsAvailable)
-                const MaterialBanner(
-                  content: Text(
-                    'Command registry unavailable; plain instructions still work.',
-                  ),
-                  actions: [SizedBox.shrink()],
-                ),
-              if (_s.agentNotice.isNotEmpty)
-                MaterialBanner(
-                  content: Text(_s.agentNotice),
-                  actions: [
-                    TextButton(
-                      onPressed: () {
-                        _s.agentNotice = '';
-                        _s.touch();
-                      },
-                      child: const Text('DISMISS'),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Direct Agent Chat',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _s.agentSession?.name.isNotEmpty == true
+                          ? 'Session: ${_s.agentSession!.name}'
+                          : _s.agentHistoryLoading
+                          ? 'Verifying session…'
+                          : 'Choose a session or create one for the selected harness.',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: agentMutedStyle(
+                        context,
+                        Theme.of(context).textTheme.bodyMedium,
+                      ),
                     ),
                   ],
                 ),
-
-              for (final attempt in _AgentSubmissions.forOwner(_s.client))
-                _pendingSubmissionCard(attempt),
-              for (final a in _s.approvals)
-                _approvalCard(a, tasksById[a.taskId]),
-              for (final attempt in _s.approvalReissues.values)
-                if (!_s.approvals.any(
-                  (a) => a.approvalId == attempt.approval.approvalId,
-                ))
-                  _approvalCard(
-                    attempt.approval,
-                    tasksById[attempt.approval.taskId],
-                  ),
-              if (_s.agentHistoryLoading) const LinearProgressIndicator(),
-              if (_s.agentHistoryError != null)
-                Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Text(_s.agentHistoryError!),
-                ),
-              for (final m in _s.agentHistory)
-                MessageBubble(
-                  role: m.role,
-                  text: m.text,
-                  note: m.note,
-                  speaker: 'Agent',
-                ),
-              if (sessionTasks.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  child: Text(
-                    'Tasks in this session · newest first',
-                    style: agentMutedStyle(
-                      context,
-                      Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ),
-                ),
-              for (final task in sessionTasks.reversed) _taskCard(task),
-              Builder(
-                builder: (context) {
-                  final owner = _s;
-                  final client = owner.client;
-                  final generation = owner.connectionGeneration;
-                  return AgentOperatingModePanel(
-                    key: ValueKey((owner, client, generation)),
-                    api: client?.agentControl,
-                    ownerAuthenticated: owner.sessionAuthenticated,
-                    active: () =>
-                        mounted &&
-                        identical(owner, _s) &&
-                        owner.ownsConnection(generation, client),
-                  );
-                },
               ),
-              if (_s.agentHistoryHasMore)
-                TextButton(
-                  onPressed: _s.agentHistoryLoading
-                      ? null
-                      : () => unawaited(_s.refreshAgentHistory()),
-                  child: const Text('Load more recorded history'),
-                ),
-              if (sessionTasks.isEmpty && _s.agentHistory.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 32,
-                    vertical: 40,
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.auto_awesome_outlined,
-                        size: 40,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ],
+          ),
+        ),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16),
+          child: Divider(height: 1),
+        ),
+        Expanded(
+          child: Row(
+            children: [
+              if (markers.isNotEmpty) _historyRail(markers),
+              Expanded(
+                child: ListView(
+                  key: const ValueKey('agent-history-scroll'),
+                  controller: _historyScroll,
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  children: [
+                    if (!_s.commandsAvailable)
+                      _noticeBanner(
+                        key: const ValueKey('agent-registry-notice'),
+                        message:
+                            'Command registry unavailable; plain instructions still work.',
                       ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'What would you like to work on?',
-                        style: Theme.of(context).textTheme.titleLarge,
-                        textAlign: TextAlign.center,
+                    if (_s.agentNotice.isNotEmpty)
+                      _noticeBanner(
+                        key: const ValueKey('agent-message-notice'),
+                        message: _s.agentNotice,
+                        onDismiss: () {
+                          _s.agentNotice = '';
+                          _s.touch();
+                        },
                       ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Give Agent a task, inspect its work, and review approvals here. Your conversation stays in Converse.',
-                        textAlign: TextAlign.center,
-                        style: agentMutedStyle(
-                          context,
-                          Theme.of(context).textTheme.bodyMedium,
+
+                    for (final attempt in _AgentSubmissions.forOwner(_s.client))
+                      _pendingSubmissionCard(attempt),
+                    for (final a in _s.approvals)
+                      _approvalCard(a, tasksById[a.taskId]),
+                    for (final attempt in _s.approvalReissues.values)
+                      if (!_s.approvals.any(
+                        (a) => a.approvalId == attempt.approval.approvalId,
+                      ))
+                        _approvalCard(
+                          attempt.approval,
+                          tasksById[attempt.approval.taskId],
+                        ),
+                    if (_s.agentHistoryLoading) const LinearProgressIndicator(),
+                    if (_s.agentHistoryError != null)
+                      Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Text(_s.agentHistoryError!),
+                      ),
+                    ..._historyWidgets(),
+                    if (sessionTasks.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        child: Text(
+                          'Tasks in this session · newest first',
+                          style: agentMutedStyle(
+                            context,
+                            Theme.of(context).textTheme.bodySmall,
+                          ),
                         ),
                       ),
-                    ],
-                  ),
+                    for (final task in sessionTasks.reversed) _taskCard(task),
+                    Builder(
+                      builder: (context) {
+                        final owner = _s;
+                        final client = owner.client;
+                        final generation = owner.connectionGeneration;
+                        return AgentOperatingModePanel(
+                          key: ValueKey((owner, client, generation)),
+                          api: client?.agentControl,
+                          ownerAuthenticated: owner.sessionAuthenticated,
+                          active: () =>
+                              mounted &&
+                              identical(owner, _s) &&
+                              owner.ownsConnection(generation, client),
+                        );
+                      },
+                    ),
+                    if (_s.agentHistoryHasMore)
+                      TextButton(
+                        onPressed: _s.agentHistoryLoading
+                            ? null
+                            : () => unawaited(_s.refreshAgentHistory()),
+                        child: const Text('Load more recorded history'),
+                      ),
+                    if (sessionTasks.isEmpty && _s.agentHistory.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 32,
+                          vertical: 40,
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.auto_awesome_outlined,
+                              size: 40,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'What would you like to work on?',
+                              style: Theme.of(context).textTheme.titleLarge,
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Give Agent a task, inspect its work, and review approvals here. Your conversation stays in Converse.',
+                              textAlign: TextAlign.center,
+                              style: agentMutedStyle(
+                                context,
+                                Theme.of(context).textTheme.bodyMedium,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
                 ),
+              ),
             ],
           ),
         ),
@@ -1624,13 +2115,53 @@ class _AgentChatState extends State<AgentChat> {
     );
   }
 
+  double _minimumSidebarWidth(BuildContext context) {
+    final painter = TextPainter(
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+    );
+    var widest = 0.0;
+    for (final label in ['Commands', 'Connections']) {
+      painter.text = TextSpan(
+        text: label,
+        style:
+            ListTileTheme.of(context).titleTextStyle ??
+            Theme.of(context).textTheme.bodyLarge,
+      );
+      painter.layout();
+      if (painter.width > widest) widest = painter.width;
+    }
+    painter.dispose();
+    // Allow for the tile's icon, padding and gap, plus the surrounding inset.
+    return (widest + 120).ceilToDouble().clamp(
+      AgentDesign.sidebarMinWidth,
+      double.infinity,
+    );
+  }
+
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, box) {
+      final sidebarMinWidth = _minimumSidebarWidth(context);
+      final availableWidth = (box.maxWidth - 24).clamp(0.0, double.infinity);
       final width =
-          box.maxWidth / MediaQuery.textScalerOf(context).scale(1).clamp(1, 2);
-      final wide = width >= AgentDesign.wideBreakpoint;
-      _detailsInline = width >= AgentDesign.detailsBreakpoint && _showDetails;
+          availableWidth /
+          MediaQuery.textScalerOf(context).scale(1).clamp(1, 2);
+      final wide =
+          width >= AgentDesign.wideBreakpoint &&
+          availableWidth >=
+              2 * sidebarMinWidth +
+                  2 * AgentDesign.sidebarResizeWidth +
+                  AgentDesign.conversationMinWidth;
+      final canShowDetails =
+          wide &&
+          width >= AgentDesign.detailsBreakpoint &&
+          availableWidth >=
+              2 * sidebarMinWidth +
+                  3 * AgentDesign.sidebarResizeWidth +
+                  AgentDesign.detailsMinWidth +
+                  AgentDesign.conversationMinWidth;
+      _detailsInline = canShowDetails && _showDetails;
       final tasks = _s.selectedAgentTasks;
       final matches = tasks.where((t) => t.taskId == _selectedTaskId);
       final selected = matches.firstOrNull ?? tasks.lastOrNull;
@@ -1654,42 +2185,183 @@ class _AgentChatState extends State<AgentChat> {
                 ),
               ],
             ),
-          if (wide)
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: () => setState(() => _showDetails = !_showDetails),
-                icon: const Icon(Icons.info_outline),
-                label: Text(_showDetails ? 'Hide details' : 'Show details'),
-              ),
-            ),
           Expanded(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (wide)
-                  SizedBox(
-                    width: _harnessCollapsed ? 48 : 246,
-                    child: _harnessSidebar(),
-                  ),
-                if (wide)
-                  SizedBox(
-                    width: _sessionsCollapsed ? 48 : 260,
-                    child: _sessionSidebar(),
-                  ),
-                Expanded(
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(
-                        maxWidth: AgentDesign.conversationMaxWidth,
+            child: WorkspaceFrame(
+              key: const ValueKey('agent-workspace-frame'),
+              inset: wide,
+              child: LayoutBuilder(
+                builder: (context, frame) {
+                  final harnessMinimum = _harnessCollapsed
+                      ? AgentDesign.sidebarCollapsedWidth
+                      : sidebarMinWidth;
+                  final sessionsMinimum = _sessionsCollapsed
+                      ? AgentDesign.sidebarCollapsedWidth
+                      : sidebarMinWidth;
+                  final leftHandlesWidth = wide
+                      ? 2 * AgentDesign.sidebarResizeWidth
+                      : 0.0;
+                  final detailsMinimum = canShowDetails
+                      ? (_showDetails
+                                ? AgentDesign.detailsMinWidth
+                                : AgentDesign.sidebarCollapsedWidth) +
+                            AgentDesign.sidebarResizeWidth
+                      : 0.0;
+                  final leftBudget =
+                      (frame.maxWidth -
+                              AgentDesign.conversationMinWidth -
+                              leftHandlesWidth -
+                              detailsMinimum)
+                          .clamp(
+                            harnessMinimum + sessionsMinimum,
+                            double.infinity,
+                          );
+                  final harnessWidth = wide
+                      ? (_harnessCollapsed
+                            ? AgentDesign.sidebarCollapsedWidth
+                            : _harnessWidth.clamp(
+                                harnessMinimum,
+                                leftBudget - sessionsMinimum,
+                              ))
+                      : 0.0;
+                  final sessionsWidth = wide
+                      ? (_sessionsCollapsed
+                            ? AgentDesign.sidebarCollapsedWidth
+                            : _sessionsWidth.clamp(
+                                sessionsMinimum,
+                                leftBudget - harnessWidth,
+                              ))
+                      : 0.0;
+                  final maximumDetailsWidth =
+                      (frame.maxWidth -
+                              harnessWidth -
+                              sessionsWidth -
+                              leftHandlesWidth -
+                              AgentDesign.conversationMinWidth -
+                              AgentDesign.sidebarResizeWidth)
+                          .clamp(AgentDesign.detailsMinWidth, double.infinity);
+                  final detailsWidth = _detailsWidth.clamp(
+                    AgentDesign.detailsMinWidth,
+                    maximumDetailsWidth,
+                  );
+                  final detailsOccupied = canShowDetails
+                      ? (_showDetails
+                                ? detailsWidth
+                                : AgentDesign.sidebarCollapsedWidth) +
+                            AgentDesign.sidebarResizeWidth
+                      : 0.0;
+                  final maximumHarnessWidth =
+                      (frame.maxWidth -
+                              sessionsWidth -
+                              leftHandlesWidth -
+                              detailsOccupied -
+                              AgentDesign.conversationMinWidth)
+                          .clamp(sidebarMinWidth, double.infinity);
+                  final maximumSessionsWidth =
+                      (frame.maxWidth -
+                              harnessWidth -
+                              leftHandlesWidth -
+                              detailsOccupied -
+                              AgentDesign.conversationMinWidth)
+                          .clamp(sidebarMinWidth, double.infinity);
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (wide)
+                        SizedBox(
+                          key: const ValueKey('agent-harness-pane'),
+                          width: harnessWidth,
+                          child: _harnessSidebar(),
+                        ),
+                      if (wide)
+                        _SidebarResizeHandle(
+                          key: const ValueKey('agent-harness-resize-handle'),
+                          label: 'harnesses',
+                          width: harnessWidth,
+                          minimum: sidebarMinWidth,
+                          maximum: maximumHarnessWidth,
+                          growsRight: true,
+                          collapsed: _harnessCollapsed,
+                          restoreWidth: _harnessWidth,
+                          onResize: (value) =>
+                              setState(() => _harnessWidth = value),
+                          onCollapse: (previous) => setState(() {
+                            _harnessWidth = previous;
+                            _harnessCollapsed = true;
+                          }),
+                          onExpand: (value) => setState(() {
+                            _harnessWidth = value;
+                            _harnessCollapsed = false;
+                          }),
+                        ),
+                      if (wide)
+                        SizedBox(
+                          key: const ValueKey('agent-sessions-pane'),
+                          width: sessionsWidth,
+                          child: _sessionSidebar(),
+                        ),
+                      if (wide)
+                        _SidebarResizeHandle(
+                          key: const ValueKey('agent-sessions-resize-handle'),
+                          label: 'workspace',
+                          width: sessionsWidth,
+                          minimum: sidebarMinWidth,
+                          maximum: maximumSessionsWidth,
+                          growsRight: true,
+                          collapsed: _sessionsCollapsed,
+                          restoreWidth: _sessionsWidth,
+                          onResize: (value) =>
+                              setState(() => _sessionsWidth = value),
+                          onCollapse: (previous) => setState(() {
+                            _sessionsWidth = previous;
+                            _sessionsCollapsed = true;
+                          }),
+                          onExpand: (value) => setState(() {
+                            _sessionsWidth = value;
+                            _sessionsCollapsed = false;
+                          }),
+                        ),
+                      Expanded(
+                        key: const ValueKey('agent-conversation-pane'),
+                        child: _conversation(),
                       ),
-                      child: _conversation(wide, selected),
-                    ),
-                  ),
-                ),
-                if (width >= AgentDesign.detailsBreakpoint && _showDetails)
-                  _details(selected),
-              ],
+                      if (canShowDetails) ...[
+                        _SidebarResizeHandle(
+                          key: const ValueKey('agent-details-resize-handle'),
+                          label: 'task details',
+                          width: _showDetails
+                              ? detailsWidth
+                              : AgentDesign.sidebarCollapsedWidth,
+                          minimum: AgentDesign.detailsMinWidth,
+                          maximum: maximumDetailsWidth,
+                          growsRight: false,
+                          collapsed: !_showDetails,
+                          restoreWidth: _detailsWidth,
+                          onResize: (value) =>
+                              setState(() => _detailsWidth = value),
+                          onCollapse: (previous) => setState(() {
+                            _detailsWidth = previous;
+                            _showDetails = false;
+                          }),
+                          onExpand: (value) => setState(() {
+                            _detailsWidth = value;
+                            _showDetails = true;
+                          }),
+                        ),
+                        if (_showDetails)
+                          SizedBox(
+                            width: detailsWidth,
+                            child: _details(
+                              selected,
+                              onCollapse: () =>
+                                  setState(() => _showDetails = false),
+                            ),
+                          ),
+                        if (!_showDetails) _collapsedDetails(),
+                      ],
+                    ],
+                  );
+                },
+              ),
             ),
           ),
         ],
