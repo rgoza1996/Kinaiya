@@ -53,6 +53,8 @@ class _SubmitExchange:
     """Keep late acquisition and actual response cleanup owned after public refusal."""
 
     def __init__(self, owner, request, proposal, result_type, deadline):
+        if len(owner._submit_exchanges) >= 64:
+            raise AgentSubmitUnavailable
         self.owner = owner
         self.response = None
         self.close_task = None
