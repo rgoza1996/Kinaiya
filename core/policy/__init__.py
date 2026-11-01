@@ -87,12 +87,20 @@ class ToolPolicy:
         network: bool = False,
         protected_roots: tuple[Path, ...] | list[Path] = (),
         readonly_roots: tuple[Path, ...] | list[Path] = (),
+        deny_write: bool = False,
+        deny_shell: bool = False,
+        shell_working_directory: str = ".",
+        shell_timeout_s: float = 120,
     ) -> None:
         self.workspace = Path(workspace).resolve()
         self.allow_write = bool(allow_write)
         self.allow_shell = bool(allow_shell)
         self.yolo = bool(yolo)
         self.network = bool(network)
+        self.deny_write = bool(deny_write)
+        self.deny_shell = bool(deny_shell)
+        self.shell_working_directory = shell_working_directory
+        self.shell_timeout_s = shell_timeout_s
         self.protected_roots = tuple(Path(p).resolve() for p in protected_roots)
         references = []
         for root in readonly_roots:
@@ -134,11 +142,11 @@ class ToolPolicy:
 
     @property
     def effective_write(self) -> bool:
-        return self.allow_write or self.yolo
+        return not self.deny_write and (self.allow_write or self.yolo)
 
     @property
     def effective_shell(self) -> bool:
-        return self.allow_shell or self.yolo
+        return not self.deny_shell and (self.allow_shell or self.yolo)
 
     # -- path scoping ---------------------------------------------------
     def is_protected(self, resolved: Path) -> bool:
@@ -237,6 +245,8 @@ class ToolPolicy:
         objective_revision: int = 1,
     ) -> Path:
         """Writes need a grant or a bound approval; scoping always applies."""
+        if self.deny_write:
+            raise PolicyDenied("Native workspace writes are disabled by owner policy")
         self._deny_readonly_write(path)
         resolved = self.resolve_path(path)
         if self.effective_write:
@@ -253,6 +263,8 @@ class ToolPolicy:
         digest: str | None = None,
         objective_revision: int = 1,
     ) -> None:
+        if self.deny_shell:
+            raise PolicyDenied("Native shell commands are disabled by owner policy")
         if self.effective_shell:
             return
         if approval_id is None or digest is None:
@@ -262,9 +274,9 @@ class ToolPolicy:
     def needs_approval(self, tool: str, arguments: dict[str, Any] | None = None) -> bool:
         """True when the tool would need a per-action approval under grants."""
         if tool == "write_file":
-            return not self.effective_write
+            return not self.deny_write and not self.effective_write
         if tool == "shell":
-            return not self.effective_shell
+            return not self.deny_shell and not self.effective_shell
         return False
 
     def digest_for(self, tool: str, arguments: dict[str, Any], objective_revision: int) -> str:

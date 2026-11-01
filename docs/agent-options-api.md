@@ -9,7 +9,9 @@ not inference, endpoint readiness, permission expansion or harness promotion.
 
 `GET /v1/agent/options` returns `schema_version: "1.0"`, current default provider
 metadata, effective permission flags, maximum task steps, native tool names and
-`models`. A host without the model-settings owner returns `models: null`.
+`models`, `runtime_settings`, and `execution`. Legacy permission flags remain
+unchanged for compatibility; precise native modes/effective flags are in the
+new runtime snapshot. A host without the model-settings owner returns `models: null`.
 The model snapshot contains:
 
 ```json
@@ -146,3 +148,74 @@ session/revision fences apply independently to each call. Unavailable or
 forbidden routes refuse without silently using another model. Retained foreign
 tool/skill/plugin context currently requires a local auxiliary route rather
 than reusing a disclosure granted to the primary cloud route.
+
+## Execution settings
+
+[ADR0084](adr/0084-owner-execution-settings.md) adds independent owner execution
+settings. `GET /v1/agent/options` returns `runtime_settings: null` when its native
+controller is unavailable; old hosts can omit this field. A configured snapshot
+contains schema version, revision, 64-character lowercase SHA-256 `state_token`,
+service `instance_id`, `source` (`host_configuration` or `owner_saved`), actual
+`settings`, persisted `saved_settings`, `active_matches_saved`, `yolo`,
+`yolo_scope: "service_instance"`, `effective_write`, `effective_shell`, `busy`,
+`change_boundary: "settled_service"` and `execution` metadata.
+
+The same `execution` inspection is also returned at the outer level. It contains
+the actual workspace, shell directory or null and its validity, the shell's
+`read_only`/`read_write` workspace mount, protected/read-only folder lists (first
+64 entries plus total/truncated), required Bubblewrap declaration and executable
+detection, `isolation_verified: false`, configured network namespace, fixed public
+environment (cleared host environment, PATH `/usr/bin:/bin`, HOME `/tmp`),
+`sandbox_optional: false` and `workspace_mutable: false`. It is owner-only, not
+tool/model context, does not enumerate secrets, and executes no isolation probe.
+
+`POST /v1/agent/options/runtime` accepts only:
+
+```json
+{
+  "schema_version": "1.0",
+  "expected_revision": 0,
+  "expected_state": "0000000000000000000000000000000000000000000000000000000000000000",
+  "idempotency_key": "unique-owner-execution-request",
+  "settings": {
+    "file_writes": "ask",
+    "shell_commands": "ask",
+    "tool_network": false,
+    "max_steps": 12,
+    "shell_timeout_s": 120,
+    "working_directory": "."
+  },
+  "yolo": false
+}
+```
+
+Use the actual observed token, not the example zeros. Modes are `ask`, `allow`
+or `deny`; network/YOLO are strict booleans. Steps are integer 1–2000; command cap
+is integer 1–120 seconds. The directory is a bounded relative path within the
+existing approved workspace, existing and free of traversal, controls or symlink
+aliases. Dot/redundant separators normalize before digest/receipt creation.
+The command owner revalidates it for every launch. Root relocation, arbitrary
+environment, alternate backends and provider settings are not accepted fields.
+
+The native owner requires settled tasks, workers, child processes and retirement
+cleanup, retires MCP transports, then rechecks revision, actual state and worker
+ownership. A transaction stores preferences and receipt before synchronous native
+apply. File-write Deny precedes approvals/YOLO and mounts the shell workspace
+read-only; Ask on file writes does not prevent an independently allowed command
+from writing. Tool network access does not grant cloud model disclosure.
+
+Success returns schema, `status: "settings_saved"`, incremented `revision`, exact
+`idempotency_key`, normalized `settings`, `requested_yolo`, original
+`service_instance`, and `change_boundary: "settled_service"`. Preferences persist;
+YOLO does not restore from this store after restart. A historical receipt proves
+that save, not current active values. Retry with the identical normalized body/key
+returns the receipt without reapplying it or retiring transports again.
+
+`GET /v1/agent/options/runtime-changes/{key}` reads that exact receipt. Key/body,
+revision/state or pending-work conflicts return 409; invalid native path/bounds
+return 400; malformed wire input returns 422; unavailable/unconfirmed storage or
+transport retirement returns 503. A 404 lookup means no committed receipt is
+currently visible, not proof an earlier request cannot still commit. Inspect
+active values after confirmation, including after restart or another owner
+change. Different pending execution changes require reconciliation first.
+Inspection and execution-settings routes use `Cache-Control: no-store`.

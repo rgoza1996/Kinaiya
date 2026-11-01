@@ -226,6 +226,18 @@ class KinaiyaClient {
   Future<Map<String, Object?>> saveAgentModels(Map<String, Object?> body) =>
       _post(agentBase, '/v1/agent/options/models', body);
 
+  Future<Map<String, Object?>> saveAgentRuntimeSettings(
+    Map<String, Object?> body,
+  ) => _post(agentBase, '/v1/agent/options/runtime', body);
+
+  Future<Map<String, Object?>> agentRuntimeSettingsReceipt(String key) async =>
+      (await _agentWorkspaceReader.get(
+                agentBase,
+                '/v1/agent/options/runtime-changes/${Uri.encodeComponent(key)}',
+              )
+              as Map)
+          .cast<String, Object?>();
+
   Future<Map<String, Object?>> agentTargetHealth(String? harness) async {
     try {
       final result = await agentModelSelection(harness);

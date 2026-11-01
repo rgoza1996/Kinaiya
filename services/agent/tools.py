@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import math
 import os
 import re
 import secrets
@@ -106,6 +107,24 @@ def netns_works() -> bool:
 def _sandbox_path(policy: ToolPolicy, host_path: Path) -> Path:
     """Map a workspace-contained host path to its path inside the sandbox."""
     return Path("/workspace") / host_path.relative_to(policy.workspace)
+
+
+def shell_directory(policy: ToolPolicy, value: str | None = None) -> Path:
+    """A shell start directory cannot move the approved workspace or use aliases."""
+    value = policy.shell_working_directory if value is None else value
+    if (
+        type(value) is not str
+        or not 1 <= len(value) <= 512
+        or any(ord(char) < 32 or ord(char) == 127 for char in value)
+        or Path(value).is_absolute()
+        or ".." in Path(value).parts
+    ):
+        raise PolicyDenied("Shell directory must be a relative workspace directory")
+    candidate = policy.workspace / value
+    resolved = policy.resolve_path(candidate)
+    if resolved != Path(os.path.abspath(candidate)) or not resolved.is_dir():
+        raise PolicyDenied("Shell directory must exist without symlink aliases")
+    return resolved
 
 
 def _workspace_readonly_roots(policy: ToolPolicy):
@@ -229,7 +248,7 @@ def build_bwrap_args(
         "--ro-bind",
         "/lib64",
         "/lib64",
-        "--bind",
+        "--ro-bind" if policy.deny_write else "--bind",
         str(policy.workspace),
         "/workspace",
     ]
@@ -238,7 +257,13 @@ def build_bwrap_args(
         raise PolicyDenied("shell read-only references require pinned mount sources")
     for kind, descriptor, destination in readonly_bindings:
         if kind == "--bind-fd":
-            args += [kind, str(descriptor), str(destination)]
+            # A descendant self-bind must not reopen writes under a root
+            # that the owner's Deny setting mounted read-only.
+            args += [
+                "--ro-bind-fd" if policy.deny_write else kind,
+                str(descriptor),
+                str(destination),
+            ]
     # A protected root nested inside the workspace would otherwise be
     # writable through the workspace bind. Cover each one read-only; the
     # later mount wins over the earlier bind in bubblewrap.
@@ -278,7 +303,7 @@ def build_bwrap_args(
         "--unshare-ipc",
         "--unshare-cgroup",
         "--chdir",
-        "/workspace",
+        str(_sandbox_path(policy, shell_directory(policy))),
     ]
     isolated = True
     if network_allowed:
@@ -359,7 +384,10 @@ async def run_shell(
 ) -> tuple[str, Evidence]:
     if not isinstance(command, str) or not command.strip():
         raise ToolFailure("shell requires a non-empty command string")
-    timeout = max(1.0, min(float(timeout_s or SHELL_DEFAULT_TIMEOUT), SHELL_MAX_TIMEOUT))
+    cap = policy.shell_timeout_s
+    if type(cap) not in {int, float} or not math.isfinite(cap) or not 1 <= cap <= SHELL_MAX_TIMEOUT:
+        raise ToolFailure("Native shell timeout policy is unavailable")
+    timeout = max(1.0, min(float(timeout_s or SHELL_DEFAULT_TIMEOUT), SHELL_MAX_TIMEOUT, cap))
     policy.check_shell(
         approval_id=approval_id, digest=digest, objective_revision=objective_revision
     )

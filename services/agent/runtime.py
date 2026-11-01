@@ -297,6 +297,7 @@ class AgentRuntime:
         self.journal = journal
         self.provider = provider
         self.model_settings = None
+        self.runtime_settings = None
         self.projects = None
         self.workspace = Path(workspace)
         self.policy = policy
@@ -1235,6 +1236,9 @@ class AgentRuntime:
         projects, self.projects = self.projects, None
         if projects is not None:
             projects.close()
+        settings, self.runtime_settings = self.runtime_settings, None
+        if settings is not None:
+            settings.close()
 
     # -- approvals ------------------------------------------------------
     async def pending_approvals(
@@ -1543,10 +1547,28 @@ class AgentRuntime:
         return SimpleNamespace(task_id=rec.task.task_id, plugin_versions=rec.plugin_versions)
 
     def _grants(self) -> str:
-        return (
+        grants = (
             f"write={self.policy.effective_write} "
             f"shell={self.policy.effective_shell} "
             f"network={self.policy.network}"
+        )
+        if self.policy.deny_write or self.policy.deny_shell:
+            grants += f" deny_write={self.policy.deny_write} deny_shell={self.policy.deny_shell}"
+        if self.policy.shell_working_directory != "." or self.policy.shell_timeout_s != 120:
+            grants += (
+                f" shell_directory={self.policy.shell_working_directory!r}"
+                f" shell_timeout_s={self.policy.shell_timeout_s}"
+            )
+        return grants
+
+    def runtime_settings_busy(self) -> bool:
+        """Terminal publication does not prove its worker or child has released."""
+        return self._closed or any(
+            rec.task.state not in TERMINAL
+            or (rec.worker is not None and not rec.worker.done())
+            or rec.proc_slot.get("proc") is not None
+            or rec.retire_lock.locked()
+            for rec in self._tasks.values()
         )
 
     def tool_snapshot(self, task: Task | None = None) -> NativeToolSnapshot:

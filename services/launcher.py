@@ -501,6 +501,11 @@ def serve(args):
         if project_path.is_relative_to(workspace):
             raise SystemExit("Owner project storage must stay outside the worker workspace")
         runtime.projects = Projects(project_path)
+        from services.agent.runtime_settings import AgentRuntimeSettings
+
+        runtime.runtime_settings = AgentRuntimeSettings(
+            runtime, path=args.data_dir / "agent-runtime-settings.sqlite"
+        )
         profiles = {
             name: (
                 lambda profile=profile: provider(
