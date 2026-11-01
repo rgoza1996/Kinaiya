@@ -6,7 +6,7 @@ Requirement: [#228](https://github.com/rgoza1996/Kinaiya/issues/228), within
 [Agent operating modes](agent-control-api.md), Roadmap §13/§19 and clarification.md.
 
 This branch implements the authorization owner, native dispatch gate and their
-authenticated Session APIs, plus immutable authorization Dart proofs and bounded
+authenticated Session APIs, plus immutable authorization/dispatch Dart proofs and bounded
 transport. A saved or armed authorization is **not** a scheduled task,
 producer-health claim, execution receipt or completed responsibility. Native
 occurrence admission, an actual Agent producer, positive execution settlement,
@@ -172,6 +172,19 @@ name the requested responsibility; each page item must follow the requested
 exclusive cursor and the page cannot exceed the requested limit. An internally
 valid proof for another request is refused. Change and lookup additionally bind
 the complete original mutation request.
+
+`StandingDispatchOwnerApi` exposes gate observation, passive Stop-template
+discovery, activation, full-original lookup and target Stop. Its strict eight
+packet types preserve all native digest, history, null-controller and readiness
+relationships. It provides no owner method for Agent-only renewal and infers no
+liveness from a browser clock. A separate transport domain uses 4,096/32,768-byte
+request/response caps in the same global 32-actual-owner registry; all earlier
+domains keep their bounds. There are no implicit retries or replacement keys.
+
+The [focused client evidence](../evaluation/evidence/standing-dispatch-client-2026-11-01.json)
+records independent frozen cases, existing transport regressions and actual
+Dart HTTP/Session/SQLite checks. It does not qualify a scheduler, Agent standing
+worker, inbox or editor.
 
 ## Native dispatch gate
 
