@@ -481,10 +481,17 @@ and provider defaults remain unchanged.
 The real worker publishes ordinary authoritative work evidence and runs its
 existing resource/model cleanup. Terminal publication and `wait()` may precede
 actual cleanup. Provider cleanup uncertainty remains sticky even after a later
-adapter close succeeds. This adapter releases no native claim, responsibility or
+adapter close succeeds. The generic Resources completion callback now waits for
+the exact task model lease's positive close result and prior resource releases.
+Pending, cancelled or uncertain cleanup suppresses that callback for ordinary
+and standing tasks; a terminal outcome alone cannot trigger restoration.
+This adapter releases no native claim, responsibility or
 global standing slot. Generic Resources acknowledgement is not an exact lease
 settlement witness; that dependency is tracked in
 [#239](https://github.com/rgoza1996/Kinaiya/issues/239#issuecomment-6558355459).
+The [retirement ordering evidence](../evaluation/evidence/resource-restore-model-retirement-2026-11-01.json)
+records the frozen failing baseline, actual cleanup ownership and affected
+regressions; it does not qualify physical model restoration or settlement.
 
 The [worker evidence](../evaluation/evidence/standing-agent-worker-2026-11-01.json)
 distinguishes actual SQLite/ASGI/Agent/file work with synthetic measured inference
