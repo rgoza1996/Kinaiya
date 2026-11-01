@@ -455,6 +455,7 @@ class AgentRuntime:
         self._resource_completions = set()
         self._resource_retirement_started = False
         self._resource_retirement = None
+        self._resource_retirements = []
         self._resource_retirement_workers = set()
         from services.agent.authorizations import AgentAuthorizations
 
@@ -517,7 +518,11 @@ class AgentRuntime:
                 not lease.settled and not failed_lease(lease) for lease in leases
             )
             + sum(not owner.operation.done() for owner in self._resource_completions)
-            + int(self._resource_retirement is not None and not self._resource_retirement.done()),
+            + int(self._resource_retirement is not None and not self._resource_retirement.done())
+            + sum(
+                owner.operation is not None and not owner.operation.done()
+                for owner in self._resource_retirements
+            ),
             "cleanup_failed": int(
                 self._workspace_cleanup_failed
                 or getattr(self.journal, "_submit_cleanup_failed", False)
@@ -526,6 +531,7 @@ class AgentRuntime:
             + sum(bool(failed_lease(lease)) for lease in leases)
             + sum(failed_operation(owner.operation) for owner in self._resource_completions)
             + int(failed_operation(self._resource_retirement))
+            + sum(failed_operation(owner.operation) for owner in self._resource_retirements)
             + len(uncertain_hosts),
         }
 
@@ -563,6 +569,8 @@ class AgentRuntime:
             for owner in tuple(self._resource_completions):
                 watch(owner.operation, cleanup=True)
             watch(self._resource_retirement, cleanup=True)
+            for owner in self._resource_retirements:
+                watch(owner.operation, cleanup=True)
             for lease in tuple(getattr(self.model_settings, "catalog_leases", ())):
                 watch(lease.cleanup)
                 for operation in tuple(lease.retiring):

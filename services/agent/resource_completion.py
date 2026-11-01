@@ -28,6 +28,8 @@ class ResourceCompletion:
             record.resource_completion = self
         else:
             self.suppressed = True
+        if self.client is not None:
+            _client_retirement(runtime, self.client).completions.add(self)
         self.recheck()
 
     def recheck(self):
@@ -43,6 +45,8 @@ class ResourceCompletion:
             or rec.closing
             or rec._cleanup_uncertain
             or rec.standing_cleanup_uncertain
+            or runtime._resource_retirement_started
+            and self.worker not in runtime._resource_retirement_workers
         ):
             self.suppressed = True
         return not self.suppressed
@@ -114,51 +118,85 @@ class ResourceCompletion:
         self.runtime._workspace_settled()
 
 
-def start_resource_retirement(runtime):
-    """Retain one exact client's close beyond a bounded shutdown facade."""
-    if runtime._resource_retirement_started:
-        return runtime._resource_retirement
-    runtime._resource_retirement_started = True
-    client = runtime.resource_client
-    if client is None:
-        return None
-    records = tuple(runtime._tasks.values())
-    completions = tuple(runtime._resource_completions)
-    workers = {
-        worker
-        for worker in (
-            *(rec.worker for rec in records),
-            *(owner.worker for owner in completions),
-            *runtime._workspace_workers,
-        )
-        if worker is not None
-    }
-    runtime._resource_retirement_workers = workers
+class ResourceClientRetirement:
+    def __init__(self, runtime, client):
+        self.runtime, self.client = runtime, client
+        self.completions = set()
+        self.operation = None
 
-    async def retire():
-        # A worker can arm its completion just before it ends. Join originals
-        # outside all runtime/record locks, then collect those actual owners.
+    async def _run(self):
+        workers = {owner.worker for owner in self.completions}
         if workers:
             await asyncio.gather(
                 *(asyncio.shield(task) for task in workers), return_exceptions=True
             )
-        owners = {
-            *completions,
-            *runtime._resource_completions,
-            *(rec.resource_completion for rec in records if rec.resource_completion is not None),
-        }
-        operations = {
-            owner.operation
-            for owner in owners
-            if owner.client is client and owner.operation is not None
-        }
+        operations = {owner.operation for owner in self.completions if owner.operation is not None}
         if operations:
             await asyncio.gather(
                 *(asyncio.shield(task) for task in operations), return_exceptions=True
             )
-        await client.close()
-        if runtime.resource_client is client:
-            runtime.resource_client = None
+        await self.client.close()
+        if self.runtime.resource_client is self.client:
+            self.runtime.resource_client = None
+
+    def start(self):
+        if self.operation is None:
+            self.operation = asyncio.create_task(self._run())
+            self.operation.add_done_callback(self._settled)
+            self.runtime._workspace_settled()
+        return self.operation
+
+    def _settled(self, operation):
+        if operation.cancelled() or operation.exception() is not None:
+            self.runtime._workspace_cleanup_failed = True
+        self.runtime._workspace_settled()
+
+
+def _client_retirement(runtime, client):
+    # Keep captured identities independently of current record/client slots and
+    # pending notifications. Equality of two client facades is not ownership.
+    for owner in runtime._resource_retirements:
+        if owner.client is client:
+            return owner
+    owner = ResourceClientRetirement(runtime, client)
+    runtime._resource_retirements.append(owner)
+    return owner
+
+
+def start_resource_retirement(runtime):
+    """Retain exact client closers beyond one bounded shutdown facade."""
+    if runtime._resource_retirement_started:
+        return runtime._resource_retirement
+    runtime._resource_retirement_started = True
+    if runtime.resource_client is not None:
+        _client_retirement(runtime, runtime.resource_client)
+    workers = runtime._resource_retirement_workers = {
+        worker
+        for worker in (
+            *(rec.worker for rec in runtime._tasks.values()),
+            *(
+                completion.worker
+                for owner in runtime._resource_retirements
+                for completion in owner.completions
+            ),
+            *runtime._workspace_workers,
+        )
+        if worker is not None
+    }
+
+    async def retire():
+        # A captured worker can still enter finally and capture its actual
+        # client. Let all originals end before fixing the client-close set.
+        if workers:
+            await asyncio.gather(
+                *(asyncio.shield(task) for task in workers), return_exceptions=True
+            )
+        operations = [owner.start() for owner in runtime._resource_retirements]
+        results = await asyncio.gather(
+            *(asyncio.shield(task) for task in operations), return_exceptions=True
+        )
+        if any(isinstance(result, BaseException) for result in results):
+            raise RuntimeError("Resource client retirement is unconfirmed") from None
 
     operation = runtime._resource_retirement = asyncio.create_task(retire())
 
