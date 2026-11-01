@@ -256,10 +256,18 @@ def test_constructor_close_and_existing_bootstrap_do_not_mint_other_authority(pr
         native.store.db = connection
     owner = prepared.task_owner()
     after = database_state(connection)
-    assert set(after[1]) - set(before[1]) == {TABLE}
+    added = {TABLE, "standing_admission_closure_meta", "standing_admission_closures"}
+    assert set(after[1]) - set(before[1]) == added
     assert after[1][TABLE] == ()
-    assert {name: rows for name, rows in after[1].items() if name != TABLE} == before[1]
+    assert after[1]["standing_admission_closures"] == ()
+    assert after[1]["standing_admission_closure_meta"] == (
+        (1, 1, prepared.request.expected_backend),
+    )
+    assert {name: rows for name, rows in after[1].items() if name not in added} == before[1]
+    assert tuple(row for row in after[0] if row[2] not in added) == before[0]
     assert list(connection.execute(f"PRAGMA foreign_key_list({TABLE})")) == []
+    for name in ("standing_admission_closure_meta", "standing_admission_closures"):
+        assert list(connection.execute(f"PRAGMA foreign_key_list({name})")) == []
     assert (native.wall.calls, native.mono.calls) == clock_calls
     assert owner._registered and not owner._failed
     unchanged(native, StandingConflict, owner.register)
