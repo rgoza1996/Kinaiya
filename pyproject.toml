@@ -40,6 +40,9 @@ include = ["services*", "packages*", "core*", "harnesses*", "evaluation*"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+# Release tooling is source-only, not installed as part of the runtime package.
+# Keep console-script pytest and python -m pytest on the same import path.
+pythonpath = ["."]
 markers = ["live: opt-in real provider integration", "sandbox: requires Linux bubblewrap"]
 
 [tool.ruff]
