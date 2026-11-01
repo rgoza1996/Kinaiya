@@ -53,6 +53,16 @@ control API. Opening another Store or LocalJournal does not retire it. Maintain
 issued-generation history; a retired generation cannot become active again.
 Bootstrap defaults to on-demand. An explicit legacy false flag may seed Off
 only for a positively identified new store; persisted owner mode wins thereafter.
+New journals retain durable fresh/uninitialized provenance and a stable backend
+before controller registration. A backend-only read does not select a mode.
+After failed first registration, a pending journal requires explicit Session
+startup on reopen; it cannot be mistaken for a legacy on-demand journal.
+The trusted original creating Store may initialize the default at its first
+native admission only before its own first API-registration attempt. Auxiliary
+and reopened pending Stores have no such initialization privilege. If that
+original creator and a separate controller race their initializations, the first
+native commit establishes mode. An uncommitted Off intent in the other
+controller is not a persisted Off setting or a fence on independent authority.
 
 Within the same SQLite acceptance transaction, exact retained request/receipt
 proof precedes current writer/revision checks. Replay proves the historical save
@@ -126,8 +136,10 @@ Autonomous and unknown mode remain explicit rather than inferred from health.
 The native journal retains at most 10,000 controller generations, mode-change
 proofs and steering intents in each respective table. Reaching a limit refuses
 new records; this slice provides no pruning or history-compaction protocol.
-Exact retained proofs remain readable. These are protected-store lifetime limits,
-not claims about standing-work throughput.
+Mode/intent exhaustion preserves retained lookups in an already registered
+controller; generation exhaustion prevents a new controller from starting.
+These are protected-store lifetime limits, not claims about standing-work
+throughput.
 
 The Agent HTTP steering operation has a 25-second public boundary. Its preparation,
 native admission and fresh-authority phases use 5-, 15- and 5-second guards.
