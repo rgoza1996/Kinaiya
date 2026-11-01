@@ -578,6 +578,59 @@ still required. The [registration evidence](../evaluation/evidence/standing-reso
 separates real disposable-process/SQLite/HTTP checks from unqualified live
 hardware, model and provider behavior.
 
+## Prework binding and Session finalization testimony
+
+The integration branch adds six strict packets in
+`packages/contracts/standing_resource_finalization.py`: binding request/receipt,
+finalize request/context, finalization and its receipt. They preserve complete
+claim, original intent, admission closure and resource observation graphs.
+Their separate codec accepts at most depth 16 and 16,384 nodes; older codecs and
+their 184 schema files are unchanged. These bounds do not apply to transcript
+metadata or establish physical cleanup.
+
+| Session POST route | Role | Request → response byte caps |
+|---|---|---|
+| `/v1/standing/resources/binding` | Resources | 163840 → 180224 |
+| `/v1/standing/resources/binding/lookup` | Resources | 163840 → 180224 or null |
+| `/v1/standing/resources/finalization/context` | Resources | 147456 → 786432 |
+| `/v1/standing/resources/finalization/report` | Resources | 802816 → 819200 |
+| `/v1/standing/resources/finalization/lookup` | Agent or Resources | 147456 → 819200 or null |
+
+Binding must precede first task admission or permanent admission closure.
+The native owner validates the actual prepared claim and fixes its Resources
+backend/controller identity. Reservation creation checks this binding in the
+same transaction before insertion and before COMMIT. Explicit native
+registration attaches the reciprocal owner as well as HTTP composition; a bare
+legacy owner cannot bypass existing new-family state. Genuine family absence
+preserves the old reservation protocol, and exact retained receipts remain
+historical reads.
+
+Context requires the genuine binding and permanent closure. The Session owner
+recomputes the full context from protected native rows, then records the first
+exact Resources report immutably. A different idempotency key, policy revision
+or report body cannot rewrite it. Agent can read recorded testimony but cannot
+create binding/report authority. No private executor capability is accepted on
+these routes. The new response bounds remain separate from the older 262,144-byte
+transport clamp; all standing routes share one 64-operation registry and the
+existing 25-second total/five-second ingress bounds. Shutdown fences admission
+before joining actual operations and retiring collaborators.
+
+This is **native Session testimony**, not a physical Resources certificate.
+The actual Resources controller has not yet implemented prework binding RPC,
+capture sealing/drainage, durable lease acquisition/restoration witnesses or
+production of these reports. Agent supervisor retirement, positive settlement,
+active-slot release, recurrence, inbox and editor remain required. In
+particular, `no-reservation` in a parsed packet cannot establish that no actual
+operation acquired resources, and no claim/reservation is released here.
+
+The [finalization evidence](../evaluation/evidence/standing-resource-finalization-2026-11-01.json)
+records independent contracts/client/native oracles, original source failures,
+the documented fault-fixture correction, two reproduced native composition
+bypasses and their source repair. The final 96-case native/Resources run passed;
+the separate 63/74/69/239-case runs overlap and must not be added into a full-suite
+or physical-cleanup claim. One unrelated old TestClient smoke still has a
+recorded strict-warning collection error in the local locked environment.
+
 ## Native dispatch gate
 
 `services/session/standing_dispatch.py` implements explicit registration,
