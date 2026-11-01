@@ -1,0 +1,28 @@
+{
+  "additionalProperties": false,
+  "description": "Owner renewal of one expired exact action, never approval to execute it.",
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "action_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Action Digest",
+      "type": "string"
+    },
+    "objective_revision": {
+      "minimum": 1,
+      "title": "Objective Revision",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "action_digest",
+    "objective_revision"
+  ],
+  "title": "ApprovalReissue",
+  "type": "object"
+}

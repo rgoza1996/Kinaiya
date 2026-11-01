@@ -35,7 +35,7 @@ from packages.contracts.models import (
 from packages.ecosystem.mcp_host import MCPHost
 from packages.providers.text import ScriptedProvider
 from services.agent import AgentRuntime, create_app
-from services.agent.runtime import StaleRevision, TaskTerminal
+from services.agent.runtime import StaleRevision
 from services.common.auth import Auth
 from services.session.store import LocalJournal, Store
 
@@ -126,21 +126,31 @@ async def test_invalidated_partial_approval_cannot_write(tmp_path, invalidator):
                 InterruptRequest(expected_objective_revision=1, idempotency_key="cancel"),
             )
             await _wait_terminal(runtime, task.task_id)
-        assert (await runtime.pending_approvals()).approvals == []
+        pending = (await runtime.pending_approvals()).approvals
+        if invalidator == "expired":
+            assert len(pending) == 1
+            assert pending[0].approval_id == entry.payload["approval_id"]
+            assert pending[0].status == "expired"
+        else:
+            assert pending == []
         if invalidator == "cancelled":
-            with pytest.raises(TaskTerminal):
+            with pytest.raises(ApprovalError, match="unknown or superseded"):
                 await runtime.resolve_approval(entry.payload["approval_id"], _resolution(entry))
         elif invalidator in {"corrected", "epoch"}:
             with pytest.raises(StaleRevision):
                 await runtime.resolve_approval(entry.payload["approval_id"], _resolution(entry))
             assert not runtime.policy.peek_approval(entry.payload["approval_id"]).used
         else:
-            await runtime.resolve_approval(entry.payload["approval_id"], _resolution(entry))
+            with pytest.raises(ApprovalError, match="expired"):
+                await runtime.resolve_approval(entry.payload["approval_id"], _resolution(entry))
+            assert not runtime.policy.peek_approval(entry.payload["approval_id"]).used
         final = (
             await runtime.status(task.task_id)
-            if invalidator in {"corrected", "epoch"}
+            if invalidator in {"expired", "corrected", "epoch"}
             else await _wait_terminal(runtime, task.task_id)
         )
+        if invalidator == "expired":
+            assert final.state == TaskState.PAUSED
         assert final.state != TaskState.SUCCEEDED
         assert note.read_text() == ORIGINAL
         assert not any(e.kind == "file" for e in final.evidence)

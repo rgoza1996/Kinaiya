@@ -22,6 +22,7 @@ import 'agent_model_settings.dart';
 import 'library_models.dart';
 import 'artifact_client.dart';
 import 'provider_client.dart';
+import 'tool_permissions_client.dart';
 import '../config/service_root.dart';
 
 const _uuid = Uuid();
@@ -204,6 +205,12 @@ class KinaiyaClient {
     baseUrl: agentBase,
     ownerToken: _token,
     clientFactory: _agentModelClientFactory,
+  );
+  late final ToolPermissionsApi toolPermissions = ToolPermissionsApi(
+    baseUrl: agentBase,
+    sessionBase: sessionBase,
+    ownerToken: _token,
+    clientFactory: _agentWorkspaceClientFactory,
   );
 
   Future<ConverseSetup> converseSetup() async =>
@@ -860,6 +867,24 @@ class KinaiyaClient {
     );
   }
 
+  Future<ApprovalReissueReceipt> reissueApproval(
+    ApprovalReissueAttempt attempt,
+  ) async {
+    final receipt = ApprovalReissueReceipt.fromJson(
+      await _post(
+        agentBase,
+        '/v1/approvals/${Uri.encodeComponent(attempt.approval.approvalId)}/reissue',
+        attempt.body,
+      ),
+    );
+    if (!receipt.matches(attempt.approval)) {
+      throw const FormatException(
+        'Approval renewal confirmation does not match',
+      );
+    }
+    return receipt;
+  }
+
   Future<Map<String, Object?>> agentCapabilities() =>
       _get(agentBase, '/v1/agents/capabilities');
 
@@ -938,6 +963,7 @@ class KinaiyaClient {
       decisionInspections.close();
       unawaited(_agentWorkspaceReader.close());
       unawaited(modelSettings.close());
+      unawaited(toolPermissions.close());
       artifacts.close();
     }
   }

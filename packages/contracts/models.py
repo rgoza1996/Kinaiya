@@ -343,6 +343,27 @@ class ApprovalResolution(WireModel):
     objective_revision: int = Field(ge=1)
 
 
+class ApprovalReissue(WireModel):
+    """Owner renewal of one expired exact action, never approval to execute it."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+    action_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    objective_revision: int = Field(ge=1)
+
+
+class ApprovalReissueReceipt(WireModel):
+    """Historical renewal identity plus the replacement's current observation."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+    status: Literal["reissued"] = "reissued"
+    previous_approval_id: str = Field(min_length=1, max_length=128)
+    approval_id: str = Field(min_length=1, max_length=128)
+    action_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    objective_revision: int = Field(ge=1)
+    expires_at: float = Field(gt=0)
+    replacement_status: Literal["pending", "expired", "used", "retired", "unavailable"]
+
+
 class PendingApproval(WireModel):
     approval_id: str = Field(min_length=1, max_length=128)
     task_id: str = Field(min_length=1, max_length=128)
@@ -354,6 +375,7 @@ class PendingApproval(WireModel):
     action_digest: str
     objective_revision: int = Field(ge=1)
     expires_at: float = Field(gt=0)
+    status: Literal["pending", "expired"] = "pending"
     reason: Literal["tool_permission", "uncommitted_speech"] = "tool_permission"
     origin: Literal["agent-supervisor"] = "agent-supervisor"
 

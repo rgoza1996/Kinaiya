@@ -217,6 +217,10 @@ class AppState extends ChangeNotifier {
   /// evidence for current character activity until the next successful read.
   bool tasksStatusStale = true;
   List<ApprovalRequest> approvals = [];
+
+  /// Agent+Session backend/owner RAM only. Converse URL changes do not retire
+  /// unknown exact approval-renewal outcomes.
+  final Map<String, ApprovalReissueAttempt> approvalReissues = {};
   List<CommandDef>? commands; // null: registry unavailable (honest).
   bool commandsAvailable = false;
 
@@ -285,9 +289,11 @@ class AppState extends ChangeNotifier {
   /// Compares service endpoints and the owner credential in memory only.
   /// Never logs, serializes or exposes the token; equality only.
   bool _sameBackend(ConnectionProfile a, ConnectionProfile b) =>
+      _sameAgentBackend(a, b) && a.converseUrl == b.converseUrl;
+
+  bool _sameAgentBackend(ConnectionProfile a, ConnectionProfile b) =>
       a.sessionUrl == b.sessionUrl &&
       a.agentUrl == b.agentUrl &&
-      a.converseUrl == b.converseUrl &&
       a.ownerToken == b.ownerToken;
 
   /// Positive per-role provider verification plus disclosure consent.
@@ -331,7 +337,10 @@ class AppState extends ChangeNotifier {
     _saveAgentWorkspace();
     final previous = connection;
     final backendChanged = previous != null && !_sameBackend(previous, profile);
+    final agentBackendChanged =
+        previous != null && !_sameAgentBackend(previous, profile);
     _invalidateAgentWorkspace(clear: backendChanged);
+    if (agentBackendChanged) approvalReissues.clear();
     tasksStatusStale = true;
     client?.close();
     _noticesPoll?.cancel();

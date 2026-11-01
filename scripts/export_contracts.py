@@ -14,6 +14,7 @@ from packages.contracts import (
     memory_context,
     memory_operations,
     models,
+    tool_permissions,
 )
 
 target = Path(__file__).resolve().parents[1] / "packages/contracts/schemas"
@@ -41,3 +42,9 @@ for module in (
 (target / "ConverseSetup.json").write_text(
     json.dumps(converse_setup.ConverseSetup.model_json_schema(), indent=2) + "\n"
 )
+
+# Owner policy requests are strict frozen models, separate from journal events.
+for cls in (tool_permissions.PermissionScope, tool_permissions.ToolPermissionChange):
+    (target / f"{cls.__name__}.json").write_text(
+        json.dumps(cls.model_json_schema(), indent=2) + "\n"
+    )
