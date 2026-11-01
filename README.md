@@ -10,13 +10,15 @@ Converse is optional. Agent stays available for coding, research, files, and oth
 
 ## See the interface
 
-| Converse | Agent workspace | Options |
-| --- | --- | --- |
-| <a href="assets/screenshots/2026-11-01/12-converse.jpg"><img src="assets/screenshots/2026-11-01/12-converse.jpg" width="300" alt="Converse with character artwork and an empty conversation panel"></a> | <a href="assets/screenshots/2026-11-01/07-agent-workspace.jpg"><img src="assets/screenshots/2026-11-01/07-agent-workspace.jpg" width="300" alt="Agent workspace with harnesses, empty sessions and task details"></a> | <a href="assets/screenshots/2026-11-01/10-options-connected.jpg"><img src="assets/screenshots/2026-11-01/10-options-connected.jpg" width="300" alt="Options category navigation and character artwork"></a> |
+| Home | Converse |
+| --- | --- |
+| <a href="assets/screenshots/2026-11-01-ui-refresh/home.jpg"><img src="assets/screenshots/2026-11-01-ui-refresh/home.jpg" width="420" alt="Home with Kinaiya seated beneath the moon"></a> | <a href="assets/screenshots/2026-11-01-ui-refresh/converse.jpg"><img src="assets/screenshots/2026-11-01-ui-refresh/converse.jpg" width="420" alt="Converse with character artwork and an empty conversation panel"></a> |
+| **Agent workspace** | **Options** |
+| <a href="assets/screenshots/2026-11-01-ui-refresh/agent.jpg"><img src="assets/screenshots/2026-11-01-ui-refresh/agent.jpg" width="420" alt="Agent workspace with resizable sidebars and an empty session list"></a> | <a href="assets/screenshots/2026-11-01-ui-refresh/options.jpg"><img src="assets/screenshots/2026-11-01-ui-refresh/options.jpg" width="420" alt="Options category navigation and character artwork"></a> |
 
-*Actual application captures, November 1, 2026, showing fixture model metadata and an empty Agent workspace. Select an image to open the complete raw capture.*
+*Actual application captures, November 1, 2026, with services disconnected and an empty Agent workspace. Select an image to open the complete capture.*
 
-See the [full application gallery and capture provenance](assets/screenshots/README.md) for Home, floating controls, Models, Tools, Permissions, About, and the dated October 30 image.
+See the [application gallery and capture provenance](assets/screenshots/README.md) for more views and earlier captures.
 
 Explore the [editable interface designs](assets/penpot/README.md) for Converse, Agent, Options, and intelligent views. Those boards are design references with illustrative content.
 

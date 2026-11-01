@@ -1,0 +1,64 @@
+{
+  "schema_version": "1.0",
+  "capture_date": "2026-11-01",
+  "recorded_at_utc": "2026-11-01T21:03:46.905940+00:00",
+  "capture_method": "Complete CUA browser JPEG screenshots of the running Flutter web application",
+  "source_commit": "5b2513d8a1cf463947047f88706117a1c31fc42f",
+  "preview": {
+    "kind": "Local release web build",
+    "port": 8821,
+    "data": "No services connected; no sessions, credentials, inference, or task execution",
+    "build": "flutter build web --release --no-web-resources-cdn --no-pub"
+  },
+  "processing": "None: original complete JPEG bytes without crop, retouch, resize, or re-encoding.",
+  "images": [
+    {
+      "file": "home.jpg",
+      "view": "Home",
+      "sha256": "01ea639ea045f44f6ec4938bf70721125d45f40b641745100def1a0c4b08281e",
+      "bytes": 331629,
+      "width": 2575,
+      "height": 1416
+    },
+    {
+      "file": "converse.jpg",
+      "view": "Converse",
+      "sha256": "31fb54a91b9b75c996f1d4acc335e969ba23312164eac4968ac373a19d422367",
+      "bytes": 171624,
+      "width": 2575,
+      "height": 1416
+    },
+    {
+      "file": "agent.jpg",
+      "view": "Agent workspace",
+      "sha256": "0f29b0fcca52802aeb16081cf8286ce2fb5cdb1f7bb23d743877b331f6c88bb8",
+      "bytes": 126559,
+      "width": 2575,
+      "height": 1416
+    },
+    {
+      "file": "options.jpg",
+      "view": "Options overview",
+      "sha256": "0ed537d1d6cb6cf97da95c4799b0c721e81d626634ac1faffda00cfda954ab0e",
+      "bytes": 302365,
+      "width": 2575,
+      "height": 1416
+    },
+    {
+      "file": "models.jpg",
+      "view": "Models",
+      "sha256": "38fa154e7b196aa0e4531f0d8e8fd610362d09012e32afe84b95ed871cb8a880",
+      "bytes": 149059,
+      "width": 2575,
+      "height": 1416
+    },
+    {
+      "file": "connection.jpg",
+      "view": "Connection",
+      "sha256": "b461f057407df33e5292830c8ad75620e01c61463a8bfed74402a1862280b1eb",
+      "bytes": 112460,
+      "width": 2575,
+      "height": 1416
+    }
+  ]
+}
