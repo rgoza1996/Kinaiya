@@ -1802,15 +1802,24 @@ class AgentRuntime:
                 if not callable(lookup):
                     raise AgentControlUnavailable
                 operation = self._start_submit_operation(lambda: lookup(previous.proposal))
-                raw = await self._await_submit_operation(operation, AGENT_SUBMIT_LOOKUP_TIMEOUT_S)
-                data = (
-                    raw.model_dump(mode="python")
-                    if isinstance(raw, AgentSteerLookupResult)
-                    else raw
-                )
-                observed = AgentSteerLookupResult.model_validate(data).validate_request(
-                    previous.proposal
-                )
+                try:
+                    raw = await self._await_submit_operation(
+                        operation, AGENT_SUBMIT_LOOKUP_TIMEOUT_S
+                    )
+                    data = (
+                        raw.model_dump(mode="python")
+                        if isinstance(raw, AgentSteerLookupResult)
+                        else raw
+                    )
+                    observed = AgentSteerLookupResult.model_validate(data).validate_request(
+                        previous.proposal
+                    )
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    # Lookup is inspection after uncertainty. A later refusal
+                    # or invalid proof cannot classify the original as absent.
+                    raise AgentControlUnavailable from None
                 # Positive knowledge is inspection only; it cannot resurrect the
                 # suppressed direct-created opportunity or replace the goal.
                 previous.receipt = observed.receipt

@@ -434,6 +434,171 @@ def test_native_steer_exact_proof_survives_off_and_one_base_slot_is_immutable(na
     assert store.db.execute("SELECT count(*) FROM agent_steer_intents").fetchone()[0] == 1
 
 
+@pytest.mark.parametrize(
+    "field", ["submit_event_id", "submit_idempotency_key", "submit_payload_digest", "epoch"]
+)
+@pytest.mark.parametrize("method", ["admit_steer", "lookup_steer"])
+def test_retained_steer_substituted_initial_identity_is_conflict_before_candidate_read(
+    native, field, method
+):
+    store, owner = native
+    session = store.create_session(SessionRequest(channel="agent"))
+    initial = store.admit_submit(proposal(session), "agent").entry
+    original = steering(owner, initial)
+    accepted = owner.admit_steer(original)
+    value = getattr(original.task, field)
+    replacement = (
+        value + 1
+        if field == "epoch"
+        else ("c" * 64 if field == "submit_payload_digest" else "another-initial-identity")
+    )
+    different = original.model_copy(
+        update={"task": original.task.model_copy(update={field: replacement})}
+    )
+    with pytest.raises(AgentControlConflict):
+        getattr(owner, method)(different)
+    assert owner.lookup_steer(original).receipt.event_id == accepted.event_id
+    assert store.db.execute("SELECT count(*) FROM agent_steer_intents").fetchone()[0] == 1
+
+
+@pytest.mark.parametrize("method", ["admit_steer", "lookup_steer"])
+def test_retained_steer_still_requires_exact_original_native_initial_provenance(native, method):
+    store, owner = native
+    session = store.create_session(SessionRequest(channel="agent"))
+    initial = store.admit_submit(proposal(session), "agent").entry
+    original = steering(owner, initial)
+    owner.admit_steer(original)
+    store.db.execute("UPDATE entries SET request='{}' WHERE event_id=?", (initial.event_id,))
+    store.db.commit()
+    with pytest.raises(AgentControlUnavailable):
+        getattr(owner, method)(original)
+
+
+@pytest.mark.parametrize(
+    "fault", ["original-epoch-bool", "intent-counter-bool", "intent-counter-float"]
+)
+@pytest.mark.parametrize("method", ["admit_steer", "lookup_steer"])
+def test_native_steer_proof_never_equates_boolean_or_float_counters_with_integers(
+    native, fault, method
+):
+    store, owner = native
+    session = store.create_session(SessionRequest(channel="agent"))
+    initial = store.admit_submit(proposal(session), "agent").entry
+    original = steering(owner, initial)
+    saved = owner.admit_steer(original)
+    assert owner.lookup_steer(original).status == "recorded"
+    row = store.db.execute(
+        "SELECT request,value FROM entries WHERE event_id=?", (saved.event_id,)
+    ).fetchone()
+    request, value = json.loads(row["request"]), json.loads(row["value"])
+    if fault == "original-epoch-bool":
+        request["epoch"] = True
+    else:
+        replacement = True if fault == "intent-counter-bool" else 1.0
+        request["payload"]["expected_objective_revision"] = replacement
+        value["payload"]["expected_objective_revision"] = replacement
+    store.db.execute(
+        "UPDATE entries SET request=?,value=? WHERE event_id=?",
+        (json.dumps(request), json.dumps(value), saved.event_id),
+    )
+    store.db.commit()
+    with pytest.raises(AgentControlUnavailable):
+        getattr(owner, method)(original)
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "scope",
+        "idem",
+        "state-terminal",
+        "state-unknown",
+        "state-missing",
+        "extra-payload",
+        "missing-created-at",
+        "op",
+        "task_id",
+        "actor",
+        "submit_event_id",
+        "intent_digest",
+        "schema-version",
+    ],
+)
+def test_retained_native_intent_requires_the_complete_generated_event_projection(native, fault):
+    store, owner = native
+    session = store.create_session(SessionRequest(channel="agent"))
+    initial = store.admit_submit(proposal(session), "agent").entry
+    original = steering(owner, initial)
+    saved = owner.admit_steer(original)
+    assert owner.lookup_steer(original).status == "recorded"
+    row = store.db.execute(
+        "SELECT request,value,idem FROM entries WHERE event_id=?", (saved.event_id,)
+    ).fetchone()
+    request, value = json.loads(row["request"]), json.loads(row["value"])
+    idem = row["idem"]
+    if fault == "idem":
+        idem = request["idempotency_key"] = value["idempotency_key"] = "substituted-native-key"
+    elif fault == "missing-created-at":
+        del value["created_at"]
+    elif fault == "schema-version":
+        request["schema_version"] = value["schema_version"] = "9.0"
+    elif fault == "state-missing":
+        del request["payload"]["state"]
+        del value["payload"]["state"]
+    else:
+        key, replacement = {
+            "scope": ("content_scope", "public_synthetic"),
+            "state-terminal": ("state", "succeeded"),
+            "state-unknown": ("state", "unrecognized"),
+            "extra-payload": ("extra", "not-native"),
+            "op": ("op", "steer-applied"),
+            "task_id": ("task_id", "foreign-task"),
+            "actor": ("actor", "decisions"),
+            "submit_event_id": ("submit_event_id", "foreign-initial"),
+            "intent_digest": ("intent_digest", "c" * 64),
+        }[fault]
+        request["payload"][key] = value["payload"][key] = replacement
+    store.db.execute(
+        "UPDATE entries SET request=?,value=?,idem=? WHERE event_id=?",
+        (json.dumps(request), json.dumps(value), idem, saved.event_id),
+    )
+    store.db.commit()
+    with pytest.raises(AgentControlUnavailable):
+        owner.lookup_steer(original)
+
+
+async def test_poisoned_native_retirement_shutdown_is_idempotent_and_observable(tmp_path, caplog):
+    store = Store(tmp_path / "poisoned-shutdown.sqlite")
+    app = create_app(store, Auth({"owner": "synthetic-owner-token-000000000000"}))
+    control = app.state.agent_control
+    actual = store.db
+    try:
+        async with app.router.lifespan_context(app):
+            request = change(control)
+            store.db = FaultConnection(actual, "receipt", rollback_failure=True)
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app), base_url="http://synthetic"
+            ) as client:
+                result = await client.post(
+                    "/v1/agent-control/changes",
+                    json=request.model_dump(mode="json"),
+                    headers={"Authorization": "Bearer synthetic-owner-token-000000000000"},
+                )
+            assert result.status_code == 503
+            with pytest.raises(sqlite3.ProgrammingError):
+                actual.execute("SELECT 1")
+        assert control.instance is None
+        assert app.state.agent_control_shutdown_unconfirmed is True
+        assert (
+            "Agent control shutdown could not confirm native generation retirement" in caplog.text
+        )
+        async with app.router.lifespan_context(app):
+            pass
+        assert app.state.agent_control_shutdown_unconfirmed is True
+    finally:
+        store.close()
+
+
 def test_negative_steer_lookup_never_becomes_absence_fence_after_off_aba(native):
     store, owner = native
     session = store.create_session(SessionRequest(channel="agent"))
@@ -777,3 +942,62 @@ async def test_only_complete_fixed_off_marker_is_a_typed_refusal(native, method,
                 await journal.admit_steer(steering(owner, initial))
     finally:
         await journal.close()
+
+
+@pytest.mark.parametrize("method", ["submit", "steer"])
+async def test_fixed_off_marker_from_lookup_is_uncertainty_not_a_new_refusal(native, method):
+    from packages.contracts.agent_submit import AgentSubmitLookupRequest, AgentSubmitUnavailable
+
+    store, owner = native
+    session = store.create_session(SessionRequest(channel="agent"))
+    proposed = proposal(session)
+    initial = store.admit_submit(proposed, "agent").entry
+    journal = JournalClient(
+        "http://synthetic.test",
+        "synthetic-agent-token-000000000000",
+        transport=httpx.MockTransport(
+            lambda wire: httpx.Response(403, json={"detail": str(AgentModeOff())})
+        ),
+    )
+    try:
+        expected = AgentSubmitUnavailable if method == "submit" else AgentControlUnavailable
+        with pytest.raises(expected):
+            if method == "submit":
+                await journal.lookup_submit(
+                    AgentSubmitLookupRequest(
+                        session_id=session.session_id,
+                        thread_id=session.thread_id,
+                        epoch=session.epoch,
+                        idempotency_key=proposed.payload["idempotency_key"],
+                    )
+                )
+            else:
+                await journal.lookup_steer(steering(owner, initial))
+    finally:
+        await journal.close()
+
+
+@pytest.mark.parametrize("reply", ["off", "malformed"])
+async def test_adapter_typed_off_after_unknown_steer_lookup_cannot_change_public_uncertainty(
+    http_stack, monkeypatch, reply
+):
+    _, _, runtime, journal, client, task, _ = http_stack
+
+    async def uncertain(_proposal):
+        raise AgentControlUnavailable
+
+    async def lookup_off(_proposal):
+        if reply == "malformed":
+            return {"schema_version": "1.0"}
+        raise AgentModeOff
+
+    monkeypatch.setattr(journal, "admit_steer", uncertain)
+    first = await client.post(f"/v1/agent/tasks/{task.task_id}/steer", json=steer_body())
+    assert first.status_code == 503
+    original = runtime._tasks[task.task_id].steer_attempt
+    monkeypatch.setattr(journal, "lookup_steer", lookup_off)
+    retry = await client.post(f"/v1/agent/tasks/{task.task_id}/steer", json=steer_body())
+    assert retry.status_code == 503
+    assert runtime._tasks[task.task_id].steer_attempt is original
+    assert original.active is False and original.installed is False
+    assert runtime._tasks[task.task_id].pending_steer is None

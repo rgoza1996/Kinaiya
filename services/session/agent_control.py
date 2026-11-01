@@ -1,5 +1,6 @@
 """Codex-authored native Agent mode authority in the protected Session database."""
 
+import json
 import secrets
 import time
 import uuid
@@ -44,6 +45,31 @@ _TABLES = {
     ],
 }
 _MAX_RECORDS = 10000
+_ADMISSION_STATES = frozenset(state.value for state in TaskState) - {
+    "succeeded",
+    "failed",
+    "cancelled",
+    "cancel_requested",
+}
+
+
+def _canonical(value):
+    return json.dumps(
+        value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
+    ).encode("utf-8")
+
+
+def _steer_payload(request, state):
+    return {
+        "op": "steer-requested",
+        "task_id": request.task.task_id,
+        "state": state,
+        "actor": request.actor,
+        "submit_event_id": request.task.submit_event_id,
+        "intent_digest": request.request_digest(),
+        "expected_objective_revision": request.request.expected_objective_revision,
+        "content_scope": request.effective_content_scope,
+    }
 
 
 def _native(method):
@@ -385,7 +411,12 @@ class AgentControl:
         try:
             raw = context_json(row["value"].encode("utf-8"), maximum=MAX_CONTEXT_PAGE_BYTES)
             original = context_json(row["request"].encode("utf-8"), maximum=MAX_CONTEXT_PAGE_BYTES)
-            if type(raw.get("sequence")) is not int or type(raw.get("epoch")) is not int:
+            if (
+                set(raw) != set(JournalEntry.model_fields)
+                or raw.get("schema_version") != "1.0"
+                or type(raw.get("sequence")) is not int
+                or type(raw.get("epoch")) is not int
+            ):
                 raise ValueError
             event = JournalEntry.model_validate(raw)
             if (
@@ -396,7 +427,8 @@ class AgentControl:
                 or event.origin != "agent-supervisor"
                 or row["writer"] != "agent"
                 or row["idem"] != event.idempotency_key
-                or original != {key: raw[key] for key in AppendRequest.model_fields}
+                or _canonical(original)
+                != _canonical({key: raw[key] for key in AppendRequest.model_fields})
             ):
                 raise ValueError
             return event
@@ -409,14 +441,30 @@ class AgentControl:
             (request.task.submit_event_id, request.request.idempotency_key),
         )
         if saved is None:
+            # The canonical Session submit slot still identifies the original
+            # task when a replay substitutes only its claimed initial event.
+            # Never search a logical steer key across unrelated native tasks.
+            saved = self._one(
+                "SELECT intents.* FROM agent_steer_intents AS intents "
+                "JOIN agent_submit_slots AS slots ON slots.event_id=intents.submit_event_id "
+                "WHERE slots.session_id=? AND slots.logical_key=? AND intents.key=?",
+                (
+                    request.task.session_id,
+                    request.task.submit_idempotency_key,
+                    request.request.idempotency_key,
+                ),
+            )
+        if saved is None:
             return None
         try:
             original = AgentSteerAdmissionRequest.from_json(saved["request"].encode())
+            self._initial(original)
             receipt = AgentSteerReceipt.from_json(saved["receipt"].encode()).validate_request(
                 original
             )
             event_row = self._one("SELECT * FROM entries WHERE event_id=?", (saved["event_id"],))
             event = self._event(event_row)
+            state = event.payload.get("state")
             if (
                 saved["submit_event_id"] != original.task.submit_event_id
                 or saved["base_revision"] != original.request.expected_objective_revision
@@ -425,16 +473,12 @@ class AgentControl:
                 or event.event_id != receipt.event_id
                 or event.sequence != receipt.sequence
                 or event.kind != "agent.command"
+                or event.idempotency_key != "agent:steer:" + original.request_digest()
                 or (event.session_id, event.thread_id, event.epoch)
                 != (original.task.session_id, original.task.thread_id, original.task.epoch)
                 or event.task_refs != [original.task.task_id]
-                or event.payload.get("intent_digest") != original.request_digest()
-                or event.payload.get("submit_event_id") != original.task.submit_event_id
-                or event.payload.get("op") != "steer-requested"
-                or event.payload.get("actor") != original.actor
-                or event.payload.get("task_id") != original.task.task_id
-                or event.payload.get("expected_objective_revision")
-                != original.request.expected_objective_revision
+                or state not in _ADMISSION_STATES
+                or _canonical(event.payload) != _canonical(_steer_payload(original, state))
                 or event.causes != list(original.request.source_event_ids)
             ):
                 raise ValueError
@@ -510,6 +554,7 @@ class AgentControl:
                     if (
                         proposal.task.submit_event_id != initial.event_id
                         or event.payload.get("intent_digest") != proposal.request_digest()
+                        or type(event.payload.get("objective_revision")) is not int
                         or proof.target_objective_revision != revision + 1
                         or event.payload.get("objective_revision") != revision + 1
                     ):
@@ -564,10 +609,10 @@ class AgentControl:
             row = self.metadata()
             if request.expected_backend != row["backend_id"]:
                 raise AgentControlConflict
-            initial = self._initial(request)
             previous = self._steer_proof(request)
             if previous is not None:
                 return previous
+            initial = self._initial(request)
             if (
                 self._one(
                     "SELECT 1 FROM agent_steer_intents WHERE submit_event_id=? AND base_revision=?",
@@ -581,7 +626,7 @@ class AgentControl:
                 raise AgentControlConflict
             revision, scope, state, old_sources = self._history(initial)
             if (
-                state in {"succeeded", "failed", "cancelled", "cancel_requested"}
+                state not in _ADMISSION_STATES
                 or revision != request.request.expected_objective_revision
             ):
                 raise AgentControlConflict
@@ -619,16 +664,7 @@ class AgentControl:
                     task_refs=[request.task.task_id],
                     causes=list(request.request.source_event_ids),
                     idempotency_key="agent:steer:" + request.request_digest(),
-                    payload={
-                        "op": "steer-requested",
-                        "task_id": request.task.task_id,
-                        "state": state,
-                        "actor": request.actor,
-                        "submit_event_id": initial.event_id,
-                        "intent_digest": request.request_digest(),
-                        "expected_objective_revision": revision,
-                        "content_scope": request.effective_content_scope,
-                    },
+                    payload=_steer_payload(request, state),
                 ),
                 "agent",
             )
@@ -664,8 +700,9 @@ class AgentControl:
             row = self.metadata()
             if request.expected_backend != row["backend_id"]:
                 raise AgentControlConflict
-            self._initial(request)
             receipt = self._steer_proof(request)
+            if receipt is None:
+                self._initial(request)
             return AgentSteerLookupResult(
                 schema_version="1.0",
                 status="recorded" if receipt else "unobserved",

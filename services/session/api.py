@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 from typing import Annotated
 
@@ -71,10 +72,19 @@ def create_app(
         try:
             yield
         finally:
-            control.close()
+            try:
+                control.close()
+            except AgentControlUnavailable:
+                # A poisoned connection has already failed closed. Shutdown
+                # cannot confirm retirement or repair it, and must still end.
+                app.state.agent_control_shutdown_unconfirmed = True
+                logging.getLogger(__name__).warning(
+                    "Agent control shutdown could not confirm native generation retirement"
+                )
 
     app = FastAPI(title="Kinaiya shared session journal", version="1.0", lifespan=lifespan)
     app.state.agent_control = control
+    app.state.agent_control_shutdown_unconfirmed = False
     authenticated = Depends(auth.require())
     app.add_middleware(
         CORSMiddleware,

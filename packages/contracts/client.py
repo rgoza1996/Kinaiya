@@ -134,7 +134,7 @@ class _SubmitExchange:
                 raise AgentSubmitUnavailable()
             parsed = agent_submit_json(bytes(raw), maximum=MAX_AGENT_SUBMIT_RESPONSE_BYTES)
             if response.status_code == 403:
-                if parsed == {"detail": str(AgentModeOff())}:
+                if result_type is AgentSubmitReceipt and parsed == {"detail": str(AgentModeOff())}:
                     raise AgentModeOff
                 raise AgentSubmitUnavailable
             return result_type.model_validate(parsed).validate_request(proposal)
@@ -193,9 +193,9 @@ class _ControlExchange(_SubmitExchange):
             if response.status_code == 403:
                 from packages.contracts.agent_control import agent_control_json
 
-                if proposal is not None and agent_control_json(bytes(raw), maximum=maximum) == {
-                    "detail": str(AgentModeOff())
-                }:
+                if result_type is AgentSteerReceipt and agent_control_json(
+                    bytes(raw), maximum=maximum
+                ) == {"detail": str(AgentModeOff())}:
                     raise AgentModeOff
                 raise AgentControlUnavailable
             result = result_type.from_json(bytes(raw))
