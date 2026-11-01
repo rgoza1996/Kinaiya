@@ -16,6 +16,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from core.policy import PolicyDenied
 from packages.contracts.models import AgentModelPin, AuxiliaryTask, CatalogModelBinding
 from packages.providers.disclosure import scope_allowed
 from services.settings.provider_factory import (
@@ -366,6 +367,8 @@ class AgentModelSettings:
                 return provider, pin
             recipe = inspect_recipe(self.catalog, binding["catalog_binding"], binding["reasoning"])
             if not scope_allowed(recipe.info, content_scope):
+                if purpose is None:
+                    raise PolicyDenied("Input disclosure does not permit the catalog model")
                 raise ValueError("Input disclosure does not permit the catalog model")
             if lease is None:
                 if len(self.catalog_leases) >= 64 or any(
@@ -399,7 +402,7 @@ class AgentModelSettings:
         try:
             provider, pin = select()
             if not scope_allowed(provider.info, content_scope):
-                raise ValueError("Input disclosure does not permit the selected model")
+                raise PolicyDenied("Input disclosure does not permit the selected model")
             auxiliary, pins = {}, {}
             for purpose in AUXILIARY_TASKS:
                 try:

@@ -280,11 +280,16 @@ async def test_unmeasured_adapter_constructs_once_and_is_closed():
         auxiliary_factories={"fast": unmeasured},
     )
     for _ in range(2):
-        assert not next(p for p in settings.snapshot()["profiles"] if p["id"] == "fast")[
-            "auxiliary_selectable"
-        ]
-    with pytest.raises(ValueError, match="unavailable"):
+        declaration = next(p for p in settings.snapshot()["profiles"] if p["id"] == "fast")
+        assert declaration["auxiliary_selectable"]
+        assert declaration["qualification"] == "not_checked"
+        assert declaration["readiness"] == "unknown"
+        assert constructed == closed == []
+    with pytest.raises(ValueError, match="measured auxiliary"):
         settings.resolve_auxiliary({"profile_id": "fast", "reasoning": None})
+    assert not next(p for p in settings.snapshot()["profiles"] if p["id"] == "fast")[
+        "auxiliary_selectable"
+    ]
     await settings.close()
     assert len(constructed) == 1 and closed == constructed
 
