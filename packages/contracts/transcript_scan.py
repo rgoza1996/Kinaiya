@@ -293,7 +293,9 @@ def transcript_json(raw, maximum=MAX_TRANSCRIPT_SCAN_PAGE_BYTES):
         def invalid(_):
             raise ValueError(_ERROR)
 
-        result = json.loads(raw.decode("utf-8"), object_pairs_hook=pairs, parse_constant=invalid)
+        decoded = raw.decode("utf-8")
+        _json_shape(decoded)
+        result = json.loads(decoded, object_pairs_hook=pairs, parse_constant=invalid)
         if type(result) is not dict:
             raise ValueError(_ERROR)
         _json_tree(result)
