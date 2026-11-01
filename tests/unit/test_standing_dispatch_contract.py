@@ -610,3 +610,40 @@ def test_stop_validate_request_preserves_full_original_and_no_input_leak():
     with pytest.raises(ValueError) as raised:
         StandingDispatchActivation.model_validate(raw)
     assert secret not in str(raised.value)
+
+
+@pytest.mark.parametrize("kind_name", ["initial", "active", "recorded", "unobserved", "stop"])
+def test_known_retired_history_without_current_controller_does_not_invent_writer(kind_name):
+    # v2 requirement: normal close and the existing10000-generation cap can
+    # leave actual native metadata without a current controller. A monotonic
+    # owner Stop must remain representable over the already-issued history.
+    if kind_name in {"initial", "active"}:
+        raw = state(active=kind_name == "active")
+        current, kind = raw, StandingDispatchState
+    elif kind_name in {"recorded", "unobserved"}:
+        raw = lookup(recorded=kind_name == "recorded")
+        current, kind = raw["state"], StandingDispatchActivationLookup
+        raw["mutation_fenced"] = True
+    else:
+        raw = stop_proof()
+        current, kind = raw["state"], StandingDispatchStopProof
+    current.update(instance_id=None, control_writable=False, producer=None, dispatch_ready=False)
+    parsed = kind.model_validate(raw)
+    assert parsed.canonical_bytes() == canonical(raw)
+    assert current["instance_id"] is None
+    if kind is StandingDispatchStopProof:
+        assert parsed.target_fenced and parsed.request.expected_instance == INSTANCE
+    elif kind is StandingDispatchActivationLookup:
+        assert parsed.mutation_fenced
+
+
+@pytest.mark.parametrize("invented", ["writer", "producer"])
+def test_absent_current_controller_cannot_advertise_writable_or_live_producer(invented):
+    raw = state(active=True)
+    raw.update(instance_id=None, control_writable=False, producer=None, dispatch_ready=False)
+    if invented == "writer":
+        raw["control_writable"] = True
+    else:
+        raw["producer"] = producer()
+    with pytest.raises(ValueError):
+        StandingDispatchState.model_validate(raw)
