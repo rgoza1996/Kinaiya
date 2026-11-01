@@ -1,0 +1,150 @@
+{
+  "$defs": {
+    "STTAdmissionItem": {
+      "additionalProperties": false,
+      "properties": {
+        "admission_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Admission Id",
+          "type": "string"
+        },
+        "identity_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Identity Sha256",
+          "type": "string"
+        },
+        "protocol": {
+          "anyOf": [
+            {
+              "const": "native_stt_settlement_v1",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Protocol"
+        },
+        "worker_instance": {
+          "anyOf": [
+            {
+              "maxLength": 32,
+              "minLength": 32,
+              "pattern": "^[a-f0-9]{32}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Worker Instance"
+        },
+        "operation_id": {
+          "anyOf": [
+            {
+              "maxLength": 32,
+              "minLength": 32,
+              "pattern": "^[a-f0-9]{32}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Operation Id"
+        },
+        "publication_state": {
+          "enum": [
+            "none",
+            "not_admitted",
+            "required",
+            "legacy_unknown"
+          ],
+          "title": "Publication State",
+          "type": "string"
+        },
+        "active": {
+          "title": "Active",
+          "type": "boolean"
+        },
+        "reconcilable": {
+          "title": "Reconcilable",
+          "type": "boolean"
+        },
+        "reason": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "admission_id",
+        "identity_sha256",
+        "protocol",
+        "worker_instance",
+        "operation_id",
+        "publication_state",
+        "active",
+        "reconcilable",
+        "reason"
+      ],
+      "title": "STTAdmissionItem",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "role": {
+      "const": "stt",
+      "title": "Role",
+      "type": "string"
+    },
+    "backend_id": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Backend Id",
+      "type": "string"
+    },
+    "instance_id": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Instance Id",
+      "type": "string"
+    },
+    "admissions": {
+      "items": {
+        "$ref": "#/$defs/STTAdmissionItem"
+      },
+      "maxItems": 64,
+      "title": "Admissions",
+      "type": "array"
+    },
+    "limit": {
+      "const": 64,
+      "title": "Limit",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema_version",
+    "role",
+    "backend_id",
+    "instance_id",
+    "admissions",
+    "limit"
+  ],
+  "title": "STTAdmissionInventory",
+  "type": "object"
+}

@@ -1691,6 +1691,15 @@ class LocalJournal:
     async def latest_window(self, session_id, epoch, utterance_id, window_index=None):
         return self.store.latest_window(session_id, epoch, utterance_id, window_index)
 
+    async def lookup_stt_publication(self, original):
+        if self.role != "converse":
+            raise PermissionError("STT publication proof requires Converse")
+        from packages.contracts.stt_settlement import STTPublication, validate_publication_proof
+        from services.session.stt_publications import lookup_publication
+
+        original = STTPublication.model_validate(original)
+        return validate_publication_proof(lookup_publication(self.store, original), original)
+
     async def window_decision(self, source_event_id):
         return self.store.window_decision(source_event_id)
 

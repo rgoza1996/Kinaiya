@@ -241,7 +241,7 @@
       "Android owner+companion APK",
       "iOS owner+companion unsigned simulator"
     ],
-    "observed_results": "InitialCI342 passed allfive on the prior base. Consult the linked PR for new exact-head review/CI after upstream integration; initial success is not substituted for the new gate."
+    "observed_results": "CI342 and CI347 each passed all five on their explicitly recorded earlier heads/bases. Main advanced again before merge; consult PR227 for the required final combined-head review and CI."
   },
   "limits": [
     "Autonomous, standing schedules, notification/call escalation, broaderM7 and all twelve Options acceptance groups remain incomplete.",
@@ -417,5 +417,67 @@
     "receipt_sha256": "4ea4d07bb8bb3b8b24f63c100acc279419756bc0b92d2a3755fa8851b5b6127a",
     "manifest_sha256": "91e97b5d937337d9c39cd460482cdae66594caccb1f79164030574a0b0e883c4",
     "qualification_limit": "Main advanced before merge. Root held the merge and integrated PR225; exact updated-head review and all-five CI remain mandatory."
+  },
+  "record_scope": "Historical qualification through PR225 is retained below. The latest_upstream_integration object pins the clean PR229 integration source; exact final-head review and all-five CI remain mandatory before merge.",
+  "subsequent_qualified_ci": {
+    "head": "786915624e5fe5782af5d04c1bc68b4b8f088528",
+    "base": "770b828d235f52f25dd7670d21b1538aff6d7d5c",
+    "synthetic_merge": "f92aa1536c3c2272d5feef8aa341d786e40e50fd",
+    "tree": "40197302d85a186d8f1e2ed18d56e05f3a1d2492",
+    "run_id": 41282935082,
+    "run_number": 347,
+    "all_five_passed": true,
+    "python_each": {
+      "passed": 7982,
+      "skipped": 6,
+      "deselected": 2,
+      "warnings": 1
+    },
+    "flutter_passed": 958,
+    "bridge_passed": 38,
+    "web_android_ios_owner_and_companion_builds_passed": true,
+    "independent_comment_review": "https://github.com/rgoza1996/Kinaiya/pull/227#pullrequestreview-5726904191",
+    "receipt_sha256": "79a2a5646b3b30bb12ae57a015c8db2d3930f93af8840f1b7f418584f8fac910",
+    "manifest_sha256": "17b6599376acb4beb5720f5d7715cf317492c03a676a9c05abea886d4f1addf9",
+    "disposition": "Not merged: a fresh premerge fetch found PR229 on main. This prior success is not the combined integration acceptance gate."
+  },
+  "latest_upstream_integration": {
+    "pr": 229,
+    "main": "6196be2c0ee17fb484415859b7e087f10e6c7614",
+    "merge_parents": [
+      "786915624e5fe5782af5d04c1bc68b4b8f088528",
+      "6196be2c0ee17fb484415859b7e087f10e6c7614"
+    ],
+    "merge": "Clean automatic merge; no manual conflict resolution or production correction.",
+    "overlap": [
+      "packages/contracts/client.py",
+      "services/session/api.py",
+      "services/session/store.py",
+      "scripts/export_contracts.py"
+    ],
+    "production_sha256": {
+      "packages/contracts/agent_control.py": "36b20bb50b69eed185888587867212fa5a681f36d8c5dc1be38d371e51f6ade6",
+      "services/session/agent_control.py": "627df26876231d33189b03cb9962461b54f8cd671dc504be8c126048e1b990ce",
+      "services/session/store.py": "d5a9507a48aae62ff88c3fe39e685d06dbb3818eefdba60824d99abc74fe06d6",
+      "services/session/api.py": "badf17afd70b72ad05a9ff467d240feac2b6af797eb1cd668ede63a030d3a4c0",
+      "services/agent/runtime.py": "bdbd35f365e4ebb56c9a59e6083ae0e3b28a158e644667fc1ee0ba65a0605c50",
+      "packages/contracts/client.py": "25034c61b2384e2efa9cb3964a38b0f9c9026e6d6a557110c23ff413e3dbcfd9",
+      "apps/kinaiya_flutter/lib/api/owned_settings_client.dart": "3dbbc6e30135f98fe2fe0a7f8468fc797a4b360235ae35928bb836417efabcee",
+      "services/agent/workspace_settings.py": "787e96d76ebb617e7fc25d71be84b6578336a8731221bbee41388e7428affe98",
+      "services/agent/workspace_ownership.py": "16a5d861711b36e441e90a9898b78a01931cc6b9077e60dcc3c438207e18f733",
+      "core/policy/__init__.py": "40d055286c95f71620377adbdffe176ad52a60319023153d092772782fb5042f",
+      "packages/contracts/workspace_settings.py": "5947ab2e7e4219b60406c6656a4e884768e68fb59d14205b832d2cddea0dc458",
+      "apps/kinaiya_flutter/lib/api/agent_control.dart": "68ab1b0608e18e3784a1653c6f270d12228b7b9b64aff66b8d490e534addca2e",
+      "apps/kinaiya_flutter/lib/api/agent_control_client.dart": "68f9108cb667d685547beff7cd7716b08548560bcd1bf001804be7260c2e6105",
+      "apps/kinaiya_flutter/lib/state/agent_mode_writes.dart": "3e99961aa1c2c1fdf1e5edd2b7766496459a12453f0dddf7b0f0de5e4ac81e3f",
+      "apps/kinaiya_flutter/lib/ui/agent_operating_mode_panel.dart": "a921812741bf960aabb10ab454cec1beb716b0dc7c3b7295a1b81d2a520abdfe",
+      "apps/kinaiya_flutter/lib/api/client.dart": "a1ecbe4c688b7d3594776adc906c486b60ee6dc4e5fbda457eeb45e7c4717a0d"
+    },
+    "static": {
+      "ruff": "pass",
+      "format": "605 files; zero changes",
+      "schema_export_diff": "pass with isolated-root PYTHONPATH"
+    },
+    "scope": "New STT publication/worker settlement helpers coexist with the native mode/steering seams. Exact-head independent scoped review and combined CI are recorded in PR227 after this source is committed; no full independent STT audit or fresh real-socket execution is asserted."
   }
 }
