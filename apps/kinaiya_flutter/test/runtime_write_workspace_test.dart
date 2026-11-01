@@ -353,7 +353,8 @@ void main() {
           findsOneWidget,
         );
         expect(
-          find.text('Native file and command permissions'),
+          // Separate host-wide controls from the scoped tool-rule editor.
+          find.text('Service-wide execution controls'),
           findsOneWidget,
         );
         expect(
