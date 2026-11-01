@@ -34,7 +34,7 @@ def _private(fd):
 
 
 class CharacterBudget:
-    def __init__(self, path, *, limit_usd=1.0):
+    def __init__(self, path, *, limit_usd=1.0, require_existing=False):
         try:
             self.path = Path(path)
             self.limit = Decimal(str(limit_usd))
@@ -48,6 +48,9 @@ class CharacterBudget:
             ):
                 raise ValueError("Invalid speech budget")
             self._directory_identity = None
+            if type(require_existing) is not bool:
+                raise ValueError("Invalid speech budget")
+            self.require_existing = require_existing
         except (TypeError, ValueError, InvalidOperation) as exc:
             raise SpeechProviderError(503) from exc
 
@@ -100,6 +103,8 @@ class CharacterBudget:
                 dir_fd=directory,
             )
         except FileNotFoundError:
+            if self.require_existing:
+                raise ValueError("Retained speech budget is unavailable") from None
             return {
                 "version": 1,
                 "model": MODEL,

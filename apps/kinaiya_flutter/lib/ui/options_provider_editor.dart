@@ -41,6 +41,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
   final _form = GlobalKey<FormState>();
   final _id = TextEditingController(), _label = TextEditingController();
   final _endpoint = TextEditingController(), _model = TextEditingController();
+  final _voice = TextEditingController();
   final _max = TextEditingController(), _context = TextEditingController();
   final _timeout = TextEditingController(), _maxLen = TextEditingController();
   final _headLen = TextEditingController(), _artifact = TextEditingController();
@@ -103,6 +104,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
       _label,
       _endpoint,
       _model,
+      _voice,
       _max,
       _context,
       _timeout,
@@ -309,6 +311,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
       _kind = profile?.kind ?? 'compatible';
       _endpoint.text = config?['base_url'] as String? ?? '';
       _model.text = profile?.model ?? '';
+      _voice.text = config?['voice'] as String? ?? '';
       _cloud = config?['allow_cloud'] == true;
       _effort = config?['reasoning_effort'] as String?;
       _max.text = '${config?['max_tokens'] ?? 2048}';
@@ -383,9 +386,12 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
       'kind': _kind,
       'base_url': _endpoint.text,
       'model': _model.text,
+      if (_kind == 'openrouter_tts') 'voice': _voice.text,
       'allow_cloud': _cloud,
       if (_kind != 'lmstudio') 'credential': credential,
-      if (_kind != 'laya' && _kind != 'meta_stt') ...{
+      if (_kind != 'laya' &&
+          _kind != 'meta_stt' &&
+          _kind != 'openrouter_tts') ...{
         'max_tokens': int.tryParse(_max.text),
         'reasoning_effort': _effort,
       },
@@ -594,6 +600,10 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
               child: Text('Meta · speech to text'),
             ),
             DropdownMenuItem(
+              value: 'openrouter_tts',
+              child: Text('OpenRouter · text to speech'),
+            ),
+            DropdownMenuItem(
               value: 'lmstudio',
               child: Text('LM Studio · native local'),
             ),
@@ -611,9 +621,18 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
                   if (kind != null) {
                     setState(() {
                       _kind = kind;
-                      _cloud = kind == 'meta' || kind == 'meta_stt';
+                      _cloud =
+                          kind == 'meta' ||
+                          kind == 'meta_stt' ||
+                          kind == 'openrouter_tts';
                       if (kind == 'meta_stt') {
                         _model.text = 'muse-voice-transcribe-1.0';
+                      }
+                      if (kind == 'openrouter_tts') {
+                        _model.text = 'hexgrad/kokoro-82m';
+                        _voice.text = 'af_heart';
+                      } else {
+                        _voice.clear();
                       }
                       _effort = kind == 'meta'
                           ? 'xhigh'
@@ -621,7 +640,8 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
                           ? 'none'
                           : null;
                       _max.text = kind == 'lmstudio' ? '128' : '2048';
-                      _timeout.text = kind == 'meta_stt'
+                      _timeout.text =
+                          kind == 'meta_stt' || kind == 'openrouter_tts'
                           ? '120'
                           : kind == 'laya'
                           ? '5'
@@ -646,6 +666,8 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
           validator: (v) => _bounded(v, 2048),
           help: _kind == 'meta_stt'
               ? 'Explicit Meta transcription origin ending in /v1. Remote origins require HTTPS.'
+              : _kind == 'openrouter_tts'
+              ? 'Exact https://openrouter.ai/api/v1 origin, or an explicit loopback HTTP /api/v1 gateway.'
               : _kind == 'lmstudio'
               ? 'Explicit loopback native endpoint with a port, such as http://127.0.0.1:1234.'
               : 'No embedded credentials, queries or fragments. Remote origins require HTTPS.',
@@ -653,7 +675,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
         _field(
           _model,
           'Exact model ID or native loaded alias',
-          enabled: _kind != 'meta_stt',
+          enabled: _kind != 'meta_stt' && _kind != 'openrouter_tts',
           maxLength: 256,
           validator: (v) => _bounded(v, 256),
         ),
@@ -661,6 +683,19 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
           const Text(
             'Buffered Meta speech-to-text only. Saving this declaration does not capture audio, grant cloud disclosure, test readiness, or select it for a role.',
           ),
+        if (_kind == 'openrouter_tts') ...[
+          _field(
+            _voice,
+            'Voice ID',
+            enabled: false,
+            maxLength: 64,
+            help:
+                'af_heart is the only voice supported by this native adapter.',
+          ),
+          const Text(
+            'Kokoro speech output uses 24 kHz mono PCM. A protected native budget must be configured before this profile is eligible. Saving never creates a budget allowance, synthesizes speech, grants disclosure, or checks readiness.',
+          ),
+        ],
         if (_kind == 'meta')
           const Text(
             'Meta is a cloud provider, including when reached through a local budget gateway. Contributor disclosure restrictions still apply.',
@@ -673,7 +708,11 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
             subtitle: const Text(
               'Input, transcript, tool and personality disclosure are checked independently for every request.',
             ),
-            onChanged: _enabled && _kind != 'meta' && _kind != 'meta_stt'
+            onChanged:
+                _enabled &&
+                    _kind != 'meta' &&
+                    _kind != 'meta_stt' &&
+                    _kind != 'openrouter_tts'
                 ? (value) => setState(() {
                     _cloud = value;
                   })
@@ -712,9 +751,11 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
                     value.isNotEmpty &&
                     !activeCredentials.any((c) => c.binding.value == value)
                 ? 'Choose a current credential generation.'
-                : (_kind == 'meta' || _kind == 'meta_stt') &&
+                : (_kind == 'meta' ||
+                          _kind == 'meta_stt' ||
+                          _kind == 'openrouter_tts') &&
                       (value == null || value.isEmpty)
-                ? 'Meta requires a stored credential generation.'
+                ? 'This provider requires a stored credential generation.'
                 : null,
             onChanged: _enabled
                 ? (value) => setState(() {
@@ -726,7 +767,9 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
           const Text(
             'To register or rotate a key, use Credentials. Rotation retires the old generation for new use; update each affected profile explicitly.',
           ),
-        if (_kind != 'laya' && _kind != 'meta_stt') ...[
+        if (_kind != 'laya' &&
+            _kind != 'meta_stt' &&
+            _kind != 'openrouter_tts') ...[
           _field(
             _max,
             'Maximum output tokens',
@@ -783,6 +826,8 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
                   ? 120
                   : _kind == 'meta_stt'
                   ? 300
+                  : _kind == 'openrouter_tts'
+                  ? 120
                   : 900,
             ),
           ),
@@ -1092,7 +1137,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
           if (_screen == 'list')
             _panel([
               const Text(
-                'Save provider connections and credentials on this computer. Select supported text profiles in Models or Harness Customization, and transcription profiles in Audio. Text to speech remains host configured.',
+                'Save provider connections and credentials on this computer. Select supported text profiles in Models or Harness Customization, and speech profiles in Audio. Catalog declarations do not grant disclosure or establish readiness.',
               ),
               Wrap(
                 spacing: 12,

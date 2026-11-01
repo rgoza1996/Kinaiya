@@ -77,9 +77,13 @@ def declaration_info(config):
 
     kind = config["kind"]
     return ProviderInfo(
-        provider={"compatible": "openai-compatible", "meta_stt": "meta"}.get(kind, kind),
+        provider={
+            "compatible": "openai-compatible",
+            "meta_stt": "meta",
+            "openrouter_tts": "openrouter",
+        }.get(kind, kind),
         model=config["model"],
-        local=kind not in {"meta", "meta_stt"}
+        local=kind not in {"meta", "meta_stt", "openrouter_tts"}
         and urlsplit(config["base_url"]).hostname in {"localhost", "127.0.0.1", "::1"},
         streaming=kind not in {"laya", "meta_stt"},
     )
