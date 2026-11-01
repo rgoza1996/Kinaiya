@@ -12,6 +12,8 @@ enum OptionsPage {
   workspace('Workspace'),
   execution('Execution'),
   tools('Tools'),
+  skills('Skills'),
+  plugins('Plugins'),
   integrations('Integrations'),
   memory('Memory'),
   data('Data'),
@@ -53,6 +55,8 @@ const optionsCategories = [
   ]),
   OptionsCategory('Tools & integrations', Icons.extension_outlined, [
     OptionsPage.tools,
+    OptionsPage.skills,
+    OptionsPage.plugins,
     OptionsPage.integrations,
   ]),
   OptionsCategory('Memory & data', Icons.storage_outlined, [

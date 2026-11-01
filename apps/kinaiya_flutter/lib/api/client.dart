@@ -18,6 +18,7 @@ import 'converse_setup.dart';
 import 'agent_workspace.dart';
 import 'agent_workspace_client.dart';
 import 'workspace_settings_client.dart';
+import 'capability_client.dart';
 import 'agent_model_client.dart';
 import 'agent_model_settings.dart';
 import 'agent_runtime_client.dart';
@@ -269,6 +270,11 @@ class KinaiyaClient {
     clientFactory: _agentModelClientFactory,
   );
   late final WorkspaceSettingsApi workspaceSettings = WorkspaceSettingsApi(
+    baseUrl: agentBase,
+    ownerToken: _token,
+    clientFactory: _agentWorkspaceClientFactory,
+  );
+  late final CapabilityApi capabilities = CapabilityApi(
     baseUrl: agentBase,
     ownerToken: _token,
     clientFactory: _agentWorkspaceClientFactory,
@@ -1057,6 +1063,7 @@ class KinaiyaClient {
       if (classifier != null) unawaited(classifier.close());
       unawaited(auxiliaryRoutes.close());
       unawaited(workspaceSettings.close());
+      unawaited(capabilities.close());
       unawaited(runtimeSettings.close());
       artifacts.close();
     }

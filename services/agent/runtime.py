@@ -364,6 +364,8 @@ class AgentRuntime:
         self.provider = provider
         self.model_settings = None
         self.runtime_settings = None
+        self.capability_settings = None
+        self._capabilities_configured = False
         self.tool_permissions = None
         self.workspace_settings = None
         self.projects = None
@@ -517,7 +519,7 @@ class AgentRuntime:
         except (OSError, ValueError, RuntimeError):
             raise PolicyDenied("Native workspace authority is unavailable") from None
 
-    async def owned_workspace_operation(self, invoke, *, require_root=True):
+    async def owned_workspace_operation(self, invoke, *, require_root=True, retain=None):
         """A caller timeout never releases a still-running native operation."""
         from services.agent.workspace_ownership import MAX_WORKSPACE_OPERATIONS, captured_context
 
@@ -528,6 +530,8 @@ class AgentRuntime:
             self._workspace_current()
         operation = asyncio.create_task(invoke())
         self._workspace_operations.add(operation)
+        if retain is not None:
+            retain(operation)
 
         def settled(task):
             if not task.cancelled():
@@ -1182,8 +1186,14 @@ class AgentRuntime:
             raise AgentSubmitUnavailable
         if self.model_settings is not None and self.model_settings.catalog_cleanup_busy:
             raise PolicyDenied("Catalog provider cleanup is unconfirmed; no new work accepted")
+        if self._capabilities_configured or self.capability_settings is not None:
+            # Historical submission reconciliation returned above. A genuinely
+            # new task cannot capture models under an unreadable tool owner.
+            self.tool_snapshot()
         if explicit_skill is not None and self.skill_service is None:
             raise PolicyDenied("Explicit skill invocation requires owner and configured skills")
+        if explicit_skill is not None and not self.tool_snapshot().supports("skill_load"):
+            raise PolicyDenied("Explicit skill invocation is disabled by native availability")
         from services.agent.workspace_ownership import captured_context
 
         workspace_context = captured_context(self)
@@ -2272,6 +2282,8 @@ class AgentRuntime:
             await controller.close()
         elif host is not None:
             await host.close()
+        if self.capability_settings is not None:
+            await self.capability_settings.close()
         service, self.skill_service = self.skill_service, None
         if service is not None:
             service.close()
@@ -2824,6 +2836,16 @@ class AgentRuntime:
         """Terminal publication does not prove its worker or child has released."""
         return (
             self._closed
+            or (
+                self.capability_settings is not None
+                and any(
+                    (
+                        self.capability_settings.operations,
+                        self.capability_settings.actual_operations,
+                        self.capability_settings.native_workers,
+                    )
+                )
+            )
             or (self.model_settings is not None and self.model_settings.catalog_cleanup_busy)
             or any(
                 rec.task.state not in TERMINAL
@@ -2834,7 +2856,7 @@ class AgentRuntime:
             )
         )
 
-    def tool_snapshot(self, task: Task | None = None) -> NativeToolSnapshot:
+    def host_tool_snapshot(self, task: Task | None = None) -> NativeToolSnapshot:
         """Native gateways, independently of action approval/target readiness."""
         harness = (
             task.harness_version
@@ -2862,6 +2884,23 @@ class AgentRuntime:
             ),
             catalog_available=True,
         )
+
+    def tool_snapshot(self, task: Task | None = None) -> NativeToolSnapshot:
+        snapshot = self.host_tool_snapshot(task)
+        owner = self.capability_settings
+        if owner is None:
+            if self._capabilities_configured:
+                raise PolicyDenied("Native capability availability is unavailable")
+            return snapshot
+        try:
+            revision, disabled = owner.mask()
+            return NativeToolSnapshot(
+                tuple(name for name in snapshot.available_tools if name not in disabled),
+                owner_disabled=disabled,
+                owner_revision=revision,
+            )
+        except (ValueError, RuntimeError, OSError, sqlite3.Error):
+            raise PolicyDenied("Native capability availability is unavailable") from None
 
     async def inspect_tools(self, arguments: dict, *, task_id: str | None = None) -> dict:
         """Authenticated API projection; never advance a task or create pins."""

@@ -1,0 +1,33 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "operation": {
+      "enum": [
+        "enable_skill",
+        "disable_skill"
+      ],
+      "title": "Operation",
+      "type": "string"
+    },
+    "skill_id": {
+      "maxLength": 265,
+      "minLength": 1,
+      "title": "Skill Id",
+      "type": "string"
+    },
+    "digest": {
+      "maxLength": 71,
+      "minLength": 71,
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Digest",
+      "type": "string"
+    }
+  },
+  "required": [
+    "operation",
+    "skill_id",
+    "digest"
+  ],
+  "title": "SkillActivationAction",
+  "type": "object"
+}

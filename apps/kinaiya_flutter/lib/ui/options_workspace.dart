@@ -19,6 +19,7 @@ import 'mcp_settings.dart';
 import 'options_model_editor.dart';
 import 'options_runtime_editor.dart';
 import 'options_workspace_settings.dart';
+import 'options_capabilities.dart';
 import 'agent_runtime_writes.dart';
 import 'options_provider_editor.dart';
 import 'options_tool_permissions.dart';
@@ -852,7 +853,9 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
     OptionsPage.agent => _agentSettings(),
     OptionsPage.permissions => _permissions(),
     OptionsPage.workspace || OptionsPage.execution => _runtimeSettings(),
-    OptionsPage.tools => _tools(),
+    OptionsPage.tools ||
+    OptionsPage.skills ||
+    OptionsPage.plugins => _capabilities(),
     OptionsPage.data => _data(),
     OptionsPage.tasks => _tasks(),
     OptionsPage.resources => _resources(),
@@ -1302,15 +1305,26 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
     ]);
   }
 
-  Widget _tools() => _scroll([
-    const Text(
-      'Native tools currently advertised by the Agent host. Availability is separate from permission to execute.',
-    ),
-    ..._errors,
-    for (final name in (_agent?['tools'] as List? ?? const []))
-      _field('Tool', '$name'),
-    if (_agent == null) const Text('Tool registry unavailable.'),
-  ]);
+  Widget _capabilities() {
+    final owner = widget.state, client = owner.client;
+    final generation = owner.connectionGeneration;
+    final section = _page == OptionsPage.tools
+        ? 'tools'
+        : _page == OptionsPage.skills
+        ? 'skills'
+        : 'plugins';
+    return OptionsCapabilities(
+      key: ValueKey('options-capabilities-$section'),
+      api: client?.capabilities,
+      section: section,
+      active: () =>
+          mounted &&
+          identical(widget.state, owner) &&
+          client != null &&
+          owner.ownsConnection(generation, client),
+    );
+  }
+
   Widget _data() => _scroll([
     const Text(
       'The authoritative transcript is separate from optional Converse memory.',

@@ -1,0 +1,70 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "operation": {
+      "enum": [
+        "evaluate_plugin",
+        "promote_plugin",
+        "disable_plugin",
+        "rollback_plugin"
+      ],
+      "title": "Operation",
+      "type": "string"
+    },
+    "plugin_id": {
+      "maxLength": 64,
+      "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+      "title": "Plugin Id",
+      "type": "string"
+    },
+    "version_id": {
+      "maxLength": 26,
+      "minLength": 26,
+      "pattern": "^v-[0-9a-f]{24}$",
+      "title": "Version Id",
+      "type": "string"
+    },
+    "source_sha256": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source Sha256",
+      "type": "string"
+    },
+    "manifest_sha256": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Manifest Sha256",
+      "type": "string"
+    },
+    "report_id": {
+      "anyOf": [
+        {
+          "maxLength": 64,
+          "pattern": "^rep-[A-Za-z0-9-]{1,60}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Report Id"
+    },
+    "reviewed": {
+      "default": false,
+      "title": "Reviewed",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "operation",
+    "plugin_id",
+    "version_id",
+    "source_sha256",
+    "manifest_sha256"
+  ],
+  "title": "PluginActivationAction",
+  "type": "object"
+}

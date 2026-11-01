@@ -134,7 +134,13 @@ class WorkspaceRequestOwnership:
                 path == "/v1/agent/tasks"
                 or path == "/v1/commands/execute"
                 or path.startswith("/v1/harness/")
-                or path in {"/v1/mcp/control", "/v1/skills/control", "/v1/plugins/control"}
+                or path
+                in {
+                    "/v1/mcp/control",
+                    "/v1/skills/control",
+                    "/v1/plugins/control",
+                    "/v1/agent/options/capabilities",
+                }
                 or path.startswith("/v1/skills/")
                 and path.endswith("/invoke")
             )

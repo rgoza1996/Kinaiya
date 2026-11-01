@@ -211,3 +211,15 @@ standard agent controls.
 ## Intelligent views
 
 Converse's saved **Interactive views** switch enables native rich artifacts or a readable summary/data fallback. It changes presentation only. Each result offers Pin, Close and a Results chooser to reopen retained publications; transcript collapse retains history and its owner. Table/diagram/choice/number controls persist validated view state. Ask buttons prefill the normal composer without submitting it. Provider selection, cloud disclosure, permission approval, Agent availability and ordinary Call/Tell/Stop controls keep their separate owners. See [ADR0068](adr/0068-intelligent-converse-artifacts.md).
+
+### Installed capabilities (ADR0102)
+
+Tools now has source for native group/individual availability, and separate Skills
+and Plugins pages expose the complete owner-installed inventory. Availability is
+not an execution grant. Exact native source/version/digest and report review bind
+installed enable/disable, evaluation, promotion and rollback. All original unknown
+operations remain independently inspectable, while native-supported Disable stays
+responsive during evaluation. Source and independent reviews are complete; final
+integration, CI and preview are pending. Installing/updating/removing extensions,
+bound disclosure scope edits and unresolved multi-file activation reconciliation
+remain work.

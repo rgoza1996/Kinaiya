@@ -1,0 +1,209 @@
+{
+  "$defs": {
+    "PluginActivationAction": {
+      "additionalProperties": false,
+      "properties": {
+        "operation": {
+          "enum": [
+            "evaluate_plugin",
+            "promote_plugin",
+            "disable_plugin",
+            "rollback_plugin"
+          ],
+          "title": "Operation",
+          "type": "string"
+        },
+        "plugin_id": {
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "title": "Plugin Id",
+          "type": "string"
+        },
+        "version_id": {
+          "maxLength": 26,
+          "minLength": 26,
+          "pattern": "^v-[0-9a-f]{24}$",
+          "title": "Version Id",
+          "type": "string"
+        },
+        "source_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Source Sha256",
+          "type": "string"
+        },
+        "manifest_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Manifest Sha256",
+          "type": "string"
+        },
+        "report_id": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "pattern": "^rep-[A-Za-z0-9-]{1,60}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Report Id"
+        },
+        "reviewed": {
+          "default": false,
+          "title": "Reviewed",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "operation",
+        "plugin_id",
+        "version_id",
+        "source_sha256",
+        "manifest_sha256"
+      ],
+      "title": "PluginActivationAction",
+      "type": "object"
+    },
+    "SkillActivationAction": {
+      "additionalProperties": false,
+      "properties": {
+        "operation": {
+          "enum": [
+            "enable_skill",
+            "disable_skill"
+          ],
+          "title": "Operation",
+          "type": "string"
+        },
+        "skill_id": {
+          "maxLength": 265,
+          "minLength": 1,
+          "title": "Skill Id",
+          "type": "string"
+        },
+        "digest": {
+          "maxLength": 71,
+          "minLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Digest",
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation",
+        "skill_id",
+        "digest"
+      ],
+      "title": "SkillActivationAction",
+      "type": "object"
+    },
+    "ToolAvailabilityAction": {
+      "additionalProperties": false,
+      "properties": {
+        "operation": {
+          "const": "set_tools",
+          "title": "Operation",
+          "type": "string"
+        },
+        "disabled": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 15,
+          "title": "Disabled",
+          "type": "array"
+        }
+      },
+      "required": [
+        "operation",
+        "disabled"
+      ],
+      "title": "ToolAvailabilityAction",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "expected_backend": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[0-9a-f]{32}$",
+      "title": "Expected Backend",
+      "type": "string"
+    },
+    "expected_instance": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[0-9a-f]{32}$",
+      "title": "Expected Instance",
+      "type": "string"
+    },
+    "expected_revision": {
+      "exclusiveMaximum": 9007199254740990,
+      "minimum": 0,
+      "title": "Expected Revision",
+      "type": "integer"
+    },
+    "expected_state": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Expected State",
+      "type": "string"
+    },
+    "idempotency_key": {
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9:._-]{1,128}$",
+      "title": "Idempotency Key",
+      "type": "string"
+    },
+    "action": {
+      "discriminator": {
+        "mapping": {
+          "disable_plugin": "#/$defs/PluginActivationAction",
+          "disable_skill": "#/$defs/SkillActivationAction",
+          "enable_skill": "#/$defs/SkillActivationAction",
+          "evaluate_plugin": "#/$defs/PluginActivationAction",
+          "promote_plugin": "#/$defs/PluginActivationAction",
+          "rollback_plugin": "#/$defs/PluginActivationAction",
+          "set_tools": "#/$defs/ToolAvailabilityAction"
+        },
+        "propertyName": "operation"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ToolAvailabilityAction"
+        },
+        {
+          "$ref": "#/$defs/SkillActivationAction"
+        },
+        {
+          "$ref": "#/$defs/PluginActivationAction"
+        }
+      ],
+      "title": "Action"
+    }
+  },
+  "required": [
+    "schema_version",
+    "expected_backend",
+    "expected_instance",
+    "expected_revision",
+    "expected_state",
+    "idempotency_key",
+    "action"
+  ],
+  "title": "CapabilityChange",
+  "type": "object"
+}

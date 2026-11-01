@@ -8,6 +8,7 @@ from packages.contracts import (
     agent_submit,
     auxiliary_attempts,
     auxiliary_routes,
+    capability_settings,
     companion,
     context,
     converse_models,
@@ -77,6 +78,10 @@ for cls in (
     workspace_settings.WorkspaceSelection,
     workspace_settings.WorkspaceChange,
     workspace_settings.WorkspacePin,
+    capability_settings.ToolAvailabilityAction,
+    capability_settings.SkillActivationAction,
+    capability_settings.PluginActivationAction,
+    capability_settings.CapabilityChange,
 ):
     (target / f"{cls.__name__}.json").write_text(
         json.dumps(cls.model_json_schema(), indent=2) + "\n"
