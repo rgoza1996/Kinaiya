@@ -1,0 +1,243 @@
+{
+  "$defs": {
+    "AgentControlSnapshot": {
+      "additionalProperties": false,
+      "description": "Shared desired/admission mode, separate from Agent health and live tasks.\n\ninstance_id is the persisted active control-writer generation. The serving\nAPI reports control_writable only when its explicit registration is active.\nOpening another Store/LocalJournal must never register or retire a writer.",
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "backend_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Backend Id",
+          "type": "string"
+        },
+        "instance_id": {
+          "maxLength": 36,
+          "minLength": 36,
+          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+          "title": "Instance Id",
+          "type": "string"
+        },
+        "revision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "mode": {
+          "enum": [
+            "off",
+            "on_demand",
+            "autonomous"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "active_work_policy": {
+          "const": "finish_already_accepted",
+          "title": "Active Work Policy",
+          "type": "string"
+        },
+        "control_writable": {
+          "title": "Control Writable",
+          "type": "boolean"
+        },
+        "available_modes": {
+          "items": {
+            "enum": [
+              "off",
+              "on_demand",
+              "autonomous"
+            ],
+            "type": "string"
+          },
+          "maxItems": 3,
+          "minItems": 2,
+          "title": "Available Modes",
+          "type": "array"
+        },
+        "standing_work_available": {
+          "title": "Standing Work Available",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "schema_version",
+        "backend_id",
+        "instance_id",
+        "revision",
+        "mode",
+        "active_work_policy",
+        "control_writable",
+        "available_modes",
+        "standing_work_available"
+      ],
+      "title": "AgentControlSnapshot",
+      "type": "object"
+    },
+    "AgentModeChange": {
+      "additionalProperties": false,
+      "description": "Seven required immutable fields; owner authority comes from the service.",
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "idempotency_key": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9:._-]+$",
+          "title": "Idempotency Key",
+          "type": "string"
+        },
+        "expected_backend": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Expected Backend",
+          "type": "string"
+        },
+        "expected_instance": {
+          "maxLength": 36,
+          "minLength": 36,
+          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+          "title": "Expected Instance",
+          "type": "string"
+        },
+        "expected_revision": {
+          "maximum": 9007199254740990,
+          "minimum": 0,
+          "title": "Expected Revision",
+          "type": "integer"
+        },
+        "mode": {
+          "enum": [
+            "off",
+            "on_demand",
+            "autonomous"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "active_work_policy": {
+          "const": "finish_already_accepted",
+          "title": "Active Work Policy",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "idempotency_key",
+        "expected_backend",
+        "expected_instance",
+        "expected_revision",
+        "mode",
+        "active_work_policy"
+      ],
+      "title": "AgentModeChange",
+      "type": "object"
+    },
+    "AgentModeReceipt": {
+      "additionalProperties": false,
+      "description": "Historical full-request proof. Returning it must never reapply its mode.",
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "status": {
+          "const": "mode_saved",
+          "title": "Status",
+          "type": "string"
+        },
+        "backend_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Backend Id",
+          "type": "string"
+        },
+        "service_instance": {
+          "maxLength": 36,
+          "minLength": 36,
+          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+          "title": "Service Instance",
+          "type": "string"
+        },
+        "revision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "request": {
+          "$ref": "#/$defs/AgentModeChange"
+        }
+      },
+      "required": [
+        "schema_version",
+        "status",
+        "backend_id",
+        "service_instance",
+        "revision",
+        "request"
+      ],
+      "title": "AgentModeReceipt",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Native observation must first prove the expected generation was registered.\n\nAn unknown UUID is a conflict, not a retired generation. This grammar checks\nobservation consistency; only the native generation registry proves history.",
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "recorded",
+        "unobserved"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "request": {
+      "$ref": "#/$defs/AgentModeChange"
+    },
+    "state": {
+      "$ref": "#/$defs/AgentControlSnapshot"
+    },
+    "receipt": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AgentModeReceipt"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "mutation_fenced": {
+      "title": "Mutation Fenced",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "schema_version",
+    "status",
+    "request",
+    "state",
+    "receipt",
+    "mutation_fenced"
+  ],
+  "title": "AgentModeLookupResult",
+  "type": "object"
+}
