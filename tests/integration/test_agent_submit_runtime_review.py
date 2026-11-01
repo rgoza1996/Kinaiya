@@ -75,10 +75,10 @@ async def test_retired_fresh_source_cannot_start_further_journal_reads(env, monk
     source = ResistantFreshSource(env.journal)
     for name in ("resolve", "entry", "read"):
         monkeypatch.setattr(env.journal, name, getattr(source, name))
-    selection = Mock(wraps=env.runtime.model_settings.selection)
-    auxiliary = Mock(wraps=env.runtime.model_settings.auxiliary_selection)
-    monkeypatch.setattr(env.runtime.model_settings, "selection", selection)
-    monkeypatch.setattr(env.runtime.model_settings, "auxiliary_selection", auxiliary)
+    # Catalog-era task_selection captures primary and auxiliary adapters in one
+    # owned lease; metadata-only selection no longer constructs either adapter.
+    selection = Mock(wraps=env.runtime.model_settings.task_selection)
+    monkeypatch.setattr(env.runtime.model_settings, "task_selection", selection)
     operation = start(env, request(env))
     try:
         await asyncio.wait_for(source.entered.wait(), timeout=2)
@@ -89,8 +89,8 @@ async def test_retired_fresh_source_cannot_start_further_journal_reads(env, monk
         assert len(submits(env)) == len(env.journal.attempts) == 1
         assert source.operation in env.runtime._submit_operations
         before = table_rows(env.store.db)
-        selected_counts = (selection.call_count, auxiliary.call_count)
-        assert all(selected_counts)
+        selected_counts = selection.call_count
+        assert selected_counts > 0
         source.retired = True
         if retire_by == "close":
             await asyncio.wait_for(env.runtime.close(), timeout=2)
@@ -117,7 +117,7 @@ async def test_retired_fresh_source_cannot_start_further_journal_reads(env, monk
     assert submit_entry(submits(env)[0]) == canonical
     assert (await env.runtime.status(canonical.payload["task_id"])).state == TaskState.PAUSED
     assert not env.store.read(kinds=["agent.outcome"])
-    assert (selection.call_count, auxiliary.call_count) == selected_counts
+    assert selection.call_count == selected_counts
     assert_no_worker(env)
     assert source.reads_after_retirement == [], (
         "A retired source response started new journal reads",
