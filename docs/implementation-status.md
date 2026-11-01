@@ -57,6 +57,17 @@ direct multimodal capture and the other full Options acceptance groups stay open
 
 ## Milestone status
 
+The subsequent [bound model-save repair](adr/0088-bound-model-settings-writes.md)
+addresses [#191](https://github.com/rgoza1996/Kinaiya/issues/191): stable native
+backend identity, fenced writer generations, exact historical receipt recovery
+and privately scoped Flutter pending writes with bounded actual transport
+ownership. Local evidence includes all 909 Flutter tests, native/command fault
+and race regressions, and real Dart-to-native HTTP checks across process restart
+and replacement at the same URL. All five exact-final-head CI jobs remain
+required before merge. This does not close full Options #208; adjacent execution
+pending recovery remains [#213](https://github.com/rgoza1996/Kinaiya/issues/213).
+The historical source cutoff and original roadmap acceptance gates are unchanged.
+
 The original [milestone exit gates](../Roadmap.md#24-milestone-roadmap) and AT01–AT48 remain unchanged. Additional owner-refinement scenarios AT49–AT61 supplement them; AT62–AT63 record the October 31 distinction between model choice, profile recommendations and architectural comparisons. These additions claim no new runtime behavior or passed acceptance. Links to tests describe existing coverage, not a new execution of those tests during documentation editing.
 
 | Milestone / tracking | Current evidence-backed scope | Remaining acceptance and limits |

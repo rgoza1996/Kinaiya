@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../api/agent_model_settings.dart';
+import '../api/agent_model_client.dart';
 import '../api/agent_runtime_settings.dart';
 import '../api/agent_workspace.dart';
 import '../api/client.dart';
@@ -11,6 +12,7 @@ import '../config/options_catalog.dart';
 import '../config/options_navigation.dart';
 import '../presentation/controller.dart';
 import '../state/app_state.dart';
+import '../state/agent_model_writes.dart';
 import 'converse_memory.dart';
 import 'design_tokens.dart';
 import 'mcp_settings.dart';
@@ -25,24 +27,17 @@ import 'setup_dialog.dart';
 import 'widgets.dart';
 import 'motion_transition.dart';
 
-// An unresolved write survives closing Options and same-host reconnects. Only
-// its exact native receipt or a definite refusal settles it. Retrying reuses
-// the identical key and body; navigation never retries a write.
-class _ModelChange {
-  _ModelChange(this.body);
+// Execution settings retain their existing endpoint-scoped recovery behavior.
+// Model settings have a separate authority-bound controller (issue191).
+class _RuntimeChange {
+  _RuntimeChange(this.body, this.instanceId);
   final Map<String, Object?> body;
+  final String instanceId;
   int inFlight = 0;
   bool timedOut = false;
   bool get sending => inFlight > 0;
   bool get canRetry => inFlight < 2 && (timedOut || inFlight == 0);
   String? notice;
-}
-
-final _modelChanges = <String, _ModelChange>{};
-
-class _RuntimeChange extends _ModelChange {
-  _RuntimeChange(super.body, this.instanceId);
-  final String instanceId;
   bool uncertain = false;
 }
 
@@ -79,11 +74,40 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
   AgentRuntimeSnapshot? _runtime;
   OptionsRuntimeDraft? _runtimeDraft;
   String? _readError, _modelError, _runtimeError, _notice;
+  ({AgentModelApi owner, String backendId, String text})? _modelNotice;
   bool _loading = false, _savingPreference = false;
   int _read = 0, _connection = -1;
 
   String? get _endpoint => widget.state.client?.agentBase;
-  _ModelChange? get _pending => _modelChanges[_endpoint];
+  PendingAgentModelChange? get _pending {
+    final api = widget.state.client?.modelSettings;
+    return api == null
+        ? null
+        : agentModelWrites.visible(api, _models?.writeAuthority);
+  }
+
+  String? get _visibleModelNotice {
+    final notice = _modelNotice, api = widget.state.client?.modelSettings;
+    return notice != null &&
+            api != null &&
+            api.sameOwner(notice.owner) &&
+            _models?.writeAuthority?.backendId == notice.backendId
+        ? notice.text
+        : null;
+  }
+
+  bool get _modelBusy =>
+      _loading ||
+      _pending != null ||
+      _models?.writeAuthority?.writable != true ||
+      widget.state.client?.modelSettings.hasCapacity != true;
+  String? get _modelReadOnlyReason => _models == null
+      ? null
+      : _models!.writeAuthority == null
+      ? 'Model settings are read-only. This host does not advertise supported bound writes.'
+      : !_models!.writeAuthority!.writable
+      ? 'Model settings are read-only. This host instance no longer owns model writes.'
+      : null;
   _RuntimeChange? get _runtimePending => _runtimeChanges[_endpoint];
 
   @override
@@ -92,6 +116,7 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
     _page = widget.initialPage;
     _connection = widget.state.connectionGeneration;
     widget.state.addListener(_changed);
+    agentModelWrites.addListener(_modelWritesChanged);
     widget.presentation.addListener(_presentationChanged);
     // Catalog refresh notifies the shared shell, so start after this mount.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -126,6 +151,7 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
     _read++;
     _search.dispose();
     widget.state.removeListener(_changed);
+    agentModelWrites.removeListener(_modelWritesChanged);
     widget.presentation.removeListener(_presentationChanged);
     super.dispose();
   }
@@ -138,6 +164,10 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
     } else {
       setState(() {});
     }
+  }
+
+  void _modelWritesChanged() {
+    if (mounted) setState(() {});
   }
 
   void _presentationChanged() {
@@ -283,54 +313,22 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
     }
   }
 
-  bool _validReceipt(_ModelChange operation, Map<String, Object?> result) {
-    final body = operation.body, binding = result['binding'];
-    bool matchesBinding() {
-      final catalog = body['catalog_binding'];
-      if (catalog == null && body['profile_id'] == null) return binding == null;
-      try {
-        final saved = AgentModelBinding.fromJson(binding);
-        return saved.reasoning == body['reasoning'] &&
-            (catalog == null
-                ? saved.catalogBinding == null &&
-                      saved.profileId == body['profile_id']
-                : saved.profileId == null &&
-                      saved.catalogBinding ==
-                          AgentCatalogBinding.fromJson(catalog));
-      } on FormatException {
-        return false;
-      }
-    }
-
-    return result['schema_version'] == '1.0' &&
-        result['change_boundary'] == 'new_tasks' &&
-        result['idempotency_key'] == body['idempotency_key'] &&
-        result['revision'] == (body['expected_revision'] as int) + 1 &&
-        result['harness_version'] == body['harness_version'] &&
-        result['auxiliary_task'] == body['auxiliary_task'] &&
-        matchesBinding();
-  }
-
   Future<void> _saveModel(
     String? profile,
     String? reasoning, {
     String? auxiliaryTask,
     AgentCatalogBinding? catalogBinding,
   }) async {
-    final endpoint = _endpoint, models = _models;
-    if (endpoint == null || models == null || _pending != null) {
+    final api = widget.state.client?.modelSettings, models = _models;
+    final authority = models?.writeAuthority;
+    if (api == null || models == null || authority == null || _modelBusy) {
       return;
     }
     if (profile != null && catalogBinding != null) return;
-    if (_modelChanges.length >= 16) {
-      setState(
-        () => _notice =
-            'Resolve an earlier model save before starting another change.',
-      );
-      return;
-    }
-    final operation = _ModelChange({
-      'schema_version': '1.0',
+    final request = AgentModelChange.fromJson({
+      'schema_version': '1.1',
+      'expected_backend': authority.backendId,
+      'expected_instance': authority.instanceId,
       'expected_revision': models.revision,
       'idempotency_key': newIdempotencyKey(),
       'harness_version': _page == OptionsPage.harnesses ? _harness : null,
@@ -339,112 +337,73 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
       'reasoning': reasoning,
       if (auxiliaryTask != null) 'auxiliary_task': auxiliaryTask,
     });
-    _modelChanges[endpoint] = operation;
-    await _sendModel(endpoint, operation);
-  }
-
-  Future<void> _sendModel(String endpoint, _ModelChange operation) async {
-    final owner = widget.state, api = widget.state.client;
-    final generation = owner.connectionGeneration;
-    if (api == null || api.agentBase != endpoint || operation.inFlight >= 2) {
+    final operation = agentModelWrites.begin(api, authority, request);
+    if (operation == null) {
+      setState(
+        () => _modelNotice = (
+          owner: api,
+          backendId: authority.backendId,
+          text:
+              'Model recovery capacity is full. Resolve an earlier save before starting another.',
+        ),
+      );
       return;
     }
-    operation.inFlight++;
-    operation.timedOut = false;
-    operation.notice = 'Saving model settings…';
-    owner.invalidateAgentInference();
-    if (mounted) setState(() {});
-    bool current() =>
-        mounted &&
-        identical(owner, widget.state) &&
-        owner.ownsConnection(generation, api);
-    // Retain the actual request after the display deadline. A timeout is not
-    // evidence that the native transaction failed.
-    final request = api.saveAgentModels(operation.body);
-    unawaited(
-      request.then<void>(
-        (result) async {
-          operation.inFlight--;
-          if (!identical(_modelChanges[endpoint], operation)) return;
-          if (!_validReceipt(operation, result)) {
-            operation.notice =
-                'Save result is unconfirmed. Check its native receipt.';
-          } else {
-            if (identical(_modelChanges[endpoint], operation)) {
-              _modelChanges.remove(endpoint);
-            }
-            if (current()) _notice = 'Model settings saved for new tasks.';
-          }
-          if (current()) {
-            setState(() {});
-            await _refresh();
-            await owner.revalidateAgentInference();
-          }
-        },
-        onError: (Object error) async {
-          operation.inFlight--;
-          if (!identical(_modelChanges[endpoint], operation)) return;
-          if (error is ApiException &&
-              const [400, 409, 422].contains(error.status) &&
-              operation.inFlight == 0) {
-            if (identical(_modelChanges[endpoint], operation)) {
-              _modelChanges.remove(endpoint);
-            }
-            if (current()) {
-              _notice = error.status == 409
-                  ? 'Settings changed before this save. Refresh, review the values, then save again.'
-                  : 'The host refused this change. Refresh the configured profiles.';
-            }
-          } else {
-            operation.notice =
-                'Save result is unconfirmed. Check its receipt before another change.';
-          }
-          if (current()) {
-            setState(() {});
-            await _refresh();
-            await owner.revalidateAgentInference();
-          }
-        },
+    await _retryModel(operation);
+  }
+
+  Future<void> _modelResult(
+    PendingAgentModelChange operation,
+    Future<AgentModelOutcome?> Function() action,
+  ) async {
+    final owner = widget.state, api = owner.client;
+    final generation = owner.connectionGeneration;
+    if (api == null) return;
+    final result = await action();
+    if (!mounted ||
+        !identical(owner, widget.state) ||
+        !owner.ownsConnection(generation, api) ||
+        _models?.writeAuthority?.backendId != operation.request.backendId ||
+        result == null) {
+      return;
+    }
+    setState(
+      () => _modelNotice = (
+        owner: api.modelSettings,
+        backendId: operation.request.backendId,
+        text: result == AgentModelOutcome.recorded
+            ? 'The model save is confirmed. Current defaults are refreshed below.'
+            : 'The host confirmed that the earlier save did not commit and can no longer apply. Review current values before saving again.',
       ),
     );
-    try {
-      await request.timeout(const Duration(seconds: 8));
-    } catch (_) {
-      if (operation.sending) {
-        operation.timedOut = true;
-        operation.notice =
-            'Still waiting for the host. The change may have been saved.';
-        if (current()) setState(() {});
-      }
+    await _refresh();
+    if (mounted &&
+        identical(owner, widget.state) &&
+        owner.ownsConnection(generation, api)) {
+      await owner.revalidateAgentInference();
     }
+  }
+
+  Future<void> _retryModel(PendingAgentModelChange operation) async {
+    final api = widget.state.client?.modelSettings,
+        authority = _models?.writeAuthority;
+    if (api == null || !agentModelWrites.canRetry(operation, api, authority)) {
+      return;
+    }
+    widget.state.invalidateAgentInference();
+    await _modelResult(
+      operation,
+      () => agentModelWrites.retry(operation, api, authority),
+    );
   }
 
   Future<void> _checkModelSave() async {
-    final operation = _pending, api = widget.state.client, endpoint = _endpoint;
-    final generation = widget.state.connectionGeneration;
-    if (operation == null || api == null || endpoint == null) return;
-    try {
-      final result = await api.agentModelReceipt(
-        operation.body['idempotency_key'] as String,
-      );
-      if (!_validReceipt(operation, result)) throw const FormatException();
-      if (identical(_modelChanges[endpoint], operation)) {
-        _modelChanges.remove(endpoint);
-      }
-      if (mounted && widget.state.ownsConnection(generation, api)) {
-        setState(
-          () => _notice = 'The host confirmed the model settings were saved.',
-        );
-        await _refresh();
-        await widget.state.revalidateAgentInference();
-      }
-    } catch (_) {
-      operation.notice =
-          'No confirmed receipt yet. Retry uses the same request so it cannot apply twice.';
-      if (mounted && widget.state.ownsConnection(generation, api)) {
-        setState(() {});
-      }
-    }
+    final operation = _pending, api = widget.state.client?.modelSettings;
+    if (operation == null || api == null) return;
+    await _modelResult(
+      operation,
+      () => agentModelWrites.lookup(operation, api, _models?.writeAuthority),
+    );
   }
 
   bool _validRuntimeReceipt(
@@ -672,6 +631,14 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
                       ),
                       child: Semantics(liveRegion: true, child: Text(_notice!)),
                     ),
+                  if (_visibleModelNotice case final notice?)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 8,
+                      ),
+                      child: Semantics(liveRegion: true, child: Text(notice)),
+                    ),
                   if (_pending case final pending?)
                     Padding(
                       padding: const EdgeInsets.symmetric(
@@ -685,18 +652,25 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
                           spacing: 12,
                           runSpacing: 8,
                           children: [
-                            Text(
-                              pending.notice ??
-                                  'A model change is awaiting confirmation.',
-                            ),
+                            Text(pending.notice),
                             TextButton(
-                              onPressed: _checkModelSave,
+                              onPressed:
+                                  agentModelWrites.canLookup(
+                                    pending,
+                                    widget.state.client!.modelSettings,
+                                    _models?.writeAuthority,
+                                  )
+                                  ? _checkModelSave
+                                  : null,
                               child: const Text('Check save status'),
                             ),
-                            if (pending.canRetry)
+                            if (agentModelWrites.canRetry(
+                              pending,
+                              widget.state.client!.modelSettings,
+                              _models?.writeAuthority,
+                            ))
                               TextButton(
-                                onPressed: () =>
-                                    _sendModel(_endpoint!, pending),
+                                onPressed: () => _retryModel(pending),
                                 child: const Text('Retry the same save'),
                               ),
                           ],
@@ -1062,11 +1036,12 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
           }
         },
       ),
+      if (_modelReadOnlyReason case final reason?) Text(reason),
       if (_models case final models?)
         OptionsModelEditor(
           key: const ValueKey('agent-default-model-editor'),
           models: models,
-          busy: _pending != null,
+          busy: _modelBusy,
           onSave: _saveModel,
           onSaveCatalog: (catalog, reasoning) =>
               _saveModel(null, reasoning, catalogBinding: catalog),
@@ -1085,7 +1060,7 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
           models: models,
           initialPurpose: _auxiliaryPurpose,
           onPurposeChanged: (value) => _auxiliaryPurpose = value,
-          busy: _pending != null,
+          busy: _modelBusy,
           onSave: (purpose, profile, reasoning) =>
               _saveModel(profile, reasoning, auxiliaryTask: purpose),
           onSaveCatalog: (purpose, catalog, reasoning) => _saveModel(
@@ -1119,12 +1094,13 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
         _field('Harness version', _harness!),
         if (harness != null) Text(harness.description),
         ..._errors,
+        if (_modelReadOnlyReason case final reason?) Text(reason),
         if (_models != null && harness != null && harness.selectable)
           OptionsModelEditor(
             key: ValueKey('model-editor-$_harness'),
             models: _models!,
             harness: _harness,
-            busy: _pending != null,
+            busy: _modelBusy,
             onSave: _saveModel,
             onSaveCatalog: (catalog, reasoning) =>
                 _saveModel(null, reasoning, catalogBinding: catalog),
@@ -1143,7 +1119,7 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
             initialPurpose: _auxiliaryPurpose,
             onPurposeChanged: (value) => _auxiliaryPurpose = value,
             harness: _harness,
-            busy: _pending != null,
+            busy: _modelBusy,
             onSave: (purpose, profile, reasoning) =>
                 _saveModel(profile, reasoning, auxiliaryTask: purpose),
             onSaveCatalog: (purpose, catalog, reasoning) => _saveModel(

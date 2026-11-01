@@ -1,4 +1,4 @@
-# Agent Options API 1.0
+# Agent Options API
 
 ## Approval expiry and renewal
 
@@ -15,6 +15,10 @@ HTTP410 means bounded history is unavailable, not failure proof. See
 
 Implements [#188](https://github.com/rgoza1996/Kinaiya/issues/188) and
 [ADR0077](adr/0077-options-workspace-and-harness-models.md).
+Bound model mutations and recovery are specified by
+[#191](https://github.com/rgoza1996/Kinaiya/issues/191) and
+[ADR0088](adr/0088-bound-model-settings-writes.md). The outer inspection schema
+remains 1.0; new model mutations use 1.1.
 Every route requires authenticated owner access. Metadata is local inspection,
 not inference, endpoint readiness, permission expansion or harness promotion.
 
@@ -96,6 +100,12 @@ The model snapshot contains:
   "schema_version": "1.0",
   "revision": 0,
   "change_boundary": "new_tasks",
+  "write_authority": {
+    "mutation_version": "1.1",
+    "backend_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "instance_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "writable": true
+  },
   "default": {"profile_id": "host-default", "reasoning": null},
   "harnesses": {},
   "profiles": [{
@@ -112,6 +122,11 @@ The model snapshot contains:
 `harnesses` is a map keyed by exact native harness version. An absent key inherits
 the Agent default. A profile whose adapter could not be constructed has
 `selectable: false`, `provider: null`. No endpoint or secret reference is exposed.
+`backend_id` identifies the protected model-settings database across ordinary
+service restarts. `instance_id` identifies its current registered writer. Use the
+actual observed identifiers, not these example values. A retired controller
+reports `writable: false`. Missing or unsupported authority permits inspection
+but is read-only for the new client.
 
 `GET /v1/agent/options/model-selection?harness_version=seed-v1` resolves current
 native eligibility and returns the effective provider and model pin for that
@@ -121,11 +136,13 @@ replacement provider. This read creates no session, task or override.
 
 ## Change
 
-`POST /v1/agent/options/models` accepts only:
+`POST /v1/agent/options/models` accepts this bound request for a new change:
 
 ```json
 {
-  "schema_version": "1.0",
+  "schema_version": "1.1",
+  "expected_backend": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "expected_instance": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
   "expected_revision": 0,
   "idempotency_key": "unique-owner-request-id",
   "harness_version": "seed-v1",
@@ -141,6 +158,9 @@ inheritance; the Agent default itself cannot inherit. A nonnull reasoning level
 must occur in that profile's host-declared options. Null means the profile's
 configured effort. Models and provider addresses cannot be supplied inline.
 Unknown fields, invalid types/IDs and unsupported labels refuse.
+Both authority identifiers are required 32-character lowercase hexadecimal
+strings. A request belongs to the observed database and writer generation;
+matching revision/profile values on an unrelated backend cannot authorize it.
 
 ### Exact provider catalog selections (ADR0089)
 
@@ -197,7 +217,9 @@ Success returns an exact persisted receipt:
 
 ```json
 {
-  "schema_version": "1.0",
+  "schema_version": "1.1",
+  "backend_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "service_instance": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
   "idempotency_key": "unique-owner-request-id",
   "revision": 1,
   "harness_version": "seed-v1",
@@ -208,15 +230,84 @@ Success returns an exact persisted receipt:
 
 An inherited binding returns `binding: null`. The revision advances once. Repeat
 the same key and body to recover the same receipt, including after a lost
-response or restart. A key/body conflict or stale revision returns 409. Invalid
+response or restart. A recorded receipt retains its original backend and service
+instance. Exact replay precedes current writer/revision, harness, profile and
+default-provider checks and does not assign the runtime provider or apply the
+old preference again. A genuinely new write must pass all current checks.
+A key/body conflict, foreign backend, retired writer or stale revision returns
+409. Invalid
 profile/eligibility/limits return 400; malformed wire input returns 422;
-unconfigured/unavailable management returns 503. Authentication uses the usual
+unconfigured/unavailable or unconfirmed storage returns 503. Authentication uses the usual
 401/403 rules. Writes never retry automatically or rewrite existing task pins.
+
+Legacy 1.0 bodies are accepted only for exact persisted receipt recovery. Their
+original normalized digest and receipt remain unchanged, including omission of
+null `auxiliary_task`; they never gain invented authority fields. New unbound
+1.0 mutations refuse with 409. Upgrade requires stopping older writers that do
+not enforce generation fencing.
 
 `GET /v1/agent/options/model-changes/{idempotency_key}` retrieves a committed
 receipt. A 404 means no committed receipt is currently visible; it does not
-prove an earlier request cannot still commit. Exact-key retry is safe, and a
-different change requires reconciliation first.
+prove an earlier request cannot still commit.
+
+`POST /v1/agent/options/model-changes/lookup` accepts the complete original flat
+1.1 change body, with the original authority, key, revision and choices. It
+returns:
+
+```json
+{
+  "schema_version": "1.1",
+  "backend_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "request": {
+    "schema_version": "1.1",
+    "expected_backend": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "expected_instance": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "expected_revision": 0,
+    "idempotency_key": "unique-owner-request-id",
+    "harness_version": "seed-v1",
+    "profile_id": "host-default",
+    "reasoning": null
+  },
+  "status": "unobserved",
+  "receipt": null,
+  "mutation_fenced": false
+}
+```
+
+The echoed request is the complete normalized original body. A recorded result
+has `status: "recorded"`, the exact strict receipt and `mutation_fenced: true`.
+For an unobserved result, fencing is true only when the original writer has been
+permanently retired or the persisted revision is greater than the request's
+expected revision. A future expected revision is not fenced merely because it
+differs. The native observation serializes receipt, digest, database identity,
+revision and writer generation in one transaction without selecting a provider
+or harness. A foreign backend refuses 409; corrupt/unreadable state refuses 503.
+Neither may issue authoritative absence for the original backend.
+
+Only an exact validated recorded receipt, or a same-backend unobserved result
+with this permanent native fence, settles an uncertain save. A bare 404, changed
+snapshot instance, matching values or subsequent refusal cannot erase an older
+uncertain attempt. A different change requires reconciliation first. These
+claims assume protected, unforked and non-rolled-back database state; they are
+not authentication of an arbitrary replacement server.
+
+The owner client retains immutable pending changes within their private
+authentication scope, canonical Agent endpoint and stable backend identity.
+Another owner/backend at the same URL cannot view, retry or settle them.
+Same-authority close/reopen/reconnect preserves the original request; navigation
+never retries it. Dedicated model requests permit no redirects or automatic
+retry, bound request/response bodies to 4096/16384 bytes, and expose a total
+10-second result deadline with at most one second spent awaiting cleanup. The
+8-second UI waiting deadline does not establish transport settlement. Actual
+late owners remain counted globally (32), with 16 logical pending operations,
+at most two concurrent mutation owners and one lookup owner per operation.
+These are concurrent bounds, not lifetime retry counts; explicit manual retry
+can reuse capacity only after actual settlement.
+
+Agent `/model` uses the same observed bound authority for new native changes.
+Recovery of its exact inner model receipt returns `model_settings_receipt` and
+`recovered: true` without current profile/work/provider checks; that historical
+receipt is not a claim about the currently active provider.
 
 ## Existing task receipts
 
@@ -244,9 +335,11 @@ requires that service when invoking a skill, native harness/model admission,
 and both source and combined task disclosure checks. Recovery never rebinds
 execution to a replacement model.
 
-This does not resolve an uncertain initial submit append
-([#199](https://github.com/rgoza1996/Kinaiya/issues/199)); an in-memory
-idempotency-cache entry alone is not proof of durable native acceptance.
+[Native submit admission](adr/0087-agent-submit-admission.md) subsequently
+resolved [#199](https://github.com/rgoza1996/Kinaiya/issues/199) by atomically
+recording initial acceptance and its logical slot. An unconfirmed result stays
+paused; a RAM idempotency entry alone is not proof of acceptance. This does not
+establish exactly-once external effects or automatic execution after recovery.
 
 ## Auxiliary tasks
 

@@ -17,6 +17,8 @@ import 'models.dart';
 import 'converse_setup.dart';
 import 'agent_workspace.dart';
 import 'agent_workspace_client.dart';
+import 'agent_model_client.dart';
+import 'agent_model_settings.dart';
 import 'library_models.dart';
 import 'artifact_client.dart';
 import 'provider_client.dart';
@@ -81,6 +83,7 @@ class KinaiyaClient {
     http.Client Function()? agentWorkspaceClientFactory,
     http.Client Function()? artifactClientFactory,
     http.Client Function()? providerClientFactory,
+    http.Client Function()? agentModelClientFactory,
   }) : sessionBase = normalizeServiceRoot(sessionBase),
        agentBase = normalizeServiceRoot(agentBase),
        converseBase = normalizeServiceRoot(converseBase),
@@ -98,7 +101,10 @@ class KinaiyaClient {
            (httpClient == null ? http.Client.new : _decisionsInjectionRequired),
        _agentWorkspaceClientFactory =
            agentWorkspaceClientFactory ??
-           (httpClient == null ? http.Client.new : _workspaceInjectionRequired);
+           (httpClient == null ? http.Client.new : _workspaceInjectionRequired),
+       _agentModelClientFactory =
+           agentModelClientFactory ??
+           (httpClient == null ? http.Client.new : _modelInjectionRequired);
 
   final String sessionBase;
   final String agentBase;
@@ -192,6 +198,15 @@ class KinaiyaClient {
     ownerToken: _token,
     clientFactory: _agentWorkspaceClientFactory,
   );
+  final http.Client Function() _agentModelClientFactory;
+  static http.Client _modelInjectionRequired() => throw StateError(
+    'Model settings transport requires its own injected factory',
+  );
+  late final AgentModelApi modelSettings = AgentModelApi(
+    baseUrl: agentBase,
+    ownerToken: _token,
+    clientFactory: _agentModelClientFactory,
+  );
   late final ToolPermissionsApi toolPermissions = ToolPermissionsApi(
     baseUrl: agentBase,
     sessionBase: sessionBase,
@@ -227,6 +242,7 @@ class KinaiyaClient {
     http.Client Function()? agentWorkspaceClientFactory,
     http.Client Function()? artifactClientFactory,
     http.Client Function()? providerClientFactory,
+    http.Client Function()? agentModelClientFactory,
   }) : sessionBase = normalizeServiceRoot(sessionBase),
        agentBase = normalizeServiceRoot(agentBase),
        converseBase = normalizeServiceRoot(converseBase),
@@ -240,7 +256,9 @@ class KinaiyaClient {
        _decisionsClientFactory =
            decisionsClientFactory ?? _decisionsInjectionRequired,
        _agentWorkspaceClientFactory =
-           agentWorkspaceClientFactory ?? _workspaceInjectionRequired {
+           agentWorkspaceClientFactory ?? _workspaceInjectionRequired,
+       _agentModelClientFactory =
+           agentModelClientFactory ?? _modelInjectionRequired {
     _mockLabel = label;
   }
 
@@ -307,8 +325,15 @@ class KinaiyaClient {
               as Map)
           .cast<String, Object?>();
 
-  Future<Map<String, Object?>> saveAgentModels(Map<String, Object?> body) =>
-      _post(agentBase, '/v1/agent/options/models', body);
+  Future<Map<String, Object?>> saveAgentModels(
+    Map<String, Object?> body,
+  ) async =>
+      (await modelSettings.change(AgentModelChange.fromJson(body)).result).json;
+
+  Future<Map<String, Object?>> lookupAgentModels(
+    Map<String, Object?> body,
+  ) async =>
+      (await modelSettings.lookup(AgentModelChange.fromJson(body)).result).json;
 
   Future<Map<String, Object?>> saveAgentRuntimeSettings(
     Map<String, Object?> body,
@@ -337,12 +362,7 @@ class KinaiyaClient {
   }
 
   Future<Map<String, Object?>> agentModelReceipt(String key) async =>
-      (await _agentWorkspaceReader.get(
-                agentBase,
-                '/v1/agent/options/model-changes/${Uri.encodeComponent(key)}',
-              )
-              as Map)
-          .cast<String, Object?>();
+      modelSettings.legacyReceipt(key).result;
 
   Future<AgentHarnessPage> agentHarnesses({String? after}) async =>
       AgentHarnessPage.fromJson(
@@ -948,6 +968,7 @@ class KinaiyaClient {
       unawaited(providers.close());
       decisionInspections.close();
       unawaited(_agentWorkspaceReader.close());
+      unawaited(modelSettings.close());
       unawaited(toolPermissions.close());
       unawaited(converseModels.close());
       artifacts.close();

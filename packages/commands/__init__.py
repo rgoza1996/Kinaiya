@@ -237,6 +237,8 @@ class Registry:
         ):
             raise ValueError("Commands require the current Agent session and epoch")
         digest = hashlib.sha256(request.model_dump_json().encode()).hexdigest()
+        recover_model = False
+        reserved_digest = digest
         async with self.lock:
             row = self.db.execute(
                 "SELECT digest,result,"
@@ -264,15 +266,18 @@ class Registry:
                         # as errors. No frozen intent means no safe redispatch.
                         return unconfirmed()
                     return result
+                parsed = parse(request.input)
+                recover_model = parsed is not None and parsed[0] == "model" and len(parsed[1]) == 1
+                reserved_digest = row[0]
             else:
                 with self.db:
                     self.db.execute(
                         "INSERT INTO commands(session,key,digest,result) VALUES (?,?,?,NULL)",
                         (request.session_id, request.idempotency_key, digest),
                     )
-        if row:
-            # A prior durable reservation is never permission to repeat controls.
-            # Only a positive frozen task intent supports read-only recovery.
+        if row and not recover_model:
+            # Only a retained frozen task supports read-only task reconciliation.
+            # Other interrupted controls cannot acquire fresh dispatch authority.
             if not row[4]:
                 return unconfirmed()
             try:
@@ -287,14 +292,24 @@ class Registry:
         before_task_submit = False
         try:
             parsed = parse(request.input)
-            if parsed is None:
+            if recover_model:
+                from services.agent.model_settings import ModelSettingsUnavailable
+
+                recovered = self._recorded_model_change(parsed[1], request)
+                if recovered is None:
+                    # An unresolved outer intent cannot authorize reconstructing
+                    # a fresh change from today's generation or preferences.
+                    raise ModelSettingsUnavailable
+                result = self._reply("ok", "model", result=recovered)
+            elif parsed is None:
                 result = self._reply("error", None, error="literal_text", literal=request.input)
             else:
-                await self.refresh_skill_commands()
                 name, args = parsed
                 name = next(
                     (n for n, (_, aliases, _) in DEFINITIONS.items() if name in aliases), name
                 )
+                if name != "model":
+                    await self.refresh_skill_commands()
                 if name in self._skill_targets:
                     task_command_name, before_task_submit = name, True
                     intent = task_intent(name, args, request, skill_id=self._skill_targets[name])
@@ -350,24 +365,40 @@ class Registry:
                             )
                         },
                     }
-            await self.runtime.journal.append(
-                AppendRequest(
-                    session_id=session.session_id,
-                    thread_id=session.thread_id,
-                    epoch=session.epoch,
-                    kind="agent.command",
-                    idempotency_key="command:" + request.idempotency_key,
-                    payload={
-                        "op": "control",
-                        "actor": "owner",
-                        "input": request.input,
-                        "response": journal_response,
-                        # Controls can inspect older/private task state. A new
-                        # grant for the command text cannot relabel that state.
-                        "content_scope": "local_only",
-                    },
-                )
+            model_receipt = (
+                result.get("command") == "model"
+                and isinstance(target, dict)
+                and "model_settings_receipt" in target
             )
+            journal_key = (
+                "model-receipt:" + self._model_operation_key(request).removeprefix("command:")
+                if model_receipt and target.get("recovered") is True
+                else "command:" + request.idempotency_key
+            )
+            append = AppendRequest(
+                session_id=session.session_id,
+                thread_id=session.thread_id,
+                epoch=session.epoch,
+                kind="agent.command",
+                idempotency_key=journal_key,
+                payload={
+                    "op": "control",
+                    "actor": "owner",
+                    "input": request.input,
+                    "response": journal_response,
+                    # Controls can inspect older/private task state. A new
+                    # grant for the command text cannot relabel that state.
+                    "content_scope": "local_only",
+                },
+            )
+            try:
+                await self.runtime.journal.append(append)
+            except Exception:
+                if model_receipt:
+                    from services.agent.model_settings import ModelSettingsUnavailable
+
+                    raise ModelSettingsUnavailable from None
+                raise
         except (ValueError, KeyError) as exc:
             result = self._reply(
                 "error",
@@ -383,10 +414,24 @@ class Registry:
         async with self.lock:
             with self.db:
                 self.db.execute(
-                    "UPDATE commands SET result=? WHERE session=? AND key=?",
-                    (json.dumps(result), request.session_id, request.idempotency_key),
+                    "UPDATE commands SET result=? WHERE session=? AND key=? AND digest=? "
+                    "AND result IS NULL",
+                    (
+                        json.dumps(result),
+                        request.session_id,
+                        request.idempotency_key,
+                        reserved_digest,
+                    ),
                 )
-        return result
+                winner = self.db.execute(
+                    "SELECT digest,result FROM commands WHERE session=? AND key=?",
+                    (request.session_id, request.idempotency_key),
+                ).fetchone()
+        if winner is None or winner[0] != reserved_digest or not winner[1]:
+            from services.agent.model_settings import ModelSettingsUnavailable
+
+            raise ModelSettingsUnavailable
+        return json.loads(winner[1])
 
     async def _freeze_task(self, request, intent):
         encoded = encode(intent)
@@ -469,6 +514,35 @@ class Registry:
     def _reply(status, command, **fields):
         return {"schema_version": "1.0", "status": status, "command": command, **fields}
 
+    @staticmethod
+    def _model_operation_key(request):
+        return (
+            "command:"
+            + hashlib.sha256(
+                (request.session_id + ":" + request.idempotency_key).encode()
+            ).hexdigest()
+        )
+
+    def _recorded_model_change(self, args, request):
+        settings = getattr(self.runtime, "model_settings", None)
+        recorded = (
+            settings.recorded_change(self._model_operation_key(request))
+            if settings is not None
+            else None
+        )
+        if recorded is None:
+            return None
+        original, _ = recorded
+        if (
+            original.harness_version is not None
+            or original.profile_id != args[0]
+            or original.catalog_binding is not None
+            or original.reasoning is not None
+            or original.auxiliary_task is not None
+        ):
+            raise ValueError("Command key belongs to a different model change")
+        return {"model_settings_receipt": settings.change(original), "recovered": True}
+
     async def _dispatch(self, name, args, request):
         runtime = self.runtime
         if name == "voice":
@@ -525,37 +599,58 @@ class Registry:
             if len(args) > 1:
                 raise ValueError("Usage: /model [configured-profile]")
             if args:
-                if args[0] not in self.profiles:
-                    raise ValueError("Unknown configured profile")
                 async with runtime.integration_lock:
+                    settings = getattr(runtime, "model_settings", None)
+                    operation_key = self._model_operation_key(request)
+                    recorded = self._recorded_model_change(args, request)
+                    if recorded is not None:
+                        # This proves the original save, without reapplying it
+                        # or consulting today's provider/profile/work state.
+                        return recorded
+                    if args[0] not in self.profiles:
+                        raise ValueError("Unknown configured profile")
                     if any(t.state not in TERMINAL_STATES for t in await runtime.status()):
                         raise ValueError(
                             "Finish or stop active work before selecting another profile"
                         )
-                    settings = getattr(runtime, "model_settings", None)
                     if settings is None:
                         runtime.provider = self.profiles[args[0]]()
                     else:
-                        from services.agent.model_settings import ModelSettingsChange
+                        from services.agent.model_settings import BoundModelSettingsChange
 
-                        operation_key = (
-                            "command:"
-                            + hashlib.sha256(
-                                (request.session_id + ":" + request.idempotency_key).encode()
-                            ).hexdigest()
-                        )
-                        prior = settings.receipt(operation_key)
-                        settings.change(
-                            ModelSettingsChange(
-                                schema_version="1.0",
-                                expected_revision=prior["revision"] - 1
-                                if prior is not None
-                                else settings.snapshot()["revision"],
+                        snapshot = settings.snapshot()
+                        authority = snapshot.get("write_authority")
+                        if (
+                            not isinstance(authority, dict)
+                            or authority.get("mutation_version") != "1.1"
+                            or authority.get("writable") is not True
+                        ):
+                            raise ValueError("Model settings are read-only on this connection")
+                        receipt = settings.change(
+                            BoundModelSettingsChange(
+                                schema_version="1.1",
+                                expected_backend=authority["backend_id"],
+                                expected_instance=authority["instance_id"],
+                                expected_revision=snapshot["revision"],
                                 idempotency_key=operation_key,
                                 profile_id=args[0],
                             )
                         )
-                        runtime.provider = settings.selection(None)[0]
+                        try:
+                            # /model accepts an existing host profile only.
+                            # Catalog adapters remain task-owned and are never
+                            # selected or rebound through this legacy command.
+                            runtime.provider = settings.selection(None)[0]
+                            active = settings.default_info()
+                        except Exception:
+                            from services.agent.model_settings import ModelSettingsUnavailable
+
+                            raise ModelSettingsUnavailable from None
+                        return {
+                            "active": active,
+                            "profiles": sorted(self.profiles),
+                            "model_settings_receipt": receipt,
+                        }
             settings = getattr(runtime, "model_settings", None)
             return {
                 "active": settings.default_info()
