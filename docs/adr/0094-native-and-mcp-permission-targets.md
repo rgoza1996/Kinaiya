@@ -70,6 +70,23 @@ before current target/scope eligibility or CAS and never reapply an old write.
 Rule mutation, revision increment, and receipt commit together, without an await
 inside the transaction. Full capacity refuses rather than evicting history.
 
+The four-table permission store uses SQLite storage version 2. Affirmative
+atomic file creation may initialize the tables and revision-zero singleton;
+existing empty, missing-state, truncated or corrupt authority stays unavailable.
+The exact three-table layout at version 0 or 1 is fully validated before a
+transaction adds the target table and advances the storage version. Validation
+checks the combined rule cap and both strict receipt versions, original request
+digests, complete unique revision history, and exact agreement between each
+latest operation and its retained rule, including target bindings. It consults
+no current model, scope liveness or MCP server during migration.
+
+The unversioned pre-release four-table layout is explicitly unsupported and
+left in place for owner recovery. It is never interpreted as an empty store.
+Version-1 services reject the newer version/table rather than ignoring target
+policy. Version and closed-schema checks continue before target reads, including
+missing-rule, saved-target and historical-receipt lookup paths, so those paths
+cannot interpret newer or incomplete schema as host inheritance.
+
 A schema1.1 receipt has `status:permission_target_saved`; it binds original
 scope, target, binding, mode, expected revision/state, key, and resulting revision
 exactly. Existing schema1.0 receipt shapes remain unchanged. A target page uses

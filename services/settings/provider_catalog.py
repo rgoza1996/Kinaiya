@@ -357,15 +357,15 @@ def _storage(path, workspace, *, report_created=False):
     parent = path.parent.stat()
     if parent.st_uid != os.geteuid() or parent.st_mode & 0o022:
         raise ValueError("Provider storage directory must be owner controlled")
-    created = False
     flags = os.O_RDWR | os.O_NOFOLLOW | os.O_CLOEXEC
+    created = False
     if report_created:
         try:
             fd = os.open(path, flags | os.O_CREAT | os.O_EXCL, 0o600)
             created = True
         except FileExistsError:
-            # Existing empty or corrupt authority is never affirmative absence.
-            # A concurrent remover makes this open fail instead of recreating it.
+            # An existing empty file is not proof that its native state never
+            # existed. This open must not recreate a concurrently removed file.
             fd = os.open(path, flags)
     else:
         fd = os.open(path, flags | os.O_CREAT, 0o600)

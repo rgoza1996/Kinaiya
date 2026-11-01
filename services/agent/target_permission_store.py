@@ -12,13 +12,63 @@ from services.agent.permission_targets import registry, target_id
 
 class TargetPermissionStore:
     def _rule_count(self):
+        self._revision()
         return self.db.execute(
             "SELECT (SELECT count(*) FROM permission_rules)+(SELECT count(*) FROM permission_target_rules)"
         ).fetchone()[0]
 
+    def _stored_target_rules(self, revision, legacy_count):
+        """Validate target rows without consulting live registry/owner eligibility."""
+        from services.agent.tool_permissions import MAX_RULES, _decode, _scope_value
+
+        self._schema()
+        rules = {}
+        for sid, tid, scope, target, binding, mode, rule_revision in self.db.execute(
+            "SELECT CASE WHEN typeof(scope_id)='text' AND length(CAST(scope_id AS BLOB))=64 THEN scope_id END,"
+            "CASE WHEN typeof(target_id)='text' AND length(CAST(target_id AS BLOB))=64 THEN target_id END,"
+            "CASE WHEN typeof(scope)='text' AND length(CAST(scope AS BLOB))<=2048 THEN scope END,"
+            "CASE WHEN typeof(target)='text' AND length(CAST(target AS BLOB))<=512 THEN target END,"
+            "CASE WHEN typeof(binding)='text' AND length(CAST(binding AS BLOB))<=512 THEN binding END,"
+            "CASE WHEN typeof(mode)='text' AND length(CAST(mode AS BLOB))<=5 THEN mode END,"
+            "CASE WHEN typeof(revision)='integer' THEN revision END "
+            f"FROM permission_target_rules LIMIT {MAX_RULES + 1}"
+        ):
+            request = ToolPermissionTargetChange.model_validate(
+                {
+                    "schema_version": "1.1",
+                    "expected_revision": 0,
+                    "expected_state": "0" * 64,
+                    "idempotency_key": "stored",
+                    "scope": _decode(scope, 2048),
+                    "target": _decode(target, 512),
+                    "binding": _decode(binding, 512),
+                    "mode": mode,
+                }
+            )
+            checked_target = request.target.model_dump()
+            if (
+                legacy_count + len(rules) >= MAX_RULES
+                or sid != self.scope_id(request.scope)
+                or tid != target_id(checked_target)
+                or (request.target.kind == "native" and request.target.name != "search")
+                or request.mode is None
+                or type(rule_revision) is not int
+                or not 1 <= rule_revision <= revision
+            ):
+                raise ValueError("Stored permission target rule is unavailable")
+            rules[("1.1", sid, tid)] = (
+                _scope_value(request.scope),
+                checked_target,
+                request.binding.model_dump(),
+                request.mode,
+                rule_revision,
+            )
+        return rules
+
     def _target_rule(self, scope, target):
         from services.agent.tool_permissions import _decode, _digest
 
+        self._revision()
         sid, tid = self.scope_id(scope), target_id(target)
         row = self.db.execute(
             "SELECT CASE WHEN length(CAST(scope AS BLOB))<=2048 THEN scope END,"
@@ -45,6 +95,7 @@ class TargetPermissionStore:
         if (
             checked.scope != scope
             or checked.target.model_dump() != target
+            or (checked.target.kind == "native" and checked.target.name != "search")
             or checked.mode is None
             or type(row[4]) is not int
             or not 1 <= row[4] <= self._revision()
@@ -125,6 +176,7 @@ class TargetPermissionStore:
     def _saved_targets(self):
         from services.agent.tool_permissions import _decode
 
+        self._revision()
         rows = self.db.execute(
             "SELECT DISTINCT target_id,CASE WHEN length(CAST(target AS BLOB))<=512 THEN target END "
             "FROM permission_target_rules LIMIT 1025"
@@ -202,6 +254,7 @@ class TargetPermissionStore:
         if (
             value["status"] != "permission_target_saved"
             or request.idempotency_key != key
+            or (request.target.kind == "native" and request.target.name != "search")
             or value["scope_id"] != self.scope_id(request.scope)
             or type(value["revision"]) is not int
             or value["revision"] != request.expected_revision + 1
@@ -213,6 +266,7 @@ class TargetPermissionStore:
     def _prior_target(self, request, digest):
         from services.agent.tool_permissions import MAX_RECEIPT_BYTES, ToolPermissionConflict
 
+        self._revision()
         row = self.db.execute(
             "SELECT CASE WHEN length(CAST(digest AS BLOB))=64 THEN digest END,"
             "CASE WHEN length(CAST(receipt AS BLOB))<=? THEN receipt END FROM permission_operations WHERE key=?",
