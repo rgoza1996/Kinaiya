@@ -315,15 +315,18 @@ def _context_body(request, binding, closure, observation, *, validated=False):
         closure = checked_finalization(closure, StandingAdmissionClosure)
         observation = checked_finalization(observation, StandingResourceObservation)
     original = request.original
-    try:
-        closure.validate_request(original)
-        observation.validate_request(original)
-    except _FAILURES:
-        raise ValueError(_ERROR) from None
+    # Checked arguments, or the model wrapper's rebuilt children, already
+    # validate their own complete graphs and digests. Join them to the same
+    # validated claim here rather than recursively rebuilding those graphs
+    # again through the older public request validators.
     initial = closure.initial
     reservation = observation.reservation
     if (
         _encode(binding.claim.request) != _encode(original)
+        or closure.intent_digest != binding.claim.intent_digest
+        or closure.claim_id != binding.claim.claim_id
+        or observation.intent_digest != binding.claim.intent_digest
+        or observation.claim_id != binding.claim.claim_id
         or request.expected_resource_backend != binding.resource_backend
         or request.expected_resource_instance != binding.resource_instance
         or observation.closure_digest != closure.closure_digest
