@@ -73,6 +73,7 @@ def _graph(value):
                 type(values) is not dict
                 or values.keys() != fields.keys()
                 or type(supplied) is not set
+                or any(type(name) is not str for name in supplied)
                 or supplied != fields.keys()
                 or getattr(item, "__pydantic_extra__", {}) is not None
             ):
@@ -407,6 +408,7 @@ def _finalization_body(
         "restoration": restoration,
     }
     if not validated:
+        _graph(fields)
         fields = {
             name: _adapter(StandingResourceFinalization, name).validate_python(value, strict=True)
             for name, value in fields.items()
