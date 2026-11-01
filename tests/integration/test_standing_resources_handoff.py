@@ -5,6 +5,7 @@ import copy
 import hashlib
 import json
 import sys
+from dataclasses import dataclass
 from types import SimpleNamespace
 
 import httpx
@@ -39,6 +40,35 @@ from services.session.store import LocalJournal
 
 LOCAL_META = "standing_handoff_meta"
 LOCAL_ROWS = "standing_handoff_intents"
+
+
+@dataclass(frozen=True, slots=True, repr=False, eq=False)
+class _RegistrationSnapshot:
+    _native: tuple
+    _local: tuple
+    _proof: object
+
+
+def _registration_snapshot(native_rows, local_rows, expected_proof, previous=None):
+    """Reuse a test proof only while every actual SQL row remains identical."""
+    assert len(native_rows) == len(local_rows) == 1 and local_rows[0][1] is not None
+    native = tuple(tuple(row) for row in native_rows)
+    local = tuple(tuple(row) for row in local_rows)
+    if (
+        type(previous) is _RegistrationSnapshot
+        and native == previous._native
+        and local == previous._local
+    ):
+        assert previous._proof == expected_proof
+        return previous
+    request = feature().StandingResourceReservation.from_json(native_rows[0][0].encode())
+    assert request.context.standing == expected_proof
+    assert json.loads(local_rows[0][0]) == request.model_dump(mode="json")
+    receipt = feature().StandingResourceReservationReceipt.from_json(local_rows[0][1].encode())
+    assert receipt.validate_request(request).disposition == "created"
+    return _RegistrationSnapshot(
+        copy.deepcopy(native), copy.deepcopy(local), request.context.standing
+    )
 
 
 async def resistant(gate):
@@ -207,20 +237,17 @@ async def handoffs(factory, tmp_path):
             assert runtime.enabled and coordinator.state.record.phase == "ready"
             assert (await action(coordinator, "profile", profile="local_work_priority"))["ok"]
         original_preview, original_save = coordinator._handoff_may_preempt, coordinator._save
+        registration_snapshot = None
 
         def registered_before_effect():
+            nonlocal registration_snapshot
             env.previews += 1
             native = session.store.db.execute(f"SELECT request FROM {ROWS}").fetchall()
             local = coordinator.db.execute(f"SELECT request,receipt FROM {LOCAL_ROWS}").fetchall()
             if env.payload.get("task_id") == env.packet.task.task_id:
-                assert len(native) == len(local) == 1 and local[0][1] is not None
-                request = feature().StandingResourceReservation.from_json(native[0][0].encode())
-                assert request.context.standing == env.proof
-                assert json.loads(local[0][0]) == request.model_dump(mode="json")
-                receipt = feature().StandingResourceReservationReceipt.from_json(
-                    local[0][1].encode()
+                registration_snapshot = _registration_snapshot(
+                    native, local, env.proof, previous=registration_snapshot
                 )
-                assert receipt.validate_request(request).disposition == "created"
 
         async def preview(payload):
             registered_before_effect()
