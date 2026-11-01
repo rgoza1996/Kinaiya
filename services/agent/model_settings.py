@@ -7,11 +7,15 @@ contains references and reasoning, never endpoints, keys, prompts or permissions
 from __future__ import annotations
 
 import asyncio
+import fcntl
 import hashlib
 import json
+import os
 import re
 import secrets
 import sqlite3
+import stat
+import time
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Literal
@@ -21,6 +25,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_serializer, model_valid
 from core.policy import PolicyDenied
 from packages.contracts.models import AgentModelPin, AuxiliaryTask, CatalogModelBinding
 from packages.providers.disclosure import scope_allowed
+from services.settings.provider_catalog import _storage as _protected_storage
 from services.settings.provider_factory import (
     UnavailableHostProvider,
     declaration_info,
@@ -48,6 +53,74 @@ class ModelSettingsConflict(ValueError):
 class ModelSettingsUnavailable(RuntimeError):
     def __init__(self):
         super().__init__("Agent model settings outcome is unconfirmed")
+
+
+def _embedding_storage(path):
+    """Keep trusted path-only embeddings separate from protected host storage."""
+    flags = os.O_RDWR | os.O_NOFOLLOW | os.O_CLOEXEC
+    created = False
+    try:
+        fd = os.open(path, flags | os.O_CREAT | os.O_EXCL, 0o600)
+        created = True
+    except FileExistsError:
+        # Never recreate an existing authority that disappears during opening.
+        fd = os.open(path, flags)
+    try:
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid() or info.st_nlink != 1:
+            raise ValueError("Agent model storage must be an owned regular file")
+        # Older trusted embeddings created SQLite files with ordinary umask
+        # permissions. Preserve their existing conversion, on the pinned FD.
+        os.fchmod(fd, 0o600)
+        db = sqlite3.connect(str(path))
+        try:
+            actual = path.stat(follow_symlinks=False)
+            if (actual.st_dev, actual.st_ino) != (info.st_dev, info.st_ino):
+                raise ValueError("Agent model storage identity changed")
+        except BaseException:
+            db.close()
+            raise
+        return db, created
+    finally:
+        os.close(fd)
+
+
+@contextmanager
+def _opening_storage(path, workspace):
+    if path is None:
+        yield sqlite3.connect(":memory:"), True
+        return
+    path = Path(os.path.abspath(path))
+    if workspace is not None and (
+        path != path.resolve() or path.is_relative_to(Path(workspace).resolve())
+    ):
+        # Check before creating or locking any directory. The actual protected
+        # opener repeats all host containment/ownership checks unchanged.
+        raise ValueError("Provider storage must be outside the worker workspace without aliases")
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+    try:
+        deadline = time.monotonic() + 5
+        while True:
+            try:
+                fcntl.flock(directory, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    raise ModelSettingsUnavailable from None
+                time.sleep(0.01)
+        actual, pinned = path.parent.stat(), os.fstat(directory)
+        if (actual.st_dev, actual.st_ino) != (pinned.st_dev, pinned.st_ino):
+            raise ValueError("Agent model storage directory identity changed")
+        # Serialize native creation through initialization, not just SQLite's
+        # transaction: another starter must not observe the creator's empty
+        # file before that creator has published its first authority.
+        if workspace is None:
+            yield _embedding_storage(path)
+        else:
+            yield _protected_storage(path, workspace, report_created=True)
+    finally:
+        os.close(directory)
 
 
 class ModelSettingsChange(BaseModel):
@@ -146,18 +219,15 @@ class AgentModelSettings:
             self.levels[name] = tuple(levels)
         if path is not None:
             path = Path(path)
-            path.parent.mkdir(parents=True, exist_ok=True)
-        self.db = sqlite3.connect(str(path) if path is not None else ":memory:")
         self._failed = False
         self._closed = False
         self.backend_id = None
         self.instance = secrets.token_hex(16)
         try:
-            if path is not None:
-                path.chmod(0o600)
-            self._execute("PRAGMA synchronous=FULL")
-            with self._transaction():
-                self._initialize_authority()
+            with _opening_storage(path, workspace) as (self.db, created):
+                self._execute("PRAGMA synchronous=FULL")
+                with self._transaction():
+                    self._initialize_authority(created=created)
         except BaseException:
             self._poison()
             raise
@@ -242,7 +312,7 @@ class AgentModelSettings:
             self._rollback()
             raise
 
-    def _initialize_authority(self):
+    def _initialize_authority(self, *, created):
         marker = self._one("PRAGMA user_version")[0]
         tables = {
             row[0]
@@ -252,6 +322,10 @@ class AgentModelSettings:
         }
         legacy = {"settings", "operations"}
         if marker == 0 and not tables:
+            if not created:
+                # Empty/truncated existing storage is lost authority, not a
+                # new host-default selection or permission to mint a backend.
+                raise ModelSettingsUnavailable
             self._execute(
                 "CREATE TABLE settings (id INTEGER PRIMARY KEY CHECK(id=1), "
                 "revision INTEGER NOT NULL, body TEXT NOT NULL)"

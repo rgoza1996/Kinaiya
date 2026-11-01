@@ -27,6 +27,24 @@ instead of silently creating another identity. Concurrent startup reads back a
 single backend identity. A retired instance cannot re-register itself or clear
 a newer writer when it closes.
 
+An empty schema is initialized only after this constructor atomically created
+the file with `O_EXCL`, or for an explicitly fresh in-memory database. An
+existing empty/truncated file refuses startup instead of minting another
+host-default selection and backend identity. Exact legacy two-table/version-0
+stores still migrate without rewriting their settings, operation digests or
+receipts; current three-table/version-1 stores retain their backend identity.
+Creation and initialization hold a transient lock on the containing directory
+with a five-second acquisition deadline, so concurrent native first startup
+cannot race ahead of the actual creator's authority transaction. This is not a
+new lifetime lease; the existing active-writer fencing remains authoritative.
+
+Production uses the shared protected opener with the actual worker workspace,
+including containment, ownership and file-identity checks. Older trusted
+embeddings that supply a path without a workspace retain a separate supported
+opener: it proves atomic creation and owned regular-file identity, and preserves
+their existing conversion to owner-only permissions. That embedding branch
+does not establish worker-workspace containment or replace production checks.
+
 Inspection remains schema 1.0 with additive `write_authority`. New model changes
 use strict schema 1.1 with required `expected_backend` and `expected_instance`.
 Legacy schema 1.0 stays unchanged and is exact-persisted-replay-only. It cannot
