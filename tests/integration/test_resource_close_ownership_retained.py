@@ -121,13 +121,23 @@ async def two_owned_workers(tmp_path, record_property):
     specs = [
         WorkerSpec(
             id=worker_id,
-            argv=(sys.executable, "-c", "import time; time.sleep(60)"),
+            argv=(
+                sys.executable,
+                "-c",
+                "from pathlib import Path; import sys,time; "
+                "Path(sys.argv[1]).write_text('ready'); time.sleep(60)",
+                str(tmp_path / f"{worker_id}.ready"),
+            ),
             cwd=tmp_path,
             stop_timeout_s=0.2,
         )
         for worker_id in ("a", "b")
     ]
-    manager = WorkerManager(specs)
+
+    async def ready(spec, process):
+        return (tmp_path / f"{spec.id}.ready").is_file()
+
+    manager = WorkerManager(specs, readiness=ready)
     children = []
     try:
         for spec in specs:
