@@ -108,6 +108,7 @@ from services.agent.artifacts import ArtifactConflict, ArtifactInvalid, Artifact
 from services.agent.completion import append_completion
 from services.agent.history_budget import select_history
 from services.agent.mcp_tools import ModelScopedMCP, run_mcp_call, run_mcp_list
+from services.agent.resource_completion import ResourceCompletion, start_resource_retirement
 from services.agent.tools import (
     ToolFailure,
     _FailedWithEvidence,
@@ -323,6 +324,7 @@ class _Record:
     workspace_context: Any | None = None
     standing_initial: StandingInitialProof | None = None
     standing_cleanup_uncertain: bool = False
+    resource_completion: Any | None = None
     # A later adapter close cannot confirm an earlier failed request cleanup.
     _cleanup_uncertain: bool = False
 
@@ -450,6 +452,10 @@ class AgentRuntime:
         self._workspace_workers = set()
         self._workspace_watched = set()
         self._workspace_cleanup_failed = False
+        self._resource_completions = set()
+        self._resource_retirement_started = False
+        self._resource_retirement = None
+        self._resource_retirement_workers = set()
         from services.agent.authorizations import AgentAuthorizations
 
         self.authorizations = AgentAuthorizations(self)
@@ -472,6 +478,13 @@ class AgentRuntime:
         def failed_lease(lease):
             return lease.failed or (
                 lease.cleanup is not None and lease.cleanup.done() and not lease.settled
+            )
+
+        def failed_operation(operation):
+            return (
+                operation is not None
+                and operation.done()
+                and (operation.cancelled() or operation.exception() is not None)
             )
 
         return {
@@ -502,13 +515,17 @@ class AgentRuntime:
             ),
             "cleanup_pending": sum(
                 not lease.settled and not failed_lease(lease) for lease in leases
-            ),
+            )
+            + sum(not owner.operation.done() for owner in self._resource_completions)
+            + int(self._resource_retirement is not None and not self._resource_retirement.done()),
             "cleanup_failed": int(
                 self._workspace_cleanup_failed
                 or getattr(self.journal, "_submit_cleanup_failed", False)
                 or getattr(self.standing_resource_client, "_submit_cleanup_failed", False)
             )
             + sum(bool(failed_lease(lease)) for lease in leases)
+            + sum(failed_operation(owner.operation) for owner in self._resource_completions)
+            + int(failed_operation(self._resource_retirement))
             + len(uncertain_hosts),
         }
 
@@ -543,6 +560,9 @@ class AgentRuntime:
                 watch(exchange.task)
                 watch(exchange.close_task, cleanup=True)
             watch(getattr(self.standing_resource_client, "_close_task", None), cleanup=True)
+            for owner in tuple(self._resource_completions):
+                watch(owner.operation, cleanup=True)
+            watch(self._resource_retirement, cleanup=True)
             for lease in tuple(getattr(self.model_settings, "catalog_leases", ())):
                 watch(lease.cleanup)
                 for operation in tuple(lease.retiring):
@@ -2534,6 +2554,8 @@ class AgentRuntime:
 
     async def close(self) -> None:
         self._closed = True
+        resource_retirement = start_resource_retirement(self)
+        resource_retirement_deadline = time.monotonic() + 5
         for rec in self._tasks.values():
             if rec.steer_attempt is not None:
                 rec.steer_attempt.suppress()
@@ -2575,6 +2597,8 @@ class AgentRuntime:
             rec.resume.set()
         for _rec, worker in workers:
             self._retain_workspace_worker(worker)
+            if worker is asyncio.current_task():
+                continue
             try:
                 async with asyncio.timeout(5):
                     await asyncio.shield(worker)
@@ -2603,9 +2627,18 @@ class AgentRuntime:
         plugins, self.plugin_service = self.plugin_service, None
         if plugins is not None:
             await plugins.close()
-        client, self.resource_client = self.resource_client, None
-        if client is not None:
-            await client.close()
+        if (
+            resource_retirement is not None
+            and asyncio.current_task() not in self._resource_retirement_workers
+            and not any(
+                owner.operation is asyncio.current_task() for owner in self._resource_completions
+            )
+        ):
+            try:
+                async with asyncio.timeout(max(0, resource_retirement_deadline - time.monotonic())):
+                    await asyncio.shield(resource_retirement)
+            except TimeoutError:
+                pass
         if self.model_settings is not None:
             await self.model_settings.close()
         artifact_store, self.artifact_store = self.artifact_store, None
@@ -3797,18 +3830,23 @@ class AgentRuntime:
             else:
                 await self._fail(rec, f"runtime error: {exc}")
         finally:
-            model_closed = rec.model_lease is None
+            completion = ResourceCompletion(self, rec)
+            lease = completion.lease
+            model_closed = lease is None
             try:
                 await self._release_task_resources(rec)
+                completion.recheck()
             except BaseException as exc:
                 rec._cleanup_uncertain = True
                 if rec.standing_initial is not None and isinstance(exc, ProviderCleanupError):
                     rec.standing_cleanup_uncertain = True
                 raise
             finally:
-                if rec.model_lease is not None:
+                if lease is not None:
                     try:
-                        await rec.model_lease.close()
+                        completion.capture_cleanup()
+                        await lease.close()
+                        completion.recheck()
                     except ProviderCleanupError:
                         rec._cleanup_uncertain = True
                         if rec.standing_initial is not None:
@@ -3822,7 +3860,7 @@ class AgentRuntime:
                     else:
                         model_closed = True
             if model_closed and not rec._cleanup_uncertain and not rec.standing_cleanup_uncertain:
-                await self._notify_task_resources(rec)
+                completion.arm()
 
     async def _release_task_resources(self, rec):
         if rec.standing_initial is None and self.skill_service is not None:
@@ -3831,26 +3869,15 @@ class AgentRuntime:
             await self.plugin_service.release_task(rec.task.task_id)
 
     async def _notify_task_resources(self, rec):
-        # Terminal work evidence precedes cleanup. Restoration also requires
-        # the exact task's owned model close to have positively returned.
-        if self.resource_client is not None and rec.task.state in TERMINAL and not rec.closing:
-            try:
-                await self.resource_client.task_finished(rec.task.task_id)
-            except Exception as exc:
-                if rec.standing_initial is not None and isinstance(exc, ProviderCleanupError):
-                    rec.standing_cleanup_uncertain = True
-                # Native task evidence remains authoritative. Restoration
-                # is a separate unconfirmed resource transition.
-                print(
-                    json.dumps(
-                        {
-                            "service": "agent",
-                            "resource_restore": "unconfirmed",
-                            "task_id": rec.task.task_id,
-                        }
-                    ),
-                    flush=True,
-                )
+        # This is only a waiter for the original operation, never a retry or
+        # another source of restoration authority.
+        owner = rec.resource_completion
+        if (
+            owner is not None
+            and owner.operation is not None
+            and asyncio.current_task() not in (owner.worker, owner.operation)
+        ):
+            await asyncio.shield(owner.operation)
 
     async def _verify_finish_files(self, rec: _Record) -> str | None:
         """Re-read every file written in the current revision before accepting finish.
