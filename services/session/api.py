@@ -139,9 +139,16 @@ def create_app(
     @app.middleware("http")
     async def control_no_store(request, call_next):
         response = await call_next(request)
-        if request.url.path.startswith(
-            ("/v1/agent-control", "/v1/transcript/agent-steers", "/v1/transcript/agent-submits")
+        path = request.url.path
+        if (
+            path.startswith(
+                ("/v1/agent-control", "/v1/transcript/agent-steers", "/v1/transcript/agent-submits")
+            )
+            or path == "/v1/standing"
+            or path.startswith("/v1/standing/")
         ):
+            # This outer layer also sees CORS preflights, which can finish
+            # before the standing route middleware is entered.
             response.headers["Cache-Control"] = "no-store"
         return response
 

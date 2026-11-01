@@ -9,7 +9,7 @@ from functools import wraps
 
 from pydantic import TypeAdapter
 
-from packages.contracts.agent_control import ControlInstance
+from packages.contracts.agent_control import MAX_AGENT_CONTROL_INTEGER, ControlInstance
 from packages.contracts.models import Session
 from packages.contracts.standing_work import (
     StandingChange,
@@ -171,6 +171,19 @@ class StandingOwner:
         return bool(row["retired"])
 
     def _counts(self):
+        # SQLite INTEGER affinity also accepts fractional values. Count/min/max
+        # establish contiguous history only after integral revision validation.
+        for table in (
+            "standing_owner_changes",
+            "standing_authorizations",
+            "standing_owner_current",
+        ):
+            if self._one(
+                f"SELECT 1 FROM {table} WHERE typeof(revision)!='integer' "
+                "OR revision<1 OR revision>? LIMIT 1",
+                (MAX_AGENT_CONTROL_INTEGER,),
+            ):
+                raise StandingUnavailable
         changes = self._one("SELECT count(*) FROM standing_owner_changes")[0]
         authorizations = self._one("SELECT count(*) FROM standing_authorizations")[0]
         if (
