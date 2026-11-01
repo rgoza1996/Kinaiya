@@ -1,0 +1,586 @@
+{
+  "activation": {
+    "expected_epoch": 0,
+    "expected_fence_token": "00000000-0000-0000-0000-000000000301",
+    "mode_change": {
+      "active_work_policy": "finish_already_accepted",
+      "expected_backend": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expected_instance": "00000000-0000-0000-0000-000000000001",
+      "expected_revision": 0,
+      "idempotency_key": "standing:activate.synthetic-1",
+      "mode": "autonomous",
+      "schema_version": "1.0"
+    },
+    "schema_version": "1.0"
+  },
+  "activation_receipt": {
+    "activation_digest": "68721828ad43f5409d5def2caa9b5460bcec01313227ef6dd2b409823a756917",
+    "epoch": 1,
+    "mode_receipt": {
+      "backend_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "request": {
+        "active_work_policy": "finish_already_accepted",
+        "expected_backend": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "expected_instance": "00000000-0000-0000-0000-000000000001",
+        "expected_revision": 0,
+        "idempotency_key": "standing:activate.synthetic-1",
+        "mode": "autonomous",
+        "schema_version": "1.0"
+      },
+      "revision": 1,
+      "schema_version": "1.0",
+      "service_instance": "00000000-0000-0000-0000-000000000001",
+      "status": "mode_saved"
+    },
+    "request": {
+      "expected_epoch": 0,
+      "expected_fence_token": "00000000-0000-0000-0000-000000000301",
+      "mode_change": {
+        "active_work_policy": "finish_already_accepted",
+        "expected_backend": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "expected_instance": "00000000-0000-0000-0000-000000000001",
+        "expected_revision": 0,
+        "idempotency_key": "standing:activate.synthetic-1",
+        "mode": "autonomous",
+        "schema_version": "1.0"
+      },
+      "schema_version": "1.0"
+    },
+    "schema_version": "1.0"
+  },
+  "golden": {
+    "activation_canonical": "{\"expected_epoch\":0,\"expected_fence_token\":\"00000000-0000-0000-0000-000000000301\",\"mode_change\":{\"active_work_policy\":\"finish_already_accepted\",\"expected_backend\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"expected_instance\":\"00000000-0000-0000-0000-000000000001\",\"expected_revision\":0,\"idempotency_key\":\"standing:activate.synthetic-1\",\"mode\":\"autonomous\",\"schema_version\":\"1.0\"},\"schema_version\":\"1.0\"}",
+    "activation_digest": "68721828ad43f5409d5def2caa9b5460bcec01313227ef6dd2b409823a756917",
+    "activation_hash_input": "kinaiya.standing.dispatch.activation.v1\u0000{\"epoch\":1,\"request\":{\"expected_epoch\":0,\"expected_fence_token\":\"00000000-0000-0000-0000-000000000301\",\"mode_change\":{\"active_work_policy\":\"finish_already_accepted\",\"expected_backend\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"expected_instance\":\"00000000-0000-0000-0000-000000000001\",\"expected_revision\":0,\"idempotency_key\":\"standing:activate.synthetic-1\",\"mode\":\"autonomous\",\"schema_version\":\"1.0\"},\"schema_version\":\"1.0\"}}",
+    "activation_sha256": "51b32d7293ee73eb8858838be2e01c2f919934865a804c47feafa8006a1a75e5",
+    "terminal_digest": "45af957037428c764c1a88d89a36f8e13d46c6cec75afbce1d3eabbec4bc6f1b"
+  },
+  "lookup": {
+    "mutation_fenced": true,
+    "receipt": {
+      "activation_digest": "68721828ad43f5409d5def2caa9b5460bcec01313227ef6dd2b409823a756917",
+      "epoch": 1,
+      "mode_receipt": {
+        "backend_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "request": {
+          "active_work_policy": "finish_already_accepted",
+          "expected_backend": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "expected_instance": "00000000-0000-0000-0000-000000000001",
+          "expected_revision": 0,
+          "idempotency_key": "standing:activate.synthetic-1",
+          "mode": "autonomous",
+          "schema_version": "1.0"
+        },
+        "revision": 1,
+        "schema_version": "1.0",
+        "service_instance": "00000000-0000-0000-0000-000000000001",
+        "status": "mode_saved"
+      },
+      "request": {
+        "expected_epoch": 0,
+        "expected_fence_token": "00000000-0000-0000-0000-000000000301",
+        "mode_change": {
+          "active_work_policy": "finish_already_accepted",
+          "expected_backend": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "expected_instance": "00000000-0000-0000-0000-000000000001",
+          "expected_revision": 0,
+          "idempotency_key": "standing:activate.synthetic-1",
+          "mode": "autonomous",
+          "schema_version": "1.0"
+        },
+        "schema_version": "1.0"
+      },
+      "schema_version": "1.0"
+    },
+    "request": {
+      "expected_epoch": 0,
+      "expected_fence_token": "00000000-0000-0000-0000-000000000301",
+      "mode_change": {
+        "active_work_policy": "finish_already_accepted",
+        "expected_backend": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "expected_instance": "00000000-0000-0000-0000-000000000001",
+        "expected_revision": 0,
+        "idempotency_key": "standing:activate.synthetic-1",
+        "mode": "autonomous",
+        "schema_version": "1.0"
+      },
+      "schema_version": "1.0"
+    },
+    "schema_version": "1.0",
+    "state": {
+      "activation_control_revision": 1,
+      "activation_digest": "68721828ad43f5409d5def2caa9b5460bcec01313227ef6dd2b409823a756917",
+      "backend_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "control_revision": 1,
+      "control_writable": true,
+      "dispatch_ready": true,
+      "epoch": 1,
+      "fence_token": "00000000-0000-0000-0000-000000000301",
+      "instance_id": "00000000-0000-0000-0000-000000000001",
+      "mode": "autonomous",
+      "producer": {
+        "expires_monotonic_ms": 16000,
+        "issued_monotonic_ms": 1000,
+        "lease_token": "00000000-0000-0000-0000-000000000201",
+        "request": {
+          "expected_backend": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "expected_instance": "00000000-0000-0000-0000-000000000001",
+          "producer_id": "00000000-0000-0000-0000-000000000101",
+          "schema_version": "1.0",
+          "sequence": 7
+        },
+        "schema_version": "1.0"
+      },
+      "schema_version": "1.0",
+      "stopped_through_epoch": 0
+    },
+    "status": "recorded"
+  },
+  "null_controller_state": {
+    "activation_control_revision": 1,
+    "activation_digest": "68721828ad43f5409d5def2caa9b5460bcec01313227ef6dd2b409823a756917",
+    "backend_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "control_revision": 1,
+    "control_writable": false,
+    "dispatch_ready": false,
+    "epoch": 1,
+    "fence_token": "00000000-0000-0000-0000-000000000301",
+    "instance_id": null,
+    "mode": "autonomous",
+    "producer": null,
+    "schema_version": "1.0",
+    "stopped_through_epoch": 0
+  },
+  "other_activation": {
+    "expected_epoch": 0,
+    "expected_fence_token": "00000000-0000-0000-0000-000000000301",
+    "mode_change": {
+      "active_work_policy": "finish_already_accepted",
+      "expected_backend": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expected_instance": "00000000-0000-0000-0000-000000000001",
+      "expected_revision": 0,
+      "idempotency_key": "standing:activate.other-key",
+      "mode": "autonomous",
+      "schema_version": "1.0"
+    },
+    "schema_version": "1.0"
+  },
+  "other_lookup": {
+    "mutation_fenced": true,
+    "receipt": {
+      "activation_digest": "a5a7a9a2d929846a20fc4d87fde307dfdcfd35a497ebf0b9274b79ef65bd221a",
+      "epoch": 1,
+      "mode_receipt": {
+        "backend_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "request": {
+          "active_work_policy": "finish_already_accepted",
+          "expected_backend": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "expected_instance": "00000000-0000-0000-0000-000000000001",
+          "expected_revision": 0,
+          "idempotency_key": "standing:activate.other-key",
+          "mode": "autonomous",
+          "schema_version": "1.0"
+        },
+        "revision": 1,
+        "schema_version": "1.0",
+        "service_instance": "00000000-0000-0000-0000-000000000001",
+        "status": "mode_saved"
+      },
+      "request": {
+        "expected_epoch": 0,
+        "expected_fence_token": "00000000-0000-0000-0000-000000000301",
+        "mode_change": {
+          "active_work_policy": "finish_already_accepted",
+          "expected_backend": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "expected_instance": "00000000-0000-0000-0000-000000000001",
+          "expected_revision": 0,
+          "idempotency_key": "standing:activate.other-key",
+          "mode": "autonomous",
+          "schema_version": "1.0"
+        },
+        "schema_version": "1.0"
+      },
+      "schema_version": "1.0"
+    },
+    "request": {
+      "expected_epoch": 0,
+      "expected_fence_token": "00000000-0000-0000-0000-000000000301",
+      "mode_change": {
+        "active_work_policy": "finish_already_accepted",
+        "expected_backend": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "expected_instance": "00000000-0000-0000-0000-000000000001",
+        "expected_revision": 0,
+        "idempotency_key": "standing:activate.other-key",
+        "mode": "autonomous",
+        "schema_version": "1.0"
+      },
+      "schema_version": "1.0"
+    },
+    "schema_version": "1.0",
+    "state": {
+      "activation_control_revision": 1,
+      "activation_digest": "a5a7a9a2d929846a20fc4d87fde307dfdcfd35a497ebf0b9274b79ef65bd221a",
+      "backend_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "control_revision": 1,
+      "control_writable": true,
+      "dispatch_ready": true,
+      "epoch": 1,
+      "fence_token": "00000000-0000-0000-0000-000000000301",
+      "instance_id": "00000000-0000-0000-0000-000000000001",
+      "mode": "autonomous",
+      "producer": {
+        "expires_monotonic_ms": 16000,
+        "issued_monotonic_ms": 1000,
+        "lease_token": "00000000-0000-0000-0000-000000000201",
+        "request": {
+          "expected_backend": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "expected_instance": "00000000-0000-0000-0000-000000000001",
+          "producer_id": "00000000-0000-0000-0000-000000000101",
+          "schema_version": "1.0",
+          "sequence": 7
+        },
+        "schema_version": "1.0"
+      },
+      "schema_version": "1.0",
+      "stopped_through_epoch": 0
+    },
+    "status": "recorded"
+  },
+  "other_receipt": {
+    "activation_digest": "a5a7a9a2d929846a20fc4d87fde307dfdcfd35a497ebf0b9274b79ef65bd221a",
+    "epoch": 1,
+    "mode_receipt": {
+      "backend_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "request": {
+        "active_work_policy": "finish_already_accepted",
+        "expected_backend": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "expected_instance": "00000000-0000-0000-0000-000000000001",
+        "expected_revision": 0,
+        "idempotency_key": "standing:activate.other-key",
+        "mode": "autonomous",
+        "schema_version": "1.0"
+      },
+      "revision": 1,
+      "schema_version": "1.0",
+      "service_instance": "00000000-0000-0000-0000-000000000001",
+      "status": "mode_saved"
+    },
+    "request": {
+      "expected_epoch": 0,
+      "expected_fence_token": "00000000-0000-0000-0000-000000000301",
+      "mode_change": {
+        "active_work_policy": "finish_already_accepted",
+        "expected_backend": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "expected_instance": "00000000-0000-0000-0000-000000000001",
+        "expected_revision": 0,
+        "idempotency_key": "standing:activate.other-key",
+        "mode": "autonomous",
+        "schema_version": "1.0"
+      },
+      "schema_version": "1.0"
+    },
+    "schema_version": "1.0"
+  },
+  "other_stop": {
+    "activation_digest": "68721828ad43f5409d5def2caa9b5460bcec01313227ef6dd2b409823a756917",
+    "expected_backend": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "expected_fence_token": "00000000-0000-0000-0000-000000000302",
+    "expected_instance": "00000000-0000-0000-0000-000000000001",
+    "issued_epoch": 1,
+    "schema_version": "1.0"
+  },
+  "other_stop_proof": {
+    "request": {
+      "activation_digest": "68721828ad43f5409d5def2caa9b5460bcec01313227ef6dd2b409823a756917",
+      "expected_backend": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expected_fence_token": "00000000-0000-0000-0000-000000000302",
+      "expected_instance": "00000000-0000-0000-0000-000000000001",
+      "issued_epoch": 1,
+      "schema_version": "1.0"
+    },
+    "schema_version": "1.0",
+    "state": {
+      "activation_control_revision": 1,
+      "activation_digest": "68721828ad43f5409d5def2caa9b5460bcec01313227ef6dd2b409823a756917",
+      "backend_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "control_revision": 1,
+      "control_writable": true,
+      "dispatch_ready": false,
+      "epoch": 1,
+      "fence_token": "00000000-0000-0000-0000-000000000302",
+      "instance_id": "00000000-0000-0000-0000-000000000001",
+      "mode": "autonomous",
+      "producer": {
+        "expires_monotonic_ms": 16000,
+        "issued_monotonic_ms": 1000,
+        "lease_token": "00000000-0000-0000-0000-000000000201",
+        "request": {
+          "expected_backend": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "expected_instance": "00000000-0000-0000-0000-000000000001",
+          "producer_id": "00000000-0000-0000-0000-000000000101",
+          "schema_version": "1.0",
+          "sequence": 7
+        },
+        "schema_version": "1.0"
+      },
+      "schema_version": "1.0",
+      "stopped_through_epoch": 1
+    },
+    "target_fenced": true
+  },
+  "producer_receipt": {
+    "expires_monotonic_ms": 16000,
+    "issued_monotonic_ms": 1000,
+    "lease_token": "00000000-0000-0000-0000-000000000201",
+    "request": {
+      "expected_backend": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expected_instance": "00000000-0000-0000-0000-000000000001",
+      "producer_id": "00000000-0000-0000-0000-000000000101",
+      "schema_version": "1.0",
+      "sequence": 7
+    },
+    "schema_version": "1.0"
+  },
+  "renewal": {
+    "expected_backend": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "expected_instance": "00000000-0000-0000-0000-000000000001",
+    "producer_id": "00000000-0000-0000-0000-000000000101",
+    "schema_version": "1.0",
+    "sequence": 7
+  },
+  "state": {
+    "activation_control_revision": 1,
+    "activation_digest": "68721828ad43f5409d5def2caa9b5460bcec01313227ef6dd2b409823a756917",
+    "backend_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "control_revision": 1,
+    "control_writable": true,
+    "dispatch_ready": true,
+    "epoch": 1,
+    "fence_token": "00000000-0000-0000-0000-000000000301",
+    "instance_id": "00000000-0000-0000-0000-000000000001",
+    "mode": "autonomous",
+    "producer": {
+      "expires_monotonic_ms": 16000,
+      "issued_monotonic_ms": 1000,
+      "lease_token": "00000000-0000-0000-0000-000000000201",
+      "request": {
+        "expected_backend": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "expected_instance": "00000000-0000-0000-0000-000000000001",
+        "producer_id": "00000000-0000-0000-0000-000000000101",
+        "schema_version": "1.0",
+        "sequence": 7
+      },
+      "schema_version": "1.0"
+    },
+    "schema_version": "1.0",
+    "stopped_through_epoch": 0
+  },
+  "stop": {
+    "activation_digest": "68721828ad43f5409d5def2caa9b5460bcec01313227ef6dd2b409823a756917",
+    "expected_backend": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "expected_fence_token": "00000000-0000-0000-0000-000000000301",
+    "expected_instance": "00000000-0000-0000-0000-000000000001",
+    "issued_epoch": 1,
+    "schema_version": "1.0"
+  },
+  "stop_proof": {
+    "request": {
+      "activation_digest": "68721828ad43f5409d5def2caa9b5460bcec01313227ef6dd2b409823a756917",
+      "expected_backend": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expected_fence_token": "00000000-0000-0000-0000-000000000301",
+      "expected_instance": "00000000-0000-0000-0000-000000000001",
+      "issued_epoch": 1,
+      "schema_version": "1.0"
+    },
+    "schema_version": "1.0",
+    "state": {
+      "activation_control_revision": 1,
+      "activation_digest": "68721828ad43f5409d5def2caa9b5460bcec01313227ef6dd2b409823a756917",
+      "backend_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "control_revision": 1,
+      "control_writable": true,
+      "dispatch_ready": false,
+      "epoch": 1,
+      "fence_token": "00000000-0000-0000-0000-000000000302",
+      "instance_id": "00000000-0000-0000-0000-000000000001",
+      "mode": "autonomous",
+      "producer": {
+        "expires_monotonic_ms": 16000,
+        "issued_monotonic_ms": 1000,
+        "lease_token": "00000000-0000-0000-0000-000000000201",
+        "request": {
+          "expected_backend": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "expected_instance": "00000000-0000-0000-0000-000000000001",
+          "producer_id": "00000000-0000-0000-0000-000000000101",
+          "schema_version": "1.0",
+          "sequence": 7
+        },
+        "schema_version": "1.0"
+      },
+      "schema_version": "1.0",
+      "stopped_through_epoch": 1
+    },
+    "target_fenced": true
+  },
+  "stopped_state": {
+    "activation_control_revision": 1,
+    "activation_digest": "68721828ad43f5409d5def2caa9b5460bcec01313227ef6dd2b409823a756917",
+    "backend_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "control_revision": 1,
+    "control_writable": true,
+    "dispatch_ready": false,
+    "epoch": 1,
+    "fence_token": "00000000-0000-0000-0000-000000000302",
+    "instance_id": "00000000-0000-0000-0000-000000000001",
+    "mode": "autonomous",
+    "producer": {
+      "expires_monotonic_ms": 16000,
+      "issued_monotonic_ms": 1000,
+      "lease_token": "00000000-0000-0000-0000-000000000201",
+      "request": {
+        "expected_backend": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "expected_instance": "00000000-0000-0000-0000-000000000001",
+        "producer_id": "00000000-0000-0000-0000-000000000101",
+        "schema_version": "1.0",
+        "sequence": 7
+      },
+      "schema_version": "1.0"
+    },
+    "schema_version": "1.0",
+    "stopped_through_epoch": 1
+  },
+  "terminal_activation": {
+    "expected_epoch": 9999,
+    "expected_fence_token": "00000000-0000-0000-0000-000000000301",
+    "mode_change": {
+      "active_work_policy": "finish_already_accepted",
+      "expected_backend": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expected_instance": "00000000-0000-0000-0000-000000000001",
+      "expected_revision": 0,
+      "idempotency_key": "standing:activate.synthetic-1",
+      "mode": "autonomous",
+      "schema_version": "1.0"
+    },
+    "schema_version": "1.0"
+  },
+  "terminal_receipt": {
+    "activation_digest": "45af957037428c764c1a88d89a36f8e13d46c6cec75afbce1d3eabbec4bc6f1b",
+    "epoch": 10000,
+    "mode_receipt": {
+      "backend_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "request": {
+        "active_work_policy": "finish_already_accepted",
+        "expected_backend": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "expected_instance": "00000000-0000-0000-0000-000000000001",
+        "expected_revision": 0,
+        "idempotency_key": "standing:activate.synthetic-1",
+        "mode": "autonomous",
+        "schema_version": "1.0"
+      },
+      "revision": 1,
+      "schema_version": "1.0",
+      "service_instance": "00000000-0000-0000-0000-000000000001",
+      "status": "mode_saved"
+    },
+    "request": {
+      "expected_epoch": 9999,
+      "expected_fence_token": "00000000-0000-0000-0000-000000000301",
+      "mode_change": {
+        "active_work_policy": "finish_already_accepted",
+        "expected_backend": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "expected_instance": "00000000-0000-0000-0000-000000000001",
+        "expected_revision": 0,
+        "idempotency_key": "standing:activate.synthetic-1",
+        "mode": "autonomous",
+        "schema_version": "1.0"
+      },
+      "schema_version": "1.0"
+    },
+    "schema_version": "1.0"
+  },
+  "unobserved_lookup": {
+    "mutation_fenced": false,
+    "receipt": null,
+    "request": {
+      "expected_epoch": 0,
+      "expected_fence_token": "00000000-0000-0000-0000-000000000301",
+      "mode_change": {
+        "active_work_policy": "finish_already_accepted",
+        "expected_backend": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "expected_instance": "00000000-0000-0000-0000-000000000001",
+        "expected_revision": 0,
+        "idempotency_key": "standing:activate.synthetic-1",
+        "mode": "autonomous",
+        "schema_version": "1.0"
+      },
+      "schema_version": "1.0"
+    },
+    "schema_version": "1.0",
+    "state": {
+      "activation_control_revision": null,
+      "activation_digest": null,
+      "backend_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "control_revision": 0,
+      "control_writable": true,
+      "dispatch_ready": false,
+      "epoch": 0,
+      "fence_token": "00000000-0000-0000-0000-000000000301",
+      "instance_id": "00000000-0000-0000-0000-000000000001",
+      "mode": "on_demand",
+      "producer": null,
+      "schema_version": "1.0",
+      "stopped_through_epoch": 0
+    },
+    "status": "unobserved"
+  },
+  "zero_state": {
+    "activation_control_revision": null,
+    "activation_digest": null,
+    "backend_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "control_revision": 0,
+    "control_writable": true,
+    "dispatch_ready": false,
+    "epoch": 0,
+    "fence_token": "00000000-0000-0000-0000-000000000301",
+    "instance_id": "00000000-0000-0000-0000-000000000001",
+    "mode": "on_demand",
+    "producer": null,
+    "schema_version": "1.0",
+    "stopped_through_epoch": 0
+  },
+  "zero_stop": {
+    "activation_digest": null,
+    "expected_backend": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "expected_fence_token": "00000000-0000-0000-0000-000000000301",
+    "expected_instance": "00000000-0000-0000-0000-000000000001",
+    "issued_epoch": 0,
+    "schema_version": "1.0"
+  },
+  "zero_stop_proof": {
+    "request": {
+      "activation_digest": null,
+      "expected_backend": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expected_fence_token": "00000000-0000-0000-0000-000000000301",
+      "expected_instance": "00000000-0000-0000-0000-000000000001",
+      "issued_epoch": 0,
+      "schema_version": "1.0"
+    },
+    "schema_version": "1.0",
+    "state": {
+      "activation_control_revision": null,
+      "activation_digest": null,
+      "backend_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "control_revision": 0,
+      "control_writable": true,
+      "dispatch_ready": false,
+      "epoch": 0,
+      "fence_token": "00000000-0000-0000-0000-000000000302",
+      "instance_id": "00000000-0000-0000-0000-000000000001",
+      "mode": "on_demand",
+      "producer": null,
+      "schema_version": "1.0",
+      "stopped_through_epoch": 0
+    },
+    "target_fenced": true
+  }
+}
