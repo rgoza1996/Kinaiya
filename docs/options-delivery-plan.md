@@ -63,3 +63,11 @@ Subsequent increments add owner note editing and protected provider catalog
 (ADR0085/0086), then exact Agent catalog selection (ADR0089). ADR0088 addresses
 approval expiry before expanding scoped Ask rules. None closes an acceptance
 group; the remaining obligations stay in the table above.
+
+[ADR0090](adr/0090-scoped-native-tool-permissions.md) is the next implementation
+under review: four native scopes for the exact `read_file`, `write_file` and
+`shell` tools, independent action admission, protected CAS/receipt storage and
+an embedded editor. It does not establish blanket filesystem-read protection,
+individual MCP/plugin or scoped network rules, active-grant inventory or the
+remaining full permission acceptance. See the PR for actual verification and
+preview promotion; source presence alone does not close these obligations.

@@ -20,6 +20,37 @@ not inference, endpoint readiness, permission expansion or harness promotion.
 
 ## Inspect
 
+### Scoped native operation rules (ADR0090, implementation under review)
+
+`GET /v1/agent/options/tool-permissions?scope=default|workspace|session|task`
+resolves the scope on the native host. Session and Task choices also require
+`session_id` or `task_id` respectively. An exact `scope_id` instead inspects a
+saved scope, including one whose task revision or session epoch has retired.
+The snapshot returns the instance identity, global revision/state fingerprint,
+canonical scope, liveness and three rows for `read_file`, `write_file`, `shell`.
+Each row distinguishes its saved override, effective mode/source and host
+hard-denial ceiling. These controls do not cover every filesystem or network
+channel.
+
+`POST /v1/agent/options/tool-permissions` accepts strict
+`ToolPermissionChange {schema_version, expected_revision, expected_state,
+idempotency_key, scope, tool, mode}`. A null mode resets only that exact rule;
+new grants require a live native scope. Saved retired scopes remain resettable.
+The change boundary is `next_action_admission`, independent of the service-wide
+execution editor's settled-worker gate. Task rules bind objective revision;
+session rules bind thread and epoch. Ask remains human review under YOLO;
+Allow cannot remove hard denial, sandbox, disclosure or speech-consent checks.
+
+`GET /v1/agent/options/tool-permission-changes/{key}` returns the historical
+`permission_saved` receipt with the original CAS state/revision, exact scope,
+tool, mode, key and committed revision. A missing receipt is not failure proof.
+`GET /v1/agent/options/tool-permission-scopes?limit=20&after=...` pages saved
+scope identities for inspection/reset. Storage caps are 1,024 rules and 10,000
+receipts. All routes require the authenticated owner; reads apply no settings.
+See [ADR0090](adr/0090-scoped-native-tool-permissions.md) for native admission,
+retained-context semantics and the same-instance revision fence that can allow
+explicit release of stale RAM tracking without deciding its historical outcome.
+
 ### Unconfirmed Agent submissions and task commands
 
 Owner clients retain a submission's original session/thread/epoch, exact body

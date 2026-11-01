@@ -34,6 +34,7 @@ from typing import Any
 
 from core.extensions import HarnessError
 from core.policy import ApprovalError, ApprovalReceiptUnavailable, PolicyDenied, ToolPolicy
+from core.policy.tool_admission import SCOPED_BUILTINS, native_tool_admission
 from harnesses.seed import (
     ARTIFACT_RECEIPT_LIMIT,
     build_messages,
@@ -363,6 +364,7 @@ class AgentRuntime:
         self.provider = provider
         self.model_settings = None
         self.runtime_settings = None
+        self.tool_permissions = None
         self.projects = None
         self.workspace = Path(workspace)
         self.policy = policy
@@ -2030,6 +2032,9 @@ class AgentRuntime:
         settings, self.runtime_settings = self.runtime_settings, None
         if settings is not None:
             settings.close()
+        permissions, self.tool_permissions = self.tool_permissions, None
+        if permissions is not None:
+            permissions.close()
 
     # -- approvals ------------------------------------------------------
     async def pending_approvals(
@@ -2180,11 +2185,16 @@ class AgentRuntime:
         self._validate_catalog_history(rec)
         if (
             self.policy.digest_for(tool, args, rec.task.objective_revision) != pending["digest"]
-            or self.policy.denies(tool)
+            or self._permission_denies(rec, tool)
             or not self.tool_snapshot(rec.task).supports(tool)
         ):
             raise ApprovalError("Pending action is no longer eligible under native policy")
-        if tool == "write_file":
+        if tool == "read_file":
+            self.policy.resolve_path(args.get("path", ""))
+            maximum = args.get("max_bytes", 65536)
+            if type(maximum) is not int or not 1 <= maximum <= 262144:
+                raise ApprovalError("Pending read exceeds its native bound")
+        elif tool == "write_file":
             validate_write_arguments(args, rec.task.objective_revision)
             self.policy.resolve_path(args["path"])
             self.policy._deny_readonly_write(args["path"])
@@ -2478,7 +2488,37 @@ class AgentRuntime:
     def _plugin_task(rec):
         return SimpleNamespace(task_id=rec.task.task_id, plugin_versions=rec.plugin_versions)
 
-    def _grants(self) -> str:
+    def _permission_decision(self, rec, tool):
+        if self.tool_permissions is None or tool not in SCOPED_BUILTINS:
+            return None
+        try:
+            return self.tool_permissions.resolve(rec.task if rec is not None else None, tool)
+        except (OSError, ValueError, RuntimeError, sqlite3.Error):
+            raise PolicyDenied("Native scoped permission state is unavailable") from None
+
+    def _permission_fingerprint(self, rec=None):
+        if self.tool_permissions is None:
+            return None
+        try:
+            return self.tool_permissions.fingerprint(rec.task if rec is not None else None)
+        except (OSError, ValueError, RuntimeError, sqlite3.Error):
+            raise PolicyDenied("Native scoped permission state is unavailable") from None
+
+    def _permission_denies(self, rec, tool):
+        decision = self._permission_decision(rec, tool)
+        return self.policy.denies(tool) or (
+            decision is not None and decision["effective"] == "deny"
+        )
+
+    def _permission_asks(self, rec, tool):
+        decision = self._permission_decision(rec, tool)
+        return (
+            decision["effective"] == "ask"
+            if decision is not None
+            else self.policy.needs_approval(tool)
+        )
+
+    def _grants(self, rec=None) -> str:
         grants = (
             f"write={self.policy.effective_write} "
             f"shell={self.policy.effective_shell} "
@@ -2490,6 +2530,11 @@ class AgentRuntime:
             grants += (
                 f" shell_directory={self.policy.shell_working_directory!r}"
                 f" shell_timeout_s={self.policy.shell_timeout_s}"
+            )
+        if self.tool_permissions is not None:
+            grants += " native_tool_rules=" + ",".join(
+                f"{tool}:{self._permission_decision(rec, tool)['effective']}"
+                for tool in sorted(SCOPED_BUILTINS)
             )
         return grants
 
@@ -2752,7 +2797,8 @@ class AgentRuntime:
                 rec.explicit_skill,
                 frozenset(rec.used_skills),
                 tuple(sorted(rec.plugin_versions.items())),
-                self._grants(),
+                self._grants(rec),
+                self._permission_fingerprint(rec),
                 policy.workspace,
                 policy.protected_roots,
                 policy.readonly_roots,
@@ -2877,7 +2923,7 @@ class AgentRuntime:
             revision,
             list(rec.task.source_event_ids),
             history,
-            self._grants(),
+            self._grants(rec),
             self._mcp_server_ids(rec),
             self.skill_service is not None,
             self.plugin_service is not None,
@@ -3217,7 +3263,7 @@ class AgentRuntime:
             self._model_mcp(rec)._check(args.get("server_id", ""))
         sources = (
             await self._uncommitted_speech_sources(rec)
-            if not self.policy.denies(tool)
+            if not self._permission_denies(rec, tool)
             and tool in {"write_file", "shell", "mcp_call", "publish_ui"}
             else []
         )
@@ -3227,7 +3273,7 @@ class AgentRuntime:
         if sources:
             await self._await_approval(rec, tool, args, digest, raw, reason="uncommitted_speech")
             return
-        if tool in ("write_file", "shell") and self.policy.needs_approval(tool):
+        if tool in SCOPED_BUILTINS and self._permission_asks(rec, tool):
             await self._await_approval(rec, tool, args, digest, raw)
             return
         if tool == "mcp_call" and self.mcp_host is not None and not self.policy.yolo:
@@ -3374,6 +3420,87 @@ class AgentRuntime:
             if rec.pending is not None and rec.pending["approval_id"] == current_id:
                 rec.pending = None
 
+    async def _run_scoped_builtin(
+        self, rec, tool, args, digest, revision, approval_id, *, reviewed, speech_review, audit
+    ):
+        policy = self.policy
+        if tool == "read_file":
+            arguments = {"path": args.get("path", ""), "max_bytes": args.get("max_bytes", 65536)}
+        elif tool == "write_file":
+            arguments = {"path": args["path"], "content": args["content"]}
+        else:
+            arguments = {
+                "command": str(args.get("command", "")),
+                "timeout_s": float(args.get("timeout_s", 60)),
+            }
+
+        async def invoke():
+            if tool == "read_file":
+                return run_read(policy, arguments["path"], arguments["max_bytes"], revision)
+            if tool == "write_file":
+                return run_write(
+                    policy,
+                    arguments["path"],
+                    arguments["content"],
+                    revision,
+                    approval_id=approval_id,
+                    digest=digest,
+                )
+            return await run_shell(
+                policy,
+                arguments["command"],
+                arguments["timeout_s"],
+                revision,
+                approval_id=approval_id,
+                digest=digest,
+                proc_slot=rec.proc_slot,
+            )
+
+        permissions = self.tool_permissions
+        if permissions is None:
+            return await invoke()
+        frozen_args = copy.deepcopy(args)
+        fingerprint = self._permission_fingerprint(rec)
+        decision = self._permission_decision(rec, tool)
+
+        def current():
+            if (
+                self._closed
+                or rec.closing
+                or rec.cancel_requested
+                or rec.recovered
+                or rec.pending_steer is not None
+                or rec.task.state != TaskState.RUNNING
+                or self._tasks.get(rec.task.task_id) is not rec
+                or rec.task.objective_revision != revision
+                or self.policy is not policy
+                or self.tool_permissions is not permissions
+                or args != frozen_args
+                or policy.digest_for(tool, args, revision) != digest
+                or self._permission_fingerprint(rec) != fingerprint
+                or self._permission_decision(rec, tool) != decision
+                or not self.tool_snapshot(rec.task).supports(tool)
+            ):
+                raise PolicyDenied("Native action authority changed before admission")
+
+        with native_tool_admission(
+            policy=policy,
+            tool=tool,
+            arguments=frozen_args,
+            broker_arguments={**arguments, "objective_revision": revision},
+            digest=digest,
+            revision=revision,
+            decision=decision,
+            current=current,
+            approval_id=approval_id,
+            reviewed=reviewed,
+            speech_review=speech_review,
+        ) as admission:
+            try:
+                return await invoke()
+            finally:
+                audit.update(admission.provenance)
+
     async def _dispatch(
         self,
         rec: _Record,
@@ -3392,7 +3519,7 @@ class AgentRuntime:
             return
         sources = (
             await self._uncommitted_speech_sources(rec)
-            if not self.policy.denies(tool)
+            if not self._permission_denies(rec, tool)
             and tool in {"write_file", "shell", "mcp_call", "publish_ui"}
             else []
         )
@@ -3426,6 +3553,14 @@ class AgentRuntime:
                 return
         if approval_id is not None:
             self.policy.check_approval(approval_id, digest, revision)
+        pending_review = rec.pending
+        reviewed = bool(
+            approval_id is not None
+            and pending_review is not None
+            and pending_review.get("approved")
+            and (pending_review["approval_id"], pending_review["digest"], pending_review["tool"])
+            == (approval_id, digest, tool)
+        )
         if sources:
             pending = rec.pending
             if (
@@ -3443,10 +3578,13 @@ class AgentRuntime:
             # There is no await between this grant check and the broker's
             # matching synchronous permission check.
             if tool == "publish_ui" or (
-                tool == "write_file"
-                and self.policy.effective_write
-                or tool == "shell"
-                and self.policy.effective_shell
+                self.tool_permissions is None
+                and (
+                    tool == "write_file"
+                    and self.policy.effective_write
+                    or tool == "shell"
+                    and self.policy.effective_shell
+                )
             ):
                 self.policy.consume_approval(approval_id, digest, revision)
         if raw and tool not in {"publish_ui", "tool_catalog"}:
@@ -3454,8 +3592,9 @@ class AgentRuntime:
         if approval_id is not None:
             # One-use intent is now committed to this exact execution.
             rec.pending = None
+        permission_admission = {}
         try:
-            if self.policy.denies(tool):
+            if self._permission_denies(rec, tool):
                 raise PolicyDenied("Native action is disabled by owner policy")
             if not self.tool_snapshot(rec.task).supports(tool):
                 raise ToolFailure(f"Tool {tool!r} is unavailable for this task")
@@ -3465,35 +3604,21 @@ class AgentRuntime:
                 from services.agent.context import select_context
 
                 out, evidence = await select_context(self, rec.task, args)
-            elif tool == "read_file":
-                out, evidence = run_read(
-                    self.policy,
-                    args.get("path", ""),
-                    args.get("max_bytes", 65536),
+            elif tool in SCOPED_BUILTINS:
+                out, evidence = await self._run_scoped_builtin(
+                    rec,
+                    tool,
+                    args,
+                    digest,
                     revision,
-                )
-            elif tool == "write_file":
-                out, evidence = run_write(
-                    self.policy,
-                    args["path"],
-                    args["content"],
-                    revision,
-                    approval_id=approval_id,
-                    digest=digest,
+                    approval_id,
+                    reviewed=reviewed,
+                    speech_review=bool(sources),
+                    audit=permission_admission,
                 )
             elif tool == "search":
                 out, evidence = run_search(
                     self.policy, str(args.get("pattern", "")), args.get("path"), revision
-                )
-            elif tool == "shell":
-                out, evidence = await run_shell(
-                    self.policy,
-                    str(args.get("command", "")),
-                    float(args.get("timeout_s", 60)),
-                    revision,
-                    approval_id=approval_id,
-                    digest=digest,
-                    proc_slot=rec.proc_slot,
                 )
             elif tool == "mcp_list":
                 out, evidence = await run_mcp_list(
@@ -3575,7 +3700,16 @@ class AgentRuntime:
             await self._append(
                 rec,
                 "agent.tool",
-                {"tool": tool, "ok": False, "evidence": exc.evidence.model_dump(mode="json")},
+                {
+                    "tool": tool,
+                    "ok": False,
+                    "evidence": exc.evidence.model_dump(mode="json"),
+                    **(
+                        {"permission_admission": permission_admission}
+                        if permission_admission
+                        else {}
+                    ),
+                },
             )
             rec.last_tool_ok = False
             self._effect_result(rec, tool, ok=False)
@@ -3590,6 +3724,18 @@ class AgentRuntime:
             self._effect_result(rec, tool, ok=False)
             if tool == "plugin_call":
                 rec.failed_plugin = True
+            if permission_admission:
+                await self._append(
+                    rec,
+                    "agent.tool",
+                    {
+                        "tool": tool,
+                        "ok": False,
+                        "permission_admission": permission_admission,
+                        "admission_only": True,
+                        "effect_state": "not_established",
+                    },
+                )
             rec.history.append({"role": "user", "content": observation_text(False, str(exc))})
             return
         rec.task.evidence.append(evidence)
@@ -3606,7 +3752,16 @@ class AgentRuntime:
             await self._append(
                 rec,
                 "agent.tool",
-                {"tool": tool, "ok": True, "evidence": evidence.model_dump(mode="json")},
+                {
+                    "tool": tool,
+                    "ok": True,
+                    "evidence": evidence.model_dump(mode="json"),
+                    **(
+                        {"permission_admission": permission_admission}
+                        if permission_admission
+                        else {}
+                    ),
+                },
             )
         except Exception:
             if tool != "publish_ui":

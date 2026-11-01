@@ -47,6 +47,7 @@ class CatalogGuard:
             policy.yolo,
             policy.deny_write,
             policy.deny_shell,
+            runtime._permission_fingerprint(rec),
             (task.objective_revision, task.content_scope, task.harness_version, task.state.value)
             if task is not None
             else None,
@@ -175,8 +176,18 @@ def _schema(row, schema, *, output_schema=None):
 
 def _permissions(runtime, task, tool):
     policy = runtime.policy
+    scoped = None
+    if runtime.tool_permissions is not None and tool in {"read_file", "write_file", "shell"}:
+        try:
+            scoped = runtime.tool_permissions.resolve(task, tool)
+        except Exception:
+            raise CatalogError("invalid_metadata") from None
     approval = "uncommitted_speech_only" if tool == "publish_ui" else "not_required"
-    if policy.denies(tool):
+    if scoped is not None:
+        approval = {"deny": "denied", "ask": "per_action", "allow": "not_required"}[
+            scoped["effective"]
+        ]
+    elif policy.denies(tool):
         approval = "denied"
     elif tool in {"write_file", "shell"}:
         approval = "per_action" if policy.needs_approval(tool) else "broad_grant"
@@ -187,8 +198,11 @@ def _permissions(runtime, task, tool):
         "write_granted": policy.effective_write,
         "shell_granted": policy.effective_shell,
         "network_granted": policy.network,
-        "uncommitted_speech_approval": not policy.denies(tool)
+        "uncommitted_speech_approval": (
+            scoped["effective"] != "deny" if scoped is not None else not policy.denies(tool)
+        )
         and tool in {"write_file", "shell", "mcp_call", "publish_ui"},
+        **({"tool_rule": scoped} if scoped is not None else {}),
         "task_state": task.state.value if task is not None else None,
         "contextual_checks": "required_at_dispatch",
         "readiness": "not_checked",

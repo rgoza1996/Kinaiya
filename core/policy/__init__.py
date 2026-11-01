@@ -193,7 +193,11 @@ class ToolPolicy:
         return resolved
 
     def check_read(self, path: str | Path) -> Path:
-        return self.resolve_path(path)
+        from core.policy.tool_admission import admit_native_tool
+
+        resolved = self.resolve_path(path)
+        admit_native_tool(self, "read_file", path=path)
+        return resolved
 
     @contextmanager
     def scoped_parent(self, path: str | Path, *, create=False):
@@ -259,6 +263,17 @@ class ToolPolicy:
             raise PolicyDenied("Native workspace writes are disabled by owner policy")
         self._deny_readonly_write(path)
         resolved = self.resolve_path(path)
+        from core.policy.tool_admission import admit_native_tool
+
+        if admit_native_tool(
+            self,
+            "write_file",
+            path=path,
+            approval_id=approval_id,
+            digest=digest,
+            revision=objective_revision,
+        ):
+            return resolved
         if self.effective_write:
             return resolved
         if approval_id is None or digest is None:
@@ -275,6 +290,12 @@ class ToolPolicy:
     ) -> None:
         if self.deny_shell:
             raise PolicyDenied("Native shell commands are disabled by owner policy")
+        from core.policy.tool_admission import admit_native_tool
+
+        if admit_native_tool(
+            self, "shell", approval_id=approval_id, digest=digest, revision=objective_revision
+        ):
+            return
         if self.effective_shell:
             return
         if approval_id is None or digest is None:

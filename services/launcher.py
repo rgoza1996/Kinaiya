@@ -528,6 +528,11 @@ def serve(args):
         runtime.runtime_settings = AgentRuntimeSettings(
             runtime, path=args.data_dir / "agent-runtime-settings.sqlite"
         )
+        from services.agent.tool_permissions import AgentToolPermissions
+
+        runtime.tool_permissions = AgentToolPermissions(
+            runtime, path=args.data_dir / "agent-tool-permissions.sqlite"
+        )
         profiles = {
             name: (
                 lambda profile=profile: provider(

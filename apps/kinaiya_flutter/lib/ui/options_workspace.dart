@@ -17,6 +17,7 @@ import 'mcp_settings.dart';
 import 'options_model_editor.dart';
 import 'options_runtime_editor.dart';
 import 'options_provider_editor.dart';
+import 'options_tool_permissions.dart';
 import 'presentation_settings.dart';
 import 'settings_controls.dart';
 import 'setup_dialog.dart';
@@ -1231,30 +1232,56 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
     ),
   ]);
   Widget _permissions() {
-    if (_runtime != null) return _runtimeSettings();
+    final owner = widget.state, client = widget.state.client;
+    final generation = owner.connectionGeneration;
     final permissions = _agent?['permissions'];
+    final snapshot = _runtime, draft = _runtimeDraft;
     return _scroll([
-      const Text(
-        'Effective host grants. A model choice does not grant access or approve actions.',
+      OptionsToolPermissions(
+        key: ObjectKey(client),
+        api: client?.toolPermissions,
+        active: () =>
+            mounted &&
+            identical(widget.state, owner) &&
+            client != null &&
+            owner.ownsConnection(generation, client),
+        currentSessionId: owner.agentSession?.sessionId,
+        currentTaskIds: owner.tasks.map((task) => task.taskId).toList(),
       ),
       ..._errors,
-      for (final row in const [
-        ('allow_write', 'File writes'),
-        ('allow_shell', 'Shell commands'),
-        ('network', 'Network access'),
-        ('yolo', 'YOLO approval mode'),
-      ])
-        _field(
-          row.$2,
-          permissions is Map && permissions[row.$1] is bool
-              ? permissions[row.$1] == true
-                    ? 'Allowed by host policy'
-                    : 'Not granted by this host flag'
-              : 'Unavailable',
+      if (snapshot != null && draft != null)
+        OptionsRuntimeEditor(
+          key: ObjectKey(draft),
+          snapshot: snapshot,
+          draft: draft,
+          page: _page,
+          saving: _runtimePending != null || _loading,
+          onSave: _saveRuntime,
+          onReset: () =>
+              setState(() => _runtimeDraft = OptionsRuntimeDraft(snapshot)),
+        )
+      else ...[
+        const Text(
+          'Service-wide host grants. A model choice does not grant access or approve actions.',
         ),
-      const Text(
-        'Use the owner Agent permission controls to change grants. Existing approval and isolation checks remain in force.',
-      ),
+        for (final row in const [
+          ('allow_write', 'File writes'),
+          ('allow_shell', 'Shell commands'),
+          ('network', 'Network access'),
+          ('yolo', 'YOLO approval mode'),
+        ])
+          _field(
+            row.$2,
+            permissions is Map && permissions[row.$1] is bool
+                ? permissions[row.$1] == true
+                      ? 'Allowed by host policy'
+                      : 'Not granted by this host flag'
+                : 'Unavailable',
+          ),
+        const Text(
+          'Service-wide execution controls are unavailable from this host. Existing approval and isolation checks remain in force.',
+        ),
+      ],
     ]);
   }
 
