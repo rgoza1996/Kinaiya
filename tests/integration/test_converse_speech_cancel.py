@@ -276,7 +276,11 @@ async def test_response_backpressure_does_not_keep_the_provider_open(state):
     session, entry = await reply(store, runtime)
     speech = BlockedSpeech(first_frame=True)
     app = create_app(runtime, AUTH, speech)
-    endpoint = next(route.endpoint for route in app.routes if route.path == "/v1/converse/speech")
+    endpoint = next(
+        route.endpoint
+        for route in app.routes
+        if getattr(route, "path", None) == "/v1/converse/speech"
+    )
     with endpoint_request() as http_request:
         response = await endpoint(SpeechRequest(**speech_body(entry)), http_request)
         stream = response.body_iterator
@@ -301,7 +305,11 @@ async def test_revoke_after_endpoint_validation_before_stream_registration(state
     session, entry = await reply(store, runtime)
     speech = BlockedSpeech()
     app = create_app(runtime, AUTH, speech)
-    endpoint = next(route.endpoint for route in app.routes if route.path == "/v1/converse/speech")
+    endpoint = next(
+        route.endpoint
+        for route in app.routes
+        if getattr(route, "path", None) == "/v1/converse/speech"
+    )
     with endpoint_request() as http_request:
         response = await endpoint(SpeechRequest(**speech_body(entry)), http_request)
         try:
