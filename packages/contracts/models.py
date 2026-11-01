@@ -7,6 +7,8 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, model_serializer, model_validator
 
+from packages.contracts.workspace_settings import WorkspacePin
+
 SCHEMA_VERSION = "1.0"
 ContentScope = Literal["local_only", "public_synthetic", "private_cloud_authorized"]
 AuxiliaryTask = Literal[
@@ -191,7 +193,15 @@ class Task(WireModel):
     harness_version: str = "seed-v1"
     model_pin: AgentModelPin | None = None
     auxiliary_models: dict[AuxiliaryTask, AgentModelPin] = Field(default_factory=dict, max_length=5)
+    workspace_pin: WorkspacePin | None = None
     error: str | None = None
+
+    @model_serializer(mode="wrap")
+    def preserve_historical_workspace_shape(self, handler):
+        result = handler(self)
+        if "workspace_pin" not in self.model_fields_set:
+            result.pop("workspace_pin", None)
+        return result
 
 
 class SteerRequest(WireModel):

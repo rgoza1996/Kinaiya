@@ -23,6 +23,13 @@ def mcp_snapshot(runtime):
 
 
 async def apply_mcp_control(runtime, request: MCPControl):
+    return await runtime.owned_workspace_operation(
+        lambda: _apply_mcp_control(runtime, request),
+        require_root=request.operation in {"test", "reconnect"},
+    )
+
+
+async def _apply_mcp_control(runtime, request):
     controller = require_mcp_controller(runtime)
     async with runtime.integration_lock:
         if runtime._closed:

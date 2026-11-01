@@ -1,0 +1,81 @@
+{
+  "$defs": {
+    "WorkspaceSelection": {
+      "additionalProperties": false,
+      "properties": {
+        "root": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "title": "Root",
+          "type": "string"
+        },
+        "readonly_paths": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Readonly Paths",
+          "type": "array"
+        }
+      },
+      "required": [
+        "root",
+        "readonly_paths"
+      ],
+      "title": "WorkspaceSelection",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "expected_backend": {
+      "maxLength": 32,
+      "minLength": 32,
+      "title": "Expected Backend",
+      "type": "string"
+    },
+    "expected_instance": {
+      "maxLength": 32,
+      "minLength": 32,
+      "title": "Expected Instance",
+      "type": "string"
+    },
+    "expected_revision": {
+      "exclusiveMaximum": 9007199254740990,
+      "minimum": 0,
+      "title": "Expected Revision",
+      "type": "integer"
+    },
+    "expected_state": {
+      "maxLength": 64,
+      "minLength": 64,
+      "title": "Expected State",
+      "type": "string"
+    },
+    "idempotency_key": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Idempotency Key",
+      "type": "string"
+    },
+    "settings": {
+      "$ref": "#/$defs/WorkspaceSelection"
+    }
+  },
+  "required": [
+    "schema_version",
+    "expected_backend",
+    "expected_instance",
+    "expected_revision",
+    "expected_state",
+    "idempotency_key",
+    "settings"
+  ],
+  "title": "WorkspaceChange",
+  "type": "object"
+}

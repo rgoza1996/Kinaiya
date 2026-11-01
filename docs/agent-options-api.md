@@ -1,5 +1,14 @@
 # Agent Options API
 
+Native root selection and owner read-only folders use the independently bound
+workspace owner in [ADR0097](adr/0097-workspace-owner-selection.md):
+`GET/POST /v1/agent/options/workspace-settings`, exact receipt inspection at
+`GET /v1/agent/options/workspace-changes/{key}`, and full-request reconciliation
+at `POST /v1/agent/options/workspace-changes/lookup`. Saved settings and active
+concrete-root identity are separate. Older execution metadata below remains
+inspection of its own owner; its `workspace_mutable: false` does not grant root
+selection through an execution-preference write.
+
 ## Approval expiry and renewal
 
 The existing owner approval list retains expired actions with additive

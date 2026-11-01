@@ -123,6 +123,34 @@ class ToolPolicy:
         self.readonly_roots = tuple(references)
         self._approvals: dict[str, Approval] = {}
         self._approval_owners: set[str] = set()
+        self._workspace_current = None
+        self._workspace_root_fd = None
+
+    def install_workspace_context(self, context, *, actor, available=None):
+        """Install an already prepared native owner context without yielding."""
+        self._require_owner(actor)
+        self.workspace = context.root
+        self.protected_roots = context.protected_roots
+        self.readonly_roots = context.readonly_roots
+
+        def current():
+            try:
+                return context.current() and (available is None or available())
+            except Exception:
+                return False
+
+        self._workspace_current = current
+        self._workspace_root_fd = context.root_fd
+
+    def check_workspace(self):
+        if self._workspace_current is not None and not self._workspace_current():
+            raise PolicyDenied("Native workspace directory identity is unavailable")
+
+    def block_workspace(self, *, actor):
+        """An unavailable saved declaration grants no bootstrap filesystem root."""
+        self._require_owner(actor)
+        self._workspace_current = lambda: False
+        self._workspace_root_fd = None
 
     # -- ownership ------------------------------------------------------
     @staticmethod
@@ -176,6 +204,7 @@ class ToolPolicy:
         that points outside (or into a protected root) resolves outside and is
         rejected here.
         """
+        self.check_workspace()
         candidate = Path(path)
         if not candidate.is_absolute():
             candidate = self.workspace / candidate
@@ -209,7 +238,11 @@ class ToolPolicy:
         if not parts:
             raise PolicyDenied("A file path is required")
         flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
-        descriptor = os.open(self.workspace, flags)
+        descriptor = (
+            os.open(self.workspace, flags)
+            if self._workspace_root_fd is None
+            else os.dup(self._workspace_root_fd)
+        )
         try:
             for part in parts[:-1]:
                 if create:
@@ -231,6 +264,7 @@ class ToolPolicy:
                 return stream.read(maximum)
 
     def check_search(self, path: str | Path | None = None) -> Path:
+        self.check_workspace()
         if path is None:
             return self.workspace
         return self.resolve_path(path)
@@ -288,6 +322,7 @@ class ToolPolicy:
         digest: str | None = None,
         objective_revision: int = 1,
     ) -> None:
+        self.check_workspace()
         if self.deny_shell:
             raise PolicyDenied("Native shell commands are disabled by owner policy")
         from core.policy.tool_admission import admit_native_tool

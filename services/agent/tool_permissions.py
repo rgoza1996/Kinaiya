@@ -262,7 +262,15 @@ class AgentToolPermissions(TargetPermissionStore):
 
     @property
     def workspace_id(self):
-        return _digest({"workspace": str(self.runtime.policy.workspace.resolve())})
+        owner = getattr(self.runtime, "workspace_settings", None)
+        # Path-scoped legacy restrictions survive inode replacement. Concrete
+        # root admission is independently fenced by the workspace owner.
+        root = (
+            owner.saved_selection().root
+            if owner is not None
+            else str(self.runtime.policy.workspace.resolve())
+        )
+        return _digest({"workspace": root})
 
     @staticmethod
     def scope_id(scope):
@@ -302,9 +310,14 @@ class AgentToolPermissions(TargetPermissionStore):
         )
 
     def _scope_for_task(self, task):
+        workspace_id = self.workspace_id
+        if getattr(self.runtime, "workspace_settings", None) is not None:
+            if task.workspace_pin is None:
+                raise ValueError("Historical task has no captured workspace identity")
+            workspace_id = task.workspace_pin.workspace_id
         return PermissionScope(
             kind="task",
-            workspace_id=self.workspace_id,
+            workspace_id=workspace_id,
             session_id=task.session_id,
             thread_id=task.thread_id,
             epoch=task.epoch,
@@ -410,7 +423,12 @@ class AgentToolPermissions(TargetPermissionStore):
             or not rec.submit_confirmed
         ):
             return None
-        return rec if self._scope_for_task(rec.task) == scope else None
+        try:
+            return rec if self._scope_for_task(rec.task) == scope else None
+        except ValueError:
+            # Historical unpinned task scopes remain inspectable/resettable,
+            # never newly attached to today's root.
+            return None
 
     async def _live(self, scope):
         if self._closed or self.runtime._closed:

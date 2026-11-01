@@ -18,6 +18,7 @@ import 'design_tokens.dart';
 import 'mcp_settings.dart';
 import 'options_model_editor.dart';
 import 'options_runtime_editor.dart';
+import 'options_workspace_settings.dart';
 import 'options_provider_editor.dart';
 import 'options_tool_permissions.dart';
 import 'options_converse_model.dart';
@@ -1307,7 +1308,20 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
 
   Widget _runtimeSettings() {
     final snapshot = _runtime, draft = _runtimeDraft;
+    final owner = widget.state, client = widget.state.client;
+    final generation = owner.connectionGeneration;
     return _scroll([
+      if (_page == OptionsPage.workspace)
+        OptionsWorkspaceSettings(
+          key: ObjectKey(client),
+          api: client?.workspaceSettings,
+          onChanged: () => unawaited(_refresh()),
+          active: () =>
+              mounted &&
+              identical(widget.state, owner) &&
+              client != null &&
+              owner.ownsConnection(generation, client),
+        ),
       ..._errors,
       if (snapshot != null && draft != null)
         OptionsRuntimeEditor(
@@ -1315,6 +1329,7 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
           snapshot: snapshot,
           draft: draft,
           page: _page,
+          workspaceDirectoryOnly: _page == OptionsPage.workspace,
           saving: _runtimePending != null || _loading,
           onSave: _saveRuntime,
           onReset: () =>
