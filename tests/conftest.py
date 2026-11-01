@@ -8,6 +8,8 @@ absence after a test copies journal history into a recovered fixture.
 import asyncio
 import copy
 
+import pytest
+
 from packages.contracts.agent_submit import (
     AgentSubmitConflict,
     AgentSubmitLookupRequest,
@@ -17,7 +19,7 @@ from packages.contracts.agent_submit import (
     submit_entry,
     submit_request,
 )
-from packages.contracts.models import AppendRequest
+from packages.contracts.models import AppendRequest, Session
 
 
 def _snapshot(value):
@@ -127,3 +129,23 @@ class InMemorySubmitProtocol:
             raise
         except Exception:
             raise AgentSubmitUnavailable() from None
+
+
+@pytest.fixture
+def native_agent_journal(tmp_path, request):
+    """Real SQLite setup for downstream steering, not mode qualification."""
+    from services.session.store import LocalJournal, Store
+
+    session = Session.model_validate(
+        request.module.SESSION.model_dump(mode="python", warnings="error"), strict=True
+    )
+    store = Store(tmp_path / "native-session.sqlite")
+    try:
+        with store.lock, store.db:
+            store.db.execute(
+                "INSERT INTO sessions(session_id,value) VALUES (?,?)",
+                (session.session_id, session.model_dump_json()),
+            )
+        yield LocalJournal(store, "agent")
+    finally:
+        store.close()
