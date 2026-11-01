@@ -59,6 +59,14 @@ class BodyTransport extends http.BaseClient {
 }
 
 class ScopeClient extends ConsentClient {
+  // Accepted tasks now refresh the authoritative Agent workspace transcript.
+  // This scope-counting fixture has no native history to add to the next draft.
+  @override
+  Future<List<JournalEntry>> agentWorkspaceHistory({
+    required String sessionId,
+    int after = 0,
+  }) async => [];
+
   @override
   Future<List<JournalEntry>> transcript({
     required String sessionId,
