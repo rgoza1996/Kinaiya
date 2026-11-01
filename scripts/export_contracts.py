@@ -13,12 +13,15 @@ from packages.contracts import (
     context,
     converse_models,
     converse_setup,
+    decisions,
+    decisions_models,
     memory,
     memory_catalog,
     memory_context,
     memory_operations,
     models,
     tool_permissions,
+    workspace_settings,
 )
 
 target = Path(__file__).resolve().parents[1] / "packages/contracts/schemas"
@@ -82,7 +85,19 @@ for cls in (
     converse_models.ConverseModelSelection,
     converse_models.ConverseModelChange,
     converse_models.RoleModelPin,
+    decisions_models.DecisionsModelSelection,
+    decisions_models.DecisionsModelChange,
+    decisions_models.DecisionsModelPin,
+    workspace_settings.WorkspaceSelection,
+    workspace_settings.WorkspaceChange,
+    workspace_settings.WorkspacePin,
 ):
     (target / f"{cls.__name__}.json").write_text(
         json.dumps(cls.model_json_schema(), indent=2) + "\n"
+    )
+
+# Private capture records use their existing canonical key ordering.
+for cls in (decisions.DecisionsCallStart, decisions.DecisionsCallFinish):
+    (target / f"{cls.__name__}.json").write_text(
+        json.dumps(cls.model_json_schema(), indent=2, sort_keys=True) + "\n"
     )

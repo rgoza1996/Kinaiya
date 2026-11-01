@@ -68,6 +68,9 @@ def create_app(runtime: AgentRuntime, auth: Any, commands=None) -> FastAPI:
     commands = commands or Registry(runtime)
 
     app = FastAPI(title="Kinaiya Seed Agent", version="0.1.0")
+    from services.agent.workspace_ownership import WorkspaceRequestOwnership
+
+    app.add_middleware(WorkspaceRequestOwnership, runtime=runtime)
     from services.agent.artifact_api import router as artifact_router
     from services.agent.harness_api import router as harness_router
     from services.agent.library_api import router as library_router

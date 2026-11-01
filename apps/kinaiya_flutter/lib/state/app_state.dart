@@ -16,6 +16,7 @@ import 'package:flutter/foundation.dart';
 
 import '../api/client.dart';
 import '../api/models.dart';
+import '../api/decisions_model_settings.dart';
 import '../api/agent_workspace.dart';
 import '../api/artifact_client.dart';
 import '../artifacts/models.dart';
@@ -60,6 +61,12 @@ class AppState extends ChangeNotifier {
   bool connected = false;
   bool agentOnline = false;
   bool converseOnline = false;
+
+  /// Independent owner-only classifier metadata. No readiness grant.
+  DecisionsModelsSnapshot? decisionsModelOptions;
+  String decisionsModelOptionsStatus = 'Decisions URL is not configured.';
+  bool decisionsModelOptionsLoading = false;
+  int _decisionsModelOptionsRead = 0;
 
   /// Owner session authentication, distinct from inference availability.
   /// True once listSessions succeeds for the live generation; deterministic
@@ -396,6 +403,12 @@ class AppState extends ChangeNotifier {
     }
     final generation = ++_connectionGeneration;
     connection = profile;
+    _decisionsModelOptionsRead++;
+    decisionsModelOptions = null;
+    decisionsModelOptionsLoading = false;
+    decisionsModelOptionsStatus = profile.decisionsUrl == null
+        ? 'Decisions URL is not configured.'
+        : 'Decisions model metadata has not been inspected.';
     _trustedInjection = injected != null;
     client = injected ?? clientFactory?.call(profile);
     // Per-role consent resets on every (re)connect until verified.
@@ -426,6 +439,58 @@ class AppState extends ChangeNotifier {
     notifyListeners();
     if (client != null && injected == null) {
       unawaited(_verifyConnection(generation));
+      // Independent Decisions owner metadata never depends on other role health.
+      unawaited(refreshDecisionsModelOptions());
+    }
+  }
+
+  void invalidateDecisionsModelOptions() {
+    _decisionsModelOptionsRead++;
+    decisionsModelOptions = null;
+    decisionsModelOptionsLoading = false;
+    decisionsModelOptionsStatus =
+        'Decisions selection save is unconfirmed. Check the original request in Models.';
+    notifyListeners();
+  }
+
+  Future<void> refreshDecisionsModelOptions() async {
+    final api = client, generation = _connectionGeneration;
+    final classifier = api?.decisionsModels;
+    final read = ++_decisionsModelOptionsRead;
+    if (api == null || classifier == null) {
+      decisionsModelOptions = null;
+      decisionsModelOptionsLoading = false;
+      decisionsModelOptionsStatus = 'Decisions URL is not configured.';
+      notifyListeners();
+      return;
+    }
+    bool current() =>
+        ownsConnection(generation, api) &&
+        identical(client?.decisionsModels, classifier) &&
+        read == _decisionsModelOptionsRead;
+    decisionsModelOptionsLoading = true;
+    decisionsModelOptions = null;
+    decisionsModelOptionsStatus = 'Reading Decisions model declarations…';
+    notifyListeners();
+    try {
+      final snapshot = await classifier.inspect();
+      if (!current()) return;
+      decisionsModelOptions = snapshot;
+      decisionsModelOptionsStatus = classifier.hasUnconfirmedChange
+          ? 'A Decisions selection save is unresolved. Check the exact original request in Models.'
+          : snapshot.selectedInfo == null
+          ? 'Decisions classifier selection is unavailable.'
+          : 'Decisions declarations inspected. Readiness has not been checked.';
+    } catch (_) {
+      if (!current()) return;
+      decisionsModelOptions = null;
+      decisionsModelOptionsStatus =
+          'Decisions model options are unavailable. Other roles remain independent.';
+    } finally {
+      if (current()) {
+        decisionsModelOptionsLoading = false;
+        notifyListeners();
+      }
     }
   }
 
@@ -1392,6 +1457,10 @@ class AppState extends ChangeNotifier {
     _saveAgentWorkspace();
     _invalidateAgentWorkspace();
     _connectionGeneration++;
+    _decisionsModelOptionsRead++;
+    decisionsModelOptions = null;
+    decisionsModelOptionsLoading = false;
+    decisionsModelOptionsStatus = 'Decisions model options are disconnected.';
     _noticesPoll?.cancel();
     _resourcesPoll?.cancel();
     client?.close();
@@ -1429,6 +1498,10 @@ class AppState extends ChangeNotifier {
   void dispose() {
     _invalidateAgentWorkspace();
     _connectionGeneration++;
+    _decisionsModelOptionsRead++;
+    decisionsModelOptions = null;
+    decisionsModelOptionsLoading = false;
+    decisionsModelOptionsStatus = 'Decisions model options are disconnected.';
     _noticesPoll?.cancel();
     _resourcesPoll?.cancel();
     client?.close();

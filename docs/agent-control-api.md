@@ -5,7 +5,7 @@ Requirement: [Roadmap §13.1](../Roadmap.md#131-operating-modes),
 [#217](https://github.com/rgoza1996/Kinaiya/issues/217).
 The strict version 1.0 wire grammar is implemented; native enforcement and the
 owner panel are being integrated. This document does not establish qualification
-or completion. See [ADR0097](adr/0097-agent-operating-modes.md).
+or completion. See [ADR0105](adr/0105-agent-operating-modes.md).
 
 ## Ownership and routes
 

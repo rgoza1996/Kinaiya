@@ -297,6 +297,16 @@ class SkillService:
         self._pins: dict[tuple[str, str], _Pin] = {}
         self._pinned_bytes = 0
 
+    def prepare_workspace(self, workspace):
+        self._ensure_open()
+        if self._lock.locked() or self._pins:
+            raise ValueError("Skill ownership is not settled")
+        return self._manager.prepare_workspace(workspace)
+
+    def install_workspace(self, prepared):
+        self._workspace = prepared
+        self._manager.install_workspace(prepared)
+
     # -- lifetime lock -----------------------------------------------------
     @staticmethod
     def _take_lock(path: Path) -> int:

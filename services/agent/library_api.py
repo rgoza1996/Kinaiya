@@ -6,6 +6,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from packages.contracts.workspace_settings import WorkspacePin
 from services.agent.projects import ProjectChange, ProjectConflict
 
 DOCUMENT_TYPES = frozenset(
@@ -14,7 +15,7 @@ DOCUMENT_TYPES = frozenset(
 MEDIA_TYPES = frozenset("png jpg jpeg webp gif svg mp3 wav ogg flac m4a mp4 webm mov".split())
 
 
-def output_record(entry, workspace, kind):
+def output_record(entry, workspace, kind, *, managed=False, active_pin=None):
     payload = entry.payload
     evidence = payload.get("evidence")
     if (
@@ -31,11 +32,48 @@ def output_record(entry, workspace, kind):
         return None
     # Lexical historic metadata only. No stat, read, symlink walk or download.
     path = Path(evidence["path"])
-    try:
-        relative = path.relative_to(workspace)
-    except ValueError:
+    if (
+        not path.name
+        or len(path.name) > 1024
+        or any(ord(character) < 32 for character in path.name)
+    ):
         return None
-    if ".." in relative.parts or not relative.parts or len(str(relative)) > 1024:
+    provenance = {}
+    if managed:
+        if "workspace_pin" not in payload:
+            # The old absolute file evidence proves a write, not its original
+            # root. A new root must never reinterpret that historical path.
+            relative = None
+            provenance = {"workspace_pin": None, "workspace_status": "historical_unknown"}
+        else:
+            try:
+                pin = WorkspacePin.model_validate(payload["workspace_pin"])
+                value = payload["workspace_relative_path"]
+                if (
+                    type(value) is not str
+                    or pin.model_dump(mode="json") != payload["workspace_pin"]
+                ):
+                    return None
+                relative = Path(value)
+                if relative.is_absolute() or relative.name != path.name:
+                    return None
+                provenance = {
+                    "workspace_pin": pin.model_dump(mode="json"),
+                    "workspace_status": "current" if pin == active_pin else "historical",
+                }
+            except (ValueError, KeyError, TypeError):
+                return None
+    else:
+        try:
+            relative = path.relative_to(workspace)
+        except ValueError:
+            return None
+    if relative is not None and (
+        ".." in relative.parts
+        or not relative.parts
+        or len(str(relative)) > 1024
+        or any(ord(character) < 32 for character in str(relative))
+    ):
         return None
     extension = path.suffix.lstrip(".").lower()
     if extension not in (DOCUMENT_TYPES if kind == "documents" else MEDIA_TYPES):
@@ -44,7 +82,7 @@ def output_record(entry, workspace, kind):
         "event_id": entry.event_id,
         "sequence": entry.sequence,
         "name": path.name,
-        "relative_path": str(relative),
+        "relative_path": None if relative is None else str(relative),
         "file_type": extension.upper(),
         "created_at": entry.created_at.isoformat(),
         "sha256": evidence["sha256"],
@@ -53,6 +91,7 @@ def output_record(entry, workspace, kind):
         "thread_id": entry.thread_id,
         "epoch": entry.epoch,
         "objective_revision": evidence.get("objective_revision"),
+        **provenance,
     }
 
 
@@ -66,7 +105,19 @@ def router(runtime, auth, owner_journal):
     ):
         try:
             entries = await owner_journal.read(after=after, limit=100, kinds=["agent.tool"])
-            records = [output_record(entry, runtime.policy.workspace, kind) for entry in entries]
+            managed = runtime.workspace_settings is not None
+            active_pin = None
+            if managed:
+                try:
+                    active_pin = runtime.workspace_settings.active_context().pin
+                except RuntimeError:
+                    pass
+            records = [
+                output_record(
+                    entry, runtime.policy.workspace, kind, managed=managed, active_pin=active_pin
+                )
+                for entry in entries
+            ]
             return {
                 "schema_version": "1.0",
                 "kind": kind,

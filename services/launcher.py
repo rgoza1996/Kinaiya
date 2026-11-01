@@ -360,37 +360,110 @@ def serve(args):
 
         args.workspace.mkdir(parents=True, exist_ok=True)
         journal = JournalClient(config["session_url"], tokens["agent"])
-        protected = (
+        from services.agent.workspace_settings import AgentWorkspaceSettings
+
+        # These paths are native authority, not owner-editable worker overlays.
+        # The Python environment/import roots and sandbox binary must remain
+        # immutable even if an owner selects a new worker directory elsewhere.
+        native_roots = {
             ROOT / "core",
-            ROOT / "services/agent",
-            ROOT / "services/session",
-            ROOT / "services/decisions",
-            ROOT / "services/converse",
-            ROOT / "packages/contracts",
-            ROOT / "packages/resources",
-            ROOT / "services/resources",
-            ROOT / "services/settings",
-            ROOT / "packages/providers",
+            ROOT / "services",
+            ROOT / "packages",
+            ROOT / "harnesses",
             ROOT / "evaluation",
             ROOT / "Roadmap.md",
-            args.data_dir.resolve(),
-            Path.home() / ".config/muse",
-        )
-        workspace = args.workspace.resolve()
-        if workspace in {Path("/"), Path("/tmp"), Path("/run"), Path("/proc"), Path.home()} or any(
-            workspace == root.resolve()
-            or workspace.is_relative_to(root.resolve())
-            or root.resolve().is_relative_to(workspace)
-            for root in protected
+            ROOT / ".venv",
+            ROOT / ".dev-run",
+            Path(sys.executable).resolve(),
+            Path(sys.prefix).resolve(),
+            Path(sys.base_prefix).resolve(),
+            *(
+                Path(value).resolve()
+                for value in sys.path
+                if value and Path(value).resolve() != ROOT
+            ),
+        }
+        from services.agent.tools import bwrap_path
+
+        binary = bwrap_path()
+        if binary is not None:
+            native_roots.add(Path(binary).resolve())
+        protected = tuple(sorted({path.resolve() for path in native_roots}))
+        evaluations = [ROOT / "evaluation"]
+        if configured_harness := config.get("harness"):
+            evaluations.append(Path(configured_harness["suite"]).resolve())
+        configured_plugins = config.get("plugins")
+        if isinstance(configured_plugins, dict) and isinstance(
+            configured_plugins.get("suites"), dict
         ):
+            evaluations.extend(
+                Path(value).resolve() for value in configured_plugins["suites"].values()
+            )
+        host_workspace = args.workspace.resolve()
+        host_policy = config.get("policy", {})
+        host_readonly = tuple(
+            (Path(value) if Path(value).is_absolute() else host_workspace / value).resolve()
+            for value in host_policy.get("readonly_roots", ())
+        )
+        # Saved authority is loaded before any owner stores or transport brokers
+        # capture the worker root. Corruption is a startup refusal, never host fallback.
+        try:
+            workspace_settings = AgentWorkspaceSettings(
+                host_workspace,
+                path=args.data_dir.resolve() / "agent-workspace.sqlite",
+                protected_roots=protected,
+                control_roots=(args.data_dir.resolve(), Path(config_path).resolve()),
+                evaluation_roots=evaluations,
+                credential_roots=((Path.home() / ".config/muse").resolve(),),
+                host_readonly_roots=host_readonly,
+            )
+        except ValueError:
+            # Preserve the launcher's controlled configuration refusal. Saved
+            # root availability below remains a separate, repairable state.
             raise SystemExit(
                 "Use a dedicated worker workspace disjoint from core, evaluation, settings and credentials"
-            )
-        policy = ToolPolicy(
-            args.workspace,
-            **config.get("policy", {}),
-            protected_roots=protected,
+            ) from None
+        desired_workspace = Path(workspace_settings.saved_selection().root)
+        try:
+            workspace_context = workspace_settings.initial_context()
+        except (OSError, ValueError, RuntimeError):
+            workspace_context = None
+        # Missing/replaced/aliased saved roots remain repairable in Options.
+        # This never-created reference is explicitly inactive, lies inside
+        # protected control storage, and cannot become filesystem authority.
+        workspace = (
+            desired_workspace
+            if workspace_context is not None
+            else args.data_dir.resolve() / f".inactive-workspace-{workspace_settings.instance}"
         )
+        if workspace_context is None and os.path.lexists(workspace):
+            raise SystemExit("Inactive native workspace reference must not exist")
+        hard_guards = tuple(
+            sorted(
+                {
+                    path
+                    for group, paths in workspace_settings.guards.items()
+                    if group != "readonly"
+                    for path in paths
+                }
+            )
+        )
+        policy = ToolPolicy(
+            workspace,
+            **{key: value for key, value in host_policy.items() if key != "readonly_roots"},
+            protected_roots=hard_guards,
+            readonly_roots=workspace_context.readonly_roots
+            if workspace_context is not None
+            else host_readonly,
+        )
+        if workspace_context is not None:
+            policy.install_workspace_context(
+                workspace_context,
+                actor="owner",
+                available=lambda: workspace_settings.active_context() is workspace_context,
+            )
+        else:
+            policy.block_workspace(actor="owner")
         configured_providers = config.get("providers")
         host_profile = (
             configured_providers.get("agent") if isinstance(configured_providers, dict) else None
@@ -502,7 +575,7 @@ def serve(args):
         runtime = AgentRuntime(
             journal,
             host_provider,
-            args.workspace,
+            workspace,
             policy,
             selector_registry=selector,
             mcp_host=mcp_host,
@@ -510,6 +583,14 @@ def serve(args):
             skill_service=skill_service,
             plugin_service=plugin_service,
             artifact_store=ArtifactStore(artifact_path),
+        )
+        runtime.workspace_settings = workspace_settings
+        workspace_settings.bind(
+            runtime,
+            operation_state=runtime.workspace_operation_state,
+            retire=runtime.retire_workspace,
+            apply=lambda context: runtime.prepare_workspace_apply(context).apply(),
+            prepare=runtime.prepare_workspace_apply,
         )
         if resources_enabled:
             from services.resources.client import ResourceClient
@@ -552,7 +633,7 @@ def serve(args):
         try:
             catalog = ProviderCatalog(
                 args.data_dir.resolve() / "providers.sqlite",
-                args.workspace.resolve(),
+                workspace,
                 env_refs=config.get("provider_credential_references", {}),
             )
         except (OSError, ValueError, RuntimeError, sqlite3.Error):
@@ -741,23 +822,56 @@ def serve(args):
 
         app.router.lifespan_context = converse_lifespan
     else:
+        import sqlite3
+
         from packages.agent_adapters.http import AgentClient
+        from packages.providers.text import ProviderError
         from services.decisions.api import create_app
+        from services.decisions.model_settings import (
+            DecisionsModelSettings,
+            DecisionsModelUnavailable,
+            UnavailableDecisionsModels,
+        )
         from services.decisions.runtime import DecisionsWorker, ModelClassifier
         from services.decisions.window_routing import WindowAgentDispatcher, WindowClassifier
         from services.decisions.window_worker import WindowDecisionsWorker
+        from services.settings.provider_catalog import ProviderCatalog
+        from services.settings.provider_factory import UnavailableHostProvider
 
         window_chars = config.get("decisions_window_chars", 36000)
         if type(window_chars) is not int or not 256 <= window_chars <= 36000:
             raise SystemExit("decisions_window_chars must be an integer from 256 to 36000")
+        try:
+            catalog = ProviderCatalog(
+                args.data_dir.resolve() / "providers.sqlite",
+                args.workspace.resolve(),
+                env_refs=config.get("provider_credential_references", {}),
+            )
+        except (OSError, ValueError, RuntimeError, sqlite3.Error):
+            catalog = None
+        try:
+            host_provider = provider(config, "decisions", resource_state=resource_state)
+        except (OSError, ValueError, ProviderError, KeyError, TypeError, ImportError, SystemExit):
+            host_provider = UnavailableHostProvider("Decisions")
+        try:
+            decision_models = DecisionsModelSettings(
+                host_provider,
+                catalog,
+                path=args.data_dir.resolve() / "decisions-model.sqlite",
+                workspace=args.workspace.resolve(),
+                resource_state=resource_state,
+            )
+        except (DecisionsModelUnavailable, OSError, ValueError, RuntimeError, sqlite3.Error):
+            decision_models = UnavailableDecisionsModels(host_provider)
         worker = DecisionsWorker(
             JournalClient(config["session_url"], tokens["decisions"]),
             AgentClient(config["agent_url"], tokens["decisions"]),
             ModelClassifier(
-                provider(config, "decisions", resource_state=resource_state),
+                host_provider,
                 window_chars=window_chars,
             ),
             enabled=config.get("agent_enabled", True),
+            model_settings=decision_models,
         )
         windows_enabled = config.get("streaming_windows", {}).get("enabled", True)
         windows = (
@@ -767,6 +881,7 @@ def serve(args):
                 WindowClassifier(worker.classifier.provider, window_chars=window_chars),
                 agent_enabled=worker.enabled,
                 timeout=config.get("streaming_windows", {}).get("classification_timeout_s", 5),
+                model_settings=decision_models,
             )
             if windows_enabled
             else None
@@ -776,7 +891,7 @@ def serve(args):
             if windows_enabled
             else None
         )
-        app = create_app(worker, auth, windows, dispatcher)
+        app = create_app(worker, auth, windows, dispatcher, model_settings=decision_models)
     if service in {"session", "agent", "converse", "decisions"}:
         import sqlite3
 
@@ -785,7 +900,7 @@ def serve(args):
 
         # Each independent owner service can manage the same protected catalog.
         # Saving a declaration never hot-swaps any role or starts inference.
-        if service not in {"agent", "converse"}:
+        if service not in {"agent", "converse", "decisions"}:
             try:
                 catalog = ProviderCatalog(
                     args.data_dir.resolve() / "providers.sqlite",

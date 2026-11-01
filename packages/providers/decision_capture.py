@@ -28,11 +28,14 @@ class CaptureNativeUnavailable(Exception):
 
 
 class DecisionCapture:
-    def __init__(self, journal, source, provider, attempt, reused_from=None):
+    def __init__(
+        self, journal, source, provider, attempt, reused_from=None, model_pin=None, current=None
+    ):
         self.journal, self.source = journal, source
         self.call_id, self.attempt_id = str(uuid4()), str(uuid4())
         self.attempt, self.reused_from = attempt or 1, reused_from
         self.provider = provider
+        self.model_pin, self.model_current = model_pin, current
         self.started = False
         self.raw_response, self.validated_output = None, None
         self.artifact_sha256 = None
@@ -67,6 +70,7 @@ class DecisionCapture:
                 request_format=request_format,
                 request=copy.deepcopy(request),
                 reused_from_call_id=self.reused_from,
+                model_pin=self.model_pin,
             )
             # Retry/reconcile the identical immutable request after an
             # uncertain capture ACK. Never relabel a real wire request as
@@ -86,6 +90,8 @@ class DecisionCapture:
         # Recheck the actual exported native sources after that await, including
         # sticky scope restrictions on earlier conversation revisions.
         try:
+            if self.model_current is not None and not self.model_current():
+                raise CaptureNativeUnavailable("Decisions model ownership changed")
             for index, bound in enumerate(self.disclosure_sources):
                 actual = await self.journal.entry(bound.event_id)
                 if (
@@ -128,6 +134,8 @@ class DecisionCapture:
                 "converse",
             ):
                 raise ProviderRefusal("Decisions session is obsolete")
+            if self.model_current is not None and not self.model_current():
+                raise CaptureNativeUnavailable("Decisions model ownership changed")
         except ProviderRefusal:
             raise
         except Exception as exc:
@@ -159,8 +167,10 @@ class DecisionCapture:
 
 
 @asynccontextmanager
-async def decision_attempt(journal, source, provider, *, attempt=1, reused_from=None):
-    capture = DecisionCapture(journal, source, provider, attempt, reused_from)
+async def decision_attempt(
+    journal, source, provider, *, attempt=1, reused_from=None, model_pin=None, current=None
+):
+    capture = DecisionCapture(journal, source, provider, attempt, reused_from, model_pin, current)
     token = _capture.set(capture)
     try:
         yield capture

@@ -504,7 +504,11 @@ def synthetic_mcp_session(monkeypatch):
         call_tool = forbidden
 
     monkeypatch.setattr(mcp, "_bounded_stdio_transport", transport)
-    monkeypatch.setattr(mcp, "_bwrap_base_argv", lambda *args: ["/bin/bash", "-c", "synthetic"])
+    monkeypatch.setattr(
+        mcp,
+        "_bwrap_base_argv",
+        lambda config, policy, *, readonly_bindings=(): ["/bin/bash", "-c", "synthetic"],
+    )
     monkeypatch.setattr(mcp, "ClientSession", Session)
     return calls
 

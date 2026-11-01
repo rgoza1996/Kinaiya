@@ -5,6 +5,8 @@ library;
 
 import 'dart:convert';
 
+import 'workspace_settings.dart' show WorkspacePin;
+
 const String schemaVersion = '1.0';
 
 /// Owner-declared disclosure for this input, independent of provider choice.
@@ -150,6 +152,7 @@ class AgentTask {
     this.error,
     this.harnessVersion,
     this.modelPin,
+    this.workspacePin,
   });
 
   factory AgentTask.fromJson(Map<String, Object?> json) {
@@ -174,6 +177,9 @@ class AgentTask {
       modelPin: json['model_pin'] is Map
           ? (json['model_pin'] as Map).cast<String, Object?>()
           : null,
+      workspacePin: json['workspace_pin'] == null
+          ? null
+          : WorkspacePin.fromJson(json['workspace_pin']),
     );
   }
 
@@ -192,6 +198,9 @@ class AgentTask {
   final String? error;
   final String? harnessVersion;
   final Map<String, Object?>? modelPin;
+
+  /// Recorded task provenance, independent of the currently active workspace.
+  final WorkspacePin? workspacePin;
 
   static const Set<String> terminalStates = {
     'succeeded',
@@ -337,6 +346,8 @@ class AgentSubmission {
     }
     final pin = raw['model_pin'];
     if (pin != null) _historicalPin(pin);
+    final workspacePin = raw['workspace_pin'];
+    if (workspacePin != null) WorkspacePin.fromJson(workspacePin);
     final auxiliary = raw['auxiliary_models'];
     if (auxiliary != null) {
       if (auxiliary is! Map<String, Object?> ||

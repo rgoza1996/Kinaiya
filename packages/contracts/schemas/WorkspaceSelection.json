@@ -1,0 +1,25 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "root": {
+      "maxLength": 4096,
+      "minLength": 1,
+      "title": "Root",
+      "type": "string"
+    },
+    "readonly_paths": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 32,
+      "title": "Readonly Paths",
+      "type": "array"
+    }
+  },
+  "required": [
+    "root",
+    "readonly_paths"
+  ],
+  "title": "WorkspaceSelection",
+  "type": "object"
+}

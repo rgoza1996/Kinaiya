@@ -155,14 +155,20 @@ def _workspace_readonly_roots(policy: ToolPolicy):
 def _readonly_bindings(policy: ToolPolicy):
     """Pin reference sources and ancestor mountpoints until BWrap owns them."""
     roots = _workspace_readonly_roots(policy)
-    if not roots:
+    pinned = getattr(policy, "_workspace_root_fd", None)
+    if not roots and pinned is None:
         yield (), ()
         return
     descriptors = []
     opened = {}
     flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK
     try:
-        workspace = os.open(policy.workspace, flags | os.O_DIRECTORY)
+        policy.check_workspace()
+        workspace = (
+            os.dup(pinned)
+            if pinned is not None
+            else os.open(policy.workspace, flags | os.O_DIRECTORY)
+        )
         descriptors.append(workspace)
         opened[policy.workspace] = workspace
         for root in roots:
@@ -254,14 +260,27 @@ def build_bwrap_args(
         "--ro-bind",
         "/lib64",
         "/lib64",
-        "--ro-bind" if policy.deny_write else "--bind",
-        str(policy.workspace),
-        "/workspace",
     ]
+    workspace_binding = next(
+        (binding for binding in readonly_bindings if binding[2] == "/workspace"), None
+    )
+    if workspace_binding is None:
+        if getattr(policy, "_workspace_root_fd", None) is not None:
+            raise PolicyDenied("Managed workspace requires a pinned Bubblewrap mount")
+        args += [
+            "--ro-bind" if policy.deny_write else "--bind",
+            str(policy.workspace),
+            "/workspace",
+        ]
+    else:
+        kind, descriptor, destination = workspace_binding
+        args += ["--ro-bind-fd" if policy.deny_write else kind, str(descriptor), destination]
     nested_readonly = bool(_workspace_readonly_roots(policy))
     if nested_readonly and not readonly_bindings:
         raise PolicyDenied("shell read-only references require pinned mount sources")
     for kind, descriptor, destination in readonly_bindings:
+        if destination == "/workspace":
+            continue
         if kind == "--bind-fd":
             # A descendant self-bind must not reopen writes under a root
             # that the owner's Deny setting mounted read-only.
@@ -411,13 +430,22 @@ async def run_shell(
             argv, isolated = build_bwrap_args(
                 policy, command, policy.network, readonly_bindings=bindings
             )
-            proc = await asyncio.create_subprocess_exec(
-                *argv,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.STDOUT,
-                start_new_session=True,
-                pass_fds=descriptors,
+            spawn = asyncio.create_task(
+                asyncio.create_subprocess_exec(
+                    *argv,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.STDOUT,
+                    start_new_session=True,
+                    pass_fds=descriptors,
+                )
             )
+            interrupted = False
+            while not spawn.done():
+                try:
+                    await asyncio.shield(spawn)
+                except asyncio.CancelledError:
+                    interrupted = True
+            proc = spawn.result()
     except FileNotFoundError as exc:
         raise ShellUnavailable(f"shell unavailable: {exc}") from exc
     handle = RunningProc(proc)
@@ -426,6 +454,9 @@ async def run_shell(
     if proc_slot is not None:
         proc_slot["proc"] = handle
     try:
+        if interrupted:
+            await asyncio.shield(handle.kill())
+            raise asyncio.CancelledError
         try:
             raw, truncated = await _collect_bounded(proc, timeout)
         except asyncio.CancelledError:
@@ -453,7 +484,23 @@ async def run_shell(
         return observation, evidence
     finally:
         if proc_slot is not None:
-            proc_slot["proc"] = None
+            if proc.returncode is not None:
+                proc_slot["proc"] = None
+            else:
+                # A bounded kill timeout is not proof that the child exited.
+                # Keep the real child visible to native workspace admission.
+                cleanup = asyncio.create_task(proc.wait())
+                proc_slot["cleanup"] = cleanup
+
+                def reaped(task):
+                    if not task.cancelled() and task.exception() is None:
+                        proc_slot["proc"] = None
+                        proc_slot.pop("cleanup", None)
+                        notify = proc_slot.get("on_settled")
+                        if notify is not None:
+                            notify()
+
+                cleanup.add_done_callback(reaped)
 
 
 _WRITE_FILE_ALLOWED_KEYS = frozenset({"path", "content", "objective_revision"})

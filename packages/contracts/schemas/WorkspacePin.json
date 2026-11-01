@@ -1,0 +1,57 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "workspace_id": {
+      "maxLength": 64,
+      "minLength": 64,
+      "title": "Workspace Id",
+      "type": "string"
+    },
+    "root_identity": {
+      "maxLength": 64,
+      "minLength": 64,
+      "title": "Root Identity",
+      "type": "string"
+    },
+    "settings_revision": {
+      "maximum": 9007199254740990,
+      "minimum": 0,
+      "title": "Settings Revision",
+      "type": "integer"
+    },
+    "source": {
+      "enum": [
+        "host",
+        "owner_saved"
+      ],
+      "title": "Source",
+      "type": "string"
+    },
+    "shell_backend": {
+      "const": "bubblewrap",
+      "title": "Shell Backend",
+      "type": "string"
+    },
+    "mode": {
+      "const": "direct",
+      "title": "Mode",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "workspace_id",
+    "root_identity",
+    "settings_revision",
+    "source",
+    "shell_backend",
+    "mode"
+  ],
+  "title": "WorkspacePin",
+  "type": "object"
+}

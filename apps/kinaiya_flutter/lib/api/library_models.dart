@@ -1,4 +1,5 @@
 import 'agent_workspace.dart';
+import 'workspace_settings.dart' show WorkspacePin;
 
 DateTime _created(Object? value) {
   final time = DateTime.tryParse(workspaceText(value, max: 80));
@@ -19,7 +20,45 @@ class GeneratedOutput {
     eventId = workspaceText(value['event_id'], max: 128);
     sequence = _integer(value['sequence'], minimum: 1);
     name = workspaceText(value['name'], max: 1024);
-    path = workspaceText(value['relative_path'], max: 1024);
+    final hasWorkspace =
+        value.containsKey('workspace_status') ||
+        value.containsKey('workspace_pin');
+    if (hasWorkspace) {
+      if (!value.containsKey('workspace_status') ||
+          !value.containsKey('workspace_pin') ||
+          !{
+            'current',
+            'historical',
+            'historical_unknown',
+          }.contains(value['workspace_status'])) {
+        throw const FormatException();
+      }
+      workspaceStatus = value['workspace_status'] as String;
+      if (workspaceStatus == 'historical_unknown') {
+        if (!value.containsKey('relative_path') ||
+            value['relative_path'] != null ||
+            value['workspace_pin'] != null) {
+          throw const FormatException();
+        }
+        path = null;
+        workspacePin = null;
+      } else {
+        path = workspaceText(value['relative_path'], max: 1024);
+        if (path!.startsWith('/') ||
+            path!
+                .split('/')
+                .any((part) => part.isEmpty || part == '.' || part == '..') ||
+            path!.codeUnits.any((unit) => unit < 32) ||
+            path!.split('/').last != name) {
+          throw const FormatException();
+        }
+        workspacePin = WorkspacePin.fromJson(value['workspace_pin']);
+      }
+    } else {
+      path = workspaceText(value['relative_path'], max: 1024);
+      workspaceStatus = null;
+      workspacePin = null;
+    }
     type = workspaceText(value['file_type'], max: 20);
     taskId = workspaceText(value['task_id'], max: 128);
     sessionId = workspaceText(value['session_id'], max: 128);
@@ -30,7 +69,9 @@ class GeneratedOutput {
       throw const FormatException();
     }
   }
-  late final String eventId, name, path, type, taskId, sessionId;
+  late final String eventId, name, type, taskId, sessionId;
+  late final String? path, workspaceStatus;
+  late final WorkspacePin? workspacePin;
   late final int sequence;
   late final DateTime createdAt;
 }

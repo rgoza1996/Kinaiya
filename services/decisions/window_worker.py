@@ -5,6 +5,7 @@ import hashlib
 import math
 import time
 from collections import OrderedDict
+from contextlib import nullcontext
 from datetime import UTC, datetime
 
 import httpx
@@ -35,7 +36,16 @@ def hypothesis(entry):
 
 class WindowDecisionsWorker:
     def __init__(
-        self, journal, agent, classifier, *, agent_enabled=True, timeout=5, parallel=2, max_age=60
+        self,
+        journal,
+        agent,
+        classifier,
+        *,
+        agent_enabled=True,
+        timeout=5,
+        parallel=2,
+        max_age=60,
+        model_settings=None,
     ):
         self.journal, self.agent, self.classifier = journal, agent, classifier
         if type(timeout) not in (int, float) or not 0.1 <= timeout <= 30:
@@ -51,6 +61,8 @@ class WindowDecisionsWorker:
         self.jobs = {}
         self.pending = OrderedDict()
         self.outputs = OrderedDict()
+        self.output_models = {}
+        self.model_settings = model_settings
         self.last_error = None
         self.agent_available = None
         self.running = False
@@ -113,6 +125,14 @@ class WindowDecisionsWorker:
         return await self._native("window_decision", source.event_id) is None
 
     async def classify(self, source, *, attempt=None):
+        with (
+            self.model_settings.preparing("windows")
+            if self.model_settings is not None
+            else nullcontext()
+        ):
+            return await self._classify(source, attempt=attempt)
+
+    async def _classify(self, source, *, attempt=None):
         if not await self._ready(source):
             return
         window = SpeechWindow.model_validate(source.payload)
@@ -150,7 +170,12 @@ class WindowDecisionsWorker:
             tuple(sorted((t.task_id, t.objective_revision, str(t.state)) for t in tasks)),
         )
         cached = self.outputs.get(key)
-        reused = cached is not None and cached[:2] == (hypothesis(source), task_binding)
+        model_stamp = self.model_settings.cache_stamp() if self.model_settings is not None else None
+        reused = (
+            cached is not None
+            and cached[:2] == (hypothesis(source), task_binding)
+            and self.output_models.get(key) == model_stamp
+        )
         if reused:
             labels = dict(cached[2])
             original_call = cached[3]
@@ -164,13 +189,36 @@ class WindowDecisionsWorker:
                 ) as capture:
                     capture.validated_output = labels
         elif window.text.strip():
-            async with decision_attempt(
-                self.journal, source, getattr(self.classifier, "provider", None), attempt=attempt
-            ) as capture:
-                labels = await asyncio.wait_for(
-                    self.classifier.classify(source, context, tasks), self.timeout
-                )
-                capture.validated_output = labels
+            if self.model_settings is None:
+                async with decision_attempt(
+                    self.journal,
+                    source,
+                    getattr(self.classifier, "provider", None),
+                    attempt=attempt,
+                ) as capture:
+                    labels = await asyncio.wait_for(
+                        self.classifier.classify(source, context, tasks), self.timeout
+                    )
+                    capture.validated_output = labels
+            else:
+                from services.decisions.window_routing import WindowClassifier
+
+                async with self.model_settings.operation() as lease:
+                    classifier = WindowClassifier(
+                        lease.provider, window_chars=self.classifier.window_chars
+                    )
+                    async with decision_attempt(
+                        self.journal,
+                        source,
+                        lease.provider,
+                        attempt=attempt,
+                        model_pin=lease.pin,
+                        current=lease.current,
+                    ) as capture:
+                        labels = await asyncio.wait_for(
+                            classifier.classify(source, context, tasks), self.timeout
+                        )
+                        capture.validated_output = labels
             original_call = capture.call_id if capture.started else None
         else:
             labels = {
@@ -180,9 +228,11 @@ class WindowDecisionsWorker:
             }
             original_call = None
         self.outputs[key] = (hypothesis(source), task_binding, dict(labels), original_call)
+        self.output_models[key] = model_stamp
         self.outputs.move_to_end(key)
         if len(self.outputs) > 128:
-            self.outputs.popitem(last=False)
+            evicted, _ = self.outputs.popitem(last=False)
+            self.output_models.pop(evicted, None)
         if not self.agent_enabled:
             # Explicitly disabled work never replays later. A failed status
             # probe is different: preserve valid intent, then let the native
