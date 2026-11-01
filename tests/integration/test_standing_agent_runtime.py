@@ -742,7 +742,9 @@ async def test_caller_mutation_during_real_lookup_cannot_change_frozen_native_or
     value.transport.gated_path = LOOKUP
     operation = asyncio.create_task(submit(value))
     await asyncio.wait_for(value.transport.entered.wait(), 5)
-    value.original.task.objective = "Untrusted mutation after this attempt began."
+    object.__setattr__(
+        value.original.task, "objective", "Untrusted mutation after this attempt began."
+    )
     value.transport.release.set()
     result = await operation
     assert result.validate_request(original).disposition == "created"
