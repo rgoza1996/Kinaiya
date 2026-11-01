@@ -1,4 +1,4 @@
-# 0087: Task-owned Agent catalog model selection
+# 0089: Task-owned Agent catalog model selection
 
 October 31, 2026. Next increment of
 [#208](https://github.com/rgoza1996/Kinaiya/issues/208), following ADRs 0077,
@@ -83,6 +83,23 @@ remain independently operable. Historical recovery retains evidence and source
 floors without borrowing that current default's adapter or disclosure identity.
 
 ## UI and remaining work
+
+### Integration with confirmed native admission
+
+The combined increment preserves [ADR0087](0087-agent-submit-admission.md).
+Fresh primary/auxiliary catalog pins are part of the original frozen proposal;
+an initial task can launch only from its validated native `created` admission
+after fresh authority checks. An exact pending retry retains that proposal,
+without constructing a newer catalog generation. A timeout or retained receipt
+cannot grant a new launch opportunity. Suppressed or losing proposals must
+release only their own unused adapters, with real cleanup ownership retained.
+The admission validator accepts the strict additive catalog binding/revision
+pair while preserving historical missing/null pin representations.
+
+Flutter retains an uncertain submission's exact request and original key for
+reconciliation. A later Send cannot silently assign that same submission a new
+identity after a timeout or HTTP503. These integration requirements need fresh
+combined-head review/CI; the prior independent green runs do not establish it.
 
 Models and Harness Customization use the same source-aware picker for primary
 and auxiliary choices. Saved provider identity is inspectable; exact reference,

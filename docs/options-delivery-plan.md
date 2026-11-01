@@ -17,7 +17,7 @@ corresponding acceptance evidence are present.
 
 | Group | Required outcome | Current delivered foundation / next work |
 | --- | --- | --- |
-| Models, providers, fallback routes | Independent Agent, Converse, Decisions, STT and TTS choices; supported reasoning/input/sampling controls; endpoint/local-model and protected credentials; explicit fallback order with private/cloud disclosure approval. | Agent defaults, exact-harness and five auxiliary text-purpose overrides exist (ADR0077/0082). ADR0086 adds provider/credential-generation catalog forms; ADR0087 applies exact catalog versions through fresh Agent task adapters. Other role editors and ordered failover remain incomplete. Direct audio requires the actual transport and qualification. |
+| Models, providers, fallback routes | Independent Agent, Converse, Decisions, STT and TTS choices; supported reasoning/input/sampling controls; endpoint/local-model and protected credentials; explicit fallback order with private/cloud disclosure approval. | Agent defaults, exact-harness and five auxiliary text-purpose overrides exist (ADR0077/0082). ADR0086 adds provider/credential-generation catalog forms; ADR0089 applies exact catalog versions through fresh Agent task adapters. Other role editors and ordered failover remain incomplete. Direct audio requires the actual transport and qualification. |
 | Precise permissions | Allow/Ask/Deny for reads, writes, commands, network and individual tools; task/session/workspace/default scopes; active grants and approvals; approval behavior separate from actual sandbox access. | Native scoped action approvals exist. ADR0084 adds service-level native file-write/command modes, network and process-local YOLO inspection/editing. Read/per-tool rules and additional scopes remain work; the [proposed permission rollout](options-permission-plan.md) records the native admission, scope and approval-expiry follow-on without claiming implementation. |
 | Workspace and execution | Select/inspect the active root and readable/writable/protected folders; actual isolation state/network; supported execution backend and optional isolated Git worktree. | Native containment/Bubblewrap exist. ADR0084 adds root/restriction/environment inspection and a bounded relative starting directory. Root relocation, alternate backends and coding worktrees remain work. |
 | Tools, skills, MCP, plugins | Individual/group enablement; MCP tool selection; source/version and active status. Distinguish installed, connected, enabled and authorized. | MCP management exists. General native tool selection and a unified skills/plugin inspection/editor remain work. |
@@ -60,6 +60,6 @@ of #208; none of the twelve broad acceptance groups is closed by that increment.
 Check the associated PR for checks actually run and any remaining failures.
 
 Subsequent increments add owner note editing and protected provider catalog
-(ADR0085/0086), then exact Agent catalog selection (ADR0087). ADR0088 addresses
+(ADR0085/0086), then exact Agent catalog selection (ADR0089). ADR0088 addresses
 approval expiry before expanding scoped Ask rules. None closes an acceptance
 group; the remaining obligations stay in the table above.

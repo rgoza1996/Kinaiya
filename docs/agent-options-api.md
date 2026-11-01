@@ -20,6 +20,39 @@ not inference, endpoint readiness, permission expansion or harness promotion.
 
 ## Inspect
 
+### Unconfirmed Agent submissions and task commands
+
+Owner clients retain a submission's original session/thread/epoch, exact body
+and idempotency key after a dispatched timeout or refusal. A non-success status
+alone is not proof that native admission failed. Rechecking sends that same
+strict task body to owner-only `POST /v1/agent/submissions/reconcile`, returning
+HTTP200 for a confirmed task or HTTP503 while unconfirmed. It cannot create a
+proposal, launch inference, publish another transcript entry or assign a new key.
+Positive replies retain historical model pins, independently of current choices.
+Earlier-scope unknowns remain inspectable without blocking a new session.
+
+Task-producing slash commands freeze the derived `TaskRequest`, immutable skill
+target and result metadata before submission. Native command replies may return
+`status:unconfirmed`; clients retain their original command key. A reserved
+command retry only reconciles its original task and cannot create a fresh
+proposal or worker. Unobserved native state stays unknown. Legacy interrupted
+commands without frozen evidence cannot be redispatched by retry.
+
+New task-command validation refusals before submission explicitly return
+`status:error`, the canonical command and `task_rejected_before_submit:true`,
+with a nonempty diagnostic capped at 512 Unicode characters. This proof permits
+retiring that pending UI attempt while preserving its draft. Legacy cached
+errors never gain the marker; an ordinary error status is not failure proof.
+
+At most 128 unresolved task-command intents are retained, with each stored cell
+capped at 69,632 UTF-8 bytes. The exact eventual journal request is preflighted
+against its 65,536-byte native limit before submission. The first positive task
+reply and full command journal body are frozen together; concurrent confirmers
+and lost-ACK retries reuse that exact body. Task-result proof is distinct from
+command-journal confirmation. Generic journal transport keeps its existing
+parsing/cleanup behavior; this increment validates its returned native DTO
+projection without claiming strict original-wire parsing for that older route.
+
 `GET /v1/agent/options` returns `schema_version: "1.0"`, current default provider
 metadata, effective permission flags, maximum task steps, native tool names and
 `models`, `runtime_settings`, and `execution`. Legacy permission flags remain
@@ -78,7 +111,7 @@ must occur in that profile's host-declared options. Null means the profile's
 configured effort. Models and provider addresses cannot be supplied inline.
 Unknown fields, invalid types/IDs and unsupported labels refuse.
 
-### Exact provider catalog selections (ADR0087)
+### Exact provider catalog selections (ADR0089)
 
 The additive `catalog_binding` selects a saved provider generation instead of a
 host profile. For example, an explicit Agent default change uses:
@@ -127,7 +160,7 @@ task. Retired versions remain unavailable until the owner explicitly selects a
 current generation. No automatic fallback occurs. The task model pin adds
 `catalog_binding` and `catalog_revision`; historical Task details expose these
 beside the existing model-settings revision without reconstructing a provider.
-See [ADR0087](adr/0087-agent-catalog-models.md) for admission and actual cleanup.
+See [ADR0089](adr/0089-agent-catalog-models.md) for admission and actual cleanup.
 
 Success returns an exact persisted receipt:
 

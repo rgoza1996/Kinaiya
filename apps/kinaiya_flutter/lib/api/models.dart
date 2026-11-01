@@ -3,6 +3,8 @@
 /// every wire model carries a schema_version == '1.0' check.
 library;
 
+import 'dart:convert';
+
 const String schemaVersion = '1.0';
 
 /// Owner-declared disclosure for this input, independent of provider choice.
@@ -231,6 +233,175 @@ class AgentTask {
             e.objectiveRevision == objectiveRevision,
       ) &&
       !isGroundedSuccess;
+}
+
+/// Frozen owner input. Retrying uses this body, never the current draft/model.
+class AgentSubmission {
+  AgentSubmission({
+    required this.session,
+    required this.text,
+    required this.scope,
+    required this.key,
+    this.command,
+  }) {
+    if (session.channel != 'agent' ||
+        session.sessionId.isEmpty ||
+        session.threadId.isEmpty ||
+        session.epoch < 1 ||
+        text.isEmpty ||
+        text.length > 16000 ||
+        key.isEmpty ||
+        key.length > 256) {
+      throw const FormatException('Invalid Agent submission');
+    }
+    body = Map.unmodifiable({
+      'schema_version': schemaVersion,
+      'session_id': session.sessionId,
+      'thread_id': session.threadId,
+      'epoch': session.epoch,
+      if (command == null) 'objective': text else 'input': text,
+      'content_scope': scope.wireValue,
+      'idempotency_key': key,
+      if (command == null) ...{
+        'source_event_ids': const <String>[],
+        'source_revision': 1,
+      },
+    });
+    if (utf8.encode(jsonEncode(body)).length > 65536) {
+      throw const FormatException('Agent submission exceeds its request bound');
+    }
+  }
+
+  final SessionInfo session;
+  final String text, key;
+  final ContentScope scope;
+  final String? command;
+  late final Map<String, Object?> body;
+
+  bool sameScope(SessionInfo? other) =>
+      other != null &&
+      other.sessionId == session.sessionId &&
+      other.threadId == session.threadId &&
+      other.epoch == session.epoch;
+
+  static const taskStates = {
+    'accepted',
+    'queued',
+    'running',
+    'verifying',
+    'awaiting_approval',
+    'blocked',
+    'succeeded',
+    'failed',
+    'cancel_requested',
+    'cancelled',
+    'paused',
+  };
+
+  static bool validCommandTaskResult(Object? value) {
+    if (value is! Map<String, Object?>) return false;
+    final id = value['accepted_task_id'];
+    return id is String &&
+        id.isNotEmpty &&
+        id.length <= 128 &&
+        !id.contains('\u0000') &&
+        taskStates.contains(value['state']);
+  }
+
+  AgentTask taskReceipt(Map<String, Object?> raw) {
+    // Mutable objective, state and model metadata may legitimately have moved
+    // after steering. The native exact POST validates original logical input;
+    // the returned Task must retain its original immutable submission identity.
+    final revision = raw['objective_revision'], state = raw['state'];
+    final taskId = raw['task_id'];
+    if (raw['schema_version'] != schemaVersion ||
+        raw['session_id'] != session.sessionId ||
+        raw['thread_id'] != session.threadId ||
+        raw['epoch'] is! int ||
+        raw['epoch'] != session.epoch ||
+        raw['idempotency_key'] != key ||
+        taskId is! String ||
+        taskId.isEmpty ||
+        taskId.length > 128 ||
+        revision is! int ||
+        revision < 1 ||
+        revision > 9007199254740991 ||
+        !taskStates.contains(state) ||
+        raw['objective'] is! String ||
+        !ContentScope.values.any(
+          (value) => value.wireValue == raw['content_scope'],
+        ) ||
+        scope.combine(ContentScope.fromWire(raw['content_scope'])) !=
+            ContentScope.fromWire(raw['content_scope'])) {
+      throw const FormatException('Agent submission receipt does not match');
+    }
+    final pin = raw['model_pin'];
+    if (pin != null) _historicalPin(pin);
+    final auxiliary = raw['auxiliary_models'];
+    if (auxiliary != null) {
+      if (auxiliary is! Map<String, Object?> ||
+          auxiliary.length > 5 ||
+          !const {
+            'analysis',
+            'compression',
+            'title_generation',
+            'delegation',
+            'harness_design',
+          }.containsAll(auxiliary.keys)) {
+        throw const FormatException('Invalid recorded auxiliary model pins');
+      }
+      for (final value in auxiliary.values) {
+        _historicalPin(value);
+      }
+    }
+    return AgentTask.fromJson(raw);
+  }
+
+  static void _historicalPin(Object? value) {
+    if (value is! Map<String, Object?> ||
+        value['local'] is! bool ||
+        value['settings_revision'] is! int ||
+        (value['settings_revision'] as int) < 0 ||
+        (value['schema_version'] != null &&
+            value['schema_version'] != schemaVersion) ||
+        (value['reasoning'] != null &&
+            (value['reasoning'] is! String ||
+                (value['reasoning'] as String).length > 16))) {
+      throw const FormatException('Invalid recorded model pin');
+    }
+    for (final field in {
+      'profile_id': 80,
+      'provider': 128,
+      'model': 256,
+    }.entries) {
+      final label = value[field.key];
+      if (label is! String || label.isEmpty || label.length > field.value) {
+        throw const FormatException('Invalid recorded model pin');
+      }
+    }
+    final binding = value['catalog_binding'],
+        revision = value['catalog_revision'];
+    if (binding == null && revision == null) return;
+    if (binding is! Map<String, Object?> ||
+        binding.length != 3 ||
+        binding['id'] != value['profile_id'] ||
+        binding['id'] is! String ||
+        !RegExp(
+          r'^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$',
+        ).hasMatch(binding['id'] as String) ||
+        binding['generation'] is! int ||
+        (binding['generation'] as int) < 1 ||
+        (binding['generation'] as int) > 64 ||
+        binding['configuration_sha256'] is! String ||
+        !RegExp(
+          r'^[a-f0-9]{64}$',
+        ).hasMatch(binding['configuration_sha256'] as String) ||
+        revision is! int ||
+        revision < 0 ||
+        revision > 9007199254740990) {
+      throw const FormatException('Invalid recorded catalog model pin');
+    }
+  }
 }
 
 class Evidence {

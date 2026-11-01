@@ -50,7 +50,8 @@ Hard Deny, containment, protected paths, isolation and disclosure remain ceiling
 
 Expired rows disable Approve and expose Renew request and Deny. New requests
 require separate approval. Unknown renewal attempts retain the exact old-ID/body
-in bounded RAM (at most 64), across views and same-backend/owner reconnects.
+in bounded RAM (at most 64), across views and same-Agent/Session-backend/owner
+reconnects. Changing the independent Converse endpoint preserves these attempts.
 They are not stored in preferences or logs. Late replies cannot affect a
 replacement connection. Missing receipts remain unconfirmed, with exact retry
 and task inspection available.

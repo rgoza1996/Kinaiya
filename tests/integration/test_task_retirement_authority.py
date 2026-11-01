@@ -2,6 +2,7 @@
 
 import asyncio
 import hashlib
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -72,18 +73,43 @@ def receipt(task, **changes):
 
 def seed_native_submit(store, session, task):
     # Explicit native journal fixture representing interrupted execution.
-    return store.append(
+    logical = {
+        "session_id": task.session_id,
+        "thread_id": task.thread_id,
+        "epoch": task.epoch,
+        "objective": task.objective,
+        "source_event_ids": list(task.source_event_ids),
+        "source_revision": task.objective_revision,
+        "content_scope": task.content_scope,
+    }
+    return store.admit_submit(
         AppendRequest(
             session_id=session.session_id,
             thread_id=session.thread_id,
             epoch=session.epoch,
             kind="agent.command",
-            payload={"op": "submit", **task.model_dump(mode="json")},
+            payload={
+                **logical,
+                "task_id": task.task_id,
+                "state": "accepted",
+                "op": "submit",
+                "actor": "owner",
+                "objective_revision": task.objective_revision,
+                "requested_content_scope": task.content_scope,
+                "idempotency_key": task.idempotency_key,
+                "payload_digest": hashlib.sha256(
+                    json.dumps(logical, sort_keys=True, separators=(",", ":")).encode()
+                ).hexdigest(),
+                "harness_version": task.harness_version,
+                "model_pin": task.model_pin.model_dump(mode="json") if task.model_pin else None,
+                "explicit_skill": None,
+                "plugin_versions": {},
+            },
             task_refs=[task.task_id],
-            idempotency_key="synthetic-native-submit",
+            idempotency_key=f"agent:{task.task_id}:agent.command:1",
         ),
         "agent",
-    )
+    ).entry
 
 
 @pytest.fixture

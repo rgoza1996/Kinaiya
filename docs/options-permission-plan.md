@@ -67,6 +67,9 @@ narrow native action-admission boundary while preserving worker ownership:
 - A saved Deny prevents subsequent admissions. Already admitted, queued or
   running work remains visible; saving Deny is not proof of cancellation,
   rollback or absence of remote effects.
+- Rules govern future operation admission. Previously obtained task context
+  remains available under the existing disclosure policy; changing a tool rule
+  does not erase retained context or recall bytes already disclosed.
 - Include effective permission revision/fingerprint in inference, retained
   context, auxiliary dependency and tool-catalog guards. A stale model snapshot
   must not export context or act using revoked authority.
