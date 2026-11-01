@@ -22,6 +22,7 @@ from packages.contracts import (
     models,
     stt_models,
     stt_settlement,
+    task_limits,
     tool_permissions,
     tts_models,
     workspace_settings,
@@ -72,6 +73,9 @@ for name in (
 
 # Owner policy requests are strict frozen models, separate from journal events.
 for cls in (
+    task_limits.TaskLimitsSettings,
+    task_limits.TaskLimitsChange,
+    task_limits.TaskLimitsPin,
     tool_permissions.PermissionScope,
     tool_permissions.ToolPermissionChange,
     tool_permissions.NativePermissionTarget,

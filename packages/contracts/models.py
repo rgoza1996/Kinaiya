@@ -17,6 +17,7 @@ from pydantic import (
 )
 
 from packages.contracts.workspace_settings import WorkspacePin
+from packages.contracts.task_limits import TaskLimitsPin
 
 SCHEMA_VERSION = "1.0"
 ContentScope = Literal["local_only", "public_synthetic", "private_cloud_authorized"]
@@ -263,13 +264,15 @@ class Task(WireModel):
     model_pin: AgentModelPin | None = None
     auxiliary_models: dict[AuxiliaryTask, AgentModelPin] = Field(default_factory=dict, max_length=5)
     workspace_pin: WorkspacePin | None = None
+    limits_pin: TaskLimitsPin | None = None
     error: str | None = None
 
     @model_serializer(mode="wrap")
     def preserve_historical_workspace_shape(self, handler):
         result = handler(self)
-        if "workspace_pin" not in self.model_fields_set:
-            result.pop("workspace_pin", None)
+        for name in ("workspace_pin", "limits_pin"):
+            if name not in self.model_fields_set:
+                result.pop(name, None)
         return result
 
 

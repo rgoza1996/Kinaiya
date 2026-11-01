@@ -342,7 +342,7 @@ def _validate_payload(
         if type(key) is not str:
             raise ValueError(error) from None
     keys = set(payload.keys())
-    if not keys.issubset(_CURRENT_PAYLOAD_KEYS | {"auxiliary_models", "workspace_pin"}):
+    if not keys.issubset(_CURRENT_PAYLOAD_KEYS | {"auxiliary_models", "workspace_pin", "limits_pin"}):
         raise ValueError(error) from None
     missing = _CURRENT_PAYLOAD_KEYS - keys
     is_pre_scope = False
@@ -421,6 +421,19 @@ def _validate_payload(
             raise ValueError(error) from None
         if checked_pin != raw_pin:
             raise ValueError(error) from None
+    if "limits_pin" in payload and payload["limits_pin"] is not None:
+        from packages.contracts.task_limits import TaskLimitsPin
+
+        raw_pin = payload["limits_pin"]
+        if type(raw_pin) is not dict or set(raw_pin) != set(TaskLimitsPin.model_fields):
+            raise ValueError(error) from None
+        try:
+            TaskLimitsPin.model_validate(raw_pin, strict=True)
+        except ValueError:
+            raise ValueError(error) from None
+        # Server admission metadata does not enter the logical request digest.
+        # Validate in place without filling defaults, changing representation,
+        # or assigning today's authority to an old absent/null submission.
     if "explicit_skill" in payload:
         skill = payload["explicit_skill"]
         if skill is not None:
