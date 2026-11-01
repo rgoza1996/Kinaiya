@@ -320,6 +320,8 @@ class _Record:
     native_task_identity: AgentTaskIdentity | None = None
     steer_attempt: _SteerAttempt | None = None
     workspace_context: Any | None = None
+    # A later adapter close cannot confirm an earlier failed request cleanup.
+    _cleanup_uncertain: bool = False
 
 
 @dataclass
@@ -3605,6 +3607,7 @@ class AgentRuntime:
                 await check()
                 return text
         except ProviderCleanupError:
+            rec._cleanup_uncertain = True
             # Unconfirmed owned cleanup cannot authorize another request,
             # including when steering happened at the same time.
             raise
@@ -3614,7 +3617,11 @@ class AgentRuntime:
             raise
         finally:
             if prepared is not None:
-                prepared.discard()
+                try:
+                    prepared.discard()
+                except ProviderCleanupError:
+                    rec._cleanup_uncertain = True
+                    raise
 
     async def _run(self, rec: _Record) -> None:
         if rec.task.state == TaskState.ACCEPTED:
@@ -3671,6 +3678,8 @@ class AgentRuntime:
                     await self._fail(rec, f"provider error: {exc}", decode_error=exc)
                     return
                 except Exception as exc:  # provider failure is terminal, honest
+                    if isinstance(exc, ProviderCleanupError):
+                        rec._cleanup_uncertain = True
                     await self._fail(rec, f"provider error: {exc}")
                     return
                 if rec.cancel_requested or rec.closing:
@@ -3705,6 +3714,8 @@ class AgentRuntime:
             else:
                 await self._cancel(rec)
         except Exception as exc:  # never leave waiters hanging
+            if isinstance(exc, ProviderCleanupError):
+                rec._cleanup_uncertain = True
             if rec.completion_pending:
                 self._pause_completion(rec)
             elif rec.closing:
@@ -3714,22 +3725,38 @@ class AgentRuntime:
             else:
                 await self._fail(rec, f"runtime error: {exc}")
         finally:
+            model_closed = rec.model_lease is None
             try:
                 await self._release_task_resources(rec)
+            except BaseException:
+                rec._cleanup_uncertain = True
+                raise
             finally:
                 if rec.model_lease is not None:
                     try:
                         await rec.model_lease.close()
                     except ProviderCleanupError:
+                        rec._cleanup_uncertain = True
                         # Work evidence is not rewritten by unconfirmed close.
                         # The native lease remains busy and retains capacity.
                         pass
+                    except BaseException:
+                        rec._cleanup_uncertain = True
+                        raise
+                    else:
+                        model_closed = True
+            if model_closed and not rec._cleanup_uncertain:
+                await self._notify_task_resources(rec)
 
     async def _release_task_resources(self, rec):
         if self.skill_service is not None:
             await self.skill_service.release_task(rec.task.task_id)
         if self.plugin_service is not None:
             await self.plugin_service.release_task(rec.task.task_id)
+
+    async def _notify_task_resources(self, rec):
+        # Terminal work evidence precedes cleanup. Restoration also requires
+        # the exact task's owned model close to have positively returned.
         if self.resource_client is not None and rec.task.state in TERMINAL and not rec.closing:
             try:
                 await self.resource_client.task_finished(rec.task.task_id)
