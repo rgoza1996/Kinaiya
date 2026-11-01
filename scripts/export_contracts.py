@@ -23,6 +23,7 @@ from packages.contracts import (
     stt_models,
     stt_settlement,
     tool_permissions,
+    tts_models,
     workspace_settings,
 )
 
@@ -90,6 +91,10 @@ for cls in (
     stt_models.STTModelSelection,
     stt_models.STTModelChange,
     models.STTModelPin,
+    tts_models.TTSModelSelection,
+    tts_models.TTSModelChange,
+    tts_models.TTSModelPin,
+    tts_models.TTSSynthesisAdmission,
     stt_settlement.STTWorkerReservation,
     stt_settlement.STTWorkerOperation,
     stt_settlement.STTWorkerProof,

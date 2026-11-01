@@ -3,6 +3,7 @@
 import hashlib
 import json
 import re
+import sqlite3
 import unicodedata
 from dataclasses import dataclass
 
@@ -178,10 +179,26 @@ def setup_state(runtime, host=None):
         except (ValueError, RuntimeError, OSError):
             stt = _role(source="runtime")
             stt.reason = "Selected STT is unavailable. Inspect Audio options."
+    tts = host.tts if host else _role()
+    if getattr(runtime, "_tts_options_configured", False):
+        try:
+            owner = runtime.tts_model_settings
+            if owner is None or runtime._tts_options_unavailable:
+                raise ValueError("TTS selection unavailable")
+            tts_info = owner.selected_info()
+            tts = (
+                _role(source="runtime")
+                if tts_info is None
+                else _role(tts_info.provider, tts_info.model, source="runtime")
+            )
+            tts.reason = "Selected through Audio options; identity or readiness may be unknown."
+        except (ValueError, RuntimeError, OSError, sqlite3.Error):
+            tts = _role(source="runtime")
+            tts.reason = "Selected TTS is unavailable. Inspect Audio options."
     roles = SetupRoles(
         conversation=conversation,
         stt=stt,
-        tts=host.tts if host else _role(),
+        tts=tts,
         decisions=host.decisions if host else _role(),
     )
     inputs = SetupInputs(supported=["text"], selected=["text"])
