@@ -65,7 +65,10 @@ own protected database identity and writer generation, preserves legacy runtime
 to their private owner/backend. Model/runtime requests share a bounded pool of
 32 actual transport owners. Verification includes 153 native author checks,
 41 unchanged independent native regressions, 929 full Flutter tests and 42
-independent focused client cases. Real Dart/native HTTP checks cover restart,
+independent focused client cases. These checks and the three-phase HTTP check
+passed again after integrating catalog-model main `4ecb6d4`; all 309 existing
+main test/support paths remained byte-exact. Three additional catalog-cleanup
+integration cases and 98 relevant regressions passed. Real Dart/native HTTP checks cover restart,
 historical YOLO, and replacement database conflicts without inference; all owned
 fixtures exited cleanly. Independent source review found no actionable finding
 within this scope. [Evidence](../evaluation/evidence/execution-settings-authority-2026-10-31.json)

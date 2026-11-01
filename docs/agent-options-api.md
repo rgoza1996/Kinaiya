@@ -337,7 +337,7 @@ service `instance_id`, `source` (`host_configuration` or `owner_saved`), actual
 `yolo_scope: "service_instance"`, `effective_write`, `effective_shell`, `busy`,
 `change_boundary: "settled_service"` and `execution` metadata.
 
-[ADR0089](adr/0090-bound-execution-settings-writes.md) defines additive runtime
+[ADR0090](adr/0090-bound-execution-settings-writes.md) defines additive runtime
 `write_authority`: `mutation_version: "1.1"`, a durable 32-hex `backend_id`, the
 existing 36-character UUID `instance_id`, and strict boolean `writable`.
 This belongs to the runtime-settings store, independently of model settings.

@@ -82,7 +82,7 @@ inspection and execution-settings responses use `Cache-Control: no-store`.
 
 ## App behavior and remaining gates
 
-The following describes the original increment. [ADR0089](0089-bound-execution-settings-writes.md)
+The following describes the original increment. [ADR0090](0090-bound-execution-settings-writes.md)
 specifies its replacement for owner/backend-scoped pending recovery, durable
 writer fencing and actual shared transport ownership; consult its PR evidence
 for the later implementation and verification status.

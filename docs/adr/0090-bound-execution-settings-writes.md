@@ -1,4 +1,4 @@
-# 0089: Owner-bound execution settings recovery
+# 0090: Owner-bound execution settings recovery
 
 Requirement: [#213](https://github.com/rgoza1996/Kinaiya/issues/213), a reliability
 repair within the full Options goal [#208](https://github.com/rgoza1996/Kinaiya/issues/208).
@@ -104,13 +104,21 @@ The frozen independent API/SQLite suite recorded 12 passing controls and 29
 failures on the original source: nine existing defects and 20 missing new
 capabilities. All 41 cases then passed unchanged on the integrated native patch.
 Native author checks passed 153 cases; full Flutter passed 929, and independent
-client execution passed 42 focused cases. Existing tests remained byte-exact.
+client execution passed 42 focused cases. After integrating the catalog-model
+work from main `4ecb6d42474d7e1c6579f62ad5d7819181c56e7f`, all 41 independent
+native and 42 focused client cases passed again, as did all 929 Flutter tests,
+full analysis/formatting and schema export. All 309 test/support paths already
+on that main remained byte-exact. Three additional integration cases exercise
+actual model-lease cleanup ownership: pending/failed cleanup blocks a new save,
+historical replay does not reapply, and settled cleanup permits the original
+state/body to become eligible again. These and 98 relevant regressions passed.
 
 Actual Dart/native HTTP checks passed save, same-database process restart and
 replacement at the same URL. Historical requested YOLO did not reapply after
 restart; foreign write and lookup returned actual HTTP 409. Read-only SQL found
 one original receipt and zero replacement receipts. All three owned fixture
-processes exited zero with observed zero model calls. These are synthetic
+processes exited zero with observed zero model calls. The three-phase check also
+passed again on the combined catalog/execution source. These are synthetic
 protocol checks, not human voice or physical-device qualification. All five
 exact-final-head CI jobs are a merge gate; their observed results belong in the PR.
 
