@@ -616,12 +616,12 @@ existing 25-second total/five-second ingress bounds. Shutdown fences admission
 before joining actual operations and retiring collaborators.
 
 This is **native Session testimony**, not a physical Resources certificate.
-The actual Resources controller has not yet implemented prework binding RPC,
-capture sealing/drainage, durable lease acquisition/restoration witnesses or
-production of these reports. Agent supervisor retirement, positive settlement,
-active-slot release, recurrence, inbox and editor remain required. In
-particular, `no-reservation` in a parsed packet cannot establish that no actual
-operation acquired resources, and no claim/reservation is released here.
+The Resources binding and operation barrier described below consume this
+testimony. Durable lease acquisition/restoration witnesses and production of
+physical reports remain unfinished. Agent supervisor retirement, positive
+settlement, active-slot release, recurrence, inbox and editor remain required.
+In particular, `no-reservation` in a parsed packet cannot establish that no
+actual operation acquired resources, and no claim/reservation is released here.
 
 The [finalization evidence](../evaluation/evidence/standing-resource-finalization-2026-11-01.json)
 records independent contracts/client/native oracles, original source failures,
@@ -642,6 +642,85 @@ recorded. No two-second wait or cleanup assertion was relaxed. One unprofiled
 case reached close in 0.758 seconds versus 1.609 seconds on the baseline; that
 single comparison does not establish an aggregate latency distribution or a
 physical Resources certificate.
+
+## Resources prework binding and operation barrier
+
+The integration branch adds four Agent-only Resources routes. They use existing
+complete packets; the client cannot choose a Resources backend or controller.
+
+| Resources POST route | Input | Request → response byte caps |
+|---|---|---|
+| `/v1/resources/standing/binding` | `StandingExecutionClaim` | 147456 → 180224 |
+| `/v1/resources/standing/binding/lookup` | `StandingExecutionClaim` | 147456 → 180224 or null |
+| `/v1/resources/standing/seal` | `StandingResourceFinalizeRequest` | 147456 → 786432 |
+| `/v1/resources/standing/seal/lookup` | `StandingResourceFinalizeRequest` | 147456 → 786432 or null |
+
+The fixed loopback `StandingResourceClient` uses the configured Agent credential.
+Resources calls Session with its own Resources credential. The executor secret
+remains exclusive to Agent-to-Session admission; neither owner credentials nor
+incoming authorization are forwarded. Authentication precedes body access.
+The routes require identity-encoded UTF-8 JSON, reject query parameters and the
+private capability header, and retain the five-second ingress and 25-second
+total bounds. Success and fixed errors carry `Cache-Control: no-store`.
+
+A new standing Agent launch first obtains the genuine prepared claim, binds it
+through Resources, and validates the complete receipt before selecting a model
+or admitting a Task. It rechecks the original runtime, gateway, workspace,
+session and model authority across awaits. Missing or unhealthy Resources
+refuses a new standing launch. Ordinary direct Agent work stays independent;
+an already-admitted Task remains a read-only historical lookup without model
+allocation or a replacement worker.
+
+Resources stores at most 10,000 complete claim records in an explicitly added
+table on the existing protected action ledger. Schema, file identity, types,
+byte bounds and canonical joins are checked without prebuffering arbitrary
+ledger rows. Pending binding is durable before the native write. Lost
+acknowledgment requires exact lookup; it cannot trigger automatic rebinding or
+eviction. Historical receipts survive controller restart but cannot authorize a
+fresh launch. A completed or fenced seal likewise prevents a fresh binding.
+
+Sealing first obtains genuine native admission-closure context outside the
+controller lock. It then synchronously fences the bound Task and suppresses
+later effect phases before awaiting persistence. All Task capture and
+preemption guards observe that fence. A successful seal requires relevant
+original operation owners to settle, followed by another genuine native-context
+read and an exact durable context join. Pending or uncertain ownership refuses
+success; failed persistence never reopens the Task. An exact healthy retry can
+finish drainage; changed keys or bodies cannot rewrite the seal.
+
+All four routes and Task-bound captures share one 64-operation admission pool.
+New routes reserve admission before reading their bodies. The older owner
+`/v1/resources/actions` route retains its existing parsing: its Task-bound
+handoffs join that same pool at capture creation, before native work or effects.
+Independent owner Off and inspection remain available during saturation.
+
+Ownership covers original capture tasks, database threads, HTTP acquisition,
+raw reads and sole response close, control calls, worker spawn/reaper and
+registered broker/endpoint cleanup. Facade cancellation, an empty attempts map,
+a missing PID or a null lease cannot retire those owners. Shutdown fences
+admission and retains an actual close owner before retiring dependent clients,
+the manager or ledger; manager cleanup/retry remains independent of a failed
+proof. Cancelled or failed original close remains sticky. Intentional guard
+suppression must be distinguished from an actual cleanup failure without
+clearing any original failure.
+
+The original shutdown result remains observable to callers already joining it.
+A later close may acknowledge retirement idempotently only after the original
+owner and its actual manager, client and storage cleanup have positively
+settled. That acknowledgment preserves failed state and capability uncertainty;
+it is not a successful seal or physical cleanup report. A controller's closed
+flag or a bounded client-close return alone cannot establish retirement.
+
+This barrier returns drained **native context**, not an acquisition/restoration
+report, settlement, reservation release or claim release. The final integrated
+source at `e70a6e6` passed 180 cases covering the barrier, launch/replay guards,
+client ownership, repeat-close controls and existing shutdown regressions.
+[Source-bound evidence](../evaluation/evidence/standing-resource-barrier-2026-11-01.json)
+preserves the earlier failures, independently frozen cases, reviewed fixture
+corrections, cleanup and source equivalences. Other qualification groups overlap
+and must not be added to these 180 cases. Draft PR #259 still requires exact-head
+full-project CI and the remaining physical/settlement chain; this does not
+complete #239, M7 or the roadmap.
 
 ## Native dispatch gate
 

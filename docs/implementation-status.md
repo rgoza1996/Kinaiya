@@ -392,6 +392,21 @@ validation and cleanup assertions remain required; the original failures remain
 preserved. The actual Resources report producer, durable physical witnesses and
 standing-work settlement chain are still unfinished.
 
+The draft integration now includes the actual [Resources binding and operation
+barrier](standing-work-api.md#resources-prework-binding-and-operation-barrier):
+Agent obtains a genuine prepared claim and Resources binding before new model
+allocation/admission, while Resources fences matching captures and retains their
+original HTTP/native/process cleanup owners. Historical bindings remain readable
+but cannot permit a new launch after restart or sealing. The final integrated
+180-case group passed at `e70a6e6`; the
+[verification record](../evaluation/evidence/standing-resource-barrier-2026-11-01.json)
+preserves original failures, strict-protocol fixture changes, independent review
+and overlapping qualification groups. A genuine repeated-shutdown regression is
+repaired without treating closed flags as cleanup proof. Exact-head full-project
+CI is still required in draft [PR #259](https://github.com/rgoza1996/Kinaiya/pull/259).
+Drained native context still supplies no physical report, settlement or
+claim/reservation release, and the remaining standing-work chain is unchanged.
+
 ## Initial Agent submission durability
 
 The bounded [#199](https://github.com/rgoza1996/Kinaiya/issues/199) implementation
