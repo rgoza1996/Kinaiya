@@ -62,7 +62,7 @@ Kinaiya pairs a personable, real-time voice experience with an agent that can do
 
 The long-term product scope also includes resource-aware operation, provider choice, durable work, skills and MCP tools, mobile calling, and optional intelligent UI. Those are planned capabilities, not promises that every feature will ship in one release.
 
-The [Roadmap 0.3.1](Roadmap.md) retains the October 30 reconciliation and adds the October 31 clarification on model choice, stack recommendations and architectural performance research. The [implementation and acceptance ledger](docs/implementation-status.md) distinguishes implemented slices, experiments, unverified gates and planned work at source `f92f6d1`; it is the consolidated progress record. Partial resource/ecosystem/mobile foundations do not establish completion of the full product scope above.
+The [Roadmap 0.3.1](Roadmap.md) retains the October 30 reconciliation and adds the October 31 clarification on model choice, stack recommendations and architectural performance research. The [implementation and acceptance ledger](docs/implementation-status.md) retains a historical runtime cutoff at source `f92f6d1` and separately records later bounded increments; read those addenda and their ADRs for subsequent changes, not as a freshly requalified full-product snapshot. Partial resource/ecosystem/mobile foundations do not establish completion of the full product scope above.
 
 
 ## Status
@@ -99,9 +99,17 @@ See [Roadmap.md](./Roadmap.md) for architecture, milestones, acceptance criteria
 
 ## Run the host
 
-Use Python 3.11+ in a virtual environment:
+Use a Linux host with Python 3.11+ and its matching `venv` module installed.
+Sandboxed Agent commands also require `bubblewrap` and `libseccomp2`; CI verifies
+these on Ubuntu 22.04. On Debian/Ubuntu, install the sandbox prerequisites, then
+create the environment with your Python 3.11+ interpreter (`python3` below):
 
 ```bash
+sudo apt-get update
+sudo apt-get install -y bubblewrap libseccomp2
+python3 --version  # Must be 3.11 or newer; use your versioned interpreter if needed.
+python3 -m venv .venv
+source .venv/bin/activate
 python -m pip install -r requirements-dev.lock
 python -m pip install --no-deps -e .
 kinaiya init
@@ -395,9 +403,24 @@ Kinaiya combines discrete-state coordination, cryptographic integrity, budget-co
 
 ### 1. Decisions: risk-aware conversational routing
 
-**Status:** A four-way asynchronous classifier and routing worker exist; calibrated probabilistic decision theory is proposed.
+**Status:** Finalized-message routing and two-axis live-window routing are implemented experimentally; calibrated probabilistic decision theory is proposed.
 
-Decisions chooses among ignore, queue, steer, and interrupt. A possible risk-sensitive decision rule is:
+The finalized-message classifier chooses among ignore, queue, steer, and interrupt.
+Live windows instead produce separate conversation-timing and Agent-routing labels:
+
+$$
+(c_t,a_t)\in\mathcal C_{\mathrm{live}}\times\mathcal A_{\mathrm{live}}.
+$$
+
+- Conversation: `IGNORE`, `WAIT_FOR_NEXT_WINDOW`, `RESPOND_INTERRUPT_USER`, or `RESPOND_WITHOUT_INTERRUPTING_USER`.
+- Agent: `IGNORE_FOR_IMMEDIATE_ROUTING`, `STEER_CURRENT_TASK`, `INTERRUPT_CURRENT_TASK`, or `QUEUE_UNTIL_TASK_DONE`.
+
+Two outputs do not imply statistical independence. A classification neither grants
+permission nor proves execution or completion. Recorded application requires a
+matching native acknowledgment; an acknowledgment timeout can leave the outcome
+unknown rather than rejected.
+
+For the finalized-message labels, a possible risk-sensitive decision rule is:
 
 $$
 \mathcal{A}=\{\mathrm{ignore},\mathrm{queue},\mathrm{steer},\mathrm{interrupt}\},
@@ -408,13 +431,32 @@ $$
 
 Here $x_t$ is the current message, $H_t$ is relevant conversation history, $z_t$ is task state, and $L(a,y)$ penalizes choosing route $a$ when the appropriate route is $y$. Missing a cancellation may deserve a larger penalty than an unnecessary interruption. **This loss-based decision rule is a proposed formulation**, not a claim about the current classifier or calibration; model confidence is not automatically a probability. Routing never grants tool permissions.
 
-[Decisions runtime](services/decisions/runtime.py) · [Routing design](Roadmap.md#6-asynchronous-decisions)
+[Decisions runtime](services/decisions/runtime.py) · [Live-window routing](services/decisions/window_routing.py) · [Routing design](Roadmap.md#6-asynchronous-decisions)
 
 ### 2. Shared transcript: context selection under a token budget
 
-**Status:** The persistent journal and bounded retrieval exist; optimized snippet selection is proposed for the first self-building harness experiment.
+**Status:** Persistent retrieval and complete-request token admission are implemented experimentally; utility-optimized snippet selection remains research.
 
-Selecting relevant snippets can be modeled as a 0–1 knapsack problem:
+The measured admission constraint uses the complete formatted prompt $P_k$, the
+reserved output $R$, and the selected model's context capacity $W$:
+
+$$
+T_{\mathrm{native}}(P_k)+R\le W,
+\qquad h=W-T_{\mathrm{native}}(P_k)-R\ge0.
+$$
+
+The count binds to the exact request and model configuration. Converse drops
+whole oldest messages; Agent drops whole oldest action/result exchanges while
+protecting the newest exchange, trusted instructions and current objective.
+Required counting failures, stale bindings and protected overflow refuse measured
+admission rather than invent token estimates. Optional selected memory recall has
+its own omission path when counting or context capacity is unavailable.
+
+For recorded selection observations,
+$N_{\mathrm{kept}}+N_{\mathrm{dropped}}=N_{\mathrm{examined}}$; examined history is
+not necessarily the entire transcript. This chronological policy does not solve
+an optimization problem. As a separate **research formulation**, selecting useful
+snippets can be modeled as a 0–1 knapsack problem:
 
 $$
 \begin{aligned}
@@ -425,7 +467,7 @@ $$
 
 $v_i$ is a snippet's estimated utility, $c_i$ its token cost, $B$ the token budget, and $s_i$ whether to include it. This **illustrates the planned context-selection experiment**; the existing journal enforces limits and retrieval filters but does not solve this optimization problem.
 
-[Journal implementation](services/session/store.py) · [Harness experiment](Roadmap.md#123-first-executable-experiment)
+[Journal implementation](services/session/store.py) · [Exact prompt measurement](packages/providers/prompt_budget.py) · [Converse budget](services/converse/context_budget.py) · [Agent budget](services/agent/history_budget.py) · [Harness experiment](Roadmap.md#123-first-executable-experiment)
 
 ### 3. Event consistency: ordering, revisions, and authorization
 
@@ -437,13 +479,32 @@ $$
 s_{i+1}>s_i,\qquad c_{t+1}\ge c_t,\qquad r_{\mathrm{new}}=r_{\mathrm{old}}+1.
 $$
 
-An action-specific approval is tied to the canonicalized tool name, arguments, and objective revision:
+An action-specific approval is tied to the tool name, normalized arguments, and
+objective revision, serialized as canonical JSON (the wire digest has a `sha256:` prefix):
 
 $$
-h=\mathrm{SHA256}(\mathrm{CanonicalJSON}(a,\theta_a,r)).
+h=\mathrm{SHA256}(\mathrm{CanonicalJSON}(a,\mathrm{Normalize}(\theta_a),r)).
 $$
 
-The supervisor accepts it only when its digest and revision match, it has not expired, and it has not been consumed. Hashing helps bind authorization to a particular action; **it does not by itself authorize the action or make the system infallible**.
+A necessary permit predicate is:
+
+$$
+\begin{aligned}
+\mathrm{Usable}(p,a,r,t)\iff{}&p.h=h(a,r)\land p.r=r\\
+&\land\neg p.\mathrm{used}\land p.\mathrm{retired}=\varnothing\\
+&\land t_{\mathrm{wall}}<p.e_{\mathrm{wall}}\\
+&\land(p.e_{\mathrm{mono}}=\varnothing\lor t_{\mathrm{mono}}<p.e_{\mathrm{mono}}).
+\end{aligned}
+$$
+
+The monotonic deadline applies when present. This predicate is **not sufficient
+authorization**: the supervisor also rechecks native task/source currentness,
+applicable permissions, action arguments and tool availability before effects.
+Owner review and final one-use consumption are separate. Renewal creates a new,
+unapproved permit rather than restoring the old approval; revocation retires the
+permit. An uncertain journal acknowledgment does not undo native broker state or
+prove a third-party effect failed. Hashing binds an action; it neither grants
+permission nor establishes exactly-once external effects.
 
 [Journal implementation](services/session/store.py) · [Policy and approvals](core/policy/__init__.py)
 
@@ -468,7 +529,20 @@ $$
 
 The [Meta pricing page](https://dev.meta.ai/docs/pricing-rate-limits) was verified on October 31, 2026. These calculations remain estimates, **not provider invoices**. Hosted text tools with additional fees are refused; Muse's local function tools remain available, including bounded namespace groups emitted by the CLI. The validator examines tool declarations without interpreting function parameter schemas as tools. No cache discount is assumed before a response reports it. Optional single-image SAM/Muse Image smoke routes have a separate $0.10 sublimit and are disabled by default; see [bounded testing and accounting](docs/meta-budget-tests.md).
 
-[Budget proxy](scripts/muse_budget_proxy.py)
+The separate OpenRouter TTS ledger conservatively bounds admitted UTF-8 bytes,
+not provider-reported character billing:
+
+$$
+\widehat C_{\mathrm{TTS}}=
+\frac{0.62}{10^6}\left(\sum_j b_j+b_{\mathrm{next}}\right)\le L,
+\qquad b_j=|\mathrm{UTF8}(\mathrm{text}_j)|.
+$$
+
+Here $L$ is its configured owner limit. Cancelled and uncertain admitted calls stay
+charged in this ledger; the rate is an implementation constant, not a fresh pricing
+verification. This is independent of the Meta development proxy above.
+
+[Budget proxy](scripts/muse_budget_proxy.py) · [OpenRouter speech ledger](packages/providers/openrouter_budget.py)
 
 ### 5. Streaming conversation: latency and real-time factor
 
@@ -495,6 +569,10 @@ $$
 
 RTF below 1 means synthesis is faster than audio duration. The roadmap proposes warm audible TTS onset below **250 ms median / 500 ms p95**, end-of-speech to audible reply below **1 s median / 2 s p95**, and sustained **RTF < 1** (stretch **RTF < 0.3**). These are **unverified reference-profile targets**, not achieved measurements. Overlapping stages still incur buffering, contention, and scheduling overhead.
 
+First PCM availability, first non-silent audio frame, and physically audible onset
+are distinct measurements. Transport and playback buffering separate these events;
+a fast first chunk alone does not demonstrate the audible-onset target.
+
 [Converse runtime](services/converse/runtime.py) · [Measurement plan](Roadmap.md#252-voice-measurements)
 
 ### 6. Local inference: GPU resource admission
@@ -502,7 +580,20 @@ RTF below 1 means synthesis is faster than audio duration. The roadmap proposes 
 **Status:** Explicit CPU voice/AMD Laya handoffs and measured headroom checks exist.
 The general scheduling formulation below remains proposed.
 
-Before loading several local workers, a resource manager could enforce a capacity constraint:
+The implemented resource handoff checks measured available capacity after verified
+worker release against the request's RAM requirement and, when requested, GPU
+requirement:
+
+$$
+A_{\mathrm{RAM,after}}\ge R_{\mathrm{RAM}},\qquad
+A_{\mathrm{GPU,after}}\ge R_{\mathrm{GPU}}.
+$$
+
+Unknown required telemetry refuses admission. These checks do not establish a
+general scheduler or combined 8 GB voice-profile qualification.
+
+Separately, before loading several local workers, a resource manager could enforce
+a proposed component-accounting constraint:
 
 $$
 M_{\mathrm{weights}}+M_{\mathrm{KV}}+M_{\mathrm{buffers}}+
@@ -511,7 +602,7 @@ $$
 
 This is a first-order memory-accounting model, not a complete measure of feasibility: latency contention, fragmented/reserved allocations, and unloading behavior also matter. The intended policies allow queueing, deliberate worker handoff, or **user-authorized** cloud inference—not silent cloud fallback.
 
-[Resource policy and handoff](Roadmap.md#14-inference-providers-and-resource-management)
+[Resource coordinator](services/resources/coordinator.py) · [Resource policy and handoff](Roadmap.md#14-inference-providers-and-resource-management)
 
 ### 7. Self-building harnesses: controlled optimization and evaluation
 
@@ -550,6 +641,83 @@ These are **proposed evaluation formulations**, not a shipped optimization algor
 
 [Seed harness](harnesses/seed/__init__.py) · [Evaluation and promotion policy](Roadmap.md#12-harness-evaluation-and-promotion) · [Research measurements](Roadmap.md#254-harness-measurements)
 
+
+### 8. Converse memory: bounded dependency graphs
+
+**Status:** An opt-in, owner-curated memory DAG and selected local recall are
+implemented experimentally. Automatic extraction and relevance optimization remain
+unfinished; Agent and Decisions do not use this graph.
+
+For an edge from parent $u$ to child $v$, increasing creation ordinals enforce
+acyclicity:
+
+$$
+(u,v)\in E\Rightarrow o(u)<o(v),\qquad
+ d(v)=1+\max_{u\in\mathrm{parents}(v)}d(u)\le16.
+$$
+
+The empty-parent maximum is zero. Each namespace is bounded to 256 nodes and
+2,048 edges, with at most eight parents per node. Selected retrieval includes the
+complete ancestor closure:
+
+$$
+Q(S)=S\cup\mathrm{Ancestors}(S),\qquad |Q(S)|\le64.
+$$
+
+The complete serialized result must also fit 16 KiB; excessive results refuse
+rather than truncate dependencies. When sources change, invalidation propagates
+through descendants. Forgetting redacts the dependent closure. Exact typed
+contradiction checks, source ordering and these graph constraints establish
+provenance/eligibility, **not that a stored claim is true**. Namespace retention
+and restart-off runtime use remain separate controls; recall also requires exact
+prompt admission from section 2.
+
+[Memory store](services/session/memory.py) · [Memory design](docs/adr/0047-converse-memory-core.md) · [Selected recall](docs/adr/0051-converse-selected-recall.md)
+
+### 9. Native work admission, permission precedence, and disclosure
+
+**Status:** Off/on-demand admission, native-operation permission rules and typed
+disclosure scopes are implemented. These are independent authority checks, not a
+single model-generated score.
+
+$$
+\mathrm{NewWorkAccepted}(q)\Rightarrow
+\mathrm{ModeAtAcceptance}\ne\mathrm{Off}.
+$$
+
+Off refuses new tasks and steering but does not revoke already accepted work.
+Exact historical replay can return acceptance proof while Off without authorizing
+a new execution. Stop, approvals and inspection remain available; autonomous mode
+is unavailable pending a standing-work producer.
+
+For native-operation permission rules, a host hard-deny wins. Otherwise the first
+defined matching rule is selected in task → session → workspace → default order,
+with host policy as fallback. This precedence is not a blanket rule for every
+separately scoped target policy, and an Allow cannot bypass source review or other
+native authorization fences.
+
+Content composition takes the most restrictive disclosure scope:
+
+$$
+\sigma_{\mathrm{combined}}=\max_{\preceq}\{\sigma_i\},\qquad
+\mathrm{public\_synthetic}\prec
+\mathrm{private\_cloud\_authorized}\prec\mathrm{local\_only}.
+$$
+
+Missing or invalid scopes remain local-only. Contributor accepts public/synthetic
+input only; other remote profiles may also accept explicitly private-cloud-authorized
+content. Routing, token fit, operating mode and tool approval do not grant cloud
+disclosure or change captured input scopes.
+
+[Native mode authority](services/session/agent_control.py) · [Admission semantics](docs/adr/0105-agent-operating-modes.md) · [Scoped rules](services/agent/tool_permissions.py) · [Disclosure policy](packages/providers/disclosure.py)
+
+## Repository maintenance
+
+Dated branch audits live under `docs/audits/`, not in the product status or
+mathematics sections. See the [November 1 branch audit](docs/audits/2026-11-01-branches.md)
+for the pinned inventory, merge evidence, cleanup candidates and preserved work.
+An audit is a historical snapshot, not authorization to delete a branch; recheck
+current tips and open PRs before cleanup.
 
 ## Hackathon target
 
