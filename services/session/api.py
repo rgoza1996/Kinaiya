@@ -41,9 +41,12 @@ from packages.contracts.interfaces import (
     AgentModeOff,
 )
 from packages.contracts.models import AppendRequest, PlaybackGeneration, SessionRequest
+from packages.contracts.standing_work import StandingUnavailable
 from packages.contracts.stt_settlement import STTPublication
 from services.common.auth import Auth
 from services.session.agent_control import AgentControl
+from services.session.standing_work import StandingOwner
+from services.session.standing_work_api import install_standing_owner_routes
 from services.session.store import JournalError, Store
 
 
@@ -54,6 +57,7 @@ def create_app(
     companion_clock=None,
     converse_memory: bool = False,
     agent_enabled: bool | None = None,
+    standing_clock=None,
 ) -> FastAPI:
     if auth is None or not hasattr(auth, "require"):
         raise RuntimeError("Session control requires configured authentication")
@@ -68,24 +72,62 @@ def create_app(
     except AgentControlUnavailable:
         control_ready = False
 
+    standing_owner = StandingOwner(store, control, clock=standing_clock)
+    standing_initialized = False
+    if control_ready:
+        try:
+            standing_owner.register()
+            standing_initialized = True
+        except StandingUnavailable:
+            # The independently registered mode controller remains usable.
+            # Standing reads/writes fail closed rather than repairing state.
+            pass
+    standing_operations = None
+
     @asynccontextmanager
     async def lifespan(_app):
         try:
             yield
         finally:
+            shutdown = asyncio.create_task(standing_operations.close())
+            interrupted = False
             try:
-                control.close()
-            except AgentControlUnavailable:
-                # A poisoned connection has already failed closed. Shutdown
-                # cannot confirm retirement or repair it, and must still end.
-                app.state.agent_control_shutdown_unconfirmed = True
-                logging.getLogger(__name__).warning(
-                    "Agent control shutdown could not confirm native generation retirement"
-                )
+                while not shutdown.done():
+                    try:
+                        await asyncio.shield(shutdown)
+                    except asyncio.CancelledError:
+                        # Retiring the Session controller before a real native
+                        # operation settles would confuse cancellation with
+                        # cleanup. Propagate cancellation after the join.
+                        interrupted = True
+                shutdown.result()
+            except BaseException:
+                app.state.standing_owner_shutdown_unconfirmed = True
+                raise
+            finally:
+                try:
+                    standing_owner.close()
+                finally:
+                    try:
+                        control.close()
+                    except AgentControlUnavailable:
+                        # A poisoned connection has already failed closed.
+                        # Retirement remains unconfirmed after shutdown.
+                        app.state.agent_control_shutdown_unconfirmed = True
+                        logging.getLogger(__name__).warning(
+                            "Agent control shutdown could not confirm native generation retirement"
+                        )
+            if interrupted:
+                raise asyncio.CancelledError
 
     app = FastAPI(title="Kinaiya shared session journal", version="1.0", lifespan=lifespan)
     app.state.agent_control = control
     app.state.agent_control_shutdown_unconfirmed = False
+    app.state.standing_owner = standing_owner
+    app.state.standing_owner_initialized = standing_initialized
+    app.state.standing_owner_shutdown_unconfirmed = False
+    standing_operations = install_standing_owner_routes(app, standing_owner, auth)
+    app.state.standing_owner_operations = standing_operations
     authenticated = Depends(auth.require())
     app.add_middleware(
         CORSMiddleware,
