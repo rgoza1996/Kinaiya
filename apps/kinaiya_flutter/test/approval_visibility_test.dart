@@ -27,13 +27,14 @@ AgentTask voiceTask() => AgentTask(
 );
 
 Map<String, Object?> requestJson({
+  String approvalId = 'approval-public',
   String session = 'voice-session',
   int revision = 2,
   double? expiry,
 }) => {
   'schema_version': '1.0',
   'origin': 'agent-supervisor',
-  'approval_id': 'approval-public',
+  'approval_id': approvalId,
   'task_id': 'voice-task',
   'session_id': session,
   'thread_id': 'voice-thread',
@@ -133,6 +134,11 @@ void main() {
   testWidgets(
     'voice approval is visible without an Agent session and resolves its exact action',
     (tester) async {
+      // Keep both retained expiry and live request cards in this viewport.
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(800, 1600);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
       final api = ApprovalClient();
       final cursors = <String?>[];
       api.tasksHook = () async => [voiceTask()];
@@ -143,7 +149,9 @@ void main() {
           return page([
             requestJson(session: 'other-session'),
             requestJson(revision: 1),
-            requestJson(expiry: 1),
+            // ADR0092 retains expired requests. These are separate permits,
+            // rather than contradictory expiry metadata for the same ID.
+            requestJson(approvalId: 'approval-expired-public', expiry: 1),
           ], 'next-public-page');
         }
         return page([requestJson()]);
@@ -154,14 +162,40 @@ void main() {
       await tester.pumpWidget(KinaiyaApp(state: state));
       await tester.pump(const Duration(milliseconds: 300));
       expect(cursors, [null, 'next-public-page']);
-      expect(state.approvals.length, 1);
+      expect(state.approvals.length, 2);
+      expect(state.approvals.map((approval) => approval.approvalId), [
+        'approval-expired-public',
+        'approval-public',
+      ]);
       expect(
         find.text(
           'Live speech is not yet confirmed. Review this exact action.',
         ),
-        findsOneWidget,
+        findsNWidgets(2),
       );
-      await tester.tap(find.text('Approve'));
+      final approveButtons = find.widgetWithText(FilledButton, 'Approve');
+      expect(approveButtons, findsNWidgets(2));
+      final disabledApprove = find.byWidgetPredicate(
+        (widget) =>
+            widget is FilledButton &&
+            widget.child is Text &&
+            (widget.child! as Text).data == 'Approve' &&
+            widget.onPressed == null,
+      );
+      final enabledApprove = find.byWidgetPredicate(
+        (widget) =>
+            widget is FilledButton &&
+            widget.child is Text &&
+            (widget.child! as Text).data == 'Approve' &&
+            widget.onPressed != null,
+      );
+      expect(disabledApprove, findsOneWidget);
+      expect(enabledApprove, findsOneWidget);
+      expect(find.text('Expired approval: write_file'), findsOneWidget);
+      await tester.tap(disabledApprove);
+      await tester.pump();
+      expect(api.decisions, isEmpty);
+      await tester.tap(enabledApprove);
       await tester.pump(const Duration(milliseconds: 300));
       expect(api.decisions.single, {
         'approval_id': 'approval-public',
