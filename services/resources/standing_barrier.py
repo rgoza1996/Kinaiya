@@ -138,7 +138,7 @@ class StandingBarrier:
         self.fences.add(task_id)
         for capture in tuple(self.gate.attempts.values()):
             if capture.payload["task_id"] == task_id:
-                capture.suppress()
+                capture.suppress(phase="fence")
 
     def _schema(self):
         gate, db = self.gate, self.gate.db
@@ -619,7 +619,7 @@ class StandingBarrier:
         for scope in tuple(self.operations):
             scope.cancelled = True
         for capture in tuple(self.gate.attempts.values()):
-            capture.suppress()
+            capture.suppress(phase="shutdown")
 
     async def join_shutdown(self):
         # Settlement is separate from successful proof. Failed cleanup must

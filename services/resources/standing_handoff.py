@@ -81,6 +81,10 @@ def _freeze(payload):
         raise StandingUnavailable from None
 
 
+class _CaptureSuppressed(StandingUnavailable):
+    """A trusted fence, facade, or shutdown stopped the next capture phase."""
+
+
 @dataclass(eq=False)
 class _Capture:
     gate: StandingHandoff
@@ -99,8 +103,13 @@ class _Capture:
     receipt: StandingResourceReservationReceipt | None = None
     gateway: object = None
     ownership: object = None
+    suppression: str | None = None
 
-    def suppress(self):
+    def suppress(self, *, phase=None):
+        if phase is not None:
+            if phase not in {"fence", "facade", "shutdown"}:
+                raise ValueError("Invalid capture suppression phase")
+            self.suppression = phase
         self.active = False
 
     def guard(self):
@@ -109,16 +118,14 @@ class _Capture:
             current = asyncio.current_task()
         except RuntimeError:
             current = None  # Native database work runs in its retained thread.
+        # Authority/integrity failures remain uncertain even when a deliberate
+        # phase stop also occurred. Only the separate trusted stop below may
+        # avoid adding uncertainty; original child/close failures stay sticky.
         if (
-            not self.active
-            or gate.closed
-            or gate.failed
+            gate.failed
             or not gate.ready
             or not owner.standing_barrier.ready
             or owner.standing_barrier.failed
-            or owner._closing
-            or owner._closed
-            or owner.standing_barrier.sealed(self.payload["task_id"])
             or owner.controller_id != self.instance
             or gate.attempts.get(self.payload["idempotency_key"]) is not self
             or self.task is None
@@ -128,10 +135,21 @@ class _Capture:
             or self.gateway is not None
             and owner.handoff_journal is not self.gateway
             or action_digest(self.payload) != self.digest
+        ):
+            self.suppress()
+            raise StandingUnavailable
+        if (
+            not self.active
+            or gate.closed
+            or owner._closing
+            or owner._closed
+            or owner.standing_barrier.sealed(self.payload["task_id"])
             or not self.effects_started
             and time.monotonic() >= self.deadline
         ):
             self.suppress()
+            if self.suppression is not None:
+                raise _CaptureSuppressed
             raise StandingUnavailable
 
     def begin_effects(self):
@@ -489,6 +507,10 @@ class StandingHandoff:
             ):
                 capture.ownership.fail()
             return result
+        except _CaptureSuppressed:
+            # This guard adds no physical claim and clears no child failure.
+            # Actual operation handles must still positively retire at source.
+            raise
         except (StandingConflict, StandingUnavailable):
             if capture.effects_started:
                 capture.ownership.fail()
@@ -564,20 +586,20 @@ class StandingHandoff:
                 return_when=asyncio.FIRST_COMPLETED,
             )
             if not capture.effects_started and time.monotonic() >= capture.deadline:
-                capture.suppress()
+                capture.suppress(phase="facade")
                 operation.cancel()
                 raise StandingUnavailable
             if operation in done:
                 return operation.result()
             if capture.started not in done or not capture.effects_started:
-                capture.suppress()
+                capture.suppress(phase="facade")
                 operation.cancel()
                 raise StandingUnavailable
             # The capture deadline ends at the first real preemption/effect.
             # Existing hardware action timing and ownership remain unchanged.
             return await asyncio.shield(operation)
         except asyncio.CancelledError:
-            capture.suppress()
+            capture.suppress(phase="facade")
             if not capture.effects_started:
                 operation.cancel()
             caller = asyncio.current_task()
@@ -600,7 +622,7 @@ class StandingHandoff:
     async def close(self):
         self.closed = True
         for capture in self.attempts.values():
-            capture.suppress()
+            capture.suppress(phase="shutdown")
         operations = tuple(self.operations)
         for capture in tuple(self.attempts.values()):
             if not capture.effects_started and capture.task is not None:
