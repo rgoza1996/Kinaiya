@@ -356,6 +356,16 @@ and [broker regressions](../tests/integration/test_agent_retained_disclosure.py)
 Missing or over-bound provenance refuses the request rather than dropping a
 dependency. This does not qualify general repository work or a new model default.
 
+The November 1 [transcript retrieval audit](../evaluation/evidence/agent-transcript-retrieval-gap-2026-11-01.json)
+confirmed that ignored windows remain stored and Agent can retrieve them on
+demand, with 102 existing deterministic routing/disclosure cases passing.
+It also reproduced a separate defect: `read_transcript` returned only 2,000
+characters from a complete 3,855-character stored entry, with no continuation or
+truncation indication. Complete persistence therefore does not yet establish
+complete model-facing retrieval. [#255](https://github.com/rgoza1996/Kinaiya/issues/255)
+tracks bounded continuation and truthful scan progress; the cumulative task
+provenance limits remain explicit. This audit implements no retrieval repair.
+
 ## Initial Agent submission durability
 
 The bounded [#199](https://github.com/rgoza1996/Kinaiya/issues/199) implementation
