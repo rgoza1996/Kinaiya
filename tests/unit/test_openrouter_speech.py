@@ -19,7 +19,8 @@ from packages.providers.text import ProviderCleanupError
 class FakeBudget:
     last = None
 
-    def __init__(self, path, limit_usd=1.0):
+    def __init__(self, path, limit_usd=1.0, *, require_existing=False):
+        self.require_existing = require_existing
         self.path = path
         self.limit_usd = limit_usd
         self.limit = limit_usd

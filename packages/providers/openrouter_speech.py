@@ -221,6 +221,7 @@ class OpenRouterTTSClient:
         timeout_s=120,
         budget_path=None,
         budget_limit_usd=1.0,
+        require_existing_budget=False,
         api_key="",
         transport=None,
     ):
@@ -251,7 +252,9 @@ class OpenRouterTTSClient:
         self._voice = voice
         self.timeout_s = timeout_s
         self._transport = transport
-        self._budget = CharacterBudget(budget_path, limit_usd=budget_limit_usd)
+        self._budget = CharacterBudget(
+            budget_path, limit_usd=budget_limit_usd, require_existing=require_existing_budget
+        )
         self._cleanup_failed = False
         self._closed = False
         self.info = ProviderInfo(provider="openrouter", model=MODEL, local=False, streaming=True)
@@ -268,7 +271,9 @@ class OpenRouterTTSClient:
             follow_redirects=False,
         )
 
-    async def synthesize_scoped(self, text, *, content_scope="local_only", current=None):
+    async def synthesize_scoped(
+        self, text, *, content_scope="local_only", current=None, before_export=None
+    ):
         info = self.info.model_dump()
         client, origin, headers = self.http, str(self.http.base_url), dict(self.http.headers)
         _validate_origin(origin, self.timeout_s)
@@ -276,7 +281,7 @@ class OpenRouterTTSClient:
         transport, budget = client._transport, self._budget
         mounts, auth = tuple(client._mounts.items()), client.auth
         hooks = {name: tuple(items) for name, items in client.event_hooks.items()}
-        budget_config = (budget.path, budget.limit)
+        budget_config = (budget.path, budget.limit, budget.require_existing)
 
         def bound():
             return not (
@@ -304,7 +309,7 @@ class OpenRouterTTSClient:
                 or {name: tuple(items) for name, items in client.event_hooks.items()} != hooks
                 or (self._model, self._voice, self.timeout_s) != config
                 or self._budget is not budget
-                or (budget.path, budget.limit) != budget_config
+                or (budget.path, budget.limit, budget.require_existing) != budget_config
                 or current is None
             )
 
@@ -339,6 +344,10 @@ class OpenRouterTTSClient:
         # reservation, but revalidate native admission before any HTTP export.
         await check()
         body = {"model": config[0], "input": text, "voice": config[1], "response_format": "pcm"}
+        if before_export is not None:
+            if not callable(before_export):
+                raise SpeechProviderError(409)
+            before_export()
         try:
             async with asyncio.timeout(self.timeout_s):
                 async with client.stream("POST", "audio/speech", json=body) as response:

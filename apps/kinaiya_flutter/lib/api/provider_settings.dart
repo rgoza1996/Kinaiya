@@ -6,7 +6,14 @@ import 'package:crypto/crypto.dart';
 
 const providerMaxRevision = 9007199254740990;
 const providerEfforts = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh'];
-const providerKinds = ['meta', 'lmstudio', 'compatible', 'laya', 'meta_stt'];
+const providerKinds = [
+  'meta',
+  'lmstudio',
+  'compatible',
+  'laya',
+  'meta_stt',
+  'openrouter_tts',
+];
 const providerOperations = [
   'profile_upsert',
   'profile_remove',
@@ -83,6 +90,7 @@ Map<String, Object?> providerConfig(Object? value) {
   final kind = raw['kind'];
   if (!providerKinds.contains(kind)) _bad();
   if (kind == 'meta_stt') return _metaSttConfig(raw);
+  if (kind == 'openrouter_tts') return _openRouterTtsConfig(raw);
   final allowed = <String>{'kind', 'base_url', 'model', 'allow_cloud'};
   if (kind != 'laya') allowed.addAll(['max_tokens', 'reasoning_effort']);
   if (kind != 'lmstudio') allowed.add('credential');
@@ -248,6 +256,66 @@ Map<String, Object?> _metaSttConfig(Map<String, Object?> raw) {
   });
 }
 
+/// Speech output uses only the native adapter's supported declaration.
+Map<String, Object?> _openRouterTtsConfig(Map<String, Object?> raw) {
+  const fields = {
+    'kind',
+    'base_url',
+    'model',
+    'voice',
+    'allow_cloud',
+    'credential',
+    'timeout_s',
+  };
+  if (raw.keys.any((key) => !fields.contains(key))) _bad();
+  final endpoint = _text(raw['base_url'], 2048);
+  final Uri uri;
+  try {
+    uri = Uri.parse(endpoint);
+  } on FormatException {
+    _bad();
+  }
+  final authorityStart = endpoint.indexOf('://') + 3;
+  final pathStart = endpoint.indexOf('/', authorityStart);
+  final path = pathStart < 0 ? '' : endpoint.substring(pathStart);
+  final loopback = {'localhost', '127.0.0.1', '::1'}.contains(uri.host);
+  if (!uri.hasAuthority ||
+      uri.host.isEmpty ||
+      uri.userInfo.isNotEmpty ||
+      uri.authority.contains('@') ||
+      uri.hasQuery ||
+      uri.hasFragment ||
+      uri.port < 1 ||
+      uri.port > 65535 ||
+      RegExp(r'[\s\\\x00-\x1f\x7f]').hasMatch(endpoint) ||
+      endpoint.codeUnits.any((c) => c > 127) ||
+      path.replaceFirst(RegExp(r'/+$'), '') != '/api/v1' ||
+      !((uri.scheme == 'https' &&
+              uri.host == 'openrouter.ai' &&
+              (!uri.hasPort || uri.port == 443)) ||
+          (uri.scheme == 'http' && loopback)) ||
+      raw['model'] != 'hexgrad/kokoro-82m' ||
+      raw['voice'] != 'af_heart' ||
+      raw['allow_cloud'] != true) {
+    _bad();
+  }
+  return Map.unmodifiable({
+    'kind': 'openrouter_tts',
+    'base_url': endpoint.replaceFirst(RegExp(r'/+$'), ''),
+    'model': 'hexgrad/kokoro-82m',
+    'voice': 'af_heart',
+    'allow_cloud': true,
+    'credential': ProviderCredentialBinding.fromJson(
+      raw['credential'],
+    ).toJson(),
+    'timeout_s': _integer(
+      raw.containsKey('timeout_s') ? raw['timeout_s'] : 120,
+      1,
+      120,
+    ),
+  });
+}
+
 Object? _canonical(Object? value) => value is Map<String, Object?>
     ? {
         for (final key in value.keys.toList()..sort())
@@ -279,12 +347,13 @@ class ProviderProfile {
     final roles = capability['declared_roles'],
         inputs = capability['supported_inputs'];
     final stt = config['kind'] == 'meta_stt';
+    final tts = config['kind'] == 'openrouter_tts';
     if (roles is! List ||
         roles.isEmpty ||
         roles.length > 4 ||
         roles.toSet().length != roles.length ||
-        (stt
-            ? roles.length != 1 || roles.single != 'stt'
+        (stt || tts
+            ? roles.length != 1 || roles.single != (stt ? 'stt' : 'tts')
             : roles.any(
                 (r) => !{
                   'agent',
@@ -301,7 +370,7 @@ class ProviderProfile {
     declaredRoles = List.unmodifiable(roles.cast<String>());
     measuredComplete = _flag(capability['measured_complete_interface']);
     measuredStream = _flag(capability['measured_stream_interface']);
-    if (stt && (measuredComplete || measuredStream)) _bad();
+    if ((stt || tts) && (measuredComplete || measuredStream)) _bad();
   }
   late final String id, label, configurationSha256;
   late final int generation;

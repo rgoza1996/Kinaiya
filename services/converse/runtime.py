@@ -243,6 +243,12 @@ class ConverseRuntime:
         self.stt_model_settings = None
         self._stt_options_configured = False
         self._stt_options_unavailable = False
+        self.tts_model_settings = None
+        self._tts_options_configured = False
+        self._tts_options_unavailable = False
+        self._tts_turns = set()
+        self._tts_finalizers = set()
+        self._tts_history = {}
         self._stt_stopping = False
         self._stt_operations = set()
         self._stt_finalizers = set()
@@ -621,12 +627,32 @@ class ConverseRuntime:
                         session_id, playback, stop.confirmed_generation, stop.desired_generation
                     )
                 request = stop.request
-                await self.journal.append(request)
+                acknowledgement = await self.journal.append(request)
+                tts_stopped = [
+                    turn
+                    for turn in self._tts_turns
+                    if turn.event.session_id == session_id
+                    and (turn.event.epoch, turn.event.thread_id) == playback.scope
+                    and turn.generation < request.payload["next_generation_epoch"]
+                ]
+                if tts_stopped:
+                    from packages.contracts.models import JournalEntry
+                    from services.converse.model_settings import _encode
+
+                    entry = JournalEntry.model_validate(acknowledgement.model_dump(), strict=True)
+                    if entry.origin != "converse" or _encode(
+                        entry.model_dump(
+                            mode="json", exclude={"event_id", "sequence", "origin", "created_at"}
+                        )
+                    ) != _encode(request.model_dump(mode="json")):
+                        raise RuntimeError("TTS stop publication is unconfirmed")
                 current = await self.journal.session(session_id)
                 if (current.epoch, current.thread_id) != playback.scope:
                     self._retire_stop(playback)
                     return
                 stop.confirmed_generation = request.payload["next_generation_epoch"]
+                for turn in tts_stopped:
+                    turn.acknowledge()
                 stop.request = None
             if not stop.covers(stop.desired_generation):
                 raise RuntimeError("Newer playback stop needs reconciliation")
@@ -681,12 +707,19 @@ class ConverseRuntime:
             "preparing": len(self._model_preparing),
             "text": len(self._text),
             "text_admitting": len(self._text_admitting),
-            "speech": sum(len(group) for group in self._speech.values()),
+            "speech": sum(len(group) for group in self._speech.values())
+            + len(self._tts_turns)
+            + (
+                len(self.tts_model_settings._native_unsettled)
+                if self.tts_model_settings is not None
+                else 0
+            ),
             "playback_pending": len(self._playback_start)
             + sum(
                 epoch.stop is not None and not epoch.stop.covers(epoch.stop.desired_generation)
                 for epoch in self.playback.values()
-            ),
+            )
+            + sum(turn.lease.playback_pending for turn in self._tts_turns),
             "memory_pending": len(self.memory.leases),
             **self._model_operations_extra(),
         }
@@ -1005,7 +1038,7 @@ class ConverseRuntime:
             await asyncio.gather(validation, stopped, return_exceptions=True)
 
     async def speech_frames(
-        self, event, generation, synthesize, *, synthesize_scoped=None, current=None
+        self, event, generation, synthesize, *, synthesize_scoped=None, current=None, tts_turn=None
     ):
         """Own one cancellable upstream stream, independent of the response reader.
 
@@ -1015,6 +1048,7 @@ class ConverseRuntime:
         queue = asyncio.Queue(maxsize=1)
         iterator = None
         close_failed = False
+        producer_completed = False
         runtime_id = self._runtime_id
         content_scope = event.payload.get("content_scope", "local_only")
 
@@ -1039,7 +1073,7 @@ class ConverseRuntime:
             ) and bound()
 
         async def produce():
-            nonlocal iterator, close_failed
+            nonlocal iterator, close_failed, producer_completed
             try:
                 try:
                     validated = await self.validate_speech(event.event_id, generation)
@@ -1053,6 +1087,8 @@ class ConverseRuntime:
                         return
                     spoken = normalize_for_tts(event.payload["text"])
                     if spoken:
+                        if tts_turn is not None:
+                            await tts_turn.admit(spoken)
                         # Scope/currentness belong to this producer task. Explicit
                         # arguments cannot be lost across copied task contexts.
                         iterator = (
@@ -1066,6 +1102,7 @@ class ConverseRuntime:
                             if operation is None or operation.cancelled:
                                 return
                             await queue.put(("frame", chunk))
+                    producer_completed = True
                 finally:
                     if iterator is not None:
                         try:
@@ -1132,7 +1169,7 @@ class ConverseRuntime:
                     or not playback.accepts(generation)
                 ):
                     return
-                yield value
+                yield value if tts_turn is None else tts_turn.frame(value)
         finally:
             # Starlette disconnect uses a level-triggered cancellation scope.
             # Shield cleanup so its repeated cancellation cannot interrupt the
@@ -1159,6 +1196,8 @@ class ConverseRuntime:
                     except Exception:
                         if operation is not None:
                             operation.cleanup_failed = True
+                        if tts_turn is not None:
+                            tts_turn.lease.cleanup_failed = True
                     else:
                         if operation is not None:
                             operations = self._speech.get(event.session_id)
@@ -1170,6 +1209,10 @@ class ConverseRuntime:
                 cleanup = asyncio.create_task(finish_cleanup())
                 if operation is not None:
                     operation.cleanup = cleanup
+                if tts_turn is not None:
+                    tts_turn.synthesis_finished(
+                        cleanup, lambda: producer_completed and not close_failed
+                    )
                 # Wait at most five seconds without cancelling a finally block
                 # that may own an HTTP socket. A timed-out operation stays in
                 # the registry/health and refuses new speech until confirmed.
@@ -1602,9 +1645,14 @@ class ConverseRuntime:
         return event
 
     async def acknowledge_delivery(self, request: DeliveryRequest):
+        tts_turn = self._tts_history.get((request.event_id, request.generation_epoch))
+        if tts_turn is not None and request.status in {"interrupted", "delivery_unknown"}:
+            return await tts_turn.publish_terminal_delivery(request)
         event = await self.validate_speech(request.event_id, request.generation_epoch)
         if request.chunk_id != event.payload["chunk_id"]:
             raise ValueError("Wrong speech chunk")
+        if tts_turn is not None:
+            return await tts_turn.publish_delivery(request)
         return await self.journal.append(
             AppendRequest(
                 session_id=event.session_id,
