@@ -1,5 +1,57 @@
 # Kinaiya
 
+**A companion to talk to. An agent to get things done.**
+
+Kinaiya brings a personal AI character and an independent work agent into one workspace. Talk things through with **Converse**, give **Agent** a task, and keep conversation and work side by side—with the models and providers you choose.
+
+Converse is optional. Agent stays available for coding, research, files, and other authorized tool work when voice is off.
+
+[See the interface](#see-the-interface) · [Why Kinaiya](#why-kinaiya) · [Get started](#get-started) · [Technical details](#technical-details) · [Mathematics](#mathematical-foundations) · [Roadmap](Roadmap.md)
+
+## See the interface
+
+| Converse | Agent workspace | Options |
+| --- | --- | --- |
+| <a href="assets/screenshots/2026-11-01/12-converse.jpg"><img src="assets/screenshots/2026-11-01/12-converse.jpg" width="300" alt="Converse with character artwork and an empty conversation panel"></a> | <a href="assets/screenshots/2026-11-01/07-agent-workspace.jpg"><img src="assets/screenshots/2026-11-01/07-agent-workspace.jpg" width="300" alt="Agent workspace with harnesses, empty sessions and task details"></a> | <a href="assets/screenshots/2026-11-01/10-options-connected.jpg"><img src="assets/screenshots/2026-11-01/10-options-connected.jpg" width="300" alt="Options category navigation and character artwork"></a> |
+
+*Actual application captures, November 1, 2026, showing fixture model metadata and an empty Agent workspace. Select an image to open the complete raw capture.*
+
+See the [full application gallery and capture provenance](assets/screenshots/README.md) for Home, floating controls, Models, Tools, Permissions, About, and the dated October 30 image.
+
+Explore the [editable interface designs](assets/penpot/README.md) for Converse, Agent, Options, and intelligent views. Those boards are design references with illustrative content.
+
+## Why Kinaiya
+
+- **Conversation alongside useful work.** Talk or type with Converse, then work directly with Agent or route a relevant conversation request through Decisions. Task progress, approvals, and results stay visible in the Agent workspace.
+
+- **A character you can make your own.** Import a character pack, choose its colors, and adjust captions, motion, and speech-mouth preferences. Converse keeps personality and dialogue separate from Agent's work.
+
+- **Models for different jobs.** Choose supported local or cloud providers for Agent, Converse, routing, speech recognition, and speech output. Configure Agent models for individual harnesses and auxiliary reasoning tasks through Options.
+
+- **A place for ongoing projects.** Organize Agent sessions into Projects, revisit task history, and find recorded generated outputs in the Documents and Media libraries with their source sessions.
+
+- **Results you can explore.** Experimental intelligent views bring structured results, such as tables and diagrams, into the conversation. Pinned views can be reopened, with readable fallbacks where needed.
+
+- **Tools with visible controls.** Work with supported skills, MCP connections, and reviewed plugins. Inspect available capabilities, model context, and approvals from the Options workspace.
+
+## Get started
+
+Kinaiya currently uses a Linux development host and a Flutter web interface. Start with the [host setup](#run-the-host), then follow the [web client guide](apps/kinaiya_flutter/README.md) and [Converse setup](docs/converse-setup.md) for the interfaces you want to use. Choose a supported provider configuration before starting model-backed work.
+
+A polished clean-machine installer is not yet available. The detailed commands, provider requirements, and configuration boundaries are retained below.
+
+## Current stage
+
+**Experimental and actively developed.** Independent Agent work, the conversation infrastructure, character customization, configuration controls, and bounded extension workflows are implemented. Voice quality and interruption recovery, broader provider qualification, mobile calling, and distribution remain active work.
+
+Adaptive-harness research explores how Agent can create executable extensions, evaluate them against a fixed baseline, and use reviewed promotion or rollback. General autonomous improvement has not been demonstrated. The [implementation ledger](docs/implementation-status.md) distinguishes implemented capabilities, measured experiments, and remaining acceptance gates.
+
+---
+
+## Technical details
+
+The architecture, implementation notes, operating constraints, setup instructions, verification commands, and complete mathematical foundations remain in this README. The product introduction above does not replace them.
+
 **A local-first conversational platform with an independent work agent.**
 
 Kinaiya pairs a personable, real-time voice experience with an agent that can do useful work on its own. The design keeps conversation, routing, and task execution in separate components, then lets them share relevant context through a bounded, inspectable transcript.
@@ -14,183 +66,8 @@ Kinaiya pairs a personable, real-time voice experience with an agent that can do
 
 The long-term product scope also includes resource-aware operation, provider choice, durable work, skills and MCP tools, mobile calling, and optional intelligent UI. Those are planned capabilities, not promises that every feature will ship in one release.
 
-The [Roadmap 0.3.1](Roadmap.md) retains the October 30 reconciliation and adds the October 31 clarification on model choice, stack recommendations and architectural performance research. The [implementation and acceptance ledger](docs/implementation-status.md) distinguishes implemented slices, experiments, unverified gates and planned work at source `f92f6d1`; it is the consolidated progress record. Partial resource/ecosystem/mobile foundations do not establish completion of the full product scope above.
+The [Roadmap 0.3.2](Roadmap.md) retains the October 30 reconciliation, October 31 model-choice/performance clarification and November 1 optional Omni Converse paths. The [implementation and acceptance ledger](docs/implementation-status.md) distinguishes implemented slices, experiments, unverified gates and planned work at source `f92f6d1`; it is the consolidated progress record. Partial resource/ecosystem/mobile foundations do not establish completion of the full product scope above.
 
-
-## Mathematical foundations
-
-Kinaiya combines discrete-state coordination, cryptographic integrity, budget-constrained execution, streaming inference, and adaptive-harness research. The equations below distinguish **what the experimental code enforces** from **what the roadmap proposes to evaluate**. Proposed formulations illustrate possible research methods; they are **not implemented algorithms or measured performance claims**.
-
-### 1. Decisions: risk-aware conversational routing
-
-**Status:** A four-way asynchronous classifier and routing worker exist; calibrated probabilistic decision theory is proposed.
-
-Decisions chooses among ignore, queue, steer, and interrupt. A possible risk-sensitive decision rule is:
-
-$$
-\mathcal{A}=\{\mathrm{ignore},\mathrm{queue},\mathrm{steer},\mathrm{interrupt}\},
-\qquad
-a_t^*=\arg\min_{a\in\mathcal A}\sum_{y\in\mathcal A}
-P_\theta(y\mid x_t,H_t,z_t)L(a,y).
-$$
-
-Here $x_t$ is the current message, $H_t$ is relevant conversation history, $z_t$ is task state, and $L(a,y)$ penalizes choosing route $a$ when the appropriate route is $y$. Missing a cancellation may deserve a larger penalty than an unnecessary interruption. **This loss-based decision rule is a proposed formulation**, not a claim about the current classifier or calibration; model confidence is not automatically a probability. Routing never grants tool permissions.
-
-[Decisions runtime](services/decisions/runtime.py) · [Routing design](Roadmap.md#6-asynchronous-decisions)
-
-### 2. Shared transcript: context selection under a token budget
-
-**Status:** The persistent journal and bounded retrieval exist; optimized snippet selection is proposed for the first self-building harness experiment.
-
-Selecting relevant snippets can be modeled as a 0–1 knapsack problem:
-
-$$
-\begin{aligned}
-\max_{\mathbf{s}}\quad &\sum_{i=1}^{n}v_i s_i\\
-\text{subject to}\quad &\sum_{i=1}^{n}c_i s_i\le B,\qquad s_i\in\{0,1\}.
-\end{aligned}
-$$
-
-$v_i$ is a snippet's estimated utility, $c_i$ its token cost, $B$ the token budget, and $s_i$ whether to include it. This **illustrates the planned context-selection experiment**; the existing journal enforces limits and retrieval filters but does not solve this optimization problem.
-
-[Journal implementation](services/session/store.py) · [Harness experiment](Roadmap.md#123-first-executable-experiment)
-
-### 3. Event consistency: ordering, revisions, and authorization
-
-**Status:** Implemented invariants and cryptographic action binding.
-
-The journal assigns monotonically increasing sequence numbers, consumer cursors cannot retreat, and applied task steering increments the objective revision:
-
-$$
-s_{i+1}>s_i,\qquad c_{t+1}\ge c_t,\qquad r_{\mathrm{new}}=r_{\mathrm{old}}+1.
-$$
-
-An action-specific approval is tied to the canonicalized tool name, arguments, and objective revision:
-
-$$
-h=\mathrm{SHA256}(\mathrm{CanonicalJSON}(a,\theta_a,r)).
-$$
-
-The supervisor accepts it only when its digest and revision match, it has not expired, and it has not been consumed. Hashing helps bind authorization to a particular action; **it does not by itself authorize the action or make the system infallible**.
-
-[Journal implementation](services/session/store.py) · [Policy and approvals](core/policy/__init__.py)
-
-### 4. API economics: conservative admission control
-
-**Status:** Implemented in a development-only Meta API budget proxy; not live provider billing.
-
-For reported input tokens $I$, output tokens $O$, and cached input tokens $K$, the proxy preserves an ordinary-Spark comparison and a Contributor estimate using its configured dollar-per-million-token constants:
-
-$$
-\widehat C_{\mathrm{ordinary\ comparison}}=\frac{1.25I+4.25O}{10^6},
-\qquad
-\widehat C_{\mathrm{contributor}}=
-\frac{0.10(I-K)+0.002K+0.20O}{10^6}.
-$$
-
-For settled responses with validated usage and exact requested/resolved Contributor identity, admission uses twice the cache-aware Contributor estimate. The earlier uncached admission estimate remains a separate audit counter. Unexplained legacy charges, incomplete usage and uncertain reservations are preserved; real reported billing remains a floor. Each future text request still reserves the full uncached catalog context plus bounded output at twice Contributor rates. Text retains a $22 sublimit and buffered voice a $3 sublimit. All settled estimates, outstanding reservations and the next reservation must fit the retained combined ceiling, at most $25. `--limit-usd 10` lowers that existing ceiling without resetting earlier spend or reservations; a later argument cannot raise it.
-
-$$
-\max(\widehat C_{\mathrm{settled}},C_{\mathrm{billing}})+C_{\mathrm{reserved}}+C_{\mathrm{next}}\le C_{\mathrm{owner\ ceiling}}.
-$$
-
-The [Meta pricing page](https://dev.meta.ai/docs/pricing-rate-limits) was verified on October 31, 2026. These calculations remain estimates, **not provider invoices**. Hosted text tools with additional fees are refused; Muse's local function tools remain available, including bounded namespace groups emitted by the CLI. The validator examines tool declarations without interpreting function parameter schemas as tools. No cache discount is assumed before a response reports it. Optional single-image SAM/Muse Image smoke routes have a separate $0.10 sublimit and are disabled by default; see [bounded testing and accounting](docs/meta-budget-tests.md).
-
-[Budget proxy](scripts/muse_budget_proxy.py)
-
-### 5. Streaming conversation: latency and real-time factor
-
-**Status:** Experimental Converse streaming/chunking exists; the performance goals and broad TTS comparison are research targets.
-
-A purely sequential speech pipeline has approximate latency
-
-$$
-T_{\mathrm{sequential}}=T_{\mathrm{STT}}+T_{\mathrm{LLM}}+T_{\mathrm{TTS}}.
-$$
-
-Overlapping pipeline stages can reduce perceived response time. The critical-path bound for an idealized dependency graph $G$ is
-
-$$
-T_{\mathrm{pipeline}}\ge
-\max_{p\in\mathcal P(G)}\sum_{v\in p}t_v.
-$$
-
-For synthesis, real-time factor is
-
-$$
-\mathrm{RTF}=\frac{T_{\mathrm{synthesis}}}{T_{\mathrm{generated\ audio}}}.
-$$
-
-RTF below 1 means synthesis is faster than audio duration. The roadmap proposes warm audible TTS onset below **250 ms median / 500 ms p95**, end-of-speech to audible reply below **1 s median / 2 s p95**, and sustained **RTF < 1** (stretch **RTF < 0.3**). These are **unverified reference-profile targets**, not achieved measurements. Overlapping stages still incur buffering, contention, and scheduling overhead.
-
-[Converse runtime](services/converse/runtime.py) · [Measurement plan](Roadmap.md#252-voice-measurements)
-
-### 6. Local inference: GPU resource admission
-
-**Status:** Explicit CPU voice/AMD Laya handoffs and measured headroom checks exist.
-The general scheduling formulation below remains proposed.
-
-Before loading several local workers, a resource manager could enforce a capacity constraint:
-
-$$
-M_{\mathrm{weights}}+M_{\mathrm{KV}}+M_{\mathrm{buffers}}+
-M_{\mathrm{renderer}}+M_{\mathrm{headroom}}\le M_{\mathrm{VRAM}}.
-$$
-
-This is a first-order memory-accounting model, not a complete measure of feasibility: latency contention, fragmented/reserved allocations, and unloading behavior also matter. The intended policies allow queueing, deliberate worker handoff, or **user-authorized** cloud inference—not silent cloud fallback.
-
-[Resource policy and handoff](Roadmap.md#14-inference-providers-and-resource-management)
-
-### 7. Self-building harnesses: controlled optimization and evaluation
-
-**Status:** The bounded seed Agent, isolated executable context selectors, protected evaluation, owner-reviewed promotion controls and rollback are implemented experimentally. The initial 12-case screening study rejected the generated candidate; no improvement was demonstrated. Paired Agent-task optimization and the formulations below remain research milestones.
-
-With fixed target model, tasks, tools, and budgets, compare baseline harness $H_0$ and generated candidate $H_1$ on the same $n$ tasks. For independently evaluated task quality $Q_i$, a paired improvement estimate is
-
-$$
-\widehat{\Delta}=\frac{1}{n}\sum_{i=1}^{n}
-\bigl[Q_i(H_1)-Q_i(H_0)\bigr],
-\qquad
-\mathrm{SE}(\widehat{\Delta})=\frac{s_d}{\sqrt n}.
-$$
-
-Here $s_d$ is the sample standard deviation of paired task-score differences. Repeated runs, held-out tasks, uncertainty reporting, and controlled baselines are needed before claiming an improvement. If a candidate saves $C_0-C_1>0$ per task after adaptation costing $C_{\mathrm{adapt}}$, a simple break-even estimate is
-
-$$
-N_{\mathrm{break\text{-}even}}=
-\frac{C_{\mathrm{adapt}}}{C_0-C_1}.
-$$
-
-Most importantly, better scores must **never** compensate for weakened permissions, modified objectives, forged evidence, or exceeded budgets. The planned research objective is *constrained*, not an unconstrained reward maximization:
-
-$$
-\begin{aligned}
-\max_{H\in\mathcal H}\quad&
-\mathbb E_{x\sim\mathcal D}[Q(H,x)]\\
-\text{subject to}\quad&
-\mathrm{Safe}(H)=1,\quad\mathrm{Integrity}(H)=1,\\
-&C_{\mathrm{adapt}}(H)\le B_{\mathrm{adapt}},\quad
-C_{\mathrm{run}}(H)\le B_{\mathrm{run}}.
-\end{aligned}
-$$
-
-These are **proposed evaluation formulations**, not a shipped optimization algorithm or proof of safety.
-
-[Seed harness](harnesses/seed/__init__.py) · [Evaluation and promotion policy](Roadmap.md#12-harness-evaluation-and-promotion) · [Research measurements](Roadmap.md#254-harness-measurements)
-
-
-## Hackathon target
-
-The planned demonstration is a focused slice through the larger roadmap:
-
-1. Real voice conversation with interruption support and an original, replaceable character.
-2. A real routed request that uses shared conversation context.
-3. Agent completes useful work and reports evidence of the result.
-4. Direct Agent Chat remains available while Converse is off.
-5. Agent generates an executable harness extension, evaluates it against a pinned baseline, and demonstrates safe rejection, promotion, or rollback.
-6. At least one verified Meta integration is exercised if the event requirements, account access, and applicable terms allow it.
-
-Meta is a target integration, not a product dependency. Model and API availability must be verified during implementation; the core stays provider-configurable. A Meta-generated character variant is a stretch demonstration, not a requirement on the voice-response path.
 
 ## Status
 
@@ -279,8 +156,15 @@ captures exact saved versions in fresh task-owned primary/auxiliary adapters;
 saving a provider profile alone does not select it. Independent
 [Converse text model settings](docs/adr/0091-converse-text-model-settings.md)
 select an eligible exact catalog generation while actual Converse operations
-and cleanup are settled. STT/TTS/Decisions model editing remains host-managed. These new
-controls still require the runtime/concurrency acceptance described in the ADR.
+and cleanup are settled. Independent
+[Decisions](docs/adr/0098-independent-decisions-model-selection.md),
+[STT](docs/adr/0099-independent-stt-model-settings.md), and
+[TTS](docs/adr/0101-independent-tts-model-settings.md) editors now select supported
+host or eligible catalog configurations through their own native owners.
+These supersede the earlier host-managed-only editing limitation; configuration
+does not establish model readiness. Local voice/profile reconfiguration, broader
+provider support and the runtime/concurrency acceptance described in the ADRs
+remain separate work.
 Global and per-harness [auxiliary text models](docs/adr/0082-task-pinned-auxiliary-models.md)
 support explicit analysis, compression, title, delegated reasoning and harness
 design side calls. Native task pins, measured admission and disclosure remain
@@ -508,3 +392,179 @@ ruff check .
 ruff format --check .
 pytest -m 'not live' -q
 ```
+
+## Mathematical foundations
+
+Kinaiya combines discrete-state coordination, cryptographic integrity, budget-constrained execution, streaming inference, and adaptive-harness research. The equations below distinguish **what the experimental code enforces** from **what the roadmap proposes to evaluate**. Proposed formulations illustrate possible research methods; they are **not implemented algorithms or measured performance claims**.
+
+### 1. Decisions: risk-aware conversational routing
+
+**Status:** A four-way asynchronous classifier and routing worker exist; calibrated probabilistic decision theory is proposed.
+
+Decisions chooses among ignore, queue, steer, and interrupt. A possible risk-sensitive decision rule is:
+
+$$
+\mathcal{A}=\{\mathrm{ignore},\mathrm{queue},\mathrm{steer},\mathrm{interrupt}\},
+\qquad
+a_t^*=\arg\min_{a\in\mathcal A}\sum_{y\in\mathcal A}
+P_\theta(y\mid x_t,H_t,z_t)L(a,y).
+$$
+
+Here $x_t$ is the current message, $H_t$ is relevant conversation history, $z_t$ is task state, and $L(a,y)$ penalizes choosing route $a$ when the appropriate route is $y$. Missing a cancellation may deserve a larger penalty than an unnecessary interruption. **This loss-based decision rule is a proposed formulation**, not a claim about the current classifier or calibration; model confidence is not automatically a probability. Routing never grants tool permissions.
+
+[Decisions runtime](services/decisions/runtime.py) · [Routing design](Roadmap.md#6-asynchronous-decisions)
+
+### 2. Shared transcript: context selection under a token budget
+
+**Status:** The persistent journal and bounded retrieval exist; optimized snippet selection is proposed for the first self-building harness experiment.
+
+Selecting relevant snippets can be modeled as a 0–1 knapsack problem:
+
+$$
+\begin{aligned}
+\max_{\mathbf{s}}\quad &\sum_{i=1}^{n}v_i s_i\\
+\text{subject to}\quad &\sum_{i=1}^{n}c_i s_i\le B,\qquad s_i\in\{0,1\}.
+\end{aligned}
+$$
+
+$v_i$ is a snippet's estimated utility, $c_i$ its token cost, $B$ the token budget, and $s_i$ whether to include it. This **illustrates the planned context-selection experiment**; the existing journal enforces limits and retrieval filters but does not solve this optimization problem.
+
+[Journal implementation](services/session/store.py) · [Harness experiment](Roadmap.md#123-first-executable-experiment)
+
+### 3. Event consistency: ordering, revisions, and authorization
+
+**Status:** Implemented invariants and cryptographic action binding.
+
+The journal assigns monotonically increasing sequence numbers, consumer cursors cannot retreat, and applied task steering increments the objective revision:
+
+$$
+s_{i+1}>s_i,\qquad c_{t+1}\ge c_t,\qquad r_{\mathrm{new}}=r_{\mathrm{old}}+1.
+$$
+
+An action-specific approval is tied to the canonicalized tool name, arguments, and objective revision:
+
+$$
+h=\mathrm{SHA256}(\mathrm{CanonicalJSON}(a,\theta_a,r)).
+$$
+
+The supervisor accepts it only when its digest and revision match, it has not expired, and it has not been consumed. Hashing helps bind authorization to a particular action; **it does not by itself authorize the action or make the system infallible**.
+
+[Journal implementation](services/session/store.py) · [Policy and approvals](core/policy/__init__.py)
+
+### 4. API economics: conservative admission control
+
+**Status:** Implemented in a development-only Meta API budget proxy; not live provider billing.
+
+For reported input tokens $I$, output tokens $O$, and cached input tokens $K$, the proxy preserves an ordinary-Spark comparison and a Contributor estimate using its configured dollar-per-million-token constants:
+
+$$
+\widehat C_{\mathrm{ordinary\ comparison}}=\frac{1.25I+4.25O}{10^6},
+\qquad
+\widehat C_{\mathrm{contributor}}=
+\frac{0.10(I-K)+0.002K+0.20O}{10^6}.
+$$
+
+For settled responses with validated usage and exact requested/resolved Contributor identity, admission uses twice the cache-aware Contributor estimate. The earlier uncached admission estimate remains a separate audit counter. Unexplained legacy charges, incomplete usage and uncertain reservations are preserved; real reported billing remains a floor. Each future text request still reserves the full uncached catalog context plus bounded output at twice Contributor rates. Text retains a $22 sublimit and buffered voice a $3 sublimit. All settled estimates, outstanding reservations and the next reservation must fit the retained combined ceiling, at most $25. `--limit-usd 10` lowers that existing ceiling without resetting earlier spend or reservations; a later argument cannot raise it.
+
+$$
+\max(\widehat C_{\mathrm{settled}},C_{\mathrm{billing}})+C_{\mathrm{reserved}}+C_{\mathrm{next}}\le C_{\mathrm{owner\ ceiling}}.
+$$
+
+The [Meta pricing page](https://dev.meta.ai/docs/pricing-rate-limits) was verified on October 31, 2026. These calculations remain estimates, **not provider invoices**. Hosted text tools with additional fees are refused; Muse's local function tools remain available, including bounded namespace groups emitted by the CLI. The validator examines tool declarations without interpreting function parameter schemas as tools. No cache discount is assumed before a response reports it. Optional single-image SAM/Muse Image smoke routes have a separate $0.10 sublimit and are disabled by default; see [bounded testing and accounting](docs/meta-budget-tests.md).
+
+[Budget proxy](scripts/muse_budget_proxy.py)
+
+### 5. Streaming conversation: latency and real-time factor
+
+**Status:** Experimental Converse streaming/chunking exists; the performance goals and broad TTS comparison are research targets.
+
+A purely sequential speech pipeline has approximate latency
+
+$$
+T_{\mathrm{sequential}}=T_{\mathrm{STT}}+T_{\mathrm{LLM}}+T_{\mathrm{TTS}}.
+$$
+
+Overlapping pipeline stages can reduce perceived response time. The critical-path bound for an idealized dependency graph $G$ is
+
+$$
+T_{\mathrm{pipeline}}\ge
+\max_{p\in\mathcal P(G)}\sum_{v\in p}t_v.
+$$
+
+For synthesis, real-time factor is
+
+$$
+\mathrm{RTF}=\frac{T_{\mathrm{synthesis}}}{T_{\mathrm{generated\ audio}}}.
+$$
+
+RTF below 1 means synthesis is faster than audio duration. The roadmap proposes warm audible TTS onset below **250 ms median / 500 ms p95**, end-of-speech to audible reply below **1 s median / 2 s p95**, and sustained **RTF < 1** (stretch **RTF < 0.3**). These are **unverified reference-profile targets**, not achieved measurements. Overlapping stages still incur buffering, contention, and scheduling overhead.
+
+[Converse runtime](services/converse/runtime.py) · [Measurement plan](Roadmap.md#252-voice-measurements)
+
+### 6. Local inference: GPU resource admission
+
+**Status:** Explicit CPU voice/AMD Laya handoffs and measured headroom checks exist.
+The general scheduling formulation below remains proposed.
+
+Before loading several local workers, a resource manager could enforce a capacity constraint:
+
+$$
+M_{\mathrm{weights}}+M_{\mathrm{KV}}+M_{\mathrm{buffers}}+
+M_{\mathrm{renderer}}+M_{\mathrm{headroom}}\le M_{\mathrm{VRAM}}.
+$$
+
+This is a first-order memory-accounting model, not a complete measure of feasibility: latency contention, fragmented/reserved allocations, and unloading behavior also matter. The intended policies allow queueing, deliberate worker handoff, or **user-authorized** cloud inference—not silent cloud fallback.
+
+[Resource policy and handoff](Roadmap.md#14-inference-providers-and-resource-management)
+
+### 7. Self-building harnesses: controlled optimization and evaluation
+
+**Status:** The bounded seed Agent, isolated executable context selectors, protected evaluation, owner-reviewed promotion controls and rollback are implemented experimentally. The initial 12-case screening study rejected the generated candidate; no improvement was demonstrated. Paired Agent-task optimization and the formulations below remain research milestones.
+
+With fixed target model, tasks, tools, and budgets, compare baseline harness $H_0$ and generated candidate $H_1$ on the same $n$ tasks. For independently evaluated task quality $Q_i$, a paired improvement estimate is
+
+$$
+\widehat{\Delta}=\frac{1}{n}\sum_{i=1}^{n}
+\bigl[Q_i(H_1)-Q_i(H_0)\bigr],
+\qquad
+\mathrm{SE}(\widehat{\Delta})=\frac{s_d}{\sqrt n}.
+$$
+
+Here $s_d$ is the sample standard deviation of paired task-score differences. Repeated runs, held-out tasks, uncertainty reporting, and controlled baselines are needed before claiming an improvement. If a candidate saves $C_0-C_1>0$ per task after adaptation costing $C_{\mathrm{adapt}}$, a simple break-even estimate is
+
+$$
+N_{\mathrm{break\text{-}even}}=
+\frac{C_{\mathrm{adapt}}}{C_0-C_1}.
+$$
+
+Most importantly, better scores must **never** compensate for weakened permissions, modified objectives, forged evidence, or exceeded budgets. The planned research objective is *constrained*, not an unconstrained reward maximization:
+
+$$
+\begin{aligned}
+\max_{H\in\mathcal H}\quad&
+\mathbb E_{x\sim\mathcal D}[Q(H,x)]\\
+\text{subject to}\quad&
+\mathrm{Safe}(H)=1,\quad\mathrm{Integrity}(H)=1,\\
+&C_{\mathrm{adapt}}(H)\le B_{\mathrm{adapt}},\quad
+C_{\mathrm{run}}(H)\le B_{\mathrm{run}}.
+\end{aligned}
+$$
+
+These are **proposed evaluation formulations**, not a shipped optimization algorithm or proof of safety.
+
+[Seed harness](harnesses/seed/__init__.py) · [Evaluation and promotion policy](Roadmap.md#12-harness-evaluation-and-promotion) · [Research measurements](Roadmap.md#254-harness-measurements)
+
+
+## Hackathon target
+
+The planned demonstration is a focused slice through the larger roadmap:
+
+1. Real voice conversation with interruption support and an original, replaceable character.
+2. A real routed request that uses shared conversation context.
+3. Agent completes useful work and reports evidence of the result.
+4. Direct Agent Chat remains available while Converse is off.
+5. Agent generates an executable harness extension, evaluates it against a pinned baseline, and demonstrates safe rejection, promotion, or rollback.
+6. At least one verified Meta integration is exercised if the event requirements, account access, and applicable terms allow it.
+
+Meta is a target integration, not a product dependency. Model and API availability must be verified during implementation; the core stays provider-configurable. A Meta-generated character variant is a stretch demonstration, not a requirement on the voice-response path.
+

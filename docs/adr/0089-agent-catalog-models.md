@@ -80,7 +80,8 @@ sticky for ordinary and standing tasks even when a later adapter close succeeds.
 The actual lease retains its independent cleanup owner through cancellation.
 Tasks without a model lease preserve their existing notification behavior when
 cleanup is otherwise confirmed; closing and nonterminal tasks still suppress it.
-This ordering is not a positive standing Resources finalization certificate.
+This ordering is not a positive standing Resources finalization certificate;
+physical model/GPU release still requires actual native Resources evidence.
 
 The existing runtime busy boundary includes model cleanup, so an execution
 settings change cannot treat terminal publication alone as idle. Shutdown waits
