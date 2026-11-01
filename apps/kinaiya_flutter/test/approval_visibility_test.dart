@@ -135,7 +135,9 @@ void main() {
     'voice approval is visible without an Agent session and resolves its exact action',
     (tester) async {
       // Keep both retained expiry and live request cards in this viewport.
+      tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = const Size(800, 1600);
+      addTearDown(tester.view.resetDevicePixelRatio);
       addTearDown(tester.view.resetPhysicalSize);
       final api = ApprovalClient();
       final cursors = <String?>[];
