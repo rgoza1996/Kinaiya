@@ -7,6 +7,7 @@ lease, grant execution, or release standing capacity. Registration is explicit.
 import time
 from contextlib import contextmanager
 
+from packages.contracts.standing_execution import claim_id, intent_digest
 from packages.contracts.standing_resource_finalization import (
     MAX_STANDING_RESOURCE_BINDING_BYTES,
     MAX_STANDING_RESOURCE_FINALIZATION_BYTES,
@@ -21,8 +22,6 @@ from packages.contracts.standing_resource_finalization import (
     resource_binding_digest,
     resource_finalize_context_digest,
 )
-
-from packages.contracts.standing_execution import claim_id, intent_digest
 from packages.contracts.standing_resources import (
     StandingResourceObservation,
     standing_resource_observation_digest,

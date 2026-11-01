@@ -290,6 +290,35 @@ class JournalClient:
 
         return await standing_resource_observe(self, request)
 
+    async def standing_resource_bind(self, request):
+        from packages.contracts.standing_finalization_client import standing_resource_bind
+
+        return await standing_resource_bind(self, request)
+
+    async def standing_resource_binding_lookup(self, request):
+        from packages.contracts.standing_finalization_client import standing_resource_binding_lookup
+
+        return await standing_resource_binding_lookup(self, request)
+
+    async def standing_resource_finalize_context(self, request):
+        from packages.contracts.standing_finalization_client import (
+            standing_resource_finalize_context,
+        )
+
+        return await standing_resource_finalize_context(self, request)
+
+    async def standing_resource_report(self, report):
+        from packages.contracts.standing_finalization_client import standing_resource_report
+
+        return await standing_resource_report(self, report)
+
+    async def standing_resource_finalization_lookup(self, request):
+        from packages.contracts.standing_finalization_client import (
+            standing_resource_finalization_lookup,
+        )
+
+        return await standing_resource_finalization_lookup(self, request)
+
     async def admit_submit(self, request: AppendRequest) -> AgentSubmitReceipt:
         deadline = asyncio.get_running_loop().time() + AGENT_SUBMIT_ADMISSION_TIMEOUT_S
         try:

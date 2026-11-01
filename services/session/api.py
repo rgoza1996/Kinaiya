@@ -48,6 +48,10 @@ from services.session.agent_control import AgentControl
 from services.session.standing_admission import StandingTaskOwner
 from services.session.standing_dispatch import StandingDispatchOwner
 from services.session.standing_execution import StandingExecutionOwner
+from services.session.standing_resource_finalization import StandingResourceFinalizationOwner
+from services.session.standing_resource_finalization_api import (
+    install_standing_resource_finalization_routes,
+)
 from services.session.standing_resources import StandingResourceOwner
 from services.session.standing_work import StandingOwner
 from services.session.standing_work_api import install_standing_owner_routes
@@ -123,14 +127,37 @@ def create_app(
         standing_resource_initialized = True
     except (StandingConflict, StandingUnavailable):
         pass
+    standing_resource_finalization_owner = StandingResourceFinalizationOwner(
+        store, control, standing_task_owner, standing_resource_owner
+    )
+    standing_resource_finalization_initialized = False
+    try:
+        standing_resource_finalization_owner.register()
+        standing_resource_finalization_initialized = True
+    except (StandingConflict, StandingUnavailable):
+        pass
     standing_operations = None
+    standing_resource_finalization_operations = None
 
     @asynccontextmanager
     async def lifespan(_app):
         try:
             yield
         finally:
-            shutdown = asyncio.create_task(standing_operations.close())
+
+            async def close_operations():
+                # Fence both entry points before waiting for either actual
+                # operation owner; their shared registry stays globally bounded.
+                standing_operations._closed = True
+                standing_resource_finalization_operations._closed = True
+                for event in standing_operations._operations.values():
+                    event.set()
+                try:
+                    await standing_resource_finalization_operations.close()
+                finally:
+                    await standing_operations.close()
+
+            shutdown = asyncio.create_task(close_operations())
             interrupted = False
             try:
                 while not shutdown.done():
@@ -148,7 +175,10 @@ def create_app(
             finally:
                 try:
                     try:
-                        standing_resource_owner.close()
+                        try:
+                            standing_resource_finalization_owner.close()
+                        finally:
+                            standing_resource_owner.close()
                     finally:
                         standing_task_owner.close()
                 finally:
@@ -187,6 +217,10 @@ def create_app(
     app.state.standing_task_initialized = standing_task_initialized
     app.state.standing_resource_owner = standing_resource_owner
     app.state.standing_resource_initialized = standing_resource_initialized
+    app.state.standing_resource_finalization_owner = standing_resource_finalization_owner
+    app.state.standing_resource_finalization_initialized = (
+        standing_resource_finalization_initialized
+    )
     standing_operations = install_standing_owner_routes(
         app,
         standing_owner,
@@ -197,6 +231,10 @@ def create_app(
         resources=standing_resource_owner,
     )
     app.state.standing_owner_operations = standing_operations
+    standing_resource_finalization_operations = install_standing_resource_finalization_routes(
+        app, standing_resource_finalization_owner, auth, shared=standing_operations
+    )
+    app.state.standing_resource_finalization_operations = standing_resource_finalization_operations
     authenticated = Depends(auth.require())
     app.add_middleware(
         CORSMiddleware,

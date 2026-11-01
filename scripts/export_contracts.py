@@ -28,6 +28,7 @@ from packages.contracts import (
     standing_dispatch,
     standing_execution,
     standing_export,
+    standing_resource_finalization,
     standing_resources,
     standing_work,
     stt_models,
@@ -173,6 +174,12 @@ for cls in (
     standing_resources.StandingResourceReservation,
     standing_resources.StandingResourceReservationReceipt,
     standing_resources.StandingResourceObservation,
+    standing_resource_finalization.StandingResourceBindingRequest,
+    standing_resource_finalization.StandingResourceBindingReceipt,
+    standing_resource_finalization.StandingResourceFinalizeRequest,
+    standing_resource_finalization.StandingResourceFinalizeContext,
+    standing_resource_finalization.StandingResourceFinalization,
+    standing_resource_finalization.StandingResourceFinalizationReceipt,
 ):
     (target / f"{cls.__name__}.json").write_text(
         json.dumps(cls.model_json_schema(), indent=2) + "\n"
