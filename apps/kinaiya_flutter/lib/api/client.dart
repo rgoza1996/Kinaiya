@@ -19,6 +19,8 @@ import 'agent_workspace.dart';
 import 'agent_workspace_client.dart';
 import 'agent_model_client.dart';
 import 'agent_model_settings.dart';
+import 'agent_runtime_client.dart';
+import 'agent_runtime_settings.dart';
 import 'library_models.dart';
 import 'artifact_client.dart';
 import 'provider_client.dart';
@@ -82,6 +84,7 @@ class KinaiyaClient {
     http.Client Function()? artifactClientFactory,
     http.Client Function()? providerClientFactory,
     http.Client Function()? agentModelClientFactory,
+    http.Client Function()? agentRuntimeClientFactory,
   }) : sessionBase = normalizeServiceRoot(sessionBase),
        agentBase = normalizeServiceRoot(agentBase),
        converseBase = normalizeServiceRoot(converseBase),
@@ -102,7 +105,10 @@ class KinaiyaClient {
            (httpClient == null ? http.Client.new : _workspaceInjectionRequired),
        _agentModelClientFactory =
            agentModelClientFactory ??
-           (httpClient == null ? http.Client.new : _modelInjectionRequired);
+           (httpClient == null ? http.Client.new : _modelInjectionRequired),
+       _agentRuntimeClientFactory =
+           agentRuntimeClientFactory ??
+           (httpClient == null ? http.Client.new : _runtimeInjectionRequired);
 
   final String sessionBase;
   final String agentBase;
@@ -151,6 +157,16 @@ class KinaiyaClient {
     clientFactory: _agentModelClientFactory,
   );
 
+  final http.Client Function() _agentRuntimeClientFactory;
+  static http.Client _runtimeInjectionRequired() => throw StateError(
+    'Execution settings transport requires its own injected factory',
+  );
+  late final AgentRuntimeApi runtimeSettings = AgentRuntimeApi(
+    baseUrl: agentBase,
+    ownerToken: _token,
+    clientFactory: _agentRuntimeClientFactory,
+  );
+
   Future<ConverseSetup> converseSetup() async =>
       ConverseSetup.fromJson(await _get(converseBase, '/v1/converse/setup'));
 
@@ -175,6 +191,7 @@ class KinaiyaClient {
     http.Client Function()? artifactClientFactory,
     http.Client Function()? providerClientFactory,
     http.Client Function()? agentModelClientFactory,
+    http.Client Function()? agentRuntimeClientFactory,
   }) : sessionBase = normalizeServiceRoot(sessionBase),
        agentBase = normalizeServiceRoot(agentBase),
        converseBase = normalizeServiceRoot(converseBase),
@@ -190,7 +207,9 @@ class KinaiyaClient {
        _agentWorkspaceClientFactory =
            agentWorkspaceClientFactory ?? _workspaceInjectionRequired,
        _agentModelClientFactory =
-           agentModelClientFactory ?? _modelInjectionRequired {
+           agentModelClientFactory ?? _modelInjectionRequired,
+       _agentRuntimeClientFactory =
+           agentRuntimeClientFactory ?? _runtimeInjectionRequired {
     _mockLabel = label;
   }
 
@@ -269,15 +288,18 @@ class KinaiyaClient {
 
   Future<Map<String, Object?>> saveAgentRuntimeSettings(
     Map<String, Object?> body,
-  ) => _post(agentBase, '/v1/agent/options/runtime', body);
+  ) async =>
+      (await runtimeSettings.change(AgentRuntimeChange.fromJson(body)).result)
+          .json;
+
+  Future<Map<String, Object?>> lookupAgentRuntimeSettings(
+    Map<String, Object?> body,
+  ) async =>
+      (await runtimeSettings.lookup(AgentRuntimeChange.fromJson(body)).result)
+          .json;
 
   Future<Map<String, Object?>> agentRuntimeSettingsReceipt(String key) async =>
-      (await _agentWorkspaceReader.get(
-                agentBase,
-                '/v1/agent/options/runtime-changes/${Uri.encodeComponent(key)}',
-              )
-              as Map)
-          .cast<String, Object?>();
+      runtimeSettings.legacyReceipt(key).result;
 
   Future<Map<String, Object?>> agentTargetHealth(String? harness) async {
     try {
@@ -883,6 +905,7 @@ class KinaiyaClient {
       decisionInspections.close();
       unawaited(_agentWorkspaceReader.close());
       unawaited(modelSettings.close());
+      unawaited(runtimeSettings.close());
       artifacts.close();
     }
   }

@@ -18,28 +18,13 @@ import 'design_tokens.dart';
 import 'mcp_settings.dart';
 import 'options_model_editor.dart';
 import 'options_runtime_editor.dart';
+import 'agent_runtime_writes.dart';
 import 'options_provider_editor.dart';
 import 'presentation_settings.dart';
 import 'settings_controls.dart';
 import 'setup_dialog.dart';
 import 'widgets.dart';
 import 'motion_transition.dart';
-
-// Execution settings retain their existing endpoint-scoped recovery behavior.
-// Model settings have a separate authority-bound controller (issue191).
-class _RuntimeChange {
-  _RuntimeChange(this.body, this.instanceId);
-  final Map<String, Object?> body;
-  final String instanceId;
-  int inFlight = 0;
-  bool timedOut = false;
-  bool get sending => inFlight > 0;
-  bool get canRetry => inFlight < 2 && (timedOut || inFlight == 0);
-  String? notice;
-  bool uncertain = false;
-}
-
-final _runtimeChanges = <String, _RuntimeChange>{};
 
 class OptionsWorkspace extends StatefulWidget {
   const OptionsWorkspace({
@@ -70,13 +55,15 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
   Map<String, Object?>? _agent;
   AgentModelsSnapshot? _models;
   AgentRuntimeSnapshot? _runtime;
-  OptionsRuntimeDraft? _runtimeDraft;
+  AgentRuntimeWriteScope? _runtimeScope;
+  OptionsRuntimeDraft? _legacyRuntimeDraft;
+  OptionsRuntimeDraft? get _runtimeDraft =>
+      _runtimeScope?.draft ?? _legacyRuntimeDraft;
   String? _readError, _modelError, _runtimeError, _notice;
   ({AgentModelApi owner, String backendId, String text})? _modelNotice;
   bool _loading = false, _savingPreference = false;
   int _read = 0, _connection = -1;
 
-  String? get _endpoint => widget.state.client?.agentBase;
   PendingAgentModelChange? get _pending {
     final api = widget.state.client?.modelSettings;
     return api == null
@@ -106,7 +93,22 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
       : !_models!.writeAuthority!.writable
       ? 'Model settings are read-only. This host instance no longer owns model writes.'
       : null;
-  _RuntimeChange? get _runtimePending => _runtimeChanges[_endpoint];
+  PendingAgentRuntimeChange? get _runtimePending => _runtimeScope?.pending;
+  bool get _runtimeBusy =>
+      _loading ||
+      _runtimePending != null ||
+      _runtime?.writeAuthority?.writable != true ||
+      _runtimeScope == null ||
+      widget.state.client?.runtimeSettings.hasCapacity != true;
+  String? get _runtimeReadOnlyReason => _runtime == null
+      ? null
+      : _runtime!.writeAuthority == null
+      ? 'Execution settings are read-only. This host does not advertise supported bound writes.'
+      : !_runtime!.writeAuthority!.writable
+      ? 'Execution settings are read-only. This host instance no longer owns execution writes.'
+      : _runtimeScope == null
+      ? 'Execution settings are read-only. Resolve or review retained drafts before opening another settings scope.'
+      : null;
 
   @override
   void initState() {
@@ -115,6 +117,7 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
     _connection = widget.state.connectionGeneration;
     widget.state.addListener(_changed);
     agentModelWrites.addListener(_modelWritesChanged);
+    agentRuntimeWrites.addListener(_modelWritesChanged);
     widget.presentation.addListener(_presentationChanged);
     // Catalog refresh notifies the shared shell, so start after this mount.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -129,7 +132,8 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
       oldWidget.state.removeListener(_changed);
       widget.state.addListener(_changed);
       _harness = null;
-      _runtimeDraft = null;
+      _runtimeScope = null;
+      _legacyRuntimeDraft = null;
       _connection = widget.state.connectionGeneration;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _refresh();
@@ -150,6 +154,7 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
     _search.dispose();
     widget.state.removeListener(_changed);
     agentModelWrites.removeListener(_modelWritesChanged);
+    agentRuntimeWrites.removeListener(_modelWritesChanged);
     widget.presentation.removeListener(_presentationChanged);
     super.dispose();
   }
@@ -175,13 +180,14 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
   Future<void> _refresh() async {
     final owner = widget.state, api = widget.state.client;
     final generation = owner.connectionGeneration, request = ++_read;
-    if (_connection != generation) _runtimeDraft = null;
     _connection = generation;
     setState(() {
       _converse = null;
       _agent = null;
       _models = null;
       _runtime = null;
+      _runtimeScope = null;
+      _legacyRuntimeDraft = null;
       _readError = _modelError = _runtimeError = null;
       _loading = api != null;
     });
@@ -243,9 +249,14 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
               _modelError = modelError;
               _runtime = runtime;
               _runtimeError = runtimeError;
-              if (runtime != null &&
-                  (_runtimeDraft == null || !_runtimeDraft!.dirty)) {
-                _runtimeDraft = OptionsRuntimeDraft(runtime);
+              if (runtime != null) {
+                _runtimeScope = agentRuntimeWrites.open(
+                  api.runtimeSettings,
+                  runtime,
+                );
+                if (_runtimeScope == null) {
+                  _legacyRuntimeDraft = AgentRuntimeDraft(runtime);
+                }
               }
             });
           }
@@ -401,166 +412,67 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
     );
   }
 
-  bool _validRuntimeReceipt(
-    _RuntimeChange operation,
-    Map<String, Object?> result,
-  ) {
-    try {
-      return result['schema_version'] == '1.0' &&
-          result['status'] == 'settings_saved' &&
-          result['change_boundary'] == 'settled_service' &&
-          result['idempotency_key'] == operation.body['idempotency_key'] &&
-          result['revision'] ==
-              (operation.body['expected_revision'] as int) + 1 &&
-          result['service_instance'] == operation.instanceId &&
-          result['requested_yolo'] == operation.body['yolo'] &&
-          AgentExecutionSettings.fromJson(result['settings']).matches(
-            AgentExecutionSettings.fromJson(operation.body['settings']),
-          );
-    } catch (_) {
-      return false;
-    }
-  }
-
   Future<void> _saveRuntime(OptionsRuntimeDraft draft) async {
-    final endpoint = _endpoint, runtime = _runtime, settings = draft.settings;
-    if (endpoint == null ||
+    final api = widget.state.client?.runtimeSettings;
+    final runtime = _runtime, scope = _runtimeScope, settings = draft.settings;
+    final authority = runtime?.writeAuthority;
+    if (api == null ||
         runtime == null ||
+        scope == null ||
+        authority == null ||
         settings == null ||
-        _runtimePending != null ||
-        _loading ||
+        _runtimeBusy ||
         runtime.busy ||
+        !identical(scope.draft, draft) ||
         runtime.stateToken != draft.base.stateToken) {
       return;
     }
-    if (_runtimeChanges.length >= 16) {
-      setState(
-        () => _notice =
-            'Resolve an earlier execution settings save before another change.',
-      );
-      return;
-    }
-    final operation = _RuntimeChange({
-      'schema_version': '1.0',
+    final request = AgentRuntimeChange.fromJson({
+      'schema_version': '1.1',
+      'expected_backend': authority.backendId,
+      'expected_instance': authority.instanceId,
       'expected_revision': runtime.revision,
       'expected_state': runtime.stateToken,
       'idempotency_key': newIdempotencyKey(),
       'settings': settings,
       'yolo': draft.yolo,
-    }, runtime.instanceId);
-    _runtimeChanges[endpoint] = operation;
-    await _sendRuntime(endpoint, operation);
+    });
+    final operation = agentRuntimeWrites.begin(scope, api, request);
+    if (operation == null) return;
+    await _retryRuntime(operation);
   }
 
-  Future<void> _sendRuntime(String endpoint, _RuntimeChange operation) async {
+  Future<void> _runtimeAction(
+    Future<AgentRuntimeOutcome?> Function() action,
+  ) async {
     final owner = widget.state, api = owner.client;
-    final generation = owner.connectionGeneration;
-    if (api == null || api.agentBase != endpoint || operation.inFlight >= 2) {
-      return;
-    }
-    operation.inFlight++;
-    operation.timedOut = false;
-    operation.notice = 'Saving Agent execution settings…';
-    if (mounted) setState(() {});
-    bool current() =>
+    final generation = owner.connectionGeneration, scope = _runtimeScope;
+    final outcome = await action();
+    if (outcome != null &&
         mounted &&
         identical(owner, widget.state) &&
-        owner.ownsConnection(generation, api);
-    final request = api.saveAgentRuntimeSettings(operation.body);
-    unawaited(
-      request.then<void>(
-        (result) async {
-          operation.inFlight--;
-          if (!identical(_runtimeChanges[endpoint], operation)) return;
-          if (_validRuntimeReceipt(operation, result)) {
-            _runtimeChanges.remove(endpoint);
-            if (current()) {
-              _runtimeDraft = null;
-              _notice =
-                  'Agent settings saved. Active values are refreshed below.';
-            }
-          } else {
-            operation.uncertain = true;
-            operation.notice =
-                'Save result is unconfirmed. Check the exact receipt.';
-          }
-          if (current()) {
-            setState(() {});
-            await _refresh();
-          }
-        },
-        onError: (Object error) async {
-          operation.inFlight--;
-          if (!identical(_runtimeChanges[endpoint], operation)) return;
-          if (error is ApiException &&
-              const [400, 409, 422].contains(error.status) &&
-              !operation.uncertain &&
-              operation.inFlight == 0) {
-            _runtimeChanges.remove(endpoint);
-            if (current()) {
-              _notice = error.status == 409
-                  ? 'The host changed or work is pending. Your draft is retained. '
-                        'Review active values before saving again.'
-                  : 'The host refused this change. Check the directory and limits.';
-            }
-          } else {
-            operation.uncertain = true;
-            operation.notice =
-                'Save result is unconfirmed. Check its receipt '
-                'before another execution settings change.';
-          }
-          if (current()) {
-            setState(() {});
-            await _refresh();
-          }
-        },
-      ),
-    );
-    try {
-      await request.timeout(const Duration(seconds: 8));
-    } catch (_) {
-      if (operation.sending) {
-        operation.timedOut = true;
-        operation.notice =
-            'Still waiting for the host. The settings may be saved.';
-        if (current()) setState(() {});
-      }
+        identical(scope, _runtimeScope) &&
+        api != null &&
+        owner.ownsConnection(generation, api)) {
+      await _refresh();
     }
+  }
+
+  Future<void> _retryRuntime(PendingAgentRuntimeChange operation) async {
+    final api = widget.state.client?.runtimeSettings;
+    if (api == null) return;
+    await _runtimeAction(
+      () => agentRuntimeWrites.retry(operation, api, _runtime?.writeAuthority),
+    );
   }
 
   Future<void> _checkRuntimeSave() async {
-    final owner = widget.state, operation = _runtimePending;
-    final api = owner.client, endpoint = _endpoint;
-    final generation = owner.connectionGeneration;
-    if (operation == null || api == null || endpoint == null) return;
-    bool current() =>
-        mounted &&
-        identical(owner, widget.state) &&
-        owner.ownsConnection(generation, api);
-    try {
-      final result = await api.agentRuntimeSettingsReceipt(
-        operation.body['idempotency_key'] as String,
-      );
-      if (!_validRuntimeReceipt(operation, result)) {
-        throw const FormatException();
-      }
-      if (identical(_runtimeChanges[endpoint], operation)) {
-        _runtimeChanges.remove(endpoint);
-        if (current()) _runtimeDraft = null;
-      }
-      if (current()) {
-        setState(
-          () => _notice =
-              'Save confirmed. Review the current active values below.',
-        );
-        await _refresh();
-      }
-    } catch (_) {
-      operation.notice =
-          'No confirmed receipt yet. Retry uses the identical '
-          'request and cannot apply it twice.';
-      if (current()) setState(() {});
-    }
+    final api = widget.state.client?.runtimeSettings,
+        operation = _runtimePending;
+    if (api == null || operation == null) return;
+    await _runtimeAction(
+      () => agentRuntimeWrites.lookup(operation, api, _runtime?.writeAuthority),
+    );
   }
 
   @override
@@ -672,6 +584,14 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
                         ),
                       ),
                     ),
+                  if (_runtimeScope?.notice case final notice?)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 8,
+                      ),
+                      child: Semantics(liveRegion: true, child: Text(notice)),
+                    ),
                   if (_runtimePending case final pending?)
                     Padding(
                       padding: const EdgeInsets.symmetric(
@@ -685,18 +605,25 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
                           spacing: 12,
                           runSpacing: 8,
                           children: [
-                            Text(
-                              pending.notice ??
-                                  'An execution change awaits confirmation.',
-                            ),
+                            Text(pending.notice),
                             TextButton(
-                              onPressed: _checkRuntimeSave,
+                              onPressed:
+                                  agentRuntimeWrites.canLookup(
+                                    pending,
+                                    widget.state.client!.runtimeSettings,
+                                    _runtime?.writeAuthority,
+                                  )
+                                  ? _checkRuntimeSave
+                                  : null,
                               child: const Text('Check execution save status'),
                             ),
-                            if (pending.canRetry)
+                            if (agentRuntimeWrites.canRetry(
+                              pending,
+                              widget.state.client!.runtimeSettings,
+                              _runtime?.writeAuthority,
+                            ))
                               TextButton(
-                                onPressed: () =>
-                                    _sendRuntime(_endpoint!, pending),
+                                onPressed: () => _retryRuntime(pending),
                                 child: const Text(
                                   'Retry the same execution save',
                                 ),
@@ -1219,16 +1146,19 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
     final snapshot = _runtime, draft = _runtimeDraft;
     return _scroll([
       ..._errors,
+      if (_runtimeReadOnlyReason case final reason?) Text(reason),
       if (snapshot != null && draft != null)
         OptionsRuntimeEditor(
           key: ObjectKey(draft),
           snapshot: snapshot,
           draft: draft,
           page: _page,
-          saving: _runtimePending != null || _loading,
+          saving: _runtimeBusy,
           onSave: _saveRuntime,
-          onReset: () =>
-              setState(() => _runtimeDraft = OptionsRuntimeDraft(snapshot)),
+          onReset: () {
+            final scope = _runtimeScope;
+            if (scope != null) agentRuntimeWrites.reset(scope);
+          },
         )
       else
         _unavailable(
