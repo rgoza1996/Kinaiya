@@ -1,6 +1,7 @@
 """Owner control plane; candidates have no route or credential to activation."""
 
 import asyncio
+from functools import wraps
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import Field
@@ -28,6 +29,16 @@ def router(runtime, auth):
     routes = APIRouter(prefix="/v1/harness", dependencies=[Depends(auth.require("owner"))])
     gate = asyncio.Semaphore(1)
 
+    def owned(handler):
+        @wraps(handler)
+        async def operation(*args, **kwargs):
+            return await runtime.owned_workspace_operation(
+                lambda: handler(*args, **kwargs),
+                require_root=handler.__name__ in {"register", "evaluate"},
+            )
+
+        return operation
+
     def configured():
         if runtime.selector_registry is None:
             raise HTTPException(503, "Configure an owner-held suite and protected registry first")
@@ -46,6 +57,7 @@ def router(runtime, auth):
         }
 
     @routes.post("/register")
+    @owned
     async def register(request: Registration):
         registry = configured()
         try:
@@ -58,6 +70,7 @@ def router(runtime, auth):
             raise HTTPException(400, str(exc)) from exc
 
     @routes.post("/evaluate")
+    @owned
     async def evaluate(request: Version):
         registry = configured()
         async with gate:
@@ -68,6 +81,7 @@ def router(runtime, auth):
                 raise HTTPException(400, str(exc)) from exc
 
     @routes.post("/promote")
+    @owned
     async def promote(request: Promotion):
         registry = configured()
         try:
@@ -83,6 +97,7 @@ def router(runtime, auth):
             raise HTTPException(409, str(exc)) from exc
 
     @routes.post("/rollback")
+    @owned
     async def rollback():
         registry = configured()
         try:

@@ -62,6 +62,7 @@ class OptionsRuntimeEditor extends StatefulWidget {
     required this.saving,
     required this.onSave,
     required this.onReset,
+    this.workspaceDirectoryOnly = false,
   });
   final AgentRuntimeSnapshot snapshot;
   final OptionsRuntimeDraft draft;
@@ -69,6 +70,7 @@ class OptionsRuntimeEditor extends StatefulWidget {
   final bool saving;
   final Future<void> Function(OptionsRuntimeDraft draft) onSave;
   final VoidCallback onReset;
+  final bool workspaceDirectoryOnly;
   @override
   State<OptionsRuntimeEditor> createState() => _OptionsRuntimeEditorState();
 }
@@ -146,7 +148,9 @@ class _OptionsRuntimeEditorState extends State<OptionsRuntimeEditor> {
               permissions
                   ? 'Service-wide execution controls'
                   : workspace
-                  ? 'Approved workspace'
+                  ? widget.workspaceDirectoryOnly
+                        ? 'Shell starting directory'
+                        : 'Approved workspace'
                   : 'Execution limits and isolation',
               style: Theme.of(context).textTheme.titleLarge,
             ),
@@ -235,15 +239,17 @@ class _OptionsRuntimeEditorState extends State<OptionsRuntimeEditor> {
                 'The scoped tool editor is separate. These service-wide settings do not replace per-tool rules or other native access boundaries.',
               ),
             ] else if (workspace) ...[
-              _field('Workspace root', execution.workspace),
-              _field(
-                'Command access to workspace',
-                execution.shellWorkspaceAccess == 'read_only'
-                    ? 'Read-only mount'
-                    : execution.shellWorkspaceAccess == 'unavailable'
-                    ? 'Unavailable until the starting directory is valid'
-                    : 'Read/write mount after command authorization',
-              ),
+              if (!widget.workspaceDirectoryOnly) ...[
+                _field('Workspace root', execution.workspace),
+                _field(
+                  'Command access to workspace',
+                  execution.shellWorkspaceAccess == 'read_only'
+                      ? 'Read-only mount'
+                      : execution.shellWorkspaceAccess == 'unavailable'
+                      ? 'Unavailable until the starting directory is valid'
+                      : 'Read/write mount after command authorization',
+                ),
+              ],
               _field(
                 'Active shell directory',
                 execution.directory ??
@@ -263,13 +269,18 @@ class _OptionsRuntimeEditorState extends State<OptionsRuntimeEditor> {
                 ),
                 onChanged: (x) => setState(() => draft.directory = x),
               ),
-              _paths('Read-only folders', execution.readonly),
-              _paths('Protected folders', execution.protected),
-              const Text(
-                'The host selects the approved root and folder restrictions. '
-                'Changing the starting directory keeps the same workspace boundary. '
-                'Workspace relocation and Git worktree creation are not available here yet.',
-              ),
+              if (!widget.workspaceDirectoryOnly) ...[
+                _paths('Read-only folders', execution.readonly),
+                _paths('Protected folders', execution.protected),
+                const Text(
+                  'The host selects the approved root and folder restrictions. '
+                  'Changing the starting directory keeps the same workspace boundary. '
+                  'Workspace relocation and Git worktree creation are not available here yet.',
+                ),
+              ] else
+                const Text(
+                  'This relative directory belongs to Agent execution preferences. Set it to . before changing workspace if the same relative folder will not exist in the new root.',
+                ),
             ] else ...[
               TextField(
                 key: const Key('options-max-steps'),
@@ -368,8 +379,10 @@ class _OptionsRuntimeEditorState extends State<OptionsRuntimeEditor> {
               ],
             ),
             const SizedBox(height: 8),
-            const Text(
-              'Save includes your draft changes across Permissions, Workspace and Execution.',
+            Text(
+              widget.workspaceDirectoryOnly
+                  ? 'Save Agent settings includes execution-preference drafts across Permissions and Execution, plus this starting directory. The approved workspace and read-only overlays use their own Save above.'
+                  : 'Save includes your draft changes across Permissions, Workspace and Execution.',
             ),
           ],
         ),

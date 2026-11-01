@@ -11,6 +11,7 @@ from fastapi.routing import APIRoute
 from core.extensions import HarnessError
 from core.policy import PolicyDenied
 from packages.contracts.tool_permissions import ToolPermissionChange, ToolPermissionTargetChange
+from packages.contracts.workspace_settings import WorkspaceChange
 from services.agent.model_settings import (
     BoundModelSettingsChange,
     ModelSettingsChange,
@@ -25,6 +26,7 @@ from services.agent.runtime_settings import (
     execution_metadata,
 )
 from services.agent.tool_permissions import ToolPermissionConflict
+from services.agent.workspace_settings import WorkspaceConflict
 
 
 class _NoStoreRoute(APIRoute):
@@ -53,6 +55,53 @@ def router(runtime, auth):
         dependencies=[Depends(auth.require("owner"))],
         route_class=_NoStoreRoute,
     )
+
+    def workspace_settings():
+        if runtime.workspace_settings is None:
+            raise HTTPException(503, "Native workspace selection is unavailable")
+        return runtime.workspace_settings
+
+    @routes.get("/workspace-settings")
+    async def inspect_workspace_settings():
+        try:
+            return workspace_settings().snapshot()
+        except (OSError, ValueError, RuntimeError, sqlite3.Error) as exc:
+            raise HTTPException(503, "Native workspace authority is unavailable") from exc
+
+    @routes.post("/workspace-settings")
+    async def change_workspace_settings(request: WorkspaceChange):
+        async with runtime.integration_lock:
+            try:
+                return await workspace_settings().change(request)
+            except WorkspaceConflict as exc:
+                raise HTTPException(409, str(exc)) from exc
+            except (PolicyDenied, ValueError) as exc:
+                raise HTTPException(
+                    400, "Workspace selection refused; inspect its paths and native owners"
+                ) from exc
+            except (OSError, RuntimeError, sqlite3.Error) as exc:
+                raise HTTPException(
+                    503, "Workspace outcome is unconfirmed; inspect the exact request"
+                ) from exc
+
+    @routes.get("/workspace-changes/{key}")
+    async def workspace_change_receipt(key: str):
+        try:
+            receipt = workspace_settings().receipt(key)
+            if receipt is None:
+                raise HTTPException(404, "No exact committed workspace receipt is visible")
+            return receipt
+        except (ValueError, OSError, RuntimeError, sqlite3.Error) as exc:
+            raise HTTPException(503, "Workspace receipt is unavailable") from exc
+
+    @routes.post("/workspace-changes/lookup")
+    async def lookup_workspace_change(request: WorkspaceChange):
+        try:
+            return workspace_settings().lookup(request)
+        except WorkspaceConflict as exc:
+            raise HTTPException(409, str(exc)) from exc
+        except (ValueError, OSError, RuntimeError, sqlite3.Error) as exc:
+            raise HTTPException(503, "Exact workspace outcome is unavailable") from exc
 
     @routes.get("")
     async def inspect_options(response: Response):

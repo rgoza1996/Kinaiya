@@ -126,6 +126,19 @@ class PluginService:
             self.registry.close()
             raise
 
+    def prepare_workspace(self, workspace):
+        from core.policy.workspace import prepare_disjoint_workspace
+
+        if self._lock.locked() or self._execution.locked() or self._pins:
+            raise ValueError("Plugin ownership is not settled")
+        prepared = prepare_disjoint_workspace(self.root, workspace)
+        for suite in self.registry.suites.values():
+            prepare_disjoint_workspace(suite, prepared)
+        return prepared
+
+    def install_workspace(self, prepared):
+        self.workspace = prepared
+
     async def owner_control(self, key, payload, operation):
         """Persist intent before effects; uncertain operations never replay."""
         digest = hashlib.sha256(_json(payload).encode()).hexdigest()

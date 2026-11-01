@@ -1387,6 +1387,14 @@ class SkillManager:
             self._check_workspace_disjoint()
         self._registry: dict[str, dict[str, Any]] = self._read_registry()
 
+    def prepare_workspace(self, workspace):
+        from core.policy.workspace import prepare_disjoint_workspace
+
+        return prepare_disjoint_workspace(self.root, workspace)
+
+    def install_workspace(self, prepared):
+        self.workspace = prepared
+
     def _check_workspace_disjoint(self) -> None:
         """Keep manager control state outside/disjoint from Agent workspace."""
         assert self.workspace is not None

@@ -14,6 +14,13 @@ def require_plugins(runtime):
 
 
 async def apply_plugin_control(runtime, control: PluginControl):
+    return await runtime.owned_workspace_operation(
+        lambda: _apply_plugin_control(runtime, control),
+        require_root=control.operation in {"register", "evaluate", "run"},
+    )
+
+
+async def _apply_plugin_control(runtime, control):
     service = require_plugins(runtime)
     return await service.owner_control(
         control.idempotency_key,

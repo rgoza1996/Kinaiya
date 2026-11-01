@@ -56,6 +56,14 @@ class _SubmitExchange:
     def _settled(self, task):
         if not task.cancelled():
             task.exception()
+        if (
+            self.close_task is not None
+            and self.close_task.done()
+            and (self.close_task.cancelled() or self.close_task.exception() is not None)
+        ):
+            # Preserve actual close uncertainty before the bounded exchange
+            # entry disappears. Ordinary HTTP/admission failures do not set it.
+            self.owner._submit_cleanup_failed = True
         if self.task.done() and (self.close_task is None or self.close_task.done()):
             self.owner._submit_exchanges.discard(self)
 
@@ -139,6 +147,7 @@ class JournalClient:
             transport=transport,
         )
         self._submit_exchanges = set()
+        self._submit_cleanup_failed = False
         self._submit_closed = False
 
     async def admit_submit(self, request: AppendRequest) -> AgentSubmitReceipt:

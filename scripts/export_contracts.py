@@ -18,6 +18,7 @@ from packages.contracts import (
     memory_operations,
     models,
     tool_permissions,
+    workspace_settings,
 )
 
 target = Path(__file__).resolve().parents[1] / "packages/contracts/schemas"
@@ -64,6 +65,9 @@ for cls in (
     converse_models.ConverseModelSelection,
     converse_models.ConverseModelChange,
     converse_models.RoleModelPin,
+    workspace_settings.WorkspaceSelection,
+    workspace_settings.WorkspaceChange,
+    workspace_settings.WorkspacePin,
 ):
     (target / f"{cls.__name__}.json").write_text(
         json.dumps(cls.model_json_schema(), indent=2) + "\n"

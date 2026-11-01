@@ -93,7 +93,6 @@ from services.agent.completion import append_completion
 from services.agent.history_budget import select_history
 from services.agent.mcp_tools import ModelScopedMCP, run_mcp_call, run_mcp_list
 from services.agent.tools import (
-    RunningProc,
     ToolFailure,
     _FailedWithEvidence,
     run_read,
@@ -273,7 +272,7 @@ class _Record:
     failed_plugin: bool = False
     cancel_requested: bool = False
     closing: bool = False
-    proc_slot: dict[str, RunningProc | None] = field(default_factory=dict)
+    proc_slot: dict[str, Any] = field(default_factory=dict)
     journal_seq: int = 0
     steer_idem: dict[str, tuple[str, str]] = field(default_factory=dict)
     interrupt_idem: dict[str, tuple[str, str]] = field(default_factory=dict)
@@ -299,6 +298,7 @@ class _Record:
     submit_confirmed: bool = False
     # Immutable native initial-entry identity, independent of later steering.
     submit_identity: str | None = None
+    workspace_context: Any | None = None
 
 
 @dataclass
@@ -365,6 +365,7 @@ class AgentRuntime:
         self.model_settings = None
         self.runtime_settings = None
         self.tool_permissions = None
+        self.workspace_settings = None
         self.projects = None
         self.workspace = Path(workspace)
         self.policy = policy
@@ -394,6 +395,221 @@ class AgentRuntime:
         self._submit_waiters: set[asyncio.Future] = set()
         self._submit_preflights: set[_SubmitPreflight] = set()
         self._closed = False
+        self._workspace_requests = set()
+        self._workspace_operations = set()
+        self._workspace_workers = set()
+        self._workspace_watched = set()
+        self._workspace_cleanup_failed = False
+
+    def workspace_operation_state(self):
+        """Actual owners, including cancelled callers whose native work remains."""
+        records = tuple(self._tasks.values())
+        exchanges = getattr(self.journal, "_submit_exchanges", ())
+        uncertain_hosts = tuple(getattr(self.mcp_controller, "_uncertain_hosts", ()))
+        actors = tuple(getattr(self.mcp_host, "_actors", {}).values()) + tuple(
+            actor for host in uncertain_hosts for actor in getattr(host, "_actors", {}).values()
+        )
+        models = self.model_settings
+        leases = tuple(getattr(models, "catalog_leases", ())) if models is not None else ()
+
+        def failed_lease(lease):
+            return lease.failed or (
+                lease.cleanup is not None and lease.cleanup.done() and not lease.settled
+            )
+
+        return {
+            "closed": self._closed,
+            "tasks": sum(not self._closed and rec.task.state not in TERMINAL for rec in records),
+            "workers": len(
+                {
+                    worker
+                    for worker in [*(rec.worker for rec in records), *self._workspace_workers]
+                    if worker is not None and not worker.done()
+                }
+            ),
+            "processes": sum(rec.proc_slot.get("proc") is not None for rec in records),
+            "retirements": sum(rec.retire_lock.locked() for rec in records),
+            "submit_preflights": len(self._submit_preflights),
+            "submit_operations": sum(not op.done() for op in self._submit_operations)
+            + sum(
+                not ex.task.done() or ex.close_task is not None and not ex.close_task.done()
+                for ex in exchanges
+            ),
+            "pending_submits": 0 if self._closed else len(self._pending_submits),
+            "ecosystem_operations": len(self._workspace_requests)
+            + sum(not op.done() for op in self._workspace_operations)
+            + sum(
+                getattr(actor, "_current", None) is not None or not actor._queue.empty()
+                for actor in actors
+            ),
+            "cleanup_pending": sum(
+                not lease.settled and not failed_lease(lease) for lease in leases
+            ),
+            "cleanup_failed": int(
+                self._workspace_cleanup_failed
+                or getattr(self.journal, "_submit_cleanup_failed", False)
+            )
+            + sum(bool(failed_lease(lease)) for lease in leases)
+            + len(uncertain_hosts),
+        }
+
+    def _workspace_settled(self):
+        if self.workspace_settings is not None:
+
+            def watch(operation, *, cleanup=False):
+                if operation is None:
+                    return
+                if operation.done():
+                    if cleanup and (operation.cancelled() or operation.exception() is not None):
+                        self._workspace_cleanup_failed = True
+                    return
+                if operation in self._workspace_watched:
+                    return
+                self._workspace_watched.add(operation)
+
+                def settled(task):
+                    self._workspace_watched.discard(task)
+                    if cleanup and (task.cancelled() or task.exception() is not None):
+                        self._workspace_cleanup_failed = True
+                    elif not task.cancelled():
+                        task.exception()
+                    self._workspace_settled()
+
+                operation.add_done_callback(settled)
+
+            for exchange in tuple(getattr(self.journal, "_submit_exchanges", ())):
+                watch(exchange.task)
+                watch(exchange.close_task, cleanup=True)
+            for lease in tuple(getattr(self.model_settings, "catalog_leases", ())):
+                watch(lease.cleanup)
+                for operation in tuple(lease.retiring):
+                    watch(operation)
+            self.workspace_settings.release_if_settled()
+
+    def _retain_workspace_worker(self, worker, *, transport=False):
+        if worker is None:
+            return
+        self._workspace_workers.add(worker)
+
+        def settled(task):
+            failed = task.cancelled()
+            if not failed:
+                failed = task.exception() is not None
+            if transport and failed:
+                self._workspace_cleanup_failed = True
+            self._workspace_workers.discard(task)
+            self._workspace_settled()
+
+        worker.add_done_callback(settled)
+
+    def _workspace_current(self, rec=None):
+        if self.workspace_settings is None:
+            return None
+        try:
+            context = self.workspace_settings.active_context()
+            if rec is not None and (
+                rec.recovered
+                or rec.workspace_context is not context
+                or rec.task.workspace_pin != context.pin
+            ):
+                raise ValueError("Task has no live captured workspace")
+            return context
+        except (OSError, ValueError, RuntimeError):
+            raise PolicyDenied("Native workspace authority is unavailable") from None
+
+    async def owned_workspace_operation(self, invoke, *, require_root=True):
+        """A caller timeout never releases a still-running native operation."""
+        from services.agent.workspace_ownership import MAX_WORKSPACE_OPERATIONS, captured_context
+
+        if self._closed or len(self._workspace_operations) >= MAX_WORKSPACE_OPERATIONS:
+            raise PolicyDenied("Workspace operation capacity is unavailable")
+        context = captured_context(self, required=require_root)
+        if context is not None:
+            self._workspace_current()
+        operation = asyncio.create_task(invoke())
+        self._workspace_operations.add(operation)
+
+        def settled(task):
+            if not task.cancelled():
+                task.exception()
+            self._workspace_operations.discard(task)
+            if self.workspace_settings is not None:
+                self.workspace_settings.release_if_settled()
+
+        operation.add_done_callback(settled)
+        return await asyncio.shield(operation)
+
+    async def retire_workspace(self):
+        """Retire actual MCP actors, retaining their workers beyond timeout."""
+        controller, host = self.mcp_controller, self.mcp_host
+        actors = tuple(getattr(host, "_actors", {}).values())
+        if controller is not None:
+            await controller.retire_connections(actor="owner")
+        elif host is not None:
+            await host.reset_connections(actor="owner")
+        workers = [actor._task for actor in actors if actor._task is not None]
+        # Some transport stop methods return before resistant cancellation has
+        # settled. The workspace owner's shielded retirement retains this join.
+        if workers:
+            results = await asyncio.gather(*workers, return_exceptions=True)
+            if any(isinstance(result, BaseException) for result in results):
+                self._workspace_cleanup_failed = True
+                raise RuntimeError("Actual workspace transport cleanup is unconfirmed")
+
+    def prepare_workspace_apply(self, context):
+        from services.agent.workspace_ownership import PreparedWorkspaceInstall
+
+        owners = (self.policy, self.mcp_controller, self.skill_service, self.plugin_service)
+        services = owners[1:]
+        prepared = tuple(
+            service.prepare_workspace(context.root) if service is not None else None
+            for service in services
+        )
+        previous = (
+            self.workspace,
+            self.policy.workspace,
+            self.policy.protected_roots,
+            self.policy.readonly_roots,
+            self.policy._workspace_current,
+            self.policy._workspace_root_fd,
+            tuple(
+                getattr(service, "_workspace", getattr(service, "workspace", None))
+                for service in services
+            ),
+        )
+
+        def current():
+            return (
+                context.current()
+                and owners
+                == (self.policy, self.mcp_controller, self.skill_service, self.plugin_service)
+                and previous
+                == (
+                    self.workspace,
+                    self.policy.workspace,
+                    self.policy.protected_roots,
+                    self.policy.readonly_roots,
+                    self.policy._workspace_current,
+                    self.policy._workspace_root_fd,
+                    tuple(
+                        getattr(service, "_workspace", getattr(service, "workspace", None))
+                        for service in services
+                    ),
+                )
+            )
+
+        def apply():
+            self.policy.install_workspace_context(
+                context,
+                actor="owner",
+                available=lambda: self.workspace_settings.active_context() is context,
+            )
+            self.workspace = context.root
+            for service, value in zip(services, prepared, strict=True):
+                if service is not None:
+                    service.install_workspace(value)
+
+        return PreparedWorkspaceInstall(current, apply)
 
     def provider_for(self, rec=None):
         """A task retains its native provider; owner defaults affect future work."""
@@ -428,6 +644,19 @@ class AgentRuntime:
     # -- journal ------------------------------------------------------
     def _append_request(self, rec: _Record, kind: str, payload: dict[str, Any]) -> AppendRequest:
         rec.journal_seq += 1
+        if kind == "agent.tool" and rec.workspace_context is not None:
+            payload = {
+                **payload,
+                "workspace_pin": rec.workspace_context.pin.model_dump(mode="json"),
+            }
+            evidence = payload.get("evidence")
+            if isinstance(evidence, dict) and evidence.get("kind") == "file":
+                try:
+                    payload["workspace_relative_path"] = str(
+                        Path(evidence["path"]).relative_to(rec.workspace_context.root)
+                    )
+                except (ValueError, KeyError, TypeError):
+                    pass
         # Every entry carries the task reference and top-level state so
         # observers (Converse grounding, Decisions routing) can find the
         # task without parsing nested blobs. Outcome entries additionally
@@ -673,6 +902,7 @@ class AgentRuntime:
 
     async def _task_scope(self, rec, *, persist=True, require_open=False):
         """Recheck source floors and the actual target provider at each continuation."""
+        self._workspace_current(rec)
         scopes = [rec.task.content_scope]
         for source_id in rec.task.source_event_ids:
             try:
@@ -721,6 +951,7 @@ class AgentRuntime:
                 await self._append(rec, "agent.command", {"op": "disclosure-narrowed"})
         # A steer or profile change can land while native reads above await.
         rec.task.content_scope = combine_scopes(rec.task.content_scope, scope)
+        self._workspace_current(rec)
         if rec.recovered:
             # Recovery restores evidence and sticky disclosure floors, never a
             # live adapter. Do not consult/rebind the current owner default for
@@ -953,6 +1184,9 @@ class AgentRuntime:
             raise PolicyDenied("Catalog provider cleanup is unconfirmed; no new work accepted")
         if explicit_skill is not None and self.skill_service is None:
             raise PolicyDenied("Explicit skill invocation requires owner and configured skills")
+        from services.agent.workspace_ownership import captured_context
+
+        workspace_context = captured_context(self)
         model_lease = None
         content_scope = combine_scopes(request.content_scope, source_scope)
         try:
@@ -989,6 +1223,11 @@ class AgentRuntime:
                 harness_version=harness_version,
                 model_pin=model_pin,
                 auxiliary_models=auxiliary_pins,
+                **(
+                    {"workspace_pin": workspace_context.pin}
+                    if workspace_context is not None
+                    else {}
+                ),
             )
             rec = _Record(
                 task=task,
@@ -996,6 +1235,8 @@ class AgentRuntime:
                 explicit_skill=explicit_skill,
                 auxiliary_providers=dict(auxiliary_providers),
                 model_lease=model_lease,
+                workspace_context=workspace_context,
+                proc_slot={"on_settled": self._workspace_settled},
             )
             if request.source_event_ids:
                 rec.source_revisions = dict.fromkeys(
@@ -1027,6 +1268,11 @@ class AgentRuntime:
                             for key, value in auxiliary_pins.items()
                         },
                         "explicit_skill": explicit_skill,
+                        **(
+                            {"workspace_pin": workspace_context.pin.model_dump(mode="json")}
+                            if workspace_context is not None
+                            else {}
+                        ),
                     },
                 )
             )
@@ -1043,6 +1289,7 @@ class AgentRuntime:
             task.summary = ""
             task.error = str(AgentSubmitUnconfirmed())
             guard()
+            self._workspace_current(rec)
             if task.task_id in self._tasks:
                 raise AgentSubmitUnavailable
             preflight.pending = pending
@@ -1169,6 +1416,7 @@ class AgentRuntime:
                 if pending is not None:
                     pending.suppress()
             # No readback, dependency access or launch happens in a late callback.
+            self._workspace_settled()
 
         operation.add_done_callback(settled)
         return operation
@@ -1252,6 +1500,7 @@ class AgentRuntime:
 
         def guard():
             self._submit_open(pending=pending, deadline=pending.authority_deadline)
+            self._workspace_current(rec)
 
         guard()
         session = await self._require_session(request.session_id)
@@ -1369,6 +1618,7 @@ class AgentRuntime:
             model_pin=payload.get("model_pin"),
             auxiliary_models=payload.get("auxiliary_models", {}),
             summary="recovered paused; uncertain writes not retried; resubmit to continue",
+            **({"workspace_pin": payload["workspace_pin"]} if "workspace_pin" in payload else {}),
         )
         rec = _Record(
             task=task,
@@ -1446,6 +1696,10 @@ class AgentRuntime:
                     ):
                         raise AgentSubmitUnavailable
                     snapshot.harness_version = task.harness_version
+                    if snapshot.workspace_pin != task.workspace_pin:
+                        raise AgentSubmitUnavailable
+                    if "workspace_pin" not in task.model_fields_set:
+                        snapshot.__pydantic_fields_set__.discard("workspace_pin")
                     snapshot.model_pin = task.model_pin
                     snapshot.auxiliary_models = task.auxiliary_models
                     snapshot.content_scope = combine_scopes(
@@ -1998,16 +2252,22 @@ class AgentRuntime:
                 workers.append((rec, worker))
             rec.resume.set()
         for _rec, worker in workers:
+            self._retain_workspace_worker(worker)
             try:
-                await asyncio.wait_for(worker, timeout=5)
+                async with asyncio.timeout(5):
+                    await asyncio.shield(worker)
             except (TimeoutError, asyncio.CancelledError):
                 pass
         for rec in self._tasks.values():
             if rec.task.state not in TERMINAL:
                 rec.task.state = TaskState.PAUSED
                 rec.done.set()
-        host, self.mcp_host = self.mcp_host, None
-        controller, self.mcp_controller = self.mcp_controller, None
+        host, controller = self.mcp_host, self.mcp_controller
+        hosts = (host, *tuple(getattr(controller, "_uncertain_hosts", ())))
+        for retiring in hosts:
+            for actor in tuple(getattr(retiring, "_actors", {}).values()):
+                self._retain_workspace_worker(actor._task, transport=True)
+        self.mcp_host, self.mcp_controller = None, None
         if controller is not None:
             await controller.close()
         elif host is not None:
@@ -2035,6 +2295,9 @@ class AgentRuntime:
         permissions, self.tool_permissions = self.tool_permissions, None
         if permissions is not None:
             permissions.close()
+        if self.workspace_settings is not None:
+            self._workspace_settled()
+            self.workspace_settings.close()
 
     # -- approvals ------------------------------------------------------
     async def pending_approvals(
@@ -2496,6 +2759,7 @@ class AgentRuntime:
         return SimpleNamespace(task_id=rec.task.task_id, plugin_versions=rec.plugin_versions)
 
     def _permission_decision(self, rec, tool, args=None):
+        self._workspace_current(rec)
         if self.tool_permissions is None or tool not in SCOPED_BUILTINS | {"mcp_call"}:
             return None
         try:
@@ -2829,6 +3093,7 @@ class AgentRuntime:
 
         def current():
             nonlocal revised
+            self._workspace_current(rec)
             if rec.cancel_requested or rec.closing or self._closed:
                 raise PolicyDenied("Agent inference stopped by native control")
             if rec.pending_steer is not None or rec.task.objective_revision != revision:

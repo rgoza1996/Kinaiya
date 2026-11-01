@@ -692,6 +692,16 @@ class MCPController:
 
     # -- read-only inspect ------------------------------------------------------
 
+    def prepare_workspace(self, workspace):
+        from core.policy.workspace import prepare_disjoint_workspace
+
+        if self._closed or self._lock.locked() or self._runtime_blocked or self._uncertain_hosts:
+            raise ValueError("MCP controller is not settled")
+        return prepare_disjoint_workspace(self._root, workspace)
+
+    def install_workspace(self, prepared):
+        self._workspace = prepared
+
     @property
     def host(self) -> MCPHost:
         """Trusted broker handle; descriptor replacement is controller-guarded."""

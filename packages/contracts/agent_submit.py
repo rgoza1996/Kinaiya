@@ -342,7 +342,7 @@ def _validate_payload(
         if type(key) is not str:
             raise ValueError(error) from None
     keys = set(payload.keys())
-    if not keys.issubset(_CURRENT_PAYLOAD_KEYS | {"auxiliary_models"}):
+    if not keys.issubset(_CURRENT_PAYLOAD_KEYS | {"auxiliary_models", "workspace_pin"}):
         raise ValueError(error) from None
     missing = _CURRENT_PAYLOAD_KEYS - keys
     is_pre_scope = False
@@ -409,6 +409,18 @@ def _validate_payload(
             if type(role) is not str or role not in _AUXILIARY_ROLES or pin is None:
                 raise ValueError(error) from None
             auxiliary[role] = _validate_model_pin(pin, error)
+    if "workspace_pin" in payload:
+        from packages.contracts.workspace_settings import WorkspacePin
+
+        raw_pin = payload["workspace_pin"]
+        if type(raw_pin) is not dict:
+            raise ValueError(error) from None
+        try:
+            checked_pin = WorkspacePin.model_validate(raw_pin).model_dump(mode="json")
+        except ValueError:
+            raise ValueError(error) from None
+        if checked_pin != raw_pin:
+            raise ValueError(error) from None
     if "explicit_skill" in payload:
         skill = payload["explicit_skill"]
         if skill is not None:

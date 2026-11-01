@@ -494,16 +494,23 @@ class AgentRuntimeSettings:
 
     def _state(self):
         policy = self.runtime.policy
-        return _digest(
-            {
-                "instance": self.instance,
-                "settings": self._current().model_dump(),
-                "yolo": policy.yolo,
-                "workspace": str(policy.workspace),
-                "protected": [str(root) for root in policy.protected_roots],
-                "readonly": [str(root) for root in policy.readonly_roots],
-            }
-        )
+        value = {
+            "instance": self.instance,
+            "settings": self._current().model_dump(),
+            "yolo": policy.yolo,
+            "workspace": str(policy.workspace),
+            "protected": [str(root) for root in policy.protected_roots],
+            "readonly": [str(root) for root in policy.readonly_roots],
+        }
+        workspace = getattr(self.runtime, "workspace_settings", None)
+        if workspace is not None:
+            # Same-path root replacement or an unknown application must stale
+            # an old execution draft even when its pathname/grants are equal.
+            try:
+                value["native_workspace"] = workspace.authority_stamp()
+            except (OSError, ValueError, RuntimeError, sqlite3.Error):
+                raise RuntimeSettingsUnavailable from None
+        return _digest(value)
 
     def snapshot(self):
         with self._transaction():
