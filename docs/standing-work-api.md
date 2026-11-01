@@ -7,9 +7,10 @@ Requirement: [#228](https://github.com/rgoza1996/Kinaiya/issues/228), within
 
 This branch implements the authorization owner, native dispatch gate and their
 authenticated Session APIs, immutable authorization/dispatch Dart proofs and bounded
-transport, plus native claim reservations and pure task-entry proofs. A saved or armed authorization is **not** a scheduled task,
+transport, native claim reservations and atomic initial-task admission with
+authenticated execution APIs. A saved or armed authorization is **not** a scheduled task,
 producer-health claim, execution receipt or completed responsibility. Native
-occurrence admission, an actual Agent producer, positive execution settlement,
+worker integration, an actual Agent producer, positive execution settlement,
 the inbox and embedded owner editor still require integration. Autonomous stays
 unavailable in the current ordinary mode API. This document does not qualify M7
 or the full issue.
@@ -31,6 +32,11 @@ generation. Authentication and the listed role are checked before body ingress:
 | POST | `/v1/standing/dispatch/activate/lookup` | owner | `StandingDispatchActivationLookup` |
 | POST | `/v1/standing/dispatch/stop` | owner | `StandingDispatchStopProof` |
 | POST | `/v1/standing/producer/renew` | agent | `StandingProducerReceipt` |
+| POST | `/v1/standing/executions/prepare` | agent | `StandingExecutionClaimAdmission` |
+| POST | `/v1/standing/executions/lookup` | agent | `StandingExecutionClaim` or null |
+| GET | `/v1/standing/executions/unresolved` | agent | `StandingExecutionClaim` or null |
+| POST | `/v1/standing/tasks/admit` | agent | `StandingTaskAdmission` |
+| POST | `/v1/standing/tasks/lookup` | agent | `StandingInitialProof` or null |
 
 Owner, Converse, Decisions and Resources credentials cannot renew a producer.
 All six dispatch/producer routes reject query fields. Activation and its lookup
@@ -205,16 +211,16 @@ against the full original request. Native schedule eligibility and producer
 liveness require joined native state; packet timestamps do not establish them.
 
 Only a contextual hash of a transient 32-byte original-process capability is
-carried. The secret has no DTO, journal, Task or prompt field. Future native
-admission, close and settlement must verify that private capability; reading a
+carried. The secret has no DTO, journal, Task or prompt field. Native admission verifies that private capability. Future claim close and
+settlement must verify it too; reading a
 historical claim must never let another process adopt a launch or attest cleanup.
 
 The pure `standing_initial_request` builder emits the explicit
 `agent.standing-command` / `standing` family with no fabricated conversation
 sources. It checks the real existing AppendRequest serialization cap of 65,536
 bytes. The unchanged owner/Decisions parser refuses this new family. Native
-admission must still join the full retained claim and protected authorization
-before assigning a `standing-supervisor` origin and appending that proposal.
+admission joins the full retained claim and protected authorization before
+assigning a `standing-supervisor` origin and appending that proposal.
 
 `StandingInitialProof` and `StandingTaskAdmission` separately describe the later
 claim-to-initial-entry binding. Their raw/canonical caps are 163,840 and 180,224
@@ -227,9 +233,9 @@ parsing a `created` disposition does not establish native acceptance or launch.
 
 The [contract evidence](../evaluation/evidence/standing-execution-contract-2026-11-01.json)
 records the independent frozen checks, original missing-capability baseline,
-source review and additive schema export. Native claim reservations are qualified
-separately below. Actual task admission and the working editor → occurrence →
-Agent → settled inbox chain remain unfinished.
+source review and additive schema export. Native claim reservations and initial
+task admission are qualified separately below. The working editor → occurrence →
+Agent worker → settled inbox chain remains unfinished.
 
 ## Native claim reservations
 
@@ -264,6 +270,52 @@ retains the initial 64-case pass, two subsequent failing corruption regressions,
 the source-only fix and unchanged 66-case qualification. Those checks use actual
 SQLite transactions, commit faults, session lifecycle, clocks and competing
 callers; they do not qualify Agent execution or effect settlement.
+
+## Atomic initial-task admission
+
+`StandingTaskOwner` explicitly joins the same Store, controller, authorization,
+dispatch and claim capabilities. A first admission requires the full prepared
+original and its exact transient 32-byte executor capability. It rechecks the
+current grant, session, mode/Stop fence, live producer and native civil-time
+eligibility. A higher heartbeat for the same producer can preserve eligibility;
+a different producer cannot adopt the prepared request.
+
+One protected transaction appends the actual `agent.standing-command` initial
+entry and its full proof link. Both writer and origin are `standing-supervisor`.
+The new table has no foreign keys. Registration and reads validate canonical
+proofs, both stored journal projections, native columns and one-to-one links.
+Generic append refuses this kind for every role, including an internal writer
+string. Session deletion refuses retained standing task history; reset preserves
+it. The old owner/Decisions grammar and submit-slot table remain separate.
+
+A timely direct COMMIT acknowledgement returns `created`. An actual commit with
+a lost acknowledgement leaves both entry and link retained. Exact replay and
+lookup are historical: they do not append, recheck present eligibility or give
+another launch opportunity. Lookup remains available at controller capacity
+without fabricating a current writer. No operation releases the unresolved claim.
+Initial acceptance alone starts no Agent worker and proves no settled effects.
+
+The five execution routes are Agent-only, reject all query fields and share the
+existing 64-operation hub with definition and dispatch routes. Their four POSTs
+accept the same complete `StandingExecutionIntent`, bounded to 131,072 raw and
+canonical bytes. Responses use the respective contract bounds: prepare 163,840,
+claim reads 147,456, task admission 180,224 and task lookup 163,840 bytes. Only the
+three reads permit JSON null; absence does not prove failure or release authority.
+
+Only `/tasks/admit` accepts `X-Kinaiya-Standing-Capability`: exactly one value of
+64 lowercase hexadecimal characters, decoded to 32 transient bytes. Missing is
+allowed for retained replay; first admission still requires the correct secret.
+Malformed or duplicate headers are refused. The capability is neither persisted
+nor returned, and browser CORS does not expose this private header. Authentication
+precedes body, query and capability parsing. Actual native work remains owned
+after a caller stops waiting; shutdown joins the hub before closing task/claim
+capabilities and the existing owners/controller.
+
+The [admission and HTTP evidence](../evaluation/evidence/standing-task-admission-http-2026-11-01.json)
+preserves the original missing-capability baselines, first failures, independently
+diagnosed fixture corrections and qualification results. These use actual SQLite
+and ASGI operations with synthetic credentials and no inference. They do not
+qualify a scheduler, provider, worker, inbox, owner editor or full issue #228.
 
 ## Native dispatch gate
 
