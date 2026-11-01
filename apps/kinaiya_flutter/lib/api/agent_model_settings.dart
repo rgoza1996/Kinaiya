@@ -77,6 +77,249 @@ class AgentModelReference {
   int get hashCode => Object.hash(profileId, catalogBinding);
 }
 
+const agentModelMaxRevision = 9007199254740990;
+const agentModelPurposes = {
+  'analysis',
+  'compression',
+  'title_generation',
+  'delegation',
+  'harness_design',
+};
+
+bool _scalarText(String value) {
+  for (var i = 0; i < value.length; i++) {
+    final c = value.codeUnitAt(i);
+    if (c >= 0xd800 && c <= 0xdbff) {
+      if (++i >= value.length ||
+          value.codeUnitAt(i) < 0xdc00 ||
+          value.codeUnitAt(i) > 0xdfff) {
+        return false;
+      }
+    } else if (c >= 0xdc00 && c <= 0xdfff) {
+      return false;
+    }
+  }
+  return true;
+}
+
+String _authorityId(Object? value) {
+  if (value is! String || !RegExp(r'^[a-f0-9]{32}$').hasMatch(value)) {
+    throw const FormatException('Invalid model authority');
+  }
+  return value;
+}
+
+Map<String, Object?> _closedObject(Object? value, Set<String> keys) {
+  if (value is! Map<String, Object?> ||
+      value.length != keys.length ||
+      !value.keys.every(keys.contains)) {
+    throw const FormatException('Invalid model settings proof');
+  }
+  return value;
+}
+
+/// Native authority is separate from endpoint and private authentication scope.
+class AgentModelAuthority {
+  AgentModelAuthority.fromJson(Object? value) {
+    final raw = _closedObject(value, {
+      'mutation_version',
+      'backend_id',
+      'instance_id',
+      'writable',
+    });
+    if (raw['mutation_version'] != '1.1' || raw['writable'] is! bool) {
+      throw const FormatException('Unsupported model write authority');
+    }
+    backendId = _authorityId(raw['backend_id']);
+    instanceId = _authorityId(raw['instance_id']);
+    writable = raw['writable'] as bool;
+  }
+  late final String backendId, instanceId;
+  late final bool writable;
+
+  static AgentModelAuthority? supported(Object? value) {
+    if (value is! Map || value['mutation_version'] != '1.1') return null;
+    return AgentModelAuthority.fromJson(value);
+  }
+}
+
+/// Complete canonical request, detached once and immutable through recovery.
+class AgentModelChange {
+  AgentModelChange.fromJson(Object? value) {
+    const required = {
+      'schema_version',
+      'expected_backend',
+      'expected_instance',
+      'expected_revision',
+      'idempotency_key',
+      'harness_version',
+      'profile_id',
+      'reasoning',
+    };
+    if (value is! Map<String, Object?>) throw const FormatException();
+    final raw = _closedObject(value, {
+      ...required,
+      if (value.containsKey('auxiliary_task')) 'auxiliary_task',
+      if (value.containsKey('catalog_binding')) 'catalog_binding',
+    });
+    if (raw['schema_version'] != '1.1' ||
+        raw['expected_revision'] is! int ||
+        (raw['expected_revision'] as int) < 0 ||
+        (raw['expected_revision'] as int) > agentModelMaxRevision ||
+        raw['idempotency_key'] is! String ||
+        !RegExp(
+          r'^[A-Za-z0-9:._-]{1,128}$',
+        ).hasMatch(raw['idempotency_key'] as String)) {
+      throw const FormatException('Invalid model change');
+    }
+    _authorityId(raw['expected_backend']);
+    _authorityId(raw['expected_instance']);
+    final harness = raw['harness_version'], profile = raw['profile_id'];
+    final catalog = raw.containsKey('catalog_binding')
+        ? AgentCatalogBinding.fromJson(raw['catalog_binding'])
+        : null;
+    if (catalog != null && profile != null) throw const FormatException();
+    if ((harness != null &&
+            (harness is! String ||
+                !RegExp(r'^(seed-v1|v-[a-f0-9]{24})$').hasMatch(harness))) ||
+        (profile != null &&
+            (profile is! String ||
+                profile.isEmpty ||
+                profile.length > 80 ||
+                profile.trim().isEmpty ||
+                !_scalarText(profile) ||
+                profile.codeUnits.any((c) => c < 32 || c == 127))) ||
+        (raw['reasoning'] != null &&
+            !const {
+              'none',
+              'minimal',
+              'low',
+              'medium',
+              'high',
+              'xhigh',
+            }.contains(raw['reasoning'])) ||
+        (raw.containsKey('auxiliary_task') &&
+            !agentModelPurposes.contains(raw['auxiliary_task']))) {
+      throw const FormatException('Invalid model change');
+    }
+    body = Map.unmodifiable({
+      ...raw,
+      if (catalog != null)
+        'catalog_binding': Map.unmodifiable(catalog.toJson()),
+    });
+  }
+  late final Map<String, Object?> body;
+  String get backendId => body['expected_backend'] as String;
+  String get instanceId => body['expected_instance'] as String;
+  String get key => body['idempotency_key'] as String;
+  int get revision => body['expected_revision'] as int;
+  bool matches(AgentModelChange other) =>
+      body.length == other.body.length &&
+      body.keys.every(
+        (key) =>
+            other.body.containsKey(key) &&
+            (key == 'catalog_binding'
+                ? AgentCatalogBinding.fromJson(body[key]) ==
+                      AgentCatalogBinding.fromJson(other.body[key])
+                : body[key] == other.body[key]),
+      );
+}
+
+class AgentModelReceipt {
+  AgentModelReceipt.fromJson(Object? value, AgentModelChange original) {
+    final body = original.body;
+    final raw = _closedObject(value, {
+      'schema_version',
+      'backend_id',
+      'service_instance',
+      'idempotency_key',
+      'revision',
+      'harness_version',
+      'binding',
+      'change_boundary',
+      if (body.containsKey('auxiliary_task')) 'auxiliary_task',
+    });
+    if (raw['schema_version'] != '1.1' ||
+        raw['backend_id'] != original.backendId ||
+        raw['service_instance'] != original.instanceId ||
+        raw['idempotency_key'] != original.key ||
+        raw['revision'] is! int ||
+        raw['revision'] != original.revision + 1 ||
+        raw['harness_version'] != body['harness_version'] ||
+        raw['auxiliary_task'] != body['auxiliary_task'] ||
+        raw['change_boundary'] != 'new_tasks') {
+      throw const FormatException('Model receipt does not match');
+    }
+    final binding = raw['binding'];
+    Map<String, Object?>? copied;
+    if (body.containsKey('catalog_binding')) {
+      copied = _closedObject(binding, {'catalog_binding', 'reasoning'});
+      if (AgentCatalogBinding.fromJson(copied['catalog_binding']) !=
+              AgentCatalogBinding.fromJson(body['catalog_binding']) ||
+          copied['reasoning'] != body['reasoning']) {
+        throw const FormatException('Model receipt does not match');
+      }
+      copied = {
+        ...copied,
+        'catalog_binding': Map.unmodifiable(
+          AgentCatalogBinding.fromJson(copied['catalog_binding']).toJson(),
+        ),
+      };
+    } else if (body['profile_id'] == null) {
+      if (binding != null) throw const FormatException();
+    } else {
+      copied = _closedObject(binding, {'profile_id', 'reasoning'});
+      if (copied['profile_id'] != body['profile_id'] ||
+          copied['reasoning'] != body['reasoning']) {
+        throw const FormatException('Model receipt does not match');
+      }
+    }
+    json = Map.unmodifiable({
+      ...raw,
+      'binding': copied == null ? null : Map.unmodifiable(copied),
+    });
+  }
+  late final Map<String, Object?> json;
+}
+
+class AgentModelLookup {
+  AgentModelLookup.fromJson(Object? value, AgentModelChange original) {
+    final raw = _closedObject(value, {
+      'schema_version',
+      'backend_id',
+      'request',
+      'status',
+      'receipt',
+      'mutation_fenced',
+    });
+    if (raw['schema_version'] != '1.1' ||
+        raw['backend_id'] != original.backendId ||
+        raw['mutation_fenced'] is! bool ||
+        !original.matches(AgentModelChange.fromJson(raw['request']))) {
+      throw const FormatException('Model lookup does not match');
+    }
+    mutationFenced = raw['mutation_fenced'] as bool;
+    if (raw['status'] == 'recorded') {
+      if (!mutationFenced) throw const FormatException();
+      receipt = AgentModelReceipt.fromJson(raw['receipt'], original);
+    } else {
+      if (raw['status'] != 'unobserved' || raw['receipt'] != null) {
+        throw const FormatException('Invalid model lookup');
+      }
+      receipt = null;
+    }
+    json = Map.unmodifiable({
+      ...raw,
+      'request': original.body,
+      'receipt': receipt?.json,
+    });
+  }
+  late final AgentModelReceipt? receipt;
+  late final bool mutationFenced;
+  late final Map<String, Object?> json;
+  bool get refused => receipt == null && mutationFenced;
+}
+
 class AgentModelBinding {
   const AgentModelBinding(String this.profileId, this.reasoning)
     : catalogBinding = null;
@@ -211,6 +454,7 @@ class AgentModelsSnapshot {
       throw const FormatException();
     }
     revision = rev;
+    writeAuthority = AgentModelAuthority.supported(raw['write_authority']);
     defaultBinding = AgentModelBinding.fromJson(raw['default']);
     profiles = List.unmodifiable(list.map(AgentModelProfile.fromJson));
     if (profiles.map((x) => x.id).toSet().length != profiles.length) {
@@ -281,6 +525,7 @@ class AgentModelsSnapshot {
     );
   }
   late final int revision;
+  late final AgentModelAuthority? writeAuthority;
   late final AgentModelBinding defaultBinding;
   late final List<AgentModelProfile> profiles;
   late final List<AgentModelProfile> catalogProfiles;

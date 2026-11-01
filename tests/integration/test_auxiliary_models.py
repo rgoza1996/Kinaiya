@@ -16,6 +16,7 @@ from packages.providers.text import ScriptedProvider
 from services.agent.auxiliary import consult_model
 from services.agent.model_settings import (
     AgentModelSettings,
+    BoundModelSettingsChange,
     ModelSettingsChange,
     ModelSettingsConflict,
 )
@@ -34,9 +35,14 @@ def fixture(model, effort=None, *, local=True, replies=()):
     return result
 
 
-def change(revision, key, *, profile="fast", harness=None, purpose="analysis", reasoning=None):
-    return ModelSettingsChange(
-        schema_version="1.0",
+def change(
+    settings, revision, key, *, profile="fast", harness=None, purpose="analysis", reasoning=None
+):
+    authority = settings.snapshot()["write_authority"]
+    return BoundModelSettingsChange(
+        schema_version="1.1",
+        expected_backend=authority["backend_id"],
+        expected_instance=authority["instance_id"],
         expected_revision=revision,
         idempotency_key=key,
         harness_version=harness,
@@ -61,7 +67,7 @@ async def env(tmp_path):
         auxiliary_factories={"fast": lambda effort: aux},
         reasoning_levels={"fast": ["low", "high"]},
     )
-    settings.change(change(0, "analysis-default"))
+    settings.change(change(settings, 0, "analysis-default"))
     runtime = AgentRuntime(
         LocalJournal(store, "agent"), primary, workspace, ToolPolicy(workspace, allow_write=True)
     )
@@ -98,23 +104,25 @@ async def test_auxiliary_binding_inheritance_override_and_persistence(env):
     settings = env.settings
     assert settings.selection("seed-v1", "analysis")[1].model == "fast"
     assert settings.selection("seed-v1", "compression")[1].model == "primary"
-    settings.change(change(1, "harness-main", harness="seed-v1", purpose=None))
+    settings.change(change(settings, 1, "harness-main", harness="seed-v1", purpose=None))
     assert settings.selection("seed-v1", "compression")[1].model == "fast"
     receipt = settings.change(
-        change(2, "harness-analysis", harness="seed-v1", profile="host-default")
+        change(settings, 2, "harness-analysis", harness="seed-v1", profile="host-default")
     )
     assert receipt["auxiliary_task"] == "analysis"
     assert settings.selection("seed-v1", "analysis")[1].model == "primary"
     assert (
-        settings.change(change(2, "harness-analysis", harness="seed-v1", profile="host-default"))
+        settings.change(
+            change(settings, 2, "harness-analysis", harness="seed-v1", profile="host-default")
+        )
         == receipt
     )
-    settings.change(change(3, "inherit-analysis", harness="seed-v1", profile=None))
+    settings.change(change(settings, 3, "inherit-analysis", harness="seed-v1", profile=None))
     assert settings.selection("seed-v1", "analysis")[1].model == "fast"
     with pytest.raises(ModelSettingsConflict):
-        settings.change(change(1, "stale"))
+        settings.change(change(settings, 1, "stale"))
     with pytest.raises(ValidationError):
-        change(4, "bad-purpose", purpose="make_permissions")
+        change(settings, 4, "bad-purpose", purpose="make_permissions")
     assert env.primary.calls == env.aux.calls == []
     snapshot = settings.snapshot()
     assert snapshot["auxiliary"] == {"analysis": {"profile_id": "fast", "reasoning": None}}
@@ -148,7 +156,7 @@ async def test_legacy_model_receipt_digest_is_unchanged(env):
 
 async def test_auxiliary_text_is_pinned_untrusted_and_not_effect_evidence(env):
     # Later settings cannot replace the captured provider object or identity.
-    env.settings.change(change(1, "later", profile="host-default"))
+    env.settings.change(change(env.settings, 1, "later", profile="host-default"))
     output, evidence = await consult_model(
         env.runtime, env.rec, {"purpose": "analysis", "prompt": "Public question"}
     )
@@ -297,7 +305,9 @@ async def test_unmeasured_adapter_constructs_once_and_is_closed():
 async def test_auxiliary_owner_api_auth_revision_eligibility_and_exact_retry(env):
     app = FastAPI()
     app.include_router(router(env.runtime, Auth({"owner": "o" * 32, "agent": "a" * 32})))
-    body = change(1, "owner-save", purpose="compression", harness="seed-v1").model_dump()
+    body = change(
+        env.settings, 1, "owner-save", purpose="compression", harness="seed-v1"
+    ).model_dump()
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app), base_url="http://synthetic"
     ) as client:
@@ -357,7 +367,7 @@ async def test_normal_agent_auxiliary_execution_and_future_pin_boundary(env):
         )
     )
     assert task.auxiliary_models["analysis"].model == "fast"
-    env.settings.change(change(1, "future-only", profile="host-default"))
+    env.settings.change(change(env.settings, 1, "future-only", profile="host-default"))
     for _ in range(100):
         await asyncio.sleep(0.01)
         task = await env.runtime.status(task.task_id)
@@ -385,16 +395,14 @@ async def test_auxiliary_route_persists_and_restores_inheritance(tmp_path):
         )
 
     before = settings()
-    receipt = before.change(
-        change(0, "save", reasoning="high", harness="seed-v1", purpose="compression")
-    )
+    original = change(before, 0, "save", reasoning="high", harness="seed-v1", purpose="compression")
+    receipt = before.change(original)
     await before.close()
     after = settings()
-    assert (
-        after.change(change(0, "save", reasoning="high", harness="seed-v1", purpose="compression"))
-        == receipt
-    )
+    assert after.change(original) == receipt
     assert after.selection("seed-v1", "compression")[1].reasoning == "high"
-    after.change(change(1, "inherit", harness="seed-v1", profile=None, purpose="compression"))
+    after.change(
+        change(after, 1, "inherit", harness="seed-v1", profile=None, purpose="compression")
+    )
     assert after.selection("seed-v1", "compression")[1].model == "primary"
     await after.close()

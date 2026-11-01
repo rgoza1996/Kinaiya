@@ -260,6 +260,10 @@ are separate pages. Native revision-bound Agent defaults and per-harness model/
 reasoning overrides affect new tasks; accepted tasks retain their provider and
 inspectable model pin. The [owner API](docs/agent-options-api.md) persists settings
 and receipts without placing active provider credentials in model preferences.
+New model saves bind the observed backend and writer generation;
+[exact uncertain-save recovery](docs/adr/0088-bound-model-settings-writes.md)
+keeps the original owner/backend scope across reconnects and does not reapply a
+historical preference. Older unbound requests are exact-replay-only.
 The [Providers catalog](docs/adr/0086-owner-provider-catalog.md) adds native
 profile and protected credential-generation forms. [Agent model selection](docs/adr/0089-agent-catalog-models.md)
 captures exact saved versions in fresh task-owned primary/auxiliary adapters;

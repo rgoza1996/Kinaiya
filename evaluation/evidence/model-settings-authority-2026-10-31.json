@@ -1,0 +1,189 @@
+{
+  "schema_version": "1.0",
+  "issue": "https://github.com/rgoza1996/Kinaiya/issues/191",
+  "date": "2026-10-31",
+  "base_commit": "6d9cbeb17f4935c82285ad79924eddc71682b898",
+  "attribution": "Codex authors, lead integration and separate Codex independent reviewer; no new paid Muse calls",
+  "requirement": "Owner/backend-bound pending model writes, exact recovery, bounded actual transport owners and truthful uncertainty",
+  "contract_sha256": "309fd4ee44ba1f5910e489d7873def1c36ab50337029db28e3313466baab46ee",
+  "production_sources": {
+    "packages/commands/__init__.py": "031273fb9247dcb164838b82f11592c26b0d975d3d61dee2e67599a293cc91c1",
+    "services/agent/app.py": "a10ecdb81f15eec4efebf86c23d60f33c5238a072d25281e895f340c11f98596",
+    "services/agent/model_settings.py": "a9d639fc2273bbe3aa5f5b4603f1dda443aab25e54557967235d2951d110e88b",
+    "services/agent/options_api.py": "e09204c7a626b96dd0415503d13e4647386e876942bab4849c50eafd44dc33ef",
+    "apps/kinaiya_flutter/lib/api/agent_model_client.dart": "0d194d2d7f2c62c10b1a78fe430b64e8593f3273356c0d606fd735ca81dd536a",
+    "apps/kinaiya_flutter/lib/api/agent_model_settings.dart": "cc8fb448c1cfefc24b4342bad87a5154752ee1f5b91568d1a1c4f98ad2cf376e",
+    "apps/kinaiya_flutter/lib/api/client.dart": "66fdd72f77467e56e20247a1bff093595a6eda351557acda89163c279c5b16e0",
+    "apps/kinaiya_flutter/lib/state/agent_model_writes.dart": "296cec53fcc1c53aeb2912a0e00824df2005b6098704769b551a379882563734",
+    "apps/kinaiya_flutter/lib/ui/options_workspace.dart": "c5590b6917eaec845bb0182c884a4276684606d29ae5947e2217d2ba0fbd4e5c"
+  },
+  "regression_sources": {
+    "tests/integration/test_model_change_authority.py": "74133b3689c54a42caf9e4e133f5d682b16613c88cd5b4a91b52b71eda1b487b",
+    "tests/integration/test_model_commands_authority.py": "8d7c7c212ef143fef368ad8971bef878e4de60f6fa131de2bf804effed8c381e",
+    "tests/integration/test_model_command_uncertainty.py": "e91ed9120105b1cefb695d378eb4dc4113d0232d78aa98aab2e3bb23860040a4",
+    "tests/integration/test_model_command_audit_recovery.py": "ec45434d6c09617b4ce7b048679530b2653b47bd36e470c96a7d0c90417387d5",
+    "tests/unit/test_model_settings_bound_authority.py": "6cf58aeaa92ff108fb9a2f2363472b37953e853175b8b375bcc4b3b9c932a3e4"
+  },
+  "retained_baselines": [
+    {
+      "scope": "Independent native40 on unchanged main",
+      "passed": 4,
+      "failed": 36,
+      "collection_errors": 0,
+      "limits": "Several cases stop at absent authority or lookup surface, before deeper assertions.",
+      "receipt_sha256": "fbf769dd447c7474aa32d76b26d3fb56e63adaedc840589e59782937a407b7ca"
+    },
+    {
+      "scope": "Root newcommand7 plus existingcommand28 on unchanged main",
+      "passed": 29,
+      "failed": 6,
+      "receipt_sha256": "992d18fe1dff51db0872e51f9f09cd982ec0c414ec4ace3d1113f5a6763b73cb"
+    },
+    {
+      "scope": "Initial integrated native40+command7+publicuncertainty10",
+      "passed": 47,
+      "failed": 10,
+      "receipt_sha256": "765b28cb97327efd6ad675362cd370f910509cd5360e31245090c3b4dbbcbb54"
+    },
+    {
+      "scope": "Native correction initial fault/deepJSON screen",
+      "passed": 4,
+      "failed": 11,
+      "limits": "Retained in native correction bundle; not a passing candidate result."
+    },
+    {
+      "scope": "Independent newaudit4+publicuncertainty10 first run",
+      "passed": 13,
+      "failed": 1,
+      "oracle_correction": "Only the new lost-audit-ack expected exception changed from rawConnectionError to required ModelSettingsUnavailable; actual commit, fault, audit, state and CAS assertions preserved."
+    }
+  ],
+  "completed_verification": {
+    "native_author": {
+      "passed": 93,
+      "scope": "53 owned plus unchanged independently authored native40; author execution, not independent execution",
+      "receipt_sha256": "13f53db3957c263b90cf07fcf111f069ea988d392d0346550d919678b2af2190"
+    },
+    "root_commands_and_existing_fixtures": {
+      "passed": 114,
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+        "-B",
+        "-m",
+        "pytest",
+        "tests/integration/test_model_commands_authority.py",
+        "tests/integration/test_model_command_uncertainty.py",
+        "tests/integration/test_commands.py",
+        "tests/integration/test_auxiliary_models.py",
+        "tests/integration/test_agent_submit_receipt_recovery.py",
+        "-q",
+        "-m",
+        "not live"
+      ],
+      "receipt_sha256": "6926680733280e98540e657c94187f78f1bbaf84a9ea925c486c54e54e052aee",
+      "source_pins_unchanged": true
+    },
+    "independent_command_faults_and_races": {
+      "passed": 14,
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+        "-B",
+        "-m",
+        "pytest",
+        "tests/integration/test_model_command_audit_recovery.py",
+        "tests/integration/test_model_command_uncertainty.py",
+        "-q",
+        "--tb=short",
+        "--junitxml=/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/191-command-audit-independent-run-ygivdsx9/corrected-oracle/results.xml"
+      ],
+      "receipt_sha256": "4c9d0379c1de2f54a48c09dbcccbedff7fa1f4398982d77896fc07ab0d101d27",
+      "native_source_at_execution": "0789b8df9e03a25832954c44a648d2b7aa737c30bef34e58aaa11cd9abc85a69",
+      "limit": "Run preceded native storage-only correction; command/app bytes match final sources. Final native delta separately reviewed and tested."
+    },
+    "all_flutter_tests": {
+      "passed": 909,
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/flutter/bin/flutter",
+        "test",
+        "--no-pub",
+        "--reporter",
+        "expanded"
+      ],
+      "receipt_sha256": "ea071b0eac40dfc9c07bb022ab0bfc096ecfea31cd6cbcf1384a3059a1285831",
+      "source_pins_unchanged": true
+    },
+    "flutter_analysis": {
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/flutter/bin/flutter",
+        "analyze",
+        "--no-pub"
+      ],
+      "result": "No issues found",
+      "receipt_sha256": "33ffcc48ae6e285f1c8b5e3cb0526490f236317300d32bc72a2996aa398fbe69"
+    },
+    "static_and_browser_bridge": {
+      "ruff": "check passes; 540 files already formatted",
+      "node_version": "22.22.1",
+      "bridge_tests_passed": 38,
+      "receipt_sha256": "f8c67233b2f4bc8d227b655a45f7bb70a2127da8a3a761e7439afeaf103e930f"
+    },
+    "actual_dart_native_http": {
+      "receipt_sha256": "cb02aad1092c771b121d2d4b95fc4ebf17bd230b45922345e9b4d233146d2d94",
+      "same_url": true,
+      "real_process_restart": true,
+      "old_profile_removed": true,
+      "historical_receipt_exact": true,
+      "retired_request_fenced": true,
+      "future_revision_not_fenced": true,
+      "replacement_write_and_lookup_http409": true,
+      "readonly_sql_inspection": {
+        "backend-a": {
+          "revision": 1,
+          "committed_model_receipts": 1
+        },
+        "backend-b": {
+          "revision": 0,
+          "committed_model_receipts": 0
+        }
+      },
+      "ephemeral_processes_terminal": 3,
+      "limits": [
+        "No model inference, human voice, real-device or production deployment qualification.",
+        "First fixture ended by ownedSIGTERM143; later SIGINT130 finalizers explicitly reported zero modelcalls.",
+        "Initial noargument compile-only probe exited255; initial process locator failedclosed without signalling; both retained.",
+        "Foreign proof initially caught any failure; preserved then strengthened to require both actualHTTP409 and reran successfully."
+      ]
+    },
+    "independent_static_review": {
+      "receipt_sha256": "49598be67ad4d797f9e2d46fcb78a97c27d1051cc03bdbf94ff423601360aca9",
+      "result": "No remaining actionable finding within declared client/native/command delta scope; not human approval"
+    }
+  },
+  "existing_fixture_alignment": {
+    "assertions_before": 76,
+    "assertions_after": 76,
+    "unchanged_assertions": 74,
+    "two_request_argument_changes": "Observed authority passed into helper; after restart, reuse original immutable request instead of reconstructing current generation. Predicate and expected receipt unchanged.",
+    "legacy_digest_receipt_test_unchanged": true,
+    "delta_receipt_sha256": "1be944765620db643458c280e12b0e5138cc198a6f652561e9ac60bf59956676"
+  },
+  "incremental_meta_calls": 0,
+  "ci": {
+    "required": [
+      "Python3.11",
+      "Python3.12",
+      "Flutter",
+      "Android",
+      "iOS"
+    ],
+    "status": "Exact-final-head CI remains required before merge; consult linked issue/PR for later results.",
+    "local_full_python_suite": "Not claimed by this completed-check record; broader suite was still running when assembled."
+  },
+  "limitations": [
+    "Trusted authenticated native service and protected unforked/non-rolled-back database; not malicious-server/copied-database authentication.",
+    "Legacy1.0 exact replay only; quiesce older binaries ignoring generation fencing.",
+    "RAM-only pending registry; no automatic polling/retry or general exactly-once external effects.",
+    "Adjacent execution pending scope remains issue213; fullOptions, voice, mobile and roadmap gates remain open.",
+    "No user runtime/config/model/port changes or production deployment."
+  ]
+}
