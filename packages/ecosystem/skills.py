@@ -1383,6 +1383,10 @@ class SkillManager:
         _make_dirs_no_follow(self._installed_dir)
         _require_real_dir(self._versions_dir, "versions store")
         _require_real_dir(self._installed_dir, "installed store")
+        if not os.path.lexists(self._registry_path) and (
+            any(self._installed_dir.iterdir()) or any(self._versions_dir.iterdir())
+        ):
+            raise SkillError("Retained installed skill registry is missing")
         if self.workspace is not None:
             self._check_workspace_disjoint()
         self._registry: dict[str, dict[str, Any]] = self._read_registry()

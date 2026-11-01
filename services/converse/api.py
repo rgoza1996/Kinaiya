@@ -335,6 +335,18 @@ def create_app(runtime, auth, speech=None, window_controller=None, *, setup=None
     def model_error(status, message):
         return HTTPException(status, message, headers={"Cache-Control": "no-store"})
 
+    @app.get("/v1/converse/options/context", dependencies=owner)
+    async def inspect_context():
+        from services.context_usage import converse_context_snapshot
+
+        if getattr(runtime, "context_observations", None) is None:
+            raise model_error(503, "Native context observations are unavailable")
+        try:
+            result = converse_context_snapshot(runtime)
+        except (OSError, ValueError, RuntimeError, sqlite3.Error):
+            raise model_error(503, "Native context observations are unavailable") from None
+        return JSONResponse(result, headers={"Cache-Control": "no-store"})
+
     @app.get("/v1/converse/options/model", dependencies=owner)
     async def inspect_model():
         try:

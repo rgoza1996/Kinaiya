@@ -21,6 +21,7 @@ from packages.contracts.models import (
 )
 from packages.providers.disclosure import combine_scopes, scope_allowed, source_scope
 from packages.providers.text import ProviderCleanupError, owned_http_stream_cleanup
+from services.context_usage import ContextObservations, captured_model
 from services.converse.context_budget import ContextBudgetBuilder
 from services.converse.context_projection import ContextProjection
 from services.converse.history import typed_history_projection
@@ -200,6 +201,7 @@ class ConverseRuntime:
         self.journal, self.provider = journal, provider
         self.name, self.context_turns = name, context_turns
         self.context_budgeted = context_budgeted
+        self.context_observations = ContextObservations("converse")
         custom_persona = personality is not None or name != "Kinaiya"
         if personality_scope is None:
             # The built-in Kinaiya persona is public code. Any custom
@@ -746,6 +748,28 @@ class ConverseRuntime:
     def model_payload(operation):
         lease = operation.model_lease
         return {} if lease is None else {"role_model": lease.pin.model_dump(mode="json")}
+
+    def observe_context(self, operation, source, projection):
+        if projection.measurement is None or projection.history_selection is None:
+            return
+        lease = operation.model_lease
+        self.context_observations.record(
+            operation_id=self.context_observations.new_operation(),
+            phase="prepared",
+            scope={
+                "session_id": source.session_id,
+                "thread_id": source.thread_id,
+                "epoch": source.epoch,
+                "source_event_ids": (source.event_id,),
+                "task_id": None,
+                "objective_revision": None,
+                "harness_version": None,
+                "through_sequence": projection.history_watermark,
+            },
+            model=lambda: captured_model(operation.provider, None if lease is None else lease.pin),
+            measurement=projection.measurement,
+            selection=projection.history_selection,
+        )
 
     @staticmethod
     def attach_memory_lease(operation, lease):
@@ -1436,6 +1460,7 @@ class ConverseRuntime:
                         return
                     if not scope_allowed(provider.info, operation.content_scope):
                         raise ValueError("Compiled context scope is not permitted for the provider")
+                    self.observe_context(operation, source, projection)
                     operation.iterator = aiter(provider.stream(projection.messages))
                     async for delta in operation.iterator:
                         if not self._text_current(operation):

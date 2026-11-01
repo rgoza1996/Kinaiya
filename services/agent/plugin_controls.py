@@ -22,6 +22,14 @@ async def apply_plugin_control(runtime, control: PluginControl):
 
 async def _apply_plugin_control(runtime, control):
     service = require_plugins(runtime)
+    if (
+        getattr(runtime, "_capabilities_configured", False)
+        or getattr(runtime, "capability_settings", None) is not None
+    ) and control.operation not in {
+        "inspect",
+        "run",
+    }:
+        raise ValueError("Use the bound native installed-capability owner for plugin mutations")
     return await service.owner_control(
         control.idempotency_key,
         control.model_dump(mode="json"),

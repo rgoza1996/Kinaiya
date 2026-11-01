@@ -46,6 +46,11 @@ async def apply_skill_control(runtime, control: SkillControl):
 
 async def _apply_skill_control(runtime, control):
     service = require_skills(runtime)
+    if (
+        getattr(runtime, "_capabilities_configured", False)
+        or getattr(runtime, "capability_settings", None) is not None
+    ) and control.operation != "inspect":
+        raise ValueError("Use the bound native installed-capability owner for skill mutations")
     try:
         if control.operation == "inspect":
             if not control.skill_id or any(

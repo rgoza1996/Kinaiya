@@ -292,6 +292,45 @@ def create_app(
         return store.append(request, role)
 
     @app.post(
+        "/v1/transcript/authorization-revocations/lookup",
+        dependencies=[Depends(auth.require("agent"))],
+    )
+    async def authorization_revocation_lookup(request: Request):
+        from fastapi.responses import JSONResponse
+
+        from packages.contracts.authorizations import AuthorizationRevoke
+        from services.session.authorizations import lookup_revocation
+
+        raw = bytearray()
+        try:
+            async with asyncio.timeout(5):
+                async for chunk in request.stream():
+                    if len(raw) + len(chunk) > 8192:
+                        raise HTTPException(
+                            413,
+                            "Authorization lookup exceeds its bound",
+                            headers={"Cache-Control": "no-store"},
+                        )
+                    raw.extend(chunk)
+            original = AuthorizationRevoke.model_validate(
+                agent_submit_json(bytes(raw), maximum=8192)
+            )
+            return JSONResponse(
+                lookup_revocation(store, original).model_dump(mode="json"),
+                headers={"Cache-Control": "no-store"},
+            )
+        except TimeoutError:
+            raise HTTPException(
+                408, "Authorization lookup deadline expired", headers={"Cache-Control": "no-store"}
+            ) from None
+        except (ValueError, TypeError, RecursionError):
+            raise HTTPException(
+                503,
+                "Exact authorization journal proof is unavailable",
+                headers={"Cache-Control": "no-store"},
+            ) from None
+
+    @app.post(
         "/v1/transcript/stt-publications/lookup", dependencies=[Depends(auth.require("converse"))]
     )
     async def stt_publication_lookup(request: Request):

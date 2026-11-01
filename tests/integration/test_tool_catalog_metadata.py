@@ -264,6 +264,7 @@ async def approve_fixture(service, *, field="old", scope="public_synthetic", inp
     stored = service.registry.inspect(version)
     report_id = "rep-" + field
     report = {
+        "report_id": report_id,
         "passed": True,
         "version_id": version,
         "plugin_id": "demo",

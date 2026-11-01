@@ -18,6 +18,7 @@ import 'converse_setup.dart';
 import 'agent_workspace.dart';
 import 'agent_workspace_client.dart';
 import 'workspace_settings_client.dart';
+import 'capability_client.dart';
 import 'agent_model_client.dart';
 import 'agent_model_settings.dart';
 import 'agent_runtime_client.dart';
@@ -32,6 +33,7 @@ import 'stt_model_client.dart';
 import 'tts_model_client.dart';
 import 'decisions_model_client.dart';
 import 'auxiliary_route_client.dart';
+import 'context_usage_client.dart';
 import '../config/service_root.dart';
 
 const _uuid = Uuid();
@@ -89,6 +91,7 @@ class KinaiyaClient {
     http.Client? httpClient,
     http.Client Function()? memoryClientFactory,
     http.Client Function()? sttModelClientFactory,
+    http.Client Function()? contextClientFactory,
     http.Client Function()? ttsModelClientFactory,
     http.Client Function()? decisionsClientFactory,
     http.Client Function()? decisionsModelClientFactory,
@@ -113,6 +116,9 @@ class KinaiyaClient {
        _sttModelClientFactory =
            sttModelClientFactory ??
            (httpClient == null ? http.Client.new : _sttModelInjectionRequired),
+       _contextClientFactory =
+           contextClientFactory ??
+           (httpClient == null ? http.Client.new : _contextInjectionRequired),
        _ttsModelClientFactory =
            ttsModelClientFactory ??
            (httpClient == null ? http.Client.new : _ttsModelInjectionRequired),
@@ -254,6 +260,22 @@ class KinaiyaClient {
     clientFactory: _agentWorkspaceClientFactory,
   );
   final http.Client Function() _sttModelClientFactory;
+  final http.Client Function() _contextClientFactory;
+  static http.Client _contextInjectionRequired() => throw StateError(
+    'Context metadata requires an independent injected transport',
+  );
+  late final ContextUsageApi agentContext = ContextUsageApi(
+    baseUrl: agentBase,
+    ownerToken: _token,
+    role: 'agent',
+    clientFactory: _contextClientFactory,
+  );
+  late final ContextUsageApi converseContext = ContextUsageApi(
+    baseUrl: converseBase,
+    ownerToken: _token,
+    role: 'converse',
+    clientFactory: _contextClientFactory,
+  );
   static http.Client _sttModelInjectionRequired() => throw StateError(
     'STT model settings require an independently injected transport',
   );
@@ -288,6 +310,11 @@ class KinaiyaClient {
     clientFactory: _agentModelClientFactory,
   );
   late final WorkspaceSettingsApi workspaceSettings = WorkspaceSettingsApi(
+    baseUrl: agentBase,
+    ownerToken: _token,
+    clientFactory: _agentWorkspaceClientFactory,
+  );
+  late final CapabilityApi capabilities = CapabilityApi(
     baseUrl: agentBase,
     ownerToken: _token,
     clientFactory: _agentWorkspaceClientFactory,
@@ -334,6 +361,7 @@ class KinaiyaClient {
     String label = 'mock',
     http.Client Function()? memoryClientFactory,
     http.Client Function()? sttModelClientFactory,
+    http.Client Function()? contextClientFactory,
     http.Client Function()? ttsModelClientFactory,
     http.Client Function()? decisionsClientFactory,
     http.Client Function()? decisionsModelClientFactory,
@@ -356,6 +384,8 @@ class KinaiyaClient {
        _memoryClientFactory = memoryClientFactory ?? http.Client.new,
        _sttModelClientFactory =
            sttModelClientFactory ?? _sttModelInjectionRequired,
+       _contextClientFactory =
+           contextClientFactory ?? _contextInjectionRequired,
        _ttsModelClientFactory =
            ttsModelClientFactory ?? _ttsModelInjectionRequired,
        _providerClientFactory =
@@ -1088,11 +1118,14 @@ class KinaiyaClient {
       unawaited(toolPermissions.close());
       unawaited(converseModels.close());
       unawaited(sttModels.close());
+      unawaited(agentContext.close());
+      unawaited(converseContext.close());
       unawaited(ttsModels.close());
       final classifier = decisionsModels;
       if (classifier != null) unawaited(classifier.close());
       unawaited(auxiliaryRoutes.close());
       unawaited(workspaceSettings.close());
+      unawaited(capabilities.close());
       unawaited(runtimeSettings.close());
       unawaited(agentControl.close());
       artifacts.close();

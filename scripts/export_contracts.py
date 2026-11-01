@@ -7,10 +7,13 @@ from packages.contracts import (
     agent_control,
     agent_export,
     agent_submit,
+    authorizations,
     auxiliary_attempts,
     auxiliary_routes,
+    capability_settings,
     companion,
     context,
+    context_usage,
     converse_models,
     converse_setup,
     decisions,
@@ -72,6 +75,19 @@ for name in (
 
 # Owner policy requests are strict frozen models, separate from journal events.
 for cls in (
+    context_usage.ContextCatalogBinding,
+    context_usage.ContextModel,
+    context_usage.ContextScope,
+    context_usage.ContextMeasurement,
+    context_usage.ContextSelection,
+    context_usage.ContextObservation,
+    context_usage.ContextObservationRow,
+    context_usage.ContextUsageSnapshot,
+    authorizations.AuthorizationIdentity,
+    authorizations.AuthorizationRevoke,
+    authorizations.AuthorizationRevokeReceipt,
+    authorizations.AuthorizationLookup,
+    authorizations.AuthorizationJournalProof,
     tool_permissions.PermissionScope,
     tool_permissions.ToolPermissionChange,
     tool_permissions.NativePermissionTarget,
@@ -109,6 +125,10 @@ for cls in (
     workspace_settings.WorkspaceSelection,
     workspace_settings.WorkspaceChange,
     workspace_settings.WorkspacePin,
+    capability_settings.ToolAvailabilityAction,
+    capability_settings.SkillActivationAction,
+    capability_settings.PluginActivationAction,
+    capability_settings.CapabilityChange,
 ):
     (target / f"{cls.__name__}.json").write_text(
         json.dumps(cls.model_json_schema(), indent=2) + "\n"

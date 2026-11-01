@@ -815,6 +815,35 @@ class SkillService:
             )
             return data
 
+    async def installed_inventory(self):
+        """All owner records, including disabled or disclosure-blocked skills."""
+        async with self._lock:
+            self._ensure_open()
+            result = []
+            for identity in sorted(self._manager._registry):
+                row = copy.deepcopy(self._manager.inspect(identity))
+                row.pop("files", None)
+                row["scope"] = self._effective_scope(identity)
+                row["dependent_task_ids"] = sorted(
+                    task for task, pinned in self._pins if pinned == identity
+                )
+                result.append(row)
+            return result
+
+    async def activate_installed_exact(self, operation, identity, digest):
+        """Native exact-version activation; never install, execute or grant scope."""
+        checked = _check_skill_id(identity)
+        if operation not in {"enable_skill", "disable_skill"}:
+            raise _fail("Unsupported installed skill action")
+        async with self._lock:
+            self._ensure_open()
+            record = self._current_record(checked)
+            if record.digest != digest:
+                raise _fail("Installed skill version changed")
+            method = self._manager.enable if operation == "enable_skill" else self._manager.disable
+            record = method(checked, authority=OWNER_AUTHORITY)
+            return {"skill_id": checked, "digest": record.digest, "enabled": record.enabled}
+
     # -- model-facing reads ----------------------------------------------------
     async def catalog(self, provider_info: Any, after: int = 0) -> dict[str, Any]:
         """Return one bounded model catalog page (at most 4 rows).
