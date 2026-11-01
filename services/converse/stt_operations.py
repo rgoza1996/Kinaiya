@@ -204,6 +204,18 @@ async def retire_converse_shared(runtime, journal, speech, windows=None):
     async def finish():
         while True:
             tasks = set(runtime._stt_finalizers) | set(runtime._stt_transport_closures)
+            stt_owner = runtime.stt_model_settings
+            if stt_owner is not None:
+                tasks.update(task for _, task in stt_owner._reconciling.values())
+            tasks.update(getattr(journal, "_submit_stt_closes", ()))
+            tasks.update(runtime._tts_finalizers)
+            for turn in runtime._tts_turns:
+                tasks.update(turn.publications)
+                tasks.update(
+                    task
+                    for task in (turn.cleanup, turn.producer_cleanup, turn.request_task)
+                    if task is not None
+                )
             for operation in runtime._stt_operations:
                 tasks.update(operation.dependencies)
                 tasks.update(
@@ -245,6 +257,10 @@ async def retire_converse_shared(runtime, journal, speech, windows=None):
         if owner is not None:
             busy = busy or bool(owner.leases) or bool(owner._native_unsettled)
             await owner.close()
+        tts_owner = runtime.tts_model_settings
+        if tts_owner is not None:
+            busy = busy or bool(tts_owner.leases) or bool(tts_owner._native_unsettled)
+            await tts_owner.close()
         if busy:
             # Native worker/publication/iterator uncertainty retains these
             # clients. A timeout or process-local reconnect is not settlement.
