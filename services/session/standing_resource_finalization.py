@@ -321,6 +321,9 @@ class StandingResourceFinalizationOwner:
 
     def check_reservation(self, original):
         """Join a possible new reservation inside its caller's transaction."""
+        self._available()
+        if not self._connection.in_transaction:
+            raise StandingUnavailable
         state, binding, _ = self._observation()
         if binding is None:
             return  # Existing unbound claims retain their original protocol.
