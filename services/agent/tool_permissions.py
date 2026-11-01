@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import sqlite3
 import uuid
-from pathlib import Path
 
 from packages.contracts.models import TERMINAL_STATES
 from packages.contracts.tool_permissions import (
@@ -15,11 +15,22 @@ from packages.contracts.tool_permissions import (
     PermissionScope,
     ToolPermissionChange,
 )
+from services.settings.provider_catalog import _storage
 
 MAX_RULES = 1024
 MAX_RECEIPTS = 10000
 MAX_SCOPE_BYTES = 2048
 MAX_RECEIPT_BYTES = 8192
+STORAGE_VERSION = 1
+_TABLES = {
+    "permission_state": "CREATE TABLE permission_state (id INTEGER PRIMARY KEY CHECK(id=1), revision INTEGER NOT NULL)",
+    "permission_rules": "CREATE TABLE permission_rules (scope_id TEXT NOT NULL, tool TEXT NOT NULL, scope TEXT NOT NULL, mode TEXT NOT NULL, revision INTEGER NOT NULL, PRIMARY KEY(scope_id,tool))",
+    "permission_operations": "CREATE TABLE permission_operations (key TEXT PRIMARY KEY, digest TEXT NOT NULL, receipt TEXT NOT NULL)",
+}
+_INDEXES = {
+    "sqlite_autoindex_permission_rules_1": "permission_rules",
+    "sqlite_autoindex_permission_operations_1": "permission_operations",
+}
 
 
 class ToolPermissionConflict(ValueError):
@@ -81,27 +92,143 @@ class AgentToolPermissions:
         self.runtime = runtime
         self.instance = str(uuid.uuid4())
         self._closed = False
-        if path is not None:
-            path = Path(path).resolve()
-            if path.is_relative_to(runtime.policy.workspace):
-                raise ValueError("Permission settings must be outside the worker workspace")
-            path.parent.mkdir(parents=True, exist_ok=True)
-        self.db = sqlite3.connect(str(path) if path is not None else ":memory:", timeout=0.5)
-        if path is not None:
-            path.chmod(0o600)
-        self.db.execute("PRAGMA synchronous=FULL")
-        self.db.execute(
-            "CREATE TABLE IF NOT EXISTS permission_state (id INTEGER PRIMARY KEY CHECK(id=1), revision INTEGER NOT NULL)"
-        )
-        self.db.execute(
-            "CREATE TABLE IF NOT EXISTS permission_rules (scope_id TEXT NOT NULL, tool TEXT NOT NULL, scope TEXT NOT NULL, mode TEXT NOT NULL, revision INTEGER NOT NULL, PRIMARY KEY(scope_id,tool))"
-        )
-        self.db.execute(
-            "CREATE TABLE IF NOT EXISTS permission_operations (key TEXT PRIMARY KEY, digest TEXT NOT NULL, receipt TEXT NOT NULL)"
-        )
-        with self.db:
-            self.db.execute("INSERT OR IGNORE INTO permission_state VALUES (1,0)")
-        self._revision()
+        if path is None:
+            self.db, created = sqlite3.connect(":memory:", timeout=0.5), True
+        else:
+            self.db, created = _storage(path, runtime.policy.workspace, report_created=True)
+        try:
+            self.db.execute("PRAGMA busy_timeout=500")
+            self.db.execute("PRAGMA synchronous=FULL")
+            self.db.execute("BEGIN IMMEDIATE")
+            if created:
+                if (
+                    self.db.execute("PRAGMA user_version").fetchone() != (0,)
+                    or self.db.execute("SELECT 1 FROM sqlite_schema LIMIT 1").fetchone() is not None
+                ):
+                    raise ValueError("New permission storage is not empty")
+                for statement in _TABLES.values():
+                    self.db.execute(statement)
+                self.db.execute("INSERT INTO permission_state VALUES (1,0)")
+            # Version zero is the exact original three-table layout only. All
+            # retained authority and receipts must survive its explicit upgrade.
+            self._schema(legacy=True)
+            self._validate_storage()
+            self.db.execute(f"PRAGMA user_version={STORAGE_VERSION}")
+            self.db.commit()
+            self._revision()
+        except BaseException:
+            self._closed = True
+            self.db.close()
+            raise
+
+    def _schema(self, *, legacy=False):
+        if self._closed:
+            raise ValueError("Permission storage is closed")
+        version = self.db.execute("PRAGMA user_version").fetchone()
+        permitted = {(0,), (STORAGE_VERSION,)} if legacy else {(STORAGE_VERSION,)}
+        if version not in permitted:
+            raise ValueError("Permission storage version is unavailable")
+        rows = self.db.execute(
+            "SELECT type, CASE WHEN length(CAST(name AS BLOB))<=128 THEN name END,"
+            "CASE WHEN length(CAST(tbl_name AS BLOB))<=128 THEN tbl_name END,"
+            "CASE WHEN length(CAST(sql AS BLOB))<=4096 THEN sql END "
+            "FROM sqlite_schema LIMIT 6"
+        ).fetchall()
+        expected = {("table", name) for name in _TABLES} | {("index", name) for name in _INDEXES}
+        if len(rows) != len(expected) or {(row[0], row[1]) for row in rows} != expected:
+            raise ValueError("Permission storage schema is unavailable")
+        for kind, name, table, sql in rows:
+            if kind == "index":
+                if table != _INDEXES[name] or sql is not None:
+                    raise ValueError("Permission storage index is unavailable")
+            elif (
+                table != name
+                or type(sql) is not str
+                or re.sub(r"\s+", "", sql)
+                .lower()
+                .replace("createtableifnotexists", "createtable", 1)
+                != re.sub(r"\s+", "", _TABLES[name]).lower()
+            ):
+                raise ValueError("Permission storage table is unavailable")
+
+    def _stored_revision(self):
+        rows = self.db.execute(
+            "SELECT id, CASE WHEN typeof(revision)='integer' THEN revision END "
+            "FROM permission_state LIMIT 2"
+        ).fetchall()
+        if (
+            len(rows) != 1
+            or rows[0][0] != 1
+            or type(rows[0][1]) is not int
+            or not 0 <= rows[0][1] <= MAX_PERMISSION_REVISION
+        ):
+            raise ValueError("Permission revision is unavailable")
+        return rows[0][1]
+
+    def _validate_storage(self):
+        # Every native mutation retains one receipt and increments exactly once;
+        # checking their full bounded history detects incomplete legacy stores.
+        revision = self._stored_revision()
+        rules = {}
+        for identity, tool, encoded, mode, rule_revision in self.db.execute(
+            "SELECT CASE WHEN typeof(scope_id)='text' AND length(CAST(scope_id AS BLOB))=64 THEN scope_id END,"
+            "CASE WHEN typeof(tool)='text' AND length(CAST(tool AS BLOB))<=10 THEN tool END,"
+            f"CASE WHEN typeof(scope)='text' AND length(CAST(scope AS BLOB))<={MAX_SCOPE_BYTES} THEN scope END,"
+            "CASE WHEN typeof(mode)='text' AND length(CAST(mode AS BLOB))<=5 THEN mode END,"
+            "CASE WHEN typeof(revision)='integer' THEN revision END "
+            f"FROM permission_rules LIMIT {MAX_RULES + 1}"
+        ):
+            scope = PermissionScope.model_validate(_decode(encoded, MAX_SCOPE_BYTES))
+            if (
+                len(rules) >= MAX_RULES
+                or identity != self.scope_id(scope)
+                or tool not in NATIVE_PERMISSION_TOOLS
+                or mode not in {"allow", "ask", "deny"}
+                or type(rule_revision) is not int
+                or not 1 <= rule_revision <= revision
+            ):
+                raise ValueError("Stored permission rule is unavailable")
+            rules[(identity, tool)] = (_scope_value(scope), mode, rule_revision)
+        operations, revisions, latest = 0, set(), {}
+        for key, digest, encoded in self.db.execute(
+            "SELECT CASE WHEN typeof(key)='text' AND length(CAST(key AS BLOB))<=128 THEN key END,"
+            "CASE WHEN typeof(digest)='text' AND length(CAST(digest AS BLOB))=64 THEN digest END,"
+            f"CASE WHEN typeof(receipt)='text' AND length(CAST(receipt AS BLOB))<={MAX_RECEIPT_BYTES} THEN receipt END "
+            f"FROM permission_operations LIMIT {MAX_RECEIPTS + 1}"
+        ):
+            operations += 1
+            receipt = self._receipt_value(encoded, key)
+            request = ToolPermissionChange.model_validate(
+                {
+                    field: receipt[field]
+                    for field in (
+                        "schema_version",
+                        "expected_revision",
+                        "expected_state",
+                        "idempotency_key",
+                        "scope",
+                        "tool",
+                        "mode",
+                    )
+                }
+            )
+            operation_revision = receipt["revision"]
+            if (
+                operations > MAX_RECEIPTS
+                or operation_revision > revision
+                or operation_revision in revisions
+                or digest != _digest(self._request_value(request))
+            ):
+                raise ValueError("Stored permission operation is unavailable")
+            revisions.add(operation_revision)
+            identity = (receipt["scope_id"], receipt["tool"])
+            current = latest.get(identity)
+            if current is None or current[2] < operation_revision:
+                latest[identity] = (receipt["scope"], receipt["mode"], operation_revision)
+        if operations != revision or rules != {
+            identity: value for identity, value in latest.items() if value[1] is not None
+        }:
+            raise ValueError("Permission storage history is incomplete")
 
     @property
     def workspace_id(self):
@@ -112,12 +239,8 @@ class AgentToolPermissions:
         return _digest(_scope_value(scope))
 
     def _revision(self):
-        row = self.db.execute(
-            "SELECT CASE WHEN typeof(revision)='integer' THEN revision END FROM permission_state WHERE id=1"
-        ).fetchone()
-        if row is None or type(row[0]) is not int or not 0 <= row[0] <= MAX_PERMISSION_REVISION:
-            raise ValueError("Permission revision is unavailable")
-        return row[0]
+        self._schema()
+        return self._stored_revision()
 
     def _host(self, tool):
         policy = self.runtime.policy
@@ -180,6 +303,7 @@ class AgentToolPermissions:
         return result
 
     def _rule(self, scope, tool):
+        self._revision()
         identity = self.scope_id(scope)
         row = self.db.execute(
             "SELECT CASE WHEN length(CAST(scope AS BLOB))<=? THEN scope END,"
@@ -349,6 +473,7 @@ class AgentToolPermissions:
         }
 
     def _saved_scope(self, identity):
+        self._revision()
         if (
             type(identity) is not str
             or len(identity) != 64
@@ -367,6 +492,7 @@ class AgentToolPermissions:
         return scope
 
     async def page_saved(self, after=None, limit=20):
+        self._revision()
         if (
             type(limit) is not int
             or not 1 <= limit <= 20
@@ -399,6 +525,7 @@ class AgentToolPermissions:
         return {**request.model_dump(), "scope": _scope_value(request.scope)}
 
     def receipt(self, key):
+        self._revision()
         if (
             type(key) is not str
             or not 1 <= len(key) <= 128
@@ -457,6 +584,7 @@ class AgentToolPermissions:
         return value
 
     def _prior(self, request, digest):
+        self._revision()
         row = self.db.execute(
             "SELECT CASE WHEN length(CAST(digest AS BLOB))=64 THEN digest END,"
             "CASE WHEN length(CAST(receipt AS BLOB))<=? THEN receipt END "

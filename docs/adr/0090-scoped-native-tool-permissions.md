@@ -33,6 +33,24 @@ capacity refuses a new operation without silently discarding unresolved state.
 Saved retired scopes remain inspectable and their exact rules can be reset.
 Reset changes only one rule and restores inheritance.
 
+Persistent storage uses an owner-only regular file outside the worker workspace,
+without symlink aliases or hard links, under an owner-controlled directory. Only
+an affirmative atomic file-creation result may initialize the three tables and
+revision-zero singleton. An existing empty, truncated, incomplete or corrupt
+store is unavailable; startup does not recreate tables, insert a missing
+singleton or substitute host defaults for lost rules.
+
+The exact original three-table layout with SQLite `user_version=0` has one
+explicit transactionally validated upgrade to storage version 1. It preserves
+all rules, revisions and receipts. Bounded validation requires one valid
+singleton, complete unique receipt revisions and original request digests, and
+the current rules must match the latest retained operations. Unknown schema
+objects, unsupported storage versions and invalid history refuse the upgrade.
+Version and closed-schema checks continue on reads and mutation admission, so
+this service cannot silently ignore policy tables introduced by a newer
+implementation. Store repair or recovery requires owner intervention; an
+unavailable file is never automatically replaced or migrated as an empty store.
+
 Changes carry the observed revision, native state fingerprint and a fresh
 idempotency key. Historical exact replay is checked before current scope or CAS
 validation and never reapplies a stale rule. New saves check current authority,
