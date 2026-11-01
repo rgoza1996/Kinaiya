@@ -1,0 +1,130 @@
+{
+  "requirements": [
+    "https://github.com/rgoza1996/Kinaiya/issues/9",
+    "https://github.com/rgoza1996/Kinaiya/issues/239"
+  ],
+  "scope": "Retain actual verified native process cleanup ownership after incomplete WorkerManager.close so the same manager can retry. All other workers are still attempted; starts remain closed. Not general hostile-process containment, GPU allocation proof, resource finalization or standing-work completion.",
+  "base": "88cb6bb082600555bfd85bc71c2691ff553f3811",
+  "qualified_source": "69da670ccaf41bed4429bbcde35f9e989d84fd02",
+  "source_sha256": {
+    "packages/resources/processes.py": "5cd990d663d7bd337ac27201773565af0e00d023b9c5a05ca430443b476d0b13"
+  },
+  "new_oracle_sha256": "476d9050edabcaed83f8db044dff8a4820975dcdbafe16b4b0986622d3a22fa3",
+  "frozen_oracles": {
+    "original_commits": [
+      "23767e248dff06c62b5d07e10d2ffbc71ba74a15",
+      "706dac4a8104319c4c596c6f3a509393678e58aa"
+    ],
+    "independent_baseline": "Frozen before integrator consulted production fix. Initial original fixture lacked readiness and produced setup errors; correction uses child-written readiness and retains all37 original assertions. Corrected baseline reproduced genuine lost pidfd ownership and failed same-manager retry.",
+    "original_evidence_receipt_sha256": "f8fa981270a8e1f5d2284e3609d37ec6e13d2f0618708905703ecfb3c7736c3b",
+    "main_cold": {
+      "bundle": "239-close-main-cold-fox_q489",
+      "receipt_sha256": "21d129409854be97091db38ab7fc267d5f4f77e7f8c9f2f683f784dd202fbcd0",
+      "manifest_sha256": "ecfb49690a08ff75e37e94f2e8fe747044b3134650c3036ca0711ee05bf20fdf",
+      "source_head": "e1d46afb02602f748991383b9998768173ebdd5a",
+      "head_preserved": true,
+      "exit_code": 1,
+      "test_sha256": {
+        "tests/integration/test_resource_close_ownership_retained.py": "476d9050edabcaed83f8db044dff8a4820975dcdbafe16b4b0986622d3a22fa3"
+      },
+      "tests": [
+        {
+          "tests": "2",
+          "failures": "1",
+          "errors": "0",
+          "skipped": "0",
+          "time": "4.973"
+        }
+      ],
+      "arguments": [
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-W",
+        "error",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "-o",
+        "junit_family=xunit1",
+        "tests/integration/test_resource_close_ownership_retained.py"
+      ]
+    }
+  },
+  "verification": {
+    "final_resources": {
+      "bundle": "239-close-main-final-shn3ycl8",
+      "receipt_sha256": "7570ded2b4e4b122102800cee852b84057b8b35d056431b15e03ddae48902fea",
+      "manifest_sha256": "08adb1e7749dabf0c19766bcd6b4504dc054f09b5bfe29b223fb1b384065e2df",
+      "source_head": "69da670ccaf41bed4429bbcde35f9e989d84fd02",
+      "head_preserved": true,
+      "exit_code": 0,
+      "test_sha256": {
+        "tests/integration/test_resource_boundaries.py": "8830eddbbcf67016399dfd843d98dbceace61be8b36d4bdb1b9432593dbd103e",
+        "tests/integration/test_resource_close_ownership_retained.py": "476d9050edabcaed83f8db044dff8a4820975dcdbafe16b4b0986622d3a22fa3",
+        "tests/integration/test_resource_handoff.py": "f515cf1e8d3a041b0892d78027252254972495993c25bbc23f57140a3bff9c8b",
+        "tests/integration/test_resource_parent.py": "1e22b03779900eb3d52ff79eba93989592e9e7e3dcc8c73b327b22f41d6f413a",
+        "tests/integration/test_resource_processes.py": "a6c7ee0b0d8ca4f873006aacb6c50064d3f90e520ade1d399853702f4bbab751",
+        "tests/integration/test_text_resource_barrier.py": "c780fed891223f59fd2e833ba5efb0b403e2ee74858a5aacd3bca2c07f48d257",
+        "tests/unit/test_resource_complete_budget.py": "c31363f44a029d418096ffdeb4cfcda1b94b370141a9f089e8dade0eac47819f",
+        "tests/unit/test_resource_gpu.py": "e5d76babd8d8451eeedd7ae1e61e4dbfcd30461825ca53dd85a983d6c5004361",
+        "tests/unit/test_resource_provider_cleanup.py": "a238e2ac7fe225775ba8cc5eb96af981cf89f0d643db6c93d396bae5530a01c3"
+      },
+      "tests": [
+        {
+          "tests": "217",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0",
+          "time": "33.556"
+        }
+      ],
+      "arguments": [
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-W",
+        "error",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "-o",
+        "junit_family=xunit1",
+        "tests/integration/test_resource_close_ownership_retained.py",
+        "tests/integration/test_resource_handoff.py",
+        "tests/integration/test_resource_boundaries.py",
+        "tests/integration/test_resource_parent.py",
+        "tests/integration/test_resource_processes.py",
+        "tests/integration/test_text_resource_barrier.py",
+        "tests/unit/test_resource_provider_cleanup.py",
+        "tests/unit/test_resource_gpu.py",
+        "tests/unit/test_resource_complete_budget.py"
+      ]
+    },
+    "final_summary": "217 passed in33.58s, warnings treated as errors; no failures/errors/skips. Includes215 existing Resource cases and2 independent regressions.",
+    "all_existing_test_files_byte_exact": 236,
+    "actual_process_evidence": "Tests verify original pidfd bind-back/start ticks and retain independent duplicated handles. Failed worker remains actually live after injected first signal error while second is reaped. Same manager retry succeeds after restoring sender; both workers are reaped, groups empty, ownership/stop evidence retained and native handles/pipes closed. Finally uses independent verified duplicates to prevent red baseline leaks.",
+    "static": [
+      "Pinned Ruff check: passed",
+      "Pinned Ruff format --check: passed",
+      "git diff --check: passed"
+    ],
+    "commands_note": "Arguments above are actual pytest invocations; original exact interpreter/PYTHONPATH and paths remain in hashed local receipts. xunit1 preserves record_property evidence without warning suppression."
+  },
+  "prior_independent_source_review": {
+    "source_sha256": "5cd990d663d7bd337ac27201773565af0e00d023b9c5a05ca430443b476d0b13",
+    "attribution": "Separate Codex source author, frozen oracle author, independent lifecycle reviewer and integrator; not human approval.",
+    "receipt_sha256": "50042689f257840c33cdb9a376dee44b0597f17b53b3ffadc13e106b854cb91b",
+    "result": "All remaining handle releases follow verified cleanup; failed close retains original authority; start/restart refusal preserved."
+  },
+  "limits": [
+    "Main-source qualification is independent of the larger in-progress #228 branch; no standing modules are required.",
+    "The same source was exercised with related standing Resource changes in their separately recorded270-case run; these overlapping results are not summed.",
+    "No Meta/provider calls, sign-language test, camera/microphone, device/model/configuration/dependency or live-port changes.",
+    "Full-project GitHub Actions and PR review are separate gates, not claimed by these local217 cases."
+  ]
+}
