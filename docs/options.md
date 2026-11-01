@@ -227,3 +227,15 @@ responsive during evaluation. Source and independent reviews are complete; final
 integration, CI and preview are pending. Installing/updating/removing extensions,
 bound disclosure scope edits and unresolved multi-file activation reconciliation
 remain work.
+
+### Native context observations (ADR0104)
+
+The embedded Context page now has source for passive Agent and Converse
+measurements: captured model/provider/configuration, input, capacity, reserved
+output, headroom, exact request binding and whole-message/exchange selection.
+Opening it never measures a new prompt or contacts a provider. Observations are
+bounded process-memory records of previous native preparation/admission; they
+are not live KV allocation or billing. Retained transcript and omitted prompt
+context remain distinct. Independent source review and static checks passed;
+CI and 8808 promotion are pending. General compaction, retention and export
+remain unfinished under #208.

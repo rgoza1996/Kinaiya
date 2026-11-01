@@ -1,0 +1,439 @@
+{
+  "$defs": {
+    "ContextCatalogBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "generation": {
+          "maximum": 64,
+          "minimum": 1,
+          "title": "Generation",
+          "type": "integer"
+        },
+        "configuration_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "title": "Configuration Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "generation",
+        "configuration_sha256"
+      ],
+      "title": "ContextCatalogBinding",
+      "type": "object"
+    },
+    "ContextMeasurement": {
+      "additionalProperties": false,
+      "properties": {
+        "input_tokens": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Input Tokens",
+          "type": "integer"
+        },
+        "context_tokens": {
+          "maximum": 9007199254740991,
+          "minimum": 64,
+          "title": "Context Tokens",
+          "type": "integer"
+        },
+        "reserved_output_tokens": {
+          "maximum": 9007199254740991,
+          "minimum": 16,
+          "title": "Reserved Output Tokens",
+          "type": "integer"
+        },
+        "headroom_tokens": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Headroom Tokens",
+          "type": "integer"
+        },
+        "request_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "title": "Request Sha256",
+          "type": "string"
+        },
+        "binding_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "title": "Binding Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "input_tokens",
+        "context_tokens",
+        "reserved_output_tokens",
+        "headroom_tokens",
+        "request_sha256",
+        "binding_sha256"
+      ],
+      "title": "ContextMeasurement",
+      "type": "object"
+    },
+    "ContextModel": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "enum": [
+            "host",
+            "catalog",
+            "unmanaged"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "provider": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Provider",
+          "type": "string"
+        },
+        "model": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Model",
+          "type": "string"
+        },
+        "local": {
+          "title": "Local",
+          "type": "boolean"
+        },
+        "reasoning": {
+          "anyOf": [
+            {
+              "maxLength": 16,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Reasoning"
+        },
+        "settings_revision": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Settings Revision"
+        },
+        "catalog_revision": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Catalog Revision"
+        },
+        "catalog_binding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContextCatalogBinding"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "profile_id": {
+          "anyOf": [
+            {
+              "maxLength": 80,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Profile Id"
+        }
+      },
+      "required": [
+        "source",
+        "provider",
+        "model",
+        "local",
+        "reasoning",
+        "settings_revision",
+        "catalog_revision",
+        "catalog_binding",
+        "profile_id"
+      ],
+      "title": "ContextModel",
+      "type": "object"
+    },
+    "ContextObservation": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "operation_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Operation Id",
+          "type": "string"
+        },
+        "sequence": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "role": {
+          "enum": [
+            "agent",
+            "converse"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "phase": {
+          "enum": [
+            "prepared",
+            "generation_export_admitted"
+          ],
+          "title": "Phase",
+          "type": "string"
+        },
+        "observed_at": {
+          "maxLength": 40,
+          "minLength": 20,
+          "title": "Observed At",
+          "type": "string"
+        },
+        "scope": {
+          "$ref": "#/$defs/ContextScope"
+        },
+        "model": {
+          "$ref": "#/$defs/ContextModel"
+        },
+        "measurement": {
+          "$ref": "#/$defs/ContextMeasurement"
+        },
+        "selection": {
+          "$ref": "#/$defs/ContextSelection"
+        }
+      },
+      "required": [
+        "schema_version",
+        "id",
+        "operation_id",
+        "sequence",
+        "role",
+        "phase",
+        "observed_at",
+        "scope",
+        "model",
+        "measurement",
+        "selection"
+      ],
+      "title": "ContextObservation",
+      "type": "object"
+    },
+    "ContextScope": {
+      "additionalProperties": false,
+      "properties": {
+        "session_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Session Id",
+          "type": "string"
+        },
+        "thread_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Thread Id",
+          "type": "string"
+        },
+        "epoch": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Epoch",
+          "type": "integer"
+        },
+        "source_event_ids": {
+          "items": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 128,
+          "title": "Source Event Ids",
+          "type": "array"
+        },
+        "task_id": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Task Id"
+        },
+        "objective_revision": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Objective Revision"
+        },
+        "harness_version": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Harness Version"
+        },
+        "through_sequence": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Through Sequence"
+        }
+      },
+      "required": [
+        "session_id",
+        "thread_id",
+        "epoch",
+        "source_event_ids",
+        "task_id",
+        "objective_revision",
+        "harness_version",
+        "through_sequence"
+      ],
+      "title": "ContextScope",
+      "type": "object"
+    },
+    "ContextSelection": {
+      "additionalProperties": false,
+      "properties": {
+        "unit": {
+          "enum": [
+            "message",
+            "exchange"
+          ],
+          "title": "Unit",
+          "type": "string"
+        },
+        "kept": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Kept",
+          "type": "integer"
+        },
+        "dropped": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Dropped",
+          "type": "integer"
+        },
+        "examined": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Examined",
+          "type": "integer"
+        },
+        "history_complete": {
+          "title": "History Complete",
+          "type": "boolean"
+        },
+        "measurement_attempts": {
+          "maximum": 513,
+          "minimum": 1,
+          "title": "Measurement Attempts",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "unit",
+        "kept",
+        "dropped",
+        "examined",
+        "history_complete",
+        "measurement_attempts"
+      ],
+      "title": "ContextSelection",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "observation": {
+      "$ref": "#/$defs/ContextObservation"
+    },
+    "configuration_status": {
+      "enum": [
+        "current",
+        "obsolete",
+        "unknown"
+      ],
+      "title": "Configuration Status",
+      "type": "string"
+    }
+  },
+  "required": [
+    "observation",
+    "configuration_status"
+  ],
+  "title": "ContextObservationRow",
+  "type": "object"
+}

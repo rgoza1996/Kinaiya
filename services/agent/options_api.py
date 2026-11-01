@@ -56,6 +56,12 @@ def router(runtime, auth):
         route_class=_NoStoreRoute,
     )
 
+    @routes.get("/context")
+    async def inspect_context():
+        from services.context_usage import agent_context_snapshot
+
+        return agent_context_snapshot(runtime)
+
     def workspace_settings():
         if runtime.workspace_settings is None:
             raise HTTPException(503, "Native workspace selection is unavailable")

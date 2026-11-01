@@ -1,0 +1,138 @@
+{
+  "$defs": {
+    "ContextCatalogBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "generation": {
+          "maximum": 64,
+          "minimum": 1,
+          "title": "Generation",
+          "type": "integer"
+        },
+        "configuration_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "title": "Configuration Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "generation",
+        "configuration_sha256"
+      ],
+      "title": "ContextCatalogBinding",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "source": {
+      "enum": [
+        "host",
+        "catalog",
+        "unmanaged"
+      ],
+      "title": "Source",
+      "type": "string"
+    },
+    "provider": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Provider",
+      "type": "string"
+    },
+    "model": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Model",
+      "type": "string"
+    },
+    "local": {
+      "title": "Local",
+      "type": "boolean"
+    },
+    "reasoning": {
+      "anyOf": [
+        {
+          "maxLength": 16,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Reasoning"
+    },
+    "settings_revision": {
+      "anyOf": [
+        {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Settings Revision"
+    },
+    "catalog_revision": {
+      "anyOf": [
+        {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Catalog Revision"
+    },
+    "catalog_binding": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ContextCatalogBinding"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "profile_id": {
+      "anyOf": [
+        {
+          "maxLength": 80,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Profile Id"
+    }
+  },
+  "required": [
+    "source",
+    "provider",
+    "model",
+    "local",
+    "reasoning",
+    "settings_revision",
+    "catalog_revision",
+    "catalog_binding",
+    "profile_id"
+  ],
+  "title": "ContextModel",
+  "type": "object"
+}

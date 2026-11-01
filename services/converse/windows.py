@@ -564,6 +564,7 @@ class WindowConverseController:
         if await self.current(prepared) is None:
             self._abandon(prepared)
             return None
+        self.runtime.observe_context(prepared, source, projection)
         return projection.messages
 
     async def generate(self, prepared):

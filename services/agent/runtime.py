@@ -117,6 +117,7 @@ from services.agent.tools import (
     shell_directory,
     validate_write_arguments,
 )
+from services.context_usage import ContextObservations, captured_model
 
 
 class TaskNotFound(KeyError):
@@ -401,6 +402,7 @@ class AgentRuntime:
         self.journal = journal
         self.provider = provider
         self.model_settings = None
+        self.context_observations = ContextObservations("agent")
         self.runtime_settings = None
         self.capability_settings = None
         self._capabilities_configured = False
@@ -3416,6 +3418,8 @@ class AgentRuntime:
         revision = rec.task.objective_revision
         revised = False
         text = None
+        context_observation = None
+        observation_operation = self.context_observations.new_operation()
 
         def current():
             nonlocal revised
@@ -3526,6 +3530,19 @@ class AgentRuntime:
                 raise PromptCountUnavailable("Native Agent export admission is invalid") from exc
             rec.task.content_scope = combine_scopes(rec.task.content_scope, receipt.effective_scope)
             current()
+            if (
+                purpose == "complete_generation"
+                and context_observation is not None
+                and request_sha256 == context_observation.measurement.request_sha256
+            ):
+                self.context_observations.record(
+                    operation_id=observation_operation,
+                    phase="generation_export_admitted",
+                    scope=context_observation.scope,
+                    model=context_observation.model,
+                    measurement=prepared.measurement,
+                    selection=context_observation.selection,
+                )
 
         messages = build_messages(
             rec.task.objective,
@@ -3546,6 +3563,31 @@ class AgentRuntime:
                     messages[:2], history_exchanges(messages[2:]), prepare, check
                 )
                 prepared = selection.prepared
+                if prepared.measurement is not None:
+                    context_observation = self.context_observations.record(
+                        operation_id=observation_operation,
+                        phase="prepared",
+                        scope={
+                            "session_id": rec.task.session_id,
+                            "thread_id": rec.task.thread_id,
+                            "epoch": rec.task.epoch,
+                            "source_event_ids": tuple(rec.task.source_event_ids),
+                            "task_id": rec.task.task_id,
+                            "objective_revision": revision,
+                            "harness_version": rec.task.harness_version,
+                            "through_sequence": None,
+                        },
+                        model=lambda: captured_model(provider, rec.task.model_pin),
+                        measurement=prepared.measurement,
+                        selection={
+                            "unit": "exchange",
+                            "kept": selection.kept_exchanges,
+                            "dropped": selection.dropped_exchanges,
+                            "examined": selection.kept_exchanges + selection.dropped_exchanges,
+                            "history_complete": True,
+                            "measurement_attempts": selection.measurement_attempts,
+                        },
+                    )
                 # Stay in this Task and exact tool scope. A child task would
                 # invalidate the provider's request-local admission binding.
                 text = await prepared.complete()

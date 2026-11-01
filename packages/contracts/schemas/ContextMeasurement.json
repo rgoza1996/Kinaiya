@@ -1,0 +1,51 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "input_tokens": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Input Tokens",
+      "type": "integer"
+    },
+    "context_tokens": {
+      "maximum": 9007199254740991,
+      "minimum": 64,
+      "title": "Context Tokens",
+      "type": "integer"
+    },
+    "reserved_output_tokens": {
+      "maximum": 9007199254740991,
+      "minimum": 16,
+      "title": "Reserved Output Tokens",
+      "type": "integer"
+    },
+    "headroom_tokens": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "title": "Headroom Tokens",
+      "type": "integer"
+    },
+    "request_sha256": {
+      "maxLength": 64,
+      "minLength": 64,
+      "title": "Request Sha256",
+      "type": "string"
+    },
+    "binding_sha256": {
+      "maxLength": 64,
+      "minLength": 64,
+      "title": "Binding Sha256",
+      "type": "string"
+    }
+  },
+  "required": [
+    "input_tokens",
+    "context_tokens",
+    "reserved_output_tokens",
+    "headroom_tokens",
+    "request_sha256",
+    "binding_sha256"
+  ],
+  "title": "ContextMeasurement",
+  "type": "object"
+}

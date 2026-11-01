@@ -1,0 +1,51 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "unit": {
+      "enum": [
+        "message",
+        "exchange"
+      ],
+      "title": "Unit",
+      "type": "string"
+    },
+    "kept": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "title": "Kept",
+      "type": "integer"
+    },
+    "dropped": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "title": "Dropped",
+      "type": "integer"
+    },
+    "examined": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "title": "Examined",
+      "type": "integer"
+    },
+    "history_complete": {
+      "title": "History Complete",
+      "type": "boolean"
+    },
+    "measurement_attempts": {
+      "maximum": 513,
+      "minimum": 1,
+      "title": "Measurement Attempts",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "unit",
+    "kept",
+    "dropped",
+    "examined",
+    "history_complete",
+    "measurement_attempts"
+  ],
+  "title": "ContextSelection",
+  "type": "object"
+}
