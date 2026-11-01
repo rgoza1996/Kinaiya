@@ -37,6 +37,7 @@ generation. Authentication and the listed role are checked before body ingress:
 | GET | `/v1/standing/executions/unresolved` | agent | `StandingExecutionClaim` or null |
 | POST | `/v1/standing/tasks/admit` | agent | `StandingTaskAdmission` |
 | POST | `/v1/standing/tasks/lookup` | agent | `StandingInitialProof` or null |
+| POST | `/v1/standing/tasks/export-admission` | agent | `StandingExportAdmission` |
 
 Owner, Converse, Decisions and Resources credentials cannot renew a producer.
 All six dispatch/producer routes reject query fields. Activation and its lookup
@@ -345,6 +346,54 @@ records the original 73-case pass, the additional two failing regressions, the
 reviewed correction and 228 passing new/existing checks. One production-client
 test uses actual Session ASGI/auth/SQLite admission and retained history. It does
 not establish a running scheduler, model provider, standing worker or inbox.
+
+## Standing inference disclosure
+
+Before a standing worker can make a count or generation request, the new
+`StandingExportRequest` binds the full accepted initial proof and complete
+`AgentExportRequest`. Native `StandingTaskOwner.export_admission` joins the
+actual retained proof and current Agent session/thread/epoch. It folds the
+captured task's disclosure floor with the outgoing request's scope and checks
+the exact captured provider/model/local identity. A weaker request cannot
+relax the original floor. Sources and retrieved context must be empty for this
+first `native-files-v1` family. Runtime tool-subset enforcement and actual worker
+ownership still require integration.
+
+The saved grant remains historical for already accepted work: later disable,
+Stop, controller replacement or producer expiry does not falsely attest that
+the work stopped. Session reset still fences a new export. Admission performs
+no inference, state mutation, registration or producer/UTC clock sampling. Its
+actual transaction, current-session checks and cancellation/deadline guards
+cover the final SQL read and COMMIT acknowledgement. A lost reply grants no
+permission to retry inference.
+
+`StandingExportAdmission` binds the entire original with a domain-separated
+`kinaiya.standing.export.v1\0` digest and the complete old export receipt. This
+is point-in-time metadata, not a reusable upload, tool or launch permit. Both
+request and response validate complete actual typed graphs before an older
+validator can discard fields or normalize a forged provider. Raw nested old
+packets require every field, including defaults; genuine typed defaults are
+existing values. The old public packet grammar and digests remain unchanged.
+
+The new Agent-only route shares the existing operation hub and rejects queries,
+compressed input and unbound/null results. Its raw/canonical request limit is
+262,144 bytes; responses are bounded to 73,728. Python
+`JournalClient.standing_export_admission` uses the same owned exchange,
+25-second deadline and 64-owner bound. It sends no executor capability: this
+metadata check does not create a launch opportunity.
+
+The ordinary export path refuses an accepted standing identity. It checks
+native journal projections and bounded retained proof, validates proof hashes
+and actual link columns, and joins the full retained claim. A missing initial
+or a corrupted/counterfeit proof cannot downgrade a standing task to an ordinary
+export. SQL also bounds link identity scalars before Python fetch, preserving
+valid 128-character Unicode event IDs. A valid unrelated ordinary task remains
+usable beside standing history.
+
+The [disclosure evidence](../evaluation/evidence/standing-export-admission-2026-11-01.json)
+records independent pure/native oracles, actual API/client integration,
+preserved failures and source corrections. It does not qualify live inference,
+worker effects/cleanup, recurrence, settlement, the inbox or editor.
 
 ## Native dispatch gate
 
