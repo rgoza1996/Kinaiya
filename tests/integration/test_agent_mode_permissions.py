@@ -19,6 +19,7 @@ from packages.providers.text import ScriptedProvider
 from services.agent.app import create_app as agent_app
 from services.agent.runtime import AgentRuntime
 from services.agent.tool_permissions import AgentToolPermissions
+from services.agent.workspace_settings import AgentWorkspaceSettings
 from services.common.auth import Auth
 from services.session.api import create_app as session_app
 from services.session.store import Store
@@ -28,6 +29,27 @@ TOKENS = {role: value * 32 for role, value in TOKENS.items()}
 AUTH = Auth(TOKENS)
 PERMISSIONS = "/v1/agent/options/tool-permissions"
 TEXT = "Public synthetic mode and permission integration.\n"
+
+
+def bind_workspace(runtime, control):
+    """Configure the actual native workspace owner, as trusted startup does."""
+    control.mkdir(mode=0o700)
+    owner = AgentWorkspaceSettings(runtime.workspace, path=control / "workspace.sqlite")
+    context = owner.initial_context()
+    runtime.policy.protected_roots = context.protected_roots
+    runtime.policy.readonly_roots = context.readonly_roots
+    runtime.policy.install_workspace_context(
+        context, actor="owner", available=lambda: owner.active_context() is context
+    )
+    runtime.workspace_settings = owner
+    assert owner.bind(
+        runtime,
+        operation_state=runtime.workspace_operation_state,
+        retire=runtime.retire_workspace,
+        apply=lambda value: runtime.prepare_workspace_apply(value).apply(),
+        prepare=runtime.prepare_workspace_apply,
+    )
+    return owner
 
 
 class ExpireFirstPermit(ToolPolicy):
@@ -90,6 +112,7 @@ async def test_off_keeps_native_permissions_renewal_and_approval_authoritative(t
         "http://session.test", TOKENS["agent"], transport=httpx.ASGITransport(app=surface)
     )
     runtime = AgentRuntime(journal, provider, workspace, policy_type(workspace, allow_write=True))
+    bind_workspace(runtime, tmp_path / "control")
     runtime.tool_permissions = AgentToolPermissions(runtime, path=tmp_path / "permissions.sqlite")
     try:
         async with (

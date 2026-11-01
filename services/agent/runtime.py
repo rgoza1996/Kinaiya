@@ -1881,6 +1881,7 @@ class AgentRuntime:
             raise AgentControlUnavailable
         if rec.task.objective_revision != attempt.original.expected_objective_revision:
             raise StaleRevision("Task revision changed during native steering admission")
+        self._workspace_current(rec)
 
     async def _steer_scope(self, rec, guard):
         # Compute against actual reads without changing the live Task on refusal.
