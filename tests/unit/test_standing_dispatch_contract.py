@@ -218,9 +218,14 @@ def test_required_schema_and_closed_unknown_fields(kind, vector, maximum):
 @pytest.mark.parametrize("kind,vector,maximum", KINDS)
 def test_actual_copied_and_constructed_graph_closure(kind, vector, maximum):
     model = kind.model_validate(vector())
+    # Pydantic's model_construct discards unknown kwargs for extra=forbid.
+    # Put the unknown field in the actual constructed graph so the oracle
+    # tests observable invalid state, rather than discarded call history.
+    constructed = kind.model_construct(**vector())
+    constructed.__dict__["unexpected_authority"] = True
     for invalid in (
         model.model_copy(update={"unexpected_authority": True}),
-        model.model_construct(**vector(), unexpected_authority=True),
+        constructed,
     ):
         with pytest.raises(ValueError):
             invalid.canonical_bytes()
