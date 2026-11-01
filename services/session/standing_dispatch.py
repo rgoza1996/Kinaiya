@@ -589,7 +589,7 @@ class StandingDispatchOwner:
                 fresh, _ = self._metadata()
                 self._writer(fresh)
                 if not self._live(fresh, producer, self._sample()):
-                    raise StandingConflict
+                    raise StandingUnavailable
 
         with self._transaction(commit_guard):
             meta, generations, gate, _, producer = self._observation()
@@ -666,6 +666,11 @@ class StandingDispatchOwner:
             if original.expected_backend != meta["backend_id"]:
                 raise StandingConflict
             receipt = self._retained(request, meta, generations)
+            if (
+                receipt is None
+                and self._mode_row(original.idempotency_key, meta, generations) is not None
+            ):
+                raise StandingConflict
             self._known(original.expected_instance, generations)
             if (
                 original.expected_revision > meta["revision"]
@@ -703,7 +708,7 @@ class StandingDispatchOwner:
                 fresh, _ = self._metadata()
                 self._writer(fresh)
                 if not self._live(fresh, new_row, self._sample()):
-                    raise StandingConflict
+                    raise StandingUnavailable
 
         with self._transaction(commit_guard):
             meta, generations, gate, _, current = self._observation()
