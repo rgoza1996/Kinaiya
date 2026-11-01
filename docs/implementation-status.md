@@ -71,6 +71,14 @@ separate merge gates recorded on the issue/PR. Autonomous remains unavailable.
 Standing responsibilities, scheduling, inbox/notifications and the broader M7
 and full Options acceptance groups remain incomplete.
 
+The strict integration retry also exposed an existing plugin subprocess cleanup
+defect, tracked by [#226](https://github.com/rgoza1996/Kinaiya/issues/226).
+Its narrow repair closes actual output pipes after reaping and covers early
+cancellation/setup failures. Nine new actual-process cases failed before the
+repair and pass afterward; 44 existing plugin cases and all 36 affected
+intelligent-UI cases pass with ownership warnings treated as errors. Independent
+probes and the original failed broad run are retained in the same evidence.
+
 The subsequent [bound model-save repair](adr/0088-bound-model-settings-writes.md)
 addresses [#191](https://github.com/rgoza1996/Kinaiya/issues/191): stable native
 backend identity, fenced writer generations, exact historical receipt recovery

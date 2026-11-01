@@ -133,7 +133,7 @@
       "manifest_sha256": "404aa160c35f4fe7f32a329055b70a28530ebc4cf24a338935853248ef760710"
     },
     "full_local_python": {
-      "status": "Still running on frozen tested_source_head at evidence capture; this is not a pass claim. Mandatory final-head CI runs the full suite separately.",
+      "head": "cd664b12efbc16a24b4431297c53dc1f75043d8e",
       "command": [
         "python",
         "-B",
@@ -143,53 +143,68 @@
         "not live",
         "-q"
       ],
-      "confirmed_environment_failures": 2,
-      "failure_scope": "Existing intelligent-UI launcher fixture creates its control directory group-writable under inheritedumask0002; actual native authority correctly refuses it before Agent construction.",
-      "controlled_recheck": {
-        "passed": 2,
-        "failed": 0,
-        "seconds": 1.79,
-        "child_only_umask": "0022",
-        "parent_umask": "0002",
-        "source_and_assertions_unchanged": true,
-        "global_configuration_changed": false,
-        "receipt_sha256": "aed20427f0cfd264d88b6902e96a1236eacc0ebeb1a5d88ff3d46405764db358"
-      }
+      "exit_code": 1,
+      "passed": 7925,
+      "failed": 2,
+      "skipped": 6,
+      "deselected_live": 2,
+      "warnings": 1,
+      "seconds": 774.47,
+      "head_unchanged": true,
+      "failure_scope": "Two existing launcher fixtures created group-writable control directories under inheritedumask0002, causing correct authority refusal before intended storage checks.",
+      "diagnostic": "Both pass unchanged under a child-only0022 mask; this is diagnostic evidence, not a production guard bypass. Final publication instead fixes the actual fixture directory to0700 with every assertion unchanged.",
+      "skips": "Six optional pinned PyAV tests; library not installed.",
+      "warning": "Existing Starlette httpx/TestClient deprecation.",
+      "receipt_sha256": "16c3c353df69b5c233dc3367ec1d29f15fe1280bd4c686b165e8d15ebecd09a3",
+      "manifest_sha256": "1cc3ee2c0961954c35204f8029d62bb746f8e6ab1f3486eb26428489befc7c77",
+      "not_a_full_local_pass_claim": true
     },
     "static": {
       "ruff": "pass",
-      "format": "593 files; zero changes",
+      "format": "594 files; zero changes",
       "schema_export": "Actual isolated-root export and unchanged schema diff passed.",
       "diff_check": "pass",
-      "receipt_sha256": "100ca4cbbdb93ca806f2f748a73bd410f4f869c046e4f8c6d988e128f56a5857"
+      "receipt_sha256": "bdc0631556386d61a7f2245e3074cdb53016363ba27b5baa28deed152aa96c0b"
+    },
+    "affected_intelligent_ui": {
+      "passed": 36,
+      "failed": 0,
+      "seconds": 7.6,
+      "warnings": "errors",
+      "umask": "0002 unchanged",
+      "only_fixture_delta": "Owner-controlled data.mkdir(mode=0o700), no assertion changes.",
+      "receipt_sha256": "e79fb69e8e9c143e90656681dff1a138bbb98059b55c6842c873ad4573326d4b"
     }
   },
   "preservation": {
     "base": "63eff086938fd544cf7224b22f81e4da9ded7178",
     "existing_main_test_support_paths": 317,
-    "byte_exact": 312,
+    "byte_exact": 311,
     "only_fixture_exceptions": [
       "tests/conftest.py",
       "tests/integration/test_agent_seed.py",
       "tests/integration/test_agent_submit_admission.py",
+      "tests/integration/test_intelligent_ui.py",
       "tests/unit/test_agent_runtime.py",
       "tests/unit/test_agent_write_arguments.py"
     ],
-    "all_184_old_assertions_in_exception_modules_ast_and_source_exact": true,
+    "all_309_old_module_assertions_ast_and_source_exact": true,
     "all_unrelated_fixture_definitions_source_exact": true,
-    "receipt_sha256": "7bbd7e6626e1151bc920764da570499107bfe11949ebbb4576bc900f8538f710",
-    "assertion_receipt_sha256": "33ac076c5281a35633adaa33fc5bad2455ce0b07eb14ed04014153ddae929f4a"
+    "receipt_sha256": "ad0cd32460d038433dc9d4d3489c72e4ac2288031fedd350b483044890777081",
+    "independent_count_and_fixture_addendum_sha256": "08e6f142367d4d1fe819e6ffa0c169416054bafedced501242c874457e55a63e",
+    "prior_count_scope": "Earlier184 counts covered assertions inside definitions in the firstfive modules. Raw module traversal includes one additional unchanged module-level assertion:185 plus124 in intelligent-ui gives309. Earlier seals are retained.",
+    "freeze_v5_sha256": "37b3f98361ef0187e5479c522fd36ff7bbc784e2d955266336ee40d9c60d9331"
   },
   "retained_failures_and_corrections": [
     "Initial native integration:45pass/1fail plus one teardown error; independent full-request projection, lookup classification, poisoned shutdown and bootstrap fault probes exposed further native defects. Frozen tests/probes were retained while production was corrected.",
     "Independent corruption probes required canonical typed comparisons, complete native payload/scope identity, strict timestamps and historically proven receipt revisions/modes; these now refuse as expected.",
     "Actual constructor process-crash and same-database restart probes exposed failed-first-registration fallback. Atomic DDL, durable pending provenance and creator-capability revocation fixed it; independent assertions remained unchanged.",
     "Upstream workspace authority integration exposed two real steering acceptance failures before/after native acknowledgement. One fresh native workspace guard fixed both, alongside a positive unchanged-root control.",
-    "Five existing fixtures now initialize actual native journal/controller authority explicitly. Original assertions, timing/concurrency gates and unrelated definitions were preserved; no fake admission fallback was added.",
+    "Six existing fixture paths now use actual native journal/controller authority or explicit private storage. Every existing assertion, provider/timing/concurrency gate and unrelated definition remains unchanged; no fake admission fallback was added.",
     "New/private temporary-directory fixtures initially inherited group-write permissions; corrected owner-controlled setup was kept separately with all prior logs/assertions preserved. One new file-effect assertion had an incorrect sha256 prefix; it was corrected to exact native filekind/hash, retaining the failed run.",
     "Initial Dart HTTP helper failed compilation because a local name shadowed canonical serialization; helper-only correction retained original failure. No production fix followed from that helper error.",
     "Original registration diagnostic unconditionally read a correctly absent table after rollback. Its error remains non-pass evidence; a separate observation-only copy preserved all nine behavioral assertions.",
-    "The optional broad local run inheritedumask0002 and exposed two unchanged launcher fixture setup refusals. Both passed unchanged under a child-only0022 mask; no global environment, production guard or test assertion was changed. Full-run terminal results and required CI remain distinct."
+    "The optional broad local run finished7925pass/2fixturefail/6optionalPyAVskip/2liveexcluded/1existingStarlettewarning. Child-mask diagnostics isolated permissions; the actual private fixture was then fixed without changing assertions. A strict whole-module retry exposed the separate#226 plugin-pipe defect (35pass/1fail); after its narrow repair all36 pass with warnings as errors under the originalmask."
   ],
   "resource_bounds": {
     "available_modes": [
@@ -257,5 +272,53 @@
     "source_import": "For direct scripts using a shared editable environment, set command-scoped PYTHONPATH to the isolated checkout.",
     "local_python": "Python3.12.3 pinned venv; local inheritedumask0002 is recorded above.",
     "flutter_sdk": "Flutter3.47.8 at737ba8f885dc774b53b442759999a312c9461e4e; Dart3.13.7"
+  },
+  "publication_source_head": "13b18cbb04f62ee0fac62fdd74c39e1d2715014c",
+  "source_qualification": "All15 native/client production pins remain exact to the separately qualified source. Publication adds only the separately qualified plugin cleanup helper, its new tests, an explicit private launcher fixture and documentation.",
+  "integration_repair": {
+    "issue": 226,
+    "author_commit": "03be673bd5c3febc6c316e903b263bfd37763e3f",
+    "integrated_commit": "13b18cbb04f62ee0fac62fdd74c39e1d2715014c",
+    "source": "core/plugins/sandbox.py::_communicate_bounded",
+    "source_sha256": "00f986541bf588958c742b9960914ddb800a815a72138470db44abe61d6ea662",
+    "frozen_new_test": "tests/unit/test_plugin_pipe_ownership.py",
+    "test_sha256": "1af4c1bab31bbffdb0040771db6d6985d61f9d34f2bbf5915bf83f62ebadbd1b",
+    "author_baseline": {
+      "failed": 9,
+      "seconds": 0.74,
+      "scope": "Seven reaped-but-open pipe cases andtwo setup-fault unreaped-child cases; fixture manually cleaned every child."
+    },
+    "author_corrected": {
+      "passed": 9,
+      "seconds": 0.75,
+      "warnings": "ResourceWarning and PytestUnraisableExceptionWarning errors"
+    },
+    "unchanged_related_tests": {
+      "passed": 44,
+      "seconds": 10.84,
+      "skipped": 0,
+      "warnings": "same strict ownership warnings"
+    },
+    "change": "Cover initial cancellation/pipe setup with the existing actual child-cleanup boundary, then close both actual pipes after successful reaping. Incremental/read/EOF-wait and existing5s/retry/finalwait semantics preserved.",
+    "author_receipt_sha256": "7ace3037a7d6ff5c839ebac629b416eeff5abd6ff466f3f4e57aa19479fc5949",
+    "author_manifest_sha256": "2ce86c97b1b20f754951cb8fe4ed07cc6b7f620b2011e84140ccf0e203c2bc37",
+    "independent_baseline": {
+      "failed": 3,
+      "probe_sha256": "8b97b040a0b361c42374061546d585818c37a3802ca4d3538a0924be55b5520c",
+      "receipt_sha256": "35f5b0299e900cf00321e20ad946bb042d65a529294a3996b18d2861f659229f"
+    },
+    "independent_final": {
+      "head": "13b18cbb04f62ee0fac62fdd74c39e1d2715014c",
+      "passed": 3,
+      "failed": 0,
+      "oracle_unchanged": true,
+      "actual_children_terminal_reaped_and_streams_closed_at_helper_settlement": true,
+      "fixture_kills_or_stream_closes": 0,
+      "nonhelper_bytes_read_and_eof_loops_existing_reap_sequence_exact": true,
+      "actionable_findings": [],
+      "receipt_sha256": "61c346e8a4224d2c529b8d76fd319cd0588952821b9b628f5ddc588dd676f4a0",
+      "manifest_sha256": "fce8329992261526c01cc4277dfd8ab20cd009e0fa0c63b79a6fc57da2002205"
+    },
+    "limit": "The inherited final reap wait() can be unbounded; timeout does not falsely release process ownership."
   }
 }
