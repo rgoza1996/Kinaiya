@@ -65,6 +65,7 @@ class StandingResourceOwner:
 
         if (
             self._finalization_owner is not None
+            and self._finalization_owner is not owner
             or type(owner) is not StandingResourceFinalizationOwner
             or owner.resources is not self
             or owner.store is not self.store
@@ -370,6 +371,17 @@ class StandingResourceOwner:
             # This runs in the existing reservation transaction both before
             # INSERT and immediately before COMMIT. Never nest a public lookup.
             self._finalization_owner.check_reservation(original)
+        elif self._one(
+            "SELECT 1 FROM sqlite_schema WHERE lower(name) IN (?,?,?) LIMIT 1",
+            (
+                "standing_resource_finalization_meta",
+                "standing_resource_bindings",
+                "standing_resource_finalizations",
+            ),
+        ):
+            # A missing RAM collaborator cannot establish that this native
+            # store has no binding. Keep genuine legacy stores independent.
+            raise StandingUnavailable
 
     @_native
     def reserve(

@@ -134,6 +134,7 @@ class StandingResourceFinalizationOwner:
             or self.resources.store is not self.store
             or self.resources.control is not self.control
             or self.resources.tasks is not self.tasks
+            or self.resources._finalization_owner is not self
             or self.store._agent_submit_unavailable
         ):
             raise StandingUnavailable
@@ -354,6 +355,10 @@ class StandingResourceFinalizationOwner:
                 self._writer(state[0], registering=True)
 
         try:
+            # Registration is also the native composition boundary. A caller
+            # using the declared owners directly gets the same reservation
+            # fence as Session's explicit HTTP composition.
+            self.resources.register_finalization_owner(self)
             with self._transaction(final):
                 state = self._native_state()
                 meta = state[0]
