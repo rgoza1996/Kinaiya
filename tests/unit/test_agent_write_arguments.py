@@ -5,6 +5,7 @@ import hashlib
 from datetime import UTC, datetime
 
 import pytest
+from conftest import InMemorySubmitProtocol
 
 from core.policy import ToolPolicy
 from packages.contracts.models import (
@@ -19,7 +20,6 @@ from packages.contracts.models import (
 )
 from packages.providers.completion_budget import PreparedComplete
 from services.agent.runtime import AgentRuntime
-from tests.agent_submit_double import InMemorySubmitProtocol
 
 SESSION = Session(session_id="s1", thread_id="t1", channel="agent", epoch=1)
 

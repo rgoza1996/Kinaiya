@@ -7,6 +7,7 @@ from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 
 import pytest
+from conftest import InMemorySubmitProtocol
 from httpx import ASGITransport, AsyncClient
 
 from core.policy import ToolPolicy
@@ -23,7 +24,6 @@ from services.agent import AgentRuntime, create_app
 from services.agent import tools as agent_tools
 from services.agent.tools import ShellUnavailable, ToolFailure, run_shell
 from services.common.auth import Auth
-from tests.agent_submit_double import InMemorySubmitProtocol
 
 SESSION = Session(session_id="s9", thread_id="t9", channel="agent", epoch=1)
 

@@ -24,6 +24,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
+from conftest import InMemorySubmitProtocol
 from httpx import ASGITransport, AsyncClient
 
 from core.policy import ToolPolicy
@@ -45,7 +46,6 @@ from services.agent import tools as agent_tools
 from services.agent.mcp_tools import ModelScopedMCP, run_mcp_call, run_mcp_list
 from services.common.auth import Auth
 from services.converse.runtime import ConverseRuntime
-from tests.agent_submit_double import InMemorySubmitProtocol
 
 SECRET_VALUE = "kinaiya-test-token-VALUE-9f3a"
 SESSION = Session(session_id="s9", thread_id="t9", channel="agent", epoch=1)

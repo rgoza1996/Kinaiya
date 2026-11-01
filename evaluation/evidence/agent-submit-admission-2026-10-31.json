@@ -127,7 +127,32 @@
       "source_hashes_stable": true,
       "log_sha256": "cc05f85ca34a5bce090c2a252e5e8100f6bfc0812eb1b1e86e7dad3ff69a978b"
     },
-    "exact_head_ci": "Required before merge: Python3.11, Python3.12, Flutter, Android, iOS. Final head and GitHub Actions results belong in associated PR; focused counts do not substitute for those checks."
+    "exact_head_ci": "Required before merge: Python3.11, Python3.12, Flutter, Android, iOS. Final head and GitHub Actions results belong in associated PR; focused counts do not substitute for those checks.",
+    "initial_pr_ci": {
+      "head_commit": "fa5fccd8624ac693717b90e9c91756a92204e26d",
+      "run_url": "https://github.com/rgoza1996/Kinaiya/actions/runs/41259941122",
+      "python_3_11_failure_log_tail_sha256": "1ef67de489f17b06746a18bffbde0699b12136731a84de5af18877f7f4cf682f",
+      "python_3_11": "Five collection errors: tests.agent_submit_double is not importable under the CI pytest console entry point. No functional suite result.",
+      "python_3_12": "Cancelled by matrix fail-fast; not passed.",
+      "flutter": "passed",
+      "android": "passed",
+      "ios": "passed",
+      "release_qualified": false
+    },
+    "ci_collection_layout_fix": {
+      "change": "Move the byte-identical shared helper to tests/conftest.py and change only four helper imports. No fixtures, hooks, options, path mutation or CI commands were added or changed.",
+      "helper_sha256": "8a75aa511b16cef28e8057db40b77c025791051c6f92400c8ef0caeac95298ad",
+      "complete_fixture_asts_unchanged_except_helper_import": true,
+      "original_assertions_unchanged": 213,
+      "focused_fixture_and_indirect_speech_tests_passed": 106,
+      "focused_pytest_seconds": 51.35,
+      "lead_static_review_receipt_sha256": "ebc65da70f0158ec2b3007c10ec5732235017e0e79b8eae5121f7541dfcecc64",
+      "offline_console_receipt_sha256": "02396c79e48f4cbb8a67ac4bf32af67e493af971816b6dd34a650e48828a5b5f",
+      "independent_review_receipt_sha256": "fba7cf1056f96d470ae3dc34331d0a178f646a12830ca84decc16a3ccbd3e897",
+      "console_baseline": "Disposable fa5 source with genuine offline editable install reproduced the same five collection errors.",
+      "console_candidate": "7520 non-live tests collected with zero collection errors; separately targeted unit and integration selections collected 60 and 46 tests.",
+      "limits": "Local Python3.12 collection qualification only. Existing pinned dependencies were reused; the project was built and installed offline into a disposable venv. No shared environment writes or network downloads. Collection is not functional execution or final CI qualification."
+    }
   },
   "retained_failures_and_corrections": [
     {
@@ -160,6 +185,11 @@
       "case": "Canonical TaskID collisions",
       "observed": "Three actual native SQLite regressions failed; distinct-ID control passed.",
       "correction": "Bind complete immutable initial entry, refuse conflicting reuse/staging and provisional overwrite. Injector corrected from function to real Task subclass; all24 assertions unchanged; corrected baseline still3fail1pass."
+    },
+    {
+      "case": "CI shared test-helper collection",
+      "observed": "Initial PR head fa5fccd8624ac693717b90e9c91756a92204e26d produced five Python3.11 collection errors because the shared helper used a tests namespace absent from the pytest console entry-point import path. The local python -m pytest focused runs did not expose this layout defect.",
+      "correction": "Move the byte-identical helper to pytest's shared conftest module and update only four imports. Disposable console packaging reproduced the original five errors and collected7520 candidate non-live tests without errors;106 affected functional tests passed. Unchanged Python, Flutter, Android and iOS jobs remain required on the corrected head."
     }
   ],
   "fixture_alignment": {

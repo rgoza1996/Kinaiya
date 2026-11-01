@@ -7,6 +7,7 @@ from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 
 import pytest
+from conftest import InMemorySubmitProtocol
 
 from core.policy import ApprovalError, PolicyDenied, ToolPolicy
 from packages.contracts.interfaces import Journal
@@ -29,7 +30,6 @@ from services.agent.runtime import (
     TaskNotFound,
     TaskTerminal,
 )
-from tests.agent_submit_double import InMemorySubmitProtocol
 
 assert isinstance(Journal, object)  # interface imported for conformance
 
