@@ -631,6 +631,18 @@ the separate 63/74/69/239-case runs overlap and must not be added into a full-su
 or physical-cleanup claim. One unrelated old TestClient smoke still has a
 recorded strict-warning collection error in the local locked environment.
 
+A later [context-cost repair](../evaluation/evidence/standing-finalization-context-cost-2026-11-01.json)
+removes duplicate legacy request validation inside the private context join.
+Fresh complete child validation, full canonical comparisons, hashes, bounds and
+actual cleanup ownership remain required. At `15ea5117`, 127 contract/client
+cases, 96 native/Resources cases and the exact 296-case older regression group
+passed. The groups overlap; these are not a full-project CI result. The earlier
+four close-entry failures and the schema-fixture scope correction remain
+recorded. No two-second wait or cleanup assertion was relaxed. One unprofiled
+case reached close in 0.758 seconds versus 1.609 seconds on the baseline; that
+single comparison does not establish an aggregate latency distribution or a
+physical Resources certificate.
+
 ## Native dispatch gate
 
 `services/session/standing_dispatch.py` implements explicit registration,

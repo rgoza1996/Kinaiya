@@ -384,6 +384,14 @@ admission remain required; page checks are bounded asynchronous observations.
 No paid inference, live backend operation or model configuration change was part
 of this work. It does not qualify physical media, an Omni pipeline or M3.
 
+The subsequent [finalization context-cost repair](../evaluation/evidence/standing-finalization-context-cost-2026-11-01.json)
+at `15ea5117` passed the exact unchanged 296-case group, alongside separate 127
+contract/client and 96 native/Resources cases. These overlapping scopes do not
+establish full-project CI or reconstruct the earlier process's trigger. Complete
+validation and cleanup assertions remain required; the original failures remain
+preserved. The actual Resources report producer, durable physical witnesses and
+standing-work settlement chain are still unfinished.
+
 ## Initial Agent submission durability
 
 The bounded [#199](https://github.com/rgoza1996/Kinaiya/issues/199) implementation

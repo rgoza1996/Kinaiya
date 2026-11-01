@@ -156,3 +156,10 @@ The evidence covers local SQLite/ASGI/client/runtime behavior with synthetic
 measured providers. It adds two schemas while preserving 190 earlier schemas.
 It does not qualify main, real inference, physical media, Omni transport,
 unlimited per-task history or a globally atomic page-publication operation.
+
+The later [finalization context-cost repair](../evaluation/evidence/standing-finalization-context-cost-2026-11-01.json)
+passed that exact unchanged 296-case regression group at `15ea5117`, with the
+two-second waits and actual-close assertions intact. It removes repeated legacy
+validation in a different contract's private join helper; transcript source pins
+remain unchanged. This later pass preserves the original failure record and does
+not establish its exact process trigger, full-project CI or main qualification.
