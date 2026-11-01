@@ -9,7 +9,7 @@ from typing import Any
 
 from core.policy import ApprovalError, PolicyDenied
 
-SCOPED_BUILTINS = frozenset({"read_file", "write_file", "shell"})
+SCOPED_BUILTINS = frozenset({"read_file", "write_file", "shell", "search"})
 _CURRENT = ContextVar("kinaiya_native_tool_admission", default=None)
 
 
@@ -30,6 +30,7 @@ class NativeToolAdmission:
     consumed: bool = False
     arguments_checked: bool = False
     provenance: dict = field(default_factory=dict)
+    async_current: Any = None
 
     def admit(self, tool, *, path=None, approval_id=None, digest=None, revision=None):
         if not self.active or self.consumed or not self.arguments_checked:
@@ -64,6 +65,12 @@ class NativeToolAdmission:
             "rule_id": self.decision["rule_id"],
             "rule_revision": self.decision["rule_revision"],
         }
+        if "target" in self.decision:
+            self.provenance.update(
+                target=self.decision["target"],
+                binding=self.decision["binding"],
+                binding_state=self.decision["binding_state"],
+            )
 
 
 @contextmanager
@@ -103,3 +110,34 @@ def check_native_arguments(policy, tool, arguments):
     ):
         raise PolicyDenied("Native broker arguments do not match their admission")
     invocation.arguments_checked = True
+
+
+class MCPToolAdmission(NativeToolAdmission):
+    """Explicit actor-queue handoff; never depend on actor ContextVar copies."""
+
+    def retire(self):
+        self.active = False
+
+    def check(self, server, tool, arguments):
+        if not self.active or self.consumed:
+            raise PolicyDenied("MCP admission is retired or already consumed")
+        if json.dumps(
+            {"server_id": server, "tool": tool, "arguments": arguments},
+            sort_keys=True,
+            allow_nan=False,
+        ) != json.dumps(self.arguments, sort_keys=True, allow_nan=False):
+            raise PolicyDenied("MCP call differs from its exact native admission")
+        self.current()
+
+    async def refresh(self, server, tool, arguments):
+        self.check(server, tool, arguments)
+        if self.async_current is not None:
+            await self.async_current()
+        self.check(server, tool, arguments)
+
+    def admit_call(self, server, tool, arguments):
+        self.check(server, tool, arguments)
+        self.arguments_checked = True
+        self.admit(
+            "mcp_call", approval_id=self.approval_id, digest=self.digest, revision=self.revision
+        )

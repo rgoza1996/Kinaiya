@@ -28,7 +28,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from core.policy import ApprovalError, PolicyDenied, ToolPolicy
-from core.policy.tool_admission import check_native_arguments
+from core.policy.tool_admission import admit_native_tool, check_native_arguments
 from core.supervision import (
     command_evidence,
     file_evidence,
@@ -705,12 +705,28 @@ def run_search(
     path: str | None,
     objective_revision: int,
     max_results: int = SEARCH_MATCH_LIMIT,
+    *,
+    approval_id=None,
+    digest=None,
 ) -> tuple[str, Evidence]:
     try:
         rx = re.compile(pattern)
     except re.error as exc:
         raise ToolFailure(f"search: invalid regex: {exc}") from exc
+    check_native_arguments(
+        policy,
+        "search",
+        {
+            "pattern": pattern,
+            "path": path,
+            "max_results": max_results,
+            "objective_revision": objective_revision,
+        },
+    )
     scope = policy.check_search(path)
+    admit_native_tool(
+        policy, "search", approval_id=approval_id, digest=digest, revision=objective_revision
+    )
     if not scope.exists():
         raise ToolFailure(f"search: scope does not exist: {path!s}")
     hits: list[str] = []

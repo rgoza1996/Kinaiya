@@ -15,6 +15,7 @@ from packages.contracts.tool_permissions import (
     PermissionScope,
     ToolPermissionChange,
 )
+from services.agent.target_permission_store import TargetPermissionStore
 
 MAX_RULES = 1024
 MAX_RECEIPTS = 10000
@@ -76,7 +77,7 @@ def _scope_value(scope):
     return scope.model_dump(exclude_none=True)
 
 
-class AgentToolPermissions:
+class AgentToolPermissions(TargetPermissionStore):
     def __init__(self, runtime, path=None):
         self.runtime = runtime
         self.instance = str(uuid.uuid4())
@@ -98,6 +99,9 @@ class AgentToolPermissions:
         )
         self.db.execute(
             "CREATE TABLE IF NOT EXISTS permission_operations (key TEXT PRIMARY KEY, digest TEXT NOT NULL, receipt TEXT NOT NULL)"
+        )
+        self.db.execute(
+            "CREATE TABLE IF NOT EXISTS permission_target_rules (scope_id TEXT NOT NULL, target_id TEXT NOT NULL, scope TEXT NOT NULL, target TEXT NOT NULL, binding TEXT NOT NULL, mode TEXT NOT NULL, revision INTEGER NOT NULL, PRIMARY KEY(scope_id,target_id))"
         )
         with self.db:
             self.db.execute("INSERT OR IGNORE INTO permission_state VALUES (1,0)")
@@ -123,7 +127,7 @@ class AgentToolPermissions:
         policy = self.runtime.policy
         # The policy's action methods may consult this resolver. Host ceilings
         # must therefore use the underlying owner configuration directly.
-        if tool == "read_file":
+        if tool in {"read_file", "search"}:
             return "allow", False
         denied = policy.deny_write if tool == "write_file" else policy.deny_shell
         allowed = policy.allow_write if tool == "write_file" else policy.allow_shell
@@ -235,6 +239,8 @@ class AgentToolPermissions:
         return result
 
     def resolve(self, task, tool):
+        if tool == "search":
+            return self.resolve_target(task, {"kind": "native", "name": tool})
         scope = (
             self._scope_for_task(task)
             if task is not None
@@ -356,7 +362,7 @@ class AgentToolPermissions:
         ):
             raise ValueError("Invalid saved permission scope")
         row = self.db.execute(
-            "SELECT CASE WHEN length(CAST(scope AS BLOB))<=? THEN scope END FROM permission_rules WHERE scope_id=? LIMIT 1",
+            "SELECT CASE WHEN length(CAST(scope AS BLOB))<=? THEN scope END FROM (SELECT scope_id,scope FROM permission_rules UNION ALL SELECT scope_id,scope FROM permission_target_rules) WHERE scope_id=? LIMIT 1",
             (MAX_SCOPE_BYTES, identity),
         ).fetchone()
         if row is None:
@@ -382,7 +388,7 @@ class AgentToolPermissions:
             raise ValueError("Invalid saved permission page")
         rows = self.db.execute(
             "SELECT DISTINCT CASE WHEN length(CAST(scope_id AS BLOB))=64 THEN scope_id END "
-            "FROM permission_rules WHERE scope_id>? ORDER BY scope_id LIMIT ?",
+            "FROM (SELECT scope_id FROM permission_rules UNION ALL SELECT scope_id FROM permission_target_rules) WHERE scope_id>? ORDER BY scope_id LIMIT ?",
             (after or "", limit + 1),
         ).fetchall()
         items = [
@@ -421,6 +427,8 @@ class AgentToolPermissions:
 
     def _receipt_value(self, encoded, key):
         value = _decode(encoded, MAX_RECEIPT_BYTES)
+        if type(value) is dict and value.get("schema_version") == "1.1":
+            return self._target_receipt_value(value, key)
         expected = {
             "schema_version",
             "status",
@@ -535,11 +543,7 @@ class AgentToolPermissions:
                     "SELECT 1 FROM permission_rules WHERE scope_id=? AND tool=?",
                     (identity, request.tool),
                 ).fetchone()
-                if (
-                    exists is None
-                    and self.db.execute("SELECT count(*) FROM permission_rules").fetchone()[0]
-                    >= MAX_RULES
-                ):
+                if exists is None and self._rule_count() >= MAX_RULES:
                     raise ValueError("Permission rule capacity requires owner reset")
                 self.db.execute(
                     "INSERT INTO permission_rules VALUES (?,?,?,?,?) ON CONFLICT(scope_id,tool) DO UPDATE SET scope=excluded.scope,mode=excluded.mode,revision=excluded.revision",

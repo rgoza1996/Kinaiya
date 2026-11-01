@@ -34,7 +34,7 @@ from typing import Any
 
 from core.extensions import HarnessError
 from core.policy import ApprovalError, ApprovalReceiptUnavailable, PolicyDenied, ToolPolicy
-from core.policy.tool_admission import SCOPED_BUILTINS, native_tool_admission
+from core.policy.tool_admission import SCOPED_BUILTINS, MCPToolAdmission, native_tool_admission
 from harnesses.seed import (
     ARTIFACT_RECEIPT_LIMIT,
     build_messages,
@@ -2185,10 +2185,15 @@ class AgentRuntime:
         self._validate_catalog_history(rec)
         if (
             self.policy.digest_for(tool, args, rec.task.objective_revision) != pending["digest"]
-            or self._permission_denies(rec, tool)
+            or self._permission_denies(rec, tool, args)
             or not self.tool_snapshot(rec.task).supports(tool)
         ):
             raise ApprovalError("Pending action is no longer eligible under native policy")
+        original_target = pending.get("permission_target")
+        if original_target is not None and tool in {"search", "mcp_call"}:
+            current_target = self._permission_decision(rec, tool, args)
+            if current_target is None or original_target["binding"] != current_target["binding"]:
+                raise ApprovalError("Pending target binding changed; review a new action")
         if tool == "read_file":
             self.policy.resolve_path(args.get("path", ""))
             maximum = args.get("max_bytes", 65536)
@@ -2200,6 +2205,8 @@ class AgentRuntime:
             self.policy._deny_readonly_write(args["path"])
         elif tool == "shell":
             shell_directory(self.policy)
+        elif tool == "search":
+            self.policy.check_search(args.get("path"))
         elif tool == "mcp_call":
             scoped = self._model_mcp(rec)
             rows = (
@@ -2488,10 +2495,21 @@ class AgentRuntime:
     def _plugin_task(rec):
         return SimpleNamespace(task_id=rec.task.task_id, plugin_versions=rec.plugin_versions)
 
-    def _permission_decision(self, rec, tool):
-        if self.tool_permissions is None or tool not in SCOPED_BUILTINS:
+    def _permission_decision(self, rec, tool, args=None):
+        if self.tool_permissions is None or tool not in SCOPED_BUILTINS | {"mcp_call"}:
             return None
         try:
+            if tool == "mcp_call":
+                if args is None:
+                    return None
+                return self.tool_permissions.resolve_target(
+                    rec.task if rec is not None else None,
+                    {
+                        "kind": "mcp",
+                        "server_id": args.get("server_id", ""),
+                        "name": args.get("tool", ""),
+                    },
+                )
             return self.tool_permissions.resolve(rec.task if rec is not None else None, tool)
         except (OSError, ValueError, RuntimeError, sqlite3.Error):
             raise PolicyDenied("Native scoped permission state is unavailable") from None
@@ -2504,14 +2522,14 @@ class AgentRuntime:
         except (OSError, ValueError, RuntimeError, sqlite3.Error):
             raise PolicyDenied("Native scoped permission state is unavailable") from None
 
-    def _permission_denies(self, rec, tool):
-        decision = self._permission_decision(rec, tool)
+    def _permission_denies(self, rec, tool, args=None):
+        decision = self._permission_decision(rec, tool, args)
         return self.policy.denies(tool) or (
             decision is not None and decision["effective"] == "deny"
         )
 
-    def _permission_asks(self, rec, tool):
-        decision = self._permission_decision(rec, tool)
+    def _permission_asks(self, rec, tool, args=None):
+        decision = self._permission_decision(rec, tool, args)
         return (
             decision["effective"] == "ask"
             if decision is not None
@@ -3263,7 +3281,7 @@ class AgentRuntime:
             self._model_mcp(rec)._check(args.get("server_id", ""))
         sources = (
             await self._uncommitted_speech_sources(rec)
-            if not self._permission_denies(rec, tool)
+            if not self._permission_denies(rec, tool, args)
             and tool in {"write_file", "shell", "mcp_call", "publish_ui"}
             else []
         )
@@ -3273,10 +3291,15 @@ class AgentRuntime:
         if sources:
             await self._await_approval(rec, tool, args, digest, raw, reason="uncommitted_speech")
             return
-        if tool in SCOPED_BUILTINS and self._permission_asks(rec, tool):
+        if tool in SCOPED_BUILTINS | {"mcp_call"} and self._permission_asks(rec, tool, args):
             await self._await_approval(rec, tool, args, digest, raw)
             return
-        if tool == "mcp_call" and self.mcp_host is not None and not self.policy.yolo:
+        if (
+            tool == "mcp_call"
+            and self.tool_permissions is None
+            and self.mcp_host is not None
+            and not self.policy.yolo
+        ):
             # Every mcp_call needs the existing digest/revision/expiry/one-use
             # owner approval. YOLO skips this per-action approval only; the
             # host still enforces enabled state, the exact allowlist, and
@@ -3325,6 +3348,7 @@ class AgentRuntime:
             "approved": False,
             "reason": reason,
             "status": "pending",
+            "permission_target": self._permission_decision(rec, tool, args),
         }
         # Clear before publishing: an owner can resolve the durable request while
         # the append HTTP response is still in flight. Never erase that signal.
@@ -3428,6 +3452,18 @@ class AgentRuntime:
             arguments = {"path": args.get("path", ""), "max_bytes": args.get("max_bytes", 65536)}
         elif tool == "write_file":
             arguments = {"path": args["path"], "content": args["content"]}
+        elif tool == "search":
+            arguments = {
+                "pattern": str(args.get("pattern", "")),
+                "path": args.get("path"),
+                "max_results": 50,
+            }
+        elif tool == "mcp_call":
+            arguments = {
+                "server_id": args.get("server_id", ""),
+                "tool": args.get("tool", ""),
+                "arguments": copy.deepcopy(args.get("arguments", {})),
+            }
         else:
             arguments = {
                 "command": str(args.get("command", "")),
@@ -3446,6 +3482,28 @@ class AgentRuntime:
                     approval_id=approval_id,
                     digest=digest,
                 )
+            if tool == "search":
+                return run_search(
+                    policy,
+                    arguments["pattern"],
+                    arguments["path"],
+                    revision,
+                    arguments["max_results"],
+                    approval_id=approval_id,
+                    digest=digest,
+                )
+            if tool == "mcp_call":
+                return await run_mcp_call(
+                    self._model_mcp(rec),
+                    policy,
+                    arguments["server_id"],
+                    arguments["tool"],
+                    arguments["arguments"],
+                    revision,
+                    approval_id=approval_id,
+                    digest=digest,
+                    admission=mcp_admission,
+                )
             return await run_shell(
                 policy,
                 arguments["command"],
@@ -3457,11 +3515,13 @@ class AgentRuntime:
             )
 
         permissions = self.tool_permissions
+        mcp_admission = None
+        captured_mcp_host = self.mcp_host
         if permissions is None:
             return await invoke()
         frozen_args = copy.deepcopy(args)
         fingerprint = self._permission_fingerprint(rec)
-        decision = self._permission_decision(rec, tool)
+        decision = self._permission_decision(rec, tool, args)
 
         def current():
             if (
@@ -3469,6 +3529,8 @@ class AgentRuntime:
                 or rec.closing
                 or rec.cancel_requested
                 or rec.recovered
+                or not rec.submit_confirmed
+                or rec.completion_pending
                 or rec.pending_steer is not None
                 or rec.task.state != TaskState.RUNNING
                 or self._tasks.get(rec.task.task_id) is not rec
@@ -3478,10 +3540,49 @@ class AgentRuntime:
                 or args != frozen_args
                 or policy.digest_for(tool, args, revision) != digest
                 or self._permission_fingerprint(rec) != fingerprint
-                or self._permission_decision(rec, tool) != decision
+                or self._permission_decision(rec, tool, args) != decision
                 or not self.tool_snapshot(rec.task).supports(tool)
             ):
                 raise PolicyDenied("Native action authority changed before admission")
+            if tool == "mcp_call":
+                if self.mcp_host is not captured_mcp_host:
+                    raise PolicyDenied("Native MCP host changed before admission")
+                self._model_mcp(rec)._check(arguments["server_id"])
+                self._validate_catalog_history(rec)
+
+        if tool == "mcp_call":
+
+            async def async_current():
+                await self._task_scope(rec, persist=False)
+                stale = await self._epoch_error(rec)
+                if stale is not None:
+                    raise PolicyDenied("MCP source authority changed before admission")
+                sources_now = await self._uncommitted_speech_sources(rec)
+                if bool(sources_now) != speech_review:
+                    raise PolicyDenied("MCP speech review authority changed before admission")
+                stale = await self._epoch_error(rec)
+                if stale is not None:
+                    raise PolicyDenied("MCP session authority changed before admission")
+
+            mcp_admission = MCPToolAdmission(
+                policy=policy,
+                tool=tool,
+                arguments=frozen_args,
+                broker_arguments=arguments,
+                digest=digest,
+                revision=revision,
+                decision=decision,
+                current=current,
+                approval_id=approval_id,
+                reviewed=reviewed,
+                speech_review=speech_review,
+                async_current=async_current,
+            )
+            try:
+                return await invoke()
+            finally:
+                mcp_admission.active = False
+                audit.update(mcp_admission.provenance)
 
         with native_tool_admission(
             policy=policy,
@@ -3519,7 +3620,7 @@ class AgentRuntime:
             return
         sources = (
             await self._uncommitted_speech_sources(rec)
-            if not self._permission_denies(rec, tool)
+            if not self._permission_denies(rec, tool, args)
             and tool in {"write_file", "shell", "mcp_call", "publish_ui"}
             else []
         )
@@ -3594,7 +3695,7 @@ class AgentRuntime:
             rec.pending = None
         permission_admission = {}
         try:
-            if self._permission_denies(rec, tool):
+            if self._permission_denies(rec, tool, args):
                 raise PolicyDenied("Native action is disabled by owner policy")
             if not self.tool_snapshot(rec.task).supports(tool):
                 raise ToolFailure(f"Tool {tool!r} is unavailable for this task")
@@ -3604,7 +3705,7 @@ class AgentRuntime:
                 from services.agent.context import select_context
 
                 out, evidence = await select_context(self, rec.task, args)
-            elif tool in SCOPED_BUILTINS:
+            elif tool in SCOPED_BUILTINS | {"mcp_call"}:
                 out, evidence = await self._run_scoped_builtin(
                     rec,
                     tool,
@@ -3616,10 +3717,6 @@ class AgentRuntime:
                     speech_review=bool(sources),
                     audit=permission_admission,
                 )
-            elif tool == "search":
-                out, evidence = run_search(
-                    self.policy, str(args.get("pattern", "")), args.get("path"), revision
-                )
             elif tool == "mcp_list":
                 out, evidence = await run_mcp_list(
                     self._model_mcp(rec),
@@ -3627,17 +3724,6 @@ class AgentRuntime:
                     revision,
                     after=args.get("after", 0),
                     tool=args.get("tool"),
-                )
-            elif tool == "mcp_call":
-                out, evidence = await run_mcp_call(
-                    self._model_mcp(rec),
-                    self.policy,
-                    args.get("server_id", ""),
-                    args.get("tool", ""),
-                    args.get("arguments", {}),
-                    revision,
-                    approval_id=approval_id,
-                    digest=digest,
                 )
             elif tool in {"skills_list", "skill_load"}:
                 out, evidence = await self._skill_result(rec, tool, args)

@@ -52,7 +52,8 @@ from mcp.shared.message import SessionMessage
 from mcp.types import JSONRPCMessage
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from core.policy import PolicyDenied, ToolPolicy
+from core.policy import ApprovalError, PolicyDenied, ToolPolicy
+from core.policy.tool_admission import MCPToolAdmission
 from services.agent.tools import build_bwrap_args
 
 from . import _stdio_relay
@@ -680,6 +681,17 @@ def _consume_future(fut: asyncio.Future) -> None:
         pass
 
 
+def _tool_definition_sha256(name, schema):
+    return hashlib.sha256(
+        json.dumps(
+            {"name": name, "input_schema": schema},
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+    ).hexdigest()
+
+
 class _ServerActor:
     """Dedicated owner task for one server. Owns every SDK context end-to-end."""
 
@@ -933,6 +945,9 @@ class _ServerActor:
                                 "name": tool.name,
                                 "description": _scrub_any(description, current_secrets()),
                                 "inputSchema": _scrub_any(schemas[tool.name], current_secrets()),
+                                "tool_sha256": _tool_definition_sha256(
+                                    tool.name, schemas[tool.name]
+                                ),
                                 "allowed": tool.name in config.allowed_tools,
                             }
                         )
@@ -1009,7 +1024,9 @@ class _ServerActor:
                 else:
                     fut.set_exception(MCPTransportError(f"mcp {config.id!r} listing failed"))
 
-        async def do_call(tool: str, args: dict[str, Any] | None, fut: asyncio.Future) -> None:
+        async def do_call(
+            tool: str, args: dict[str, Any] | None, fut: asyncio.Future, admission=None
+        ) -> None:
             nonlocal schemas
             if tool not in config.allowed_tools:
                 if not fut.done():
@@ -1042,7 +1059,11 @@ class _ServerActor:
                     )
                 return
             try:
+                if admission is not None:
+                    await admission.refresh(config.id, tool, args)
                 sess = await ensure()
+                if admission is not None:
+                    await admission.refresh(config.id, tool, args)
             except Exception as exc:  # noqa: BLE001 - PolicyDenied/MCPError pass through
                 if not fut.done():
                     fut.set_exception(exc)
@@ -1064,11 +1085,14 @@ class _ServerActor:
                                 current_secrets(),
                             ),
                             "inputSchema": _scrub_any(schemas[entry.name], current_secrets()),
+                            "tool_sha256": _tool_definition_sha256(entry.name, schemas[entry.name]),
                             "allowed": entry.name in config.allowed_tools,
                         }
                         for entry in result.tools or []
                     ]
                     schema = schemas.get(tool)
+                    if admission is not None:
+                        await admission.refresh(config.id, tool, args)
                 except asyncio.CancelledError:
                     try:
                         await reset()
@@ -1118,9 +1142,15 @@ class _ServerActor:
                     )
                 return
             try:
+                if admission is not None:
+                    await admission.refresh(config.id, tool, args)
                 if connection_grants != (self._policy.effective_shell, self._policy.network):
                     await reset()
                     raise PolicyDenied("MCP transport grants changed before dispatch")
+                if fut.cancelled():
+                    raise PolicyDenied("MCP caller retired before final dispatch")
+                if admission is not None:
+                    admission.admit_call(config.id, tool, args)
                 result = await asyncio.wait_for(
                     sess.call_tool(
                         tool,
@@ -1129,6 +1159,10 @@ class _ServerActor:
                     ),
                     timeout=config.timeout_seconds,
                 )
+            except (PolicyDenied, ApprovalError) as exc:
+                if not fut.done():
+                    fut.set_exception(exc)
+                return
             except TimeoutError:
                 pending = take_fatal()
                 try:
@@ -1247,7 +1281,7 @@ class _ServerActor:
                     await do_discover(fut)
                 elif kind == "call":
                     assert fut is not None
-                    await do_call(op["tool"], op.get("args"), fut)
+                    await do_call(op["tool"], op.get("args"), fut, op.get("admission"))
                 else:
                     if fut is not None and not fut.done():
                         fut.set_exception(MCPError(f"unknown op {kind!r}"))
@@ -1424,6 +1458,7 @@ class MCPHost:
                         "description": entry["description"][:80],
                         "allowed": entry["name"] in config.allowed_tools,
                         "schema_state": "observed",
+                        "tool_sha256": entry["tool_sha256"],
                     }
                     if tool is not None:
                         item["input_schema"] = copy.deepcopy(entry["inputSchema"])
@@ -1437,6 +1472,7 @@ class MCPHost:
                             "description": "",
                             "allowed": True,
                             "schema_state": "not_discovered",
+                            "tool_sha256": None,
                         }
                     )
                 config_bytes = json.dumps(
@@ -1495,12 +1531,16 @@ class MCPHost:
                 self._access_guard()
             return result
         except TimeoutError as exc:
+            if op.get("admission") is not None:
+                op["admission"].retire()
             actor.cancel_operation(fut)
             fut.add_done_callback(_consume_future)
             raise MCPTransportError(
                 f"mcp {server_id!r} op timed out after {bound:g}s; outcome uncertain, not retried"
             ) from exc
         except asyncio.CancelledError:
+            if op.get("admission") is not None:
+                op["admission"].retire()
             actor.cancel_operation(fut)
             fut.add_done_callback(_consume_future)
             try:
@@ -1522,8 +1562,14 @@ class MCPHost:
             timeout = config.timeout_seconds
         return await self._submit(server_id, {"kind": "discover"}, timeout)
 
-    async def call(self, server_id: str, tool: str, args: dict[str, Any] | None) -> dict[str, Any]:
+    async def call(
+        self, server_id: str, tool: str, args: dict[str, Any] | None, *, admission=None
+    ) -> dict[str, Any]:
         """Call one allowlisted tool. Denied or invalid calls are never sent."""
+        if admission is not None and (
+            type(admission) is not MCPToolAdmission or admission.policy is not self._policy
+        ):
+            raise PolicyDenied("MCP admission belongs to another native broker")
         async with self._host_lock:
             if self._closed:
                 raise MCPTransportError("mcp host is closed")
@@ -1545,7 +1591,9 @@ class MCPHost:
         except (ValueError, TypeError) as exc:
             raise MCPToolError("MCP arguments must be JSON") from exc
         return await self._submit(
-            server_id, {"kind": "call", "tool": tool, "args": copy.deepcopy(args)}, timeout
+            server_id,
+            {"kind": "call", "tool": tool, "args": copy.deepcopy(args), "admission": admission},
+            timeout,
         )
 
     async def close(self) -> None:

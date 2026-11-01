@@ -21,6 +21,7 @@ import 'options_runtime_editor.dart';
 import 'options_provider_editor.dart';
 import 'options_tool_permissions.dart';
 import 'options_converse_model.dart';
+import 'options_auxiliary_routes.dart';
 import 'presentation_settings.dart';
 import 'settings_controls.dart';
 import 'setup_dialog.dart';
@@ -1070,10 +1071,22 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
             catalogBinding: catalog,
           ),
         ),
+      OptionsAuxiliaryRoutes(
+        key: ObjectKey(client?.auxiliaryRoutes),
+        api: client?.auxiliaryRoutes,
+        active: current,
+      ),
     ]);
   }
 
   Widget _harnesses() {
+    final owner = widget.state, client = widget.state.client;
+    final generation = owner.connectionGeneration;
+    bool current() =>
+        mounted &&
+        identical(widget.state, owner) &&
+        client != null &&
+        owner.ownsConnection(generation, client);
     final rows = widget.state.agentHarnesses;
     if (_harness != null) {
       AgentHarness? selected;
@@ -1129,6 +1142,13 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
               catalogBinding: catalog,
             ),
           ),
+        OptionsAuxiliaryRoutes(
+          key: ValueKey('harness-routes-$_harness-${identityHashCode(client)}'),
+          api: client?.auxiliaryRoutes,
+          active: current,
+          harness: _harness,
+          allowConfigure: harness != null && harness.selectable,
+        ),
       ]);
     }
     return _scroll([

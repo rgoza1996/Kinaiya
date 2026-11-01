@@ -595,6 +595,7 @@ def serve(args):
             auxiliary_host_factory=model_factory(host_profile, auxiliary=True),
             catalog=catalog,
             resource_state=resource_state,
+            workspace=runtime.policy.workspace,
         )
         try:
             runtime.provider = runtime.model_settings.selection(None)[0]

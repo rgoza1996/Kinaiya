@@ -1,7 +1,7 @@
 """Native measured text recipes; inspection never constructs adapters or keys."""
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from packages.contracts.models import CatalogModelBinding, ProviderInfo
 
@@ -57,6 +57,19 @@ class CatalogRecipe:
     @property
     def info(self):
         return declaration_info(self.config)
+
+
+@dataclass(repr=False)
+class CapturedCatalogRecipe:
+    """Native task-owned recipe/key; never a DTO, cache key or journal value."""
+
+    recipe: CatalogRecipe
+    key: str | None = field(repr=False)
+    consumed: bool = False
+
+    def release(self):
+        self.key = None
+        self.consumed = True
 
 
 def declaration_info(config):
@@ -126,22 +139,50 @@ def open_recipe(
     The read snapshot is new-selection admission. A subsequent owner rotation
     cannot retarget this captured request. No connection or inference is opened.
     """
-    if catalog is None:
-        raise ValueError("Provider catalog is unavailable")
+    captured = capture_recipes(catalog, [(binding, reasoning)], role=role)[0]
+    return open_captured_recipe(
+        captured, auxiliary=auxiliary, resource_state=resource_state, role=role
+    ), captured.recipe
+
+
+def capture_recipes(catalog, selections, *, role="agent"):
+    """Capture a bounded ordered set in one native catalog read transaction."""
+    if catalog is None or not 1 <= len(selections) <= 16:
+        raise ValueError("Provider catalog capture is unavailable or exceeds its bound")
+    captures = []
     catalog.db.execute("BEGIN")
     try:
-        recipe = _recipe(catalog, binding, reasoning, role)
-        config = recipe.config
-        reference = config.get("credential")
-        key = (
-            None
-            if reference is None
-            else catalog.credential(reference["id"], reference["generation"], for_new=True)
-        )
+        for binding, reasoning in selections:
+            recipe = _recipe(catalog, binding, reasoning, role)
+            reference = recipe.config.get("credential")
+            key = (
+                None
+                if reference is None
+                else catalog.credential(reference["id"], reference["generation"], for_new=True)
+            )
+            captures.append(CapturedCatalogRecipe(recipe, key))
         catalog.db.commit()
+        return captures
     except BaseException:
+        for capture in captures:
+            capture.release()
         catalog.db.rollback()
         raise
+
+
+def open_captured_recipe(
+    captured, *, auxiliary=False, resource_state=None, role="agent", pre_generation_proofs=False
+):
+    """Consume captured authority once; never look up a current alias or key."""
+    if type(captured) is not CapturedCatalogRecipe or captured.consumed:
+        raise ValueError("Catalog recipe has already been consumed or retired")
+    if type(pre_generation_proofs) is not bool:
+        raise ValueError("Invalid native pre-generation proof configuration")
+    if pre_generation_proofs and (role != "agent" or not auxiliary):
+        raise ValueError("Pre-generation proofs require a task-owned auxiliary route")
+    recipe, key = captured.recipe, captured.key
+    config = recipe.config
+    captured.release()
     if config["kind"] == "lmstudio":
         from packages.providers.lmstudio import LMStudioProvider
 
@@ -152,6 +193,7 @@ def open_recipe(
             timeout=config["timeout_s"],
             reasoning_effort="none",
             pin_complete_identity=True,
+            **({"pre_generation_proofs": True} if pre_generation_proofs else {}),
         )
     else:
         from packages.providers.text import MetaResponsesProvider
@@ -165,9 +207,10 @@ def open_recipe(
             context_tokens=config["context_tokens"],
             reasoning_effort=recipe.reasoning,
             structured_actions=role == "agent" and not auxiliary,
+            **({"pre_generation_proofs": True} if pre_generation_proofs else {}),
         )
     if resource_state is not None:
         from services.resources.providers import ResourceBoundProvider
 
         provider = ResourceBoundProvider(provider, resource_state, role)
-    return provider, recipe
+    return provider

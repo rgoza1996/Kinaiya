@@ -1,0 +1,22 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "kind": {
+      "const": "native",
+      "title": "Kind",
+      "type": "string"
+    },
+    "name": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    }
+  },
+  "required": [
+    "kind",
+    "name"
+  ],
+  "title": "NativePermissionTarget",
+  "type": "object"
+}

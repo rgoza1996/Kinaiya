@@ -64,6 +64,7 @@ ALLOWED_KINDS = {
     },
     "agent": {
         "agent.command",
+        "agent.model_attempt",
         "agent.retirement",
         "agent.outcome",
         "agent.tool",
@@ -545,6 +546,13 @@ class Store:
         session = self.session(request.session_id)
         if (request.epoch, request.thread_id) != (session.epoch, session.thread_id):
             raise JournalError("Stale epoch or wrong session thread")
+        if request.kind == "agent.model_attempt":
+            from services.session.auxiliary_attempts import validate_attempt
+
+            try:
+                validate_attempt(self, request)
+            except (ValueError, KeyError, TypeError, UnicodeError, RecursionError) as exc:
+                raise JournalError("Invalid native auxiliary attempt provenance") from exc
         if pin is not None and session.channel != "converse":
             raise JournalError("Memory context requires a Converse session")
         if request.kind == "conversation.window":

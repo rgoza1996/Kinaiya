@@ -688,11 +688,14 @@ class MetaResponsesProvider:
         action_format="flat-v1",
         context_tokens=None,
         transport=None,
+        pre_generation_proofs=False,
     ):
         from packages.providers.complete_http import RequestBoundAsyncClient
 
         if not allow_cloud:
             raise ProviderError("Meta requires explicit cloud disclosure authorization")
+        if type(pre_generation_proofs) is not bool:
+            raise ProviderError("Invalid native pre-generation proof configuration")
         if type(action_format) is not str or action_format not in {"flat-v1", "typed-v2"}:
             raise ProviderError("Unknown Meta action wire format")
         if action_format == "typed-v2" and structured_actions is not True:
@@ -718,6 +721,7 @@ class MetaResponsesProvider:
             raise ProviderError("Invalid explicit Meta context budget")
         # An owner-provided/catalog-verified limit, never inferred from /models ids.
         self.context_tokens = context_tokens
+        self._pre_generation_proofs = pre_generation_proofs
         self._count_cleanup_failed = False
         self._measurement_required = False
         self._measurement = None
@@ -747,14 +751,20 @@ class MetaResponsesProvider:
             self.action_format,
             self.context_tokens,
             request_digest(self.info.model_dump()),
-        )
+        ) + (("pre-generation-proofs-v1",) if self._pre_generation_proofs else ())
 
     async def _input_tokens(self, client, body, check=None, admission=None):
         """One actual count response, owned through EOF and real HTTP close."""
         from packages.providers.complete_http import complete_stream
-        from packages.providers.prompt_budget import MAX_SAFE_COUNT, PromptCountUnavailable
+        from packages.providers.pre_generation import PreGenerationUnavailable
+        from packages.providers.prompt_budget import (
+            MAX_SAFE_COUNT,
+            PromptCountUnavailable,
+            request_digest,
+        )
         from packages.providers.whistle_ipc import decode_json
 
+        unavailable = None
         async with asyncio.timeout(10):
             context = (
                 client.stream("POST", "responses/input_tokens", json=body)
@@ -772,16 +782,30 @@ class MetaResponsesProvider:
             async with context as response:
                 if check is None:
                     response.stream = _OwnedHTTPStream(response.stream)
-                if response.status_code != 200:
+                if (
+                    self._pre_generation_proofs
+                    and check is not None
+                    and response.status_code in {429, 503}
+                ):
+                    unavailable = (
+                        "count_rate_limited" if response.status_code == 429 else "count_unavailable"
+                    )
+                elif response.status_code != 200:
                     raise PromptCountUnavailable("Meta prompt measurement is unavailable")
-                _reject_compressed_response(response)
                 raw = bytearray()
-                async for chunk in response.aiter_bytes():
-                    if len(raw) + len(chunk) > 4096:
-                        raise PromptCountUnavailable("Meta prompt measurement is invalid")
-                    raw.extend(chunk)
+                if unavailable is None:
+                    _reject_compressed_response(response)
+                    async for chunk in response.aiter_bytes():
+                        if len(raw) + len(chunk) > 4096:
+                            raise PromptCountUnavailable("Meta prompt measurement is invalid")
+                        raw.extend(chunk)
         if check is not None:
             check()
+        if unavailable is not None:
+            # The exact count endpoint cannot generate. Export/count may have
+            # occurred; this is not a claim of zero usage or a refunded charge.
+            # The owned response/socket has settled before this proof escapes.
+            raise PreGenerationUnavailable(unavailable, request_digest(body))
         value = decode_json(bytes(raw), 4096)
         if (
             type(value) is not dict
@@ -796,6 +820,7 @@ class MetaResponsesProvider:
     async def prepare_complete(self, messages):
         """Count one exact nonstreaming request, with no shared Agent ticket."""
         from packages.providers.completion_budget import PreparedComplete
+        from packages.providers.pre_generation import PreGenerationUnavailable
         from packages.providers.prompt_budget import (
             MAX_SAFE_COUNT,
             PromptCountUnavailable,
@@ -895,7 +920,12 @@ class MetaResponsesProvider:
                     }
                 ),
             )
-        except (ProviderCleanupError, ProviderRefusal, asyncio.CancelledError):
+        except (
+            ProviderCleanupError,
+            ProviderRefusal,
+            PreGenerationUnavailable,
+            asyncio.CancelledError,
+        ):
             raise
         except Exception as exc:
             raise PromptCountUnavailable("Meta complete prompt measurement is unavailable") from exc

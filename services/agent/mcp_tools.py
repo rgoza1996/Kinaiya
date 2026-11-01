@@ -91,9 +91,12 @@ class ModelScopedMCP:
         self._check(server)
         return result
 
-    async def call(self, server, tool, arguments):
+    async def call(self, server, tool, arguments, *, admission=None):
         self._check(server)
-        result = await self.host.call(server, tool, arguments)
+        if admission is None:
+            result = await self.host.call(server, tool, arguments)
+        else:
+            result = await self.host.call(server, tool, arguments, admission=admission)
         self._check(server)
         return result
 
@@ -201,6 +204,7 @@ async def run_mcp_call(
     *,
     approval_id: str | None = None,
     digest: str | None = None,
+    admission=None,
 ) -> tuple[str, Evidence]:
     """Call one allowlisted tool and author the broker-generated receipt."""
     _require_host(host)
@@ -219,16 +223,27 @@ async def run_mcp_call(
         },
         objective_revision,
     )
-    if approval_id is None and not policy.yolo:
+    if admission is not None:
+        if digest != expected:
+            raise ApprovalError("MCP arguments differ from their native admission")
+        admission.check(server_id, tool, arguments)
+    elif approval_id is None and not policy.yolo:
         raise ApprovalError("mcp_call needs a bound owner approval")
-    if approval_id is not None:
+    if admission is None and approval_id is not None:
         # One-use, digest- and revision-bound spend, committed here after
         # the runtime's epoch/revision checks and before external bytes.
         if digest != expected:
             raise ApprovalError("mcp_call arguments do not match the approved digest")
         policy.consume_approval(approval_id, expected, objective_revision)
     try:
-        result = await host.call(server_id, tool, dict(arguments))
+        if admission is None:
+            result = await host.call(server_id, tool, dict(arguments))
+        else:
+            result = await host.call(server_id, tool, dict(arguments), admission=admission)
+    except (ApprovalError, PolicyDenied):
+        # In particular, a queued approval may expire before final admission.
+        # Preserve its native identity so the runtime pauses this exact action.
+        raise
     except Exception as exc:
         raise ToolFailure(f"mcp_call {server_id}/{tool} failed: {exc}") from exc
     if not isinstance(result, dict):

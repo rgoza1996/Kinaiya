@@ -1,0 +1,188 @@
+{
+  "$defs": {
+    "AuxiliaryRoute": {
+      "additionalProperties": false,
+      "properties": {
+        "candidates": {
+          "items": {
+            "$ref": "#/$defs/AuxiliaryRouteCandidate"
+          },
+          "maxItems": 3,
+          "minItems": 1,
+          "title": "Candidates",
+          "type": "array"
+        }
+      },
+      "required": [
+        "candidates"
+      ],
+      "title": "AuxiliaryRoute",
+      "type": "object"
+    },
+    "AuxiliaryRouteCandidate": {
+      "additionalProperties": false,
+      "properties": {
+        "catalog_binding": {
+          "$ref": "#/$defs/CatalogModelBinding"
+        },
+        "reasoning": {
+          "anyOf": [
+            {
+              "enum": [
+                "none",
+                "minimal",
+                "low",
+                "medium",
+                "high",
+                "xhigh"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Reasoning"
+        },
+        "cloud_scope": {
+          "enum": [
+            "local_only",
+            "public_synthetic",
+            "private_cloud_authorized"
+          ],
+          "title": "Cloud Scope",
+          "type": "string"
+        }
+      },
+      "required": [
+        "catalog_binding",
+        "reasoning",
+        "cloud_scope"
+      ],
+      "title": "AuxiliaryRouteCandidate",
+      "type": "object"
+    },
+    "AuxiliaryRouteScope": {
+      "additionalProperties": false,
+      "properties": {
+        "purpose": {
+          "enum": [
+            "analysis",
+            "compression",
+            "title_generation",
+            "delegation",
+            "harness_design"
+          ],
+          "title": "Purpose",
+          "type": "string"
+        },
+        "harness_version": {
+          "anyOf": [
+            {
+              "pattern": "^(seed-v1|v-[a-f0-9]{24})$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Harness Version"
+        }
+      },
+      "required": [
+        "purpose",
+        "harness_version"
+      ],
+      "title": "AuxiliaryRouteScope",
+      "type": "object"
+    },
+    "CatalogModelBinding": {
+      "additionalProperties": false,
+      "description": "Explicit immutable native provider reference, never a display alias.",
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "generation": {
+          "maximum": 64,
+          "minimum": 1,
+          "title": "Generation",
+          "type": "integer"
+        },
+        "configuration_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Configuration Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "generation",
+        "configuration_sha256"
+      ],
+      "title": "CatalogModelBinding",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "expected_backend": {
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Expected Backend",
+      "type": "string"
+    },
+    "expected_instance": {
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Expected Instance",
+      "type": "string"
+    },
+    "expected_revision": {
+      "maximum": 9007199254740990,
+      "minimum": 0,
+      "title": "Expected Revision",
+      "type": "integer"
+    },
+    "expected_state": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Expected State",
+      "type": "string"
+    },
+    "idempotency_key": {
+      "pattern": "^[A-Za-z0-9:._-]{1,128}$",
+      "title": "Idempotency Key",
+      "type": "string"
+    },
+    "scope": {
+      "$ref": "#/$defs/AuxiliaryRouteScope"
+    },
+    "route": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AuxiliaryRoute"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "expected_backend",
+    "expected_instance",
+    "expected_revision",
+    "expected_state",
+    "idempotency_key",
+    "scope",
+    "route"
+  ],
+  "title": "AuxiliaryRouteChange",
+  "type": "object"
+}
