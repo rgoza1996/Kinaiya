@@ -42,10 +42,28 @@ backend identity, fenced writer generations, exact historical receipt recovery
 and privately scoped Flutter pending writes with bounded actual transport
 ownership. Local evidence includes all 909 Flutter tests, native/command fault
 and race regressions, and real Dart-to-native HTTP checks across process restart
-and replacement at the same URL. All five exact-final-head CI jobs remain
-required before merge. This does not close full Options #208; adjacent execution
-pending recovery remains [#213](https://github.com/rgoza1996/Kinaiya/issues/213).
+and replacement at the same URL. [PR #214](https://github.com/rgoza1996/Kinaiya/pull/214)
+merged after [all five CI jobs](https://github.com/rgoza1996/Kinaiya/actions/runs/41266352885)
+passed: 7,628 Python tests on each version, 909 Flutter tests, 38 bridge tests,
+and owner/companion web, Android and iOS simulator builds. Actual merge
+`62b613f837937d865ca3c94261b2bb27a2ff7858` has the tested tree. This does not close
+full Options #208; execution recovery is tracked separately by
+[#213](https://github.com/rgoza1996/Kinaiya/issues/213).
 The historical source cutoff and original roadmap acceptance gates are unchanged.
+
+The [execution-save repair](adr/0090-bound-execution-settings-writes.md) adds its
+own protected database identity and writer generation, preserves legacy runtime
+1.0 first writes/replay, and scopes pending Flutter operations, drafts and notices
+to their private owner/backend. Model/runtime requests share a bounded pool of
+32 actual transport owners. Verification includes 153 native author checks,
+41 unchanged independent native regressions, 929 full Flutter tests and 42
+independent focused client cases. Real Dart/native HTTP checks cover restart,
+historical YOLO, and replacement database conflicts without inference; all owned
+fixtures exited cleanly. Independent source review found no actionable finding
+within this scope. [Evidence](../evaluation/evidence/execution-settings-authority-2026-10-31.json)
+distinguishes retained failures, source boundaries and checks. All five final-head
+CI jobs are required before merge; full Options and the original milestone gates
+remain open.
 
 The original [milestone exit gates](../Roadmap.md#24-milestone-roadmap) and AT01–AT48 remain unchanged. Additional owner-refinement scenarios AT49–AT61 supplement them; AT62–AT63 record the October 31 distinction between model choice, profile recommendations and architectural comparisons. These additions claim no new runtime behavior or passed acceptance. Links to tests describe existing coverage, not a new execution of those tests during documentation editing.
 

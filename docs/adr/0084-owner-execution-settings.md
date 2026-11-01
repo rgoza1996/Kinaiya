@@ -82,6 +82,11 @@ inspection and execution-settings responses use `Cache-Control: no-store`.
 
 ## App behavior and remaining gates
 
+The following describes the original increment. [ADR0089](0089-bound-execution-settings-writes.md)
+specifies its replacement for owner/backend-scoped pending recovery, durable
+writer fencing and actual shared transport ownership; consult its PR evidence
+for the later implementation and verification status.
+
 Agent's category has separate Permissions, Workspace and Execution pages.
 Their draft is retained while navigating or refreshing. A changed host state
 does not overwrite a dirty draft; saving requires reviewing new active values.

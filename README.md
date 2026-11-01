@@ -264,6 +264,10 @@ New model saves bind the observed backend and writer generation;
 [exact uncertain-save recovery](docs/adr/0088-bound-model-settings-writes.md)
 keeps the original owner/backend scope across reconnects and does not reapply a
 historical preference. Older unbound requests are exact-replay-only.
+Execution preferences use their own [bound recovery](docs/adr/0090-bound-execution-settings-writes.md)
+and database identity, with exact historical receipts and a shared bounded
+settings transport pool. Runtime version 1.0 retains its existing first-write
+and replay behavior; new UI writes require observed runtime authority.
 The [Providers catalog](docs/adr/0086-owner-provider-catalog.md) adds native
 profile and protected credential-generation forms. Catalog saves do not yet
 apply providers to a role; Converse/STT/TTS/Decisions model editing remains
