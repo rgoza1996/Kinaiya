@@ -1,4 +1,4 @@
-"""Codex-authored bounded owner HTTP adapter for native standing definitions."""
+"""Codex-authored bounded HTTP adapter for standing definitions and dispatch."""
 
 import asyncio
 import re
@@ -10,6 +10,17 @@ from fastapi.responses import JSONResponse, Response
 from pydantic import TypeAdapter
 
 from packages.contracts.agent_control import ControlInstance
+from packages.contracts.standing_dispatch import (
+    MAX_STANDING_DISPATCH_REQUEST_BYTES,
+    StandingDispatchActivation,
+    StandingDispatchActivationLookup,
+    StandingDispatchActivationReceipt,
+    StandingDispatchState,
+    StandingDispatchStop,
+    StandingDispatchStopProof,
+    StandingProducerReceipt,
+    StandingProducerRenewal,
+)
 from packages.contracts.standing_work import (
     MAX_STANDING_PROOF_BYTES,
     MAX_STANDING_REQUEST_BYTES,
@@ -28,6 +39,12 @@ STANDING_OPERATION_SECONDS = 25.0
 STANDING_INGRESS_SECONDS = 5.0
 _INVALID = "Invalid standing work request"
 _MEDIA = "Standing work requires identity JSON"
+_DISPATCH_BODIES = {
+    "dispatch_activate": StandingDispatchActivation,
+    "dispatch_lookup": StandingDispatchActivation,
+    "dispatch_stop": StandingDispatchStop,
+    "producer_renew": StandingProducerRenewal,
+}
 
 
 class StandingOwnerOperations:
@@ -37,8 +54,9 @@ class StandingOwnerOperations:
     Close can therefore wait for an uncooperative native callable to settle.
     """
 
-    def __init__(self, owner):
+    def __init__(self, owner, *, dispatch=None):
         self.owner = owner
+        self.dispatch = dispatch
         self._closed = False
         self._operations = {}
 
@@ -67,7 +85,7 @@ class StandingOwnerOperations:
             event.set()
             raise StandingUnavailable
 
-    async def _body(self, request, event, deadline, started):
+    async def _body(self, request, event, deadline, started, *, kind=StandingChange):
         if request.headers.get("content-type", "").split(";", 1)[
             0
         ].strip().lower() != "application/json" or request.headers.get(
@@ -75,6 +93,11 @@ class StandingOwnerOperations:
         ).strip().lower() not in {"", "identity"}:
             raise HTTPException(415, _MEDIA)
         raw = bytearray()
+        maximum = (
+            MAX_STANDING_REQUEST_BYTES
+            if kind is StandingChange
+            else MAX_STANDING_DISPATCH_REQUEST_BYTES
+        )
         ingress_deadline = min(deadline, started + STANDING_INGRESS_SECONDS)
         remaining = ingress_deadline - time.monotonic()
         if remaining <= 0:
@@ -84,7 +107,7 @@ class StandingOwnerOperations:
             async with asyncio.timeout(remaining):
                 async for chunk in request.stream():
                     self._guard(event, ingress_deadline)
-                    if len(raw) + len(chunk) > MAX_STANDING_REQUEST_BYTES:
+                    if len(raw) + len(chunk) > maximum:
                         raise HTTPException(422, _INVALID)
                     raw.extend(chunk)
             self._guard(event, ingress_deadline)
@@ -92,7 +115,7 @@ class StandingOwnerOperations:
             event.set()
             raise StandingUnavailable from None
         try:
-            return StandingChange.from_json(bytes(raw))
+            return kind.from_json(bytes(raw))
         except ValueError:
             raise HTTPException(422, _INVALID) from None
 
@@ -129,13 +152,37 @@ class StandingOwnerOperations:
             elif action == "snapshot":
                 result = self.owner.snapshot(argument)
                 kind = StandingResponsibilitySnapshot
-            else:
+            elif action == "page":
                 result = self.owner.page(**query)
                 kind = StandingResponsibilityPage
+            elif self.dispatch is None:
+                raise StandingUnavailable
+            elif action == "dispatch_snapshot":
+                result = self.dispatch.snapshot()
+                kind = StandingDispatchState
+            elif action == "dispatch_stop_context":
+                result = self.dispatch.stop_context()
+                kind = StandingDispatchStop
+            elif action == "dispatch_activate":
+                result = self.dispatch.activate(argument, deadline=deadline, cancelled=event.is_set)
+                kind = StandingDispatchActivationReceipt
+            elif action == "dispatch_lookup":
+                result = self.dispatch.lookup(argument)
+                kind = StandingDispatchActivationLookup
+            elif action == "dispatch_stop":
+                result = self.dispatch.stop(argument, deadline=deadline, cancelled=event.is_set)
+                kind = StandingDispatchStopProof
+            elif action == "producer_renew":
+                result = self.dispatch.renew(argument, deadline=deadline, cancelled=event.is_set)
+                kind = StandingProducerReceipt
+            else:
+                raise StandingUnavailable
             self._guard(event, deadline)
             if not isinstance(result, kind):
                 raise StandingUnavailable
             value = kind.model_validate(result)
+            if action in _DISPATCH_BODIES:
+                value = value.validate_request(argument)
             raw = canonical_bytes(value)
             if len(raw) > min(kind.wire_bytes, MAX_STANDING_PROOF_BYTES):
                 raise StandingUnavailable
@@ -169,6 +216,10 @@ class StandingOwnerOperations:
             query = self._query(request, action)
             if action in {"change", "lookup"}:
                 argument = await self._body(request, event, deadline, started)
+            elif action in _DISPATCH_BODIES:
+                argument = await self._body(
+                    request, event, deadline, started, kind=_DISPATCH_BODIES[action]
+                )
             elif action == "snapshot":
                 try:
                     argument = TypeAdapter(ControlInstance).validate_python(argument, strict=True)
@@ -266,10 +317,11 @@ class StandingOwnerOperations:
             )
 
 
-def install_standing_owner_routes(app, owner, auth) -> StandingOwnerOperations:
-    """Install owner-only routes; registration belongs to Session startup."""
-    operations = StandingOwnerOperations(owner)
+def install_standing_owner_routes(app, owner, auth, *, dispatch=None) -> StandingOwnerOperations:
+    """Install owner definitions/dispatch and Agent-only renewal in one hub."""
+    operations = StandingOwnerOperations(owner, dispatch=dispatch)
     routes = APIRouter(prefix="/v1/standing", dependencies=[Depends(auth.require("owner"))])
+    agent_routes = APIRouter(prefix="/v1/standing", dependencies=[Depends(auth.require("agent"))])
 
     @app.middleware("http")
     async def standing_no_store(request, call_next):
@@ -311,5 +363,30 @@ def install_standing_owner_routes(app, owner, auth) -> StandingOwnerOperations:
     async def snapshot(request: Request, responsibility_id: str):
         return await respond(request, "snapshot", responsibility_id)
 
+    @routes.get("/dispatch")
+    async def dispatch_snapshot(request: Request):
+        return await respond(request, "dispatch_snapshot")
+
+    @routes.get("/dispatch/stop-context")
+    async def dispatch_stop_context(request: Request):
+        return await respond(request, "dispatch_stop_context")
+
+    @routes.post("/dispatch/activate")
+    async def dispatch_activate(request: Request):
+        return await respond(request, "dispatch_activate")
+
+    @routes.post("/dispatch/activate/lookup")
+    async def dispatch_lookup(request: Request):
+        return await respond(request, "dispatch_lookup")
+
+    @routes.post("/dispatch/stop")
+    async def dispatch_stop(request: Request):
+        return await respond(request, "dispatch_stop")
+
+    @agent_routes.post("/producer/renew")
+    async def producer_renew(request: Request):
+        return await respond(request, "producer_renew")
+
     app.include_router(routes)
+    app.include_router(agent_routes)
     return operations

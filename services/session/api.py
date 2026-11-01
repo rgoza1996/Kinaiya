@@ -45,6 +45,7 @@ from packages.contracts.standing_work import StandingUnavailable
 from packages.contracts.stt_settlement import STTPublication
 from services.common.auth import Auth
 from services.session.agent_control import AgentControl
+from services.session.standing_dispatch import StandingDispatchOwner
 from services.session.standing_work import StandingOwner
 from services.session.standing_work_api import install_standing_owner_routes
 from services.session.store import JournalError, Store
@@ -58,6 +59,7 @@ def create_app(
     converse_memory: bool = False,
     agent_enabled: bool | None = None,
     standing_clock=None,
+    standing_monotonic_ms=None,
 ) -> FastAPI:
     if auth is None or not hasattr(auth, "require"):
         raise RuntimeError("Session control requires configured authentication")
@@ -82,6 +84,17 @@ def create_app(
             # The independently registered mode controller remains usable.
             # Standing reads/writes fail closed rather than repairing state.
             pass
+    standing_dispatch_owner = StandingDispatchOwner(
+        store, control, monotonic_ms=standing_monotonic_ms
+    )
+    standing_dispatch_initialized = False
+    try:
+        # Established healthy dispatch authority remains readable/stoppable
+        # even when no further ordinary controller generation can be issued.
+        standing_dispatch_owner.register()
+        standing_dispatch_initialized = True
+    except StandingUnavailable:
+        pass
     standing_operations = None
 
     @asynccontextmanager
@@ -109,14 +122,17 @@ def create_app(
                     standing_owner.close()
                 finally:
                     try:
-                        control.close()
-                    except AgentControlUnavailable:
-                        # A poisoned connection has already failed closed.
-                        # Retirement remains unconfirmed after shutdown.
-                        app.state.agent_control_shutdown_unconfirmed = True
-                        logging.getLogger(__name__).warning(
-                            "Agent control shutdown could not confirm native generation retirement"
-                        )
+                        standing_dispatch_owner.close()
+                    finally:
+                        try:
+                            control.close()
+                        except AgentControlUnavailable:
+                            # A poisoned connection has already failed closed.
+                            # Retirement remains unconfirmed after shutdown.
+                            app.state.agent_control_shutdown_unconfirmed = True
+                            logging.getLogger(__name__).warning(
+                                "Agent control shutdown could not confirm native generation retirement"
+                            )
             if interrupted:
                 raise asyncio.CancelledError
 
@@ -126,7 +142,11 @@ def create_app(
     app.state.standing_owner = standing_owner
     app.state.standing_owner_initialized = standing_initialized
     app.state.standing_owner_shutdown_unconfirmed = False
-    standing_operations = install_standing_owner_routes(app, standing_owner, auth)
+    app.state.standing_dispatch_owner = standing_dispatch_owner
+    app.state.standing_dispatch_initialized = standing_dispatch_initialized
+    standing_operations = install_standing_owner_routes(
+        app, standing_owner, auth, dispatch=standing_dispatch_owner
+    )
     app.state.standing_owner_operations = standing_operations
     authenticated = Depends(auth.require())
     app.add_middleware(
