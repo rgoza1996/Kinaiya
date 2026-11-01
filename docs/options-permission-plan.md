@@ -93,7 +93,7 @@ Pruning must preserve references needed by live tasks and in-flight dispatch.
 An expired row disappearing is not evidence that a task finished or stopped.
 Renewal must not automatically rerun inference or side effects.
 
-[ADR0088](adr/0088-approval-expiry-renewal.md) implements this bounded lifecycle
+[ADR0092](adr/0092-approval-expiry-renewal.md) implements this bounded lifecycle
 prerequisite: visible paused expiry, exact owner renewal into a separately
 reviewed permit, explicit retirement and bounded broker history. See its PR for
 verification. Precise scoped rules remain unfinished.

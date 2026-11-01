@@ -11,7 +11,7 @@ unapproved request. Typed `ApprovalReissueReceipt` retains both IDs, exact
 digest/revision, replacement expiry and current `replacement_status`.
 The same old-ID/body replays its receipt without allocating another replacement.
 HTTP410 means bounded history is unavailable, not failure proof. See
-[ADR0088](adr/0088-approval-expiry-renewal.md) for native ownership and UI recovery.
+[ADR0092](adr/0092-approval-expiry-renewal.md) for native ownership and UI recovery.
 
 Implements [#188](https://github.com/rgoza1996/Kinaiya/issues/188) and
 [ADR0077](adr/0077-options-workspace-and-harness-models.md).

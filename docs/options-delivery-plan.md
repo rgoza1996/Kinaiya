@@ -60,7 +60,7 @@ of #208; none of the twelve broad acceptance groups is closed by that increment.
 Check the associated PR for checks actually run and any remaining failures.
 
 Subsequent increments add owner note editing and protected provider catalog
-(ADR0085/0086), then exact Agent catalog selection (ADR0089). ADR0088 addresses
+(ADR0085/0086), then exact Agent catalog selection (ADR0089). ADR0092 addresses
 approval expiry before expanding scoped Ask rules. None closes an acceptance
 group; the remaining obligations stay in the table above.
 

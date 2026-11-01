@@ -53,7 +53,7 @@ human review. Host hard Deny and native access restrictions remain final.
 Permission changes invalidate stale primary/auxiliary inference and tool
 catalog snapshots before further use. They do not retrospectively remove
 previously obtained context. Approval expiry and renewal use
-[ADR0088](0088-approval-expiry-renewal.md); renewal never authorizes a changed
+[ADR0092](0092-approval-expiry-renewal.md); renewal never authorizes a changed
 action or launches inference.
 
 ## Owner API and embedded Options

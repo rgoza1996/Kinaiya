@@ -11,7 +11,7 @@ The owner requested reconciliation before further feature work. Inputs were the 
 
 ## October 31 Options increment
 
-[ADR0088](adr/0088-approval-expiry-renewal.md) adds visible paused approval
+[ADR0092](adr/0092-approval-expiry-renewal.md) adds visible paused approval
 expiry, exact owner renewal into a separately reviewed permit and bounded
 broker history. It preserves final one-use enforcement and unknown-receipt
 handling. Static checks and PR-specific CI remain distinct; broader scoped

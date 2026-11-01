@@ -1,4 +1,4 @@
-# 0088: Visible approval expiry and exact owner renewal
+# 0092: Visible approval expiry and exact owner renewal
 
 October 31, 2026. Prerequisite for precise permissions under
 [#208](https://github.com/rgoza1996/Kinaiya/issues/208).
