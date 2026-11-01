@@ -14,6 +14,7 @@ from packages.contracts.converse_setup import (
     SetupRole,
     SetupRoles,
 )
+from services.converse.embedding import runtime_model_settings, runtime_provider_info
 
 _RESTART = "Configured on host. Changing this model requires a service restart."
 _HOST_RESTART = (
@@ -146,9 +147,9 @@ def setup_state(runtime, host=None):
         raise ValueError("Host setup projection is unavailable")
     from packages.providers.text import ProviderError
 
-    settings = runtime.model_settings
+    settings = runtime_model_settings(runtime)
     try:
-        info = runtime.selected_provider_info()
+        info = runtime_provider_info(runtime)
         conversation = _role(info.provider, info.model, source="runtime")
     except (ProviderError, ValueError, RuntimeError):
         conversation = _role(source="runtime")

@@ -18,6 +18,12 @@ from packages.contracts.converse_setup import ConverseSetup
 from packages.contracts.models import ContentScope, ConverseRequest, DeliveryRequest, SpeechWindow
 from packages.providers.disclosure import scope_allowed
 from packages.providers.speech import SpeechProviderError
+from services.converse.embedding import (
+    host_model_selected,
+    runtime_model_preparation,
+    runtime_model_settings,
+    runtime_provider_info,
+)
 
 _STT_CLOSE_OWNERS = set()
 _STT_OWNERS = set()
@@ -51,8 +57,8 @@ def _reserve_api_model(runtime, request):
     preparations = request.scope.get(_API_MODEL_PREPARATIONS)
     if not isinstance(preparations, list):
         raise HTTPException(503, "Converse request ownership is unavailable")
-    preparation = runtime.model_preparation()
     try:
+        preparation = runtime_model_preparation(runtime)
         preparation.__enter__()
     except RuntimeError:
         raise HTTPException(503, "Converse request admission is busy") from None
@@ -247,7 +253,7 @@ def create_app(runtime, auth, speech=None, window_controller=None, *, setup=None
         except (OSError, ValueError):
             availability = {"enabled": False, "owner_intent_unavailable": True}
         try:
-            provider_info = runtime.selected_provider_info().model_dump()
+            provider_info = runtime_provider_info(runtime).model_dump()
         except (ProviderError, OSError, ValueError, RuntimeError, sqlite3.Error):
             provider_info = None
         result = {
@@ -269,12 +275,7 @@ def create_app(runtime, auth, speech=None, window_controller=None, *, setup=None
         try:
             binding = (
                 managed_text_binding(runtime.provider)
-                if provider_info is not None
-                and not runtime._model_options_unavailable
-                and (
-                    runtime.model_settings is None
-                    or runtime.model_settings.selection().source == "host"
-                )
+                if provider_info is not None and host_model_selected(runtime)
                 else None
             )
         except ProviderError as exc:
@@ -284,11 +285,12 @@ def create_app(runtime, auth, speech=None, window_controller=None, *, setup=None
         return result
 
     def model_settings():
-        if runtime.model_settings is None:
+        settings = runtime_model_settings(runtime)
+        if settings is None:
             raise HTTPException(
                 503, "Converse model options are unavailable", headers={"Cache-Control": "no-store"}
             )
-        return runtime.model_settings
+        return settings
 
     def model_error(status, message):
         return HTTPException(status, message, headers={"Cache-Control": "no-store"})

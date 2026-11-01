@@ -2,15 +2,17 @@
 
 import asyncio
 import json
+from contextlib import contextmanager
 
 import httpx
 import pytest
+from starlette.requests import Request
 
 from packages.contracts.models import ConverseRequest, SessionRequest
 from packages.providers.speech import SpeechClient
 from packages.providers.text import ScriptedProvider
 from services.common.auth import Auth
-from services.converse.api import SpeechRequest, create_app
+from services.converse.api import _API_MODEL_PREPARATIONS, SpeechRequest, create_app
 from services.converse.intent import ConverseIntent
 from services.converse.runtime import ConverseRuntime, SpeechOperation
 from services.session.store import LocalJournal, Store
@@ -18,6 +20,17 @@ from services.session.store import LocalJournal, Store
 AUTH = Auth({"owner": "o" * 32, "resources": "r" * 32, "agent": "a" * 32})
 OWNER = {"Authorization": "Bearer " + AUTH.tokens["owner"]}
 FRAME = {"audio_base64": "AAA=", "sample_rate": 24000, "index": 0}
+
+
+@contextmanager
+def endpoint_request():
+    """Mirror middleware ownership when deliberately bypassing ASGI transport."""
+    preparations = []
+    try:
+        yield Request({"type": "http", _API_MODEL_PREPARATIONS: preparations})
+    finally:
+        for preparation in reversed(preparations):
+            preparation.__exit__(None, None, None)
 
 
 class BlockedSpeech:
@@ -264,21 +277,22 @@ async def test_response_backpressure_does_not_keep_the_provider_open(state):
     speech = BlockedSpeech(first_frame=True)
     app = create_app(runtime, AUTH, speech)
     endpoint = next(route.endpoint for route in app.routes if route.path == "/v1/converse/speech")
-    response = await endpoint(SpeechRequest(**speech_body(entry)))
-    stream = response.body_iterator
-    try:
-        frame = json.loads(await anext(stream))
-        assert frame["event_id"] == entry["event_id"]
-        text = entry["payload"]["text"]
-        await asyncio.wait_for(wait_started(speech, text), 1)
-        await runtime.interrupt(session.session_id)
-        # No next response frame is requested before the upstream is closed.
-        await asyncio.wait_for(speech.closed[text].wait(), 1)
-        with pytest.raises(StopAsyncIteration):
-            await anext(stream)
-        assert not runtime._speech
-    finally:
-        await stream.aclose()
+    with endpoint_request() as http_request:
+        response = await endpoint(SpeechRequest(**speech_body(entry)), http_request)
+        stream = response.body_iterator
+        try:
+            frame = json.loads(await anext(stream))
+            assert frame["event_id"] == entry["event_id"]
+            text = entry["payload"]["text"]
+            await asyncio.wait_for(wait_started(speech, text), 1)
+            await runtime.interrupt(session.session_id)
+            # No next response frame is requested before the upstream is closed.
+            await asyncio.wait_for(speech.closed[text].wait(), 1)
+            with pytest.raises(StopAsyncIteration):
+                await anext(stream)
+            assert not runtime._speech
+        finally:
+            await stream.aclose()
 
 
 @pytest.mark.parametrize("transition", ["interrupt", "owner_off_on", "resource_off_on"])
@@ -288,18 +302,22 @@ async def test_revoke_after_endpoint_validation_before_stream_registration(state
     speech = BlockedSpeech()
     app = create_app(runtime, AUTH, speech)
     endpoint = next(route.endpoint for route in app.routes if route.path == "/v1/converse/speech")
-    response = await endpoint(SpeechRequest(**speech_body(entry)))
-    if transition == "interrupt":
-        await runtime.interrupt(session.session_id)
-    elif transition == "owner_off_on":
-        await runtime.set_enabled(False, owner=True)
-        await runtime.set_enabled(True, owner=True)
-    else:
-        runtime.enabled = False
-        runtime.enabled = True
-    with pytest.raises(StopAsyncIteration):
-        await anext(response.body_iterator)
-    assert not speech.calls and not runtime._speech
+    with endpoint_request() as http_request:
+        response = await endpoint(SpeechRequest(**speech_body(entry)), http_request)
+        try:
+            if transition == "interrupt":
+                await runtime.interrupt(session.session_id)
+            elif transition == "owner_off_on":
+                await runtime.set_enabled(False, owner=True)
+                await runtime.set_enabled(True, owner=True)
+            else:
+                runtime.enabled = False
+                runtime.enabled = True
+            with pytest.raises(StopAsyncIteration):
+                await anext(response.body_iterator)
+            assert not speech.calls and not runtime._speech
+        finally:
+            await response.body_iterator.aclose()
 
 
 async def test_cancel_during_per_frame_validation_closes_upstream_without_journal_reply(state):
