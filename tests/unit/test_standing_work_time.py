@@ -5,6 +5,7 @@ the resolver under test. No clock, native scheduler or dispatch is exercised.
 """
 
 import pytest
+
 from packages.contracts.standing_work import (
     DailyOccurrence,
     DailySchedule,

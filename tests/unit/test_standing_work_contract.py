@@ -9,6 +9,7 @@ import hashlib
 import json
 
 import pytest
+
 from packages.contracts.standing_work import (
     DailyOccurrence,
     DailySchedule,
