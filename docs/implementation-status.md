@@ -77,10 +77,19 @@ records the preserved failures, source corrections, 406 combined checks and
 runs, not a count of unique tests. The [native API documentation](standing-work-api.md)
 describes the actual contracts and limits.
 
-These prerequisites are reviewable branch work, not a merged or running timed
-responsibility. Actual Agent worker integration is in progress. Recurrence,
-positive worker/effect/resource settlement, slot release, the durable inbox and
-embedded owner editor remain required before #228 acceptance or a feature PR.
+The subsequent [internal worker adapter](standing-work-api.md#internal-agent-worker-launch)
+now runs the actual Agent file-tool loop from a timely native standing admission,
+with fresh primary ownership, a restricted native tool set and full standing
+disclosure proofs. [Worker evidence](../evaluation/evidence/standing-agent-worker-2026-11-01.json)
+records 76 worker/ownership checks, 370 typed-provider checks and 729 earlier
+affected regressions; these runs overlap. Independent reviews exposed and closed
+final-validation deadline and typed-v2 subset gaps. Inference is synthetic and
+provider-wire transport is offline; neither establishes live model readiness.
+
+This remains reviewable branch work, not a merged or running timed responsibility.
+Recurrence, standing controls/recovery, positive worker/effect/resource settlement,
+slot release, the durable inbox and embedded owner editor remain required before
+#228 acceptance or a feature PR.
 The historical source cutoff above and frozen 8808 settings preview are unchanged;
 this addendum establishes no live model/device or full-roadmap qualification.
 

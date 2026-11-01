@@ -356,8 +356,9 @@ actual retained proof and current Agent session/thread/epoch. It folds the
 captured task's disclosure floor with the outgoing request's scope and checks
 the exact captured provider/model/local identity. A weaker request cannot
 relax the original floor. Sources and retrieved context must be empty for this
-first `native-files-v1` family. Runtime tool-subset enforcement and actual worker
-ownership still require integration.
+first `native-files-v1` family. The internal worker adapter below enforces its
+tool subset and owns the actual worker; producer and settlement integration
+remain required.
 
 The saved grant remains historical for already accepted work: later disable,
 Stop, controller replacement or producer expiry does not falsely attest that
@@ -394,6 +395,57 @@ The [disclosure evidence](../evaluation/evidence/standing-export-admission-2026-
 records independent pure/native oracles, actual API/client integration,
 preserved failures and source corrections. It does not qualify live inference,
 worker effects/cleanup, recurrence, settlement, the inbox or editor.
+
+## Internal Agent worker launch
+
+`AgentRuntime.submit_standing(original, capability=...)` is an internal adapter
+for an already prepared native claim. It validates and detaches the complete
+intent and exact transient capability before any lookup or model capture. A
+retained initial is returned before current provider/workspace selection and
+never reconstructs or launches a worker. A new attempt checks the actual Agent
+session, captured workspace object, harness and full model pin. Host profiles
+require a fresh native factory; catalog and host adapters need a real
+`TaskModelLease` owning the exact primary. Shared or wrapped aliases are refused
+without closing their existing owner. Auxiliary providers are not captured.
+
+Only a timely direct `created` admission, held by the same unsuppressed RAM
+attempt, may launch the existing `_run` once. Lookup, lost/malformed/late replies,
+caller cancellation, close and restart cannot create a launch opportunity. One
+25-second deadline covers lookup, contention, model capture, admission and final
+native validation. The final guard follows synchronous workspace/model checks.
+The adapter shares the existing 128 actual runtime-operation owners, separately
+bounds standing reservations to 64 and preserves the Journal transport's 64-owner
+limit. A caller's return does not abandon resistant native operations.
+
+The standing record retains its full initial proof and distinct origin; it does
+not enter ordinary submit idempotency or manufacture an ordinary control
+identity. Its `native-files-v1` snapshot intersects actual owner availability
+with `read_file`, `write_file` and `finish`. Trusted dispatch and the actual
+operation boundary enforce that subset even without a scoped-permissions owner.
+Existing file policy, approvals, workspace/protected-root checks and completion
+file verification remain authoritative. Count and generation use full standing
+export admission, with no ordinary-route fallback or unrelated integration
+metadata in the prompt.
+
+Meta typed-v2 schema and decoding retain the current native snapshot's subset
+and owner mask. Bound tuples must match that snapshot; an unbound three-name
+tuple does not establish a standing selection. The old unbound tuple grammar
+and provider defaults remain unchanged.
+
+The real worker publishes ordinary authoritative work evidence and runs its
+existing resource/model cleanup. Terminal publication and `wait()` may precede
+actual cleanup. Provider cleanup uncertainty remains sticky even after a later
+adapter close succeeds. This adapter releases no native claim, responsibility or
+global standing slot. Generic Resources acknowledgement is not an exact lease
+settlement witness; that dependency is tracked in
+[#239](https://github.com/rgoza1996/Kinaiya/issues/239#issuecomment-6558355459).
+
+The [worker evidence](../evaluation/evidence/standing-agent-worker-2026-11-01.json)
+distinguishes actual SQLite/ASGI/Agent/file work with synthetic measured inference
+from provider-wire MockTransport checks and source review. This internal adapter
+adds no public launch API, running recurrence/producer, standing Stop/steering
+adapter, restart Task hydration, positive settlement, inbox or owner editor.
+Those remain required for #228 acceptance.
 
 ## Native dispatch gate
 
