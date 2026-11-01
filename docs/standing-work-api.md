@@ -5,9 +5,9 @@ Requirement: [#228](https://github.com/rgoza1996/Kinaiya/issues/228), within
 [Options delivery plan](options-delivery-plan.md). Read with
 [Agent operating modes](agent-control-api.md), Roadmap §13/§19 and clarification.md.
 
-This branch implements the authorization owner, its authenticated Session API,
-immutable Dart proofs, bounded transport and the native dispatch gate.
-Authenticated dispatch routes still require integration. A saved or armed authorization is **not** a scheduled task,
+This branch implements the authorization owner, native dispatch gate and their
+authenticated Session APIs, plus immutable authorization Dart proofs and bounded
+transport. A saved or armed authorization is **not** a scheduled task,
 producer-health claim, execution receipt or completed responsibility. Native
 occurrence admission, an actual Agent producer, positive execution settlement,
 the inbox and embedded owner editor still require integration. Autonomous stays
@@ -17,14 +17,26 @@ or the full issue.
 ## Roles and routes
 
 Session owns the protected authorization database and current controller
-generation. These routes require the owner role before body ingress:
+generation. Authentication and the listed role are checked before body ingress:
 
-| Method | Route | Result |
-| --- | --- | --- |
-| POST | `/v1/standing/changes` | `StandingChangeReceipt` |
-| POST | `/v1/standing/changes/lookup` | `StandingChangeLookup` |
-| GET | `/v1/standing/responsibilities/{responsibility_id}` | `StandingResponsibilitySnapshot` |
-| GET | `/v1/standing/responsibilities?after={id}&limit={n}` | `StandingResponsibilityPage` |
+| Method | Route | Role | Result |
+| --- | --- | --- | --- |
+| POST | `/v1/standing/changes` | owner | `StandingChangeReceipt` |
+| POST | `/v1/standing/changes/lookup` | owner | `StandingChangeLookup` |
+| GET | `/v1/standing/responsibilities/{responsibility_id}` | owner | `StandingResponsibilitySnapshot` |
+| GET | `/v1/standing/responsibilities?after={id}&limit={n}` | owner | `StandingResponsibilityPage` |
+| GET | `/v1/standing/dispatch` | owner | `StandingDispatchState` |
+| GET | `/v1/standing/dispatch/stop-context` | owner | `StandingDispatchStop` template |
+| POST | `/v1/standing/dispatch/activate` | owner | `StandingDispatchActivationReceipt` |
+| POST | `/v1/standing/dispatch/activate/lookup` | owner | `StandingDispatchActivationLookup` |
+| POST | `/v1/standing/dispatch/stop` | owner | `StandingDispatchStopProof` |
+| POST | `/v1/standing/producer/renew` | agent | `StandingProducerReceipt` |
+
+Owner, Converse, Decisions and Resources credentials cannot renew a producer.
+All six dispatch/producer routes reject query fields. Activation and its lookup
+accept the same complete `StandingDispatchActivation`; Stop accepts the complete
+`StandingDispatchStop`; renewal accepts `StandingProducerRenewal`. The context
+GET only reads a template and does not perform Stop.
 
 All fields in the strict request and proof schemas are required, including
 explicit nulls. Unknown fields, duplicate JSON keys, floats, unsafe integers,
@@ -119,7 +131,7 @@ date, ownership and state relationships. A hash alone is not an authority grant.
 
 ## Bounds and actual operation ownership
 
-Requests accept at most 131,072 raw bytes and 114,688 canonical bytes. Receipt
+Definition requests accept at most 131,072 raw bytes and 114,688 canonical bytes. Receipt
 and record caps are 131,072, snapshot 147,456, and lookup/page 262,144 bytes.
 The request reserves 32,768 bytes beyond its two full copies for proof metadata.
 JSON depth is at most 12 and total nodes at most 2,048. A page can therefore
@@ -139,6 +151,13 @@ threads and serialization. Body ingress has a five-second bound within a
 cancellation signal but retains capacity until the actual thread settles.
 Shutdown joins these operations before retiring the Session controller. It
 does not label an uncooperative thread stopped because its caller stopped waiting.
+
+Dispatch/producer POST requests have a separate 4,096-byte raw and canonical
+bound. Renewal receipts are bounded at 8,192 bytes, gate state and activation
+receipts at 16,384, lookup/Stop proofs at 32,768, and Stop templates at 4,096.
+The old four routes keep their larger definition/proof limits. Both families
+share the same 64-operation registry, five-second ingress and 25-second total
+deadline. Neither family gains a second capacity pool.
 
 The Dart `StandingOwnerApi` uses the shared 32-owner transport bound, a
 10-second result deadline and one-second cleanup wait. An attempt separately
@@ -164,6 +183,13 @@ Its four protected tables retain the gate, immutable activation proofs and
 bounded producer highwater state. These operations start no timer or worker.
 The strict exported packets are distinct from the unchanged ordinary
 owner/Decisions submission grammar.
+
+Session startup explicitly registers this local gate even if ordinary controller
+registration is exhausted, preserving limited read/Stop over established healthy
+storage. Missing or corrupt authority stays unavailable. The exposed
+`standing_dispatch_initialized` lifecycle flag proves neither a live producer
+nor permission. Shutdown joins the shared actual-operation hub before closing
+both local standing capabilities and retiring the actual Session controller.
 
 An activation binds a full ordinary Autonomous mode request, the observed
 dispatch epoch and random fence token. Its receipt binds the ordinary native
