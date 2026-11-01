@@ -97,6 +97,14 @@ def _values(value, kind):
             or getattr(value, "__pydantic_private__", None) is not None
         ):
             raise ValueError(_ERROR)
+        if kind is TranscriptScanPage and (
+            type(values["request"]) is not TranscriptScanRequest
+            or type(values["entries"]) is not list
+            or any(type(entry) is not JournalEntry for entry in values["entries"])
+        ):
+            # A materialized typed page must retain its typed child graph.
+            # Only a raw page dictionary may parse raw child dictionaries.
+            raise ValueError(_ERROR)
         value = values
     if type(value) is not dict or value.keys() != kind.model_fields.keys():
         raise ValueError(_ERROR)
