@@ -93,6 +93,8 @@ from packages.contracts.models import (
     TaskState,
     new_id,
 )
+from packages.contracts.standing_admission import StandingInitialProof, StandingTaskAdmission
+from packages.contracts.standing_execution import StandingExecutionIntent
 from packages.providers.disclosure import (
     ContextScopeClosure,
     combine_scopes,
@@ -320,6 +322,8 @@ class _Record:
     native_task_identity: AgentTaskIdentity | None = None
     steer_attempt: _SteerAttempt | None = None
     workspace_context: Any | None = None
+    standing_initial: StandingInitialProof | None = None
+    standing_cleanup_uncertain: bool = False
 
 
 @dataclass
@@ -433,6 +437,7 @@ class AgentRuntime:
         # sessions; restored by recover for terminal and paused tasks alike.
         self._submit_idem: dict[tuple[str, str], tuple[str, str]] = {}
         self._pending_submits: dict[tuple[str, str], _PendingSubmit] = {}
+        self._standing_pending = {}
         self._submit_operations: set[asyncio.Task] = set()
         self._submit_waiters: set[asyncio.Future] = set()
         self._submit_preflights: set[_SubmitPreflight] = set()
@@ -2548,7 +2553,9 @@ class AgentRuntime:
             proc = rec.proc_slot.get("proc")
             if proc is not None:
                 await proc.kill()
-            worker, rec.worker = rec.worker, None
+            worker = rec.worker
+            if rec.standing_initial is None:
+                rec.worker = None
             if worker is not None and not worker.done():
                 worker.cancel()
                 workers.append((rec, worker))
@@ -3112,6 +3119,14 @@ class AgentRuntime:
         )
 
     def _grants(self, rec=None) -> str:
+        if rec is not None and rec.standing_initial is not None:
+            grants = f"write={self.policy.effective_write} deny_write={self.policy.deny_write}"
+            if self.tool_permissions is not None:
+                grants += " native_tool_rules=" + ",".join(
+                    f"{tool}:{self._permission_decision(rec, tool)['effective']}"
+                    for tool in ("read_file", "write_file")
+                )
+            return grants
         grants = (
             f"write={self.policy.effective_write} "
             f"shell={self.policy.effective_shell} "
@@ -3186,6 +3201,12 @@ class AgentRuntime:
         )
 
     def tool_snapshot(self, task: Task | None = None) -> NativeToolSnapshot:
+        if task is not None:
+            rec = self._tasks.get(task.task_id)
+            if rec is not None and rec.task is task and rec.standing_initial is not None:
+                from services.agent.standing_runtime import tool_snapshot
+
+                return tool_snapshot(self)
         snapshot = self.host_tool_snapshot(task)
         owner = self.capability_settings
         if owner is None:
@@ -3201,6 +3222,20 @@ class AgentRuntime:
             )
         except (ValueError, RuntimeError, OSError, sqlite3.Error):
             raise PolicyDenied("Native capability availability is unavailable") from None
+
+    async def submit_standing(
+        self, original: StandingExecutionIntent, *, capability: bytes
+    ) -> StandingTaskAdmission:
+        """Codex-authored native standing launch; historical proof never launches."""
+        from services.agent.standing_runtime import submit_standing
+
+        return await submit_standing(self, original, capability=capability)
+
+    def _standing_action(self, rec, tool):
+        if rec.standing_initial is not None:
+            from services.agent.standing_runtime import check_action
+
+            check_action(self, rec, tool)
 
     async def inspect_tools(self, arguments: dict, *, task_id: str | None = None) -> dict:
         """Authenticated API projection; never advance a task or create pins."""
@@ -3382,12 +3417,13 @@ class AgentRuntime:
         prepare = getattr(provider, "prepare_complete", None)
         if not callable(prepare):
             raise PromptCountUnavailable("Agent provider cannot measure complete requests")
+        standing = rec.standing_initial is not None
         services = (self.skill_service, self.plugin_service, self.mcp_host, self.artifact_store)
         provider_info = copy.deepcopy(provider.info)
         history = [dict(turn) for turn in rec.history]
         guards = tuple(rec.catalog_guards.items())
         retained_guards = []
-        if self.skill_service is not None:
+        if not standing and self.skill_service is not None:
             retained_guards.append(
                 self.skill_service.capture_task_disclosure(
                     rec.task.task_id,
@@ -3396,7 +3432,7 @@ class AgentRuntime:
                     expected_skill_ids=frozenset(rec.used_skills),
                 )
             )
-        if self.plugin_service is not None:
+        if not standing and self.plugin_service is not None:
             retained_guards.append(
                 self.plugin_service.capture_task_disclosure(self._plugin_task(rec), provider_info)
             )
@@ -3477,12 +3513,12 @@ class AgentRuntime:
 
         async def check():
             current()
-            if self.skill_service is not None:
+            if not standing and self.skill_service is not None:
                 await self.skill_service.validate_task(
                     rec.task.task_id, provider.info, user_skill_id=rec.explicit_skill
                 )
                 current()
-            if self.plugin_service is not None:
+            if not standing and self.plugin_service is not None:
                 await self.plugin_service.validate_task(self._plugin_task(rec), provider.info)
                 current()
             await self._task_scope(rec)
@@ -3502,7 +3538,9 @@ class AgentRuntime:
             from packages.contracts.agent_export import AgentExportAdmission, AgentExportRequest
 
             current()
-            admission = getattr(journal, "agent_export_admission", None)
+            admission = getattr(
+                journal, "standing_export_admission" if standing else "agent_export_admission", None
+            )
             if not callable(admission):
                 raise PromptCountUnavailable("Native Agent export admission is unavailable")
             request = AgentExportRequest(
@@ -3520,6 +3558,12 @@ class AgentRuntime:
                 purpose=purpose,
                 request_nonce=new_id(),
             )
+            if standing:
+                from packages.contracts.standing_export import StandingExportRequest
+
+                request = StandingExportRequest(
+                    schema_version="1.0", initial=rec.standing_initial, export=request
+                )
             try:
                 receipt = await admission(request)
             except (asyncio.CancelledError, ProviderCleanupError):
@@ -3533,6 +3577,13 @@ class AgentRuntime:
                 raise PromptCountUnavailable("Native Agent export admission was refused") from exc
             current()
             try:
+                if standing:
+                    from packages.contracts.standing_export import StandingExportAdmission
+
+                    if type(receipt) is not StandingExportAdmission:
+                        raise ValueError("Invalid native standing admission type")
+                    receipt = receipt.validate_request(request).admission
+                    request = request.export
                 if type(receipt) is not AgentExportAdmission:
                     raise ValueError("Invalid native admission type")
                 receipt.validate_request(request)
@@ -3561,10 +3612,10 @@ class AgentRuntime:
             list(rec.task.source_event_ids),
             history,
             self._grants(rec),
-            self._mcp_server_ids(rec),
-            self.skill_service is not None,
-            self.plugin_service is not None,
-            self.artifact_store is not None,
+            None if standing else self._mcp_server_ids(rec),
+            not standing and self.skill_service is not None,
+            not standing and self.plugin_service is not None,
+            not standing and self.artifact_store is not None,
             tool_snapshot=tools,
         )
         prepared = None
@@ -3605,6 +3656,8 @@ class AgentRuntime:
                 await check()
                 return text
         except ProviderCleanupError:
+            if standing:
+                rec.standing_cleanup_uncertain = True
             # Unconfirmed owned cleanup cannot authorize another request,
             # including when steering happened at the same time.
             raise
@@ -3614,7 +3667,12 @@ class AgentRuntime:
             raise
         finally:
             if prepared is not None:
-                prepared.discard()
+                try:
+                    prepared.discard()
+                except ProviderCleanupError:
+                    if standing:
+                        rec.standing_cleanup_uncertain = True
+                    raise
 
     async def _run(self, rec: _Record) -> None:
         if rec.task.state == TaskState.ACCEPTED:
@@ -3634,13 +3692,13 @@ class AgentRuntime:
                 await self._apply_steer(rec)
                 # Revocation applies before the next model request, including
                 # content already retained in this task's complete history.
-                if self.skill_service is not None:
+                if rec.standing_initial is None and self.skill_service is not None:
                     await self.skill_service.validate_task(
                         rec.task.task_id,
                         self.provider_for(rec).info,
                         user_skill_id=rec.explicit_skill,
                     )
-                if self.plugin_service is not None:
+                if rec.standing_initial is None and self.plugin_service is not None:
                     await self.plugin_service.validate_task(
                         self._plugin_task(rec), self.provider_for(rec).info
                     )
@@ -3716,24 +3774,32 @@ class AgentRuntime:
         finally:
             try:
                 await self._release_task_resources(rec)
+            except ProviderCleanupError:
+                if rec.standing_initial is not None:
+                    rec.standing_cleanup_uncertain = True
+                raise
             finally:
                 if rec.model_lease is not None:
                     try:
                         await rec.model_lease.close()
                     except ProviderCleanupError:
+                        if rec.standing_initial is not None:
+                            rec.standing_cleanup_uncertain = True
                         # Work evidence is not rewritten by unconfirmed close.
                         # The native lease remains busy and retains capacity.
                         pass
 
     async def _release_task_resources(self, rec):
-        if self.skill_service is not None:
+        if rec.standing_initial is None and self.skill_service is not None:
             await self.skill_service.release_task(rec.task.task_id)
-        if self.plugin_service is not None:
+        if rec.standing_initial is None and self.plugin_service is not None:
             await self.plugin_service.release_task(rec.task.task_id)
         if self.resource_client is not None and rec.task.state in TERMINAL and not rec.closing:
             try:
                 await self.resource_client.task_finished(rec.task.task_id)
-            except Exception:
+            except Exception as exc:
+                if rec.standing_initial is not None and isinstance(exc, ProviderCleanupError):
+                    rec.standing_cleanup_uncertain = True
                 # Native task evidence remains authoritative. Restoration
                 # is a separate unconfirmed resource transition.
                 print(
@@ -3797,6 +3863,7 @@ class AgentRuntime:
         return None
 
     async def _finish(self, rec: _Record, args: dict[str, Any], raw: str) -> bool:
+        self._standing_action(rec, "finish")
         await self._task_scope(rec)
         _ = raw
         if rec.cancel_requested:
@@ -3900,6 +3967,7 @@ class AgentRuntime:
         return uncommitted
 
     async def _execute(self, rec: _Record, tool: str, args: dict[str, Any], raw: str) -> None:
+        self._standing_action(rec, tool)
         await self._task_scope(rec)
         self._validate_catalog_history(rec)
         revision = rec.task.objective_revision
@@ -4092,6 +4160,7 @@ class AgentRuntime:
     async def _run_scoped_builtin(
         self, rec, tool, args, digest, revision, approval_id, *, reviewed, speech_review, audit
     ):
+        self._standing_action(rec, tool)
         policy = self.policy
         if tool == "read_file":
             arguments = {"path": args.get("path", ""), "max_bytes": args.get("max_bytes", 65536)}
@@ -4116,6 +4185,7 @@ class AgentRuntime:
             }
 
         async def invoke():
+            self._standing_action(rec, tool)
             if tool == "read_file":
                 return run_read(policy, arguments["path"], arguments["max_bytes"], revision)
             if tool == "write_file":
@@ -4257,6 +4327,7 @@ class AgentRuntime:
         *,
         approval_id: str | None,
     ) -> None:
+        self._standing_action(rec, tool)
         await self._task_scope(rec)
         revision = rec.task.objective_revision
         stale = await self._epoch_error(rec)
@@ -4555,6 +4626,7 @@ class AgentRuntime:
             rec.history.append({"role": "user", "content": observation_text(True, out)})
 
     async def _publish_ui(self, rec: _Record, args: dict[str, Any]) -> tuple[str, Evidence]:
+        self._standing_action(rec, "publish_ui")
         if self.artifact_store is None:
             raise ToolFailure("unknown tool 'publish_ui': UI artifacts are not configured")
         # All asynchronous authority reads completed before this point. No
@@ -4625,6 +4697,7 @@ class AgentRuntime:
         return out, evidence
 
     async def _plugin_result(self, rec, tool, args):
+        self._standing_action(rec, tool)
         service = self.plugin_service
         if service is None:
             raise ToolFailure("No compute-plugin host configured")
@@ -4668,6 +4741,7 @@ class AgentRuntime:
         )
 
     async def _skill_result(self, rec, tool, args):
+        self._standing_action(rec, tool)
         if self.skill_service is None:
             raise ToolFailure("No skill controller configured")
         try:
@@ -4714,6 +4788,7 @@ class AgentRuntime:
         )
 
     async def _read_transcript(self, rec, args):
+        self._standing_action(rec, "read_transcript")
         from packages.contracts.agent_export import MAX_AGENT_CONTEXT_REFS
 
         event_ids = args.get("event_ids", [])

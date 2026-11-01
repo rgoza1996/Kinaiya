@@ -59,12 +59,26 @@ class NativeToolSnapshot:
     schema_version: Literal["1.0"] = SCHEMA_VERSION
     owner_disabled: tuple[str, ...] | None = None
     owner_revision: int | None = None
+    task_subset: Literal["native-files-v1"] | None = None
     descriptors: tuple[NativeToolDescriptor, ...] = field(init=False)
 
     def __post_init__(self) -> None:
         if type(self.schema_version) is not str or self.schema_version != SCHEMA_VERSION:
             raise ValueError("Native tool snapshot requires schema version 1.0")
         names = self.available_tools
+        if self.task_subset is not None and (
+            type(self.task_subset) is not str or self.task_subset != "native-files-v1"
+        ):
+            raise ValueError("Unknown native task subset")
+        base = (
+            ("read_file", "write_file", "finish") if self.task_subset is not None else _BASE_TOOLS
+        )
+        if (
+            self.task_subset is not None
+            and type(names) is tuple
+            and any(name not in base for name in names)
+        ):
+            raise ValueError("Native task subset contains an unavailable operation")
         masked = self.owner_disabled is not None
         if (not masked and self.owner_revision is not None) or (
             masked
@@ -87,7 +101,7 @@ class NativeToolSnapshot:
             raise ValueError("Invalid explicit native owner mask")
         if (
             type(names) is not tuple
-            or not (1 if masked else len(_BASE_TOOLS)) <= len(names) <= MAX_NATIVE_TOOLS
+            or not (1 if masked else len(base)) <= len(names) <= MAX_NATIVE_TOOLS
         ):
             raise ValueError("Native tool snapshot requires a bounded tuple of protocol actions")
         if any(type(name) is not str or name not in NATIVE_TOOL_ORDER for name in names):
@@ -96,9 +110,7 @@ class NativeToolSnapshot:
             raise ValueError("Native tool snapshot cannot contain duplicate actions")
         if names != tuple(name for name in NATIVE_TOOL_ORDER if name in names):
             raise ValueError("Native tool snapshot must follow protocol order")
-        if not all(
-            name in names for name in _BASE_TOOLS if not masked or name not in self.owner_disabled
-        ):
+        if not all(name in names for name in base if not masked or name not in self.owner_disabled):
             raise ValueError("Native tool snapshot must retain every base operation")
         for group in _OPTIONAL_GROUPS:
             required = tuple(
