@@ -76,6 +76,17 @@ distinguishes retained failures, source boundaries and checks. All five final-he
 CI jobs are required before merge; full Options and the original milestone gates
 remain open.
 
+The first final-head run, [CI308](https://github.com/rgoza1996/Kinaiya/actions/runs/41270490307),
+passed four jobs but exposed a pre-existing voice sender/disconnect completion
+race on Python 3.11. [#218](https://github.com/rgoza1996/Kinaiya/issues/218) adds
+a narrow exception-identity repair with the cleanup block unchanged. Two new
+ASGI/native reproduction cases failed before the fix; the focused 189-case suite
+then passed. An unchanged independent response probe went from eight passes and
+one failure to nine passes; independent execution of the ten new cases plus the
+original failing case also passed. [Evidence](../evaluation/evidence/voice-disconnect-completion-2026-10-31.json)
+retains the failed run and qualification boundaries. Updated exact-head CI is
+still required; synthetic audio does not qualify human voice or hardware.
+
 The original [milestone exit gates](../Roadmap.md#24-milestone-roadmap) and AT01–AT48 remain unchanged. Additional owner-refinement scenarios AT49–AT61 supplement them; AT62–AT63 record the October 31 distinction between model choice, profile recommendations and architectural comparisons. These additions claim no new runtime behavior or passed acceptance. Links to tests describe existing coverage, not a new execution of those tests during documentation editing.
 
 | Milestone / tracking | Current evidence-backed scope | Remaining acceptance and limits |

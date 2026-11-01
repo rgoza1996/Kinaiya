@@ -1,0 +1,97 @@
+{
+  "issue": 218,
+  "date": "2026-10-31 America/Los_Angeles",
+  "attribution": "Codex author, root integration, independent Codex reviewer; no human approval or paid calls",
+  "base": "4ecb6d42474d7e1c6579f62ad5d7819181c56e7f",
+  "author_commit": "38b435c13adb45d1e30082173d9374e4cd847804",
+  "integration_commit": "4c6ba10e95657f448e23516f9d51c0f78c491fc2",
+  "source_sha256": {
+    "packages/providers/voice_worker.py": "0c2d23314bb579fd3526908e7f3b8b5e5dd68141b2eb998212ff33d44eb151a5",
+    "tests/integration/test_voice_disconnect_completion.py": "0323a0d80fdd90b916fc2d609880d34e37225a65dae2df866234733fbc373e2c",
+    "tests/integration/test_voice_producer.py": "608cdecda0373fb5c4045ea53405bf35886fe69a90baf4cd0a1465fb24c58e92",
+    "tests/integration/test_voice_backends.py": "19f7b3bcc83a646c0c83cf02b3db5e6648eba0bd4ec9e3662d7419427f6c9f17"
+  },
+  "original_ci": {
+    "run_id": 41270490307,
+    "run_number": 308,
+    "head": "72637e1fd89c76f846f9cb57d6f808f9b9f119e3",
+    "synthetic_merge": "3b97fcb007cab44781341ca028f483f5d873f82f",
+    "python311": "1 failed, 7743 passed, 6 skipped, 2 deselected, 1 warning",
+    "python312": "7744 passed, 6 skipped, 2 deselected, 1 warning",
+    "other_jobs": "Flutter/web,Android,iOS succeeded",
+    "receipt_sha256": "ee2b3d4f1f8f7e2237c1964dc99b1da4e4b72ee0b94a70867491ed0c2ab9c6a4",
+    "failure": "test_model_slot_is_owned_through_native_cleanup_after_first_frame: exact monitor-ownedHTTP499 escaped via completed sender after response headers",
+    "original_worker_sha256": "b773568db0609f389b5d41e43ab83e8d833a47585b926a26612471dd01fbcce3",
+    "merge_justified": false
+  },
+  "contract": {
+    "changed": "Handle only the same HTTPException object as stream.monitor_failure when status499 is observed through sender completion",
+    "preserved": [
+      "all other HTTP errors including unrelated499 and monitor409/503",
+      "independent native backend/send/output errors",
+      "external response cancellation",
+      "one receive consumer and no later stale audio",
+      "native producer/model slot retained until actual cleanup or quarantine",
+      "original finally cancellation/gather/shielded close and all unrelated worker bytes"
+    ]
+  },
+  "baseline": {
+    "author_actual_asgi_native": {
+      "failed": 2,
+      "passed": 8,
+      "asgi_versions": [
+        "2.0",
+        "2.4"
+      ]
+    },
+    "independent_response_oracle": {
+      "failed": 1,
+      "passed": 8,
+      "receipt_sha256": "93b6fd8e8930a160763656c6e969607bc84d029d5506a27eda0b338f2ba63eb3"
+    }
+  },
+  "after": {
+    "author_focused": {
+      "passed": 189,
+      "new": 10,
+      "unchanged": 179,
+      "pytest_seconds": 12.79,
+      "receipt_sha256": "e0d75f580a4ff713b2ece896b9d9e83ec3ce2af52f40da6f303bf5c9cd591bc9",
+      "manifest_sha256": "af76ae55a7fb02b2d1d9d8ff59310c98a7ddec33153f62dbacbbb598c183726c"
+    },
+    "independent_root_response_oracle": {
+      "passed": 9,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "unchanged_oracle_sha256": "4c6263ac34cfc47178d92dbc44b85056d5a49b38361e2240e529e023e23514e1",
+      "receipt_sha256": "a5adb55631fe8732c843ee9dc785a17fc68c0e5d05f579816baaf91be2ca1482"
+    },
+    "independent_new_native_and_original_ci_case": {
+      "passed": 11,
+      "source": "identical author worker/test bytes",
+      "failed": 0
+    },
+    "root_static": {
+      "ruff": "pass",
+      "format": "551 files,zero changes",
+      "actual_schema_export": "pass; isolated-root PYTHONPATH",
+      "schema_diff": "unchanged",
+      "diff_check": "pass",
+      "receipt_sha256": "953a47c58be34d457be46cd4861ce25efd85c8f6dbd05de21f466ed634826829"
+    }
+  },
+  "preservation": {
+    "all_309_existing_main_test_support_paths_byte_equal": true,
+    "all_9_execution_repair_production_pins_unchanged": true,
+    "all_7_execution_repair_new_test_pins_unchanged": true,
+    "new_test_baseline_semantics": "Non-import AST unchanged; Ruff changed import order after initial baseline, snapshots preserved.",
+    "finally_and_unrelated_voice_worker_bytes": "byte exact outside only replaced awaitsender block"
+  },
+  "limits": [
+    "Independent nine-case oracle isolates real production response/Starlette arbitration and event-gated close, not native producer construction; author new ASGI/native cases cover actual producer/slot ownership.",
+    "Synthetic callbacks/audio/auth only; no real model, microphone/speaker, GPU, physical audible onset or human voice qualification.",
+    "No installs, live-user configuration/models/ports or deployment changes.",
+    "Updated final-head independent review and all five CI jobs required before integration; recorded in associated PR216."
+  ]
+}

@@ -281,5 +281,14 @@
       "receipt_sha256": "79217814c13442c49ceb582760b54c1ee79c49ac8bb477d1a4e6aecd6233c851",
       "manifest_sha256": "c5c66665ad3dce9451af67162b7e218c6e705061d411de78cea09a60cce1ff93"
     }
+  },
+  "integration_ci_repair": {
+    "issue": 218,
+    "evidence": "voice-disconnect-completion-2026-10-31.json",
+    "source": "CI308 disclosed an unchanged voice sender/disconnect completion race; separate narrow repair commit, all execution production/test pins unchanged",
+    "original_ci_receipt_sha256": "ee2b3d4f1f8f7e2237c1964dc99b1da4e4b72ee0b94a70867491ed0c2ab9c6a4",
+    "original_ci_all_jobs_passed": false,
+    "original_ci_python311": "1 failed /7743 passed",
+    "final_gate": "Updated exact-final-head CI and review remain required; no failed-run merge"
   }
 }
