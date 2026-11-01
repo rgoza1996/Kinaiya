@@ -494,7 +494,7 @@ $$
 
 A necessary permit predicate for an existing record is:
 
-$$
+```math
 \begin{aligned}
 \mathrm{Usable}(p,a,\theta_a,r,t_{\mathrm{wall}},t_{\mathrm{mono}})\iff{}&
 p.h=h(a,\theta_a,r)\land p.r=r\\
@@ -502,7 +502,7 @@ p.h=h(a,\theta_a,r)\land p.r=r\\
 &\land t_{\mathrm{wall}}<p.e_{\mathrm{wall}}\\
 &\land(p.e_{\mathrm{mono}}=\varnothing\lor t_{\mathrm{mono}}<p.e_{\mathrm{mono}}).
 \end{aligned}
-$$
+```
 
 The monotonic deadline applies when present. This predicate is **not sufficient
 authorization**: the supervisor also rechecks native task/source currentness,
@@ -658,10 +658,10 @@ unfinished; Agent and Decisions do not use this graph.
 For an edge from parent $u$ to child $v$, increasing creation ordinals enforce
 acyclicity:
 
-$$
+```math
 (u,v)\in E\Rightarrow o(u)<o(v),\qquad
  d(v)=1+\max_{u\in\mathrm{parents}(v)}d(u)\le16.
-$$
+```
 
 The empty-parent maximum is zero. Each namespace is bounded to 256 nodes and
 2,048 edges, with at most eight parents per node. Selected retrieval includes the
