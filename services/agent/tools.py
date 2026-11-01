@@ -121,7 +121,12 @@ def shell_directory(policy: ToolPolicy, value: str | None = None) -> Path:
     ):
         raise PolicyDenied("Shell directory must be a relative workspace directory")
     candidate = policy.workspace / value
-    resolved = policy.resolve_path(candidate)
+    try:
+        resolved = policy.resolve_path(candidate)
+    except RuntimeError as exc:
+        # Path.resolve reports a symlink loop as RuntimeError on Python 3.11/12.
+        # This is a refused directory, not an uncertain settings transaction.
+        raise PolicyDenied("Shell directory cannot be resolved safely") from exc
     if resolved != Path(os.path.abspath(candidate)) or not resolved.is_dir():
         raise PolicyDenied("Shell directory must exist without symlink aliases")
     return resolved

@@ -2272,7 +2272,8 @@ class AgentRuntime:
             self._model_mcp(rec)._check(args.get("server_id", ""))
         sources = (
             await self._uncommitted_speech_sources(rec)
-            if tool in {"write_file", "shell", "mcp_call", "publish_ui"}
+            if not self.policy.denies(tool)
+            and tool in {"write_file", "shell", "mcp_call", "publish_ui"}
             else []
         )
         if await self._discard_revised_action(rec, revision, raw):
@@ -2407,7 +2408,8 @@ class AgentRuntime:
             return
         sources = (
             await self._uncommitted_speech_sources(rec)
-            if tool in {"write_file", "shell", "mcp_call", "publish_ui"}
+            if not self.policy.denies(tool)
+            and tool in {"write_file", "shell", "mcp_call", "publish_ui"}
             else []
         )
         if tool == "publish_ui":
@@ -2455,7 +2457,10 @@ class AgentRuntime:
             # There is no await between this grant check and the broker's
             # matching synchronous permission check.
             if tool == "publish_ui" or (
-                tool in {"write_file", "shell"} and not self.policy.needs_approval(tool)
+                tool == "write_file"
+                and self.policy.effective_write
+                or tool == "shell"
+                and self.policy.effective_shell
             ):
                 self.policy.consume_approval(approval_id, digest, revision)
         if raw and tool not in {"publish_ui", "tool_catalog"}:
@@ -2464,6 +2469,8 @@ class AgentRuntime:
             # One-use intent is now committed to this exact execution.
             rec.pending = None
         try:
+            if self.policy.denies(tool):
+                raise PolicyDenied("Native action is disabled by owner policy")
             if not self.tool_snapshot(rec.task).supports(tool):
                 raise ToolFailure(f"Tool {tool!r} is unavailable for this task")
             if tool == "read_transcript":

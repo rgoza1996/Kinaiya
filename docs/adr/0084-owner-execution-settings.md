@@ -32,6 +32,11 @@ distinction between the native file-write tool and command authorization.
 MCP/plugin authority remains with its existing native owner; these are not yet
 general per-tool rules.
 
+Denied native actions are advertised as `approval: denied`, never as a broad
+grant. They skip speech/action approval requests and do not spend a previously
+approved speech permit before refusing. A non-requestable action is not an
+authorized action.
+
 ## Change boundary and receipts
 
 Task submission/recovery and settings changes share `integration_lock`.
@@ -65,6 +70,10 @@ cleanup, PID isolation, bounded output, protected/read-only mounts and network
 namespace rules. The configured command cap bounds the existing requested
 command timeout; it is not a whole-task deadline. The environment remains
 cleared with only the existing public PATH and HOME declarations.
+Path-resolution failures, including Python's symlink-loop `RuntimeError`, are
+native directory refusals; an unusable saved directory does not prevent Options
+inspection and repair. Workspace mount metadata includes guards covering the
+entire workspace and reports unavailable when the starting directory is invalid.
 
 Owner metadata detects the Bubblewrap executable but reports
 `isolation_verified: false`: inspection does not execute a process or establish

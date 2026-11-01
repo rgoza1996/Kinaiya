@@ -162,7 +162,8 @@ service `instance_id`, `source` (`host_configuration` or `owner_saved`), actual
 
 The same `execution` inspection is also returned at the outer level. It contains
 the actual workspace, shell directory or null and its validity, the shell's
-`read_only`/`read_write` workspace mount, protected/read-only folder lists (first
+`read_only`/`read_write` workspace mount (or `unavailable` when its starting
+directory is invalid), protected/read-only folder lists (first
 64 entries plus total/truncated), required Bubblewrap declaration and executable
 detection, `isolation_verified: false`, configured network namespace, fixed public
 environment (cleared host environment, PATH `/usr/bin:/bin`, HOME `/tmp`),

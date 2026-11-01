@@ -240,6 +240,8 @@ class _OptionsRuntimeEditorState extends State<OptionsRuntimeEditor> {
                 'Command access to workspace',
                 execution.shellWorkspaceAccess == 'read_only'
                     ? 'Read-only mount'
+                    : execution.shellWorkspaceAccess == 'unavailable'
+                    ? 'Unavailable until the starting directory is valid'
                     : 'Read/write mount after command authorization',
               ),
               _field(

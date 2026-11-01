@@ -83,7 +83,11 @@ class AgentExecutionMetadata {
       raw['shell_workspace_access'],
       max: 16,
     );
-    if (!const ['read_only', 'read_write'].contains(shellWorkspaceAccess)) {
+    if (!const [
+      'read_only',
+      'read_write',
+      'unavailable',
+    ].contains(shellWorkspaceAccess)) {
       throw const FormatException();
     }
     directoryValid = _flag(raw['shell_directory_valid']);

@@ -64,6 +64,11 @@ changed by documentation. Dynamic requirements stay explicit: workspace and
 protected-root checks, current revision, exact allowlists, action approvals,
 transport grants, sandbox and disclosure are rechecked at dispatch.
 
+Explicit native file-write/command Deny is projected as `approval: "denied"`,
+with no requestable speech approval. It is distinct from both `per_action` and
+`broad_grant`. Denied operations remain known protocol operations and refuse
+before consuming an approval; no-approval-needed does not imply authorization.
+
 The complete selected response and retained model-history unit are bounded to
 32 KiB. Serialization accepts only finite, UTF-8-valid JSON primitives, bounded
 depth/nodes and string keys. No arbitrary Python objects, exception text,

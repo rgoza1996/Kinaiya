@@ -75,9 +75,17 @@ def execution_metadata(runtime):
         directory_valid = True
     except (PolicyDenied, OSError, ValueError):
         directory, directory_valid = None, False
+    readonly_workspace = policy.deny_write or any(
+        root == policy.workspace or root in policy.workspace.parents
+        for root in policy.readonly_roots
+    )
     return {
         "workspace": str(policy.workspace),
-        "shell_workspace_access": "read_only" if policy.deny_write else "read_write",
+        "shell_workspace_access": "unavailable"
+        if not directory_valid
+        else "read_only"
+        if readonly_workspace
+        else "read_write",
         "shell_directory": directory,
         "shell_directory_valid": directory_valid,
         "readonly": paths(policy.readonly_roots),

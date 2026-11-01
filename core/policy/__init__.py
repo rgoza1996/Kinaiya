@@ -271,6 +271,10 @@ class ToolPolicy:
             raise ApprovalError("shell requires an owner approval for this command")
         self.consume_approval(approval_id, digest, objective_revision)
 
+    def denies(self, tool: str) -> bool:
+        """A denial is neither a broad grant nor a requestable approval."""
+        return (tool == "write_file" and self.deny_write) or (tool == "shell" and self.deny_shell)
+
     def needs_approval(self, tool: str, arguments: dict[str, Any] | None = None) -> bool:
         """True when the tool would need a per-action approval under grants."""
         if tool == "write_file":

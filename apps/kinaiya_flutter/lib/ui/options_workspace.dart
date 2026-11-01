@@ -504,8 +504,7 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
             if (current()) {
               _runtimeDraft = null;
               _notice =
-                  'Agent settings saved. Active values are refreshed below; '
-                  'a historical receipt does not reapply settings.';
+                  'Agent settings saved. Active values are refreshed below.';
             }
           } else {
             operation.uncertain = true;
@@ -579,8 +578,7 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
       if (current()) {
         setState(
           () => _notice =
-              'The host confirmed this save. '
-              'Refreshed active values may include later changes or a restart.',
+              'Save confirmed. Review the current active values below.',
         );
         await _refresh();
       }
