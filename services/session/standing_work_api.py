@@ -28,6 +28,7 @@ from packages.contracts.standing_execution import (
     StandingExecutionClaimAdmission,
     StandingExecutionIntent,
 )
+from packages.contracts.standing_export import StandingExportAdmission, StandingExportRequest
 from packages.contracts.standing_work import (
     MAX_STANDING_PROOF_BYTES,
     MAX_STANDING_REQUEST_BYTES,
@@ -116,6 +117,8 @@ class StandingOwnerOperations:
         )
         if kind is StandingExecutionIntent:
             maximum = MAX_STANDING_EXECUTION_INTENT_BYTES
+        elif kind is StandingExportRequest:
+            maximum = StandingExportRequest.wire_bytes
         ingress_deadline = min(deadline, started + STANDING_INGRESS_SECONDS)
         remaining = ingress_deadline - time.monotonic()
         if remaining <= 0:
@@ -200,6 +203,11 @@ class StandingOwnerOperations:
                     argument, capability=capability, deadline=deadline, cancelled=event.is_set
                 )
                 kind = StandingTaskAdmission
+            elif action == "task_export" and self.tasks is not None:
+                result = self.tasks.export_admission(
+                    argument, deadline=deadline, cancelled=event.is_set
+                )
+                kind = StandingExportAdmission
             elif action == "task_lookup" and self.tasks is not None:
                 result = self.tasks.lookup(argument)
                 kind = StandingInitialProof
@@ -231,7 +239,7 @@ class StandingOwnerOperations:
             if not isinstance(result, kind):
                 raise StandingUnavailable
             value = kind.model_validate(result)
-            if action in _DISPATCH_BODIES or action in _EXECUTION_BODIES:
+            if action in _DISPATCH_BODIES or action in _EXECUTION_BODIES or action == "task_export":
                 value = value.validate_request(argument)
             raw = canonical_bytes(value)
             if len(raw) > min(kind.wire_bytes, MAX_STANDING_PROOF_BYTES):
@@ -274,6 +282,11 @@ class StandingOwnerOperations:
             elif action in _EXECUTION_BODIES:
                 argument = await self._body(
                     request, event, deadline, started, kind=StandingExecutionIntent
+                )
+                self._guard(event, min(deadline, started + STANDING_INGRESS_SECONDS))
+            elif action == "task_export":
+                argument = await self._body(
+                    request, event, deadline, started, kind=StandingExportRequest
                 )
                 self._guard(event, min(deadline, started + STANDING_INGRESS_SECONDS))
             elif action == "snapshot":
@@ -468,6 +481,10 @@ def install_standing_owner_routes(
     @agent_routes.post("/tasks/lookup")
     async def task_lookup(request: Request):
         return await respond(request, "task_lookup")
+
+    @agent_routes.post("/tasks/export-admission")
+    async def task_export(request: Request):
+        return await respond(request, "task_export")
 
     app.include_router(routes)
     app.include_router(agent_routes)

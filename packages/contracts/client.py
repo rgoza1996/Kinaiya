@@ -260,6 +260,11 @@ class JournalClient:
 
         return await standing_task_lookup(self, request)
 
+    async def standing_export_admission(self, request):
+        from packages.contracts.standing_client import standing_export_admission
+
+        return await standing_export_admission(self, request)
+
     async def admit_submit(self, request: AppendRequest) -> AgentSubmitReceipt:
         deadline = asyncio.get_running_loop().time() + AGENT_SUBMIT_ADMISSION_TIMEOUT_S
         try:

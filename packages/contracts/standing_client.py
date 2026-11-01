@@ -12,6 +12,7 @@ from packages.contracts.standing_execution import (
     StandingExecutionClaimAdmission,
     StandingExecutionIntent,
 )
+from packages.contracts.standing_export import StandingExportAdmission, StandingExportRequest
 from packages.contracts.standing_work import StandingConflict, StandingUnavailable, _checked
 
 
@@ -137,7 +138,13 @@ async def _exchange(owner, method, path, original, request_type, result_type, *,
         proposal, body = None, None
         if request_type is not None:
             proposal, body = _freeze(original, request_type)
-            maximum = 8192 if request_type is StandingProducerRenewal else 131072
+            maximum = (
+                StandingExportRequest.wire_bytes
+                if request_type is StandingExportRequest
+                else 8192
+                if request_type is StandingProducerRenewal
+                else 131072
+            )
             if len(body) > maximum:
                 raise StandingUnavailable
             headers["Content-Type"] = "application/json"
@@ -221,6 +228,19 @@ async def standing_admit(
         StandingExecutionIntent,
         StandingTaskAdmission,
         capability=capability,
+    )
+
+
+async def standing_export_admission(
+    owner, request: StandingExportRequest
+) -> StandingExportAdmission:
+    return await _exchange(
+        owner,
+        "POST",
+        "/v1/standing/tasks/export-admission",
+        request,
+        StandingExportRequest,
+        StandingExportAdmission,
     )
 
 
