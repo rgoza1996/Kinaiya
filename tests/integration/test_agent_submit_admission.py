@@ -18,6 +18,7 @@ import pytest
 
 from packages.contracts.models import AppendRequest, JournalEntry, SessionRequest
 from services.common.auth import Auth
+from services.session.agent_control import AgentControl
 from services.session.api import create_app
 from services.session.store import Store
 
@@ -182,6 +183,10 @@ def entry_rows(store):
 
 
 def test_two_sqlite_connections_choose_one_created_winner(env):
+    # Native startup establishes the shared default before admission races.
+    # An auxiliary connection cannot initialize a fresh pending mode authority.
+    controller = AgentControl(env.store)
+    controller.register()
     second = Store(env.path)
     try:
         first_admit = getattr(env.store, "admit_submit", None)
@@ -211,6 +216,7 @@ def test_two_sqlite_connections_choose_one_created_winner(env):
         assert native_submits(second) == [winner]
     finally:
         second.close()
+        controller.close()
 
 
 async def test_retained_ack_and_lookup_preserve_canonical_winner(env):

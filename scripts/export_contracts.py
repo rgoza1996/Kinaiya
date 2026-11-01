@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from packages.contracts import (
+    agent_control,
     agent_export,
     agent_submit,
     auxiliary_attempts,
@@ -50,6 +51,23 @@ for module in (
 (target / "ConverseSetup.json").write_text(
     json.dumps(converse_setup.ConverseSetup.model_json_schema(), indent=2) + "\n"
 )
+
+# These strict, immutable control types deliberately require every wire field;
+# they do not inherit the legacy event defaults from WireModel.
+for name in (
+    "AgentModeChange",
+    "AgentControlSnapshot",
+    "AgentModeReceipt",
+    "AgentModeLookupResult",
+    "AgentTaskIdentity",
+    "AgentSteerChange",
+    "AgentSteerSource",
+    "AgentSteerAdmissionRequest",
+    "AgentSteerReceipt",
+    "AgentSteerLookupResult",
+):
+    cls = getattr(agent_control, name)
+    (target / f"{name}.json").write_text(json.dumps(cls.model_json_schema(), indent=2) + "\n")
 
 # Owner policy requests are strict frozen models, separate from journal events.
 for cls in (

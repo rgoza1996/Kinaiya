@@ -388,7 +388,7 @@ async def test_recovery_after_malformed_then_correct(tmp_path):
         await runtime.close()
 
 
-async def test_steer_revision_still_enforced(tmp_path):
+async def test_steer_revision_still_enforced(tmp_path, native_agent_journal):
     gate = asyncio.Event()
 
     async def stale():
@@ -410,7 +410,7 @@ async def test_steer_revision_still_enforced(tmp_path):
         ]
     )
     runtime = AgentRuntime(
-        InMemoryJournal(SESSION),
+        native_agent_journal,
         provider,
         tmp_path,
         ToolPolicy(workspace=tmp_path, allow_write=True),
