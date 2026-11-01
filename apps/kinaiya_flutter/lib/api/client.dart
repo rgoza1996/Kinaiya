@@ -22,6 +22,7 @@ import 'agent_model_client.dart';
 import 'agent_model_settings.dart';
 import 'agent_runtime_client.dart';
 import 'agent_runtime_settings.dart';
+import 'agent_control_client.dart';
 import 'library_models.dart';
 import 'artifact_client.dart';
 import 'provider_client.dart';
@@ -96,6 +97,7 @@ class KinaiyaClient {
     http.Client Function()? providerClientFactory,
     http.Client Function()? agentModelClientFactory,
     http.Client Function()? agentRuntimeClientFactory,
+    http.Client Function()? agentControlClientFactory,
   }) : sessionBase = normalizeServiceRoot(sessionBase),
        agentBase = normalizeServiceRoot(agentBase),
        converseBase = normalizeServiceRoot(converseBase),
@@ -133,7 +135,10 @@ class KinaiyaClient {
            (httpClient == null ? http.Client.new : _modelInjectionRequired),
        _agentRuntimeClientFactory =
            agentRuntimeClientFactory ??
-           (httpClient == null ? http.Client.new : _runtimeInjectionRequired);
+           (httpClient == null ? http.Client.new : _runtimeInjectionRequired),
+       _agentControlClientFactory =
+           agentControlClientFactory ??
+           (httpClient == null ? http.Client.new : _controlInjectionRequired);
 
   final String sessionBase;
   final String agentBase;
@@ -298,6 +303,16 @@ class KinaiyaClient {
     clientFactory: _agentRuntimeClientFactory,
   );
 
+  final http.Client Function() _agentControlClientFactory;
+  static http.Client _controlInjectionRequired() => throw StateError(
+    'Agent mode transport requires its own injected factory',
+  );
+  late final AgentControlApi agentControl = AgentControlApi(
+    baseUrl: sessionBase,
+    ownerToken: _token,
+    clientFactory: _agentControlClientFactory,
+  );
+
   Future<ConverseSetup> converseSetup() async =>
       ConverseSetup.fromJson(await _get(converseBase, '/v1/converse/setup'));
 
@@ -327,6 +342,7 @@ class KinaiyaClient {
     http.Client Function()? providerClientFactory,
     http.Client Function()? agentModelClientFactory,
     http.Client Function()? agentRuntimeClientFactory,
+    http.Client Function()? agentControlClientFactory,
   }) : sessionBase = normalizeServiceRoot(sessionBase),
        agentBase = normalizeServiceRoot(agentBase),
        converseBase = normalizeServiceRoot(converseBase),
@@ -353,7 +369,9 @@ class KinaiyaClient {
        _agentModelClientFactory =
            agentModelClientFactory ?? _modelInjectionRequired,
        _agentRuntimeClientFactory =
-           agentRuntimeClientFactory ?? _runtimeInjectionRequired {
+           agentRuntimeClientFactory ?? _runtimeInjectionRequired,
+       _agentControlClientFactory =
+           agentControlClientFactory ?? _controlInjectionRequired {
     _mockLabel = label;
   }
 
@@ -1076,6 +1094,7 @@ class KinaiyaClient {
       unawaited(auxiliaryRoutes.close());
       unawaited(workspaceSettings.close());
       unawaited(runtimeSettings.close());
+      unawaited(agentControl.close());
       artifacts.close();
     }
   }

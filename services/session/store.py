@@ -2,6 +2,7 @@
 
 import copy
 import json
+import secrets
 import sqlite3
 import threading
 from contextlib import contextmanager
@@ -100,9 +101,9 @@ class Store:
         self.db.row_factory = sqlite3.Row
         self.db.execute("PRAGMA foreign_keys=ON")
         self.db.execute("PRAGMA journal_mode=WAL")
-        self.db.executescript("""
+        schema = """
             CREATE TABLE IF NOT EXISTS schema_meta(version INTEGER NOT NULL);
-            INSERT INTO schema_meta SELECT 1 WHERE NOT EXISTS(SELECT 1 FROM schema_meta);
+            INSERT INTO schema_meta(version) SELECT 1 WHERE NOT EXISTS(SELECT 1 FROM schema_meta);
             CREATE TABLE IF NOT EXISTS sessions(
                 session_id TEXT PRIMARY KEY, value TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS entries(
@@ -162,17 +163,49 @@ class Store:
                 logical_key TEXT NOT NULL,
                 event_id TEXT NOT NULL REFERENCES entries(event_id) ON DELETE CASCADE,
                 PRIMARY KEY(session_id, logical_key));
-        """)
-        if self.db.execute("SELECT version FROM schema_meta").fetchone()[0] != 1:
-            raise JournalError(
-                "Unsupported database version; preserve the database before migration"
-            )
-        self.db.commit()
+        """
+        try:
+            # The creation capability and durable pending origin are decided
+            # under the same SQLite writer boundary as the first base schema.
+            # executescript would implicitly commit that boundary before DDL.
+            self.db.execute("BEGIN IMMEDIATE")
+            new_store = not self.db.execute(
+                "SELECT 1 FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' LIMIT 1"
+            ).fetchone()
+            if new_store:
+                self.db.execute(
+                    "CREATE TABLE schema_meta(version INTEGER NOT NULL,"
+                    "agent_control_version INTEGER,agent_control_backend TEXT NOT NULL)"
+                )
+                self.db.execute("INSERT INTO schema_meta VALUES(1,0,?)", (secrets.token_hex(16),))
+            statement = ""
+            for line in schema.splitlines(keepends=True):
+                statement += line
+                if sqlite3.complete_statement(statement):
+                    self.db.execute(statement)
+                    statement = ""
+            if statement.strip():
+                raise JournalError("Incomplete native schema initialization")
+            if self.db.execute("SELECT version FROM schema_meta").fetchone()[0] != 1:
+                raise JournalError(
+                    "Unsupported database version; preserve the database before migration"
+                )
+            self.db.commit()
+        except BaseException:
+            try:
+                self.db.rollback()
+            finally:
+                self.db.close()
+            raise
+        self._agent_control_default_bootstrap = new_store
         self._agent_submit_ready = False
         self._agent_submit_unavailable = False
         from services.session.decisions_store import DecisionsInspectionStore
 
         self.decisions = DecisionsInspectionStore(self)
+        from services.session.agent_control import AgentControl
+
+        self.agent_control = AgentControl(self, new_store=new_store)
 
     def register_converse_context_validator(self, implementation_id, callback):
         """Trusted startup only; registration never imports a memory backend."""
@@ -737,9 +770,9 @@ class Store:
         if (
             request.kind == "agent.command"
             and isinstance(request.payload, dict)
-            and request.payload.get("op") == "submit"
+            and request.payload.get("op") in {"submit", "steer-requested"}
         ):
-            raise JournalError("Agent submit requires native admission")
+            raise JournalError("Agent submit and steering intent require native admission")
         with self.lock, self.db:
             return self._append_entry_locked(request, role)
 
@@ -955,6 +988,9 @@ class Store:
                     ).fetchone()
                     if native is not None:
                         raise AgentSubmitUnavailable
+                    # Exact historical proof above remains usable while Off.
+                    # No await or second transaction separates mode and receipt.
+                    self.agent_control.require_admission()
                     event = self._append_entry_locked(proposal, role)
                     self.db.execute(
                         "INSERT INTO agent_submit_slots(session_id,logical_key,event_id)"
@@ -1576,6 +1612,26 @@ class LocalJournal:
 
     def __init__(self, store: Store, role: str):
         self.store, self.role = store, role
+
+    async def agent_control_state(self):
+        if self.role not in {"owner", "agent"}:
+            raise PermissionError("Agent control inspection requires owner or Agent")
+        return self.store.agent_control.snapshot()
+
+    async def agent_control_backend(self):
+        if self.role != "agent":
+            raise PermissionError("Agent backend discovery requires Agent")
+        return self.store.agent_control.backend()
+
+    async def admit_steer(self, request):
+        if self.role != "agent":
+            raise PermissionError("Steering intent requires Agent")
+        return self.store.agent_control.admit_steer(request)
+
+    async def lookup_steer(self, request):
+        if self.role != "agent":
+            raise PermissionError("Steering intent lookup requires Agent")
+        return self.store.agent_control.lookup_steer(request)
 
     async def agent_export_admission(self, request):
         if self.role != "agent":
