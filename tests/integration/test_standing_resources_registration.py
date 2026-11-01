@@ -272,11 +272,7 @@ def test_first_reserve_rechecks_current_native_session_epoch(registered):
     reg = registered
     proof = accepted(reg)
     request = reservation(reg.owner.context(query(proof.claim.request.task.task_id)))
-    with reg.native.store.db:
-        reg.native.store.db.execute(
-            "UPDATE sessions SET epoch=epoch+1 WHERE session_id=?",
-            (proof.claim.request.task.task_session.session_id,),
-        )
+    reg.native.store.reset(proof.claim.request.task.task_session.session_id)
     before = database_state(reg.native.store.db)
     with pytest.raises(StandingConflict):
         reg.owner.reserve(request)
