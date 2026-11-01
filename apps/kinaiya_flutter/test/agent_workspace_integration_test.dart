@@ -12,7 +12,7 @@ import 'package:kinaiya_flutter/state/app_state.dart';
 import 'package:kinaiya_flutter/ui/agent_chat.dart';
 
 import 'agent_workspace_state_test.dart'
-    show WorkspaceApi, wired, entry, catalog, harnessJson;
+    show WorkspaceApi, wired, entry, toolEntry, catalog, harnessJson;
 
 class WorkspaceUiApi extends WorkspaceApi {
   List<AgentTask> fixtures = [];
@@ -162,6 +162,25 @@ Future<void> close(WidgetTester tester, AppState state) async {
 }
 
 void main() {
+  testWidgets('polling adds new recorded tool activity to a verified session', (
+    tester,
+  ) async {
+    final api = WorkspaceUiApi()..history['a'] = [entry('a', 1)];
+    final state = wired(api);
+    await state.selectAgentSession('a');
+    expect(state.agentHistoryVerified, isTrue);
+    await tester.pumpWidget(host(state));
+    await settle(tester);
+    api.history['a']!.add(toolEntry(2));
+    await tester.pump(const Duration(seconds: 4));
+    await settle(tester);
+    expect(state.agentHistory.last.toolActivity?.eventId, 'tool-event-2');
+    expect(find.text('Tool activity · 1 record'), findsOneWidget);
+    expect(api.workRequests, 0);
+    expect(tester.takeException(), isNull);
+    await close(tester, state);
+  });
+
   testWidgets(
     'connection listener and simultaneous refresh share one real reader admission',
     (tester) async {

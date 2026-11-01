@@ -44,6 +44,7 @@ class AgentHarnessSidebar extends StatefulWidget {
     required this.onToggle,
     required this.onRefresh,
     required this.onSelect,
+    this.showBorder = true,
   });
 
   final List<HarnessSidebarEntry> entries;
@@ -54,6 +55,7 @@ class AgentHarnessSidebar extends StatefulWidget {
   final VoidCallback onToggle;
   final VoidCallback onRefresh;
   final ValueChanged<String> onSelect;
+  final bool showBorder;
 
   @override
   State<AgentHarnessSidebar> createState() => _AgentHarnessSidebarState();
@@ -87,7 +89,10 @@ class _AgentHarnessSidebarState extends State<AgentHarnessSidebar> {
       width: width,
       child: Container(
         key: const Key('agent-harness-sidebar'),
-        decoration: agentWorkspaceDecoration(context),
+        decoration: agentWorkspaceDecoration(
+          context,
+          showBorder: widget.showBorder,
+        ),
         child: widget.collapsed
             ? _buildCollapsed(context)
             : _buildExpanded(context),
@@ -142,15 +147,18 @@ class _AgentHarnessSidebarState extends State<AgentHarnessSidebar> {
           child: Row(
             children: [
               Expanded(
-                child: TextField(
-                  controller: _search,
-                  decoration: const InputDecoration(
-                    hintText: 'Search harnesses',
-                    prefixIcon: Icon(Icons.search),
-                    isDense: true,
-                    border: OutlineInputBorder(),
+                child: Semantics(
+                  label: 'Search harnesses',
+                  child: TextField(
+                    controller: _search,
+                    decoration: const InputDecoration(
+                      hintText: 'Search',
+                      prefixIcon: Icon(Icons.search),
+                      isDense: true,
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: (v) => setState(() => _query = v),
                   ),
-                  onChanged: (v) => setState(() => _query = v),
                 ),
               ),
               const SizedBox(width: 4),
@@ -398,6 +406,7 @@ class AgentSessionSidebar extends StatefulWidget {
     required this.onLoadMore,
     required this.onSelect,
     required this.controls,
+    this.showBorder = true,
   });
 
   final List<SessionSidebarEntry> entries;
@@ -413,6 +422,7 @@ class AgentSessionSidebar extends StatefulWidget {
   final VoidCallback onLoadMore;
   final ValueChanged<String> onSelect;
   final Widget controls;
+  final bool showBorder;
 
   @override
   State<AgentSessionSidebar> createState() => _AgentSessionSidebarState();
@@ -439,7 +449,10 @@ class _AgentSessionSidebarState extends State<AgentSessionSidebar> {
       width: width,
       child: Container(
         key: const Key('agent-session-sidebar'),
-        decoration: agentWorkspaceDecoration(context),
+        decoration: agentWorkspaceDecoration(
+          context,
+          showBorder: widget.showBorder,
+        ),
         child: widget.collapsed ? _buildCollapsed() : _buildExpanded(context),
       ),
     );

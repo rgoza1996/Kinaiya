@@ -419,87 +419,98 @@ class _HomeShellState extends State<HomeShell> {
             child: Row(
               children: [
                 if (rail)
-                  NavigationRail(
-                    extended: _railExtended,
-                    scrollable: true,
-                    backgroundColor:
-                        widget.darkTheme.colorScheme.surfaceContainerLow,
-                    indicatorColor: widget.darkTheme.colorScheme.primary,
-                    selectedIconTheme: IconThemeData(
-                      color: widget.darkTheme.colorScheme.onPrimary,
-                    ),
-                    unselectedIconTheme: IconThemeData(
-                      color: widget.darkTheme.colorScheme.onSurfaceVariant,
-                    ),
-                    selectedLabelTextStyle: widget
-                        .darkTheme
-                        .textTheme
-                        .labelLarge
-                        ?.copyWith(
-                          color: widget.darkTheme.colorScheme.onSurface,
-                        ),
-                    unselectedLabelTextStyle: widget
-                        .darkTheme
-                        .textTheme
-                        .labelLarge
-                        ?.copyWith(
-                          color: widget.darkTheme.colorScheme.onSurfaceVariant,
-                        ),
-                    minWidth: 76,
-                    minExtendedWidth: 248,
-                    groupAlignment: -1,
-                    leading: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 20),
-                      child: ExcludeSemantics(
-                        child: Image.asset(
-                          'assets/mascot/kinaiya-mascot.png',
-                          width: 48,
-                          height: 48,
+                  Container(
+                    key: const ValueKey('navigation-rail-boundary'),
+                    foregroundDecoration: BoxDecoration(
+                      border: Border(
+                        right: BorderSide(
+                          color: widget.darkTheme.colorScheme.outlineVariant,
                         ),
                       ),
                     ),
-                    trailingAtBottom: true,
-                    trailing: IconButton(
-                      key: const ValueKey('navigation-expand'),
-                      tooltip: _railExtended
-                          ? 'Collapse navigation'
-                          : 'Expand navigation',
-                      color: widget.darkTheme.colorScheme.onSurface,
-                      onPressed: () =>
-                          setState(() => _railExtended = !_railExtended),
-                      icon: Icon(
-                        _railExtended
-                            ? Icons.chevron_left
-                            : Icons.chevron_right,
+                    child: NavigationRail(
+                      extended: _railExtended,
+                      scrollable: true,
+                      backgroundColor:
+                          widget.darkTheme.colorScheme.surfaceContainerLow,
+                      indicatorColor: widget.darkTheme.colorScheme.primary,
+                      selectedIconTheme: IconThemeData(
+                        color: widget.darkTheme.colorScheme.onPrimary,
                       ),
-                    ),
-                    selectedIndex: page == _ShellPage.options
-                        ? destinations.length
-                        : destinations.indexOf(page),
-                    onDestinationSelected: (i) {
-                      if (i == destinations.length) {
-                        _settings();
-                      } else {
-                        _selectPage(destinations[i]);
-                      }
-                    },
-                    destinations: [
-                      for (final destination in _destinations)
-                        NavigationRailDestination(
-                          icon: Icon(
-                            destination.icon,
-                            key: ValueKey('navigation-${destination.name}'),
+                      unselectedIconTheme: IconThemeData(
+                        color: widget.darkTheme.colorScheme.onSurfaceVariant,
+                      ),
+                      selectedLabelTextStyle: widget
+                          .darkTheme
+                          .textTheme
+                          .labelLarge
+                          ?.copyWith(
+                            color: widget.darkTheme.colorScheme.onSurface,
                           ),
-                          label: Text(destination.label),
+                      unselectedLabelTextStyle: widget
+                          .darkTheme
+                          .textTheme
+                          .labelLarge
+                          ?.copyWith(
+                            color:
+                                widget.darkTheme.colorScheme.onSurfaceVariant,
+                          ),
+                      minWidth: 76,
+                      minExtendedWidth: 248,
+                      groupAlignment: -1,
+                      leading: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 20),
+                        child: ExcludeSemantics(
+                          child: Image.asset(
+                            'assets/mascot/kinaiya-mascot.png',
+                            width: 48,
+                            height: 48,
+                          ),
                         ),
-                      const NavigationRailDestination(
-                        icon: Icon(
-                          Icons.settings_outlined,
-                          key: ValueKey('navigation-settings'),
-                        ),
-                        label: Text('Options'),
                       ),
-                    ],
+                      trailingAtBottom: true,
+                      trailing: IconButton(
+                        key: const ValueKey('navigation-expand'),
+                        tooltip: _railExtended
+                            ? 'Collapse navigation'
+                            : 'Expand navigation',
+                        color: widget.darkTheme.colorScheme.onSurface,
+                        onPressed: () =>
+                            setState(() => _railExtended = !_railExtended),
+                        icon: Icon(
+                          _railExtended
+                              ? Icons.chevron_left
+                              : Icons.chevron_right,
+                        ),
+                      ),
+                      selectedIndex: page == _ShellPage.options
+                          ? destinations.length
+                          : destinations.indexOf(page),
+                      onDestinationSelected: (i) {
+                        if (i == destinations.length) {
+                          _settings();
+                        } else {
+                          _selectPage(destinations[i]);
+                        }
+                      },
+                      destinations: [
+                        for (final destination in _destinations)
+                          NavigationRailDestination(
+                            icon: Icon(
+                              destination.icon,
+                              key: ValueKey('navigation-${destination.name}'),
+                            ),
+                            label: Text(destination.label),
+                          ),
+                        const NavigationRailDestination(
+                          icon: Icon(
+                            Icons.settings_outlined,
+                            key: ValueKey('navigation-settings'),
+                          ),
+                          label: Text('Options'),
+                        ),
+                      ],
+                    ),
                   ),
                 Expanded(
                   child: Column(
@@ -642,6 +653,13 @@ class _HomeShellState extends State<HomeShell> {
                               },
                             ),
                           ),
+                        ),
+                      ),
+                      Theme(
+                        data: widget.darkTheme,
+                        child: const Divider(
+                          key: ValueKey('shell-header-divider'),
+                          height: 1,
                         ),
                       ),
                       if (!state.connected && state.connectionError != null)

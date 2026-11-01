@@ -36,8 +36,16 @@ injection reports unavailable rather than contacting a real host.
 AppState owns the selected harness/session, page cursors and up to 100 RAM session
 snapshots. Drafts retain their original disclosure scope per exact
 session/thread/epoch. Selection re-reads the native Session and restores literal
-Agent submit/outcome records through bounded journal pages, accepting only
-`agent-supervisor` provenance. Each page rechecks native scope before publication.
+Agent submit, attributable tool, and outcome records through bounded journal
+pages, accepting only `agent-supervisor` provenance. Tool records require one
+task reference matching their payload. Each page rechecks native scope before
+publication. Consecutive records for one task and revision form a collapsible
+activity group; shell summaries and output are read-only text, with bounded
+display and recorded result status. The summary can contain only a shortened
+command. A navigation rail targets loaded recorded user/Agent event IDs; it
+does not offer markers for unloaded history. The client polls for new records
+while Agent Chat is open once the current pages are loaded. Tool start/progress
+and failure records are not guaranteed, so this is not a complete live trace.
 Same-connection catalog refreshes share one in-flight read, installed before any
 synchronous notification; connection invalidation immediately permits a new read.
 Chat records authentication transitions before callbacks and skips duplicate
@@ -70,3 +78,10 @@ not model quality, physical audio or mobile-call acceptance. The sidebar widget
 source was partially delivered through the actual visible Muse Contributor CLI;
 that run reached its step limit without tests. Codex owns the responsive/lint
 repairs, all tests, integration, state/client work and final verification.
+
+Recorded activity projection and paging are exercised in
+`apps/kinaiya_flutter/test/agent_workspace_state_test.dart`; scope-fenced polling
+is exercised in `agent_workspace_integration_test.dart`; disclosure, shell text
+and navigation through variable-height messages are exercised in
+`ui_consistency_test.dart`. These checks use synthetic data and do not establish
+that the native journal records every tool start, result, or failure.
