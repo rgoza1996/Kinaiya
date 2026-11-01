@@ -3,9 +3,11 @@
 Requirement: [Roadmap §13.1](../Roadmap.md#131-operating-modes),
 [M7](https://github.com/rgoza1996/Kinaiya/issues/10) prerequisite
 [#217](https://github.com/rgoza1996/Kinaiya/issues/217).
-The strict version 1.0 wire grammar is implemented; native enforcement and the
-owner panel are being integrated. This document does not establish qualification
-or completion. See [ADR0105](adr/0105-agent-operating-modes.md).
+The version 1.0 contract, native enforcement and owner panel are implemented.
+[Local evidence](../evaluation/evidence/agent-operating-modes-2026-10-31.json)
+records independent fault/race checks, Flutter checks and actual Dart-to-native
+HTTP work. Exact-final-head CI and review remain merge gates; consult the linked
+issue/PR for their observed results. See [ADR0105](adr/0105-agent-operating-modes.md).
 
 ## Ownership and routes
 

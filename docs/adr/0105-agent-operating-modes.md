@@ -1,6 +1,7 @@
 # ADR0105 — Native Agent operating modes
 
-Status: contract accepted; native/client implementation and qualification in progress.
+Status: accepted; native/client implementation locally qualified. Final-head CI
+and independent review are merge gates recorded on the linked issue/PR.
 Requirement: Roadmap §13.1 and §19.2; [#217](https://github.com/rgoza1996/Kinaiya/issues/217),
 prerequisite to [M7](https://github.com/rgoza1996/Kinaiya/issues/10).
 
@@ -42,8 +43,16 @@ Options or move permissions into the mode switch.
 ## Verification boundary
 
 Pure wire contracts were independently checked before native/client delegation.
-Native race, restart, storage, authorization and source tests, real native API-to-
-Agent work, client ownership/lifecycle checks and exact-final-head CI remain
-required. A schema or codec pass alone proves none of those behaviors. Standing
-schedules, inbox/notifications, physical calls, general execution leases and
-external exactly-once effects are outside this prerequisite.
+The unchanged independent native regressions and additional proof/bootstrap
+fault probes pass on the combined source, including actual workspace replacement
+and approval/expiry integration. Actual Session/Agent HTTP and SQLite work proves
+accepted-before-Off completion, new-admission refusal and independent Stop; the
+actual Dart client additionally covers restart, historical proof and database
+replacement. All 958 Flutter tests, analysis and formatting passed on byte-exact
+client files. [Evidence](../../evaluation/evidence/agent-operating-modes-2026-10-31.json)
+retains initial failures, corrections, source pins and verification boundaries.
+
+Final-head CI is a separate required gate. These deterministic checks use scripted
+model responses and synthetic inputs; they do not qualify model quality or human
+conversation. Standing schedules, inbox/notifications, physical calls, general
+execution leases and external exactly-once effects are outside this prerequisite.
