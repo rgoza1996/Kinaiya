@@ -1,0 +1,184 @@
+{
+  "schema_version": "1.0",
+  "kind": "standing-native-and-http-foundation",
+  "date": "2026-11-01",
+  "requirement": [
+    "issue228",
+    "M7 issue10",
+    "Options issue208",
+    "Roadmap13.1/19.2"
+  ],
+  "status": "qualified focused branch increment; full issue remains incomplete",
+  "branch": "codex/228-standing-work",
+  "source_head": "1b2896413f484dfc77b7044c1a9240c8601de47b",
+  "attribution": "Codex implementation and independent Codex oracles/review; legacy muse_* task names are not actual Muse CLI execution or human approval.",
+  "implemented": [
+    "Native persisted producer lease/highwater, explicit owner activation/full historical proof and target-epoch Stop; passive fresh-client Stop template also works over established healthy storage at controller capacity.",
+    "Six authenticated Session dispatch/producer routes; Agent-only renewal, owner-only control, strict4096-byte POSTs and schema-specific full response bounds.",
+    "Old four authorization routes and new six routes share one64-actual-operation registry and5s ingress/25s total public deadlines; cancellation retains real ownership until actual settlement; shutdown joins before local capability close/controller retirement.",
+    "Fresh activation/renewal final cancellation/deadline checks follow blocking SQL and lease validation, immediately before COMMIT."
+  ],
+  "source_and_frozen_oracle_sha256": {
+    "packages/contracts/standing_dispatch.py": "b6c84e3532b40e15ecd9b4ba4da6031303722cf0de7cba0573403a15d1df625f",
+    "services/session/standing_dispatch.py": "038b94f9e64d53514276f1f324eda80cb6842e95067f02a53cc174649058b6fb",
+    "services/session/standing_work_api.py": "a3801f6f04493b90024c9ba8c28101d2c2b91d751ba3b1bbbde0ba42c0a4dbf6",
+    "services/session/api.py": "3f74944881020891f5ca0961004e7393e590fa535796f430079951d6ecdcdd15",
+    "tests/integration/test_dispatch_precommit_guard.py": "3608114941fb2366b716e4f33c51c2f1ecea3f7757860dd38e55d27485e44902",
+    "tests/integration/test_standing_dispatch_owner.py": "1342761fa4477e8cb30f39c17c83d72d1f619635d9dd2e3b52cabc2d26632dbf",
+    "tests/integration/test_standing_dispatch_stop_context.py": "1e2c0090c36d854d5d159d28eb6b6a442de66fbe6260e4021a8011d832c9f6d0",
+    "tests/integration/test_standing_dispatch_api.py": "2cb96d69b7c20f1609d917f7cfefcac178f4aca03b06e10250515e309eaf9301"
+  },
+  "observed_checks": {
+    "native_final_guard": {
+      "receipt_sha256": "1403e1c8083fe7642fc63be3b23bab4d5311a182110e24cb6fce9c4a4fe63e7d",
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-s",
+        "-W",
+        "error",
+        "-p",
+        "no:cacheprovider",
+        "tests/integration/test_dispatch_precommit_guard.py",
+        "tests/integration/test_standing_dispatch_owner.py",
+        "tests/integration/test_standing_dispatch_stop_context.py",
+        "--junitxml=/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/228-native-final-guard-qualification-9pjbgs54/pytest.xml"
+      ],
+      "junit": {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "64",
+        "time": "19.959",
+        "timestamp": "2026-11-01T01:54:43.686830-08:00",
+        "hostname": "roggoz"
+      },
+      "exit_code": 0
+    },
+    "api_absent_baseline": {
+      "receipt_sha256": "2277e262742a572e3be649af9a66f914c0d75331f75d779450f104dff2cbd55f",
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-W",
+        "error",
+        "-p",
+        "no:cacheprovider",
+        "tests/integration/test_standing_dispatch_api.py",
+        "--junitxml=/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/228-dispatch-api-absence-s42l1th4/pytest.xml"
+      ],
+      "junit": {
+        "name": "pytest",
+        "errors": "44",
+        "failures": "5",
+        "skipped": "0",
+        "tests": "49",
+        "time": "4.185",
+        "timestamp": "2026-11-01T02:05:10.176979-08:00",
+        "hostname": "roggoz"
+      },
+      "exit_code": 1
+    },
+    "api_first_qualification": {
+      "receipt_sha256": "955c98ac78e1806747ea348504809877ac627a9832bcba2a2612ad925c41f32d",
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-W",
+        "error",
+        "-p",
+        "no:cacheprovider",
+        "tests/integration/test_standing_dispatch_api.py",
+        "--junitxml=/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/228-dispatch-api-first-qualification-f9ed4j9k/pytest.xml"
+      ],
+      "junit": {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "49",
+        "time": "125.427",
+        "timestamp": "2026-11-01T02:06:04.932632-08:00",
+        "hostname": "roggoz"
+      },
+      "exit_code": 0
+    },
+    "affected_existing_regressions": {
+      "receipt_sha256": "414361d3a0322e7fbd49c15a6c188a7d910a669e16f9446a009fde7eba3e7c26",
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-W",
+        "error",
+        "-p",
+        "no:cacheprovider",
+        "tests/integration/test_standing_owner.py",
+        "tests/integration/test_standing_owner_history.py",
+        "tests/integration/test_standing_owner_cors.py",
+        "tests/integration/test_agent_operating_mode.py",
+        "tests/integration/test_agent_mode_permissions.py",
+        "tests/integration/test_agent_mode_workspace.py",
+        "--junitxml=/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/228-dispatch-api-old-regressions-xfya8ez8/pytest.xml"
+      ],
+      "junit": {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "111",
+        "time": "81.380",
+        "timestamp": "2026-11-01T02:08:40.226688-08:00",
+        "hostname": "roggoz"
+      },
+      "exit_code": 0
+    }
+  },
+  "retained_failures": [
+    {
+      "kind": "native source review final SQL guard regression",
+      "failed": 4,
+      "passed_controls": 2,
+      "seconds": 0.8,
+      "receipt_sha256": "bd0ec8649ec7d573925e35be0d4c51589a1e4e84c8946f4c5f2023d9b1609c97",
+      "correction": "e8644ad; two source-only final guard calls; six-case oracle and original50+8 unchanged",
+      "independent_followup_receipt_sha256": "51b613bed390fe61d5a4b8f08eb9ffe720e17c7b888d695f1c53e457309aac93"
+    },
+    {
+      "kind": "cold dispatch HTTP absence",
+      "classification": "5 failures and44 setup errors before the new create_app keyword/routes existed; this is absence evidence, not49 exercised native behavior failures",
+      "oracles_changed": false
+    },
+    {
+      "kind": "earlier native first qualification",
+      "classification": "48 passed and2 failed: ordinary mode-key lookup conflict and lost precommit lease classification",
+      "receipt_sha256": "a1d7f6c1619e4ac8aee4b4890002dbba0c9d822c0fb9078b7ffbc2d4d67e1496",
+      "correction": "source-only5389ae2 before unchanged50 passed; later final64 qualification includes those50 unchanged"
+    }
+  ],
+  "verification_scope": [
+    "Python3.12.3, existing pinned virtualenv, exact isolated checkout PYTHONPATH; warnings treated as errors in all reported pytest runs; no dependency installation.",
+    "New49-case suite uses actual ASGI, SQLite, public native controller methods and controlled producer monotonic-ms clocks; it issues10,000 controller generations through the public native interface rather than changing a cap or fabricating acknowledgement rows.",
+    "Actual five-second ingress and25-second total cutoffs and shared64 entered native workers are checked, including cancelled shutdown and final native joins.",
+    "The final-SQL deadline regression controls only this module elapsed clock and fires after actual DML and actual subsequent SQL; it is not an actual25-second wait. Actual threading.Event cancellation is separate.",
+    "Ruff/check-format passed the two HTTP source files/new API oracle and the native guard/new six-case file; no full-project CI was requested for this unfinished feature increment."
+  ],
+  "not_qualified": [
+    "Actual Agent standing producer loop, canonical durable occurrence/dispatch intent/admission, real standing task/file workflow, positive original-supervisor execution cleanup, deduplicated inbox and embedded owner editor.",
+    "Autonomous availability in ordinary mode UI/API; it remains unavailable. Gate initialization or a synthetic lease packet is not real producer or per-task readiness.",
+    "Real-socket dispatch client integration, actual model quality/latency, platform notifications/calls and broader M7/full Options acceptance."
+  ],
+  "paid_and_live_boundary": "No new paid/model calls, dependencies, live preview, owner configuration, credential or device actions. Existing cumulative$10 ceiling/reservations unchanged."
+}
