@@ -110,6 +110,7 @@ class ResourceCoordinator:
         self._closed = False
         self._text_lifecycle = None
         self._whistle_lifecycle = None
+        self._standing_composition = None
         self.publication_pending = False
         self._whistle_preemptions = 0
         self._has_whistle = "whistle" in self.manager.status()["workers"]
@@ -172,6 +173,67 @@ class ResourceCoordinator:
         ):
             raise ValueError("Whistle lifecycle cannot be registered")
         self._whistle_lifecycle = abort, drain
+
+    def register_standing_composition(self, *, whistle=None, qwen3=None, gguf=None):
+        """Capture trusted selected API owners; missing hooks refuse capability."""
+        selected = whistle, qwen3, gguf
+        if self._standing_composition is not None and any(
+            current is not previous
+            for current, previous in zip(selected, self._standing_composition, strict=True)
+        ):
+            raise ValueError("Resources composition cannot be replaced")
+        self._standing_composition = selected
+
+    @staticmethod
+    def _same_hook(actual, expected):
+        return (
+            callable(actual)
+            and callable(expected)
+            and getattr(actual, "__self__", None) is getattr(expected, "__self__", object())
+            and getattr(actual, "__func__", None) is getattr(expected, "__func__", object())
+        )
+
+    def require_standing_ownership(self):
+        if (
+            getattr(self.manager, "actual_ownership_supported", False) is not True
+            or getattr(self.converse, "actual_ownership_supported", False) is not True
+        ):
+            raise StandingUnavailable
+        selected_whistle, qwen, gguf = self._standing_composition or (None, None, None)
+        if qwen is not None and gguf is not None:
+            raise StandingUnavailable
+        if self._has_text or qwen is not None or gguf is not None:
+            hooks = self._text_lifecycle
+            if hooks is None:
+                raise StandingUnavailable
+            broker = getattr(hooks[0], "__self__", None)
+            endpoint = getattr(broker, "endpoint", None)
+            selected = qwen if qwen is not None else gguf
+            if (
+                selected is not None
+                and broker is not selected
+                or getattr(broker, "actual_ownership_supported", False) is not True
+                or getattr(endpoint, "actual_ownership_supported", False) is not True
+                or not self._same_hook(hooks[0], getattr(broker, "abort_active", None))
+                or not self._same_hook(hooks[1], getattr(broker, "drain", None))
+                or not self._same_hook(hooks[2], getattr(endpoint, "release_after_stop", None))
+            ):
+                raise StandingUnavailable
+        if selected_whistle is not None or self._whistle_lifecycle is not None:
+            hooks = self._whistle_lifecycle
+            if hooks is None:
+                raise StandingUnavailable
+            broker = getattr(hooks[0], "__self__", None)
+            if (
+                selected_whistle is not None
+                and broker is not selected_whistle
+                or getattr(broker, "actual_ownership_supported", False) is not True
+                or getattr(getattr(broker, "endpoint", None), "actual_ownership_supported", False)
+                is not True
+                or not self._same_hook(hooks[0], getattr(broker, "abort_active", None))
+                or not self._same_hook(hooks[1], getattr(broker, "drain", None))
+            ):
+                raise StandingUnavailable
 
     async def stop_text(self, identity=None):
         if identity is not None and identity.worker_id != self.text_worker_id:
@@ -1110,7 +1172,7 @@ class ResourceCoordinator:
         # Manager retirement/retry above is independent of a failed proof.
         cleanup.release(root)
         await cleanup.join()
-        if cleanup.failed or self.standing_barrier.uncertain:
+        if cleanup.failed:
             failure = failure or StandingUnavailable()
         async with self.lock:
             try:

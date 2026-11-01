@@ -118,6 +118,8 @@ class ManagedTextBody:
 
 
 class ManagedTextBroker:
+    actual_ownership_supported = True
+
     def __init__(self, coordinator, endpoint, protocol, *, request_timeout_s=120):
         from packages.providers.qwen3 import deadline
 

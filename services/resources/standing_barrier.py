@@ -179,10 +179,33 @@ class StandingBarrier:
             indexed.add((index["origin"], names))
         if len(indexes) != 2 or indexed != {("pk", ("claim_id",)), ("u", ("task_id",))}:
             raise StandingUnavailable
-        rows = db.execute(f"SELECT * FROM {_TABLE}").fetchall()
-        if len(rows) > MAX_CLAIMS:
+        count = db.execute(f"SELECT count(*) FROM {_TABLE}").fetchone()[0]
+        if type(count) is not int or not 0 <= count <= MAX_CLAIMS:
             raise StandingUnavailable
-        for row in rows:
+        # Check scalar types and UTF-8 byte ceilings in SQLite before any full
+        # packet is transferred into Python. Never prebuffer a corrupt ledger.
+        bounds = {
+            "claim_id": (64, 64),
+            "task_id": (1, 128),
+            "session_backend": (32, 32),
+            "resource_backend": (32, 32),
+            "instance_id": (36, 36),
+            "claim": (1, 147456),
+            "binding": (1, StandingResourceBindingRequest.wire_bytes),
+            "receipt": (1, StandingResourceBindingReceipt.wire_bytes),
+            "seal": (1, StandingResourceFinalizeRequest.wire_bytes),
+            "context": (1, StandingResourceFinalizeContext.wire_bytes),
+            "phase": (1, 7),
+        }
+        invalid = []
+        for name, (minimum, maximum) in bounds.items():
+            clause = f"(typeof({name})!='text' OR length(CAST({name} AS BLOB)) NOT BETWEEN {minimum} AND {maximum})"
+            if name in {"receipt", "seal", "context"}:
+                clause = f"({name} IS NOT NULL AND {clause})"
+            invalid.append(clause)
+        if db.execute(f"SELECT 1 FROM {_TABLE} WHERE {' OR '.join(invalid)} LIMIT 1").fetchone():
+            raise StandingUnavailable
+        for row in db.execute(f"SELECT * FROM {_TABLE} LIMIT {MAX_CLAIMS}"):
             self._checked_row(row)
 
     def _checked_row(self, row):
@@ -388,6 +411,14 @@ class StandingBarrier:
             if _wire(binding.claim) != _wire(claim):
                 raise StandingConflict
             if receipt is not None:
+                if not lookup and (
+                    binding.resource_instance != call.instance
+                    or self.sealed(claim.request.task.task_id)
+                    or row["phase"] in {"sealed", "drained"}
+                ):
+                    raise StandingUnavailable
+                if not lookup:
+                    self.owner.require_standing_ownership()
                 return receipt.validate_claim(claim)
             # Only the original controller may reconcile an uncertain bind.
             if binding.resource_instance != call.instance or not lookup:
@@ -404,12 +435,24 @@ class StandingBarrier:
             return None
         if self.sealed(claim.request.task.task_id):
             raise StandingUnavailable
+        self.owner.require_standing_ownership()
         binding = StandingResourceBindingRequest(
             schema_version="1.0",
             claim=claim,
             resource_backend=self.gate.backend,
             resource_instance=call.instance,
         )
+        # This existing Resources-role read verifies the full genuine native
+        # prepared claim even when no binding exists. It requires no Agent
+        # credential/capability and performs no native binding write.
+        observed = await call.gateway.standing_resource_binding_lookup(binding)
+        call.guard()
+        if observed is not None:
+            if type(observed) is not StandingResourceBindingReceipt:
+                raise StandingUnavailable
+            observed.validate_request(binding)
+            # Missing local pending history cannot adopt a native binding.
+            raise StandingUnavailable
         await self.gate._database(lambda: self._pending(call, binding))
         call.guard()
         receipt = await call.gateway.standing_resource_bind(binding)
@@ -480,11 +523,7 @@ class StandingBarrier:
             self.failed = True
             raise
         call.guard()
-        if (
-            getattr(self.owner.manager, "actual_ownership_supported", False) is not True
-            or getattr(self.owner.converse, "actual_ownership_supported", False) is not True
-        ):
-            raise StandingUnavailable
+        self.owner.require_standing_ownership()
         await self._join_claim(call, row["task_id"])
         call.guard()
         fresh = await call.gateway.standing_resource_finalize_context(request)

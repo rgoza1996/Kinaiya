@@ -38,11 +38,28 @@ class StandingResourceClient:
         if self._submit_closed or self._submit_cleanup_failed or self.http.is_closed:
             raise StandingUnavailable
 
+    async def _settle_ready(self, deadline):
+        # A positive sole-close task may finish one turn before its work task
+        # and original registry callbacks. Join those exact owners before a
+        # new admission, rather than inferring release from response flags.
+        ready = {
+            exchange.task
+            for exchange in self._submit_exchanges
+            if exchange.close_task is not None and exchange.close_task.done()
+        }
+        if ready:
+            _, pending = await asyncio.wait(
+                ready, timeout=max(0, deadline - asyncio.get_running_loop().time())
+            )
+            if pending:
+                raise StandingUnavailable
+
     async def _exchange(self, suffix, original, kind, result_type, *, nullable=False):
         exchange = None
         loop = asyncio.get_running_loop()
         deadline = loop.time() + 25
         try:
+            await self._settle_ready(deadline)
             self.require_available()
             if len(self._submit_exchanges) >= 64:
                 raise StandingUnavailable
@@ -137,8 +154,8 @@ class StandingResourceClient:
         except BaseException:
             self._submit_cleanup_failed = True
             raise
-        if self._submit_cleanup_failed:
-            raise StandingUnavailable
+        # Capability poison remains sticky, but positive transport retirement
+        # is cleanup, never a new binding/drainage or physical certificate.
 
     async def close(self):
         self._submit_closed = True

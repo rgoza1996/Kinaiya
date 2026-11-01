@@ -565,17 +565,21 @@ class StandingHandoff:
             )
             if not capture.effects_started and time.monotonic() >= capture.deadline:
                 capture.suppress()
+                operation.cancel()
                 raise StandingUnavailable
             if operation in done:
                 return operation.result()
             if capture.started not in done or not capture.effects_started:
                 capture.suppress()
+                operation.cancel()
                 raise StandingUnavailable
             # The capture deadline ends at the first real preemption/effect.
             # Existing hardware action timing and ownership remain unchanged.
             return await asyncio.shield(operation)
         except asyncio.CancelledError:
             capture.suppress()
+            if not capture.effects_started:
+                operation.cancel()
             caller = asyncio.current_task()
             if caller is not None and caller.cancelling():
                 raise
@@ -598,6 +602,9 @@ class StandingHandoff:
         for capture in self.attempts.values():
             capture.suppress()
         operations = tuple(self.operations)
+        for capture in tuple(self.attempts.values()):
+            if not capture.effects_started and capture.task is not None:
+                capture.task.cancel()
         if operations:
             await asyncio.wait(operations, timeout=1)
         self._maybe_close()

@@ -66,6 +66,7 @@ class ManagedTextResponse(StreamingResponse):
 def create_app(coordinator, auth, whistle=None, qwen3=None, gguf=None):
     app = FastAPI(title="Kinaiya local resources")
     owner = [Depends(auth.require("owner"))]
+    coordinator.register_standing_composition(whistle=whistle, qwen3=qwen3, gguf=gguf)
     from services.resources.standing_barrier import StandingResourcesHTTP
 
     standing = StandingResourcesHTTP(coordinator)

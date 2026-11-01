@@ -49,6 +49,7 @@ from packages.contracts.operation_ownership import current_owner
 
 AGENT_EXPORT_TIMEOUT_S = 15
 _SUBMIT_CLOSE_DRAIN_S = 1.0
+_RESOURCE_PUBLICATION_BYTES = 1024 * 1024
 
 
 class _SubmitExchange:
@@ -245,6 +246,8 @@ class _JournalMetadataExchange(_SubmitExchange):
                 raise AgentSubmitUnavailable
             raw = bytearray()
             async for chunk in self.response.stream:
+                if type(chunk) is not bytes or len(raw) + len(chunk) > _RESOURCE_PUBLICATION_BYTES:
+                    raise AgentSubmitUnavailable
                 raw.extend(chunk)
             return json.loads(bytes(raw))
         finally:

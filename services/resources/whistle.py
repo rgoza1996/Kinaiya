@@ -46,6 +46,8 @@ class ManagedWhistleConfig(BaseModel):
 
 
 class WhistleEndpoint:
+    actual_ownership_supported = True
+
     def __init__(self, directory):
         from packages.contracts.operation_ownership import StreamClosures
 
@@ -229,6 +231,8 @@ class Transcription:
 
 class WhistleBroker:
     """One native operation/cleanup owner. Refusal happens before reading audio."""
+
+    actual_ownership_supported = True
 
     def __init__(self, coordinator, endpoint, *, request_timeout_s=300):
         self.coordinator, self.manager, self.endpoint = coordinator, coordinator.manager, endpoint
