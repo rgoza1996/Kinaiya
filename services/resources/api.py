@@ -8,6 +8,8 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from packages.contracts.standing_work import StandingConflict, StandingUnavailable
+
 
 class ResourceAction(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
@@ -89,6 +91,14 @@ def create_app(coordinator, auth, whistle=None, qwen3=None, gguf=None):
             raise HTTPException(400, "converse requires enabled")
         try:
             return await coordinator.action(body.model_dump(exclude_unset=True))
+        except StandingUnavailable:
+            raise HTTPException(
+                503, str(StandingUnavailable()), headers={"Cache-Control": "no-store"}
+            ) from None
+        except StandingConflict:
+            raise HTTPException(
+                409, str(StandingConflict()), headers={"Cache-Control": "no-store"}
+            ) from None
         except ValueError as exc:
             raise HTTPException(409, str(exc)) from exc
 

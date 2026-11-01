@@ -30,6 +30,13 @@ from packages.contracts.standing_execution import (
     StandingExecutionIntent,
 )
 from packages.contracts.standing_export import StandingExportAdmission, StandingExportRequest
+from packages.contracts.standing_resources import (
+    StandingResourceObservation,
+    StandingResourceReservation,
+    StandingResourceReservationReceipt,
+    TaskResourceContext,
+    TaskResourceQuery,
+)
 from packages.contracts.standing_work import (
     MAX_STANDING_PROOF_BYTES,
     MAX_STANDING_REQUEST_BYTES,
@@ -54,6 +61,10 @@ _DISPATCH_BODIES = {
     "dispatch_stop": StandingDispatchStop,
     "producer_renew": StandingProducerRenewal,
 }
+_RESOURCE_BODIES = {
+    "resource_context": TaskResourceQuery,
+    "resource_reserve": StandingResourceReservation,
+}
 _EXECUTION_BODIES = {
     "execution_prepare",
     "execution_lookup",
@@ -61,6 +72,7 @@ _EXECUTION_BODIES = {
     "task_lookup",
     "task_close_admission",
     "task_closure_lookup",
+    "resource_observe",
 }
 _NULLABLE_EXECUTION = {
     "execution_lookup",
@@ -78,11 +90,12 @@ class StandingOwnerOperations:
     Close can therefore wait for an uncooperative native callable to settle.
     """
 
-    def __init__(self, owner, *, dispatch=None, execution=None, tasks=None):
+    def __init__(self, owner, *, dispatch=None, execution=None, tasks=None, resources=None):
         self.owner = owner
         self.dispatch = dispatch
         self.execution = execution
         self.tasks = tasks
+        self.resources = resources
         self._closed = False
         self._operations = {}
 
@@ -128,6 +141,8 @@ class StandingOwnerOperations:
             maximum = MAX_STANDING_EXECUTION_INTENT_BYTES
         elif kind is StandingExportRequest:
             maximum = StandingExportRequest.wire_bytes
+        elif kind in (TaskResourceQuery, StandingResourceReservation):
+            maximum = kind.wire_bytes
         ingress_deadline = min(deadline, started + STANDING_INGRESS_SECONDS)
         remaining = ingress_deadline - time.monotonic()
         if remaining <= 0:
@@ -228,6 +243,15 @@ class StandingOwnerOperations:
             elif action == "task_closure_lookup" and self.tasks is not None:
                 result = self.tasks.lookup_closure(argument)
                 kind = StandingAdmissionClosure
+            elif action == "resource_context" and self.resources is not None:
+                result = self.resources.context(argument)
+                kind = TaskResourceContext
+            elif action == "resource_reserve" and self.resources is not None:
+                result = self.resources.reserve(argument, deadline=deadline, cancelled=event.is_set)
+                kind = StandingResourceReservationReceipt
+            elif action == "resource_observe" and self.resources is not None:
+                result = self.resources.observe(argument)
+                kind = StandingResourceObservation
             elif self.dispatch is None:
                 raise StandingUnavailable
             elif action == "dispatch_snapshot":
@@ -255,10 +279,24 @@ class StandingOwnerOperations:
                 return b"null"
             if not isinstance(result, kind):
                 raise StandingUnavailable
-            if kind is StandingAdmissionClosure and type(result) is not kind:
+            if (
+                kind
+                in (
+                    StandingAdmissionClosure,
+                    TaskResourceContext,
+                    StandingResourceReservationReceipt,
+                    StandingResourceObservation,
+                )
+                and type(result) is not kind
+            ):
                 raise StandingUnavailable
             value = kind.model_validate(result)
-            if action in _DISPATCH_BODIES or action in _EXECUTION_BODIES or action == "task_export":
+            if (
+                action in _DISPATCH_BODIES
+                or action in _EXECUTION_BODIES
+                or action in _RESOURCE_BODIES
+                or action == "task_export"
+            ):
                 value = value.validate_request(argument)
             raw = canonical_bytes(value)
             if len(raw) > min(kind.wire_bytes, MAX_STANDING_PROOF_BYTES):
@@ -291,6 +329,11 @@ class StandingOwnerOperations:
         monitor = None
         try:
             query = self._query(request, action)
+            if (action in _RESOURCE_BODIES or action == "resource_observe") and any(
+                key.lower() == b"x-kinaiya-standing-capability"
+                for key, _ in request.scope["headers"]
+            ):
+                raise HTTPException(422, _INVALID)
             capability = self._capability(request) if action in _CAPABILITY_ACTIONS else None
             if action in {"change", "lookup"}:
                 argument = await self._body(request, event, deadline, started)
@@ -298,6 +341,11 @@ class StandingOwnerOperations:
                 argument = await self._body(
                     request, event, deadline, started, kind=_DISPATCH_BODIES[action]
                 )
+            elif action in _RESOURCE_BODIES:
+                argument = await self._body(
+                    request, event, deadline, started, kind=_RESOURCE_BODIES[action]
+                )
+                self._guard(event, min(deadline, started + STANDING_INGRESS_SECONDS))
             elif action in _EXECUTION_BODIES:
                 argument = await self._body(
                     request, event, deadline, started, kind=StandingExecutionIntent
@@ -410,12 +458,17 @@ class StandingOwnerOperations:
 
 
 def install_standing_owner_routes(
-    app, owner, auth, *, dispatch=None, execution=None, tasks=None
+    app, owner, auth, *, dispatch=None, execution=None, tasks=None, resources=None
 ) -> StandingOwnerOperations:
     """Install standing controls and Agent-only execution in one actual-owner hub."""
-    operations = StandingOwnerOperations(owner, dispatch=dispatch, execution=execution, tasks=tasks)
+    operations = StandingOwnerOperations(
+        owner, dispatch=dispatch, execution=execution, tasks=tasks, resources=resources
+    )
     routes = APIRouter(prefix="/v1/standing", dependencies=[Depends(auth.require("owner"))])
     agent_routes = APIRouter(prefix="/v1/standing", dependencies=[Depends(auth.require("agent"))])
+    resource_routes = APIRouter(
+        prefix="/v1/standing/resources", dependencies=[Depends(auth.require("resources"))]
+    )
 
     @app.middleware("http")
     async def standing_no_store(request, call_next):
@@ -513,6 +566,19 @@ def install_standing_owner_routes(
     async def task_closure_lookup(request: Request):
         return await respond(request, "task_closure_lookup")
 
+    @resource_routes.post("/context")
+    async def resource_context(request: Request):
+        return await respond(request, "resource_context")
+
+    @resource_routes.post("/reserve")
+    async def resource_reserve(request: Request):
+        return await respond(request, "resource_reserve")
+
+    @agent_routes.post("/resources/observe")
+    async def resource_observe(request: Request):
+        return await respond(request, "resource_observe")
+
     app.include_router(routes)
     app.include_router(agent_routes)
+    app.include_router(resource_routes)
     return operations

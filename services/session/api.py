@@ -48,6 +48,7 @@ from services.session.agent_control import AgentControl
 from services.session.standing_admission import StandingTaskOwner
 from services.session.standing_dispatch import StandingDispatchOwner
 from services.session.standing_execution import StandingExecutionOwner
+from services.session.standing_resources import StandingResourceOwner
 from services.session.standing_work import StandingOwner
 from services.session.standing_work_api import install_standing_owner_routes
 from services.session.store import JournalError, Store
@@ -115,6 +116,13 @@ def create_app(
         standing_task_initialized = True
     except (StandingConflict, StandingUnavailable):
         pass
+    standing_resource_owner = StandingResourceOwner(store, control, standing_task_owner)
+    standing_resource_initialized = False
+    try:
+        standing_resource_owner.register()
+        standing_resource_initialized = True
+    except (StandingConflict, StandingUnavailable):
+        pass
     standing_operations = None
 
     @asynccontextmanager
@@ -139,7 +147,10 @@ def create_app(
                 raise
             finally:
                 try:
-                    standing_task_owner.close()
+                    try:
+                        standing_resource_owner.close()
+                    finally:
+                        standing_task_owner.close()
                 finally:
                     try:
                         standing_execution_owner.close()
@@ -174,6 +185,8 @@ def create_app(
     app.state.standing_execution_initialized = standing_execution_initialized
     app.state.standing_task_owner = standing_task_owner
     app.state.standing_task_initialized = standing_task_initialized
+    app.state.standing_resource_owner = standing_resource_owner
+    app.state.standing_resource_initialized = standing_resource_initialized
     standing_operations = install_standing_owner_routes(
         app,
         standing_owner,
@@ -181,6 +194,7 @@ def create_app(
         dispatch=standing_dispatch_owner,
         execution=standing_execution_owner,
         tasks=standing_task_owner,
+        resources=standing_resource_owner,
     )
     app.state.standing_owner_operations = standing_operations
     authenticated = Depends(auth.require())

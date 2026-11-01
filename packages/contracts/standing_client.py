@@ -14,6 +14,13 @@ from packages.contracts.standing_execution import (
     StandingExecutionIntent,
 )
 from packages.contracts.standing_export import StandingExportAdmission, StandingExportRequest
+from packages.contracts.standing_resources import (
+    StandingResourceObservation,
+    StandingResourceReservation,
+    StandingResourceReservationReceipt,
+    TaskResourceContext,
+    TaskResourceQuery,
+)
 from packages.contracts.standing_work import StandingConflict, StandingUnavailable, _checked
 
 
@@ -143,7 +150,9 @@ async def _exchange(
         if request_type is not None:
             proposal, body = _freeze(original, request_type)
             maximum = (
-                StandingExportRequest.wire_bytes
+                request_type.wire_bytes
+                if request_type in (TaskResourceQuery, StandingResourceReservation)
+                else StandingExportRequest.wire_bytes
                 if request_type is StandingExportRequest
                 else 8192
                 if request_type is StandingProducerRenewal
@@ -293,4 +302,41 @@ async def standing_closure_lookup(
         StandingExecutionIntent,
         StandingAdmissionClosure,
         allow_null=True,
+    )
+
+
+async def resource_task_context(owner, request: TaskResourceQuery) -> TaskResourceContext:
+    return await _exchange(
+        owner,
+        "POST",
+        "/v1/standing/resources/context",
+        request,
+        TaskResourceQuery,
+        TaskResourceContext,
+    )
+
+
+async def standing_resource_reserve(
+    owner, request: StandingResourceReservation
+) -> StandingResourceReservationReceipt:
+    return await _exchange(
+        owner,
+        "POST",
+        "/v1/standing/resources/reserve",
+        request,
+        StandingResourceReservation,
+        StandingResourceReservationReceipt,
+    )
+
+
+async def standing_resource_observe(
+    owner, request: StandingExecutionIntent
+) -> StandingResourceObservation:
+    return await _exchange(
+        owner,
+        "POST",
+        "/v1/standing/resources/observe",
+        request,
+        StandingExecutionIntent,
+        StandingResourceObservation,
     )
