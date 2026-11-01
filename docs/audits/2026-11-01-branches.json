@@ -1,0 +1,2107 @@
+{
+  "as_of": "2026-11-01T16:35:07.451128+00:00",
+  "main": "c4d86bf0a6ccbf155d9a3035633d16d0600eabc1",
+  "branch_count": 114,
+  "pull_request_count": 125,
+  "branches": [
+    {
+      "branch": "art/8-converse-concept-revision",
+      "sha": "46562f890177f47037796544bbee34f736c7a9e6",
+      "committed_at": "2026-10-27T19:19:01-07:00",
+      "age_days": 4.59,
+      "ahead": 0,
+      "behind": 531,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 59,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/59",
+          "headRefOid": "46562f890177f47037796544bbee34f736c7a9e6"
+        }
+      ]
+    },
+    {
+      "branch": "codex/converse-stack-recommendations",
+      "sha": "203e52efd02a7c72f2c0f097222169df93211657",
+      "committed_at": "2026-10-31T12:25:21-07:00",
+      "age_days": 0.88,
+      "ahead": 0,
+      "behind": 176,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 193,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/193",
+          "headRefOid": "203e52efd02a7c72f2c0f097222169df93211657"
+        }
+      ]
+    },
+    {
+      "branch": "codex/current-ui-screenshots",
+      "sha": "e665511ff4c67443c51e79824c1f60c02fd18821",
+      "committed_at": "2026-11-01T07:51:04-08:00",
+      "age_days": 0.03,
+      "ahead": 1,
+      "behind": 0,
+      "category": "keep-open-pr",
+      "prs": [
+        {
+          "number": 250,
+          "state": "OPEN",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/250",
+          "headRefOid": "e665511ff4c67443c51e79824c1f60c02fd18821"
+        }
+      ]
+    },
+    {
+      "branch": "codex/2-agent-workflow-evidence",
+      "sha": "53aea89a9660442e306cca3918776da41db3ed55",
+      "committed_at": "2026-10-31T10:17:38-07:00",
+      "age_days": 0.97,
+      "ahead": 0,
+      "behind": 188,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 187,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/187",
+          "headRefOid": "53aea89a9660442e306cca3918776da41db3ed55"
+        }
+      ]
+    },
+    {
+      "branch": "codex/146-openrouter-kokoro",
+      "sha": "6b410d7fd5ecf905e95cfddf84cefb04d0e93ee1",
+      "committed_at": "2026-10-30T14:42:44-07:00",
+      "age_days": 1.79,
+      "ahead": 2,
+      "behind": 284,
+      "category": "merged-exact-pr-tip",
+      "prs": [
+        {
+          "number": 147,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/147",
+          "headRefOid": "6b410d7fd5ecf905e95cfddf84cefb04d0e93ee1"
+        }
+      ],
+      "merge_verification": {
+        "branch": "codex/146-openrouter-kokoro",
+        "pull_request": 147,
+        "merge_commit": "57c70cace82c4950c9f708a567dd356cfc746379",
+        "merge_in_main": true
+      }
+    },
+    {
+      "branch": "codex/148-floating-setup-bubbles",
+      "sha": "4361b4f8d657f12674c65b3cae6dc0952d53aa0c",
+      "committed_at": "2026-10-30T15:49:13-07:00",
+      "age_days": 1.74,
+      "ahead": 2,
+      "behind": 283,
+      "category": "merged-exact-pr-tip",
+      "prs": [
+        {
+          "number": 150,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/150",
+          "headRefOid": "4361b4f8d657f12674c65b3cae6dc0952d53aa0c"
+        }
+      ],
+      "merge_verification": {
+        "branch": "codex/148-floating-setup-bubbles",
+        "pull_request": 150,
+        "merge_commit": "7173746b6431d8b7860ceda14125a33b37906758",
+        "merge_in_main": true
+      }
+    },
+    {
+      "branch": "codex/149-decisions-screen",
+      "sha": "09490494395954e6a17ac99b0d387b0b1d5e34a8",
+      "committed_at": "2026-10-30T18:13:34-07:00",
+      "age_days": 1.64,
+      "ahead": 0,
+      "behind": 263,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 160,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/160",
+          "headRefOid": "09490494395954e6a17ac99b0d387b0b1d5e34a8"
+        }
+      ]
+    },
+    {
+      "branch": "codex/151-163-client-reliability",
+      "sha": "dcc17c1bfb11792d28e22d057bad3f22378c5e4d",
+      "committed_at": "2026-10-30T21:01:20-07:00",
+      "age_days": 1.52,
+      "ahead": 0,
+      "behind": 251,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 164,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/164",
+          "headRefOid": "dcc17c1bfb11792d28e22d057bad3f22378c5e4d"
+        }
+      ]
+    },
+    {
+      "branch": "codex/152-draggable-bubbles",
+      "sha": "9283a1a20ebb1404f2d5365be03894f42437f03e",
+      "committed_at": "2026-10-30T16:37:11-07:00",
+      "age_days": 1.71,
+      "ahead": 2,
+      "behind": 282,
+      "category": "merged-exact-pr-tip",
+      "prs": [
+        {
+          "number": 153,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/153",
+          "headRefOid": "9283a1a20ebb1404f2d5365be03894f42437f03e"
+        }
+      ],
+      "merge_verification": {
+        "branch": "codex/152-draggable-bubbles",
+        "pull_request": 153,
+        "merge_commit": "f933e4ee6e32ac3eb3a49bd22a573254be4007ad",
+        "merge_in_main": true
+      }
+    },
+    {
+      "branch": "codex/154-floating-close-background-dismiss",
+      "sha": "79084228817941869cb2aad9e09203b9920f217b",
+      "committed_at": "2026-10-30T17:03:52-07:00",
+      "age_days": 1.69,
+      "ahead": 0,
+      "behind": 280,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 156,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/156",
+          "headRefOid": "79084228817941869cb2aad9e09203b9920f217b"
+        }
+      ]
+    },
+    {
+      "branch": "codex/155-speech-mouth-integration",
+      "sha": "27f0b9b8bf75192ac7eeb055f539090a608d2f10",
+      "committed_at": "2026-10-30T17:20:47-07:00",
+      "age_days": 1.68,
+      "ahead": 5,
+      "behind": 279,
+      "category": "merged-exact-pr-tip",
+      "prs": [
+        {
+          "number": 158,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/158",
+          "headRefOid": "27f0b9b8bf75192ac7eeb055f539090a608d2f10"
+        }
+      ],
+      "merge_verification": {
+        "branch": "codex/155-speech-mouth-integration",
+        "pull_request": 158,
+        "merge_commit": "86408aa52daf4dc546926ac3b23ec25f646848bb",
+        "merge_in_main": true
+      }
+    },
+    {
+      "branch": "codex/157-agent-workspace-ui",
+      "sha": "67a05e11db0de3de59279458f51beb220953b1a2",
+      "committed_at": "2026-10-30T18:13:02-07:00",
+      "age_days": 1.64,
+      "ahead": 0,
+      "behind": 273,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 159,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/159",
+          "headRefOid": "67a05e11db0de3de59279458f51beb220953b1a2"
+        }
+      ]
+    },
+    {
+      "branch": "codex/161-roadmap-reconciliation",
+      "sha": "fde83ba50fa126b467600cdbf091224cb64cdb5b",
+      "committed_at": "2026-10-30T20:10:45-07:00",
+      "age_days": 1.56,
+      "ahead": 0,
+      "behind": 259,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 162,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/162",
+          "headRefOid": "fde83ba50fa126b467600cdbf091224cb64cdb5b"
+        }
+      ]
+    },
+    {
+      "branch": "codex/165-intelligent-ui",
+      "sha": "8a9307841b6c86da58073fb0a5ee3d60c8b37984",
+      "committed_at": "2026-10-30T23:09:04-07:00",
+      "age_days": 1.43,
+      "ahead": 0,
+      "behind": 243,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 170,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/170",
+          "headRefOid": "8a9307841b6c86da58073fb0a5ee3d60c8b37984"
+        }
+      ]
+    },
+    {
+      "branch": "codex/167-completion-recovery",
+      "sha": "d196c118481a5fe09848f030b95f86893fbe848c",
+      "committed_at": "2026-10-31T00:43:32-07:00",
+      "age_days": 1.37,
+      "ahead": 0,
+      "behind": 239,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 172,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/172",
+          "headRefOid": "d196c118481a5fe09848f030b95f86893fbe848c"
+        }
+      ]
+    },
+    {
+      "branch": "codex/169-typed-action-wire",
+      "sha": "79c221ae7262828772be703183af9529c1368bd0",
+      "committed_at": "2026-10-31T04:02:55-07:00",
+      "age_days": 1.23,
+      "ahead": 0,
+      "behind": 228,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 175,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/175",
+          "headRefOid": "79c221ae7262828772be703183af9529c1368bd0"
+        }
+      ]
+    },
+    {
+      "branch": "codex/169-ui-decode-diagnostics",
+      "sha": "3e96fa3517dcb2dc8d3039494b930a9a881c4399",
+      "committed_at": "2026-10-31T01:33:31-07:00",
+      "age_days": 1.33,
+      "ahead": 0,
+      "behind": 235,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 174,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/174",
+          "headRefOid": "3e96fa3517dcb2dc8d3039494b930a9a881c4399"
+        }
+      ]
+    },
+    {
+      "branch": "codex/171-native-tool-capabilities",
+      "sha": "e57f5ca114ffd812f24faaceaa98018996087bc4",
+      "committed_at": "2026-10-31T01:09:22-07:00",
+      "age_days": 1.35,
+      "ahead": 0,
+      "behind": 237,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 173,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/173",
+          "headRefOid": "e57f5ca114ffd812f24faaceaa98018996087bc4"
+        }
+      ]
+    },
+    {
+      "branch": "codex/171-tool-schema-discovery",
+      "sha": "579722106f7cc979f8ae35005bc36432a7125396",
+      "committed_at": "2026-10-31T05:57:26-07:00",
+      "age_days": 1.15,
+      "ahead": 0,
+      "behind": 218,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 178,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/178",
+          "headRefOid": "579722106f7cc979f8ae35005bc36432a7125396"
+        }
+      ]
+    },
+    {
+      "branch": "codex/176-bootstrap-diagnostics",
+      "sha": "25476f2cae92eaaf71c1d9656e529e6d434c48a3",
+      "committed_at": "2026-10-31T04:01:46-07:00",
+      "age_days": 1.23,
+      "ahead": 0,
+      "behind": 233,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 177,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/177",
+          "headRefOid": "25476f2cae92eaaf71c1d9656e529e6d434c48a3"
+        }
+      ]
+    },
+    {
+      "branch": "codex/179-agent-context-budget",
+      "sha": "342b7de4542818d8d5f0fc91c8ec219a760c5bfe",
+      "committed_at": "2026-10-31T09:18:23-07:00",
+      "age_days": 1.01,
+      "ahead": 0,
+      "behind": 196,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 181,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/181",
+          "headRefOid": "342b7de4542818d8d5f0fc91c8ec219a760c5bfe"
+        }
+      ]
+    },
+    {
+      "branch": "codex/180-decisions-models",
+      "sha": "a23603f04e79e35c33c4a14977fbfa22e1843cf8",
+      "committed_at": "2026-10-31T08:56:15-07:00",
+      "age_days": 1.03,
+      "ahead": 0,
+      "behind": 216,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 182,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/182",
+          "headRefOid": "a23603f04e79e35c33c4a14977fbfa22e1843cf8"
+        }
+      ]
+    },
+    {
+      "branch": "codex/180-local-decisions-results",
+      "sha": "62207feb5b93801fd720ee932ed22b83200f3299",
+      "committed_at": "2026-10-31T11:52:01-07:00",
+      "age_days": 0.9,
+      "ahead": 0,
+      "behind": 185,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 189,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/189",
+          "headRefOid": "62207feb5b93801fd720ee932ed22b83200f3299"
+        }
+      ]
+    },
+    {
+      "branch": "codex/183-readonly-references",
+      "sha": "1f19315396ff3e129ac90612f97efb547d1a65e5",
+      "committed_at": "2026-10-31T09:36:59-07:00",
+      "age_days": 1.0,
+      "ahead": 0,
+      "behind": 190,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 185,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/185",
+          "headRefOid": "1f19315396ff3e129ac90612f97efb547d1a65e5"
+        }
+      ]
+    },
+    {
+      "branch": "codex/184-resource-owner-cas",
+      "sha": "3908816dc5857701afa4c55ecbba75a0a6a6b04c",
+      "committed_at": "2026-10-31T12:37:34-07:00",
+      "age_days": 0.87,
+      "ahead": 0,
+      "behind": 172,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 195,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/195",
+          "headRefOid": "3908816dc5857701afa4c55ecbba75a0a6a6b04c"
+        }
+      ]
+    },
+    {
+      "branch": "codex/188-options-workspace",
+      "sha": "7df481977888b0031c4fb001a57016dacfec1a2e",
+      "committed_at": "2026-10-31T21:48:12-07:00",
+      "age_days": 0.49,
+      "ahead": 0,
+      "behind": 94,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 215,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/215",
+          "headRefOid": "7df481977888b0031c4fb001a57016dacfec1a2e"
+        },
+        {
+          "number": 212,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/212",
+          "headRefOid": "bef0f168c069d53685f9cdbd744712d29cd6ddfc"
+        },
+        {
+          "number": 210,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/210",
+          "headRefOid": "bbcff8024b08eb5ae58b78b8b8da50b4513910a5"
+        },
+        {
+          "number": 209,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/209",
+          "headRefOid": "10adc6369d1ad96783ae5f0f69ea1b7b4be52b9e"
+        },
+        {
+          "number": 205,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/205",
+          "headRefOid": "73e99684878a6d4747f9325bb0b22cf30da9850a"
+        },
+        {
+          "number": 203,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/203",
+          "headRefOid": "4ce87e9593434660c7d7da93d1a8e628710183a5"
+        },
+        {
+          "number": 202,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/202",
+          "headRefOid": "cbb10ec8e031b5e5bdb5c5bc358200b0097b9911"
+        },
+        {
+          "number": 200,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/200",
+          "headRefOid": "8bd1814ce9d4ce11da63a4bc8c18175d61e039fc"
+        },
+        {
+          "number": 198,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/198",
+          "headRefOid": "321f98227578d798ecb3382a5bc28c287b3e39d9"
+        },
+        {
+          "number": 197,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/197",
+          "headRefOid": "9063421916642f04dee893a20e7d3a5639501838"
+        },
+        {
+          "number": 190,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/190",
+          "headRefOid": "5ab1b914b1751a23c3dedc6e2aa353a6f3b2bd25"
+        }
+      ]
+    },
+    {
+      "branch": "codex/191-owner-bound-model-writes",
+      "sha": "84d9c839d89fb078117524caf8803b7066c58d0f",
+      "committed_at": "2026-10-31T19:42:35-07:00",
+      "age_days": 0.58,
+      "ahead": 0,
+      "behind": 132,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 214,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/214",
+          "headRefOid": "84d9c839d89fb078117524caf8803b7066c58d0f"
+        }
+      ]
+    },
+    {
+      "branch": "codex/192-recovered-submit-receipt",
+      "sha": "c5cca7550313562aefdf4aac94aa0318bb5382a3",
+      "committed_at": "2026-10-31T13:31:16-07:00",
+      "age_days": 0.84,
+      "ahead": 0,
+      "behind": 161,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 201,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/201",
+          "headRefOid": "c5cca7550313562aefdf4aac94aa0318bb5382a3"
+        }
+      ]
+    },
+    {
+      "branch": "codex/199-submit-admission",
+      "sha": "dc0493c99fe2308e1e1a36996b5e5a91615e21b1",
+      "committed_at": "2026-10-31T18:27:23-07:00",
+      "age_days": 0.63,
+      "ahead": 0,
+      "behind": 137,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 211,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/211",
+          "headRefOid": "dc0493c99fe2308e1e1a36996b5e5a91615e21b1"
+        }
+      ]
+    },
+    {
+      "branch": "codex/208-agent-model-storage-recovery",
+      "sha": "5b6a0360f4804e8659ac04a3c0e25748f0cce1c7",
+      "committed_at": "2026-10-31T22:38:40-07:00",
+      "age_days": 0.46,
+      "ahead": 0,
+      "behind": 67,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 224,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/224",
+          "headRefOid": "5b6a0360f4804e8659ac04a3c0e25748f0cce1c7"
+        }
+      ]
+    },
+    {
+      "branch": "codex/208-authorization-activity",
+      "sha": "d04d3a3a1e1010faf6dddfdd67bad3e52c908e07",
+      "committed_at": "2026-11-01T00:40:30-07:00",
+      "age_days": 0.37,
+      "ahead": 0,
+      "behind": 14,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 232,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/232",
+          "headRefOid": "d04d3a3a1e1010faf6dddfdd67bad3e52c908e07"
+        }
+      ]
+    },
+    {
+      "branch": "codex/208-context-observations",
+      "sha": "cf9bd6bfc81527cf286fc6d269da682d7803a6c4",
+      "committed_at": "2026-11-01T00:42:05-07:00",
+      "age_days": 0.37,
+      "ahead": 0,
+      "behind": 16,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 231,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/231",
+          "headRefOid": "cf9bd6bfc81527cf286fc6d269da682d7803a6c4"
+        }
+      ]
+    },
+    {
+      "branch": "codex/208-converse-models",
+      "sha": "bb1cb66dbc14515fe56b05d1bdb953997b445aaa",
+      "committed_at": "2026-10-31T21:57:29-07:00",
+      "age_days": 0.48,
+      "ahead": 0,
+      "behind": 78,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 220,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/220",
+          "headRefOid": "bb1cb66dbc14515fe56b05d1bdb953997b445aaa"
+        }
+      ]
+    },
+    {
+      "branch": "codex/208-decisions-models",
+      "sha": "5868839183f22bfc2a324bec307142a4c20c4aff",
+      "committed_at": "2026-10-31T22:39:18-07:00",
+      "age_days": 0.46,
+      "ahead": 0,
+      "behind": 62,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 223,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/223",
+          "headRefOid": "5868839183f22bfc2a324bec307142a4c20c4aff"
+        }
+      ]
+    },
+    {
+      "branch": "codex/208-options-handoff-integration",
+      "sha": "ffed567aae4046b6c9373956e0fce2d73d91985f",
+      "committed_at": "2026-11-01T01:08:21-07:00",
+      "age_days": 0.35,
+      "ahead": 0,
+      "behind": 5,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 246,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/246",
+          "headRefOid": "ffed567aae4046b6c9373956e0fce2d73d91985f"
+        }
+      ]
+    },
+    {
+      "branch": "codex/208-options-penpot",
+      "sha": "7e4033d04fd6c8f8a1e67dc5152b113129230f1c",
+      "committed_at": "2026-10-31T21:31:56-07:00",
+      "age_days": 0.5,
+      "ahead": 0,
+      "behind": 119,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 219,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/219",
+          "headRefOid": "7e4033d04fd6c8f8a1e67dc5152b113129230f1c"
+        }
+      ]
+    },
+    {
+      "branch": "codex/208-routes-targets",
+      "sha": "0fb5f8efd352008b3fbebd137ae7c29fc0f8b605",
+      "committed_at": "2026-10-31T21:58:04-07:00",
+      "age_days": 0.48,
+      "ahead": 0,
+      "behind": 70,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 221,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/221",
+          "headRefOid": "0fb5f8efd352008b3fbebd137ae7c29fc0f8b605"
+        }
+      ]
+    },
+    {
+      "branch": "codex/208-stt-models",
+      "sha": "c49d37584684ed3fa4196b8058086fe31c512220",
+      "committed_at": "2026-10-31T23:34:19-07:00",
+      "age_days": 0.42,
+      "ahead": 0,
+      "behind": 53,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 225,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/225",
+          "headRefOid": "c49d37584684ed3fa4196b8058086fe31c512220"
+        }
+      ]
+    },
+    {
+      "branch": "codex/208-stt-worker-settlement",
+      "sha": "38d2ecd9ef61ce6e0f0911de1430b37f08c9a21b",
+      "committed_at": "2026-10-31T23:49:15-07:00",
+      "age_days": 0.41,
+      "ahead": 0,
+      "behind": 50,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 229,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/229",
+          "headRefOid": "38d2ecd9ef61ce6e0f0911de1430b37f08c9a21b"
+        }
+      ]
+    },
+    {
+      "branch": "codex/208-task-limits-wip",
+      "sha": "3e46721b731858b557d9038fe73db3c88c823383",
+      "committed_at": "2026-11-01T00:51:02-07:00",
+      "age_days": 0.36,
+      "ahead": 1,
+      "behind": 19,
+      "category": "review-unmerged",
+      "prs": []
+    },
+    {
+      "branch": "codex/208-tts-models",
+      "sha": "3d8357fcb8c3fea3b4d8996ed08ac00ce538d557",
+      "committed_at": "2026-11-01T00:22:36-07:00",
+      "age_days": 0.38,
+      "ahead": 0,
+      "behind": 20,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 230,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/230",
+          "headRefOid": "3d8357fcb8c3fea3b4d8996ed08ac00ce538d557"
+        }
+      ]
+    },
+    {
+      "branch": "codex/208-workspace-root",
+      "sha": "b2b02ce39fd303c759885323813677bef2d7e987",
+      "committed_at": "2026-10-31T22:22:03-07:00",
+      "age_days": 0.47,
+      "ahead": 0,
+      "behind": 65,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 222,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/222",
+          "headRefOid": "b2b02ce39fd303c759885323813677bef2d7e987"
+        }
+      ]
+    },
+    {
+      "branch": "codex/213-owner-bound-execution-writes",
+      "sha": "93945c11917229ab6cae1b72cb83aa08bf06316f",
+      "committed_at": "2026-10-31T21:07:24-07:00",
+      "age_days": 0.52,
+      "ahead": 0,
+      "behind": 113,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 216,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/216",
+          "headRefOid": "93945c11917229ab6cae1b72cb83aa08bf06316f"
+        }
+      ]
+    },
+    {
+      "branch": "codex/217-native-mode-publication",
+      "sha": "0956f3528e0dee4757e119400dbd5ae0c76fa27c",
+      "committed_at": "2026-11-01T00:10:18-07:00",
+      "age_days": 0.39,
+      "ahead": 0,
+      "behind": 26,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 227,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/227",
+          "headRefOid": "0956f3528e0dee4757e119400dbd5ae0c76fa27c"
+        }
+      ]
+    },
+    {
+      "branch": "codex/228-standing-work",
+      "sha": "6f50cae14cf19c73bc5b7f71fdd3882ad0c8cc60",
+      "committed_at": "2026-11-01T06:31:10-08:00",
+      "age_days": 0.09,
+      "ahead": 96,
+      "behind": 2,
+      "category": "review-unmerged",
+      "prs": []
+    },
+    {
+      "branch": "codex/247-recovery-timeout-oracle",
+      "sha": "b95c4f7a5230d960801d7f7a93d11d48c3620e22",
+      "committed_at": "2026-11-01T01:53:09-07:00",
+      "age_days": 0.32,
+      "ahead": 0,
+      "behind": 3,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 248,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/248",
+          "headRefOid": "b95c4f7a5230d960801d7f7a93d11d48c3620e22"
+        }
+      ]
+    },
+    {
+      "branch": "docs/clarification-roadmap",
+      "sha": "546b098163d817394da30b77a9c1cd6a51dc69a8",
+      "committed_at": "2026-10-27T06:51:06-07:00",
+      "age_days": 5.11,
+      "ahead": 0,
+      "behind": 578,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 40,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/40",
+          "headRefOid": "546b098163d817394da30b77a9c1cd6a51dc69a8"
+        }
+      ]
+    },
+    {
+      "branch": "docs/kinaiya-acceptance-tests-20261031",
+      "sha": "c4d8e41bdac78459942dff2ee2a592836b2659a6",
+      "committed_at": "2026-10-31T14:43:14-07:00",
+      "age_days": 0.79,
+      "ahead": 1,
+      "behind": 153,
+      "category": "merged-exact-pr-tip",
+      "prs": [
+        {
+          "number": 206,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/206",
+          "headRefOid": "c4d8e41bdac78459942dff2ee2a592836b2659a6"
+        }
+      ],
+      "merge_verification": {
+        "branch": "docs/kinaiya-acceptance-tests-20261031",
+        "pull_request": 206,
+        "merge_commit": "a6eee08ade02cf7085c197f8e73ff66e404ea5f3",
+        "merge_in_main": true
+      }
+    },
+    {
+      "branch": "docs/readme-product-overview-20261101",
+      "sha": "108b48ebb85289656a86e9d86d766291ae7e6924",
+      "committed_at": "2026-11-01T07:31:43-08:00",
+      "age_days": 0.04,
+      "ahead": 0,
+      "behind": 1,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 249,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/249",
+          "headRefOid": "108b48ebb85289656a86e9d86d766291ae7e6924"
+        }
+      ]
+    },
+    {
+      "branch": "docs/uiux-concepts",
+      "sha": "eb0ee017167c37dc683bb8d7542413a8b5f90837",
+      "committed_at": "2026-10-27T16:18:48-07:00",
+      "age_days": 4.72,
+      "ahead": 0,
+      "behind": 543,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 55,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/55",
+          "headRefOid": "eb0ee017167c37dc683bb8d7542413a8b5f90837"
+        }
+      ]
+    },
+    {
+      "branch": "feat/m0-foundation",
+      "sha": "592481ee1a48a8274a986683b7aef4f73a57b387",
+      "committed_at": "2026-10-26T21:14:45-07:00",
+      "age_days": 5.51,
+      "ahead": 0,
+      "behind": 662,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 14,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/14",
+          "headRefOid": "592481ee1a48a8274a986683b7aef4f73a57b387"
+        }
+      ]
+    },
+    {
+      "branch": "feat/2-agent-baseline",
+      "sha": "eba47e57ef866be9b270d441babe85d62ba54c6a",
+      "committed_at": "2026-10-26T21:39:24-07:00",
+      "age_days": 5.5,
+      "ahead": 0,
+      "behind": 652,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 16,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/16",
+          "headRefOid": "eba47e57ef866be9b270d441babe85d62ba54c6a"
+        }
+      ]
+    },
+    {
+      "branch": "feat/3-ecosystem-foundations",
+      "sha": "1ae9e6b37e9e46d054fda8e1bbbbef56a682f9d7",
+      "committed_at": "2026-10-27T02:30:50-07:00",
+      "age_days": 5.29,
+      "ahead": 0,
+      "behind": 604,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 27,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/27",
+          "headRefOid": "1ae9e6b37e9e46d054fda8e1bbbbef56a682f9d7"
+        }
+      ]
+    },
+    {
+      "branch": "feat/3-skills-agent",
+      "sha": "cd4a97fa52f18fa4500353a5781888a40f67ab62",
+      "committed_at": "2026-10-27T03:05:48-07:00",
+      "age_days": 5.27,
+      "ahead": 0,
+      "behind": 599,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 29,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/29",
+          "headRefOid": "cd4a97fa52f18fa4500353a5781888a40f67ab62"
+        }
+      ]
+    },
+    {
+      "branch": "feat/4-playback-recovery",
+      "sha": "6275232e35bffb577d91c822f424e39e6a62254a",
+      "committed_at": "2026-10-27T03:25:48-07:00",
+      "age_days": 5.26,
+      "ahead": 0,
+      "behind": 595,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 31,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/31",
+          "headRefOid": "6275232e35bffb577d91c822f424e39e6a62254a"
+        }
+      ]
+    },
+    {
+      "branch": "feat/4-retained-supertonic",
+      "sha": "ecc09a9211869ddf27d022eb2104b910f1b0e8e0",
+      "committed_at": "2026-10-27T22:29:41-07:00",
+      "age_days": 4.46,
+      "ahead": 0,
+      "behind": 504,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 68,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/68",
+          "headRefOid": "ecc09a9211869ddf27d022eb2104b910f1b0e8e0"
+        }
+      ]
+    },
+    {
+      "branch": "feat/4-vibevoice-streaming",
+      "sha": "43be3a5fefdbea93a05a2e668dfe02ac3e93bca1",
+      "committed_at": "2026-10-28T06:53:01-07:00",
+      "age_days": 4.11,
+      "ahead": 18,
+      "behind": 503,
+      "category": "merged-exact-pr-tip",
+      "prs": [
+        {
+          "number": 71,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/71",
+          "headRefOid": "43be3a5fefdbea93a05a2e668dfe02ac3e93bca1"
+        }
+      ],
+      "merge_verification": {
+        "branch": "feat/4-vibevoice-streaming",
+        "pull_request": 71,
+        "merge_commit": "30f62958c066955666a379238770607d9bca285d",
+        "merge_in_main": true
+      }
+    },
+    {
+      "branch": "feat/8-concept-layout",
+      "sha": "d6b9021b66030c4abd441fcd136bf39261351d72",
+      "committed_at": "2026-10-27T20:22:23-07:00",
+      "age_days": 4.55,
+      "ahead": 0,
+      "behind": 527,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 62,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/62",
+          "headRefOid": "d6b9021b66030c4abd441fcd136bf39261351d72"
+        }
+      ]
+    },
+    {
+      "branch": "feat/8-presentation-settings",
+      "sha": "0670cd2bfbcfa7fb2dd5631a505efe7c86f82e8e",
+      "committed_at": "2026-10-27T21:17:38-07:00",
+      "age_days": 4.51,
+      "ahead": 0,
+      "behind": 522,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 64,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/64",
+          "headRefOid": "0670cd2bfbcfa7fb2dd5631a505efe7c86f82e8e"
+        }
+      ]
+    },
+    {
+      "branch": "feat/8-semantic-animation",
+      "sha": "1576369f2868630b389a4c9d10fd9847c7fd39fc",
+      "committed_at": "2026-10-27T21:43:12-07:00",
+      "age_days": 4.49,
+      "ahead": 0,
+      "behind": 516,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 66,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/66",
+          "headRefOid": "1576369f2868630b389a4c9d10fd9847c7fd39fc"
+        }
+      ]
+    },
+    {
+      "branch": "feat/9-resource-manager",
+      "sha": "5370fce880432dc32ff60d82cc77c9d7fe8254cb",
+      "committed_at": "2026-10-27T04:52:46-07:00",
+      "age_days": 5.2,
+      "ahead": 0,
+      "behind": 588,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 32,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/32",
+          "headRefOid": "5370fce880432dc32ff60d82cc77c9d7fe8254cb"
+        }
+      ]
+    },
+    {
+      "branch": "feat/37-mascot-sprites",
+      "sha": "eb34d47a983a93a0cfde6971a8281f4e01371206",
+      "committed_at": "2026-10-27T07:03:03-07:00",
+      "age_days": 5.11,
+      "ahead": 0,
+      "behind": 573,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 41,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/41",
+          "headRefOid": "eb34d47a983a93a0cfde6971a8281f4e01371206"
+        }
+      ]
+    },
+    {
+      "branch": "feat/42-compute-plugins",
+      "sha": "49665cec16b326329816765e216e55128157426c",
+      "committed_at": "2026-10-27T08:22:03-07:00",
+      "age_days": 5.05,
+      "ahead": 0,
+      "behind": 568,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 43,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/43",
+          "headRefOid": "49665cec16b326329816765e216e55128157426c"
+        }
+      ]
+    },
+    {
+      "branch": "feat/44-mcp-controls",
+      "sha": "40fbbbf0431d56b09599ac6645f4f69bbdc4d1dd",
+      "committed_at": "2026-10-27T09:42:00-07:00",
+      "age_days": 5.0,
+      "ahead": 0,
+      "behind": 565,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 46,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/46",
+          "headRefOid": "40fbbbf0431d56b09599ac6645f4f69bbdc4d1dd"
+        }
+      ]
+    },
+    {
+      "branch": "feat/49-streaming-decisions",
+      "sha": "dd28436bc015176c65e90dd09293b4e2545f239a",
+      "committed_at": "2026-10-27T12:35:05-07:00",
+      "age_days": 4.88,
+      "ahead": 0,
+      "behind": 549,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 50,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/50",
+          "headRefOid": "dd28436bc015176c65e90dd09293b4e2545f239a"
+        }
+      ]
+    },
+    {
+      "branch": "feat/53-laya-artifact-identity",
+      "sha": "4a785c7d96565172cf0977f831ab947beed6c42e",
+      "committed_at": "2026-10-27T16:38:41-07:00",
+      "age_days": 4.71,
+      "ahead": 0,
+      "behind": 540,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 56,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/56",
+          "headRefOid": "4a785c7d96565172cf0977f831ab947beed6c42e"
+        }
+      ]
+    },
+    {
+      "branch": "feat/53-laya-decisions",
+      "sha": "f2cdf19d268536e10c6bbcee6a3f7326f8c6f17b",
+      "committed_at": "2026-10-27T15:24:15-07:00",
+      "age_days": 4.76,
+      "ahead": 0,
+      "behind": 545,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 54,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/54",
+          "headRefOid": "f2cdf19d268536e10c6bbcee6a3f7326f8c6f17b"
+        }
+      ]
+    },
+    {
+      "branch": "feat/53-managed-laya-resources",
+      "sha": "cba67dbfd7ce4620c29a0e2243f446215b29ba94",
+      "committed_at": "2026-10-27T17:59:58-07:00",
+      "age_days": 4.65,
+      "ahead": 0,
+      "behind": 537,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 57,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/57",
+          "headRefOid": "cba67dbfd7ce4620c29a0e2243f446215b29ba94"
+        }
+      ]
+    },
+    {
+      "branch": "feat/73-decisions-integration",
+      "sha": "f2dbbcb0fb16fc8947a596a3a669f98ea67782ca",
+      "committed_at": "2026-10-28T07:33:57-07:00",
+      "age_days": 4.08,
+      "ahead": 3,
+      "behind": 502,
+      "category": "merged-exact-pr-tip",
+      "prs": [
+        {
+          "number": 74,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/74",
+          "headRefOid": "f2dbbcb0fb16fc8947a596a3a669f98ea67782ca"
+        }
+      ],
+      "merge_verification": {
+        "branch": "feat/73-decisions-integration",
+        "pull_request": 74,
+        "merge_commit": "6336484b041a377a8549d80f950cc9fc3991c928",
+        "merge_in_main": true
+      }
+    },
+    {
+      "branch": "feat/75-converse-integration",
+      "sha": "c3b4430c65e468f603c5a256cc11056d18e19e00",
+      "committed_at": "2026-10-28T10:02:12-07:00",
+      "age_days": 3.98,
+      "ahead": 9,
+      "behind": 500,
+      "category": "merged-exact-pr-tip",
+      "prs": [
+        {
+          "number": 78,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/78",
+          "headRefOid": "c3b4430c65e468f603c5a256cc11056d18e19e00"
+        }
+      ],
+      "merge_verification": {
+        "branch": "feat/75-converse-integration",
+        "pull_request": 78,
+        "merge_commit": "01ee0c4934dd636f3f0c7da33f9650ff543c41cd",
+        "merge_in_main": true
+      }
+    },
+    {
+      "branch": "feat/76-converse-integration",
+      "sha": "65636f0f9c96d485d0c4869f8fbecbd35c6c948a",
+      "committed_at": "2026-10-28T10:14:50-07:00",
+      "age_days": 3.97,
+      "ahead": 3,
+      "behind": 499,
+      "category": "merged-exact-pr-tip",
+      "prs": [
+        {
+          "number": 80,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/80",
+          "headRefOid": "65636f0f9c96d485d0c4869f8fbecbd35c6c948a"
+        }
+      ],
+      "merge_verification": {
+        "branch": "feat/76-converse-integration",
+        "pull_request": 80,
+        "merge_commit": "f7a195aeac34d987f445ec58983448692205bbe2",
+        "merge_in_main": true
+      }
+    },
+    {
+      "branch": "feat/77-converse-integration",
+      "sha": "3daa27590aeece7c18694d2c3fa62baac3c0f012",
+      "committed_at": "2026-10-28T10:40:17-07:00",
+      "age_days": 3.95,
+      "ahead": 3,
+      "behind": 498,
+      "category": "merged-exact-pr-tip",
+      "prs": [
+        {
+          "number": 82,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/82",
+          "headRefOid": "3daa27590aeece7c18694d2c3fa62baac3c0f012"
+        }
+      ],
+      "merge_verification": {
+        "branch": "feat/77-converse-integration",
+        "pull_request": 82,
+        "merge_commit": "4c67c386a73d7ae47d43acb9a18fbea96edc0799",
+        "merge_in_main": true
+      }
+    },
+    {
+      "branch": "feat/79-converse-integration",
+      "sha": "a45a164e5570959a63a5d08e527cce27531fb91d",
+      "committed_at": "2026-10-28T11:03:29-07:00",
+      "age_days": 3.94,
+      "ahead": 8,
+      "behind": 497,
+      "category": "merged-exact-pr-tip",
+      "prs": [
+        {
+          "number": 83,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/83",
+          "headRefOid": "a45a164e5570959a63a5d08e527cce27531fb91d"
+        }
+      ],
+      "merge_verification": {
+        "branch": "feat/79-converse-integration",
+        "pull_request": 83,
+        "merge_commit": "86b88b3ccb937c31d06ee9281352cdf74d0b0cd0",
+        "merge_in_main": true
+      }
+    },
+    {
+      "branch": "feat/81-converse-integration",
+      "sha": "a5786a44e3378d08c40d2a2d771bf30c7baad9e8",
+      "committed_at": "2026-10-28T11:10:15-07:00",
+      "age_days": 3.93,
+      "ahead": 13,
+      "behind": 496,
+      "category": "merged-exact-pr-tip",
+      "prs": [
+        {
+          "number": 84,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/84",
+          "headRefOid": "a5786a44e3378d08c40d2a2d771bf30c7baad9e8"
+        }
+      ],
+      "merge_verification": {
+        "branch": "feat/81-converse-integration",
+        "pull_request": 84,
+        "merge_commit": "811d6214cc6450457636473155d3d6c65f3cf8cc",
+        "merge_in_main": true
+      }
+    },
+    {
+      "branch": "feat/85-whistle-integration",
+      "sha": "5d980fffcb17537ddf515ac2a430408494a61da1",
+      "committed_at": "2026-10-28T13:31:55-07:00",
+      "age_days": 3.84,
+      "ahead": 0,
+      "behind": 484,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 89,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/89",
+          "headRefOid": "5d980fffcb17537ddf515ac2a430408494a61da1"
+        }
+      ]
+    },
+    {
+      "branch": "feat/91-managed-qwen3",
+      "sha": "3dbf4d6eaa3b8ee11507d6c719f327fe0fc6dbbd",
+      "committed_at": "2026-10-28T15:54:52-07:00",
+      "age_days": 3.74,
+      "ahead": 0,
+      "behind": 468,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 92,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/92",
+          "headRefOid": "3dbf4d6eaa3b8ee11507d6c719f327fe0fc6dbbd"
+        }
+      ]
+    },
+    {
+      "branch": "feat/93-whistle-streaming",
+      "sha": "ab72bb6a6c323f28f8c4cd3fbcdcffc5940c011c",
+      "committed_at": "2026-10-28T17:11:01-07:00",
+      "age_days": 3.68,
+      "ahead": 0,
+      "behind": 464,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 94,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/94",
+          "headRefOid": "ab72bb6a6c323f28f8c4cd3fbcdcffc5940c011c"
+        }
+      ]
+    },
+    {
+      "branch": "feat/97-converse-role-context",
+      "sha": "94df0993636f625f616b71235668285963d2f275",
+      "committed_at": "2026-10-29T06:06:39-07:00",
+      "age_days": 3.14,
+      "ahead": 4,
+      "behind": 444,
+      "category": "keep-open-pr",
+      "prs": [
+        {
+          "number": 103,
+          "state": "OPEN",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/103",
+          "headRefOid": "94df0993636f625f616b71235668285963d2f275"
+        }
+      ]
+    },
+    {
+      "branch": "feat/97-negative-runtime-state-guard",
+      "sha": "fd28e61503508adf99528521b153ea0306a7ef70",
+      "committed_at": "2026-10-29T03:38:29-07:00",
+      "age_days": 3.25,
+      "ahead": 0,
+      "behind": 447,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 104,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/104",
+          "headRefOid": "fd28e61503508adf99528521b153ea0306a7ef70"
+        }
+      ]
+    },
+    {
+      "branch": "feat/101-managed-native-text",
+      "sha": "9337375b3f45743545231bc1897409524ef8cb72",
+      "committed_at": "2026-10-29T01:27:28-07:00",
+      "age_days": 3.34,
+      "ahead": 0,
+      "behind": 449,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 102,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/102",
+          "headRefOid": "9337375b3f45743545231bc1897409524ef8cb72"
+        }
+      ]
+    },
+    {
+      "branch": "feat/105-write-argument-validation",
+      "sha": "c0975e861653bff42f5444f58dbaf8e84a1f5dc5",
+      "committed_at": "2026-10-29T05:56:15-07:00",
+      "age_days": 3.15,
+      "ahead": 0,
+      "behind": 445,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 106,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/106",
+          "headRefOid": "c0975e861653bff42f5444f58dbaf8e84a1f5dc5"
+        }
+      ]
+    },
+    {
+      "branch": "feat/107-adaptive-converse-stage",
+      "sha": "2ec77958dae23710d881cccd1eb4090dc200b1a1",
+      "committed_at": "2026-10-29T08:13:49-07:00",
+      "age_days": 3.06,
+      "ahead": 0,
+      "behind": 434,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 112,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/112",
+          "headRefOid": "2ec77958dae23710d881cccd1eb4090dc200b1a1"
+        }
+      ]
+    },
+    {
+      "branch": "feat/108-mobile-paired-control",
+      "sha": "b149cf61af3affeff300ba33e478140ab533492b",
+      "committed_at": "2026-10-29T07:47:21-07:00",
+      "age_days": 3.07,
+      "ahead": 0,
+      "behind": 443,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 110,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/110",
+          "headRefOid": "b149cf61af3affeff300ba33e478140ab533492b"
+        }
+      ]
+    },
+    {
+      "branch": "feat/109-foreground-companion",
+      "sha": "b469515e6ad2714fe798233da24c630dd53b17b1",
+      "committed_at": "2026-10-29T07:54:20-07:00",
+      "age_days": 3.07,
+      "ahead": 0,
+      "behind": 439,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 111,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/111",
+          "headRefOid": "b469515e6ad2714fe798233da24c630dd53b17b1"
+        }
+      ]
+    },
+    {
+      "branch": "feat/113-converse-memory-dag",
+      "sha": "27ce79acb9bec127d78176f422b97043c79b7307",
+      "committed_at": "2026-10-29T09:09:05-07:00",
+      "age_days": 3.02,
+      "ahead": 0,
+      "behind": 427,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 114,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/114",
+          "headRefOid": "27ce79acb9bec127d78176f422b97043c79b7307"
+        }
+      ]
+    },
+    {
+      "branch": "feat/115-native-apps",
+      "sha": "985b384882d515b3049f5cec659885bbaf955783",
+      "committed_at": "2026-10-29T09:35:09-07:00",
+      "age_days": 3.0,
+      "ahead": 0,
+      "behind": 421,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 116,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/116",
+          "headRefOid": "985b384882d515b3049f5cec659885bbaf955783"
+        }
+      ]
+    },
+    {
+      "branch": "feat/117-native-presentation",
+      "sha": "4a1e18b9d56443f1bc32b14044880aef27121a42",
+      "committed_at": "2026-10-29T10:11:13-07:00",
+      "age_days": 2.97,
+      "ahead": 0,
+      "behind": 416,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 118,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/118",
+          "headRefOid": "4a1e18b9d56443f1bc32b14044880aef27121a42"
+        }
+      ]
+    },
+    {
+      "branch": "feat/119-converse-prompt-budget",
+      "sha": "05bc8d6ba55f749f16104b790eb4f346ba09cb59",
+      "committed_at": "2026-10-29T10:51:31-07:00",
+      "age_days": 2.95,
+      "ahead": 0,
+      "behind": 407,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 120,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/120",
+          "headRefOid": "05bc8d6ba55f749f16104b790eb4f346ba09cb59"
+        }
+      ]
+    },
+    {
+      "branch": "feat/121-converse-memory-recall",
+      "sha": "4f482c5e93011de06d2713ceb46f7720f8ed2fb2",
+      "committed_at": "2026-10-29T12:18:38-07:00",
+      "age_days": 2.89,
+      "ahead": 0,
+      "behind": 397,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 122,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/122",
+          "headRefOid": "4f482c5e93011de06d2713ceb46f7720f8ed2fb2"
+        }
+      ]
+    },
+    {
+      "branch": "feat/123-converse-memory-ui",
+      "sha": "0a13818ea572524146107b1e143e7f8d9909ef80",
+      "committed_at": "2026-10-29T13:40:41-07:00",
+      "age_days": 2.83,
+      "ahead": 0,
+      "behind": 378,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 124,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/124",
+          "headRefOid": "0a13818ea572524146107b1e143e7f8d9909ef80"
+        }
+      ]
+    },
+    {
+      "branch": "feat/126-settings-catalog",
+      "sha": "7ba560558ba5b0f7e447d211203b431618574bcc",
+      "committed_at": "2026-10-29T16:30:14-07:00",
+      "age_days": 2.71,
+      "ahead": 0,
+      "behind": 365,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 127,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/127",
+          "headRefOid": "7ba560558ba5b0f7e447d211203b431618574bcc"
+        }
+      ]
+    },
+    {
+      "branch": "feat/128-penpot-ui",
+      "sha": "464ac9b203075e52ac6ff1a0fe13bef349973277",
+      "committed_at": "2026-10-29T20:17:48-07:00",
+      "age_days": 2.55,
+      "ahead": 0,
+      "behind": 348,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 129,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/129",
+          "headRefOid": "464ac9b203075e52ac6ff1a0fe13bef349973277"
+        }
+      ]
+    },
+    {
+      "branch": "feat/130-seated-idle",
+      "sha": "1e34adaa85fb736e48900c4f24b71eec76369ab6",
+      "committed_at": "2026-10-29T22:25:27-07:00",
+      "age_days": 2.47,
+      "ahead": 0,
+      "behind": 337,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 131,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/131",
+          "headRefOid": "1e34adaa85fb736e48900c4f24b71eec76369ab6"
+        }
+      ]
+    },
+    {
+      "branch": "feat/138-penpot-home-converse",
+      "sha": "15c0f3b06d5d5fc030f118de410b0f50ccc2a944",
+      "committed_at": "2026-10-30T12:05:42-07:00",
+      "age_days": 1.9,
+      "ahead": 0,
+      "behind": 308,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 139,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/139",
+          "headRefOid": "15c0f3b06d5d5fc030f118de410b0f50ccc2a944"
+        }
+      ]
+    },
+    {
+      "branch": "feat/141-converse-handoff-bubbles",
+      "sha": "86eba92d996e5d73cfc37cb187e7401c849d6cef",
+      "committed_at": "2026-10-30T13:35:51-07:00",
+      "age_days": 1.83,
+      "ahead": 0,
+      "behind": 295,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 143,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/143",
+          "headRefOid": "86eba92d996e5d73cfc37cb187e7401c849d6cef"
+        }
+      ]
+    },
+    {
+      "branch": "feat/142-meta-cloud-converse",
+      "sha": "772e6fc52535a4cb137cc79989f1b6837bf93d08",
+      "committed_at": "2026-10-30T14:04:48-07:00",
+      "age_days": 1.81,
+      "ahead": 0,
+      "behind": 285,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 145,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/145",
+          "headRefOid": "772e6fc52535a4cb137cc79989f1b6837bf93d08"
+        },
+        {
+          "number": 144,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/144",
+          "headRefOid": "03229f9e947c649209fd588a72fd27914269a732"
+        }
+      ]
+    },
+    {
+      "branch": "fix/agent-reconnect",
+      "sha": "4561a5662d837acff3f7f5157ac782c8c5aab0ee",
+      "committed_at": "2026-10-27T05:26:38-07:00",
+      "age_days": 5.17,
+      "ahead": 0,
+      "behind": 585,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 34,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/34",
+          "headRefOid": "4561a5662d837acff3f7f5157ac782c8c5aab0ee"
+        }
+      ]
+    },
+    {
+      "branch": "fix/budget-accounting",
+      "sha": "0c1174288a1dde5267b89038d9c5fa3e23622ed9",
+      "committed_at": "2026-10-27T06:43:04-07:00",
+      "age_days": 5.12,
+      "ahead": 0,
+      "behind": 583,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 39,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/39",
+          "headRefOid": "0c1174288a1dde5267b89038d9c5fa3e23622ed9"
+        }
+      ]
+    },
+    {
+      "branch": "fix/gpu-converse-profile",
+      "sha": "a4f22c9dbc228cce4e2ce9c35d3b96ee6135be8a",
+      "committed_at": "2026-10-29T23:59:30-07:00",
+      "age_days": 2.4,
+      "ahead": 0,
+      "behind": 333,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 133,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/133",
+          "headRefOid": "a4f22c9dbc228cce4e2ce9c35d3b96ee6135be8a"
+        }
+      ]
+    },
+    {
+      "branch": "fix/provider-consent",
+      "sha": "586f0dd9a24ffb873927a6513656f1e708c1fccb",
+      "committed_at": "2026-10-27T06:41:56-07:00",
+      "age_days": 5.12,
+      "ahead": 0,
+      "behind": 582,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 38,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/38",
+          "headRefOid": "586f0dd9a24ffb873927a6513656f1e708c1fccb"
+        }
+      ]
+    },
+    {
+      "branch": "fix/9-converse-owner-intent",
+      "sha": "bebc5db3c5435c0ccc62702007088cb6d88ab57a",
+      "committed_at": "2026-10-27T18:50:40-07:00",
+      "age_days": 4.61,
+      "ahead": 0,
+      "behind": 534,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 58,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/58",
+          "headRefOid": "bebc5db3c5435c0ccc62702007088cb6d88ab57a"
+        }
+      ]
+    },
+    {
+      "branch": "fix/47-task-retirement",
+      "sha": "de2f002e7dfeb6ead2257c68895a678ddcc8eae4",
+      "committed_at": "2026-10-27T10:31:30-07:00",
+      "age_days": 4.96,
+      "ahead": 0,
+      "behind": 559,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 48,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/48",
+          "headRefOid": "de2f002e7dfeb6ead2257c68895a678ddcc8eae4"
+        }
+      ]
+    },
+    {
+      "branch": "fix/51-streaming-source-authority",
+      "sha": "ede37c7e1a52182a70ebe636c69806f95b30bcbb",
+      "committed_at": "2026-10-27T13:32:38-07:00",
+      "age_days": 4.84,
+      "ahead": 0,
+      "behind": 547,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 52,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/52",
+          "headRefOid": "ede37c7e1a52182a70ebe636c69806f95b30bcbb"
+        }
+      ]
+    },
+    {
+      "branch": "fix/60-controller-death-proc-race",
+      "sha": "12158ecf774d0fc7fbd902d590d6d80651a1d885",
+      "committed_at": "2026-10-27T19:24:46-07:00",
+      "age_days": 4.59,
+      "ahead": 0,
+      "behind": 531,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 61,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/61",
+          "headRefOid": "12158ecf774d0fc7fbd902d590d6d80651a1d885"
+        }
+      ]
+    },
+    {
+      "branch": "fix/86-cache-aware-budget",
+      "sha": "304c4b0c5756ae6dc361d58a1a362196fb6a5ec6",
+      "committed_at": "2026-10-28T12:05:16-07:00",
+      "age_days": 3.9,
+      "ahead": 1,
+      "behind": 495,
+      "category": "merged-exact-pr-tip",
+      "prs": [
+        {
+          "number": 87,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/87",
+          "headRefOid": "304c4b0c5756ae6dc361d58a1a362196fb6a5ec6"
+        }
+      ],
+      "merge_verification": {
+        "branch": "fix/86-cache-aware-budget",
+        "pull_request": 87,
+        "merge_commit": "0bb61f137117e27aed58ed85cb2b8210c4c39767",
+        "merge_in_main": true
+      }
+    },
+    {
+      "branch": "fix/86-muse-catalog",
+      "sha": "cdfb30148f41b3dfa84afd64e1c989601c4fce93",
+      "committed_at": "2026-10-28T12:57:39-07:00",
+      "age_days": 3.86,
+      "ahead": 1,
+      "behind": 493,
+      "category": "merged-exact-pr-tip",
+      "prs": [
+        {
+          "number": 90,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/90",
+          "headRefOid": "cdfb30148f41b3dfa84afd64e1c989601c4fce93"
+        }
+      ],
+      "merge_verification": {
+        "branch": "fix/86-muse-catalog",
+        "pull_request": 90,
+        "merge_commit": "ba3c9659fae4651f5486bdc80e98d0e43178296d",
+        "merge_in_main": true
+      }
+    },
+    {
+      "branch": "fix/86-muse-tool-namespaces",
+      "sha": "9cc668a8e347ad0d14ecdac71d157c1716e84a45",
+      "committed_at": "2026-10-28T12:20:17-07:00",
+      "age_days": 3.89,
+      "ahead": 1,
+      "behind": 494,
+      "category": "merged-exact-pr-tip",
+      "prs": [
+        {
+          "number": 88,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/88",
+          "headRefOid": "9cc668a8e347ad0d14ecdac71d157c1716e84a45"
+        }
+      ],
+      "merge_verification": {
+        "branch": "fix/86-muse-tool-namespaces",
+        "pull_request": 88,
+        "merge_commit": "c75bb17c3c65cecbc6d4e2cad4d0d60babf35991",
+        "merge_in_main": true
+      }
+    },
+    {
+      "branch": "fix/95-typed-disclosure",
+      "sha": "e720df7339f09f05d144ffa309babdf96446497c",
+      "committed_at": "2026-10-28T18:17:06-07:00",
+      "age_days": 3.64,
+      "ahead": 0,
+      "behind": 456,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 96,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/96",
+          "headRefOid": "e720df7339f09f05d144ffa309babdf96446497c"
+        }
+      ]
+    },
+    {
+      "branch": "fix/97-converse-coordination",
+      "sha": "670f8ead1348ff570d92f598ae0fdb92d03bcd9a",
+      "committed_at": "2026-10-28T20:51:26-07:00",
+      "age_days": 3.53,
+      "ahead": 4,
+      "behind": 455,
+      "category": "keep-open-pr",
+      "prs": [
+        {
+          "number": 98,
+          "state": "OPEN",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/98",
+          "headRefOid": "670f8ead1348ff570d92f598ae0fdb92d03bcd9a"
+        }
+      ]
+    },
+    {
+      "branch": "fix/99-compatible-terminal",
+      "sha": "30fdc09d2b4f9cd4c3bc03763dbbeb55dc7e83a1",
+      "committed_at": "2026-10-28T23:12:46-07:00",
+      "age_days": 3.43,
+      "ahead": 0,
+      "behind": 454,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 100,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/100",
+          "headRefOid": "30fdc09d2b4f9cd4c3bc03763dbbeb55dc7e83a1"
+        }
+      ]
+    },
+    {
+      "branch": "fix/134-converse-context-window",
+      "sha": "1e25a83ea24b7a7f5adeaa7b0cbfca9e0e7eed42",
+      "committed_at": "2026-10-30T07:12:07-07:00",
+      "age_days": 2.1,
+      "ahead": 0,
+      "behind": 325,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 135,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/135",
+          "headRefOid": "1e25a83ea24b7a7f5adeaa7b0cbfca9e0e7eed42"
+        }
+      ]
+    },
+    {
+      "branch": "fix/136-qwen35-system-prefix",
+      "sha": "3d55f0a3a8e5460e4d2afbfc33a3318ec1f0fef9",
+      "committed_at": "2026-10-30T09:50:32-07:00",
+      "age_days": 1.99,
+      "ahead": 0,
+      "behind": 323,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 137,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/137",
+          "headRefOid": "3d55f0a3a8e5460e4d2afbfc33a3318ec1f0fef9"
+        }
+      ]
+    },
+    {
+      "branch": "integration/research-slice",
+      "sha": "3a69fbe05d7e929f8829c3291eaa078ca6f7bcb3",
+      "committed_at": "2026-10-27T02:04:46-07:00",
+      "age_days": 5.31,
+      "ahead": 0,
+      "behind": 609,
+      "category": "merged-ancestor",
+      "prs": [
+        {
+          "number": 26,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/26",
+          "headRefOid": "3a69fbe05d7e929f8829c3291eaa078ca6f7bcb3"
+        },
+        {
+          "number": 24,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/24",
+          "headRefOid": "80a26d00d724e0f118c06a7295deaffd68a4918b"
+        },
+        {
+          "number": 22,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/22",
+          "headRefOid": "9854264e836162ce90e36d9dd3a6ce1e9cef4d95"
+        },
+        {
+          "number": 20,
+          "state": "MERGED",
+          "url": "https://github.com/rgoza1996/Kinaiya/pull/20",
+          "headRefOid": "09bf103a5e67319084bd96c51028f4b1d493e0f5"
+        }
+      ]
+    },
+    {
+      "branch": "main",
+      "sha": "c4d86bf0a6ccbf155d9a3035633d16d0600eabc1",
+      "committed_at": "2026-11-01T07:32:41-08:00",
+      "age_days": 0.04,
+      "ahead": 0,
+      "behind": 0,
+      "category": "default",
+      "prs": []
+    }
+  ],
+  "methodology": {
+    "repository": "rgoza1996/Kinaiya",
+    "scope": "Remote branches only; snapshot precedes the documentation PR branch.",
+    "age": "Committer timestamp age, not branch creation or last branch push.",
+    "classification": "Preserve open PRs; otherwise classify default, main ancestry, exact merged-PR head with merge ancestry, or review unmerged.",
+    "deleteBranchOnMerge": false,
+    "effect": "Read-only audit; no deletion or repository setting change."
+  }
+}
