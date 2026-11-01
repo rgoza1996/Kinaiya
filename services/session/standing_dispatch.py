@@ -615,6 +615,7 @@ class StandingDispatchOwner:
                 self._writer(fresh)
                 if not self._live(fresh, producer, self._sample()):
                     raise StandingUnavailable
+                self._guard(deadline, cancelled)
 
         with self._transaction(commit_guard):
             meta, generations, gate, _, producer = self._observation()
@@ -734,6 +735,7 @@ class StandingDispatchOwner:
                 self._writer(fresh)
                 if not self._live(fresh, new_row, self._sample()):
                     raise StandingUnavailable
+                self._guard(deadline, cancelled)
 
         with self._transaction(commit_guard):
             meta, generations, gate, _, current = self._observation()
