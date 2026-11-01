@@ -26,6 +26,7 @@ import 'options_converse_model.dart';
 import 'options_stt_model.dart';
 import 'options_decisions_model.dart';
 import 'options_auxiliary_routes.dart';
+import 'options_context_history.dart';
 import 'presentation_settings.dart';
 import 'settings_controls.dart';
 import 'setup_dialog.dart';
@@ -844,6 +845,10 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
     OptionsPage.memory => ConverseMemoryDialog(
       state: widget.state,
       embedded: true,
+    ),
+    OptionsPage.context => OptionsContextHistory(
+      state: widget.state,
+      onProviders: () => _select(OptionsPage.providers),
     ),
     OptionsPage.integrations => McpSettings(
       state: widget.state,

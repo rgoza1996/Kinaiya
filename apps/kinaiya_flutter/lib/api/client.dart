@@ -30,6 +30,7 @@ import 'converse_model_client.dart';
 import 'stt_model_client.dart';
 import 'decisions_model_client.dart';
 import 'auxiliary_route_client.dart';
+import 'context_usage_client.dart';
 import '../config/service_root.dart';
 
 const _uuid = Uuid();
@@ -87,6 +88,7 @@ class KinaiyaClient {
     http.Client? httpClient,
     http.Client Function()? memoryClientFactory,
     http.Client Function()? sttModelClientFactory,
+    http.Client Function()? contextClientFactory,
     http.Client Function()? decisionsClientFactory,
     http.Client Function()? decisionsModelClientFactory,
     http.Client Function()? agentWorkspaceClientFactory,
@@ -109,6 +111,9 @@ class KinaiyaClient {
        _sttModelClientFactory =
            sttModelClientFactory ??
            (httpClient == null ? http.Client.new : _sttModelInjectionRequired),
+       _contextClientFactory =
+           contextClientFactory ??
+           (httpClient == null ? http.Client.new : _contextInjectionRequired),
        _providerClientFactory =
            providerClientFactory ??
            (httpClient == null ? http.Client.new : _providerInjectionRequired),
@@ -244,6 +249,22 @@ class KinaiyaClient {
     clientFactory: _agentWorkspaceClientFactory,
   );
   final http.Client Function() _sttModelClientFactory;
+  final http.Client Function() _contextClientFactory;
+  static http.Client _contextInjectionRequired() => throw StateError(
+    'Context metadata requires an independent injected transport',
+  );
+  late final ContextUsageApi agentContext = ContextUsageApi(
+    baseUrl: agentBase,
+    ownerToken: _token,
+    role: 'agent',
+    clientFactory: _contextClientFactory,
+  );
+  late final ContextUsageApi converseContext = ContextUsageApi(
+    baseUrl: converseBase,
+    ownerToken: _token,
+    role: 'converse',
+    clientFactory: _contextClientFactory,
+  );
   static http.Client _sttModelInjectionRequired() => throw StateError(
     'STT model settings require an independently injected transport',
   );
@@ -305,6 +326,7 @@ class KinaiyaClient {
     String label = 'mock',
     http.Client Function()? memoryClientFactory,
     http.Client Function()? sttModelClientFactory,
+    http.Client Function()? contextClientFactory,
     http.Client Function()? decisionsClientFactory,
     http.Client Function()? decisionsModelClientFactory,
     http.Client Function()? agentWorkspaceClientFactory,
@@ -325,6 +347,8 @@ class KinaiyaClient {
        _memoryClientFactory = memoryClientFactory ?? http.Client.new,
        _sttModelClientFactory =
            sttModelClientFactory ?? _sttModelInjectionRequired,
+       _contextClientFactory =
+           contextClientFactory ?? _contextInjectionRequired,
        _providerClientFactory =
            providerClientFactory ?? _providerInjectionRequired,
        _decisionsClientFactory =
@@ -1053,6 +1077,8 @@ class KinaiyaClient {
       unawaited(toolPermissions.close());
       unawaited(converseModels.close());
       unawaited(sttModels.close());
+      unawaited(agentContext.close());
+      unawaited(converseContext.close());
       final classifier = decisionsModels;
       if (classifier != null) unawaited(classifier.close());
       unawaited(auxiliaryRoutes.close());

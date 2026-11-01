@@ -10,6 +10,7 @@ from packages.contracts import (
     auxiliary_routes,
     companion,
     context,
+    context_usage,
     converse_models,
     converse_setup,
     decisions,
@@ -53,6 +54,14 @@ for module in (
 
 # Owner policy requests are strict frozen models, separate from journal events.
 for cls in (
+    context_usage.ContextCatalogBinding,
+    context_usage.ContextModel,
+    context_usage.ContextScope,
+    context_usage.ContextMeasurement,
+    context_usage.ContextSelection,
+    context_usage.ContextObservation,
+    context_usage.ContextObservationRow,
+    context_usage.ContextUsageSnapshot,
     tool_permissions.PermissionScope,
     tool_permissions.ToolPermissionChange,
     tool_permissions.NativePermissionTarget,

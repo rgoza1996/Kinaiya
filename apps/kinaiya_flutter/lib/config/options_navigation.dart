@@ -14,6 +14,7 @@ enum OptionsPage {
   tools('Tools'),
   integrations('Integrations'),
   memory('Memory'),
+  context('Context'),
   data('Data'),
   tasks('Tasks'),
   resources('Resources'),
@@ -56,6 +57,7 @@ const optionsCategories = [
     OptionsPage.integrations,
   ]),
   OptionsCategory('Memory & data', Icons.storage_outlined, [
+    OptionsPage.context,
     OptionsPage.memory,
     OptionsPage.data,
   ]),
