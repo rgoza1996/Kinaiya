@@ -1,0 +1,156 @@
+{
+  "$defs": {
+    "MemoryBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "session_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "title": "Session Id",
+          "type": "string"
+        },
+        "thread_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "title": "Thread Id",
+          "type": "string"
+        },
+        "epoch": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Epoch",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "session_id",
+        "thread_id",
+        "epoch"
+      ],
+      "title": "MemoryBinding",
+      "type": "object"
+    },
+    "MemoryOperationReceipt": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "operation_id": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Operation Id",
+          "type": "string"
+        },
+        "revision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "node_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "title": "Node Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation_id",
+        "revision",
+        "node_id"
+      ],
+      "title": "MemoryOperationReceipt",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "binding": {
+      "$ref": "#/$defs/MemoryBinding"
+    },
+    "operation": {
+      "enum": [
+        "capture",
+        "forget"
+      ],
+      "title": "Operation",
+      "type": "string"
+    },
+    "idempotency_key": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[!-~]+$",
+      "title": "Idempotency Key",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "committed",
+        "not_found"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "receipt": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MemoryOperationReceipt"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "disposition": {
+      "anyOf": [
+        {
+          "enum": [
+            "stored_active",
+            "stored_invalidated",
+            "stored_tainted",
+            "forgotten",
+            "unavailable"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Disposition"
+    },
+    "mutation_fenced": {
+      "title": "Mutation Fenced",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "binding",
+    "operation",
+    "idempotency_key",
+    "status",
+    "receipt",
+    "disposition",
+    "mutation_fenced"
+  ],
+  "title": "MemoryOperationResult",
+  "type": "object"
+}

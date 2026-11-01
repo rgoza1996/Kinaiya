@@ -26,7 +26,9 @@ from packages.contracts.memory_context import (
     MemoryRecallRequest,
     MemoryRecallResult,
 )
+from packages.contracts.memory_operations import MemoryOperationLookup, MemoryOperationResult
 from services.session.memory import MemoryError, MemoryStore
+from services.session.memory_operations import lookup_operation
 
 BODY_LIMIT = 16 * 1024
 RESPONSE_LIMIT = 256 * 1024
@@ -171,6 +173,17 @@ def install_memory(app, store, auth):
         catalog,
         methods=["POST"],
         response_model=MemoryCatalogResult,
+        route_class_override=CatalogRoute,
+    )
+
+    def operation_lookup(request: MemoryOperationLookup):
+        return lookup_operation(backend(), request)
+
+    router.add_api_route(
+        "/operations/lookup",
+        operation_lookup,
+        methods=["POST"],
+        response_model=MemoryOperationResult,
         route_class_override=CatalogRoute,
     )
 

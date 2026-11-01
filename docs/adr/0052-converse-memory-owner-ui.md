@@ -2,6 +2,11 @@
 
 Issue #123, following ADRs 0047 and 0051 and clarification.md §12.
 
+This records the original existing-note management slice. ADR0085 adds owner
+capture, immutable revision, explicit forget and historical receipt recovery.
+Its content-bearing pending writes are separate from the content-free access
+and runtime-use latches described below.
+
 ## Behavior and authority
 
 An owner Character View Memory dialog lists and inspects existing notes for the

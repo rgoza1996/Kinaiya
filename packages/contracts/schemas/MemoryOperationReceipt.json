@@ -1,0 +1,36 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "operation_id": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Operation Id",
+      "type": "string"
+    },
+    "revision": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Revision",
+      "type": "integer"
+    },
+    "node_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.:-]+$",
+      "title": "Node Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "operation_id",
+    "revision",
+    "node_id"
+  ],
+  "title": "MemoryOperationReceipt",
+  "type": "object"
+}

@@ -16,6 +16,7 @@ import 'design_tokens.dart';
 import 'mcp_settings.dart';
 import 'options_model_editor.dart';
 import 'options_runtime_editor.dart';
+import 'options_provider_editor.dart';
 import 'presentation_settings.dart';
 import 'settings_controls.dart';
 import 'setup_dialog.dart';
@@ -1142,63 +1143,16 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
   }
 
   Widget _providers() {
-    final profiles = _models?.profiles ?? const <AgentModelProfile>[];
-    return _scroll([
-      const Text(
-        'Configured model profiles and supported connection methods. Credentials stay on the host.',
-      ),
-      ..._errors,
-      for (final profile in profiles)
-        DesignPanel(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _heading(profile.label),
-              _field(
-                'Provider',
-                profile.provider ?? 'Configuration unavailable',
-              ),
-              _field('Model', profile.model ?? 'Unavailable'),
-              Text(
-                profile.local == true
-                    ? 'Local endpoint · Configuration is not a model load receipt.'
-                    : profile.local == false
-                    ? 'Cloud endpoint · Input disclosure rules still apply.'
-                    : 'Profile could not be initialized.',
-              ),
-            ],
-          ),
-        ),
-      _heading('Provider setup'),
-      for (final row in const [
-        (
-          'Meta Model API',
-          'API key on the host. Meta account sign-in is not implemented; a Muse subscription does not configure this API.',
-        ),
-        (
-          'LM Studio',
-          'Local native Converse endpoint with an already loaded model and exact prompt counting. Agent profiles need an adapter supporting complete Agent requests.',
-        ),
-        (
-          'OpenAI-compatible',
-          'Owner-configured endpoint, model and optional secret reference. Compatibility alone does not establish exact Agent prompt counting.',
-        ),
-      ])
-        DesignPanel(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _heading(row.$1),
-              const SizedBox(height: 8),
-              Text(row.$2),
-              const SizedBox(height: 8),
-              const Text(
-                'Configure in the host settings, then restart the affected service.',
-              ),
-            ],
-          ),
-        ),
-    ]);
+    final client = widget.state.client;
+    final generation = widget.state.connectionGeneration;
+    return OptionsProviderEditor(
+      key: ObjectKey(client),
+      api: client?.providers,
+      active: () =>
+          mounted &&
+          identical(widget.state.client, client) &&
+          widget.state.connectionGeneration == generation,
+    );
   }
 
   Widget _voice() => Column(

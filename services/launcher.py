@@ -133,10 +133,14 @@ def provider(config, role, *, resource_state=None, service_token=None, workspace
             profile.setdefault("structured_actions", True)
         result = MetaResponsesProvider(**profile)
     elif kind == "lmstudio":
-        if role != "converse":
-            raise SystemExit("Native LM Studio text is selected independently for Converse")
+        if role not in {"converse", "agent", "auxiliary"}:
+            raise SystemExit("Native LM Studio supports Converse, Agent and auxiliary text only")
         from packages.providers.lmstudio import LMStudioProvider
 
+        # The adapter owns exact native counting, prediction and cleanup. Each
+        # model factory call constructs a fresh instance; auxiliary requests
+        # must not share the primary Agent's active operation/cleanup state.
+        # Its constructor permits only reasoning_effort="none".
         result = LMStudioProvider(**profile)
     elif kind in {"compatible", "laya"}:
         if kind == "laya" and role != "decisions":
@@ -364,6 +368,7 @@ def serve(args):
             ROOT / "packages/contracts",
             ROOT / "packages/resources",
             ROOT / "services/resources",
+            ROOT / "services/settings",
             ROOT / "packages/providers",
             ROOT / "evaluation",
             ROOT / "Roadmap.md",
@@ -694,6 +699,38 @@ def serve(args):
             else None
         )
         app = create_app(worker, auth, windows, dispatcher)
+    if service in {"session", "agent", "converse", "decisions"}:
+        import sqlite3
+
+        from services.settings.provider_api import router as provider_router
+        from services.settings.provider_catalog import ProviderCatalog
+
+        # Each independent owner service can manage the same protected catalog.
+        # Saving a declaration never hot-swaps any role or starts inference.
+        try:
+            catalog = ProviderCatalog(
+                args.data_dir.resolve() / "providers.sqlite",
+                args.workspace.resolve(),
+                env_refs=config.get("provider_credential_references", {}),
+            )
+        except (OSError, ValueError, RuntimeError, sqlite3.Error):
+            # An unavailable optional catalog cannot take the independent
+            # journal or an existing host-configured role offline. Catalog
+            # actions still fail closed through their explicit 503 routes.
+            catalog = None
+        app.include_router(provider_router(catalog, auth))
+        original_lifespan = app.router.lifespan_context
+
+        @asynccontextmanager
+        async def catalog_lifespan(app):
+            try:
+                async with original_lifespan(app):
+                    yield
+            finally:
+                if catalog is not None:
+                    catalog.close()
+
+        app.router.lifespan_context = catalog_lifespan
     uvicorn.run(app, host="127.0.0.1", port=args.port or PORTS[service], log_level="warning")
 
 
