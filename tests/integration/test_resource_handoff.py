@@ -36,6 +36,12 @@ MiB = 1024 * 1024
 
 
 async def make_coordinated(tmp_path, *, worker_id="voice"):
+    from test_agent_submit_admission import proposal
+
+    from packages.contracts.client import JournalClient
+    from packages.contracts.standing_resources import TaskResourceQuery
+    from services.session.api import create_app as session_app
+
     ready = tmp_path / "ready"
     script = tmp_path / "worker.py"
     script.write_text(
@@ -49,8 +55,10 @@ async def make_coordinated(tmp_path, *, worker_id="voice"):
         [WorkerSpec(worker_id, (sys.executable, str(script)), tmp_path)], readiness=probe
     )
     state = ResourceState(tmp_path / "control/resources-state.json")
-    store = Store(tmp_path / "journal.sqlite")
-    store.create_session(SessionRequest(channel="converse"))
+    journal_path = tmp_path / "journal.sqlite"
+    first_store = not journal_path.exists()
+    store = Store(journal_path)
+    task_session = store.create_session(SessionRequest(channel="converse"))
     provider = ScriptedProvider([])
     provider.info = ProviderInfo(provider="synthetic-cloud", model="fixture", local=False)
     runtime = ConverseRuntime(
@@ -67,14 +75,71 @@ async def make_coordinated(tmp_path, *, worker_id="voice"):
         "r" * 32,
         transport=httpx.ASGITransport(app=converse_app(runtime, AUTH)),
     )
+    app = session_app(store, AUTH)
+    session_lifecycle = app.router.lifespan_context(app)
+    await session_lifecycle.__aenter__()
+    handoff_journal = JournalClient(
+        "http://127.0.0.1:8760", "r" * 32, transport=httpx.ASGITransport(app=app)
+    )
     coordinator = ResourceCoordinator(
         manager,
         state,
         control,
         journal=LocalJournal(store, "resources"),
+        handoff_journal=handoff_journal,
         memory_probe=lambda: 2 * 1024 * MiB,
     )
-    await coordinator.initialize()
+    native_close = coordinator.close
+    session_shutdown = None
+
+    async def close_session():
+        try:
+            await handoff_journal.close()
+        finally:
+            await session_lifecycle.__aexit__(None, None, None)
+
+    async def close_coordinated():
+        nonlocal session_shutdown
+        try:
+            await native_close()
+        finally:
+            if session_shutdown is None:
+                session_shutdown = asyncio.create_task(close_session())
+            interrupted = False
+            while not session_shutdown.done():
+                try:
+                    await asyncio.shield(session_shutdown)
+                except asyncio.CancelledError:
+                    interrupted = True
+            session_shutdown.result()
+            if interrupted:
+                raise asyncio.CancelledError
+
+    coordinator.close = close_coordinated
+    try:
+        if first_store:
+            agent = JournalClient(
+                "http://127.0.0.1:8760", "a" * 32, transport=httpx.ASGITransport(app=app)
+            )
+            try:
+                admitted = await agent.admit_submit(
+                    proposal(task_session, task_id="target", key="resource-fixture-target")
+                )
+                assert admitted.entry.origin == "agent-supervisor"
+                assert admitted.entry.session_id == task_session.session_id
+            finally:
+                await agent.close()
+        # Reopening the fixture observes the original Task, rather than
+        # creating an ambiguous second "target" in its new Converse session.
+        context = await handoff_journal.resource_task_context(
+            TaskResourceQuery(schema_version="1.0", task_id="target")
+        )
+        assert context.family == "ordinary" and context.ordinary.task_id == "target"
+        await coordinator.initialize()
+    except BaseException:
+        await coordinator.close()
+        store.close()
+        raise
     return coordinator, runtime, store
 
 
