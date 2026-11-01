@@ -10,6 +10,7 @@ import itertools
 import json
 
 import pytest
+
 from packages.contracts.standing_dispatch import (
     MAX_STANDING_DISPATCH_EPOCH,
     MAX_STANDING_DISPATCH_REQUEST_BYTES,
