@@ -182,23 +182,18 @@ def _communicate_bounded(
     killed and reaped, then PluginCandidateFailure is raised. The child is
     always reaped, including descendants via the killed group/session.
     """
-    if cancel_event is not None and cancel_event.is_set():
-        _kill_group(proc)
-        try:
-            proc.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            _kill_group(proc)
-            proc.wait()
-        raise PluginCandidateFailure("candidate cancelled before start")
-    deadline = time.monotonic() + timeout_s
-    out = bytearray()
-    err = bytearray()
-    pending: dict[int, bytearray] = {}
-    for fh, buf in ((proc.stdout, out), (proc.stderr, err)):
-        assert fh is not None  # noqa: S101 - pipes are always requested
-        os.set_blocking(fh.fileno(), False)
-        pending[fh.fileno()] = buf
     try:
+        if cancel_event is not None and cancel_event.is_set():
+            _kill_group(proc)
+            raise PluginCandidateFailure("candidate cancelled before start")
+        deadline = time.monotonic() + timeout_s
+        out = bytearray()
+        err = bytearray()
+        pending: dict[int, bytearray] = {}
+        for fh, buf in ((proc.stdout, out), (proc.stderr, err)):
+            assert fh is not None  # noqa: S101 - pipes are always requested
+            os.set_blocking(fh.fileno(), False)
+            pending[fh.fileno()] = buf
         while pending:
             if cancel_event is not None and cancel_event.is_set():
                 _kill_group(proc)
@@ -248,6 +243,14 @@ def _communicate_bounded(
         except subprocess.TimeoutExpired:
             _kill_group(proc)
             proc.wait()
+        # EOF does not close Popen's actual pipe objects. Retain both until
+        # child cleanup has reaped the process, including setup/cancel failures.
+        try:
+            if proc.stdout is not None:
+                proc.stdout.close()
+        finally:
+            if proc.stderr is not None:
+                proc.stderr.close()
     return bytes(out), bytes(err)
 
 

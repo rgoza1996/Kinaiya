@@ -1,0 +1,58 @@
+{
+  "additionalProperties": false,
+  "description": "Strict immutable projection of all six original SteerRequest fields.",
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "instruction": {
+      "maxLength": 16000,
+      "minLength": 1,
+      "title": "Instruction",
+      "type": "string"
+    },
+    "content_scope": {
+      "enum": [
+        "public_synthetic",
+        "private_cloud_authorized",
+        "local_only"
+      ],
+      "title": "Content Scope",
+      "type": "string"
+    },
+    "expected_objective_revision": {
+      "maximum": 9007199254740990,
+      "minimum": 1,
+      "title": "Expected Objective Revision",
+      "type": "integer"
+    },
+    "idempotency_key": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Idempotency Key",
+      "type": "string"
+    },
+    "source_event_ids": {
+      "items": {
+        "maxLength": 128,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 32,
+      "title": "Source Event Ids",
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "instruction",
+    "content_scope",
+    "expected_objective_revision",
+    "idempotency_key",
+    "source_event_ids"
+  ],
+  "title": "AgentSteerChange",
+  "type": "object"
+}

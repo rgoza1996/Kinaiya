@@ -1,0 +1,39 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "event_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Event Id",
+      "type": "string"
+    },
+    "revision": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Revision",
+      "type": "integer"
+    },
+    "content_scope": {
+      "enum": [
+        "public_synthetic",
+        "private_cloud_authorized",
+        "local_only"
+      ],
+      "title": "Content Scope",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "event_id",
+    "revision",
+    "content_scope"
+  ],
+  "title": "AgentSteerSource",
+  "type": "object"
+}

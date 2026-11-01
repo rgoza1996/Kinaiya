@@ -1,10 +1,16 @@
 import asyncio
+import logging
+from contextlib import asynccontextmanager
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from packages.contracts.agent_control import (
+    AgentModeChange,
+    AgentSteerAdmissionRequest,
+)
 from packages.contracts.agent_export import (
     MAX_AGENT_EXPORT_BYTES,
     AgentExportAdmission,
@@ -29,16 +35,57 @@ from packages.contracts.context import (
     ContextQualificationRequest,
     context_json,
 )
+from packages.contracts.interfaces import (
+    AgentControlConflict,
+    AgentControlUnavailable,
+    AgentModeOff,
+)
 from packages.contracts.models import AppendRequest, PlaybackGeneration, SessionRequest
 from packages.contracts.stt_settlement import STTPublication
 from services.common.auth import Auth
+from services.session.agent_control import AgentControl
 from services.session.store import JournalError, Store
 
 
 def create_app(
-    store: Store, auth: Auth, *, companion_clock=None, converse_memory: bool = False
+    store: Store,
+    auth: Auth,
+    *,
+    companion_clock=None,
+    converse_memory: bool = False,
+    agent_enabled: bool | None = None,
 ) -> FastAPI:
-    app = FastAPI(title="Kinaiya shared session journal", version="1.0")
+    if auth is None or not hasattr(auth, "require"):
+        raise RuntimeError("Session control requires configured authentication")
+    if agent_enabled is not None and type(agent_enabled) is not bool:
+        raise ValueError("Legacy Agent bootstrap must be an explicit boolean")
+    # This app owns its registration; another app using the same Store never
+    # upgrades this object's generation or acquires its write authority.
+    control = AgentControl(store, new_store=store.agent_control.new_store)
+    try:
+        control.register(legacy_agent_enabled=agent_enabled)
+        control_ready = True
+    except AgentControlUnavailable:
+        control_ready = False
+
+    @asynccontextmanager
+    async def lifespan(_app):
+        try:
+            yield
+        finally:
+            try:
+                control.close()
+            except AgentControlUnavailable:
+                # A poisoned connection has already failed closed. Shutdown
+                # cannot confirm retirement or repair it, and must still end.
+                app.state.agent_control_shutdown_unconfirmed = True
+                logging.getLogger(__name__).warning(
+                    "Agent control shutdown could not confirm native generation retirement"
+                )
+
+    app = FastAPI(title="Kinaiya shared session journal", version="1.0", lifespan=lifespan)
+    app.state.agent_control = control
+    app.state.agent_control_shutdown_unconfirmed = False
     authenticated = Depends(auth.require())
     app.add_middleware(
         CORSMiddleware,
@@ -46,6 +93,100 @@ def create_app(
         allow_methods=["GET", "POST", "DELETE"],
         allow_headers=["Authorization", "Content-Type"],
     )
+
+    @app.middleware("http")
+    async def control_no_store(request, call_next):
+        response = await call_next(request)
+        if request.url.path.startswith(
+            ("/v1/agent-control", "/v1/transcript/agent-steers", "/v1/transcript/agent-submits")
+        ):
+            response.headers["Cache-Control"] = "no-store"
+        return response
+
+    @app.exception_handler(AgentControlConflict)
+    async def control_conflict(_, exc):
+        from fastapi.responses import JSONResponse
+
+        return JSONResponse(
+            status_code=409,
+            content={"detail": str(AgentControlConflict())},
+            headers={"Cache-Control": "no-store"},
+        )
+
+    @app.exception_handler(AgentControlUnavailable)
+    async def control_unavailable(_, exc):
+        from fastapi.responses import JSONResponse
+
+        return JSONResponse(
+            status_code=503,
+            content={"detail": str(AgentControlUnavailable())},
+            headers={"Cache-Control": "no-store"},
+        )
+
+    @app.exception_handler(AgentModeOff)
+    async def agent_off(_, exc):
+        from fastapi.responses import JSONResponse
+
+        return JSONResponse(
+            status_code=403,
+            content={"detail": str(AgentModeOff())},
+            headers={"Cache-Control": "no-store"},
+        )
+
+    async def control_body(request, cls):
+        if request.headers.get("content-type", "").split(";", 1)[
+            0
+        ].strip().lower() != "application/json" or request.headers.get(
+            "content-encoding", "identity"
+        ).strip().lower() not in {"", "identity"}:
+            raise HTTPException(415, "Agent control requires identity JSON")
+        raw = bytearray()
+        async for chunk in request.stream():
+            if len(raw) + len(chunk) > cls.wire_bytes:
+                raise HTTPException(422, "Invalid Agent control request")
+            raw.extend(chunk)
+        try:
+            return cls.from_json(bytes(raw))
+        except ValueError:
+            raise HTTPException(422, "Invalid Agent control request") from None
+
+    def control_response(result):
+        from fastapi.responses import Response
+
+        return Response(
+            result.canonical_bytes(),
+            media_type="application/json",
+            headers={"Cache-Control": "no-store"},
+        )
+
+    def registered_control():
+        if not control_ready:
+            raise AgentControlUnavailable
+        return control
+
+    @app.get("/v1/agent-control/state", dependencies=[Depends(auth.require("owner", "agent"))])
+    async def agent_control_state():
+        return control_response(registered_control().snapshot())
+
+    @app.post("/v1/agent-control/changes", dependencies=[Depends(auth.require("owner"))])
+    async def agent_mode_change(request: Request):
+        body = await control_body(request, AgentModeChange)
+        return control_response(registered_control().change(body))
+
+    @app.post("/v1/agent-control/changes/lookup", dependencies=[Depends(auth.require("owner"))])
+    async def agent_mode_lookup(request: Request):
+        body = await control_body(request, AgentModeChange)
+        return control_response(registered_control().lookup(body))
+
+    @app.post("/v1/transcript/agent-steers", dependencies=[Depends(auth.require("agent"))])
+    async def agent_steer_admission(request: Request):
+        body = await control_body(request, AgentSteerAdmissionRequest)
+        return control_response(store.agent_control.admit_steer(body))
+
+    @app.post("/v1/transcript/agent-steers/lookup", dependencies=[Depends(auth.require("agent"))])
+    async def agent_steer_lookup(request: Request):
+        body = await control_body(request, AgentSteerAdmissionRequest)
+        return control_response(store.agent_control.lookup_steer(body))
 
     @app.exception_handler(JournalError)
     async def conflict(_, exc):
@@ -189,6 +330,8 @@ def create_app(
             ) from None
         except AgentSubmitUnavailable:
             raise HTTPException(503, "Agent submission admission is unavailable") from None
+        except AgentModeOff:
+            raise
         except HTTPException:
             raise
         except Exception:
