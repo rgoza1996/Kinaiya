@@ -194,10 +194,11 @@ def finish_action(revision=1, summary="done"):
     return {"tool": "finish", "arguments": {"summary": summary, "objective_revision": revision}}
 
 
-def make_runtime(tmp_path, provider, **policy_kw):
+def make_runtime(tmp_path, provider, *, journal=None, **policy_kw):
     policy_kw.setdefault("allow_write", True)
     policy = ToolPolicy(workspace=tmp_path, **policy_kw)
-    journal = InMemoryJournal(SESSION)
+    if journal is None:
+        journal = InMemoryJournal(SESSION)
     runtime = AgentRuntime(journal, provider, tmp_path, policy)
     return runtime, journal, policy
 
@@ -498,7 +499,7 @@ async def test_interrupt_kills_running_shell(tmp_path):
         await runtime.close()
 
 
-async def test_steer_applies_and_stale_finish_fails(tmp_path):
+async def test_steer_applies_and_stale_finish_fails(tmp_path, native_agent_journal):
     gate = asyncio.Event()
 
     async def gated_stale_finish():
@@ -506,7 +507,7 @@ async def test_steer_applies_and_stale_finish_fails(tmp_path):
         return finish_action(revision=1, summary="old plan done")
 
     provider = ScriptedProvider([write_action(), gated_stale_finish])
-    runtime, _, _ = make_runtime(tmp_path, provider)
+    runtime, _, _ = make_runtime(tmp_path, provider, journal=native_agent_journal)
     try:
         task = await runtime.submit(task_req())
         await poll_for(lambda: _evdone(runtime, task.task_id))
@@ -529,7 +530,7 @@ async def test_steer_applies_and_stale_finish_fails(tmp_path):
         await runtime.close()
 
 
-async def test_steer_requires_reverification_then_succeeds(tmp_path):
+async def test_steer_requires_reverification_then_succeeds(tmp_path, native_agent_journal):
     gate = asyncio.Event()
 
     async def gated_stale_write():
@@ -544,7 +545,7 @@ async def test_steer_requires_reverification_then_succeeds(tmp_path):
             finish_action(revision=2, summary="new plan done"),
         ]
     )
-    runtime, _, _ = make_runtime(tmp_path, provider)
+    runtime, _, _ = make_runtime(tmp_path, provider, journal=native_agent_journal)
     try:
         task = await runtime.submit(task_req())
         await poll_for(lambda: _evdone(runtime, task.task_id))

@@ -268,7 +268,12 @@ async def test_http_task_lifecycle_and_capabilities(tmp_path):
 
 
 async def test_http_auth_and_steer_interrupt(tmp_path):
+    from packages.contracts.models import SessionRequest
+    from services.session.store import LocalJournal, Store
+
     gate = asyncio.Event()
+    store = Store(tmp_path / "journal.sqlite")
+    session = store.create_session(SessionRequest(channel="agent"))
 
     class GatedProvider(ScriptedProvider):
         async def complete(self, messages):
@@ -279,7 +284,7 @@ async def test_http_auth_and_steer_interrupt(tmp_path):
             )
 
     runtime = AgentRuntime(
-        InMemoryJournal(), GatedProvider([]), tmp_path, ToolPolicy(workspace=tmp_path)
+        LocalJournal(store, "agent"), GatedProvider([]), tmp_path, ToolPolicy(workspace=tmp_path)
     )
     auth, tokens = make_auth()
     app = create_app(runtime, auth)
@@ -288,9 +293,9 @@ async def test_http_auth_and_steer_interrupt(tmp_path):
             denied = await client.post(
                 "/v1/agent/tasks",
                 json={
-                    "session_id": "s9",
-                    "thread_id": "t9",
-                    "epoch": 1,
+                    "session_id": session.session_id,
+                    "thread_id": session.thread_id,
+                    "epoch": session.epoch,
                     "objective": "x",
                     "idempotency_key": "auth1",
                 },
@@ -299,9 +304,9 @@ async def test_http_auth_and_steer_interrupt(tmp_path):
             created = await client.post(
                 "/v1/agent/tasks",
                 json={
-                    "session_id": "s9",
-                    "thread_id": "t9",
-                    "epoch": 1,
+                    "session_id": session.session_id,
+                    "thread_id": session.thread_id,
+                    "epoch": session.epoch,
                     "objective": "original",
                     "idempotency_key": "auth2",
                 },
@@ -351,6 +356,7 @@ async def test_http_auth_and_steer_interrupt(tmp_path):
     finally:
         gate.set()
         await runtime.close()
+        store.close()
 
 
 async def test_http_approval_resolve(tmp_path):

@@ -253,6 +253,11 @@ voice recording/playback and independent Agent Chat. Its [design and browser evi
 describe the tested synthetic voice-to-file flow and Agent operation while Converse
 was unloaded. Native voice and the remaining M5 gates are unfinished.
 
+Agent Chat's [operating-mode control](docs/agent-control-api.md) reads and changes
+native Off/on-demand independently of Converse. Off refuses new tasks and steering;
+already accepted work may finish under its existing authorization, and Stop and
+approvals remain available. Autonomous is unavailable pending a standing-work producer.
+
 The owner app's [Options workspace](docs/adr/0077-options-workspace-and-harness-models.md)
 uses persistent section navigation and embeds the existing appearance, voice,
 memory, connection and MCP editors. Models, Providers and Harness Customization

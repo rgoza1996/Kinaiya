@@ -79,7 +79,7 @@
       "iOS owner and companion unsigned simulator"
     ],
     "exact_final_head": true,
-    "observed_results_location": "Associated PR and retained CI receipts; no unobserved CI success claimed here."
+    "observed_results_location": "All five exact-head CI313 jobs passed; the actual PR216 merge has the tested tree. See integration for results and receipt pins."
   },
   "limits": [
     "Legacy runtime1.0 first writes/digests/receipts and UUID36 state semantics preserved; new UI writes are bound1.1.",
@@ -289,6 +289,73 @@
     "original_ci_receipt_sha256": "ee2b3d4f1f8f7e2237c1964dc99b1da4e4b72ee0b94a70867491ed0c2ab9c6a4",
     "original_ci_all_jobs_passed": false,
     "original_ci_python311": "1 failed /7743 passed",
-    "final_gate": "Updated exact-final-head CI and review remain required; no failed-run merge"
+    "final_gate": "Updated exact-final-head CI313 and independent review passed; actual merged tree verified. Original failed CI308 remains retained."
+  },
+  "integration": {
+    "pr": 216,
+    "head": "93945c11917229ab6cae1b72cb83aa08bf06316f",
+    "base": "4ecb6d42474d7e1c6579f62ad5d7819181c56e7f",
+    "tree": "e3f9dc2d090d60c51cdb260a4004bc81ef90a2aa",
+    "ci_synthetic_merge": "24bc255487b1d0dd08e1831d8089ed7ef452242e",
+    "run_id": 41271962754,
+    "run_number": 313,
+    "all_five_passed": true,
+    "results": {
+      "python311": {
+        "passed": 7754,
+        "skipped": 6,
+        "deselected": 2,
+        "warnings": 1,
+        "seconds": 487.47
+      },
+      "python312": {
+        "passed": 7754,
+        "skipped": 6,
+        "deselected": 2,
+        "warnings": 1,
+        "seconds": 494.1
+      },
+      "flutter": {
+        "passed": 929,
+        "bridge_passed": 38,
+        "analysis": "no issues",
+        "format": "zero changes",
+        "web_builds": [
+          "owner",
+          "companion"
+        ]
+      },
+      "android": {
+        "builds": [
+          "owner APK",
+          "companion APK"
+        ]
+      },
+      "ios": {
+        "builds": [
+          "owner unsigned simulator",
+          "companion unsigned simulator"
+        ]
+      },
+      "schemas": "export/diff passed on both Python jobs",
+      "audits": "both Python jobs report no known vulnerabilities"
+    },
+    "independent_review": {
+      "head": "93945c11917229ab6cae1b72cb83aa08bf06316f",
+      "url": "https://github.com/rgoza1996/Kinaiya/pull/216#pullrequestreview-5726355749",
+      "receipt_sha256": "d9c22157355a4d8a956e6cea83f476cc06c9e41109b68be54f1b7a896a3c230a",
+      "attribution": "Codex COMMENT; no human approval"
+    },
+    "run_url": "https://github.com/rgoza1996/Kinaiya/actions/runs/41271962754",
+    "pr_url": "https://github.com/rgoza1996/Kinaiya/pull/216",
+    "actual_merge": "59a3f6b65df3c35cd4ee0adbe9b5d029c6bdb572",
+    "actual_parents": [
+      "4ecb6d42474d7e1c6579f62ad5d7819181c56e7f",
+      "93945c11917229ab6cae1b72cb83aa08bf06316f"
+    ],
+    "merged_at_utc": "2026-11-01T04:22:29Z",
+    "head_ci_merge_trees_equal": true,
+    "final_ci_receipt_sha256": "c9659ad1a07d5a86156e391a5cf84bdd8110369a8ea14df1a7d2a843969e1723",
+    "merge_verification_sha256": "39750c85c0220b037601398a87ec5d5c2e861455306dce3ad655a0a855e3722a"
   }
 }

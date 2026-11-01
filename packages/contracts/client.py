@@ -3,6 +3,12 @@ import copy
 
 import httpx
 
+from packages.contracts.agent_control import (
+    AgentControlSnapshot,
+    AgentSteerAdmissionRequest,
+    AgentSteerLookupResult,
+    AgentSteerReceipt,
+)
 from packages.contracts.agent_export import (
     MAX_AGENT_EXPORT_BYTES,
     AgentExportAdmission,
@@ -31,6 +37,11 @@ from packages.contracts.context import (
     ContextQualificationPage,
     ContextQualificationRequest,
     context_json,
+)
+from packages.contracts.interfaces import (
+    AgentControlConflict,
+    AgentControlUnavailable,
+    AgentModeOff,
 )
 from packages.contracts.models import AppendRequest, JournalEntry, PlaybackGeneration, Session
 
@@ -92,7 +103,7 @@ class _SubmitExchange:
             response = self.response
             if response.status_code == 409:
                 raise AgentSubmitConflict()
-            if response.status_code != 200:
+            if response.status_code not in {200, 403}:
                 raise AgentSubmitUnavailable()
             if (
                 response.headers.get("content-encoding", "identity").strip(" \t").lower()
@@ -130,7 +141,73 @@ class _SubmitExchange:
             if self.abandoned or asyncio.get_running_loop().time() >= deadline:
                 raise AgentSubmitUnavailable()
             parsed = agent_submit_json(bytes(raw), maximum=MAX_AGENT_SUBMIT_RESPONSE_BYTES)
+            if response.status_code == 403:
+                if result_type is AgentSubmitReceipt and parsed == {"detail": str(AgentModeOff())}:
+                    raise AgentModeOff
+                raise AgentSubmitUnavailable
             return result_type.model_validate(parsed).validate_request(proposal)
+        finally:
+            if self.response is not None:
+                self.close_task = asyncio.create_task(self._close())
+                self.close_task.add_done_callback(self._settled)
+                await asyncio.shield(self.close_task)
+
+
+class _ControlExchange(_SubmitExchange):
+    async def _run(self, request, proposal, result_type, deadline):
+        try:
+            loop = asyncio.get_running_loop()
+            if self.abandoned or loop.time() >= deadline:
+                raise AgentControlUnavailable
+            self.response = await self.owner.http.send(request, stream=True, follow_redirects=False)
+            if self.abandoned:
+                raise AgentControlUnavailable
+            response = self.response
+            if response.status_code == 409:
+                raise AgentControlConflict
+            if response.status_code not in {200, 403}:
+                raise AgentControlUnavailable
+            if (
+                response.headers.get("content-encoding", "identity").strip().lower() != "identity"
+                or response.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+                != "application/json"
+            ):
+                raise AgentControlUnavailable
+            maximum = result_type.wire_bytes
+            declared = response.headers.get("content-length")
+            length = None
+            if declared is not None:
+                declared = declared.strip(" \t")
+                if (
+                    "transfer-encoding" in response.headers
+                    or not declared.isascii()
+                    or not declared.isdigit()
+                    or len(declared) > 8
+                    or int(declared) > maximum
+                ):
+                    raise AgentControlUnavailable
+                length = int(declared)
+            raw = bytearray()
+            async for chunk in response.stream:
+                if not isinstance(chunk, bytes) or len(raw) + len(chunk) > maximum:
+                    raise AgentControlUnavailable
+                raw.extend(chunk)
+            if (
+                (length is not None and length != len(raw))
+                or self.abandoned
+                or loop.time() >= deadline
+            ):
+                raise AgentControlUnavailable
+            if response.status_code == 403:
+                from packages.contracts.agent_control import agent_control_json
+
+                if result_type is AgentSteerReceipt and agent_control_json(
+                    bytes(raw), maximum=maximum
+                ) == {"detail": str(AgentModeOff())}:
+                    raise AgentModeOff
+                raise AgentControlUnavailable
+            result = result_type.from_json(bytes(raw))
+            return result.validate_request(proposal) if proposal is not None else result
         finally:
             if self.response is not None:
                 self.close_task = asyncio.create_task(self._close())
@@ -207,10 +284,62 @@ class JournalClient:
             raise
         except AgentSubmitConflict:
             raise AgentSubmitConflict() from None
+        except AgentModeOff:
+            raise AgentModeOff() from None
         except Exception:
             if exchange is not None:
                 exchange.abandon()
             raise AgentSubmitUnavailable() from None
+
+    async def agent_control_state(self):
+        return await self._control(
+            "GET", "/v1/agent-control/state", None, AgentControlSnapshot, 5.0
+        )
+
+    async def agent_control_backend(self):
+        return (await self.agent_control_state()).backend_id
+
+    async def admit_steer(self, request):
+        proposal = AgentSteerAdmissionRequest.model_validate(request)
+        return await self._control(
+            "POST", "/v1/transcript/agent-steers", proposal, AgentSteerReceipt, 15.0
+        )
+
+    async def lookup_steer(self, request):
+        proposal = AgentSteerAdmissionRequest.model_validate(request)
+        return await self._control(
+            "POST", "/v1/transcript/agent-steers/lookup", proposal, AgentSteerLookupResult, 5.0
+        )
+
+    async def _control(self, method, path, proposal, result_type, timeout):
+        exchange = None
+        try:
+            loop = asyncio.get_running_loop()
+            deadline = loop.time() + timeout
+            if self._submit_closed or len(self._submit_exchanges) >= 64:
+                raise AgentControlUnavailable
+            body = None if proposal is None else proposal.canonical_bytes()
+            request = self.http.build_request(
+                method,
+                path,
+                content=body,
+                headers={"Content-Type": "application/json", "Accept-Encoding": "identity"},
+            )
+            exchange = _ControlExchange(self, request, proposal, result_type, deadline)
+            done, _ = await asyncio.wait({exchange.task}, timeout=max(0, deadline - loop.time()))
+            if not done or exchange.abandoned or loop.time() >= deadline:
+                raise AgentControlUnavailable
+            return exchange.task.result()
+        except asyncio.CancelledError:
+            if exchange is not None:
+                exchange.abandon()
+            raise
+        except (AgentControlConflict, AgentModeOff):
+            raise
+        except Exception:
+            if exchange is not None:
+                exchange.abandon()
+            raise AgentControlUnavailable from None
 
     async def agent_export_admission(self, request):
         request = AgentExportRequest.model_validate(request)

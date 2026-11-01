@@ -350,6 +350,7 @@ def serve(args):
             Store(args.data_dir / "journal.sqlite"),
             auth,
             converse_memory=getattr(args, "converse_memory", False),
+            agent_enabled=config.get("agent_enabled"),
         )
     elif service == "agent":
         from core.policy import ToolPolicy

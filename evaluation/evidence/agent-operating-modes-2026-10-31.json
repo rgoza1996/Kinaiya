@@ -1,0 +1,483 @@
+{
+  "schema_version": "1.0",
+  "kind": "native-agent-operating-modes",
+  "date": "2026-10-31",
+  "timezone": "America/Los_Angeles",
+  "issue": 217,
+  "requirement": [
+    "Roadmap \u00a713.1 operating modes",
+    "Roadmap \u00a719.2 standing-work prerequisite",
+    "M7 issue10",
+    "Full Options issue208"
+  ],
+  "integrated_main": "770b828d235f52f25dd7670d21b1538aff6d7d5c",
+  "attribution": "Codex authors and independent Codex reviewers. Legacy agent task names do not indicate Muse CLI execution; no human approval claimed.",
+  "implemented": [
+    "Protected persistent Off/on-demand; mode changes and native initial/steering acceptance serialize in the same Session SQLite database.",
+    "Exact retained full-request proof precedes current mode checks. Historical receipts never reapply settings or launch work.",
+    "Native steering intent commits before pending RAM scope/goal/wake; direct acknowledgement still needs current source, cancellation, revision and workspace identity.",
+    "Explicit finish_already_accepted policy preserves authorized active work and independent Stop, approvals, inspection and historical reconciliation without Converse.",
+    "Agent Chat owner panel with private owner/backend-scoped pending requests, explicit retry/lookup and bounded actual transport ownership.",
+    "Atomic first-store schema plus durable pending-bootstrap provenance prevents a failed registration or crash from silently restoring on-demand."
+  ],
+  "production_sha256": {
+    "packages/contracts/agent_control.py": "36b20bb50b69eed185888587867212fa5a681f36d8c5dc1be38d371e51f6ade6",
+    "services/session/agent_control.py": "627df26876231d33189b03cb9962461b54f8cd671dc504be8c126048e1b990ce",
+    "services/session/store.py": "9211d16d89630b9d9eb2f521e952f1a624e8051f091931d4d08e3735a447515e",
+    "services/session/api.py": "53ebb125c6ff6114622b837886b6766fadf731fa12a9a0b96705728d1413a5a5",
+    "services/agent/runtime.py": "bdbd35f365e4ebb56c9a59e6083ae0e3b28a158e644667fc1ee0ba65a0605c50",
+    "packages/contracts/client.py": "a3294f4312d0fa177c1f8ba6f005606400c67fbb499240af21caa907526a59d0",
+    "apps/kinaiya_flutter/lib/api/owned_settings_client.dart": "3dbbc6e30135f98fe2fe0a7f8468fc797a4b360235ae35928bb836417efabcee",
+    "services/agent/workspace_settings.py": "787e96d76ebb617e7fc25d71be84b6578336a8731221bbee41388e7428affe98",
+    "services/agent/workspace_ownership.py": "16a5d861711b36e441e90a9898b78a01931cc6b9077e60dcc3c438207e18f733",
+    "core/policy/__init__.py": "40d055286c95f71620377adbdffe176ad52a60319023153d092772782fb5042f",
+    "packages/contracts/workspace_settings.py": "5947ab2e7e4219b60406c6656a4e884768e68fb59d14205b832d2cddea0dc458",
+    "apps/kinaiya_flutter/lib/api/agent_control.dart": "68ab1b0608e18e3784a1653c6f270d12228b7b9b64aff66b8d490e534addca2e",
+    "apps/kinaiya_flutter/lib/api/agent_control_client.dart": "68f9108cb667d685547beff7cd7716b08548560bcd1bf001804be7260c2e6105",
+    "apps/kinaiya_flutter/lib/state/agent_mode_writes.dart": "3e99961aa1c2c1fdf1e5edd2b7766496459a12453f0dddf7b0f0de5e4ac81e3f",
+    "apps/kinaiya_flutter/lib/ui/agent_operating_mode_panel.dart": "a921812741bf960aabb10ab454cec1beb716b0dc7c3b7295a1b81d2a520abdfe",
+    "apps/kinaiya_flutter/lib/api/client.dart": "a1ecbe4c688b7d3594776adc906c486b60ee6dc4e5fbda457eeb45e7c4717a0d"
+  },
+  "frozen_independent_test": {
+    "path": "tests/integration/test_agent_operating_mode.py",
+    "sha256": "4527b52691480783834dd5564b126e647e4b4b5922f6a591d2d75e802688c3d8",
+    "test_only_commit": "e17d74dd8881e139289036f730a38bf8a4f2aa35"
+  },
+  "independent_checks": {
+    "pure_contracts": "78 frozen contract cases and16 additional probes passed before native/client delegation.",
+    "preimplementation_native": {
+      "passed": 3,
+      "failed": 43,
+      "errors": 0,
+      "skipped": 0,
+      "classification": "37 absent-capability failures;6 native ordering/race failures."
+    },
+    "final_combined_pytest": {
+      "passed": 52,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "warnings": "errors",
+      "seconds": 17.85,
+      "composition": "Unchanged46 independent native cases plus6 actual workspace/permission integration cases; counts overlap other focused runs."
+    },
+    "strict_proof_and_lookup_probes": {
+      "cases": 11,
+      "all_expected_503": true
+    },
+    "bootstrap_fault_and_restart": "Registration failure refuses503/no native entry. Three same-database restart cases remainOff/newsubmit403/no entry.",
+    "additional_permission_bridge": {
+      "passed": 2,
+      "seconds": 1.77,
+      "scope": "Actual native approval/file effect whileOff; denial/Stop with no effect."
+    },
+    "receipt_sha256": "3538d7bf4f950d096d5d7cf4debf7bfcc571dee0283b28a11cfb92c4c7a237ea",
+    "manifest_sha256": "dedbf22459aeaefb0e3176998ba2df243ddce342bec8a9ac218f81e6ec9df6d7",
+    "source_review": "Full new contract/client/native boundary review and scoped main63eff workspace/permission integration; not a full upstream audit.",
+    "remaining_actionable_findings": []
+  },
+  "observed_checks": {
+    "native_author_final": {
+      "passed": 89,
+      "seconds": 11.26,
+      "receipt_sha256": "b398f17aa0220586f26c3a32d3b5a5b28bec692db4d59240d679e6b6a3bd0969"
+    },
+    "full_flutter": {
+      "passed": 958,
+      "failed": 0,
+      "reported_skips": 0,
+      "analysis": "no issues",
+      "format": "207 files; zero changes",
+      "qualified_head": "ec3454dbf66174e960c77c33619151a84f67cef4",
+      "all_304_tracked_flutter_paths_byte_exact_to_tested_source": true,
+      "receipt_sha256": "776267a4011edb9c6235285a9d4e992a5bf698b15d5d3480fab64e296d0929cc",
+      "manifest_sha256": "7aa5a4882e40ba0818daf750c26d420ada77eb47a060d4923e80c258e8ec1be1",
+      "scope": "Initial complete Flutter qualification before PR225; all304 byte comparisons refer to that initial native source. Final combined source adds3 STT files and changes the facade; focused checks/new full CI are separate."
+    },
+    "constructor_crash": {
+      "real_sqlite_child_exit": 77,
+      "interruption": "Immediately before first schema_meta INSERT, after actual CREATE.",
+      "old_source": "Creation already committed; reopening silently accepted new work despite explicitOff.",
+      "final_source": "CREATE and INSERT remain in one actual write transaction; recovery sees empty store and explicitOff refusesnewsubmit403/no slots.",
+      "probe_sha256": "cb0256e1fae96354b3c846b5c160f68019d2a1543d0c32f8786b4ed3025f7e38",
+      "receipt_sha256": "8f7e47dc4246f4b45365f5a0a45f5fbc2c0346ea4d37439f920d739e668cbf76",
+      "manifest_sha256": "6712a9017777be4897fceddcb4bfa8556d1ffbe1807b7343b8cf61d9c17699bb"
+    },
+    "actual_http_interoperability": {
+      "passed": true,
+      "real_socket_services": 2,
+      "real_sqlite": true,
+      "verified_file_sha256": "8b449836924512b38b391f290ad9375aa440470330917f090a479939e2f4ae2a",
+      "task_succeeded": "e5bd5907-8389-420b-ab4d-14bff5ad7505",
+      "task_stopped": "b3ec2ca6-238b-44f2-91b2-961f0a2c5b35",
+      "off_refused_new_task_and_steer": true,
+      "accepted_before_off_finished": true,
+      "old_mode_receipt_did_not_reapply": true,
+      "converse_running": false,
+      "scripted_provider_calls": 2,
+      "provider_active": 0,
+      "paid_calls": 0,
+      "http_exchanges": 45,
+      "actual_workspace_owner": "AgentWorkspaceSettings SQLite and captured native root context",
+      "dart_phases": [
+        "save",
+        "same-database process restart",
+        "replacement database at same loopback URL"
+      ],
+      "historical_mode_not_reapplied": true,
+      "retired_unobserved_change_fenced": true,
+      "replacement_write_and_lookup_409": true,
+      "actual_dart_clients_closed": 15,
+      "owned_servers_clean_exit": 3,
+      "owned_listeners_remaining": 0,
+      "receipt_sha256": "8bd1a4d15b37ae47ce9ec18f0ccefc4ebc2ecf192d886270504e83b382cdb1ed",
+      "manifest_sha256": "404aa160c35f4fe7f32a329055b70a28530ebc4cf24a338935853248ef760710"
+    },
+    "full_local_python": {
+      "head": "cd664b12efbc16a24b4431297c53dc1f75043d8e",
+      "command": [
+        "python",
+        "-B",
+        "-m",
+        "pytest",
+        "-m",
+        "not live",
+        "-q"
+      ],
+      "exit_code": 1,
+      "passed": 7925,
+      "failed": 2,
+      "skipped": 6,
+      "deselected_live": 2,
+      "warnings": 1,
+      "seconds": 774.47,
+      "head_unchanged": true,
+      "failure_scope": "Two existing launcher fixtures created group-writable control directories under inheritedumask0002, causing correct authority refusal before intended storage checks.",
+      "diagnostic": "Both pass unchanged under a child-only0022 mask; this is diagnostic evidence, not a production guard bypass. Final publication instead fixes the actual fixture directory to0700 with every assertion unchanged.",
+      "skips": "Six optional pinned PyAV tests; library not installed.",
+      "warning": "Existing Starlette httpx/TestClient deprecation.",
+      "receipt_sha256": "16c3c353df69b5c233dc3367ec1d29f15fe1280bd4c686b165e8d15ebecd09a3",
+      "manifest_sha256": "1cc3ee2c0961954c35204f8029d62bb746f8e6ab1f3486eb26428489befc7c77",
+      "not_a_full_local_pass_claim": true
+    },
+    "static": {
+      "ruff": "pass",
+      "format": "594 files; zero changes",
+      "schema_export": "Actual isolated-root export and unchanged schema diff passed.",
+      "diff_check": "pass",
+      "receipt_sha256": "bdc0631556386d61a7f2245e3074cdb53016363ba27b5baa28deed152aa96c0b",
+      "scope": "Initial594-file source; superseded by the600-file combined check below."
+    },
+    "affected_intelligent_ui": {
+      "passed": 36,
+      "failed": 0,
+      "seconds": 7.6,
+      "warnings": "errors",
+      "umask": "0002 unchanged",
+      "only_fixture_delta": "Owner-controlled data.mkdir(mode=0o700), no assertion changes.",
+      "receipt_sha256": "e79fb69e8e9c143e90656681dff1a138bbb98059b55c6842c873ad4573326d4b"
+    }
+  },
+  "preservation": {
+    "base": "63eff086938fd544cf7224b22f81e4da9ded7178",
+    "existing_main_test_support_paths": 317,
+    "byte_exact": 311,
+    "only_fixture_exceptions": [
+      "tests/conftest.py",
+      "tests/integration/test_agent_seed.py",
+      "tests/integration/test_agent_submit_admission.py",
+      "tests/integration/test_intelligent_ui.py",
+      "tests/unit/test_agent_runtime.py",
+      "tests/unit/test_agent_write_arguments.py"
+    ],
+    "all_309_old_module_assertions_ast_and_source_exact": true,
+    "all_unrelated_fixture_definitions_source_exact": true,
+    "receipt_sha256": "ad0cd32460d038433dc9d4d3489c72e4ac2288031fedd350b483044890777081",
+    "independent_count_and_fixture_addendum_sha256": "08e6f142367d4d1fe819e6ffa0c169416054bafedced501242c874457e55a63e",
+    "prior_count_scope": "Earlier184 counts covered assertions inside definitions in the firstfive modules. Raw module traversal includes one additional unchanged module-level assertion:185 plus124 in intelligent-ui gives309. Earlier seals are retained.",
+    "freeze_v5_sha256": "37b3f98361ef0187e5479c522fd36ff7bbc784e2d955266336ee40d9c60d9331",
+    "scope": "Initial4da79c2405a4e140834dbe55634a70a8425c89c2 qualification before PR225. Current source comparison is upstream_integration.preservation against main770b828; this older base63eff comparison is not a current-source claim."
+  },
+  "retained_failures_and_corrections": [
+    "Initial native integration:45pass/1fail plus one teardown error; independent full-request projection, lookup classification, poisoned shutdown and bootstrap fault probes exposed further native defects. Frozen tests/probes were retained while production was corrected.",
+    "Independent corruption probes required canonical typed comparisons, complete native payload/scope identity, strict timestamps and historically proven receipt revisions/modes; these now refuse as expected.",
+    "Actual constructor process-crash and same-database restart probes exposed failed-first-registration fallback. Atomic DDL, durable pending provenance and creator-capability revocation fixed it; independent assertions remained unchanged.",
+    "Upstream workspace authority integration exposed two real steering acceptance failures before/after native acknowledgement. One fresh native workspace guard fixed both, alongside a positive unchanged-root control.",
+    "Six existing fixture paths now use actual native journal/controller authority or explicit private storage. Every existing assertion, provider/timing/concurrency gate and unrelated definition remains unchanged; no fake admission fallback was added.",
+    "New/private temporary-directory fixtures initially inherited group-write permissions; corrected owner-controlled setup was kept separately with all prior logs/assertions preserved. One new file-effect assertion had an incorrect sha256 prefix; it was corrected to exact native filekind/hash, retaining the failed run.",
+    "Initial Dart HTTP helper failed compilation because a local name shadowed canonical serialization; helper-only correction retained original failure. No production fix followed from that helper error.",
+    "Original registration diagnostic unconditionally read a correctly absent table after rollback. Its error remains non-pass evidence; a separate observation-only copy preserved all nine behavioral assertions.",
+    "The optional broad local run finished7925pass/2fixturefail/6optionalPyAVskip/2liveexcluded/1existingStarlettewarning. Child-mask diagnostics isolated permissions; the actual private fixture was then fixed without changing assertions. A strict whole-module retry exposed the separate#226 plugin-pipe defect (35pass/1fail); after its narrow repair all36 pass with warnings as errors under the originalmask."
+  ],
+  "resource_bounds": {
+    "available_modes": [
+      "off",
+      "on_demand"
+    ],
+    "standing_work_available": false,
+    "active_work_policy": "finish_already_accepted",
+    "retained_records_per_generations_mode_changes_steer_intents_table": 10000,
+    "shared_actual_model_runtime_control_transport_owners": 32,
+    "shared_runtime_submit_steer_operations": 128,
+    "shared_journal_client_exchanges": 64,
+    "agent_http_steer_seconds": 25,
+    "native_prepare_admit_fresh_seconds": [
+      5,
+      15,
+      5
+    ],
+    "mode_request_bytes": 4096,
+    "mode_proof_bytes": 16384,
+    "steer_ingress_bytes": 131072,
+    "steer_canonical_request_bytes": 130048,
+    "steer_proof_bytes": 262144
+  },
+  "merge_gate": {
+    "required": [
+      "Exact-final-head independent review",
+      "Python3.11 full non-live suite/schema/audit",
+      "Python3.12 full non-live suite/schema/audit",
+      "Flutter suite/analysis/format/bridge and owner+companion web",
+      "Android owner+companion APK",
+      "iOS owner+companion unsigned simulator"
+    ],
+    "observed_results": "CI342 and CI347 each passed all five on their explicitly recorded earlier heads/bases. Main advanced again before merge; consult PR227 for the required final combined-head review and CI."
+  },
+  "limits": [
+    "Autonomous, standing schedules, notification/call escalation, broaderM7 and all twelve Options acceptance groups remain incomplete.",
+    "Unknown steering remains sticky per task/base revision; inspection and Stop/confirmed retirement permit a new task. This increment does not implement same-task native intent consumption/retirement.",
+    "Protected unforked, non-rolled-back SQLite is assumed; no defense against a malicious or cloned database is claimed. Older binaries must be quiesced before enabling this authority.",
+    "A trusted original creating Store may initialize on-demand only before its own first registration attempt. If it races an independent initializing controller, first native commit wins; an uncommitted Off intent is not persisted authority.",
+    "Record caps refuse new records without pruning. Generation exhaustion prevents new controller startup; already registered mode/intent retained lookup remains available.",
+    "A direct internal runtime call can await an uncooperative source adapter; the production HTTP route supplies the outerdeadline. No separate Session ingress deadline or distributed execution lease is asserted.",
+    "Actual task/file/API/client checks use synthetic inputs and ScriptedProvider, not paid inference or human voice. No model quality, latency distribution, device calling or whole-roadmap qualification follows.",
+    "No user model, credentials, live preview/deployment or configuration changed; no dependency installation; zero paid calls in this increment."
+  ],
+  "captured_at_utc": "2026-11-01T06:19:51.651658+00:00",
+  "commands": {
+    "independent_combined": [
+      "python",
+      "-B",
+      "-m",
+      "pytest",
+      "-W",
+      "error",
+      "-q",
+      "tests/integration/test_agent_operating_mode.py",
+      "tests/integration/test_agent_mode_permissions.py",
+      "tests/integration/test_agent_mode_workspace.py"
+    ],
+    "flutter": [
+      "flutter test --no-pub",
+      "flutter analyze --no-pub",
+      "dart format --output=none --set-exit-if-changed lib test"
+    ],
+    "source_import": "For direct scripts using a shared editable environment, set command-scoped PYTHONPATH to the isolated checkout.",
+    "local_python": "Python3.12.3 pinned venv; local inheritedumask0002 is recorded above.",
+    "flutter_sdk": "Flutter3.47.8 at737ba8f885dc774b53b442759999a312c9461e4e; Dart3.13.7"
+  },
+  "publication_source_head": "be94cfaf14fe437fd797275617521ffae3040e27",
+  "source_qualification": "Mode contracts/runtime/control/client component sources remain exact to prior qualification. Upstream PR225 adds a four-line STT-provenance guard to Store and STT factories/close to the client facade; both integrations were independently reviewed and rerun as recorded below. Plugin cleanup remains exact to its separate qualification.",
+  "integration_repair": {
+    "issue": 226,
+    "author_commit": "03be673bd5c3febc6c316e903b263bfd37763e3f",
+    "integrated_commit": "13b18cbb04f62ee0fac62fdd74c39e1d2715014c",
+    "source": "core/plugins/sandbox.py::_communicate_bounded",
+    "source_sha256": "00f986541bf588958c742b9960914ddb800a815a72138470db44abe61d6ea662",
+    "frozen_new_test": "tests/unit/test_plugin_pipe_ownership.py",
+    "test_sha256": "1af4c1bab31bbffdb0040771db6d6985d61f9d34f2bbf5915bf83f62ebadbd1b",
+    "author_baseline": {
+      "failed": 9,
+      "seconds": 0.74,
+      "scope": "Seven reaped-but-open pipe cases andtwo setup-fault unreaped-child cases; fixture manually cleaned every child."
+    },
+    "author_corrected": {
+      "passed": 9,
+      "seconds": 0.75,
+      "warnings": "ResourceWarning and PytestUnraisableExceptionWarning errors"
+    },
+    "unchanged_related_tests": {
+      "passed": 44,
+      "seconds": 10.84,
+      "skipped": 0,
+      "warnings": "same strict ownership warnings"
+    },
+    "change": "Cover initial cancellation/pipe setup with the existing actual child-cleanup boundary, then close both actual pipes after successful reaping. Incremental/read/EOF-wait and existing5s/retry/finalwait semantics preserved.",
+    "author_receipt_sha256": "7ace3037a7d6ff5c839ebac629b416eeff5abd6ff466f3f4e57aa19479fc5949",
+    "author_manifest_sha256": "2ce86c97b1b20f754951cb8fe4ed07cc6b7f620b2011e84140ccf0e203c2bc37",
+    "independent_baseline": {
+      "failed": 3,
+      "probe_sha256": "8b97b040a0b361c42374061546d585818c37a3802ca4d3538a0924be55b5520c",
+      "receipt_sha256": "35f5b0299e900cf00321e20ad946bb042d65a529294a3996b18d2861f659229f"
+    },
+    "independent_final": {
+      "head": "13b18cbb04f62ee0fac62fdd74c39e1d2715014c",
+      "passed": 3,
+      "failed": 0,
+      "oracle_unchanged": true,
+      "actual_children_terminal_reaped_and_streams_closed_at_helper_settlement": true,
+      "fixture_kills_or_stream_closes": 0,
+      "nonhelper_bytes_read_and_eof_loops_existing_reap_sequence_exact": true,
+      "actionable_findings": [],
+      "receipt_sha256": "61c346e8a4224d2c529b8d76fd319cd0588952821b9b628f5ddc588dd676f4a0",
+      "manifest_sha256": "fce8329992261526c01cc4277dfd8ab20cd009e0fa0c63b79a6fc57da2002205"
+    },
+    "limit": "The inherited final reap wait() can be unbounded; timeout does not falsely release process ownership."
+  },
+  "initial_public_record": {
+    "head": "4da79c2405a4e140834dbe55634a70a8425c89c2",
+    "sha256": "d92e6484db7f83b3fe5fd9630e80d949a2bcaba1a1d5933272541b66985c5e2f"
+  },
+  "initial_native_tested_source_head": "cd664b12efbc16a24b4431297c53dc1f75043d8e",
+  "initial_integrated_main": "63eff086938fd544cf7224b22f81e4da9ded7178",
+  "initial_production_sha256": {
+    "packages/contracts/agent_control.py": "36b20bb50b69eed185888587867212fa5a681f36d8c5dc1be38d371e51f6ade6",
+    "services/session/agent_control.py": "627df26876231d33189b03cb9962461b54f8cd671dc504be8c126048e1b990ce",
+    "services/session/store.py": "c363b4b707adc9c2e7f8c01a3d088aafa9140db0237ede9ce1bffcd09856bcbb",
+    "services/session/api.py": "53ebb125c6ff6114622b837886b6766fadf731fa12a9a0b96705728d1413a5a5",
+    "services/agent/runtime.py": "bdbd35f365e4ebb56c9a59e6083ae0e3b28a158e644667fc1ee0ba65a0605c50",
+    "packages/contracts/client.py": "a3294f4312d0fa177c1f8ba6f005606400c67fbb499240af21caa907526a59d0",
+    "apps/kinaiya_flutter/lib/api/owned_settings_client.dart": "3dbbc6e30135f98fe2fe0a7f8468fc797a4b360235ae35928bb836417efabcee",
+    "services/agent/workspace_settings.py": "787e96d76ebb617e7fc25d71be84b6578336a8731221bbee41388e7428affe98",
+    "services/agent/workspace_ownership.py": "16a5d861711b36e441e90a9898b78a01931cc6b9077e60dcc3c438207e18f733",
+    "core/policy/__init__.py": "40d055286c95f71620377adbdffe176ad52a60319023153d092772782fb5042f",
+    "packages/contracts/workspace_settings.py": "5947ab2e7e4219b60406c6656a4e884768e68fb59d14205b832d2cddea0dc458",
+    "apps/kinaiya_flutter/lib/api/agent_control.dart": "68ab1b0608e18e3784a1653c6f270d12228b7b9b64aff66b8d490e534addca2e",
+    "apps/kinaiya_flutter/lib/api/agent_control_client.dart": "68f9108cb667d685547beff7cd7716b08548560bcd1bf001804be7260c2e6105",
+    "apps/kinaiya_flutter/lib/state/agent_mode_writes.dart": "3e99961aa1c2c1fdf1e5edd2b7766496459a12453f0dddf7b0f0de5e4ac81e3f",
+    "apps/kinaiya_flutter/lib/ui/agent_operating_mode_panel.dart": "a921812741bf960aabb10ab454cec1beb716b0dc7c3b7295a1b81d2a520abdfe"
+  },
+  "upstream_integration": {
+    "pr": 225,
+    "main": "770b828d235f52f25dd7670d21b1538aff6d7d5c",
+    "combined_commit": "be94cfaf14fe437fd797275617521ffae3040e27",
+    "merge": "Clean automatic merge; no manual conflict resolution or new production correction.",
+    "overlap": "Store STT writer guard, client STT/mode factory+close union, launcher startup paths and all exporter families preserved.",
+    "independent_native": {
+      "passed": 52,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "warnings": "errors",
+      "seconds": 12.96,
+      "frozen46_unchanged": true,
+      "all1141_tracked_files_unchanged_after_run": true,
+      "receipt_sha256": "7d0258fdb51af14fcf7e23dc01082b5772b4245b1c916e2821e655121aa0a490",
+      "manifest_sha256": "816018c8a423fbb0527e4c8a835088a1255d54fe0fa36831758b0c5fa0bf3d80"
+    },
+    "client_focused": {
+      "passed": 78,
+      "reported_skips": 0,
+      "failed": 0,
+      "source_files": 307,
+      "focus": "12 control/model/runtime/facade/service-root test files; not a new fullFlutter run.",
+      "analysis": "no issues",
+      "format": "210files;zero changes",
+      "receipt_sha256": "61deac68c6131481acd7504b5eebaa8c748bb6a6f92e16df36b4fc1d4193a4f1",
+      "manifest_sha256": "60e83dbd18cacd089e5bd8855b731bd0d002419fc2821052e7474da9760e4ae4",
+      "all307_tracked_flutter_paths_unchanged_during_checks": true,
+      "all9_other_mode_paths_byte_exact_to_original_client": true,
+      "all296_other_upstream_flutter_paths_preserved": true,
+      "inverse217_restores_entire_main770_facade_and_agent_chat": true,
+      "actionable_findings": []
+    },
+    "static": {
+      "ruff": "pass",
+      "format": "600files;zero changes",
+      "schema_export_diff": "pass with isolated-root PYTHONPATH",
+      "receipt_sha256": "b89b830f1a62d34f0442014fae06307a4384ec1b61a513bba86a09c6122842a6"
+    },
+    "preservation": {
+      "base": "770b828d235f52f25dd7670d21b1538aff6d7d5c",
+      "old_main_test_support_paths": 317,
+      "byte_exact": 311,
+      "only6_existing_fixture_exceptions": true,
+      "all309_old_assertions_ast_and_source_exact": true,
+      "upstream_speech_cancel_fixture_byte_exact": true,
+      "all25_nonoverlap_upstream_paths_exact": true,
+      "all4_overlap217_changed_line_bodies_preserved": true
+    },
+    "scope": "Scoped semantic integration and existing native/client regressions; not a full independent audit or fresh inference qualification of upstream STT."
+  },
+  "initial_ci": {
+    "head": "4da79c2405a4e140834dbe55634a70a8425c89c2",
+    "base": "63eff086938fd544cf7224b22f81e4da9ded7178",
+    "run_id": 41281541552,
+    "run_number": 342,
+    "all_five_passed": true,
+    "python_each": {
+      "passed": 7982,
+      "skipped": 6,
+      "deselected": 2,
+      "warnings": 1
+    },
+    "flutter_passed": 958,
+    "bridge_passed": 38,
+    "web_android_ios_owner_and_companion_builds_passed": true,
+    "receipt_sha256": "4ea4d07bb8bb3b8b24f63c100acc279419756bc0b92d2a3755fa8851b5b6127a",
+    "manifest_sha256": "91e97b5d937337d9c39cd460482cdae66594caccb1f79164030574a0b0e883c4",
+    "qualification_limit": "Main advanced before merge. Root held the merge and integrated PR225; exact updated-head review and all-five CI remain mandatory."
+  },
+  "record_scope": "Historical qualification through PR225 is retained below. The latest_upstream_integration object pins the clean PR229 integration source; exact final-head review and all-five CI remain mandatory before merge.",
+  "subsequent_qualified_ci": {
+    "head": "786915624e5fe5782af5d04c1bc68b4b8f088528",
+    "base": "770b828d235f52f25dd7670d21b1538aff6d7d5c",
+    "synthetic_merge": "f92aa1536c3c2272d5feef8aa341d786e40e50fd",
+    "tree": "40197302d85a186d8f1e2ed18d56e05f3a1d2492",
+    "run_id": 41282935082,
+    "run_number": 347,
+    "all_five_passed": true,
+    "python_each": {
+      "passed": 7982,
+      "skipped": 6,
+      "deselected": 2,
+      "warnings": 1
+    },
+    "flutter_passed": 958,
+    "bridge_passed": 38,
+    "web_android_ios_owner_and_companion_builds_passed": true,
+    "independent_comment_review": "https://github.com/rgoza1996/Kinaiya/pull/227#pullrequestreview-5726904191",
+    "receipt_sha256": "79a2a5646b3b30bb12ae57a015c8db2d3930f93af8840f1b7f418584f8fac910",
+    "manifest_sha256": "17b6599376acb4beb5720f5d7715cf317492c03a676a9c05abea886d4f1addf9",
+    "disposition": "Not merged: a fresh premerge fetch found PR229 on main. This prior success is not the combined integration acceptance gate."
+  },
+  "latest_upstream_integration": {
+    "pr": 229,
+    "main": "6196be2c0ee17fb484415859b7e087f10e6c7614",
+    "merge_parents": [
+      "786915624e5fe5782af5d04c1bc68b4b8f088528",
+      "6196be2c0ee17fb484415859b7e087f10e6c7614"
+    ],
+    "merge": "Clean automatic merge; no manual conflict resolution or production correction.",
+    "overlap": [
+      "packages/contracts/client.py",
+      "services/session/api.py",
+      "services/session/store.py",
+      "scripts/export_contracts.py"
+    ],
+    "production_sha256": {
+      "packages/contracts/agent_control.py": "36b20bb50b69eed185888587867212fa5a681f36d8c5dc1be38d371e51f6ade6",
+      "services/session/agent_control.py": "627df26876231d33189b03cb9962461b54f8cd671dc504be8c126048e1b990ce",
+      "services/session/store.py": "d5a9507a48aae62ff88c3fe39e685d06dbb3818eefdba60824d99abc74fe06d6",
+      "services/session/api.py": "badf17afd70b72ad05a9ff467d240feac2b6af797eb1cd668ede63a030d3a4c0",
+      "services/agent/runtime.py": "bdbd35f365e4ebb56c9a59e6083ae0e3b28a158e644667fc1ee0ba65a0605c50",
+      "packages/contracts/client.py": "25034c61b2384e2efa9cb3964a38b0f9c9026e6d6a557110c23ff413e3dbcfd9",
+      "apps/kinaiya_flutter/lib/api/owned_settings_client.dart": "3dbbc6e30135f98fe2fe0a7f8468fc797a4b360235ae35928bb836417efabcee",
+      "services/agent/workspace_settings.py": "787e96d76ebb617e7fc25d71be84b6578336a8731221bbee41388e7428affe98",
+      "services/agent/workspace_ownership.py": "16a5d861711b36e441e90a9898b78a01931cc6b9077e60dcc3c438207e18f733",
+      "core/policy/__init__.py": "40d055286c95f71620377adbdffe176ad52a60319023153d092772782fb5042f",
+      "packages/contracts/workspace_settings.py": "5947ab2e7e4219b60406c6656a4e884768e68fb59d14205b832d2cddea0dc458",
+      "apps/kinaiya_flutter/lib/api/agent_control.dart": "68ab1b0608e18e3784a1653c6f270d12228b7b9b64aff66b8d490e534addca2e",
+      "apps/kinaiya_flutter/lib/api/agent_control_client.dart": "68f9108cb667d685547beff7cd7716b08548560bcd1bf001804be7260c2e6105",
+      "apps/kinaiya_flutter/lib/state/agent_mode_writes.dart": "3e99961aa1c2c1fdf1e5edd2b7766496459a12453f0dddf7b0f0de5e4ac81e3f",
+      "apps/kinaiya_flutter/lib/ui/agent_operating_mode_panel.dart": "a921812741bf960aabb10ab454cec1beb716b0dc7c3b7295a1b81d2a520abdfe",
+      "apps/kinaiya_flutter/lib/api/client.dart": "a1ecbe4c688b7d3594776adc906c486b60ee6dc4e5fbda457eeb45e7c4717a0d"
+    },
+    "static": {
+      "ruff": "pass",
+      "format": "605 files; zero changes",
+      "schema_export_diff": "pass with isolated-root PYTHONPATH"
+    },
+    "scope": "New STT publication/worker settlement helpers coexist with the native mode/steering seams. Exact-head independent scoped review and combined CI are recorded in PR227 after this source is committed; no full independent STT audit or fresh real-socket execution is asserted."
+  }
+}

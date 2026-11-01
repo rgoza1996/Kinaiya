@@ -1,0 +1,80 @@
+{
+  "additionalProperties": false,
+  "description": "Shared desired/admission mode, separate from Agent health and live tasks.\n\ninstance_id is the persisted active control-writer generation. The serving\nAPI reports control_writable only when its explicit registration is active.\nOpening another Store/LocalJournal must never register or retire a writer.",
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "backend_id": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Backend Id",
+      "type": "string"
+    },
+    "instance_id": {
+      "maxLength": 36,
+      "minLength": 36,
+      "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+      "title": "Instance Id",
+      "type": "string"
+    },
+    "revision": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "title": "Revision",
+      "type": "integer"
+    },
+    "mode": {
+      "enum": [
+        "off",
+        "on_demand",
+        "autonomous"
+      ],
+      "title": "Mode",
+      "type": "string"
+    },
+    "active_work_policy": {
+      "const": "finish_already_accepted",
+      "title": "Active Work Policy",
+      "type": "string"
+    },
+    "control_writable": {
+      "title": "Control Writable",
+      "type": "boolean"
+    },
+    "available_modes": {
+      "items": {
+        "enum": [
+          "off",
+          "on_demand",
+          "autonomous"
+        ],
+        "type": "string"
+      },
+      "maxItems": 3,
+      "minItems": 2,
+      "title": "Available Modes",
+      "type": "array"
+    },
+    "standing_work_available": {
+      "title": "Standing Work Available",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "schema_version",
+    "backend_id",
+    "instance_id",
+    "revision",
+    "mode",
+    "active_work_policy",
+    "control_writable",
+    "available_modes",
+    "standing_work_available"
+  ],
+  "title": "AgentControlSnapshot",
+  "type": "object"
+}

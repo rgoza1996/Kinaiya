@@ -82,7 +82,7 @@ async def env(tmp_path):
     workspace = tmp_path / "workspace"
     workspace.mkdir()
     data = tmp_path / "operator"
-    data.mkdir()
+    data.mkdir(mode=0o700)
     journal_store = Store(data / "journal.sqlite")
     session = journal_store.create_session(SessionRequest(channel="converse"))
     provider = ScriptedProvider([])
