@@ -356,15 +356,33 @@ and [broker regressions](../tests/integration/test_agent_retained_disclosure.py)
 Missing or over-bound provenance refuses the request rather than dropping a
 dependency. This does not qualify general repository work or a new model default.
 
-The November 1 [transcript retrieval audit](../evaluation/evidence/agent-transcript-retrieval-gap-2026-11-01.json)
-confirmed that ignored windows remain stored and Agent can retrieve them on
-demand, with 102 existing deterministic routing/disclosure cases passing.
-It also reproduced a separate defect: `read_transcript` returned only 2,000
-characters from a complete 3,855-character stored entry, with no continuation or
-truncation indication. Complete persistence therefore does not yet establish
-complete model-facing retrieval. [#255](https://github.com/rgoza1996/Kinaiya/issues/255)
-tracks bounded continuation and truthful scan progress; the cumulative task
-provenance limits remain explicit. This audit implements no retrieval repair.
+The November 1 [retrieval audit](../evaluation/evidence/agent-transcript-retrieval-gap-2026-11-01.json)
+remains an unchanged failure record: a complete 3,855-character stored entry
+produced a 2,000-character model-facing prefix without continuation or truncation
+labels. The later [#255](https://github.com/rgoza1996/Kinaiya/issues/255)
+integration adds [bounded transcript pages](agent-transcript-retrieval.md), exact
+resolved/immutable continuation, native fixed-highwater discovery and explicit
+legacy clipping. Decisions still selects immediate references; full transcript
+persistence and Agent's authorized on-demand retrieval remain independent.
+
+[Source-bound evidence](../evaluation/evidence/agent-transcript-paging-2026-11-01.json)
+records 595 codec and tool-contract cases passing at `16ec2b4` and 182 expanded
+transcript/runtime cases passing at `ff02f0c`. These groups share 92 cases and
+are not additive. A separate 296-case old-regression group at `166bee3` retained
+292 passes and four failures waiting two seconds for standing-client close to
+start. Plain four-case follow-ups passed on both source versions, and the two
+predecessor modules plus all 49 finalization-client cases passed 144/144. One
+instrumented pre-feature case reproduced the timeout after 2.075 seconds before
+close, including 2.068 seconds of CPU; actual cleanup then joined once. The trigger in the original
+296-case process remains unresolved; these follow-ups do not establish that all
+old regressions pass. Two additive scan schemas preserve all 190 earlier schemas
+byte for byte.
+
+This is integration evidence, not main or release qualification. The existing
+128 retained context roots, 256 provenance nodes and actual native export
+admission remain required; page checks are bounded asynchronous observations.
+No paid inference, live backend operation or model configuration change was part
+of this work. It does not qualify physical media, an Omni pipeline or M3.
 
 ## Initial Agent submission durability
 
