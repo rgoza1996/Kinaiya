@@ -2,6 +2,80 @@
 library;
 
 import 'agent_workspace.dart';
+import 'provider_settings.dart' show providerIdentifier;
+
+const _efforts = {'none', 'minimal', 'low', 'medium', 'high', 'xhigh'};
+
+String? _effort(Object? value) {
+  if (value != null && (value is! String || !_efforts.contains(value))) {
+    throw const FormatException('Invalid model reasoning');
+  }
+  return value as String?;
+}
+
+/// An explicit immutable provider generation, never inferred from a label or
+/// resolved by an ID alone. The digest is native catalog configuration identity.
+class AgentCatalogBinding {
+  const AgentCatalogBinding(this.id, this.generation, this.configurationSha256);
+  factory AgentCatalogBinding.fromJson(Object? value) {
+    if (value is! Map<String, Object?> ||
+        value.length != 3 ||
+        !value.keys.toSet().containsAll({
+          'id',
+          'generation',
+          'configuration_sha256',
+        })) {
+      throw const FormatException('Invalid catalog model binding');
+    }
+    final generation = value['generation'],
+        digest = value['configuration_sha256'];
+    if (generation is! int ||
+        generation < 1 ||
+        generation > 64 ||
+        digest is! String ||
+        digest.length != 64 ||
+        !RegExp(r'^[0-9a-f]{64}$').hasMatch(digest)) {
+      throw const FormatException('Invalid catalog model binding');
+    }
+    return AgentCatalogBinding(
+      providerIdentifier(value['id']),
+      generation,
+      digest,
+    );
+  }
+  final String id, configurationSha256;
+  final int generation;
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'generation': generation,
+    'configuration_sha256': configurationSha256,
+  };
+  @override
+  bool operator ==(Object other) =>
+      other is AgentCatalogBinding &&
+      id == other.id &&
+      generation == other.generation &&
+      configurationSha256 == other.configurationSha256;
+  @override
+  int get hashCode => Object.hash(id, generation, configurationSha256);
+}
+
+/// Picker identity distinguishes the host namespace from the provider catalog.
+/// Requests always carry explicit typed fields rather than an encoded alias.
+class AgentModelReference {
+  const AgentModelReference.host(String this.profileId) : catalogBinding = null;
+  const AgentModelReference.catalog(AgentCatalogBinding this.catalogBinding)
+    : profileId = null;
+  final String? profileId;
+  final AgentCatalogBinding? catalogBinding;
+  @override
+  bool operator ==(Object other) =>
+      other is AgentModelReference &&
+      profileId == other.profileId &&
+      catalogBinding == other.catalogBinding;
+  @override
+  int get hashCode => Object.hash(profileId, catalogBinding);
+}
 
 const agentModelMaxRevision = 9007199254740990;
 const agentModelPurposes = {
@@ -86,6 +160,7 @@ class AgentModelChange {
     final raw = _closedObject(value, {
       ...required,
       if (value.containsKey('auxiliary_task')) 'auxiliary_task',
+      if (value.containsKey('catalog_binding')) 'catalog_binding',
     });
     if (raw['schema_version'] != '1.1' ||
         raw['expected_revision'] is! int ||
@@ -100,6 +175,10 @@ class AgentModelChange {
     _authorityId(raw['expected_backend']);
     _authorityId(raw['expected_instance']);
     final harness = raw['harness_version'], profile = raw['profile_id'];
+    final catalog = raw.containsKey('catalog_binding')
+        ? AgentCatalogBinding.fromJson(raw['catalog_binding'])
+        : null;
+    if (catalog != null && profile != null) throw const FormatException();
     if ((harness != null &&
             (harness is! String ||
                 !RegExp(r'^(seed-v1|v-[a-f0-9]{24})$').hasMatch(harness))) ||
@@ -123,7 +202,11 @@ class AgentModelChange {
             !agentModelPurposes.contains(raw['auxiliary_task']))) {
       throw const FormatException('Invalid model change');
     }
-    body = Map.unmodifiable(Map<String, Object?>.of(raw));
+    body = Map.unmodifiable({
+      ...raw,
+      if (catalog != null)
+        'catalog_binding': Map.unmodifiable(catalog.toJson()),
+    });
   }
   late final Map<String, Object?> body;
   String get backendId => body['expected_backend'] as String;
@@ -133,7 +216,12 @@ class AgentModelChange {
   bool matches(AgentModelChange other) =>
       body.length == other.body.length &&
       body.keys.every(
-        (key) => other.body.containsKey(key) && body[key] == other.body[key],
+        (key) =>
+            other.body.containsKey(key) &&
+            (key == 'catalog_binding'
+                ? AgentCatalogBinding.fromJson(body[key]) ==
+                      AgentCatalogBinding.fromJson(other.body[key])
+                : body[key] == other.body[key]),
       );
 }
 
@@ -164,7 +252,20 @@ class AgentModelReceipt {
     }
     final binding = raw['binding'];
     Map<String, Object?>? copied;
-    if (body['profile_id'] == null) {
+    if (body.containsKey('catalog_binding')) {
+      copied = _closedObject(binding, {'catalog_binding', 'reasoning'});
+      if (AgentCatalogBinding.fromJson(copied['catalog_binding']) !=
+              AgentCatalogBinding.fromJson(body['catalog_binding']) ||
+          copied['reasoning'] != body['reasoning']) {
+        throw const FormatException('Model receipt does not match');
+      }
+      copied = {
+        ...copied,
+        'catalog_binding': Map.unmodifiable(
+          AgentCatalogBinding.fromJson(copied['catalog_binding']).toJson(),
+        ),
+      };
+    } else if (body['profile_id'] == null) {
       if (binding != null) throw const FormatException();
     } else {
       copied = _closedObject(binding, {'profile_id', 'reasoning'});
@@ -220,34 +321,77 @@ class AgentModelLookup {
 }
 
 class AgentModelBinding {
-  const AgentModelBinding(this.profileId, this.reasoning);
+  const AgentModelBinding(String this.profileId, this.reasoning)
+    : catalogBinding = null;
+  const AgentModelBinding.catalog(
+    AgentCatalogBinding this.catalogBinding,
+    this.reasoning,
+  ) : profileId = null;
   factory AgentModelBinding.fromJson(Object? value) {
-    if (value is! Map<String, Object?>) throw const FormatException();
-    final effort = value['reasoning'];
-    if (effort != null && (effort is! String || effort.length > 16)) {
+    if (value is! Map<String, Object?> ||
+        value.length != 2 ||
+        !value.containsKey('reasoning')) {
+      throw const FormatException();
+    }
+    final effort = _effort(value['reasoning']);
+    if (value.containsKey('catalog_binding')) {
+      return AgentModelBinding.catalog(
+        AgentCatalogBinding.fromJson(value['catalog_binding']),
+        effort,
+      );
+    }
+    if (!value.containsKey('profile_id')) {
       throw const FormatException();
     }
     return AgentModelBinding(
       workspaceText(value['profile_id'], max: 80),
-      effort as String?,
+      effort,
     );
   }
-  final String profileId;
+  final String? profileId;
+  final AgentCatalogBinding? catalogBinding;
   final String? reasoning;
+  AgentModelReference get reference => catalogBinding == null
+      ? AgentModelReference.host(profileId!)
+      : AgentModelReference.catalog(catalogBinding!);
 }
 
 class AgentModelProfile {
   AgentModelProfile.fromJson(Object? value) {
+    _read(value, catalog: false);
+  }
+  AgentModelProfile.fromCatalogJson(Object? value) {
+    _read(value, catalog: true);
+  }
+  void _read(Object? value, {required bool catalog}) {
     if (value is! Map<String, Object?> || value['selectable'] is! bool) {
       throw const FormatException();
     }
     id = workspaceText(value['id'], max: 80);
+    catalogBinding = catalog
+        ? AgentCatalogBinding.fromJson(value['catalog_binding'])
+        : null;
+    if (catalog && catalogBinding!.id != id) throw const FormatException();
+    reference = catalog
+        ? AgentModelReference.catalog(catalogBinding!)
+        : AgentModelReference.host(id);
+    catalogLabel = catalog ? workspaceText(value['label'], max: 128) : null;
+    reason = catalog ? workspaceText(value['reason'], max: 512) : null;
+    if (catalog &&
+        (value['qualification'] != 'not_checked' ||
+            value['readiness'] != 'unknown')) {
+      throw const FormatException('Unsupported catalog qualification');
+    }
     selectable = value['selectable'] as bool;
     final auxiliary = value['auxiliary_selectable'];
-    if (auxiliary != null && auxiliary is! bool) throw const FormatException();
+    if (catalog
+        ? auxiliary is! bool
+        : auxiliary != null && auxiliary is! bool) {
+      throw const FormatException();
+    }
     auxiliarySelectable = auxiliary == true;
     final info = value['provider'];
-    if (selectable) {
+    if (selectable || auxiliarySelectable || (catalog && info != null)) {
       if (info is! Map<String, Object?> || info['local'] is! bool) {
         throw const FormatException();
       }
@@ -255,41 +399,41 @@ class AgentModelProfile {
       model = workspaceText(info['model'], max: 256);
       local = info['local'] as bool;
       providerInfo = Map.unmodifiable(info);
+      if (catalog &&
+          (info['schema_version'] != '1.0' || info['streaming'] is! bool)) {
+        throw const FormatException('Invalid catalog provider metadata');
+      }
     } else if (info != null) {
       throw const FormatException();
     }
     final levels = value['reasoning_options'];
     if (levels is! List ||
         levels.length > 6 ||
-        levels.any(
-          (x) =>
-              x is! String ||
-              !const [
-                'none',
-                'minimal',
-                'low',
-                'medium',
-                'high',
-                'xhigh',
-              ].contains(x),
-        )) {
+        levels.any((x) => x is! String || !_efforts.contains(x)) ||
+        levels.toSet().length != levels.length) {
       throw const FormatException();
     }
-    reasoningOptions = List.unmodifiable(levels.cast<String>());
-    final selected = value['reasoning'];
-    if (selected != null && (selected is! String || selected.length > 16)) {
-      throw const FormatException();
-    }
-    reasoning = selected as String?;
+    reasoningOptions = List.unmodifiable(
+      catalog ? _efforts.where(levels.contains) : levels.cast<String>(),
+    );
+    reasoning = _effort(value['reasoning']);
   }
+
   late final String id;
+  late final AgentCatalogBinding? catalogBinding;
+  late final AgentModelReference reference;
+  late final String? catalogLabel, reason;
   late final bool selectable;
   late final bool auxiliarySelectable;
   String? provider, model, reasoning;
   bool? local;
   Map<String, Object?>? providerInfo;
   late final List<String> reasoningOptions;
-  String get label => id == 'host-default' ? 'Host default' : id;
+  String get label =>
+      catalogLabel ?? (id == 'host-default' ? 'Host default' : id);
+  String get sourceLabel => catalogBinding == null
+      ? 'Host configuration'
+      : 'Provider catalog · Generation ${catalogBinding!.generation}';
 }
 
 class AgentModelsSnapshot {
@@ -315,6 +459,20 @@ class AgentModelsSnapshot {
     profiles = List.unmodifiable(list.map(AgentModelProfile.fromJson));
     if (profiles.map((x) => x.id).toSet().length != profiles.length) {
       throw const FormatException();
+    }
+    final saved = raw.containsKey('catalog_profiles')
+        ? raw['catalog_profiles']
+        : const [];
+    if (saved is! List || saved.length > 32) throw const FormatException();
+    catalogProfiles = List.unmodifiable(
+      saved.map(AgentModelProfile.fromCatalogJson),
+    );
+    catalogError = raw['catalog_error'] == null
+        ? null
+        : workspaceText(raw['catalog_error'], max: 512);
+    if (catalogProfiles.map((profile) => profile.id).toSet().length !=
+        catalogProfiles.length) {
+      throw const FormatException('Repeated catalog model identity');
     }
     harnesses = Map.unmodifiable(
       overrides.map(
@@ -370,6 +528,10 @@ class AgentModelsSnapshot {
   late final AgentModelAuthority? writeAuthority;
   late final AgentModelBinding defaultBinding;
   late final List<AgentModelProfile> profiles;
+  late final List<AgentModelProfile> catalogProfiles;
+  late final String? catalogError;
+  List<AgentModelProfile> get choices =>
+      List.unmodifiable([...profiles, ...catalogProfiles]);
   late final Map<String, AgentModelBinding> harnesses;
   late final Map<String, String> auxiliaryTasks;
   late final Map<String, AgentModelBinding> auxiliary;
@@ -397,5 +559,29 @@ class AgentModelsSnapshot {
       if (row.id == id) return row;
     }
     return null;
+  }
+
+  AgentModelProfile? profileFor(AgentModelReference reference) {
+    for (final row in choices) {
+      if (row.reference == reference) return row;
+    }
+    return null;
+  }
+
+  AgentModelProfile? currentCatalogProfile(String id) {
+    for (final row in catalogProfiles) {
+      if (row.id == id) return row;
+    }
+    return null;
+  }
+
+  String bindingLabel(AgentModelBinding binding) {
+    final selected = profileFor(binding.reference);
+    final catalog = binding.catalogBinding;
+    if (catalog != null) {
+      return '${selected?.label ?? catalog.id} · Provider generation ${catalog.generation}'
+          '${selected == null ? ' · Unavailable' : ''}';
+    }
+    return '${selected?.label ?? binding.profileId} · Host configuration';
   }
 }

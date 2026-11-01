@@ -16,6 +16,7 @@ from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import ConfigDict
 
 from core.policy import ApprovalError, PolicyDenied
 from packages.commands import Registry
@@ -39,6 +40,12 @@ from services.agent.runtime import (
     TaskNotFound,
     TaskTerminal,
 )
+
+
+class SubmissionReconcileRequest(TaskRequest):
+    """The existing task wire shape, without coercion on receipt-only input."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
 
 
 def create_app(runtime: AgentRuntime, auth: Any, commands=None) -> FastAPI:
@@ -110,6 +117,15 @@ def create_app(runtime: AgentRuntime, auth: Any, commands=None) -> FastAPI:
         try:
             return await runtime.submit(body, actor=actor)
         except Exception as exc:  # mapped above
+            raise _http(exc) from exc
+
+    @app.post("/v1/agent/submissions/reconcile")
+    async def reconcile_submission(
+        body: SubmissionReconcileRequest, actor: str = Depends(require_owner)
+    ) -> Any:
+        try:
+            return await runtime.reconcile_submit(body, actor=actor)
+        except Exception as exc:
             raise _http(exc) from exc
 
     @app.get("/v1/agent/tasks")

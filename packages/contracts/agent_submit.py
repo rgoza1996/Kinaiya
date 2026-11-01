@@ -8,6 +8,7 @@ import copy
 import hashlib
 import json
 import math
+import re
 from datetime import datetime
 from typing import Any, Literal, get_args
 
@@ -98,6 +99,8 @@ _PIN_KEYS = frozenset(
         "local",
         "reasoning",
         "settings_revision",
+        "catalog_binding",
+        "catalog_revision",
     }
 )
 _PIN_REQUIRED_KEYS = frozenset({"profile_id", "provider", "model", "local", "settings_revision"})
@@ -276,6 +279,31 @@ def _validate_model_pin(raw: Any, error: str) -> Any:
             except UnicodeError:
                 raise ValueError(error) from None
     _require_exact_int(raw["settings_revision"], 0, _MAX_INT, error)
+    catalog_keys = {"catalog_binding", "catalog_revision"}
+    if keys & catalog_keys:
+        if not catalog_keys.issubset(keys):
+            raise ValueError(error) from None
+        binding, revision = raw["catalog_binding"], raw["catalog_revision"]
+        if binding is None or revision is None:
+            if binding is not None or revision is not None:
+                raise ValueError(error) from None
+        else:
+            if type(binding) is not dict or set(binding) != {
+                "id",
+                "generation",
+                "configuration_sha256",
+            }:
+                raise ValueError(error) from None
+            identity = _require_safe_id(binding["id"], 64, error)
+            if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}", identity) is None:
+                raise ValueError(error) from None
+            _require_exact_int(binding["generation"], 1, 64, error)
+            _require_hex64(binding["configuration_sha256"], error)
+            _require_exact_int(revision, 0, _MAX_INT - 1, error)
+            if raw["profile_id"] != identity:
+                raise ValueError(error) from None
+    # Preserve original omitted legacy fields and explicit null pairs. Native
+    # entry identity compares the original wire projection, not model defaults.
     return raw
 
 

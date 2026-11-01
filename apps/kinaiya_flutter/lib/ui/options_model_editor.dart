@@ -9,6 +9,7 @@ class OptionsModelEditor extends StatefulWidget {
     required this.models,
     required this.onSave,
     required this.busy,
+    this.onSaveCatalog,
     this.harness,
     this.auxiliaryTask,
   });
@@ -17,13 +18,15 @@ class OptionsModelEditor extends StatefulWidget {
   final String? auxiliaryTask;
   final bool busy;
   final Future<void> Function(String? profile, String? reasoning) onSave;
+  final Future<void> Function(AgentCatalogBinding catalog, String? reasoning)?
+  onSaveCatalog;
   @override
   State<OptionsModelEditor> createState() => _OptionsModelEditorState();
 }
 
 class _OptionsModelEditorState extends State<OptionsModelEditor> {
   late bool _inherit;
-  late String _profile;
+  late AgentModelReference _profile;
   String? _reasoning;
 
   void _load() {
@@ -34,7 +37,7 @@ class _OptionsModelEditorState extends State<OptionsModelEditor> {
     _inherit =
         (widget.harness != null || widget.auxiliaryTask != null) &&
         !widget.models.overrides(widget.harness, widget.auxiliaryTask);
-    _profile = binding.profileId;
+    _profile = binding.reference;
     _reasoning = binding.reasoning;
   }
 
@@ -56,9 +59,16 @@ class _OptionsModelEditorState extends State<OptionsModelEditor> {
 
   @override
   Widget build(BuildContext context) {
-    final profiles = widget.models.profiles;
-    final profile = widget.models.profile(_profile);
+    final profiles = widget.models.choices;
+    final profile = widget.models.profileFor(_profile);
+    final catalog = _profile.catalogBinding;
+    final latest = catalog == null
+        ? null
+        : widget.models.currentCatalogProfile(catalog.id);
     final editable = !widget.busy && !_inherit;
+    final selectionAllowed = widget.auxiliaryTask == null
+        ? profile?.selectable == true
+        : profile?.auxiliarySelectable == true;
     final levels = profile?.reasoningOptions ?? const <String>[];
     final validEffort = _reasoning == null || levels.contains(_reasoning);
     return DesignPanel(
@@ -93,7 +103,7 @@ class _OptionsModelEditorState extends State<OptionsModelEditor> {
                             widget.harness,
                             widget.auxiliaryTask,
                           );
-                          _profile = inherited.profileId;
+                          _profile = inherited.reference;
                           _reasoning = inherited.reasoning;
                         }
                       }),
@@ -132,10 +142,22 @@ class _OptionsModelEditorState extends State<OptionsModelEditor> {
               ),
             ],
             const SizedBox(height: 24),
-            DropdownButtonFormField<String>(
-              key: ValueKey(
-                'harness-model-${widget.harness ?? 'default'}-${widget.auxiliaryTask ?? 'main'}-$_profile-$_inherit',
-              ),
+            if (widget.models.catalogError != null) ...[
+              Text(widget.models.catalogError!),
+              const SizedBox(height: 12),
+            ],
+            DropdownButtonFormField<AgentModelReference>(
+              key: catalog == null
+                  ? ValueKey<String>(
+                      'harness-model-${widget.harness ?? 'default'}-${widget.auxiliaryTask ?? 'main'}-${_profile.profileId}-$_inherit',
+                    )
+                  : ValueKey((
+                      'catalog-model',
+                      widget.harness,
+                      widget.auxiliaryTask,
+                      _profile,
+                      _inherit,
+                    )),
               initialValue: _profile,
               isExpanded: true,
               decoration: const InputDecoration(
@@ -146,16 +168,23 @@ class _OptionsModelEditorState extends State<OptionsModelEditor> {
                 if (profile == null)
                   DropdownMenuItem(
                     value: _profile,
-                    child: Text('Unavailable · $_profile'),
+                    enabled: false,
+                    child: Text(
+                      catalog == null
+                          ? 'Unavailable · ${_profile.profileId}'
+                          : 'Unavailable · ${catalog.id} · Generation ${catalog.generation}',
+                    ),
                   ),
                 for (final item in profiles)
                   DropdownMenuItem(
-                    value: item.id,
+                    value: item.reference,
                     enabled: widget.auxiliaryTask == null
                         ? item.selectable
                         : item.auxiliarySelectable,
                     child: Text(
-                      '${item.label}${item.model != null ? ' · ${item.model}' : ' · Unavailable'}',
+                      '${item.catalogBinding == null ? item.label : 'Saved · ${item.label} · Generation ${item.catalogBinding!.generation}'}'
+                      '${item.model != null ? ' · ${item.model}' : ' · Unavailable'}'
+                      '${item.model != null && (widget.auxiliaryTask == null ? !item.selectable : !item.auxiliarySelectable) ? ' · Unavailable' : ''}',
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
@@ -174,6 +203,19 @@ class _OptionsModelEditorState extends State<OptionsModelEditor> {
             const SizedBox(height: 20),
             InputDecorator(
               decoration: const InputDecoration(
+                labelText: 'Configuration source',
+                border: OutlineInputBorder(),
+              ),
+              child: Text(
+                profile?.sourceLabel ??
+                    (catalog == null
+                        ? 'Host configuration · Unavailable'
+                        : 'Provider catalog · Generation ${catalog.generation} · Unavailable'),
+              ),
+            ),
+            const SizedBox(height: 20),
+            InputDecorator(
+              decoration: const InputDecoration(
                 labelText: 'Provider',
                 border: OutlineInputBorder(),
               ),
@@ -183,11 +225,49 @@ class _OptionsModelEditorState extends State<OptionsModelEditor> {
                     : '${profile!.provider} · ${profile.local == true ? 'Local' : 'Cloud'}',
               ),
             ),
+            if (catalog != null) ...[
+              const SizedBox(height: 12),
+              const Text(
+                'This selection uses one saved provider generation. Model readiness and quality have not been checked.',
+              ),
+              if (!selectionAllowed && profile?.reason != null)
+                Text(profile!.reason!),
+              if (profile == null)
+                Text(
+                  widget.models.catalogError != null
+                      ? 'The catalog could not be inspected. This saved selection is kept. Refresh before choosing a saved provider.'
+                      : latest == null
+                      ? 'This exact provider generation is no longer listed. Choose another profile to change future tasks.'
+                      : 'This selection stays on generation ${catalog.generation}. The catalog now lists generation ${latest.catalogBinding!.generation}. '
+                            'Choose it explicitly to change future tasks.',
+                ),
+              ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                title: const Text('Saved provider identity'),
+                children: [
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: SelectableText(
+                      'Provider ${catalog.id}\nGeneration ${catalog.generation}\nConfiguration SHA-256 ${catalog.configurationSha256}',
+                    ),
+                  ),
+                ],
+              ),
+            ],
             const SizedBox(height: 20),
             DropdownButtonFormField<String>(
-              key: ValueKey(
-                'harness-reasoning-${widget.harness ?? 'default'}-${widget.auxiliaryTask ?? 'main'}-$_profile-${_reasoning ?? 'profile'}-$_inherit',
-              ),
+              key: catalog == null
+                  ? ValueKey<String>(
+                      'harness-reasoning-${widget.harness ?? 'default'}-${widget.auxiliaryTask ?? 'main'}-${_profile.profileId}-${_reasoning ?? 'profile'}-$_inherit',
+                    )
+                  : ValueKey((
+                      'catalog-reasoning',
+                      widget.harness,
+                      widget.auxiliaryTask,
+                      _profile,
+                      _reasoning,
+                      _inherit,
+                    )),
               initialValue: _reasoning ?? 'profile',
               isExpanded: true,
               decoration: const InputDecoration(
@@ -219,7 +299,7 @@ class _OptionsModelEditorState extends State<OptionsModelEditor> {
               const Padding(
                 padding: EdgeInsets.only(top: 8),
                 child: Text(
-                  'This profile has no additional reasoning levels declared by the host.',
+                  'This profile has no additional reasoning levels declared.',
                 ),
               ),
             if (widget.auxiliaryTask != null &&
@@ -249,16 +329,16 @@ class _OptionsModelEditorState extends State<OptionsModelEditor> {
                 onPressed:
                     widget.busy ||
                         (!_inherit &&
-                            ((widget.auxiliaryTask == null
-                                        ? profile?.selectable
-                                        : profile?.auxiliarySelectable) !=
-                                    true ||
-                                !validEffort))
+                            (!selectionAllowed ||
+                                !validEffort ||
+                                (catalog != null &&
+                                    widget.onSaveCatalog == null)))
                     ? null
-                    : () => widget.onSave(
-                        _inherit ? null : _profile,
-                        _inherit ? null : _reasoning,
-                      ),
+                    : () => _inherit
+                          ? widget.onSave(null, null)
+                          : catalog == null
+                          ? widget.onSave(_profile.profileId!, _reasoning)
+                          : widget.onSaveCatalog!(catalog, _reasoning),
                 icon: const Icon(Icons.save_outlined),
                 label: Text(
                   widget.auxiliaryTask == null
@@ -280,6 +360,7 @@ class OptionsAuxiliaryModels extends StatefulWidget {
     required this.models,
     required this.busy,
     required this.onSave,
+    this.onSaveCatalog,
     this.harness,
     this.initialPurpose,
     this.onPurposeChanged,
@@ -295,6 +376,12 @@ class OptionsAuxiliaryModels extends StatefulWidget {
     String? reasoning,
   )
   onSave;
+  final Future<void> Function(
+    String purpose,
+    AgentCatalogBinding catalog,
+    String? reasoning,
+  )?
+  onSaveCatalog;
   @override
   State<OptionsAuxiliaryModels> createState() => _OptionsAuxiliaryModelsState();
 }
@@ -349,6 +436,10 @@ class _OptionsAuxiliaryModelsState extends State<OptionsAuxiliaryModels> {
           busy: widget.busy,
           onSave: (profile, reasoning) =>
               widget.onSave(purpose, profile, reasoning),
+          onSaveCatalog: widget.onSaveCatalog == null
+              ? null
+              : (catalog, reasoning) =>
+                    widget.onSaveCatalog!(purpose, catalog, reasoning),
         ),
       ],
     );

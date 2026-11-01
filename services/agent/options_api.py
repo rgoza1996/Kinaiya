@@ -124,18 +124,11 @@ def router(runtime, auth):
             raise HTTPException(503, "Agent model settings are not enabled on this host")
         async with runtime.integration_lock:
             try:
-                receipt, applied = runtime.model_settings.change_with_status(
+                receipt, _applied = runtime.model_settings.change_with_status(
                     request, validate_harness=runtime.session_harness
                 )
-                # Legacy health and /model inspection report the Agent default.
-                # Accepted tasks use their own provider object and native pin.
-                if applied:
-                    try:
-                        runtime.provider = runtime.model_settings.selection(None)[0]
-                    except ValueError:
-                        # A removed default profile stays visibly unavailable; an
-                        # independent valid harness override can still be saved.
-                        pass
+                # Metadata reads the current selection without constructing an
+                # adapter; each accepted task captures its actual provider lease.
                 return receipt
             except ModelSettingsConflict as exc:
                 raise HTTPException(409, str(exc)) from exc
@@ -175,11 +168,11 @@ def router(runtime, auth):
                     "provider": runtime.provider.info.model_dump(),
                     "pin": None,
                 }
-            provider, pin = runtime.model_settings.selection(version)
+            info, pin = runtime.model_settings.selection_info(version)
             return {
                 "schema_version": "1.0",
                 "harness_version": version,
-                "provider": provider.info.model_dump(),
+                "provider": info.model_dump(),
                 "pin": pin.model_dump(),
             }
         except (ModelSettingsUnavailable, sqlite3.Error) as exc:

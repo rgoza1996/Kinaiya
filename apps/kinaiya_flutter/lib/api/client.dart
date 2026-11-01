@@ -109,6 +109,61 @@ class KinaiyaClient {
   final String converseBase;
   final String _token;
   final http.Client _http;
+
+  /// Agent recovery identity in RAM; never expose the owner credential.
+  /// Converse is independent and changing its URL cannot retire Agent attempts.
+  bool sameOwnerBackend(KinaiyaClient other) =>
+      agentBase == other.agentBase &&
+      sessionBase == other.sessionBase &&
+      _token == other._token;
+
+  /// Existing attempts use readback only. An unobserved original request must
+  /// never become a fresh launch after a reconnect or changed model consent.
+  Future<Object> submitOriginal(
+    AgentSubmission request, {
+    required bool reconcileOnly,
+  }) async {
+    if (utf8.encode(jsonEncode(request.body)).length > 65536) {
+      throw const FormatException('Agent submission exceeds its request bound');
+    }
+    final result = await _post(
+      agentBase,
+      request.command != null
+          ? '/v1/commands/execute'
+          : reconcileOnly
+          ? '/v1/agent/submissions/reconcile'
+          : '/v1/agent/tasks',
+      request.body,
+    );
+    if (request.command == null) return request.taskReceipt(result);
+    if (result['schema_version'] != schemaVersion ||
+        !{
+          'ok',
+          'error',
+          'unknown',
+          'unconfirmed',
+          'in_progress',
+        }.contains(result['status']) ||
+        (result['command'] != null && result['command'] != request.command) ||
+        (result['status'] == 'ok' &&
+            (result['command'] != request.command ||
+                !AgentSubmission.validCommandTaskResult(result['result']))) ||
+        (result['task_result'] != null &&
+            !AgentSubmission.validCommandTaskResult(result['task_result'])) ||
+        (result.containsKey('task_rejected_before_submit') &&
+            (result['task_rejected_before_submit'] != true ||
+                result['status'] != 'error' ||
+                result['command'] != request.command ||
+                result['task_result'] != null ||
+                result['result'] != null ||
+                result['error'] is! String ||
+                (result['error'] as String).isEmpty ||
+                (result['error'] as String).runes.length > 512))) {
+      throw const FormatException('Invalid original command receipt');
+    }
+    return Map<String, Object?>.unmodifiable(result);
+  }
+
   final http.Client Function() _providerClientFactory;
   static http.Client _providerInjectionRequired() =>
       throw StateError('Provider transport requires its own injected factory');

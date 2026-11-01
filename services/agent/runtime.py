@@ -25,6 +25,7 @@ import asyncio
 import copy
 import hashlib
 import json
+import sqlite3
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -280,6 +281,7 @@ class _Record:
     context_event_ids: set[str] = field(default_factory=set)
     explicit_skill: str | None = None
     auxiliary_providers: dict[str, TextProvider] = field(default_factory=dict)
+    model_lease: Any | None = None
     foreign_context: bool = False
     used_skills: set[str] = field(default_factory=set)
     plugin_versions: dict[str, str] = field(default_factory=dict)
@@ -307,6 +309,7 @@ class _PendingSubmit:
     receipt: AgentSubmitReceipt | None = None
     controls: dict[tuple[str, str], str] = field(default_factory=dict)
     authority_deadline: float | None = None
+    launched: bool = False
 
     def suppress(self) -> None:
         # This latch closes synchronously, before cancellation or any readback.
@@ -314,6 +317,11 @@ class _PendingSubmit:
         if not self.suppressed.done():
             self.suppressed.set_result(None)
         self.record.done.set()
+        # Native submission/lookup uses the journal client, never these model
+        # adapters. A suppressed launch can close its unused captured keys now;
+        # late receipt knowledge cannot revive them or schedule inference.
+        if not self.launched and self.record.model_lease is not None:
+            self.record.model_lease.start_close()
 
 
 @dataclass(eq=False)
@@ -383,6 +391,32 @@ class AgentRuntime:
     def provider_for(self, rec=None):
         """A task retains its native provider; owner defaults affect future work."""
         return rec.provider if rec is not None and rec.provider is not None else self.provider
+
+    def _owner_provider_selection(self):
+        """Owner metadata only; never construct a catalog adapter or resolve keys."""
+        try:
+            if self.model_settings is not None:
+                return self.model_settings.selection_info(None)
+            return self.provider.info, None
+        except (ValueError, RuntimeError, OSError, sqlite3.Error, SystemExit):
+            raise PolicyDenied("Owner model selection is unavailable") from None
+
+    def provider_info_for(self, rec=None):
+        if rec is not None:
+            return self.provider_for(rec).info
+        return self._owner_provider_selection()[0]
+
+    def owner_provider_context(self):
+        """Immutable metadata stamp for one owner inspection, never authority."""
+        info, pin = self._owner_provider_selection()
+        return json.dumps(
+            {
+                "provider": info.model_dump(mode="json"),
+                "pin": pin.model_dump(mode="json") if pin is not None else None,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
 
     # -- journal ------------------------------------------------------
     def _append_request(self, rec: _Record, kind: str, payload: dict[str, Any]) -> AppendRequest:
@@ -680,6 +714,11 @@ class AgentRuntime:
                 await self._append(rec, "agent.command", {"op": "disclosure-narrowed"})
         # A steer or profile change can land while native reads above await.
         rec.task.content_scope = combine_scopes(rec.task.content_scope, scope)
+        if rec.recovered:
+            # Recovery restores evidence and sticky disclosure floors, never a
+            # live adapter. Do not consult/rebind the current owner default for
+            # a historical task, including when that default is unavailable.
+            raise PolicyDenied("Recovered work has no live model; resubmit as new work")
         if not scope_allowed(self.provider_for(rec).info, rec.task.content_scope):
             raise PolicyDenied("Task disclosure does not permit the configured Agent provider")
 
@@ -689,6 +728,17 @@ class AgentRuntime:
     ) -> Task:
         return await self._submit(
             request.model_copy(deep=True), actor, explicit_skill=explicit_skill
+        )
+
+    async def reconcile_submit(
+        self, request: TaskRequest, actor: str = "owner", *, explicit_skill: str | None = None
+    ) -> Task:
+        """Observe an exact prior submission without opening a new launch opportunity."""
+        return await self._submit(
+            request.model_copy(deep=True),
+            actor,
+            explicit_skill=explicit_skill,
+            reconcile_only=True,
         )
 
     def session_harness(self, pinned: str | None) -> str:
@@ -708,7 +758,12 @@ class AgentRuntime:
         return version
 
     async def _submit(
-        self, request: TaskRequest, actor: str = "owner", *, explicit_skill: str | None = None
+        self,
+        request: TaskRequest,
+        actor: str = "owner",
+        *,
+        explicit_skill: str | None = None,
+        reconcile_only: bool = False,
     ) -> Task:
         self._check_actor(actor, list(request.source_event_ids), "submit")
         async with self.integration_lock:
@@ -717,7 +772,11 @@ class AgentRuntime:
             try:
                 operation = self._start_submit_operation(
                     lambda: self._prepare_submit(
-                        request, actor, explicit_skill=explicit_skill, preflight=preflight
+                        request,
+                        actor,
+                        explicit_skill=explicit_skill,
+                        preflight=preflight,
+                        reconcile_only=reconcile_only,
                     )
                 )
                 prepared = await self._await_submit_operation(
@@ -765,6 +824,7 @@ class AgentRuntime:
         *,
         explicit_skill: str | None,
         preflight: _SubmitPreflight,
+        reconcile_only: bool = False,
     ) -> Task | _PendingSubmit:
         def guard():
             self._submit_open(preflight=preflight)
@@ -858,6 +918,11 @@ class AgentRuntime:
             rec = await self._hydrate_submit(winner, deadline, guard=guard)
             return rec.task.model_copy(deep=True)
 
+        if reconcile_only:
+            # Unobserved is not failure evidence: an older admission may still
+            # commit. Receipt checks never construct models or reserve new work.
+            raise AgentSubmitUnconfirmed
+
         # Management remains excluded until selection and the frozen reservation.
         guard()
         confirmed = self._submit_idem.get(idem_key)
@@ -877,99 +942,111 @@ class AgentRuntime:
             or len(self._submit_operations) >= MAX_SUBMIT_OPERATIONS
         ):
             raise AgentSubmitUnavailable
+        if self.model_settings is not None and self.model_settings.catalog_cleanup_busy:
+            raise PolicyDenied("Catalog provider cleanup is unconfirmed; no new work accepted")
         if explicit_skill is not None and self.skill_service is None:
             raise PolicyDenied("Explicit skill invocation requires owner and configured skills")
+        model_lease = None
+        content_scope = combine_scopes(request.content_scope, source_scope)
         try:
             harness_version = self.session_harness(session.harness_version)
-            task_provider, model_pin = (
-                self.model_settings.selection(harness_version)
-                if self.model_settings is not None
-                else (self.provider, None)
-            )
-            auxiliary_providers, auxiliary_pins = (
-                self.model_settings.auxiliary_selection(harness_version)
-                if self.model_settings is not None
-                else ({}, {})
-            )
-        except (HarnessError, OSError, ValueError, RuntimeError) as exc:
+            if self.model_settings is not None:
+                task_provider, model_pin, auxiliary_providers, auxiliary_pins, model_lease = (
+                    self.model_settings.task_selection(harness_version, content_scope)
+                )
+            else:
+                task_provider, model_pin = self.provider, None
+                auxiliary_providers, auxiliary_pins = {}, {}
+        except (HarnessError, OSError, ValueError, RuntimeError, sqlite3.Error) as exc:
             raise PolicyDenied(
                 "The session's pinned harness or model selection is unavailable"
             ) from exc
-        if request.source_event_ids and not scope_allowed(task_provider.info, source_scope):
-            raise PolicyDenied("Source disclosure does not permit the configured Agent provider")
-        content_scope = combine_scopes(request.content_scope, source_scope)
-        if not scope_allowed(task_provider.info, content_scope):
-            raise PolicyDenied("Task disclosure does not permit the configured Agent provider")
-        task = Task(
-            session_id=request.session_id,
-            thread_id=request.thread_id,
-            epoch=request.epoch,
-            objective=objective,
-            content_scope=content_scope,
-            objective_revision=request.source_revision,
-            state=TaskState.ACCEPTED,
-            source_event_ids=list(request.source_event_ids),
-            idempotency_key=request.idempotency_key,
-            harness_version=harness_version,
-            model_pin=model_pin,
-            auxiliary_models=auxiliary_pins,
-        )
-        rec = _Record(
-            task=task,
-            provider=task_provider,
-            explicit_skill=explicit_skill,
-            auxiliary_providers=dict(auxiliary_providers),
-        )
-        if request.source_event_ids:
-            rec.source_revisions = dict.fromkeys(request.source_event_ids, request.source_revision)
-        proposal = submit_request(
-            self._append_request(
-                rec,
-                "agent.command",
-                {
-                    "op": "submit",
-                    "actor": actor,
-                    "session_id": request.session_id,
-                    "thread_id": request.thread_id,
-                    "epoch": request.epoch,
-                    "objective": objective,
-                    "objective_revision": task.objective_revision,
-                    "source_event_ids": list(request.source_event_ids),
-                    "source_revision": request.source_revision,
-                    "requested_content_scope": request.content_scope,
-                    "idempotency_key": request.idempotency_key,
-                    "payload_digest": digest,
-                    "harness_version": task.harness_version,
-                    "model_pin": model_pin.model_dump(mode="json")
-                    if model_pin is not None
-                    else None,
-                    "auxiliary_models": {
-                        key: value.model_dump(mode="json") for key, value in auxiliary_pins.items()
-                    },
-                    "explicit_skill": explicit_skill,
-                },
+        try:
+            if request.source_event_ids and not scope_allowed(task_provider.info, source_scope):
+                raise PolicyDenied(
+                    "Source disclosure does not permit the configured Agent provider"
+                )
+            content_scope = combine_scopes(request.content_scope, source_scope)
+            if not scope_allowed(task_provider.info, content_scope):
+                raise PolicyDenied("Task disclosure does not permit the configured Agent provider")
+            task = Task(
+                session_id=request.session_id,
+                thread_id=request.thread_id,
+                epoch=request.epoch,
+                objective=objective,
+                content_scope=content_scope,
+                objective_revision=request.source_revision,
+                state=TaskState.ACCEPTED,
+                source_event_ids=list(request.source_event_ids),
+                idempotency_key=request.idempotency_key,
+                harness_version=harness_version,
+                model_pin=model_pin,
+                auxiliary_models=auxiliary_pins,
             )
-        )
-        pending = _PendingSubmit(
-            request=request,
-            actor=actor,
-            digest=digest,
-            record=rec,
-            proposal=proposal,
-            suppressed=asyncio.get_running_loop().create_future(),
-        )
-        # Public uncertainty never mutates the accepted native proposal.
-        task.state = TaskState.PAUSED
-        task.summary = ""
-        task.error = str(AgentSubmitUnconfirmed())
-        guard()
-        if task.task_id in self._tasks:
-            raise AgentSubmitUnavailable
-        preflight.pending = pending
-        self._pending_submits[idem_key] = pending
-        self._tasks[task.task_id] = rec
+            rec = _Record(
+                task=task,
+                provider=task_provider,
+                explicit_skill=explicit_skill,
+                auxiliary_providers=dict(auxiliary_providers),
+                model_lease=model_lease,
+            )
+            if request.source_event_ids:
+                rec.source_revisions = dict.fromkeys(
+                    request.source_event_ids, request.source_revision
+                )
+            proposal = submit_request(
+                self._append_request(
+                    rec,
+                    "agent.command",
+                    {
+                        "op": "submit",
+                        "actor": actor,
+                        "session_id": request.session_id,
+                        "thread_id": request.thread_id,
+                        "epoch": request.epoch,
+                        "objective": objective,
+                        "objective_revision": task.objective_revision,
+                        "source_event_ids": list(request.source_event_ids),
+                        "source_revision": request.source_revision,
+                        "requested_content_scope": request.content_scope,
+                        "idempotency_key": request.idempotency_key,
+                        "payload_digest": digest,
+                        "harness_version": task.harness_version,
+                        "model_pin": model_pin.model_dump(mode="json")
+                        if model_pin is not None
+                        else None,
+                        "auxiliary_models": {
+                            key: value.model_dump(mode="json")
+                            for key, value in auxiliary_pins.items()
+                        },
+                        "explicit_skill": explicit_skill,
+                    },
+                )
+            )
+            pending = _PendingSubmit(
+                request=request,
+                actor=actor,
+                digest=digest,
+                record=rec,
+                proposal=proposal,
+                suppressed=asyncio.get_running_loop().create_future(),
+            )
+            # Public uncertainty never mutates the accepted native proposal.
+            task.state = TaskState.PAUSED
+            task.summary = ""
+            task.error = str(AgentSubmitUnconfirmed())
+            guard()
+            if task.task_id in self._tasks:
+                raise AgentSubmitUnavailable
+            preflight.pending = pending
+            self._pending_submits[idem_key] = pending
+            self._tasks[task.task_id] = rec
 
-        return pending
+            return pending
+        except BaseException:
+            if model_lease is not None:
+                model_lease.start_close()
+            raise
 
     async def _admit_submit(self, pending: _PendingSubmit) -> Task:
         rec, proposal = pending.record, pending.proposal
@@ -1026,6 +1103,7 @@ class AgentRuntime:
             pending.launch_open = False
             rec.task.state = TaskState.ACCEPTED
             rec.worker = asyncio.create_task(self._run(rec))
+            pending.launched = True
             return rec.task.model_copy(deep=True)
         except BaseException:
             pending.suppress()
@@ -1196,6 +1274,8 @@ class AgentRuntime:
             raise StaleRevision("Submission session changed before execution")
 
     def _release_submit(self, pending, winner) -> None:
+        if not pending.launched and pending.record.model_lease is not None:
+            pending.record.model_lease.start_close()
         key = (pending.request.session_id, pending.request.idempotency_key)
         if self._pending_submits.get(key) is pending:
             self._pending_submits.pop(key)
@@ -2219,12 +2299,16 @@ class AgentRuntime:
 
     def runtime_settings_busy(self) -> bool:
         """Terminal publication does not prove its worker or child has released."""
-        return self._closed or any(
-            rec.task.state not in TERMINAL
-            or (rec.worker is not None and not rec.worker.done())
-            or rec.proc_slot.get("proc") is not None
-            or rec.retire_lock.locked()
-            for rec in self._tasks.values()
+        return (
+            self._closed
+            or (self.model_settings is not None and self.model_settings.catalog_cleanup_busy)
+            or any(
+                rec.task.state not in TERMINAL
+                or (rec.worker is not None and not rec.worker.done())
+                or rec.proc_slot.get("proc") is not None
+                or rec.retire_lock.locked()
+                for rec in self._tasks.values()
+            )
         )
 
     def tool_snapshot(self, task: Task | None = None) -> NativeToolSnapshot:
@@ -2251,10 +2335,7 @@ class AgentRuntime:
                 bool(task.auxiliary_models)
                 if task is not None
                 else self.model_settings is not None
-                and any(
-                    self.model_settings.auxiliary_available(name)
-                    for name in self.model_settings.base
-                )
+                and self.model_settings.auxiliary_configured(harness)
             ),
             catalog_available=True,
         )
@@ -2341,7 +2422,7 @@ class AgentRuntime:
 
     def _model_mcp(self, rec=None):
         return (
-            ModelScopedMCP(self.mcp_host, self.provider_for(rec).info)
+            ModelScopedMCP(self.mcp_host, self.provider_info_for(rec))
             if self.mcp_host is not None
             else None
         )
@@ -2729,26 +2810,38 @@ class AgentRuntime:
             else:
                 await self._fail(rec, f"runtime error: {exc}")
         finally:
-            if self.skill_service is not None:
-                await self.skill_service.release_task(rec.task.task_id)
-            if self.plugin_service is not None:
-                await self.plugin_service.release_task(rec.task.task_id)
-            if self.resource_client is not None and rec.task.state in TERMINAL and not rec.closing:
-                try:
-                    await self.resource_client.task_finished(rec.task.task_id)
-                except Exception:
-                    # Native task evidence remains authoritative. Restoration
-                    # is a separate unconfirmed resource transition.
-                    print(
-                        json.dumps(
-                            {
-                                "service": "agent",
-                                "resource_restore": "unconfirmed",
-                                "task_id": rec.task.task_id,
-                            }
-                        ),
-                        flush=True,
-                    )
+            try:
+                await self._release_task_resources(rec)
+            finally:
+                if rec.model_lease is not None:
+                    try:
+                        await rec.model_lease.close()
+                    except ProviderCleanupError:
+                        # Work evidence is not rewritten by unconfirmed close.
+                        # The native lease remains busy and retains capacity.
+                        pass
+
+    async def _release_task_resources(self, rec):
+        if self.skill_service is not None:
+            await self.skill_service.release_task(rec.task.task_id)
+        if self.plugin_service is not None:
+            await self.plugin_service.release_task(rec.task.task_id)
+        if self.resource_client is not None and rec.task.state in TERMINAL and not rec.closing:
+            try:
+                await self.resource_client.task_finished(rec.task.task_id)
+            except Exception:
+                # Native task evidence remains authoritative. Restoration
+                # is a separate unconfirmed resource transition.
+                print(
+                    json.dumps(
+                        {
+                            "service": "agent",
+                            "resource_restore": "unconfirmed",
+                            "task_id": rec.task.task_id,
+                        }
+                    ),
+                    flush=True,
+                )
 
     async def _verify_finish_files(self, rec: _Record) -> str | None:
         """Re-read every file written in the current revision before accepting finish.

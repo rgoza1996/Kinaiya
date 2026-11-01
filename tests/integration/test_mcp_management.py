@@ -224,7 +224,7 @@ async def test_slow_mcp_command_does_not_block_status_or_stop(env):
         stopped = await asyncio.wait_for(env.commands.execute(command(env, "/stop", "stop")), 1)
         assert stopped["status"] == "error" and "No matching" in stopped["error"]
         duplicate = await env.commands.execute(command(env, "/mcp test synthetic", "slow"))
-        assert duplicate["status"] == "error" and len(env.controller.calls) == 1
+        assert duplicate["status"] == "unconfirmed" and len(env.controller.calls) == 1
     finally:
         env.controller.release.set()
         await managing
