@@ -1145,14 +1145,16 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
   Widget _providers() {
     final client = widget.state.client;
     final generation = widget.state.connectionGeneration;
-    return OptionsProviderEditor(
-      key: ObjectKey(client),
-      api: client?.providers,
-      active: () =>
-          mounted &&
-          identical(widget.state.client, client) &&
-          widget.state.connectionGeneration == generation,
-    );
+    return _scroll([
+      OptionsProviderEditor(
+        key: ObjectKey(client),
+        api: client?.providers,
+        active: () =>
+            mounted &&
+            identical(widget.state.client, client) &&
+            widget.state.connectionGeneration == generation,
+      ),
+    ]);
   }
 
   Widget _voice() => Column(

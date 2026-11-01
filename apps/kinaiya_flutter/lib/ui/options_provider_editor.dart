@@ -1064,47 +1064,49 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _panel([
-            const Text(
-              'Save provider connections and credentials on this computer. Assigning these profiles to active models is not available yet.',
-            ),
-            Wrap(
-              spacing: 12,
-              runSpacing: 8,
-              children: [
-                SegmentedButton<String>(
-                  segments: const [
-                    ButtonSegment(value: 'profiles', label: Text('Profiles')),
-                    ButtonSegment(
-                      value: 'credentials',
-                      label: Text('Credentials'),
-                    ),
-                  ],
-                  selected: {_tab},
-                  onSelectionChanged: operation == null
-                      ? (values) => setState(() {
-                          _tab = values.single;
-                          _screen = 'list';
-                          _key.clear();
-                          _formError = null;
-                        })
-                      : null,
-                ),
-                OutlinedButton.icon(
-                  onPressed: widget.api != null && widget.active() && !_reading
-                      ? _refresh
-                      : null,
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('Refresh'),
-                ),
-              ],
-            ),
-            if (_catalog != null)
-              Text(
-                'Saved revision ${_catalog!.revision} · Active models unchanged',
+          if (_screen == 'list')
+            _panel([
+              const Text(
+                'Save provider connections and credentials on this computer. Assigning these profiles to active models is not available yet.',
               ),
-          ]),
-          const SizedBox(height: 16),
+              Wrap(
+                spacing: 12,
+                runSpacing: 8,
+                children: [
+                  SegmentedButton<String>(
+                    segments: const [
+                      ButtonSegment(value: 'profiles', label: Text('Profiles')),
+                      ButtonSegment(
+                        value: 'credentials',
+                        label: Text('Credentials'),
+                      ),
+                    ],
+                    selected: {_tab},
+                    onSelectionChanged: operation == null
+                        ? (values) => setState(() {
+                            _tab = values.single;
+                            _screen = 'list';
+                            _key.clear();
+                            _formError = null;
+                          })
+                        : null,
+                  ),
+                  OutlinedButton.icon(
+                    onPressed:
+                        widget.api != null && widget.active() && !_reading
+                        ? _refresh
+                        : null,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Refresh'),
+                  ),
+                ],
+              ),
+              if (_catalog != null)
+                Text(
+                  'Saved revision ${_catalog!.revision} · Active models unchanged',
+                ),
+            ]),
+          if (_screen == 'list') const SizedBox(height: 16),
           if (operation != null) ...[
             _pendingPanel(operation),
             const SizedBox(height: 16),
