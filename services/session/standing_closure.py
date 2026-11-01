@@ -176,9 +176,9 @@ class StandingAdmissionClosures:
             meta, _, _, _, _, current, proof = owner._observation()
             if current is None or canonical_bytes(current.request) != canonical_bytes(original):
                 raise StandingUnavailable
+            self.observe(meta, current, proof)
             if created:
                 owner._writer(meta)
-            self.observe(meta, current, proof)
             # This is last: every SQL/history join counts toward the deadline.
             owner._guard(deadline, cancelled)
 
