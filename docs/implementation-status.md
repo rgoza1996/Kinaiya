@@ -102,6 +102,25 @@ slot release, the durable inbox and embedded owner editor remain required before
 The historical source cutoff above and frozen 8808 settings preview are unchanged;
 this addendum establishes no live model/device or full-roadmap qualification.
 
+## November 2 Resources finalization transport increment
+
+[ADR0107](adr/0107-standing-physical-finalization.md) records the separately
+qualified in-process physical producer. The subsequent
+[ADR0108 transport](adr/0108-standing-finalization-transport.md) exposes its two
+Agent-role finalization/lookup routes through the original shared operation and
+HTTP cleanup owners. Complete packets, current identity, strict limits and
+same-key native reconciliation remain required.
+
+At `fab6e613`, all 46 new transport/deadline checks and 254 affected older
+client/barrier/API checks passed. The
+[record](../evaluation/evidence/standing-finalization-transport-2026-11-02.json)
+retains the original capability-absence result, six reproduced deadline failures
+and independent/source-aware distinction. These are offline architectural
+checks; applicable exact-head CI and parent integration remain separate gates.
+Agent claim-wide retirement and its automatic finalization caller are still
+missing, followed by native settlement/release, recurrence, inbox and editor.
+No model accuracy, inference, live-device or demonstration qualification follows.
+
 ## November 1 native d1 text Decisions increment
 
 [ADR0106](adr/0106-native-d1-decisions.md) adds an explicit local native d1
