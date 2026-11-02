@@ -1,0 +1,379 @@
+{
+  "approved_main": "074e176036e838fb349850a9719ee3d76fc4da88",
+  "artifact_references": {
+    "actual_merge_and_fixture_safety_review": {
+      "local_path": "/home/roggoz/.codex/worktrees/current-ui-screenshots/Kinaiya/.dev-run/239-main-standing-integration-audit-v1/merge-and-harness-review.json",
+      "sha256": "568faa9003346dcd86bd29b7f93fee93536f9d2f4abbaec253b1dcb73278b073"
+    },
+    "actual_merge_preservation": {
+      "local_path": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/228-main-integration-preservation-v1.json",
+      "sha256": "7140e03005285fb64f4a85f98e3147256f5fdb8016b50dbbf1b993d77fb94125"
+    },
+    "agent_flutter_source_review": {
+      "local_path": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/resource-manager/.dev-run/239-agent-flutter-main-integration-audit-v1/receipt.json",
+      "sha256": "6b0e5d9f2be7b703a5c001459628175ba92aa12c504db601e21c96fed1218bdc"
+    },
+    "ci436_source_map": {
+      "local_path": "/home/roggoz/.codex/worktrees/agent-write-validation/Kinaiya/.dev-run/239-ci436-large-report-source-map-v1/receipt.json",
+      "sha256": "9deaa24fc4f6beaa8760f4389b28533e94d2b8b86bd49f9da990c7bd971fc31c"
+    },
+    "ci436_terminal": {
+      "local_path": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/239-ci436-terminal-v1.json",
+      "sha256": "6f35050e78c9da58cdbbf8b03812000cd245ebba52fac6b5def486b8748cb4f2"
+    },
+    "docs_author_receipt": {
+      "local_path": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/resource-manager/.dev-run/228-main-integration-docs-v1/receipt.json",
+      "sha256": "cd37bb916fc994b4c6dfcfd0964a1794d1467b850c19496f512be08824ccf683"
+    },
+    "final_docs_and_merge_review": {
+      "local_path": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/resource-manager/.dev-run/228-main-integration-final-docs-merge-audit-v1/receipt.json",
+      "sha256": "08cb67c77b5d924f0558507b9becd9c5698415f1de15ae463d46b1af84c3e5a1"
+    },
+    "initial_contract": {
+      "local_path": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/228-main-integration-contract-v1.md",
+      "sha256": "dbf90792db28f2d330bb450cebd06e1f374883f6a7cabd781fc241cb1f64d4eb"
+    },
+    "main_overlap_review": {
+      "local_path": "/home/roggoz/.codex/worktrees/current-ui-screenshots/Kinaiya/.dev-run/239-main-standing-integration-audit-v1/integration-map.json",
+      "sha256": "de0ff7bdffacb9663a9074b7d0fdcc7e2e363115aae53ec0d3ff017200c53bfd"
+    },
+    "resources_native_source_review": {
+      "local_path": "/home/roggoz/.codex/worktrees/agent-write-validation/Kinaiya/.dev-run/239-resources-main-integration-source-audit-v1/receipt.json",
+      "sha256": "6179d7ed8cc3f8b5a5ca7e234eb0dff86c91fa9f15ec516cc9ec68fcb17847f6"
+    }
+  },
+  "ci436": {
+    "actual_merge": "ecca90d7942d9ea0efe27d7ececf92962199ce91",
+    "actual_merge_tree_exact_head": true,
+    "head": "7d77d6759ed314ba74025143e1478a59784e40f2",
+    "limits": [
+      "No native report COMMIT or inner route phase is established by the ASGI outer receive chain.",
+      "No whole-CI pass, root cause/fix, cleanup certificate, rerun or merge approval."
+    ],
+    "platforms": {
+      "android": "success",
+      "flutter": "success",
+      "ios": "success"
+    },
+    "pr": 312,
+    "python311": {
+      "contract_export": "skipped",
+      "deadline_s": 8,
+      "dependency_audit": "skipped",
+      "deselected": 2,
+      "elapsed_s": 2081.43,
+      "failed": 1,
+      "failure": "tests/integration/test_standing_physical_finalization.py::test_complete_genuine_large_graph_and_native_reply_exceed_old262144_cap",
+      "job": 125230237123,
+      "log_sha256": "27fa96c9df658100ab23c8f8c734ed0f6325dfec0f09111c0d876a686d6ebc1f",
+      "passed": 10928,
+      "result": "failure",
+      "skipped": 6,
+      "unique_post_timeout_notes": 1,
+      "warnings": 1
+    },
+    "python312": {
+      "contract_export": "passed",
+      "dependency_audit": "passed",
+      "deselected": 2,
+      "elapsed_s": 1999.24,
+      "job": 125230237476,
+      "log_sha256": "1e22312a1f206c66907205070194afe39f8c3a303e5b860e3084140a73a0f284",
+      "passed": 10929,
+      "result": "success",
+      "skipped": 6,
+      "warnings": 1
+    },
+    "run_id": 41431294167,
+    "source_audit_sha256": "9deaa24fc4f6beaa8760f4389b28533e94d2b8b86bd49f9da990c7bd971fc31c",
+    "tree": "3e7b0384724ec7a8d5b6390d48e01e99cf0b98a2"
+  },
+  "ci437_at_evidence_preparation": {
+    "android": "success",
+    "flutter": "success",
+    "head": "2ad94e713737697e3d7b3c7613b62edf8452e4c8",
+    "ios": "success",
+    "not_combined_head_ci": true,
+    "python311": "pending_completion",
+    "python312": "pending_completion",
+    "run_id": 41435585295
+  },
+  "common_base": "e537923e16135126b670d1d3b492458783954e85",
+  "docs_author_commit": "d870e9acd82ed151e0857aa883e870d196f599a6",
+  "environment": {
+    "dependencies": "Existing locked local .venv; no installation or update.",
+    "httpx": "0.28.1",
+    "pytest": "9.1.1",
+    "python": "3.12.3",
+    "pythonpath": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya",
+    "qualification": "Serial local CPU fixture runs with immutable HEAD and every tracked input hash before/after. No concurrent local test/profile runner."
+  },
+  "evidence_boundary": "This evidence-only file is added after immutable-source qualification. Raw local logs and receipts are identified by hashes, not asserted to be uploaded CI artifacts. Publication requires exact-head CI; existing green local groups do not waive red parent evidence.",
+  "groups": {
+    "linux": {
+      "artifacts": {
+        "junit.xml": "7999b35324275953cef34c3e67389548bd7989b52d522b81418ab10adffb8af2",
+        "manifest.json": "646498d55f1869c2a75c3eb27cb9a99b44c5dc6fbf12119339287203457920f5",
+        "post-pins.json": "8e831abdcae9b1025de6070002ad8c42b71212aecb290dfc6485d1674666295d",
+        "pre-pins.json": "8e831abdcae9b1025de6070002ad8c42b71212aecb290dfc6485d1674666295d",
+        "pytest.log": "cbf25153fff9b56d3561f10139e1c19f481fe8bac2c02f47f93456a3f5a8c298",
+        "receipt.json": "35f16768ab7317c0222e086a0eaca6ded79126bc9b290a507628107b59e1dd72"
+      },
+      "local_directory": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/239-main-integration-linux-v1-k4pdep4x",
+      "receipt": {
+        "changed_pins": [],
+        "command": [
+          "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+          "-B",
+          "-m",
+          "pytest",
+          "-q",
+          "-m",
+          "not live",
+          "-p",
+          "no:cacheprovider",
+          "-o",
+          "asyncio_default_fixture_loop_scope=function",
+          "-o",
+          "junit_family=xunit1",
+          "tests/unit/test_linux_bootstrap.py",
+          "tests/unit/test_linux_cli.py",
+          "tests/unit/test_linux_distribution.py",
+          "tests/unit/test_linux_recovery.py",
+          "tests/unit/test_linux_real_tty.py",
+          "tests/unit/test_linux_web.py",
+          "tests/unit/test_distribution_build.py",
+          "tests/unit/test_distribution_gate.py",
+          "tests/unit/test_distribution_gzip.py",
+          "tests/unit/test_distribution_releases.py",
+          "tests/unit/test_distribution_schedule.py",
+          "tests/unit/test_distribution_workflow.py",
+          "--junitxml=/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/239-main-integration-linux-v1-k4pdep4x/junit.xml"
+        ],
+        "elapsed_wall_s": 4.458143689997087,
+        "exit_code": 0,
+        "head": "1b74b7dec2260a5c9ecfbfef62d041ab3035e5cc",
+        "head_after": "1b74b7dec2260a5c9ecfbfef62d041ab3035e5cc",
+        "initial_status": "",
+        "junit": [
+          {
+            "errors": "0",
+            "failures": "0",
+            "hostname": "roggoz",
+            "name": "pytest",
+            "skipped": "0",
+            "tests": "182",
+            "time": "4.150",
+            "timestamp": "2026-11-02T03:38:27.725303-08:00"
+          }
+        ],
+        "limitations": [
+          "Offline synthetic CPU/ASGI/SQLite harness test; no model quality or live-device claim.",
+          "Task completion or empty registries alone are not original-owner cleanup proof."
+        ],
+        "phase": "239-main-integration-linux-v1",
+        "pins_preserved": true,
+        "pythonpath": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya",
+        "tracked_input_count": 1505
+      }
+    },
+    "runtime": {
+      "artifacts": {
+        "junit.xml": "9e378b5d20243bf0970bd46a3f2fb327d7e06010ce2812755e3a153cef7d25ed",
+        "manifest.json": "88cc5961840d0e4bd26da50bc218e62b8d7a0414b445f20706bd1a20fb5ca861",
+        "post-pins.json": "8e831abdcae9b1025de6070002ad8c42b71212aecb290dfc6485d1674666295d",
+        "pre-pins.json": "8e831abdcae9b1025de6070002ad8c42b71212aecb290dfc6485d1674666295d",
+        "pytest.log": "eb8a0c79175758cd8ccc7345097261c2d8c9a81267cadf6aab0edadad76b5a6d",
+        "receipt.json": "3558140a2ed6cba92fa20741702362f9c8ed32cda5a8fd81b1505b7251ce7140"
+      },
+      "local_directory": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/239-main-integration-runtime-v1-caa9sc64",
+      "receipt": {
+        "changed_pins": [],
+        "command": [
+          "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+          "-B",
+          "-m",
+          "pytest",
+          "-q",
+          "-m",
+          "not live",
+          "-p",
+          "no:cacheprovider",
+          "-o",
+          "asyncio_default_fixture_loop_scope=function",
+          "-o",
+          "junit_family=xunit1",
+          "tests/integration/test_standing_agent_runtime.py",
+          "tests/integration/test_standing_resource_binding_agent.py",
+          "tests/integration/test_standing_physical_timeout_observation.py",
+          "tests/integration/test_standing_physical_timeout_controls.py",
+          "tests/integration/test_standing_native_timeout_observation.py",
+          "tests/integration/test_standing_physical_capture_fences.py",
+          "tests/integration/test_standing_physical_finalization.py::test_finalizer_restores_only_exact_original_reserved_lease",
+          "tests/integration/test_standing_physical_finalization.py::test_complete_genuine_large_graph_and_native_reply_exceed_old262144_cap",
+          "--junitxml=/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/239-main-integration-runtime-v1-caa9sc64/junit.xml"
+        ],
+        "elapsed_wall_s": 157.9984769060029,
+        "exit_code": 0,
+        "head": "1b74b7dec2260a5c9ecfbfef62d041ab3035e5cc",
+        "head_after": "1b74b7dec2260a5c9ecfbfef62d041ab3035e5cc",
+        "initial_status": "",
+        "junit": [
+          {
+            "errors": "0",
+            "failures": "0",
+            "hostname": "roggoz",
+            "name": "pytest",
+            "skipped": "0",
+            "tests": "64",
+            "time": "156.985",
+            "timestamp": "2026-11-02T03:35:35.128029-08:00"
+          }
+        ],
+        "limitations": [
+          "Offline synthetic CPU/ASGI/SQLite harness test; no model quality or live-device claim.",
+          "Task completion or empty registries alone are not original-owner cleanup proof."
+        ],
+        "phase": "239-main-integration-runtime-v1",
+        "pins_preserved": true,
+        "pythonpath": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya",
+        "tracked_input_count": 1505
+      }
+    },
+    "static": {
+      "artifacts": {
+        "0.log": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+        "1.log": "4156db0f9ee3a35098054b0975ad687310a500d2df474b7e8cfb3cfdb4f67934",
+        "2.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "3.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "4.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "pre-pins.json": "8e831abdcae9b1025de6070002ad8c42b71212aecb290dfc6485d1674666295d",
+        "receipt.json": "ce64b510895e1d423294c9a1cdc8d65c5ffa506baff622e9fbafd7644de41c72"
+      },
+      "local_directory": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/239-main-integration-static-v1-g7mhsc_y",
+      "receipt": {
+        "clean": true,
+        "elapsed_wall_s": 0.7154883309995057,
+        "head": "1b74b7dec2260a5c9ecfbfef62d041ab3035e5cc",
+        "head_after": "1b74b7dec2260a5c9ecfbfef62d041ab3035e5cc",
+        "pins_preserved": true,
+        "pythonpath": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya",
+        "results": [
+          {
+            "command": [
+              "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+              "-B",
+              "-m",
+              "ruff",
+              "check",
+              "."
+            ],
+            "exit_code": 0,
+            "log": "0.log",
+            "log_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+          },
+          {
+            "command": [
+              "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+              "-B",
+              "-m",
+              "ruff",
+              "format",
+              "--check",
+              "."
+            ],
+            "exit_code": 0,
+            "log": "1.log",
+            "log_sha256": "4156db0f9ee3a35098054b0975ad687310a500d2df474b7e8cfb3cfdb4f67934"
+          },
+          {
+            "command": [
+              "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+              "-B",
+              "scripts/export_contracts.py"
+            ],
+            "exit_code": 0,
+            "log": "2.log",
+            "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "command": [
+              "git",
+              "diff",
+              "--exit-code",
+              "packages/contracts/schemas"
+            ],
+            "exit_code": 0,
+            "log": "3.log",
+            "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "command": [
+              "git",
+              "diff",
+              "--check"
+            ],
+            "exit_code": 0,
+            "log": "4.log",
+            "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        ],
+        "tracked_input_count": 1505
+      }
+    }
+  },
+  "holds": {
+    "dependency_install_or_update": false,
+    "gpu_model_device_lifecycle_changes": false,
+    "inference_calls": 0,
+    "live_service_or_config_or_preview_change": false,
+    "model_accuracy_testing": false,
+    "paid_provider_calls": 0,
+    "primary_dirty_checkout_mutation": false
+  },
+  "integration": "Normal three-way merge preserves both ancestries and all approved main files; no selective source restoration or blanket conflict resolution. A subsequent reviewed two-document correction qualifies historical cutoffs without changing current remaining-work gates.",
+  "issues": [
+    228,
+    239,
+    255
+  ],
+  "normal_merge": "9a07435346bf3f657e38cb6e79cee255f49d6626",
+  "normal_merge_tree": "f50c7654257f84e282d86285a61f2f0a85471304",
+  "preservation": {
+    "independent_whole_tree_review": true,
+    "normal_merge": {
+      "main_exact_mode_blob": 10,
+      "other_common_base_exact": 1274,
+      "standing_exact_mode_blob": 221,
+      "total_tree_entries": 1505
+    },
+    "qualified_source": {
+      "main_exact_mode_blob": 10,
+      "other_common_base_exact": 1274,
+      "remaining_standing_exact_mode_blob": 219,
+      "reviewed_docs_exact_author": 2,
+      "total_tree_entries": 1505
+    }
+  },
+  "purpose": "Integrate the reviewed standing-work/transcript groundwork with approved main and verify harness architecture, not model accuracy.",
+  "qualification_scope": [
+    "64 selected genuine ASGI/SQLite/Agent/task/resource binding and retained original cleanup-owner cases pass, including both unchanged eight-second cases, both parent timeout controls, native observation and all seven capture-fence cases. Synthetic model responses drive actual native admission and file tools; no inference-quality claim.",
+    "182 existing Linux and distribution checks pass. Dependencies/downloads/provider probes/live serve are stubbed/refused. Actual temporary loopback fixture server, tmp-HOME PTY setup, source archive/Git subprocesses and cleanup are explicitly included; no real installer or live service-stack launch.",
+    "Whole Ruff and format (782 files), contract export with unchanged tracked schemas and diff checks pass. All 1505 tracked inputs and HEAD remain stable in each group.",
+    "Independent source reviews cover installer/main ancestry, Resources/native ownership and Agent/Flutter boundaries; final whole-tree mode/blob map independently confirms exact preservation.",
+    "No repeated full local 510/1291 suites or local Flutter/platform build is claimed. Existing source qualifications are provenance; exact published combined-head CI is still required."
+  ],
+  "qualified_source": "1b74b7dec2260a5c9ecfbfef62d041ab3035e5cc",
+  "remaining_work": [
+    "Exact published combined-head CI and integration review before merge.",
+    "Resolve retained #239 intermittent deadline failures from actual ownership observations without weakening existing checks.",
+    "Agent claim-wide original-owner retirement and automatic finalization caller; native Task settlement; claim/reservation and active-slot release; recurrence, durable inbox and editor.",
+    "Roadmap/product/demo qualification remains incomplete; no standing autonomous readiness claim."
+  ],
+  "retained_failures": [
+    "Historical CI430-435 outcomes remain in the unchanged parent evidence/PRs. No rerun, force-push, deadline relaxation or historical pass substitution.",
+    "CI436 Python3.11 retains one original eight-second large-graph native-report failure. Python3.12 passes all10929 with export/audit, but that does not make the overall run green or prove a cause/fix.",
+    "CI437 diagnostics remain a distinct parent gate at evidence preparation. No inner native SQL/COMMIT phase is inferred from CI436 outer ASGI receive or from eventual local cleanup."
+  ],
+  "standing_frontier": "2ad94e713737697e3d7b3c7613b62edf8452e4c8"
+}
