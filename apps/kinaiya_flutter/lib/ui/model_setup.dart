@@ -913,28 +913,200 @@ class _ModelSetupDialogState extends State<ModelSetupDialog>
   );
 }
 
-class ConverseModelSummary extends StatelessWidget {
-  const ConverseModelSummary({super.key, required this.state});
+/// Compact, disclosure-safe Converse model and privacy summary.
+///
+/// Displays the verified model identity (or explicit unavailable/unknown state)
+/// and local/cloud qualification on one compact surface alongside the existing
+/// Change / Model settings action, while keeping full technical/profile details
+/// available on explicit expansion without mutating preferences or invoking
+/// provider endpoints.
+class ConverseModelSummary extends StatefulWidget {
+  const ConverseModelSummary({
+    super.key,
+    required this.state,
+    this.onModelSettings,
+    this.onConnectionSetup,
+  });
   final AppState state;
+  final VoidCallback? onModelSettings;
+  final VoidCallback? onConnectionSetup;
+
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(
-        state.converseProvider?['model'] as String? ??
-            'Conversation model unavailable',
-        style: Theme.of(context).textTheme.titleSmall,
-      ),
-      const SizedBox(height: 12),
-      Text(
-        state.converseProvider?['local'] == true
-            ? 'Local inference'
-            : 'See Connection & privacy for disclosure settings.',
-      ),
-      const SizedBox(height: 8),
-      const Text('Text · Microphone via speech-to-text'),
-      const SizedBox(height: 8),
-      const Text('Open Model settings to inspect all configured roles.'),
-    ],
-  );
+  State<ConverseModelSummary> createState() => _ConverseModelSummaryState();
+}
+
+class _ConverseModelSummaryState extends State<ConverseModelSummary> {
+  bool _expanded = false;
+
+  AppState get _s => widget.state;
+
+  String get _modelLabel {
+    final model = (_s.converseProvider?['model'] as String?)?.trim();
+    if (model != null && model.isNotEmpty) return model;
+    if (!_s.connected) return 'Not connected · Conversation model unknown';
+    return 'Conversation model unavailable';
+  }
+
+  String get _qualificationLabel {
+    final info = _s.converseProvider;
+    final provider = (info?['provider'] as String?)?.trim();
+    final local = info?['local'];
+    if (!_s.connected) {
+      return 'Disconnected · Open Connection & privacy to connect';
+    }
+    if (!_s.sessionAuthenticated) {
+      return 'Session unauthenticated · Model readiness unconfirmed';
+    }
+    if (_s.resourceStatusStale || !_s.converseOnline) {
+      return 'Converse unavailable · Model readiness unconfirmed';
+    }
+    if (local is! bool) {
+      return 'Model or provider qualification unverified';
+    }
+    if (local) {
+      return provider != null && provider.isNotEmpty
+          ? 'Local inference ($provider)'
+          : 'Local inference';
+    }
+    final providerTag = provider != null && provider.isNotEmpty
+        ? provider
+        : 'cloud';
+    if (!_s.converseInferenceAllowed) {
+      return 'Cloud provider ($providerTag) · Privacy disclosure required';
+    }
+    return 'Cloud provider ($providerTag) · See Connection & privacy for disclosure settings.';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final info = _s.converseProvider;
+    final provider = (info?['provider'] as String?)?.trim();
+    final isLocal = info?['local'] == true;
+    final needsAttention =
+        !_s.connected ||
+        !_s.sessionAuthenticated ||
+        _s.resourceStatusStale ||
+        !_s.converseOnline ||
+        !_s.converseInferenceAllowed ||
+        info?['local'] is! bool;
+    final profileLabel =
+        _s.connection?.backendProfile.label ?? 'Local inference only';
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 12,
+          runSpacing: 6,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  needsAttention
+                      ? Icons.info_outline_rounded
+                      : isLocal
+                      ? Icons.memory_rounded
+                      : Icons.cloud_outlined,
+                  size: 18,
+                  color: needsAttention
+                      ? scheme.error
+                      : scheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    _modelLabel,
+                    key: const ValueKey('converse-model-summary-identity'),
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            Text(
+              _qualificationLabel,
+              key: const ValueKey('converse-model-summary-qualification'),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: needsAttention ? scheme.error : scheme.onSurfaceVariant,
+                fontWeight: needsAttention ? FontWeight.w600 : FontWeight.w500,
+              ),
+            ),
+            Wrap(
+              spacing: 4,
+              runSpacing: 4,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                TextButton.icon(
+                  key: const ValueKey('converse-model-summary-toggle'),
+                  onPressed: () => setState(() => _expanded = !_expanded),
+                  icon: Icon(
+                    _expanded ? Icons.expand_less : Icons.expand_more,
+                    size: 18,
+                  ),
+                  label: Text(_expanded ? 'Hide details' : 'Model details'),
+                ),
+                if (widget.onModelSettings != null)
+                  TextButton(
+                    key: const ValueKey('converse-model-summary-settings'),
+                    onPressed: widget.onModelSettings,
+                    child: const Text('Change / Model settings'),
+                  ),
+                if ((!isLocal || needsAttention) &&
+                    widget.onConnectionSetup != null)
+                  TextButton(
+                    key: const ValueKey('converse-model-summary-privacy'),
+                    onPressed: widget.onConnectionSetup,
+                    child: const Text('Connection & privacy'),
+                  ),
+              ],
+            ),
+          ],
+        ),
+        if (_expanded) ...[
+          const SizedBox(height: 8),
+          const Divider(height: 1),
+          const SizedBox(height: 8),
+          Column(
+            key: const ValueKey('converse-model-summary-details'),
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Provider: ${provider != null && provider.isNotEmpty ? provider : 'unavailable'}',
+                style: theme.textTheme.bodySmall,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Disclosure profile: $profileLabel',
+                style: theme.textTheme.bodySmall,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                isLocal
+                    ? 'Local inference'
+                    : 'See Connection & privacy for disclosure settings.',
+                style: theme.textTheme.bodySmall,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Text · Microphone via speech-to-text',
+                style: theme.textTheme.bodySmall,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Open Model settings to inspect all configured roles.',
+                style: theme.textTheme.bodySmall,
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
 }

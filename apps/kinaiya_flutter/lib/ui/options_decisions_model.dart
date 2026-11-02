@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 import '../api/decisions_model_client.dart';
 import '../api/decisions_model_settings.dart';
 import 'design_tokens.dart';
+import 'widgets.dart';
 
 /// Embedded classifier settings; no dialogue, speech or sampling controls.
 class OptionsDecisionsModel extends StatefulWidget {
@@ -395,8 +396,20 @@ class _OptionsDecisionsModelState extends State<OptionsDecisionsModel> {
           'Decisions URL is not configured. Add its explicit service URL in Connection settings. Other connected roles remain available.',
         ),
       if (_reading) const LinearProgressIndicator(),
-      if (_error != null) Text(_error!),
-      if (_notice != null) Text(_notice!),
+      if (_error != null)
+        ActionOutcomeFeedback(
+          key: const ValueKey('decisions-save-error'),
+          state: ActionOutcomeState.failed,
+          message: _error!,
+        ),
+      if (_notice != null && pending == null)
+        ActionOutcomeFeedback(
+          key: const ValueKey('decisions-save-outcome'),
+          state: _notice!.startsWith('Classifier selection saved')
+              ? ActionOutcomeState.confirmed
+              : ActionOutcomeState.unconfirmed,
+          message: _notice!,
+        ),
     ];
     if (snapshot != null && draft != null) {
       final edit = draft.edit, choice = draft.choice;
@@ -527,7 +540,13 @@ class _OptionsDecisionsModelState extends State<OptionsDecisionsModel> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(pending.notice),
+              ActionOutcomeFeedback(
+                key: const ValueKey('decisions-save-outcome'),
+                state: pending.inFlight
+                    ? ActionOutcomeState.inProgress
+                    : ActionOutcomeState.unconfirmed,
+                message: pending.notice,
+              ),
               ExpansionTile(
                 title: const Text('Original save request'),
                 children: [

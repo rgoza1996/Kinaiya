@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import '../config/connection.dart';
 import '../config/credential_picker.dart';
 import '../state/app_state.dart';
+import 'visual_theme.dart';
+import 'widgets.dart';
 
 /// Connection setup: service URLs plus an owner access token password field.
 /// Everything stays in memory; nothing is persisted, logged or URL-encoded.
@@ -29,6 +31,8 @@ class _SetupDialogState extends State<SetupDialog> {
   late final TextEditingController _token;
   BackendProfile _profile = BackendProfile.clean;
   String? _error;
+  bool _showEndpoints = true;
+  bool _showAdvanced = false;
 
   @override
   void initState() {
@@ -83,137 +87,327 @@ class _SetupDialogState extends State<SetupDialog> {
     }
   }
 
+  String get _connectionStatusText {
+    final error = widget.state.connectionError;
+    if (error != null && error.isNotEmpty) return error;
+    if (!widget.state.connected) return 'Not connected';
+    if (!widget.state.sessionAuthenticated) {
+      return 'Connection pending or unauthenticated — host session not yet verified.';
+    }
+    return 'Connected and authenticated with host.';
+  }
+
+  ActionOutcomeState get _connectionOutcomeState {
+    final error = widget.state.connectionError;
+    if (error == 'Checking services…') return ActionOutcomeState.inProgress;
+    if (widget.state.connected && widget.state.sessionAuthenticated) {
+      return ActionOutcomeState.confirmed;
+    }
+    if ((widget.state.connected && !widget.state.sessionAuthenticated) ||
+        (widget.state.sessionAuthenticated &&
+            !widget.state.connected &&
+            !widget.state.agentOnline &&
+            !widget.state.converseOnline)) {
+      return ActionOutcomeState.unconfirmed;
+    }
+    if (error != null &&
+        error.isNotEmpty &&
+        error != 'Connection is not configured yet.') {
+      return ActionOutcomeState.failed;
+    }
+    return ActionOutcomeState.idle;
+  }
+
+  bool get _hasExistingMemoryToken =>
+      widget.embedded &&
+      (widget.state.connection?.ownerToken.isNotEmpty ?? false);
+
+  String get _endpointsSummary {
+    final session = _session.text.trim();
+    final agent = _agent.text.trim();
+    final converse = _converse.text.trim();
+    final decisions = _decisions.text.trim();
+    return 'Session: ${session.isEmpty ? 'unset' : session} · '
+        'Agent: ${agent.isEmpty ? 'unset' : agent} · '
+        'Converse: ${converse.isEmpty ? 'unset' : converse} · '
+        'Decisions: ${decisions.isEmpty ? 'not configured' : decisions}';
+  }
+
   @override
-  Widget build(BuildContext context) {
-    final form = SingleChildScrollView(
-      padding: const EdgeInsets.only(top: 8),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (!widget.privacyOnly) ...[
-            TextField(
-              controller: _session,
-              decoration: const InputDecoration(
-                labelText: 'Session service URL',
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: widget.state,
+    builder: (context, _) {
+      final textTheme = Theme.of(context).textTheme;
+      final scheme = Theme.of(context).colorScheme;
+      final form = SingleChildScrollView(
+        padding: const EdgeInsets.only(top: 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              widget.privacyOnly
+                  ? 'Choose whether Kinaiya may use only local/self-hosted models or also allow configured cloud providers.'
+                  : 'Connect to your Kinaiya host using its service URLs and your owner access token. Credentials stay in memory only for this session.',
+              key: const ValueKey('setup-user-guide'),
+              style: textTheme.bodyMedium?.copyWith(
+                color: scheme.onSurfaceVariant,
               ),
-              keyboardType: TextInputType.url,
             ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _agent,
-              decoration: const InputDecoration(labelText: 'Agent service URL'),
-              keyboardType: TextInputType.url,
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _converse,
-              decoration: const InputDecoration(
-                labelText: 'Converse service URL',
+            const SizedBox(height: 12),
+            if (!widget.privacyOnly) ...[
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
+                runSpacing: 4,
+                children: [
+                  Text(
+                    'Host service endpoints & owner token',
+                    style: textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  TextButton.icon(
+                    key: const ValueKey('setup-endpoints-toggle'),
+                    onPressed: () =>
+                        setState(() => _showEndpoints = !_showEndpoints),
+                    icon: Icon(
+                      _showEndpoints ? Icons.expand_less : Icons.expand_more,
+                      size: 18,
+                    ),
+                    label: Text(
+                      _showEndpoints
+                          ? 'Collapse service URLs'
+                          : 'Edit service URLs',
+                    ),
+                  ),
+                ],
               ),
-              keyboardType: TextInputType.url,
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _decisions,
-              decoration: const InputDecoration(
-                labelText: 'Decisions service URL (optional)',
-                helperText:
-                    'Use its explicit independent URL. Blank leaves Decisions model options unconfigured.',
+              if (!_showEndpoints) ...[
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Text(
+                    _endpointsSummary,
+                    key: const ValueKey('setup-endpoints-summary'),
+                    style: textTheme.bodySmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ] else ...[
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _session,
+                  decoration: const InputDecoration(
+                    labelText: 'Session service URL',
+                  ),
+                  keyboardType: TextInputType.url,
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _agent,
+                  decoration: const InputDecoration(
+                    labelText: 'Agent service URL',
+                  ),
+                  keyboardType: TextInputType.url,
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _converse,
+                  decoration: const InputDecoration(
+                    labelText: 'Converse service URL',
+                  ),
+                  keyboardType: TextInputType.url,
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _decisions,
+                  decoration: const InputDecoration(
+                    labelText: 'Decisions service URL (optional)',
+                    helperText:
+                        'Use its explicit independent URL. Blank leaves Decisions model options unconfigured.',
+                  ),
+                  keyboardType: TextInputType.url,
+                ),
+                const SizedBox(height: 16),
+              ],
+              TextField(
+                controller: _token,
+                decoration: const InputDecoration(
+                  labelText: 'Owner access token',
+                  helperText:
+                      'Memory only: never stored, logged or put in URLs.',
+                ),
+                obscureText: true,
+                enableSuggestions: false,
+                autocorrect: false,
               ),
-              keyboardType: TextInputType.url,
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _token,
-              decoration: const InputDecoration(
-                labelText: 'Owner access token',
-                helperText: 'Memory only: never stored, logged or put in URLs.',
-              ),
-              obscureText: true,
-              enableSuggestions: false,
-              autocorrect: false,
-            ),
-            if (kIsWeb) ...[
-              const SizedBox(height: 8),
-              TextButton.icon(
-                onPressed: () async {
-                  final token = await chooseCredential();
-                  if (mounted && token != null) {
-                    setState(() {
-                      _token.text = token;
-                      _error = null;
-                    });
-                  }
-                },
-                icon: const Icon(Icons.folder_open),
-                label: const Text('Load local access token'),
-              ),
+              if (_hasExistingMemoryToken && _token.text.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    'An owner token is currently held in memory for the active URLs. Leave blank to keep it when reconnecting to the same URLs, or enter a new token.',
+                    key: const ValueKey('setup-existing-token-hint'),
+                    style: textTheme.bodySmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              if (kIsWeb) ...[
+                const SizedBox(height: 8),
+                TextButton.icon(
+                  onPressed: () async {
+                    final token = await chooseCredential();
+                    if (mounted && token != null) {
+                      setState(() {
+                        _token.text = token;
+                        _error = null;
+                      });
+                    }
+                  },
+                  icon: const Icon(Icons.folder_open),
+                  label: const Text('Load local access token'),
+                ),
+              ],
             ],
-          ],
-          const SizedBox(height: 12),
-          DropdownButtonFormField<BackendProfile>(
-            initialValue: _profile,
-            isExpanded: true,
-            decoration: const InputDecoration(
-              labelText: 'Inference disclosure',
+            const SizedBox(height: 12),
+            Text(
+              'Data-sharing & inference disclosure',
+              key: const ValueKey('setup-privacy-guide'),
+              style: textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
             ),
-            items: BackendProfile.values
-                .map((p) => DropdownMenuItem(value: p, child: Text(p.label)))
-                .toList(),
-            onChanged: (p) =>
-                setState(() => _profile = p ?? BackendProfile.clean),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Text(
-              _profile.note,
-              style: Theme.of(context).textTheme.bodySmall,
+            const SizedBox(height: 6),
+            DropdownButtonFormField<BackendProfile>(
+              initialValue: _profile,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Inference disclosure',
+              ),
+              items: BackendProfile.values
+                  .map((p) => DropdownMenuItem(value: p, child: Text(p.label)))
+                  .toList(),
+              onChanged: (p) =>
+                  setState(() => _profile = p ?? BackendProfile.clean),
             ),
-          ),
-          if (_error != null)
             Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Semantics(
-                liveRegion: true,
-                child: Text(_error!, style: const TextStyle(color: Colors.red)),
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(_profile.note, style: textTheme.bodySmall),
+            ),
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    _error!,
+                    key: const ValueKey('setup-validation-error'),
+                    style: const TextStyle(color: Colors.red),
+                  ),
+                ),
+              ),
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                key: const ValueKey('setup-advanced-toggle'),
+                onPressed: () => setState(() => _showAdvanced = !_showAdvanced),
+                icon: Icon(
+                  _showAdvanced ? Icons.expand_less : Icons.expand_more,
+                  size: 18,
+                ),
+                label: Text(
+                  _showAdvanced
+                      ? 'Hide advanced connection & protocol details'
+                      : 'Advanced connection & protocol details',
+                ),
               ),
             ),
-        ],
-      ),
-    );
-    if (widget.embedded) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(child: form),
-          const SizedBox(height: 16),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: FilledButton(
-              onPressed: _connect,
-              child: Text(
-                widget.privacyOnly ? 'Apply disclosure choice' : 'Connect',
+            if (_showAdvanced)
+              Container(
+                key: const ValueKey('setup-advanced-panel'),
+                margin: const EdgeInsets.only(top: 4),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: scheme.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: scheme.outlineVariant),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Session authentication: ${widget.state.sessionAuthenticated ? 'Verified' : 'Not verified'}',
+                      style: textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Service reachability: Agent ${widget.state.agentOnline ? 'reachable' : 'unreachable'} · Converse ${widget.state.converseOnline ? 'reachable' : 'unreachable'}',
+                      style: textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      widget.state.decisionsModelOptionsStatus,
+                      style: textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Connection generation: ${widget.state.connectionGeneration}',
+                      style: textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Protocol security: Authenticated requests require loopback (127.0.0.1 / localhost / ::1) or HTTPS. Owner tokens remain in RAM only and are never written to disk, URLs, or logs.',
+                      style: textTheme.bodySmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      );
+      if (widget.embedded) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(child: form),
+            const SizedBox(height: 16),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: FilledButton(
+                key: const ValueKey('setup-connect-primary-action'),
+                style: kinaiyaPrimaryButtonStyle(Theme.of(context).colorScheme),
+                onPressed: _connect,
+                child: Text(
+                  widget.privacyOnly ? 'Apply disclosure choice' : 'Connect',
+                ),
               ),
             ),
+            const SizedBox(height: 12),
+            ActionOutcomeFeedback(
+              key: const ValueKey('setup-connection-outcome'),
+              messageKey: const ValueKey('setup-connection-status'),
+              state: _connectionOutcomeState,
+              message: _connectionStatusText,
+            ),
+          ],
+        );
+      }
+      return AlertDialog(
+        title: const Text('Connect to Kinaiya services'),
+        content: form,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
           ),
-          const SizedBox(height: 12),
-          Text(widget.state.connectionError ?? 'Not connected'),
-          const SizedBox(height: 8),
-          Text(widget.state.decisionsModelOptionsStatus),
+          FilledButton(onPressed: _connect, child: const Text('Connect')),
         ],
       );
-    }
-    return AlertDialog(
-      title: const Text('Connect to Kinaiya services'),
-      content: form,
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(onPressed: _connect, child: const Text('Connect')),
-      ],
-    );
-  }
+    },
+  );
 }

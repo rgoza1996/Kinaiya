@@ -21,6 +21,7 @@ import 'package:kinaiya_flutter/state/app_state.dart';
 import 'package:kinaiya_flutter/ui/agent_chat.dart';
 import 'package:kinaiya_flutter/ui/character_view.dart';
 import 'package:kinaiya_flutter/ui/settings_controls.dart';
+import 'package:kinaiya_flutter/ui/visual_theme.dart';
 
 import 'converse_stage_test.dart' show StageAudio;
 import 'model_setup_test.dart' show setupFixture;
@@ -812,6 +813,503 @@ void main() {
       expect(f.dispatchedEffect, false);
       expect(tester.takeException(), isNull);
       await f.dispose(tester);
+    },
+  );
+
+  testWidgets(
+    'Options category orientation, breadcrumb, direct category switching, and search return path preserve owners and drafts',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1280, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final f = NavigationFixture();
+      await f.mount(tester);
+      final characterState = tester.state(find.byType(CharacterView));
+      final agentState = tester.state(
+        find.byType(AgentChat, skipOffstage: false),
+      );
+      await openSettings(tester);
+
+      // Overview has no breadcrumb bar.
+      expect(
+        find.byKey(const ValueKey('options-breadcrumb-bar')),
+        findsNothing,
+      );
+
+      // Open Models & Providers category.
+      await tester.tap(find.byKey(const ValueKey('options-category-models')));
+      await routePump(tester);
+      expect(
+        find.byKey(const ValueKey('options-breadcrumb-bar')),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('options-current-category')),
+            )
+            .data,
+        'Models & providers',
+      );
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('options-breadcrumb-category')),
+            )
+            .data,
+        'Models & providers',
+      );
+      expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey('options-breadcrumb-page')))
+            .data,
+        'Models',
+      );
+      expect(
+        tester
+            .widget<KinaiyaSidebarDestination>(
+              find.byKey(const ValueKey('options-models')),
+            )
+            .selected,
+        isTrue,
+      );
+
+      // Switch directly to Voice & audio and then Connection & privacy without resetting through overview.
+      final voiceCategory = find.byKey(
+        const ValueKey('options-category-voice'),
+      );
+      await tester.ensureVisible(voiceCategory);
+      await tester.tap(voiceCategory);
+      await routePump(tester);
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('options-current-category')),
+            )
+            .data,
+        'Voice & audio',
+      );
+      expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey('options-breadcrumb-page')))
+            .data,
+        'Voice',
+      );
+
+      final systemCategory = find.byKey(
+        const ValueKey('options-category-connection'),
+      );
+      await tester.ensureVisible(systemCategory);
+      await tester.tap(systemCategory);
+      await routePump(tester);
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('options-current-category')),
+            )
+            .data,
+        'Connection & privacy',
+      );
+      expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey('options-breadcrumb-page')))
+            .data,
+        'Connection',
+      );
+
+      // Search-result navigation provides an explicit path back to the search results.
+      final search = find.byKey(const ValueKey('settings-search'));
+      await tester.ensureVisible(search);
+      await tester.pump();
+      await tester.enterText(search, 'microphone');
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('options-search-voice')));
+      await routePump(tester);
+      final returnSearch = find.byKey(
+        const ValueKey('options-breadcrumb-return-search'),
+      );
+      expect(returnSearch, findsOneWidget);
+      expect(find.text('Back to search ("microphone")'), findsOneWidget);
+      await tester.tap(returnSearch);
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('options-search-voice')),
+        findsOneWidget,
+      );
+      await tester.tap(find.byTooltip('Clear search'));
+      await tester.pump();
+
+      // Explicit All settings breadcrumb returns to overview.
+      await tester.tap(
+        find.byKey(const ValueKey('options-breadcrumb-all-settings')),
+      );
+      await routePump(tester);
+      expect(
+        find.byKey(const ValueKey('options-breadcrumb-bar')),
+        findsNothing,
+      );
+      await tester.tap(find.byKey(const ValueKey('settings-close')));
+      await routePump(tester);
+
+      // Native owners, drafts, and tasks stay mounted and intact.
+      expect(
+        identical(tester.state(find.byType(CharacterView)), characterState),
+        isTrue,
+      );
+      expect(
+        identical(
+          tester.state(find.byType(AgentChat, skipOffstage: false)),
+          agentState,
+        ),
+        isTrue,
+      );
+      expect(f.state.converseDraft, 'Retained conversation draft');
+      expect(f.state.agentDraft, 'Retained Agent draft');
+      expect(f.state.tasks.single.taskId, 'kept-task');
+      expect(f.dispatchedEffect, isFalse);
+      await f.dispose(tester);
+    },
+  );
+
+  testWidgets(
+    'Options overview shows setup shortcuts with or without character artwork and tracks recent destination without side effects',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1280, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final f = NavigationFixture();
+      await f.mount(tester);
+      await openSettings(tester);
+      final writesBefore = f.storage.writes;
+
+      // 1. Both artwork and setup shortcuts are visible when showCharacter is true.
+      expect(
+        find.byKey(const ValueKey('options-overview-artwork')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('options-overview-shortcuts')),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Connected to host · Jump to a common configuration area.'),
+        findsOneWidget,
+      );
+      expect(find.text('Connection (Connected)'), findsOneWidget);
+
+      // 2. Disconnecting updates the confirmed readiness hint truthfully.
+      f.state.disconnect();
+      await routePump(tester);
+      expect(
+        find.text(
+          'Not connected to host · Configure connection, models, voice, or character.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Connection (Connected)'), findsNothing);
+
+      // 3. Disabling character display hides artwork but keeps setup shortcuts visible (never blank).
+      await f.presentation.setPreferences(
+        f.presentation.preferences.copyWith(showCharacter: false),
+      );
+      await routePump(tester);
+      expect(
+        find.byKey(const ValueKey('options-overview-artwork')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('options-overview-shortcuts')),
+        findsOneWidget,
+      );
+
+      // 4. Shortcut buttons navigate to real pages and record a recent destination when visiting non-default pages.
+      await tester.tap(find.byKey(const ValueKey('options-shortcut-models')));
+      await routePump(tester);
+      expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey('options-breadcrumb-page')))
+            .data,
+        'Models',
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('options-breadcrumb-all-settings')),
+      );
+      await routePump(tester);
+
+      // Visit Accessibility, then return to overview and verify Recent: Accessibility shortcut appears and works.
+      await chooseSettings(tester, OptionsPage.accessibility);
+      await tester.tap(
+        find.byKey(const ValueKey('options-breadcrumb-all-settings')),
+      );
+      await routePump(tester);
+      final recentShortcut = find.byKey(
+        const ValueKey('options-shortcut-recent'),
+      );
+      expect(recentShortcut, findsOneWidget);
+      expect(find.text('Recent: Accessibility'), findsOneWidget);
+      await tester.tap(recentShortcut);
+      await routePump(tester);
+      expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey('options-breadcrumb-page')))
+            .data,
+        'Accessibility',
+      );
+
+      expect(
+        f.storage.writes,
+        writesBefore + 1,
+      ); // only the explicit showCharacter test change
+      expect(f.audio.vadCalls, 0);
+      expect(f.dispatchedEffect, isFalse);
+      expect(tester.takeException(), isNull);
+      await f.dispose(tester);
+    },
+  );
+
+  testWidgets(
+    'Models Options displays plain-language purpose and truthful reported status for Converse, Agent, Decisions, STT, and TTS',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1280, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final f = NavigationFixture();
+      await f.mount(tester);
+      await openSettings(tester);
+      await chooseSettings(tester, OptionsPage.models);
+
+      expect(
+        find.byKey(const ValueKey('options-models-role-overview')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('models-group-overview')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('models-group-primary-roles')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('models-group-agent-default')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('models-group-auxiliary')),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('model-role-purpose-converse')),
+            )
+            .data,
+        'Handles live voice and text conversation responses with Kinaiya.',
+      );
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('model-role-purpose-agent')),
+            )
+            .data,
+        'Plans and executes bounded background tasks, file edits, and tool calls.',
+      );
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('model-role-purpose-decisions')),
+            )
+            .data,
+        'Classifies conversation turns and timing for potential Agent handoff.',
+      );
+      expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey('model-role-purpose-stt')))
+            .data,
+        'Transcribes spoken microphone audio into text before Converse processes it.',
+      );
+      expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey('model-role-purpose-tts')))
+            .data,
+        'Synthesizes Kinaiya responses into spoken audio output.',
+      );
+
+      // Cloud provider without disclosure consent reports cloud disclosure required.
+      f.state
+        ..converseOnline = true
+        ..converseInferenceAllowed = false
+        ..converseProvider = {
+          'provider': 'meta',
+          'model': 'muse-spark-1.3-contributor',
+          'local': false,
+        };
+      f.state.touch();
+      await tester.pump();
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('model-role-status-converse')),
+            )
+            .data,
+        contains(
+          'Selection: muse-spark-1.3-contributor · Reported: Needs attention (meta · Cloud disclosure required)',
+        ),
+      );
+
+      // Missing Decisions URL is marked Unavailable rather than implicitly ready.
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('model-role-status-decisions')),
+            )
+            .data,
+        contains('Unavailable — configure Decisions URL'),
+      );
+
+      // Disconnecting marks all roles Unavailable (not connected).
+      f.state.disconnect();
+      await routePump(tester);
+      for (final role in ['converse', 'agent', 'decisions', 'stt', 'tts']) {
+        expect(
+          tester
+              .widget<Text>(find.byKey(ValueKey('model-role-status-$role')))
+              .data,
+          contains('Unavailable (not connected)'),
+        );
+      }
+
+      // STT shortcut navigates to Audio & speech without mutating state.
+      final sttAction = find.byKey(const ValueKey('model-role-action-stt'));
+      await tester.ensureVisible(sttAction);
+      await tester.tap(sttAction);
+      await routePump(tester);
+      expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey('options-breadcrumb-page')))
+            .data,
+        'Audio',
+      );
+      expect(f.dispatchedEffect, isFalse);
+      expect(tester.takeException(), isNull);
+      await f.dispose(tester);
+    },
+  );
+
+  testWidgets(
+    'primary action button and sidebar destination enforce >=48x48 touch bounds, contrast-safe focus/hover/pressed feedback across palettes, disabled state, and single-dispatch keyboard activation',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      for (final theme in [
+        kinaiyaTheme(designSystem: true),
+        kinaiyaTheme(designSystem: true, brightness: Brightness.dark),
+        kinaiyaTheme(
+          designSystem: true,
+          primary: const Color(0xFFFFD600),
+          background: const Color(0xFF101820),
+        ),
+      ]) {
+        var primaryDispatches = 0;
+        var destinationDispatches = 0;
+        var disabledDispatches = 0;
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: theme,
+            home: Scaffold(
+              body: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  FilledButton(
+                    key: const ValueKey('pilot-primary-button'),
+                    style: kinaiyaPrimaryButtonStyle(theme.colorScheme),
+                    onPressed: () => primaryDispatches++,
+                    child: const Text('Connect'),
+                  ),
+                  FilledButton(
+                    key: const ValueKey('pilot-primary-disabled'),
+                    style: kinaiyaPrimaryButtonStyle(theme.colorScheme),
+                    onPressed: null,
+                    child: const Text('Disabled Connect'),
+                  ),
+                  SizedBox(
+                    width: 264,
+                    child: KinaiyaSidebarDestination(
+                      key: const ValueKey('pilot-sidebar-destination'),
+                      title: 'Models',
+                      subtitle: 'Role bindings',
+                      selected: true,
+                      onTap: () => destinationDispatches++,
+                    ),
+                  ),
+                  SizedBox(
+                    width: 264,
+                    child: KinaiyaSidebarDestination(
+                      key: const ValueKey('pilot-sidebar-disabled'),
+                      title: 'Disabled Destination',
+                      enabled: false,
+                      onTap: () => disabledDispatches++,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        // 1. Touch target bounds >= 48x48.
+        final primarySize = tester.getSize(
+          find.byKey(const ValueKey('pilot-primary-button')),
+        );
+        expect(primarySize.width, greaterThanOrEqualTo(48));
+        expect(primarySize.height, greaterThanOrEqualTo(48));
+
+        final destSize = tester.getSize(
+          find.byKey(const ValueKey('pilot-sidebar-destination')),
+        );
+        expect(destSize.width, greaterThanOrEqualTo(48));
+        expect(destSize.height, greaterThanOrEqualTo(48));
+
+        // 2. Contrast-safe focused/hovered/pressed style resolution.
+        final style = kinaiyaPrimaryButtonStyle(theme.colorScheme);
+        final focusSide = style.side?.resolve({WidgetState.focused});
+        expect(focusSide, isNotNull);
+        expect(focusSide!.width, 2);
+        expect(style.overlayColor?.resolve({WidgetState.hovered}), isNotNull);
+        expect(style.overlayColor?.resolve({WidgetState.pressed}), isNotNull);
+        expect(
+          style.overlayColor?.resolve({WidgetState.disabled}),
+          Colors.transparent,
+        );
+
+        // 3. Screen reader labels & states.
+        expect(
+          tester
+              .getSemantics(
+                find.byKey(const ValueKey('pilot-sidebar-destination')),
+              )
+              .label,
+          contains('Models'),
+        );
+
+        // 4. Keyboard focus and single-dispatch activation on primary button and sidebar destination.
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pump();
+        expect(primaryDispatches, 1);
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pump();
+        expect(destinationDispatches, 1);
+
+        // 5. Disabled controls cannot be activated by tap.
+        await tester.tap(find.byKey(const ValueKey('pilot-primary-disabled')));
+        await tester.tap(find.byKey(const ValueKey('pilot-sidebar-disabled')));
+        await tester.pump();
+        expect(disabledDispatches, 0);
+      }
+      semantics.dispose();
     },
   );
 }

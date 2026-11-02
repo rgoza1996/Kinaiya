@@ -116,19 +116,25 @@ Additional responsive layouts, error and permission states, interaction links,
 and refined character animation remain design work. Keep sample labels and
 status indicators distinguishable from the behavior of the running product.
 
-## Reviewed native Options synchronization
+## Reviewed native Options and November 2 UI/UX synchronization
 
 The current Git LFS archive is the same **Kinaiya — Master design** file, revision
-53, modified `2026-11-01T03:41:42.925373Z`. It contains fourteen pages and 329
+54, modified `2026-11-02T20:00:00.000000Z`. It contains fourteen pages and 329
 real top-level boards (251 on the current page), excluding root sentinels.
-Archive size: **228,277,854 bytes**; SHA-256:
-`ba1f0e61d133eccb6539c3aee5504292a4ed61e77416e63e99fd98ef27e3f8be`.
+Archive size: **227,769,664 bytes**; SHA-256:
+`892a4867e0c613b5d9f4e3d97274e13e6f0581a7a7da7977c7592154a15542c5`.
 
 Sixty-two existing Options content areas were updated and sixty-two paired
-motion detail/state boards were added. All 267 prior board identities, names
-and geometry remain; the other thirteen pages and all 100 uploaded artwork
-metadata/blob paths remain byte-exact. A stacking-only repair restored native
-labels above their backgrounds without recreating artwork or interactions.
+motion detail/state boards were added in revision 53, and revision 54 synchronizes
+twenty editable text layers across the Home, Converse, Agent and Options
+Overview/Models boards (both motion-on and motion-off variants) with the November 2
+usability review improvements (`#286–#310`): Home Connect/Setup recovery and
+prerequisite copy, Converse listening/muted/thinking/speaking state chips and
+compact provider/privacy model summary, causal Converse→Agent handoff status and
+verified task progress, Agent objective/state/evidence-first header hierarchy, and
+Options search, setup shortcuts and plain-language model role copy. All 329 real
+board identities, names and geometry remain; the other thirteen pages and all 100
+uploaded artwork metadata/blob paths remain byte-exact.
 
 Selected Models, Providers, profile editing, Permissions, Task edit and unknown
 receipt paths were visually reviewed. Offline archive analysis resolves 1,126

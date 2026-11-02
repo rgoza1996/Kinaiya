@@ -190,6 +190,7 @@ class _HomeShellState extends State<HomeShell> {
   int _optionsNavigation = 0;
   OptionsPage _optionsInitial = OptionsPage.overview;
   _ShellPage? _beforeOptions;
+  _ShellPage? _beforeAgent;
   bool _modelSetupOpen = false;
   bool _converseVisible = true;
   bool _railExtended = false;
@@ -265,14 +266,32 @@ class _HomeShellState extends State<HomeShell> {
   void _viewChanged() {
     if (_observedView == widget.state.view) return;
     _observedView = widget.state.view;
-    if (mounted &&
-        !_closing &&
-        _workspacePage != null &&
-        (widget.state.view == AppView.agent ||
-            !const {
-              _ShellPage.home,
-              _ShellPage.converse,
-            }.contains(_workspacePage))) {
+    if (!mounted || _closing) return;
+    if (widget.state.view == AppView.agent) {
+      if (const {
+        _ShellPage.home,
+        _ShellPage.converse,
+      }.contains(_workspacePage)) {
+        _beforeAgent = _workspacePage;
+      }
+      if (_workspacePage != null) {
+        setState(() => _workspacePage = null);
+      }
+      return;
+    }
+    if (_workspacePage == null && _beforeAgent != null) {
+      setState(() {
+        _workspacePage =
+            _beforeAgent == _ShellPage.converse &&
+                !widget.presentation.preferences.showConverseView
+            ? _ShellPage.home
+            : _beforeAgent;
+      });
+    } else if (_workspacePage != null &&
+        !const {
+          _ShellPage.home,
+          _ShellPage.converse,
+        }.contains(_workspacePage)) {
       setState(() => _workspacePage = null);
     }
   }
