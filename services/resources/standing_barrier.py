@@ -17,6 +17,7 @@ from packages.contracts.standing_execution import StandingExecutionClaim
 from packages.contracts.standing_resource_finalization import (
     StandingResourceBindingReceipt,
     StandingResourceBindingRequest,
+    StandingResourceFinalizationReceipt,
     StandingResourceFinalizeContext,
     StandingResourceFinalizeRequest,
     _complete,
@@ -710,11 +711,13 @@ class StandingResourcesHTTP:
                 result = await self.barrier.run(action, original)
                 self._guard(scope, scope.deadline)
                 if result is None:
-                    if action not in {"binding_lookup", "seal_lookup"}:
+                    if action not in {"binding_lookup", "seal_lookup", "finalization_lookup"}:
                         raise StandingUnavailable
                     return b"null"
                 expected = (
-                    StandingResourceBindingReceipt
+                    StandingResourceFinalizationReceipt
+                    if action in {"finalize", "finalization_lookup"}
+                    else StandingResourceBindingReceipt
                     if kind is StandingExecutionClaim
                     else StandingResourceFinalizeContext
                 )

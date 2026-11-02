@@ -8,6 +8,7 @@ from packages.contracts.standing_client import _StandingExchange
 from packages.contracts.standing_execution import StandingExecutionClaim
 from packages.contracts.standing_resource_finalization import (
     StandingResourceBindingReceipt,
+    StandingResourceFinalizationReceipt,
     StandingResourceFinalizeContext,
     StandingResourceFinalizeRequest,
     checked_finalization,
@@ -15,6 +16,19 @@ from packages.contracts.standing_resource_finalization import (
 )
 from packages.contracts.standing_work import StandingConflict, StandingUnavailable
 from services.resources.client import local_base
+
+
+def _freeze_finalization_request(request):
+    try:
+        original = checked_finalization(request, StandingResourceFinalizeRequest)
+        wire = finalization_bytes(original)
+        if len(wire) > StandingResourceFinalizeRequest.wire_bytes:
+            raise StandingUnavailable
+        # Freeze complete detached input before even ready-exchange settlement
+        # can await; the shared exchange still performs its original checks.
+        return StandingResourceFinalizeRequest.from_json(wire)
+    except Exception:
+        raise StandingUnavailable from None
 
 
 class StandingResourceClient:
@@ -132,6 +146,29 @@ class StandingResourceClient:
             request,
             StandingResourceFinalizeRequest,
             StandingResourceFinalizeContext,
+            nullable=True,
+        )
+
+    async def finalize_standing_claim(
+        self, request: StandingResourceFinalizeRequest
+    ) -> StandingResourceFinalizationReceipt:
+        original = _freeze_finalization_request(request)
+        return await self._exchange(
+            "finalization",
+            original,
+            StandingResourceFinalizeRequest,
+            StandingResourceFinalizationReceipt,
+        )
+
+    async def lookup_standing_finalization(
+        self, request: StandingResourceFinalizeRequest
+    ) -> StandingResourceFinalizationReceipt | None:
+        original = _freeze_finalization_request(request)
+        return await self._exchange(
+            "finalization/lookup",
+            original,
+            StandingResourceFinalizeRequest,
+            StandingResourceFinalizationReceipt,
             nullable=True,
         )
 
