@@ -267,7 +267,7 @@ class StandingClaimOwner:
                         self.registration_request
                     )
                     if receipt is None:
-                        raise StandingUnavailable
+                        raise StandingUnavailable from None
                 # A genuine late ACK is knowledge; it cannot reopen launch.
                 return self._capture_registration(receipt)
 
