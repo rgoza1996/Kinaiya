@@ -613,7 +613,7 @@ async def test_shutdown_replacement_keeps_original_entered_finalizer_and_single_
 METADATA = ("session", "read", "entry", "resolve", "context_history", "context_qualifications")
 
 
-async def metadata_fixture(factory):
+async def metadata_fixture(factory, *, context=False):
     env = await factory()
     session = env.store.create_session(SessionRequest(channel="converse"))
 
@@ -661,7 +661,8 @@ async def metadata_fixture(factory):
         "meta-revision",
     )
     transport = Transport(env.app)
-    client = JournalClient("http://standing.test", "a" * 32, transport=transport)
+    token = ("c" if context else "a") * 32
+    client = JournalClient("http://standing.test", token, transport=transport)
     return SimpleNamespace(
         env=env,
         session=session,
@@ -691,7 +692,9 @@ def metadata_call(value, method):
 
 @pytest.mark.parametrize("method", METADATA)
 async def test_selected_metadata_keeps_original_exchange_after_cancel(factory, method):
-    value = await metadata_fixture(factory)
+    value = await metadata_fixture(
+        factory, context=method in {"context_history", "context_qualifications"}
+    )
     scope = ActualOperation(lambda _: None)
     root = object()
     scope.hold(root)
@@ -762,7 +765,7 @@ async def test_selected_metadata_keeps_original_exchange_after_cancel(factory, m
 @pytest.mark.parametrize("method", ("context_history", "context_qualifications"))
 @pytest.mark.parametrize("fault", ("at-bound", "coercion", "duplicate", "malformed", "over-bound"))
 async def test_owned_context_preserves_raw_json_strictness_and_exact_bound(factory, method, fault):
-    value = await metadata_fixture(factory)
+    value = await metadata_fixture(factory, context=True)
 
     def transform(raw):
         if fault == "coercion":
