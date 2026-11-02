@@ -1202,6 +1202,30 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
     if (_runtimeError != null) Text(_runtimeError!),
   ];
 
+  Widget _sectionSubheading({
+    required Key key,
+    required String title,
+    required String subtitle,
+  }) {
+    final textTheme = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      key: key,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          subtitle,
+          style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+        ),
+      ],
+    );
+  }
+
   Widget _modelDefaults() {
     final owner = widget.state, client = widget.state.client;
     final generation = owner.connectionGeneration;
@@ -1213,69 +1237,140 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
     bool ownsConnection() =>
         client != null && owner.ownsConnection(generation, client);
     return _scroll([
-      const Text(
-        'Model defaults by role. Harness-specific choices live in Harness Customization.',
-      ),
-      _modelRolesOverview(),
-      ..._errors,
-      OptionsConverseModel(
-        key: ObjectKey(client),
-        api: client?.converseModels,
-        active: current,
-        onInvalidate: () {
-          if (current()) owner.invalidateConverseInference();
-        },
-        onSettled: () async {
-          if (ownsConnection()) {
-            await owner.revalidateConverseInference(invalidate: false);
-          }
-        },
-      ),
-      if (_modelReadOnlyReason case final reason?) Text(reason),
-      if (_models case final models?)
-        OptionsModelEditor(
-          key: const ValueKey('agent-default-model-editor'),
-          models: models,
-          busy: _modelBusy,
-          onSave: _saveModel,
-          onSaveCatalog: (catalog, reasoning) =>
-              _saveModel(null, reasoning, catalogBinding: catalog),
-        )
-      else
-        _unavailable(
-          'Agent default',
-          'Connect to an updated Agent host to manage model profiles.',
-        ),
-      OptionsDecisionsModel(
-        key: ObjectKey(client?.decisionsModels),
-        api: client?.decisionsModels,
-        active: current,
-        onInvalidate: () {
-          if (current()) owner.invalidateDecisionsModelOptions();
-        },
-        onChanged: () {
-          if (ownsConnection()) unawaited(owner.refreshDecisionsModelOptions());
-        },
-      ),
-      if (_models case final models?)
-        OptionsAuxiliaryModels(
-          models: models,
-          initialPurpose: _auxiliaryPurpose,
-          onPurposeChanged: (value) => _auxiliaryPurpose = value,
-          busy: _modelBusy,
-          onSave: (purpose, profile, reasoning) =>
-              _saveModel(profile, reasoning, auxiliaryTask: purpose),
-          onSaveCatalog: (purpose, catalog, reasoning) => _saveModel(
-            null,
-            reasoning,
-            auxiliaryTask: purpose,
-            catalogBinding: catalog,
+      Column(
+        key: const ValueKey('models-group-overview'),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'Model defaults by role. Harness-specific choices live in Harness Customization.',
           ),
-        ),
-      OptionsAuxiliaryRoutes(
-        key: ObjectKey(client?.auxiliaryRoutes),
-        api: client?.auxiliaryRoutes,
-        active: current,
+          const SizedBox(height: KinaiyaDesign.spaceSm),
+          _modelRolesOverview(),
+          if (_errors.isNotEmpty) ...[
+            const SizedBox(height: KinaiyaDesign.spaceSm),
+            DesignPanel(
+              key: const ValueKey('models-group-status-errors'),
+              padding: const EdgeInsets.all(KinaiyaDesign.spaceSm),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (var i = 0; i < _errors.length; i++) ...[
+                    if (i > 0) const SizedBox(height: 4),
+                    _errors[i],
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+      Column(
+        key: const ValueKey('models-group-primary-roles'),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _sectionSubheading(
+            key: const ValueKey('models-subheading-primary'),
+            title: 'Conversation, execution & routing models',
+            subtitle:
+                'Configure the primary model for each independent service owner.',
+          ),
+          const SizedBox(height: KinaiyaDesign.spaceSm),
+          KeyedSubtree(
+            key: const ValueKey('models-group-converse'),
+            child: OptionsConverseModel(
+              key: ObjectKey(client),
+              api: client?.converseModels,
+              active: current,
+              onInvalidate: () {
+                if (current()) owner.invalidateConverseInference();
+              },
+              onSettled: () async {
+                if (ownsConnection()) {
+                  await owner.revalidateConverseInference(invalidate: false);
+                }
+              },
+            ),
+          ),
+          const SizedBox(height: KinaiyaDesign.spaceMd),
+          Column(
+            key: const ValueKey('models-group-agent-default'),
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (_modelReadOnlyReason case final reason?) ...[
+                Padding(
+                  padding: const EdgeInsets.only(bottom: KinaiyaDesign.spaceSm),
+                  child: Text(reason),
+                ),
+              ],
+              if (_models case final models?)
+                OptionsModelEditor(
+                  key: const ValueKey('agent-default-model-editor'),
+                  models: models,
+                  busy: _modelBusy,
+                  onSave: _saveModel,
+                  onSaveCatalog: (catalog, reasoning) =>
+                      _saveModel(null, reasoning, catalogBinding: catalog),
+                )
+              else
+                _unavailable(
+                  'Agent default',
+                  'Connect to an updated Agent host to manage model profiles.',
+                ),
+            ],
+          ),
+          const SizedBox(height: KinaiyaDesign.spaceMd),
+          KeyedSubtree(
+            key: const ValueKey('models-group-decisions'),
+            child: OptionsDecisionsModel(
+              key: ObjectKey(client?.decisionsModels),
+              api: client?.decisionsModels,
+              active: current,
+              onInvalidate: () {
+                if (current()) owner.invalidateDecisionsModelOptions();
+              },
+              onChanged: () {
+                if (ownsConnection()) {
+                  unawaited(owner.refreshDecisionsModelOptions());
+                }
+              },
+            ),
+          ),
+        ],
+      ),
+      Column(
+        key: const ValueKey('models-group-auxiliary'),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _sectionSubheading(
+            key: const ValueKey('models-subheading-auxiliary'),
+            title: 'Auxiliary task models & routing',
+            subtitle:
+                'Optional specialized models for background summarization, memory, and auxiliary routes.',
+          ),
+          const SizedBox(height: KinaiyaDesign.spaceSm),
+          if (_models case final models?) ...[
+            OptionsAuxiliaryModels(
+              models: models,
+              initialPurpose: _auxiliaryPurpose,
+              onPurposeChanged: (value) => _auxiliaryPurpose = value,
+              busy: _modelBusy,
+              onSave: (purpose, profile, reasoning) =>
+                  _saveModel(profile, reasoning, auxiliaryTask: purpose),
+              onSaveCatalog: (purpose, catalog, reasoning) => _saveModel(
+                null,
+                reasoning,
+                auxiliaryTask: purpose,
+                catalogBinding: catalog,
+              ),
+            ),
+            const SizedBox(height: KinaiyaDesign.spaceMd),
+          ],
+          OptionsAuxiliaryRoutes(
+            key: ObjectKey(client?.auxiliaryRoutes),
+            api: client?.auxiliaryRoutes,
+            active: current,
+          ),
+        ],
       ),
     ]);
   }
@@ -1619,8 +1714,28 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
       Expanded(
         child:
             widget.converseControls.buildVoiceOptions?.call() ??
-            const Text(
-              'Voice options are unavailable until the Converse view is mounted.',
+            Align(
+              alignment: Alignment.topLeft,
+              child: DesignPanel(
+                key: const ValueKey('voice-group-unavailable'),
+                padding: const EdgeInsets.all(KinaiyaDesign.spaceMd),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Voice & microphone detection',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: KinaiyaDesign.spaceSm),
+                    const Text(
+                      'Voice options are unavailable until the Converse view is mounted.',
+                    ),
+                  ],
+                ),
+              ),
             ),
       ),
     ],

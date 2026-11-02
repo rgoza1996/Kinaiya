@@ -14,6 +14,8 @@ abstract final class KinaiyaDesign {
   static const green = Color(0xFF12D58A);
   static const rail = Color(0xFF0C2250);
   static const radius = 12.0;
+  static const spaceSm = 8.0;
+  static const spaceMd = 12.0;
   static const fontFamily = 'Inter';
   static const moonlitBackground =
       'assets/design/kinaiya-moonlit-background-v1.png';

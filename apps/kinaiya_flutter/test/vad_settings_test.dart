@@ -49,6 +49,15 @@ void main() {
       expect(changes, isEmpty);
       expect(calibration, 0);
       expect(
+        find.byKey(const ValueKey('voice-group-detection')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('voice-group-calibration')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('voice-group-timing')), findsOneWidget);
+      expect(
         find.text('Speech confirmation'),
         live ? findsNothing : findsOneWidget,
       );

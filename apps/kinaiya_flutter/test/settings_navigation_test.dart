@@ -1077,6 +1077,22 @@ void main() {
         findsOneWidget,
       );
       expect(
+        find.byKey(const ValueKey('models-group-overview')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('models-group-primary-roles')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('models-group-agent-default')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('models-group-auxiliary')),
+        findsOneWidget,
+      );
+      expect(
         tester
             .widget<Text>(
               find.byKey(const ValueKey('model-role-purpose-converse')),
