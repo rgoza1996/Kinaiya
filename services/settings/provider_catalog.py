@@ -199,7 +199,14 @@ class NativeD1Profile(TextProfile):
     def native(self):
         parsed = urlsplit(self.base_url)
         self.base_url = _origin(self.base_url, cloud=False)
-        if parsed.port is None or parsed.path not in {"", "/"}:
+        if (
+            parsed.port is None
+            or parsed.path not in {"", "/"}
+            or re.fullmatch(
+                r"(?:localhost|127\.0\.0\.1|\[::1\]):[0-9]+", parsed.netloc, re.IGNORECASE
+            )
+            is None
+        ):
             raise ValueError("Native d1 requires an explicit loopback port and server root")
         if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,127}", self.model) is None:
             raise ValueError("Native d1 requires a bounded canonical model alias")

@@ -76,6 +76,10 @@ class DecisionsCallStart(CaptureModel):
                 and self.model_pin.protocol != self.request_format
             )
             or (
+                self.model_pin.protocol == "native_d1_systemone"
+                and self.request_format not in {"native_d1_systemone", "not_submitted", "reused"}
+            )
+            or (
                 self.model_pin.selection.source == "catalog"
                 and self.request_format not in {self.model_pin.protocol, "not_submitted", "reused"}
             )
