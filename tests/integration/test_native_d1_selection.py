@@ -392,7 +392,7 @@ async def test_catalog_generation_rotation_never_retargets_old_selection_and_new
             async with env.settings.operation():
                 pytest.fail("old generation cannot acquire a replacement")
         env.settings.change(change(env.settings, selection(second), key="new-generation"))
-        wire = Wire()
+        wire = Wire(route="conversation")
         inject_transport(monkeypatch, wire)
         async with env.settings.operation() as lease:
             assert (
@@ -484,7 +484,9 @@ async def test_window_reuse_retains_original_native_model_pin_without_another_re
         )
         assert reused["model_pin"] == original["model_pin"] and reused["request"] is None
         assert reused["source_event_id"] == second.event_id and reused["status"] == "reused"
-        assert (await env.journal.window_decision(second.event_id)).classification_reused is True
+        assert (await env.journal.window_decision(second.event_id)).payload[
+            "classification_reused"
+        ] is True
 
 
 @pytest.mark.parametrize(
