@@ -25,6 +25,12 @@ with export/audit skipped. Flutter/web and Android passed. iOS never acquired a
 hosted runner and was cancelled before any step. No rerun, assertion/deadline
 waiver or causal timing-fix claim follows from the later local passes.
 
+While this correction was qualified, main advanced to `19b8363` with six UI
+increments. Normal merge `1f4623e` preserves all 12 newer Dart app/test files
+exactly, while qualified Python/runtime/test/schema inputs remain unchanged.
+The combined publication still requires its own complete CI gate; the 188 local
+Python checks do not qualify the newly integrated Flutter behavior.
+
 [PR314](https://github.com/rgoza1996/Kinaiya/pull/314) merged the reviewed
 standing-work prerequisites into main `d2bbd30a`, whose tree exactly matches
 qualified head `a553a7d3`. All five

@@ -97,6 +97,30 @@
     "Native v2 settlement, history capacity, recurrence, inbox and editor are outside this publication.",
     "No model accuracy, live hardware/device, provider, inference, preview or full-roadmap completion is claimed."
   ],
+  "main_integration": {
+    "all_other_source_paths_exact_except_3documented_files": true,
+    "documentation_bridge": "1e1857aa88418ed951c9ba2509a9d619d87e2bb3",
+    "main": "19b83633ccae8d57008e9fa70715d6578298dd9a",
+    "main_12_mode_blob_exact": true,
+    "main_files": [
+      "apps/kinaiya_flutter/lib/app.dart",
+      "apps/kinaiya_flutter/lib/config/options_catalog.dart",
+      "apps/kinaiya_flutter/lib/config/options_navigation.dart",
+      "apps/kinaiya_flutter/lib/ui/agent_chat.dart",
+      "apps/kinaiya_flutter/lib/ui/character_view.dart",
+      "apps/kinaiya_flutter/lib/ui/moonlit_home.dart",
+      "apps/kinaiya_flutter/lib/ui/options_workspace.dart",
+      "apps/kinaiya_flutter/test/agent_workspace_integration_test.dart",
+      "apps/kinaiya_flutter/test/home_panel_position_test.dart",
+      "apps/kinaiya_flutter/test/settings_navigation_test.dart",
+      "apps/kinaiya_flutter/test/ui_consistency_test.dart",
+      "apps/kinaiya_flutter/test/voice_flow_test.dart"
+    ],
+    "merge": "1f4623ef884a85240be80852c4d88e17a4236dd5",
+    "new_ci_required": true,
+    "python_runtime_tests_contracts_scripts_locks_unchanged": true,
+    "qualified_source": "5bae42ea93f63132be8405567a471854d3519c1e"
+  },
   "prior_ci442": {
     "actual_checkout": "c100098208daf920222bcd00e75305efa57049ea",
     "android": "passed",
@@ -114,6 +138,10 @@
     "observation": "Both original native children were live; call and owner-report wrappers entered without an observed result/error. Worker-thread instruction, Store lock, SQL/COMMIT and scheduling cause remain unobserved.",
     "python311": "10981 passed,6 skipped,2 deselected; export/audit passed",
     "python312": "2 failed,10979 passed,6 skipped,2 deselected; export/audit skipped",
+    "raw_git_commit_metadata_sha256": {
+      "0": "aa4ec205521c1efcaf59a20716a63ad742d9127e0e64daa8837865e2ca0b2860",
+      "1": "0657a4e744820b49d0b030c00881bc963124ef68e66ea5fc160cdf7fafda8565"
+    },
     "raw_python_logs_sha256": {
       "python311": "7e8aa3a951489fd7edcfce6a9ca981f75e5791b9ae581a9f23e2beef164b9df5",
       "python312": "ade89d3d7cdca960d4886ea698c7447bbe6000587f1581e7faea481742b518bd"
@@ -134,7 +162,7 @@
     "old_schema_files_exact": 192,
     "old_test_files_exact": 336,
     "path": "services/session/standing_resource_finalization.py",
-    "publication_boundary": "Subsequent publication adds only this evidence and two documentation updates; runtime qualification belongs to the exact source above.",
+    "publication_boundary": "Documentation bridge1e1857 adds only this evidence and two documentation updates after qualified5bae. Normal merge1f4623 then preserves the12 Dart files from newer main19b8363 exactly; Python/runtime/test/schema inputs stay exact to qualified5bae. Final integration evidence changes documentation only.",
     "qualified_head": "5bae42ea93f63132be8405567a471854d3519c1e",
     "sha256": "20c532832858ecaf0510da5ee4fb34420305b1af98a601b7e7b163ff16017b2a"
   },
