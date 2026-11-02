@@ -420,6 +420,16 @@ local runtime ordering, not full Agent retirement testimony or physical Resource
 finalization. Native settlement, active-claim release, recurrence and inbox work
 remain open; latest-head full-project CI is still required.
 
+The subsequent CI failure was reproduced as obsolete Resources test fixtures:
+eight router cases lacked the real coordinator composition boundary, and endpoint
+doubles lacked the native stream-close registry. The fixture-only correction
+preserves production code, all 102 original assertions, parameter sets and
+deadline/error checks. Its [evidence](../evaluation/evidence/resources-fixture-ownership-2026-11-01.json)
+retains the original 9 failures and 31 teardown errors, independent held/failed
+original-close controls, and 77 passing integrated cases at `ee758e7`. A pending
+close still prevents retirement and a failed close remains unavailable. This
+does not establish full-project CI, model readiness or physical finalization.
+
 ## Initial Agent submission durability
 
 The bounded [#199](https://github.com/rgoza1996/Kinaiya/issues/199) implementation
