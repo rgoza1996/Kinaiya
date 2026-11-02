@@ -567,9 +567,12 @@ class _OptionsTtsModelState extends State<OptionsTtsModel> {
       );
     }
     return DesignPanel(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: children,
+      child: Material(
+        type: MaterialType.transparency,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: children,
+        ),
       ),
     );
   }

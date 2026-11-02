@@ -554,9 +554,12 @@ class _OptionsSttModelState extends State<OptionsSttModel> {
       ),
     );
     return DesignPanel(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: children,
+      child: Material(
+        type: MaterialType.transparency,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: children,
+        ),
       ),
     );
   }

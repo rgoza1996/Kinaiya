@@ -6,7 +6,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kinaiya_flutter/api/client.dart';
 import 'package:kinaiya_flutter/config/connection.dart';
 import 'package:kinaiya_flutter/state/app_state.dart';
+import 'package:kinaiya_flutter/ui/design_tokens.dart';
 import 'package:kinaiya_flutter/ui/mcp_settings.dart';
+import 'package:kinaiya_flutter/ui/visual_theme.dart';
 
 import 'provider_consent_test.dart' show ConsentClient;
 
@@ -241,4 +243,122 @@ void main() {
     expect(api.controls, isEmpty);
     await finish(tester, state);
   });
+
+  testWidgets(
+    'owner text hierarchy roles distinguish primary content from technical metadata and scale across palettes at 320px/2x text',
+    (tester) async {
+      tester.view.physicalSize = const Size(320, 480);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final api = McpFixture();
+      final state = AppState()
+        ..connect(ConnectionProfile.defaults(), injected: api);
+      state.agentInferenceAllowed = false;
+      state.converseInferenceAllowed = false;
+
+      final themes = <ThemeData>[
+        kinaiyaTheme(brightness: Brightness.light, designSystem: true),
+        kinaiyaTheme(brightness: Brightness.dark, designSystem: true),
+        kinaiyaTheme(
+          brightness: Brightness.dark,
+          primary: const Color(0xFF0E7C66),
+          background: const Color(0xFF101926),
+          designSystem: true,
+        ),
+      ];
+
+      for (final theme in themes) {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: theme,
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(
+                context,
+              ).copyWith(textScaler: const TextScaler.linear(2.0)),
+              child: child!,
+            ),
+            home: Scaffold(body: McpSettings(state: state, embedded: true)),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+
+        final pageTitle = tester.widget<Text>(
+          find.byKey(const ValueKey('mcp-page-title')),
+        );
+        final supporting = tester.widget<Text>(
+          find.byKey(const ValueKey('mcp-supporting-guidance')),
+        );
+        final revision = tester.widget<Text>(
+          find.byKey(const ValueKey('mcp-technical-revision')),
+        );
+        final serverTitle = tester.widget<Text>(
+          find.byKey(const ValueKey('mcp-server-title-public-server')),
+        );
+        final serverScope = tester.widget<Text>(
+          find.byKey(const ValueKey('mcp-server-scope-public-server')),
+        );
+        final serverEndpoint = tester.widget<Text>(
+          find.byKey(const ValueKey('mcp-server-endpoint-public-server')),
+        );
+
+        expect(
+          pageTitle.style!.fontSize!,
+          greaterThan(serverTitle.style!.fontSize!),
+        );
+        expect(
+          serverTitle.style!.fontSize!,
+          greaterThan(serverScope.style!.fontSize!),
+        );
+        expect(
+          serverScope.style!.fontSize!,
+          greaterThan(supporting.style!.fontSize!),
+        );
+        expect(
+          supporting.style!.fontSize!,
+          greaterThan(revision.style!.fontSize!),
+        );
+        expect(revision.style!.fontFamily, 'monospace');
+        expect(serverEndpoint.style!.fontFamily, 'monospace');
+        expect(pageTitle.style!.color, theme.colorScheme.onSurface);
+        expect(serverScope.style!.color, theme.colorScheme.onSurface);
+        expect(revision.style!.color, theme.colorScheme.onSurfaceVariant);
+
+        // Primary content appears above technical endpoint metadata inside the card.
+        expect(
+          tester
+              .getTopLeft(
+                find.byKey(const ValueKey('mcp-server-scope-public-server')),
+              )
+              .dy,
+          lessThan(
+            tester
+                .getTopLeft(
+                  find.byKey(
+                    const ValueKey('mcp-server-endpoint-public-server'),
+                  ),
+                )
+                .dy,
+          ),
+        );
+
+        // Required content is never truncated with ellipsis.
+        expect(serverScope.overflow, isNot(TextOverflow.ellipsis));
+        expect(serverEndpoint.overflow, isNot(TextOverflow.ellipsis));
+
+        final roles = KinaiyaDesign.textRoles(
+          tester.element(find.byType(McpSettings)),
+        );
+        expect(roles.pageTitle.fontSize, 22);
+        expect(roles.sectionTitle.fontSize, 16);
+        expect(roles.primaryContent.fontSize, 15);
+        expect(roles.supportingText.fontSize, 14);
+        expect(roles.technicalMetadata.fontSize, 13);
+      }
+
+      await finish(tester, state);
+    },
+  );
 }

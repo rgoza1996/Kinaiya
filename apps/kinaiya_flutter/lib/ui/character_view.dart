@@ -12,6 +12,7 @@ import '../character/pack.dart';
 import '../character/playback.dart';
 import '../presentation/controller.dart';
 import '../state/app_state.dart';
+import '../state/converse_handoff.dart';
 import 'book_sheet.dart';
 import 'converse_memory.dart';
 import 'converse_design.dart';
@@ -856,12 +857,22 @@ class _CharacterViewState extends State<CharacterView> {
             if (e.kind == 'conversation.user') {
               _s.appendHistory(
                 AppView.character,
-                ChatMsg(role: 'user', text: e.text),
+                ChatMsg(
+                  role: 'user',
+                  text: e.text,
+                  eventId: e.eventId,
+                  windowRevision: (e.payload['revision'] as num?)?.toInt() ?? 1,
+                ),
+              );
+              _s.acceptedConverseSource(
+                seedSession,
+                e.eventId,
+                _s.converseHistory.length - 1,
               );
             } else if (e.kind == 'conversation.converse') {
               _s.appendHistory(
                 AppView.character,
-                ChatMsg(role: 'kinaiya', text: e.text),
+                ChatMsg(role: 'kinaiya', text: e.text, eventId: e.eventId),
               );
             }
             if (e.sequence > _s.converseCursor) _s.converseCursor = e.sequence;
@@ -1759,6 +1770,28 @@ class _CharacterViewState extends State<CharacterView> {
     return 'Ready to talk';
   }
 
+  ConverseStageState get _converseStageState {
+    if (_micStopPending ||
+        _micStopUnconfirmed ||
+        _s.resourceStatusStale ||
+        (_s.resourceConverseDesired == true &&
+            (_s.resourcePhase == 'restoring' ||
+                _s.resourcePhase == 'initializing')) ||
+        (_s.resourcesConfigured == true && _s.resourcePhase == 'failed') ||
+        !_s.converseEnabled ||
+        !_s.sessionAuthenticated ||
+        !_s.converseInferenceAllowed) {
+      return ConverseStageState.unavailable;
+    }
+    if (_speaking) return ConverseStageState.speaking;
+    if (_s.busyConverse || _liveStatus == 'Preparing a reply') {
+      return ConverseStageState.thinking;
+    }
+    if (_recording) return ConverseStageState.recording;
+    if (_armed) return ConverseStageState.listening;
+    return ConverseStageState.muted;
+  }
+
   CharacterSignals get _characterSignals {
     final work = _s.characterWorkActivity;
     return CharacterSignals(
@@ -2060,17 +2093,86 @@ class _CharacterViewState extends State<CharacterView> {
     );
   }
 
-  Widget _transcript() => ListView(
-    padding: const EdgeInsets.symmetric(vertical: 12),
-    children: [
-      for (final m in _s.converseHistory)
-        MessageBubble(role: m.role, text: m.text, note: m.note),
-      if (_s.busyConverse && !_speaking)
-        const Padding(
-          padding: EdgeInsets.all(12),
-          child: Center(child: CircularProgressIndicator()),
-        ),
-    ],
+  Widget _transcript() => ListenableBuilder(
+    listenable: _s,
+    builder: (context, _) {
+      final attachedSources = <String>{
+        for (final m in _s.converseHistory)
+          if (m.role == 'user')
+            if (_s.handoffForMessage(m) case final notice?)
+              notice.sourceEventId,
+      };
+      return ListView(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        children: [
+          for (var i = 0; i < _s.converseHistory.length; i++)
+            switch (_s.converseHistory[i]) {
+              final m
+                  when m.role == 'system' &&
+                      m.note == 'Agent handoff' &&
+                      m.eventId != null &&
+                      m.eventId!.startsWith('handoff:') =>
+                attachedSources.contains(
+                      m.eventId!.substring('handoff:'.length),
+                    )
+                    ? const SizedBox.shrink()
+                    : switch (_s.handoffNotice(
+                        m.eventId!.substring('handoff:'.length),
+                      )) {
+                        final notice? => ConverseHandoffStatusBanner(
+                          key: ValueKey(
+                            'converse-handoff-${notice.sourceEventId}',
+                          ),
+                          notice: notice,
+                          attachedToMessage: false,
+                          animateTransitions: widget.animateTransitions,
+                          destinationStatus: _s.handoffTaskDestinationStatus(
+                            notice,
+                          ),
+                          taskProgress: _s.handoffTaskProgress(notice),
+                          onOpenTask: () => _s.openHandoffTask(notice),
+                        ),
+                        null => MessageBubble(
+                          role: m.role,
+                          text: m.text,
+                          note: m.note,
+                        ),
+                      },
+              final m when m.role == 'user' => Column(
+                key: ValueKey(
+                  'converse-user-turn-${m.eventId ?? m.utteranceId ?? i}',
+                ),
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  MessageBubble(role: m.role, text: m.text, note: m.note),
+                  if (_s.handoffForMessage(m) case final notice?)
+                    ConverseHandoffStatusBanner(
+                      key: ValueKey('converse-handoff-${notice.sourceEventId}'),
+                      notice: notice,
+                      animateTransitions: widget.animateTransitions,
+                      destinationStatus: _s.handoffTaskDestinationStatus(
+                        notice,
+                      ),
+                      taskProgress: _s.handoffTaskProgress(notice),
+                      onOpenTask: () => _s.openHandoffTask(notice),
+                    ),
+                ],
+              ),
+              final m => MessageBubble(
+                role: m.role,
+                text: m.text,
+                note: m.note,
+              ),
+            },
+          if (_s.busyConverse && !_speaking)
+            const Padding(
+              padding: EdgeInsets.all(12),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+        ],
+      );
+    },
   );
 
   /// Explicit, accessible entry to the complete transcript. The inline
@@ -2796,8 +2898,13 @@ class _CharacterViewState extends State<CharacterView> {
                 character: character,
                 transcript: transcript,
                 composer: composer,
-                modelSummary: ConverseModelSummary(state: _s),
+                modelSummary: ConverseModelSummary(
+                  state: _s,
+                  onModelSettings: widget.onModelSettings ?? _openVoiceOptions,
+                  onConnectionSetup: widget.onConnectionSetup,
+                ),
                 status: _status,
+                stageState: _converseStageState,
                 callLabel: _armed || _micStopPending || _micStopUnconfirmed
                     ? _callLabel
                     : 'Talk with Kinaiya',
@@ -3001,4 +3108,411 @@ class _CharacterViewState extends State<CharacterView> {
       },
     ),
   );
+}
+
+class ConverseHandoffStatusBanner extends StatefulWidget {
+  const ConverseHandoffStatusBanner({
+    super.key,
+    required this.notice,
+    this.attachedToMessage = true,
+    this.animateTransitions = true,
+    this.destinationStatus = HandoffTaskDestinationStatus.none,
+    this.taskProgress,
+    this.onOpenTask,
+  });
+
+  final HandoffNotice notice;
+  final bool attachedToMessage;
+  final bool animateTransitions;
+  final HandoffTaskDestinationStatus destinationStatus;
+  final HandoffTaskProgressSummary? taskProgress;
+  final VoidCallback? onOpenTask;
+
+  static final Map<(String, int), HandoffStatus> _observedStatuses = {};
+  static final Set<(String, int, HandoffStatus)> _animatedTransitions = {};
+
+  @visibleForTesting
+  static void resetMicrofeedbackForTesting() {
+    _observedStatuses.clear();
+    _animatedTransitions.clear();
+  }
+
+  @override
+  State<ConverseHandoffStatusBanner> createState() =>
+      _ConverseHandoffStatusBannerState();
+}
+
+class _ConverseHandoffStatusBannerState
+    extends State<ConverseHandoffStatusBanner>
+    with SingleTickerProviderStateMixin {
+  static const Duration _microfeedbackDuration = Duration(milliseconds: 220);
+
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: _microfeedbackDuration,
+    value: 1.0,
+  );
+  bool _pendingFreshTransition = false;
+
+  HandoffNotice get notice => widget.notice;
+  bool get attachedToMessage => widget.attachedToMessage;
+  HandoffTaskDestinationStatus get destinationStatus =>
+      widget.destinationStatus;
+  HandoffTaskProgressSummary? get taskProgress => widget.taskProgress;
+  VoidCallback? get onOpenTask => widget.onOpenTask;
+
+  bool _canAnimate(BuildContext context) =>
+      widget.animateTransitions &&
+      MediaQuery.maybeDisableAnimationsOf(context) != true;
+
+  void _recordAndEvaluateTransition({required bool allowStart}) {
+    final key = (notice.sourceEventId, notice.sourceRevision);
+    final previous = ConverseHandoffStatusBanner._observedStatuses[key];
+    ConverseHandoffStatusBanner._observedStatuses[key] = notice.status;
+    while (ConverseHandoffStatusBanner._observedStatuses.length > 256) {
+      ConverseHandoffStatusBanner._observedStatuses.remove(
+        ConverseHandoffStatusBanner._observedStatuses.keys.first,
+      );
+    }
+    final isFreshTransition =
+        previous != null &&
+        previous != notice.status &&
+        notice.status != HandoffStatus.queued &&
+        ConverseHandoffStatusBanner._animatedTransitions.add((
+          notice.sourceEventId,
+          notice.sourceRevision,
+          notice.status,
+        ));
+    while (ConverseHandoffStatusBanner._animatedTransitions.length > 256) {
+      ConverseHandoffStatusBanner._animatedTransitions.remove(
+        ConverseHandoffStatusBanner._animatedTransitions.first,
+      );
+    }
+    if (!isFreshTransition) return;
+    if (!allowStart) {
+      _pendingFreshTransition = true;
+      return;
+    }
+    if (_canAnimate(context)) {
+      _controller.forward(from: 0);
+    } else {
+      _controller.stop();
+      _controller.value = 1.0;
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _recordAndEvaluateTransition(allowStart: false);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_canAnimate(context)) {
+      _pendingFreshTransition = false;
+      if (_controller.isAnimating) {
+        _controller.stop();
+      }
+      _controller.value = 1.0;
+      return;
+    }
+    if (_pendingFreshTransition) {
+      _pendingFreshTransition = false;
+      _controller.forward(from: 0);
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant ConverseHandoffStatusBanner oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.animateTransitions && _controller.isAnimating) {
+      _controller.stop();
+      _controller.value = 1.0;
+    }
+    _recordAndEvaluateTransition(allowStart: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  String? get _destinationMessage => switch (destinationStatus) {
+    HandoffTaskDestinationStatus.none ||
+    HandoffTaskDestinationStatus.known => null,
+    HandoffTaskDestinationStatus.missing =>
+      'Task ${notice.nativeTaskId} is unavailable or retired in current Agent tasks.',
+    HandoffTaskDestinationStatus.stale =>
+      'Task ${notice.nativeTaskId} belongs to an earlier session or epoch.',
+    HandoffTaskDestinationStatus.unauthorized =>
+      'Reconnect to inspect task ${notice.nativeTaskId} in Agent.',
+  };
+
+  IconData get _icon => switch (notice.status) {
+    HandoffStatus.queued => Icons.schedule_rounded,
+    HandoffStatus.accepted => Icons.task_alt_rounded,
+    HandoffStatus.applied => Icons.published_with_changes_rounded,
+    HandoffStatus.rejected => Icons.block_rounded,
+    HandoffStatus.notApplied => Icons.do_not_disturb_on_outlined,
+    HandoffStatus.unknown => Icons.help_outline_rounded,
+    HandoffStatus.unavailable => Icons.cloud_off_rounded,
+  };
+
+  IconData _progressIcon(HandoffTaskLifecycleKind kind) => switch (kind) {
+    HandoffTaskLifecycleKind.queued => Icons.hourglass_top_rounded,
+    HandoffTaskLifecycleKind.running => Icons.sync_rounded,
+    HandoffTaskLifecycleKind.awaitingApproval => Icons.gavel_rounded,
+    HandoffTaskLifecycleKind.blocked => Icons.pause_circle_outline_rounded,
+    HandoffTaskLifecycleKind.failed => Icons.error_outline_rounded,
+    HandoffTaskLifecycleKind.succeededWithEvidence => Icons.verified_rounded,
+    HandoffTaskLifecycleKind.succeededUnverified => Icons.info_outline_rounded,
+    HandoffTaskLifecycleKind.unknown => Icons.help_outline_rounded,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final (Color bg, Color fg, Color border) = switch (notice.status) {
+      HandoffStatus.accepted || HandoffStatus.applied => (
+        scheme.primaryContainer,
+        scheme.onPrimaryContainer,
+        scheme.primary,
+      ),
+      HandoffStatus.queued => (
+        scheme.secondaryContainer,
+        scheme.onSecondaryContainer,
+        scheme.secondary,
+      ),
+      HandoffStatus.rejected => (
+        scheme.errorContainer,
+        scheme.onErrorContainer,
+        scheme.error,
+      ),
+      HandoffStatus.notApplied ||
+      HandoffStatus.unknown ||
+      HandoffStatus.unavailable => (
+        scheme.surfaceContainerHighest,
+        scheme.onSurface,
+        scheme.outline,
+      ),
+    };
+    final semanticLabel = taskProgress == null
+        ? notice.semanticSummary
+        : '${notice.semanticSummary}. ${taskProgress!.stateLabel}: ${taskProgress!.detailText}';
+    final canAnimate = _canAnimate(context);
+    return Semantics(
+      container: true,
+      liveRegion: true,
+      label: semanticLabel,
+      child: Align(
+        alignment: attachedToMessage
+            ? Alignment.centerRight
+            : Alignment.centerLeft,
+        child: AnimatedBuilder(
+          animation: _controller,
+          builder: (context, child) {
+            final highlighting = canAnimate && _controller.isAnimating;
+            final t = highlighting
+                ? Curves.easeOutCubic.transform(_controller.value)
+                : 1.0;
+            final highlightAlpha = highlighting ? (1.0 - t) * 0.35 : 0.0;
+            return Container(
+              margin: attachedToMessage
+                  ? const EdgeInsets.fromLTRB(24, 2, 8, 6)
+                  : const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: Color.lerp(bg, border, highlightAlpha) ?? bg,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: border,
+                  width: highlighting ? 1.5 : 1.0,
+                ),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Container(
+                        key: ValueKey(
+                          'converse-handoff-status-chip-${notice.sourceEventId}',
+                        ),
+                        padding: highlighting
+                            ? const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              )
+                            : EdgeInsets.zero,
+                        decoration: highlighting
+                            ? BoxDecoration(
+                                color: border.withValues(alpha: 0.14),
+                                borderRadius: BorderRadius.circular(8),
+                              )
+                            : null,
+                        child: Row(
+                          key: highlighting
+                              ? ValueKey(
+                                  'converse-handoff-microfeedback-active-${notice.sourceEventId}',
+                                )
+                              : null,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(_icon, size: 16, color: fg),
+                            const SizedBox(width: 4),
+                            Text(
+                              notice.statusLabel,
+                              key: ValueKey(
+                                'converse-handoff-status-${notice.sourceEventId}',
+                              ),
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: fg,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Text(
+                        notice.text,
+                        key: ValueKey(
+                          'converse-handoff-text-${notice.sourceEventId}',
+                        ),
+                        style: TextStyle(fontSize: 12, color: fg, height: 1.35),
+                      ),
+                      if (notice.hasConfirmedTaskIdentifier &&
+                          destinationStatus ==
+                              HandoffTaskDestinationStatus.known &&
+                          onOpenTask != null)
+                        TextButton.icon(
+                          key: ValueKey(
+                            'converse-handoff-open-task-${notice.sourceEventId}',
+                          ),
+                          style: TextButton.styleFrom(
+                            foregroundColor: fg,
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                          ),
+                          onPressed: onOpenTask,
+                          icon: const Icon(Icons.open_in_new_rounded, size: 15),
+                          label: const Text(
+                            'Open task',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        )
+                      else if (_destinationMessage case final destText?)
+                        Text(
+                          destText,
+                          key: ValueKey(
+                            'converse-handoff-destination-status-${notice.sourceEventId}',
+                          ),
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontStyle: FontStyle.italic,
+                            color: fg,
+                          ),
+                        ),
+                    ],
+                  ),
+                  if (taskProgress case final progress?) ...[
+                    const SizedBox(height: 6),
+                    Wrap(
+                      key: ValueKey(
+                        'converse-handoff-task-progress-${notice.sourceEventId}',
+                      ),
+                      spacing: 8,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _progressIcon(progress.kind),
+                              size: 14,
+                              color: fg,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              progress.stateLabel,
+                              key: ValueKey(
+                                'converse-handoff-task-state-${notice.sourceEventId}',
+                              ),
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: fg,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Text(
+                          progress.detailText,
+                          key: ValueKey(
+                            'converse-handoff-task-detail-${notice.sourceEventId}',
+                          ),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: fg,
+                            height: 1.3,
+                          ),
+                        ),
+                        if (progress.actionLabel != null &&
+                            progress.actionLabel != 'Open task' &&
+                            destinationStatus ==
+                                HandoffTaskDestinationStatus.known &&
+                            onOpenTask != null)
+                          TextButton.icon(
+                            key: ValueKey(
+                              'converse-handoff-task-action-${notice.sourceEventId}',
+                            ),
+                            style: TextButton.styleFrom(
+                              foregroundColor: fg,
+                              visualDensity: VisualDensity.compact,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                            ),
+                            onPressed: onOpenTask,
+                            icon: Icon(
+                              progress.kind ==
+                                      HandoffTaskLifecycleKind.awaitingApproval
+                                  ? Icons.fact_check_outlined
+                                  : Icons.receipt_long_outlined,
+                              size: 14,
+                            ),
+                            label: Text(
+                              progress.actionLabel!,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
 }

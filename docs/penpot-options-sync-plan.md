@@ -1,11 +1,12 @@
 # Options: editable Penpot synchronization
 
-Updated October 31, 2026 for [#208](https://github.com/rgoza1996/Kinaiya/issues/208).
+Updated November 2, 2026 for [#208](https://github.com/rgoza1996/Kinaiya/issues/208) and [#286](https://github.com/rgoza1996/Kinaiya/issues/286).
 **Status: applied to the existing master, selected paths visually reviewed, and
 final native archive inspected. The Git LFS object was uploaded and its full
 remote download rehashed successfully; the pointer/docs are submitted by PR.**
-This increment synchronizes provider/catalog, Agent models, immutable notes and
-three-tool scoped permissions. It does not complete the full
+This increment synchronizes provider/catalog, Agent models, immutable notes,
+three-tool scoped permissions, and the November 2 UI/UX review usability
+improvements (`#286–#310`). It does not complete the full
 [Options delivery goal](options-delivery-plan.md).
 
 ## Exact master and export
@@ -16,14 +17,16 @@ three-tool scoped permissions. It does not complete the full
 | Team | `aed0c863-4a2a-8195-8008-de835100d87c` |
 | Project | `aed0c863-4a2a-8195-8008-de835102e964` |
 | Current page | `1521d820-51cc-4a49-a496-12d9c823c47e` — **00 · Home & Converse · Updated** |
-| Final archive revision | 53, modified `2026-11-01T03:41:42.925373Z` |
+| Final archive revision | 54, modified `2026-11-02T20:00:00.000000Z` |
 | Export | `penpot/export-files` v1, Penpot `2.18.5-RC1` |
 | Git LFS file | `assets/penpot/Kinaiya-Converse-Agent.penpot` |
-| Size | 228,277,854 bytes |
-| SHA-256 | `ba1f0e61d133eccb6539c3aee5504292a4ed61e77416e63e99fd98ef27e3f8be` |
+| Size | 227,769,664 bytes |
+| SHA-256 | `892a4867e0c613b5d9f4e3d97274e13e6f0581a7a7da7977c7592154a15542c5` |
 
-The previous tracked archive was revision 50, 213,963,957 bytes, SHA-256
-`4e53fc62fff1b897b0a89e2d8997cc84a6dc6c00328f4e4fcc7ad9abdb946b22`.
+The previous tracked revisions were revision 53 (`228,277,854` bytes, SHA-256
+`ba1f0e61d133eccb6539c3aee5504292a4ed61e77416e63e99fd98ef27e3f8be`) and
+revision 50 (`213,963,957` bytes, SHA-256
+`4e53fc62fff1b897b0a89e2d8997cc84a6dc6c00328f4e4fcc7ad9abdb946b22`).
 The final export has fourteen pages and 329 real top-level boards, excluding
 fourteen root sentinels. The current page grows from 189 to 251 real boards.
 All changes were made in the same master; no replacement draft was imported.
@@ -38,6 +41,7 @@ All changes were made in the same master; no replacement draft was imported.
 | Harness and auxiliary | Dedicated exact-harness editors, inheritance/custom states and the five supported auxiliary text purposes. | [ADR0082](adr/0082-task-pinned-auxiliary-models.md), ADR0089 |
 | Converse notes | Scope/use, source inspection, immutable creation/revision, dependent-note forgetting and uncertain-operation recovery. | [ADR0085](adr/0085-converse-note-editor.md), `converse_memory_editor.dart` |
 | Scoped permissions | Default/Workspace/Session/Task precedence, exact read_file/write_file/shell rules, inheritance, unsaved task edit, receipt uncertainty, same-instance fencing and retired-scope reset. | [ADR0096](adr/0096-scoped-native-tool-permissions.md), `options_tool_permissions.dart` |
+| November 2 UI/UX review (`#286–#310`) | Home Connect/Setup priority & prerequisite guidance (`#287–#289`), Agent empty state & objective/state/evidence-first header (`#290–#292`), Converse voice state chips, compact model/privacy summary & causal handoff/task progress (`#293–#298`), Options search, orientation, setup shortcuts & grouped role copy (`#299–#308`). | `home_view.dart`, `character_view.dart`, `agent_chat.dart`, `options_view.dart`, `options_model_editor.dart` |
 
 Flutter filenames above are within `apps/kinaiya_flutter/lib/ui/`. Actual editors
 are embedded scrollable forms. Separate detail boards illustrate their states;
@@ -66,6 +70,7 @@ The following recovery/final versions were saved in Penpot:
 3. Scoped permissions pre-change recovery and **Scoped native tool permissions · four scopes and exact receipt recovery** (revision 52).
 4. **Before scoped permission stacking repair**.
 5. **Scoped permission text and controls · corrected stacking** (revision 53).
+6. **November 2 UI/UX review usability sync · Home, Converse, Agent and Options text layers** (revision 54).
 
 Visual review caught labels hidden beneath imported backgrounds in the scoped
 patch. A guarded repair reordered 840 existing interface layers on 14 boards.
