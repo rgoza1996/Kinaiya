@@ -449,3 +449,91 @@ def test_real_linux_setup_private_tokens_and_agent_only_config(tmp_path):
     assert stat.S_IMODE((layout.data / "service-tokens.json").stat().st_mode) == 0o600
     config = json.loads(layout.config.read_text())
     assert "voice" not in config and "resources" not in config
+
+
+@pytest.mark.parametrize(
+    "blocker,expected",
+    [
+        ("ubuntu", "Out-of-date system blocker: Ubuntu 20.04 is out of date"),
+        ("python", "Out-of-date system blocker: Python 3.10 is out of date"),
+        ("bwrap", "Out-of-date system blocker: bubblewrap 0.4.1 is out of date"),
+        ("libseccomp2", "Out-of-date system blocker: libseccomp2 2.4.3-1ubuntu1 is out of date"),
+    ],
+)
+def test_outdated_system_blockers_warn_user_in_preflight_and_wizard(
+    tmp_path, monkeypatch, blocker, expected
+):
+    import ctypes.util
+    import platform
+    import shutil
+    import sys
+
+    from services.distribution import wizard
+
+    module = distribution()
+    layout = module.Layout.for_home(tmp_path)
+    monkeypatch.setattr(platform, "system", lambda: "Linux")
+    monkeypatch.setattr(
+        platform,
+        "freedesktop_os_release",
+        lambda: {"ID": "ubuntu", "VERSION_ID": "20.04" if blocker == "ubuntu" else "24.04"},
+    )
+    if blocker == "python":
+        monkeypatch.setattr(sys, "version_info", (3, 10, 12, "final", 0))
+    monkeypatch.setattr(shutil, "which", lambda name: "/usr/bin/bwrap")
+    monkeypatch.setattr(ctypes.util, "find_library", lambda name: "libseccomp.so.2")
+    monkeypatch.setattr(
+        module,
+        "installed_package_version",
+        lambda pkg: (
+            "0.4.1"
+            if (blocker == "bwrap" and pkg == "bubblewrap")
+            else (
+                "2.4.3-1ubuntu1" if (blocker == "libseccomp2" and pkg == "libseccomp2") else "2.5.5"
+            )
+        ),
+    )
+    with pytest.raises(module.InstallError, match=expected):
+        module.check_outdated_system_blockers(probe_subprocesses=False)
+    with pytest.raises(module.InstallError, match=expected):
+        wizard.run_wizard(layout, tty=object())
+
+
+def test_install_missing_dependencies_uses_no_upgrade_and_never_runs_apt_update(monkeypatch):
+    import subprocess
+    from types import SimpleNamespace
+
+    module = distribution()
+    commands = []
+
+    def fake_run(argv, **kwargs):
+        commands.append(argv)
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    installed = module.install_missing_dependencies(["bubblewrap", "libseccomp2"])
+    assert installed == ["bubblewrap", "libseccomp2"]
+    assert commands == [
+        ["sudo", "apt-get", "install", "--no-upgrade", "-y", "bubblewrap", "libseccomp2"]
+    ]
+    for cmd in commands:
+        assert "update" not in cmd and "upgrade" not in cmd
+
+
+def test_install_missing_dependencies_warns_when_no_upgrade_blocked_by_stale_state(monkeypatch):
+    import subprocess
+    from types import SimpleNamespace
+
+    module = distribution()
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda argv, **kw: SimpleNamespace(
+            returncode=100, stdout="", stderr="E: Unable to fetch some archives"
+        ),
+    )
+    with pytest.raises(
+        module.InstallError,
+        match=r"Out-of-date system blocker.*never runs `sudo apt-get update` or `sudo apt-get upgrade`",
+    ):
+        module.install_missing_dependencies(["bubblewrap"])

@@ -27,29 +27,43 @@ error, never permission to install `main`, an alpha, or nightly. See
 - Windows, macOS, WSL, other distros, Python 3.14, GPUs and optional voice/model
   backends are not qualified by this installer.
 
-The installer never executes `sudo`, changes kernel policy, installs system
-packages, starts inference, captures a microphone or submits an Agent task.
-Install prerequisites separately with explicit administrator authorization, e.g.
-`sudo apt-get install bubblewrap libseccomp2 python3.12-venv` on a suitable Ubuntu
-24.04 host. It refuses to run as root.
+The installer never runs `sudo apt-get update` or `sudo apt-get upgrade`, never
+upgrades existing system packages, never changes kernel policy, and never starts
+inference, captures a microphone, or submits an Agent task. It refuses to run as
+root. When required host packages (`bubblewrap`, `libseccomp2`, or
+`python3.<minor>-venv`) are missing, `install.sh` and `kinaiya install` include
+the exact `sudo apt-get install --no-upgrade -y <missing>` command in the
+confirmation plan and install only the missing packages after confirmation. If an
+existing system component (`Ubuntu` release `< 22.04`, `Python < 3.11`,
+`bubblewrap < 0.6.1`, `libseccomp2 < 2.5`, or an out-of-date local package index
+that prevents `--no-upgrade` installation) is out of date and blocks
+installation, the CLI and setup wizard warn the user to update that specific
+component first rather than updating the system automatically.
 
-## Shell entry point
+## Single-command install & shell entry point
 
-Obtain the standalone root `install.sh` from an owner-reviewed immutable repository revision
-or the matching release source bundle (`scripts/install.sh` is a source-checkout alias).
-The release source allowlist already includes root `install.sh`, `services/distribution/*`
-and `packages/distribution/*`; no helper is fetched from `main` at runtime. Review its contents before running it.
-It is self-contained: it does not download Python installer code from a mutable
-branch. Do not advertise a `curl main | sh` command as a verified installation.
+Run the standalone root `install.sh` in a single command (it handles prerequisite
+checks, missing dependency installation with `--no-upgrade`, verified release
+bundle download, isolated `.venv` creation, hash-locked runtime wheels, the
+`~/.local/bin/kinaiya` launcher, and interactive `kinaiya setup` via `/dev/tty`):
 
 ```sh
+# Single-command install (experimental nightly channel):
+curl -fsSL https://raw.githubusercontent.com/rgoza1996/Kinaiya/main/install.sh | sh -s -- --channel nightly
+
+# Or from a downloaded/reviewed copy or release source bundle:
 sh install.sh                         # stable, interactive consent + setup
 sh install.sh --channel nightly       # explicit experimental nightly
-sh install.sh --yes --no-setup         # unattended code install only
+sh install.sh --yes --no-setup        # unattended code install only
 KINAIYA_PYTHON=python3.12 sh install.sh --channel nightly --yes --no-setup
 # Optional initial paths must be absolute, disjoint, and free of symlink aliases:
 sh install.sh --workspace "$HOME/My Work" --data-dir "$HOME/Private Kinaiya Data"
 ```
+
+When `KINAIYA_PYTHON` is not set, `install.sh` automatically selects a supported
+Python `3.11`–`3.13` interpreter (`python3`, `python3.13`, `python3.12`, or
+`python3.11`) if installed. The release source allowlist includes root
+`install.sh`, `services/distribution/*`, and `packages/distribution/*`.
 
 Preflight occurs before feed resolution, cache creation or runtime publication.
 The bootstrap resolves official release metadata, pins its exact 40-character

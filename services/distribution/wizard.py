@@ -9,7 +9,7 @@ import shutil
 from dataclasses import replace
 from pathlib import Path
 
-from services.distribution.installation import InstallError, setup
+from services.distribution.installation import InstallError, check_outdated_system_blockers, setup
 from services.distribution.terminal import open_terminal
 
 MASCOT = r"""          .-.( * ).
@@ -35,6 +35,7 @@ def mascot(*, width=80, interactive=True):
 
 def run_wizard(layout, *, tty=None):
     """Use the controlling terminal, so piping the bootstrap cannot consume consent."""
+    check_outdated_system_blockers(probe_subprocesses=False)
     if tty is None:
         try:
             with open_terminal() as terminal:
