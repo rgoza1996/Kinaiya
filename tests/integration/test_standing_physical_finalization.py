@@ -233,6 +233,46 @@ def _physical_timeout_snapshot(value):
     shared = cached.get("standing_owner_operations")
     shared_details = getattr(shared, "__dict__", None)
     shared_registry = shared_details.get("_operations") if type(shared_details) is dict else None
+
+    def session_operation(original, cancelled):
+        child, observed = None, False
+        markers = (None,) * 6
+        observations = getattr(value, "native_thread_observations", None)
+        if type(observations) is dict and type(cancelled) is threading.Event:
+            record = observations.get(cancelled)
+            if (
+                type(record) is SimpleNamespace
+                and getattr(record, "component", None) is component
+                and getattr(record, "registry", None) is registry
+                and getattr(record, "parent", None) is original
+                and getattr(record, "event", None) is cancelled
+                and isinstance(getattr(record, "child", None), asyncio.Task)
+            ):
+                child, observed = record.child, True
+                recorded = getattr(record, "markers", None)
+                if (
+                    type(recorded) is tuple
+                    and len(recorded) == 6
+                    and all(item is None or type(item) is bool for item in recorded)
+                ):
+                    markers = recorded
+        return {
+            "id": id(original),
+            "kind": "session-operation",
+            "task": task(original),
+            "cancellation_requested": flag(event(cancelled))
+            if type(cancelled) is threading.Event
+            else None,
+            "native_child": task(child),
+            "native_child_observed": observed,
+            "call_wrapper_entered": markers[0],
+            "call_result_observed": markers[1],
+            "call_error_observed": markers[2],
+            "owner_report_wrapper_entered": markers[3],
+            "owner_report_result_observed": markers[4],
+            "owner_report_error_observed": markers[5],
+        }
+
     session_operations = {
         "id": None if component is None else id(component),
         "kind": "session-operations",
@@ -248,14 +288,7 @@ def _physical_timeout_snapshot(value):
             closed=flag(details.get("_closed")),
             pending_count=number(len(registry)),
             tasks=[
-                {
-                    "id": id(original),
-                    "kind": "session-operation",
-                    "task": task(original),
-                    "cancellation_requested": flag(event(cancelled))
-                    if type(cancelled) is threading.Event
-                    else None,
-                }
+                session_operation(original, cancelled)
                 for original, cancelled in first(registry.items())
             ],
         )
@@ -846,7 +879,110 @@ async def unwind_setup(setup):
 async def physical(factory, tmp_path, monkeypatch, record_property):
     opened = []
     setups = []
+    native_recorders = {}
     actual_effects = _Capture.begin_effects
+
+    def observe_native(value):
+        component = value.session.app.state.standing_resource_finalization_operations
+        if component in native_recorders:
+            value.native_thread_observations = native_recorders[component]
+            return
+        observations = {}
+        native_recorders[component] = value.native_thread_observations = observations
+        registry = component._operations
+        shared = value.session.app.state.standing_owner_operations
+        actual_thread_result, actual_call = component._thread_result, component._call
+        actual_report = component.owner.report
+        method_type, is_set = type(actual_call), threading.Event.is_set
+
+        def record_for(event):
+            try:
+                if (
+                    type(event) is not threading.Event
+                    or type(registry) is not dict
+                    or component._operations is not registry
+                    or shared._operations is not registry
+                ):
+                    return None
+                record = observations.get(event)
+                if (
+                    type(record) is SimpleNamespace
+                    and record.event is event
+                    and record.component is component
+                    and record.registry is registry
+                    and registry.get(record.parent) is event
+                ):
+                    return record
+            except BaseException:
+                pass
+            return None
+
+        def mark(record, offset, state):
+            try:
+                if record is not None:
+                    previous = record.markers
+                    record.markers = state + previous[3:] if offset == 0 else previous[:3] + state
+            except BaseException:
+                pass
+
+        async def thread_result(child, event):
+            try:
+                parent = asyncio.current_task()
+                if (
+                    type(event) is threading.Event
+                    and isinstance(parent, asyncio.Task)
+                    and isinstance(child, asyncio.Task)
+                    and type(registry) is dict
+                    and component._operations is registry
+                    and shared._operations is registry
+                    and registry.get(parent) is event
+                    and event not in observations
+                    and len(observations) < 64
+                ):
+                    observations[event] = SimpleNamespace(
+                        component=component,
+                        registry=registry,
+                        parent=parent,
+                        child=child,
+                        event=event,
+                        markers=(None,) * 6,
+                    )
+            except BaseException:
+                pass
+            return await actual_thread_result(child, event)
+
+        def call(*args, **kwargs):
+            event = args[3] if len(args) > 3 else kwargs.get("event")
+            record = record_for(event)
+            mark(record, 0, (True, False, False))
+            try:
+                result = actual_call(*args, **kwargs)
+            except BaseException:
+                mark(record, 0, (True, False, True))
+                raise
+            mark(record, 0, (True, True, False))
+            return result
+
+        def report(*args, **kwargs):
+            record = None
+            try:
+                cancelled = kwargs.get("cancelled")
+                if type(cancelled) is method_type and cancelled.__func__ is is_set:
+                    record = record_for(cancelled.__self__)
+            except BaseException:
+                pass
+            mark(record, 3, (True, False, False))
+            try:
+                result = actual_report(*args, **kwargs)
+            except BaseException:
+                mark(record, 3, (True, False, True))
+                raise
+            mark(record, 3, (True, True, False))
+            return result
+
+        monkeypatch.setattr(component, "_thread_result", thread_result)
+        monkeypatch.setattr(component, "_call", call)
+        monkeypatch.setattr(component.owner, "report", report)
 
     def effects(capture):
         value = next(v for v in opened if v.coordinator is capture.gate.owner)
@@ -1018,6 +1154,7 @@ async def physical(factory, tmp_path, monkeypatch, record_property):
             native.value = value
             opened.append(value)
             setup.transferred = True
+            observe_native(value)
             actual_start, actual_stop = manager.start, manager.stop
             actual_reserve = gateway.standing_resource_reserve
             actual_work = coordinator.standing_barrier._work
