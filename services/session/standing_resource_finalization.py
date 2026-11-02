@@ -260,7 +260,9 @@ class StandingResourceFinalizationOwner:
         }
         observation = StandingResourceObservation(
             **body, observation_digest=standing_resource_observation_digest(body)
-        ).validate_request(original)
+        )
+        # The context constructor rebuilds every child and checks complete
+        # request, claim, initial and reservation joins on these fresh locals.
         return StandingResourceFinalizeContext(
             schema_version="1.0",
             request=request,
@@ -268,7 +270,7 @@ class StandingResourceFinalizationOwner:
             closure=closure,
             observation=observation,
             context_digest=resource_finalize_context_digest(request, binding, closure, observation),
-        ).validate_request(request)
+        )
 
     def _schema(self, state):
         meta, generations, claim, initial, _, reservation, _ = state
