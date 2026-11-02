@@ -378,6 +378,28 @@ class JournalClient:
 
         return await standing_resource_finalization_lookup(self, request)
 
+    async def standing_retirement_register(self, request):
+        from packages.contracts.standing_agent_settlement_client import standing_retirement_register
+
+        return await standing_retirement_register(self, request)
+
+    async def standing_retirement_registration_lookup(self, request):
+        from packages.contracts.standing_agent_settlement_client import (
+            standing_retirement_registration_lookup,
+        )
+
+        return await standing_retirement_registration_lookup(self, request)
+
+    async def standing_settle(self, request, *, secret32):
+        from packages.contracts.standing_agent_settlement_client import standing_settle
+
+        return await standing_settle(self, request, secret32=secret32)
+
+    async def standing_settlement_lookup(self, query):
+        from packages.contracts.standing_agent_settlement_client import standing_settlement_lookup
+
+        return await standing_settlement_lookup(self, query)
+
     async def admit_submit(self, request: AppendRequest) -> AgentSubmitReceipt:
         deadline = asyncio.get_running_loop().time() + AGENT_SUBMIT_ADMISSION_TIMEOUT_S
         try:

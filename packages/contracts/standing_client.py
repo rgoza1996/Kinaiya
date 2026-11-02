@@ -66,6 +66,9 @@ class _StandingExchange(_SubmitExchange):
         if self.abandoned or asyncio.get_running_loop().time() >= deadline:
             raise StandingUnavailable
 
+    def _validate(self, result, proposal):
+        return result.validate_request(proposal)
+
     async def _run(self, request, proposal, result_type, deadline):
         try:
             self._timely(deadline)
@@ -112,7 +115,7 @@ class _StandingExchange(_SubmitExchange):
             else:
                 result = result_type.from_json(bytes(raw))
                 if proposal is not None:
-                    result = result.validate_request(proposal)
+                    result = self._validate(result, proposal)
             self._timely(deadline)
         finally:
             if self.response is not None:
