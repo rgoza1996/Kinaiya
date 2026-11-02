@@ -257,7 +257,9 @@ class StandingSettlementOwner:
 
     def _collaborators(self):
         if (
-            any(
+            self._closed
+            or self._failed
+            or any(
                 current is not original
                 for current, original in zip(
                     (
@@ -450,6 +452,7 @@ class StandingSettlementOwner:
             current = self._checked_history()
             if changed:
                 self._writer(current.meta, registering=True)
+            self._collaborators()
 
         try:
             with self._transaction(final):
@@ -505,6 +508,7 @@ class StandingSettlementOwner:
                     raise StandingUnavailable
                 self._checked_history()
                 instance = self.control.instance
+            self._collaborators()
             self._backend, self._instance = meta["backend_id"], instance
             self.resources.register_finalization_owner(self.finalizations)
             for part in (self.claims, self.tasks, self.resources, self.finalizations):
