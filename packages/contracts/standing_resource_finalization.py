@@ -165,26 +165,31 @@ def _model_kind(annotation):
 
 def _fields(value, kind):
     _graph(value)
-    typed = isinstance(value, BaseModel)
-    if typed:
-        if type(value) is not kind:
-            raise ValueError(_ERROR)
-        value = value.__dict__
-    if type(value) is not dict or value.keys() != kind.model_fields.keys():
-        raise ValueError(_ERROR)
-    result = {}
-    for name, field in kind.model_fields.items():
-        child = value[name]
-        nested = _model_kind(field.annotation)
-        if nested is not None and child is not None:
-            if typed and type(child) is not nested:
+    # The entry scan bounds every descendant before field reconstruction.
+    # Each frame still checks its exact model and complete dictionary shape.
+    def rebuild(value, kind):
+        typed = isinstance(value, BaseModel)
+        if typed:
+            if type(value) is not kind:
                 raise ValueError(_ERROR)
-            # Hand the native validator a complete dictionary, never an old
-            # instance that its own nested validator might trust unchanged.
-            result[name] = _fields(child, nested)
-        else:
-            result[name] = _adapter(kind, name).validate_python(child, strict=True)
-    return result
+            value = value.__dict__
+        if type(value) is not dict or value.keys() != kind.model_fields.keys():
+            raise ValueError(_ERROR)
+        result = {}
+        for name, field in kind.model_fields.items():
+            child = value[name]
+            nested = _model_kind(field.annotation)
+            if nested is not None and child is not None:
+                if typed and type(child) is not nested:
+                    raise ValueError(_ERROR)
+                # Hand the native validator a complete dictionary, never an old
+                # instance that its own nested validator might trust unchanged.
+                result[name] = rebuild(child, nested)
+            else:
+                result[name] = _adapter(kind, name).validate_python(child, strict=True)
+        return result
+
+    return rebuild(value, kind)
 
 
 def _complete(value, kind):
