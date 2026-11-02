@@ -110,6 +110,7 @@ async def test_exact_native_wire_projection_and_unknown_health_without_probe(mod
     adapter = provider(wire, api_key="public-synthetic-key")
     try:
         assert adapter.info.model_dump() == {
+            "schema_version": "1.0",
             "provider": "native_d1",
             "model": MODEL,
             "local": True,

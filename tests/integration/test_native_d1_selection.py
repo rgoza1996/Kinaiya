@@ -229,12 +229,18 @@ def rows(env):
 
 
 def inject_transport(monkeypatch, wire):
+    adapter_type = native()
+
     def constructor(*args, **kwargs):
         assert kwargs.get("transport") is None
         kwargs["transport"] = httpx.MockTransport(wire)
-        return REAL_ASYNC_CLIENT(*args, **kwargs)
+        return adapter_type(*args, **kwargs)
 
-    monkeypatch.setattr(httpx, "AsyncClient", constructor)
+    monkeypatch.setattr(
+        importlib.import_module("packages.providers.native_d1"),
+        "NativeD1RoutingProvider",
+        constructor,
+    )
 
 
 async def test_catalog_and_selection_owner_apis_are_declaration_only_truthful_and_role_closed(
@@ -305,6 +311,7 @@ async def test_catalog_and_selection_owner_apis_are_declaration_only_truthful_an
         )
         assert lookup.json()["status"] == "recorded" and lookup.json()["receipt"] == result.json()
         assert env.settings.snapshot()["selected_info"] == {
+            "schema_version": "1.0",
             "provider": "native_d1",
             "model": MODEL,
             "local": True,
@@ -630,7 +637,7 @@ async def test_native_loader_is_explicit_decisions_only_with_protected_key_and_n
                 "base_url": "http://127.0.0.1:8870",
                 "model": MODEL,
                 "min_confidence": 0.73,
-                "timeout_s": 4,
+                "timeout": 4,
                 "api_key_env": "PUBLIC_NATIVE_D1_TEST_KEY",
             }
             for role in ("agent", "converse", "decisions")
