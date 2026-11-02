@@ -51,13 +51,21 @@ filesystem paths to keys.
 | `credential_remove` | `credential_id` |
 
 Native discriminated configs cover Meta, local native LM Studio,
-OpenAI-compatible text and Laya classification. Kind-specific fields and bounds
+OpenAI-compatible text, Laya and native d1 classification, and the independent
+Meta STT/OpenRouter TTS declarations. Kind-specific fields and bounds
 are defined by `ProviderChange` and `ProfileConfig` in
 `services/settings/provider_catalog.py`. Endpoints reject embedded credentials,
 query/fragment, and unapproved external origins; remote endpoints require HTTPS
 and explicit cloud permission. LM Studio is loopback-only. Response reserve
 must fit any declared context. Laya uses its classification fields rather than
 conversational reasoning controls.
+
+The [native d1 declaration](adr/0106-native-d1-decisions.md) is Decisions-only,
+loopback-only and text-only in this increment. It requires a server-root URL with
+an explicit port and an owner-entered minimum confidence. It has no output,
+reasoning, Laya artifact/token-window or cloud controls. Exact catalog selection
+and protocol identity are distinct from runtime/model qualification; declaring
+an Omni model does not enable audio capture or native speech output.
 
 Known reference sources are `muse`, `openrouter`, or an alias declared in host
 `provider_credential_references: {"alias": "ENVIRONMENT_VARIABLE"}`. A request
