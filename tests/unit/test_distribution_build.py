@@ -121,6 +121,50 @@ def test_bundle_source_is_explicit_allowlist_with_lock_inventory(source_repo, tm
         assert len(inventory["runtime_lock"]["sha256"]) == 64
 
 
+def test_flutter_root_cache_marker_is_omitted_but_unknown_hidden_files_are_rejected(
+    source_repo, tmp_path
+):
+    from scripts.build_release import build_release
+
+    sha = git(source_repo, "rev-parse", "HEAD")
+    web = tmp_path / "web"
+    web.mkdir()
+    (web / "index.html").write_text("<html>fixture</html>")
+    (web / "main.dart.js").write_text("// compiled fixture")
+    marker = web / ".last_build_id"
+    results = []
+    for number in (1, 2):
+        marker.write_text(f"local-cache-id-{number}")
+        output = tmp_path / f"out-{number}"
+        data = build_release(
+            source_repo,
+            output,
+            channel="stable",
+            version="0.2.0",
+            build_number=124,
+            source_sha=sha,
+            web_dir=web,
+            web_source_sha=sha,
+        )
+        results.append(data)
+        for artifact in data["artifacts"]:
+            with tarfile.open(output / artifact["name"], "r:gz") as archive:
+                assert not any(".last_build_id" in n for n in archive.getnames())
+    assert results[0] == results[1]
+    (web / ".env").write_text("PRIVATE_DO_NOT_SHIP=1")
+    with pytest.raises(ReleaseError, match="Hidden"):
+        build_release(
+            source_repo,
+            tmp_path / "unsafe",
+            channel="stable",
+            version="0.2.0",
+            build_number=124,
+            source_sha=sha,
+            web_dir=web,
+            web_source_sha=sha,
+        )
+
+
 @pytest.mark.parametrize("source", ["main", "A" * 40, "a" * 39, "--help"])
 def test_bundle_refuses_non_exact_source_before_git(source_repo, tmp_path, source):
     from scripts.build_release import build_release
