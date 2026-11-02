@@ -11,6 +11,7 @@ import 'package:kinaiya_flutter/api/memory_models.dart';
 import 'package:kinaiya_flutter/config/connection.dart';
 import 'package:kinaiya_flutter/state/app_state.dart';
 import 'package:kinaiya_flutter/ui/setup_dialog.dart';
+import 'package:kinaiya_flutter/ui/widgets.dart';
 import 'agent_workspace_state_test.dart' show harnessJson;
 import 'decisions_inspection_test.dart' as decisions;
 import 'memory_models_test.dart' as memory;
@@ -444,6 +445,61 @@ void main() {
         ),
         findsOneWidget,
       );
+      expect(
+        t
+            .widget<ActionOutcomeFeedback>(
+              find.byKey(const ValueKey('setup-connection-outcome')),
+            )
+            .state,
+        ActionOutcomeState.unconfirmed,
+      );
+      expect(find.text('Outcome unconfirmed'), findsOneWidget);
+
+      // In-progress check reports ActionOutcomeState.inProgress rather than Confirmed.
+      state.connected = false;
+      state.connectionError = 'Checking services…';
+      state.touch();
+      await t.pump();
+      expect(
+        t
+            .widget<ActionOutcomeFeedback>(
+              find.byKey(const ValueKey('setup-connection-outcome')),
+            )
+            .state,
+        ActionOutcomeState.inProgress,
+      );
+      expect(find.text('In progress'), findsOneWidget);
+
+      // Failed authentication reports ActionOutcomeState.failed.
+      state.connectionError =
+          'Session authentication or connection failed. Check setup.';
+      state.touch();
+      await t.pump();
+      expect(
+        t
+            .widget<ActionOutcomeFeedback>(
+              find.byKey(const ValueKey('setup-connection-outcome')),
+            )
+            .state,
+        ActionOutcomeState.failed,
+      );
+      expect(find.text('Action failed'), findsOneWidget);
+
+      // Confirmed connection reports ActionOutcomeState.confirmed only when connected && sessionAuthenticated.
+      state.connected = true;
+      state.sessionAuthenticated = true;
+      state.connectionError = null;
+      state.touch();
+      await t.pump();
+      expect(
+        t
+            .widget<ActionOutcomeFeedback>(
+              find.byKey(const ValueKey('setup-connection-outcome')),
+            )
+            .state,
+        ActionOutcomeState.confirmed,
+      );
+      expect(find.text('Confirmed'), findsOneWidget);
 
       // Advanced protocol details start collapsed and expand on demand.
       expect(find.byKey(const ValueKey('setup-advanced-panel')), findsNothing);
