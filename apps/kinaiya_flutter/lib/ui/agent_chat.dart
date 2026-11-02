@@ -1628,117 +1628,174 @@ class _AgentChatState extends State<AgentChat> {
     );
   }
 
+  String _taskOwnerAction(AgentTask task) {
+    final awaitingApproval =
+        task.state == 'awaiting_approval' ||
+        _s.approvals.any((a) => a.taskId == task.taskId);
+    if (awaitingApproval) {
+      return 'Review pending approval request in the task card, or Stop this task.';
+    }
+    if (task.state == 'succeeded') {
+      if (task.isGroundedSuccess) {
+        return 'Completed with recorded evidence below; inspect receipts to verify.';
+      }
+      if (task.hasUnverifiedExternalOnly) {
+        return 'Finished with a tool or computation receipt only; task effects need independent evidence.';
+      }
+      return 'Finished without independent completion evidence; verify receipts before relying on completion.';
+    }
+    if (task.state == 'failed') {
+      return task.error != null && task.error!.isNotEmpty
+          ? 'Task failed: ${task.error}'
+          : 'Task failed; inspect recorded state and receipts.';
+    }
+    if (task.state == 'cancelled') {
+      return 'Task was cancelled; no further work is running.';
+    }
+    return 'Task is active; use Steer or Stop in the task card if you need to adjust or cancel it.';
+  }
+
+  String _formatEvidenceReceipt(Evidence e) =>
+      '${e.kind}: ${e.summary}'
+      '${{'external', 'extension'}.contains(e.kind) ? ' (receipt; effects unverified)' : ''}'
+      '${e.path != null ? ' @ ${e.path}' : ''}'
+      '${e.sha256 != null ? ' sha256:${e.sha256!.substring(0, e.sha256!.length.clamp(0, 12))}' : ''}'
+      '${e.exitCode != null ? ' exit:${e.exitCode}' : ''}';
+
   Widget _details(AgentTask? task, {VoidCallback? onCollapse}) => Container(
     key: const ValueKey('agent-details-panel'),
     decoration: agentDetailsDecoration(context, showBorder: onCollapse == null),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 4, 4),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Task details',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-              ),
-              if (onCollapse != null)
-                IconButton(
-                  tooltip: 'Collapse details',
-                  onPressed: onCollapse,
-                  icon: const Icon(Icons.chevron_right),
-                ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-            children: [
-              Text(
-                task == null
-                    ? 'Select a task on the left or in the conversation.'
-                    : 'Task inspection; new instructions use the selected session.',
-                style: agentMutedStyle(
-                  context,
-                  Theme.of(context).textTheme.bodySmall,
-                ),
-              ),
-              const SizedBox(height: 16),
-              if (task == null)
-                const Text('Choose a task to inspect its status and evidence.')
-              else ...[
-                _detail('Objective', task.objective),
-                _detail('Current state', task.state),
-                _detail('Objective revision', '${task.objectiveRevision}'),
-                _detail('Task', task.taskId),
-                if (task.modelPin case final pin?) ...[
-                  _detail('Model', '${pin['model']}'),
-                  _detail('Provider', '${pin['provider']}'),
-                  _detail('Model profile', '${pin['profile_id']}'),
-                  _detail(
-                    'Reasoning',
-                    '${pin['reasoning'] ?? 'Profile default'}',
+    child: Material(
+      type: MaterialType.transparency,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 4, 4),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Task details',
+                    style: Theme.of(context).textTheme.titleLarge,
                   ),
-                  _detail(
-                    'Model settings revision',
-                    '${pin['settings_revision']}',
-                  ),
-                  if (pin['catalog_binding'] case final Map reference) ...[
-                    _detail('Saved provider', '${reference['id']}'),
-                    _detail('Provider version', '${reference['generation']}'),
-                    _detail('Catalog revision', '${pin['catalog_revision']}'),
-                    ExpansionTile(
-                      tilePadding: EdgeInsets.zero,
-                      title: const Text('Saved provider identity'),
-                      children: [
-                        _detail(
-                          'Configuration SHA256',
-                          '${reference['configuration_sha256']}',
-                        ),
-                      ],
-                    ),
-                  ],
-                ],
-                _detail('Session', task.sessionId),
-                _detail(
-                  'Recorded harness',
-                  task.harnessVersion ?? 'Unknown historical harness',
                 ),
-                _detail(
-                  'Evidence',
-                  task.evidence.isEmpty
-                      ? 'No completion evidence recorded.'
-                      : '${task.evidence.length} recorded items; inspect the receipts in the task card.',
-                ),
-                if (task.remainingRequiredWork.isNotEmpty)
-                  _detail(
-                    'Remaining work',
-                    task.remainingRequiredWork.join('\n'),
+                if (onCollapse != null)
+                  IconButton(
+                    tooltip: 'Collapse details',
+                    onPressed: onCollapse,
+                    icon: const Icon(Icons.chevron_right),
                   ),
               ],
-              const Divider(),
-              const SizedBox(height: 16),
-              _detail(
-                'Current Agent provider',
-                _s.agentProvider == null
-                    ? 'Not verified'
-                    : '${_s.agentProvider!['provider']} · ${_s.agentProvider!['model']}',
-              ),
-              _detail('Approval requests', '${_s.approvals.length}'),
-              Text(
-                'Inspecting a task does not change the recipient of a new instruction. Use its Steer or Stop control to affect that task.',
-                style: agentMutedStyle(
-                  context,
-                  Theme.of(context).textTheme.bodySmall,
-                ),
-              ),
-            ],
+            ),
           ),
-        ),
-      ],
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+              children: [
+                Text(
+                  task == null
+                      ? 'Select a task on the left or in the conversation.'
+                      : 'Task inspection; new instructions use the selected session.',
+                  style: agentMutedStyle(
+                    context,
+                    Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                if (task == null)
+                  const Text(
+                    'Choose a task to inspect its status and evidence.',
+                  )
+                else ...[
+                  _detail('Objective', task.objective),
+                  _detail('Current state', task.state),
+                  _detail('Owner action', _taskOwnerAction(task)),
+                  if (task.remainingRequiredWork.isNotEmpty)
+                    _detail(
+                      'Remaining work',
+                      task.remainingRequiredWork.join('\n'),
+                    ),
+                  _detail(
+                    'Evidence',
+                    task.evidence.isEmpty
+                        ? 'No completion evidence recorded.'
+                        : '${task.evidence.length} recorded items; inspect the receipts in the task card.',
+                  ),
+                  for (var i = 0; i < task.evidence.length; i++)
+                    _detail(
+                      'Evidence receipt ${i + 1}',
+                      _formatEvidenceReceipt(task.evidence[i]),
+                    ),
+                  ExpansionTile(
+                    key: const ValueKey('agent-details-technical'),
+                    tilePadding: EdgeInsets.zero,
+                    childrenPadding: EdgeInsets.zero,
+                    title: const Text('Technical details'),
+                    children: [
+                      _detail('Task', task.taskId),
+                      _detail(
+                        'Objective revision',
+                        '${task.objectiveRevision}',
+                      ),
+                      _detail('Session', task.sessionId),
+                      _detail(
+                        'Recorded harness',
+                        task.harnessVersion ?? 'Unknown historical harness',
+                      ),
+                      if (task.modelPin case final pin?) ...[
+                        _detail('Model', '${pin['model']}'),
+                        _detail('Provider', '${pin['provider']}'),
+                        _detail('Model profile', '${pin['profile_id']}'),
+                        _detail(
+                          'Reasoning',
+                          '${pin['reasoning'] ?? 'Profile default'}',
+                        ),
+                        _detail(
+                          'Model settings revision',
+                          '${pin['settings_revision']}',
+                        ),
+                        if (pin['catalog_binding']
+                            case final Map reference) ...[
+                          _detail('Saved provider', '${reference['id']}'),
+                          _detail(
+                            'Provider version',
+                            '${reference['generation']}',
+                          ),
+                          _detail(
+                            'Catalog revision',
+                            '${pin['catalog_revision']}',
+                          ),
+                          _detail(
+                            'Configuration SHA256',
+                            '${reference['configuration_sha256']}',
+                          ),
+                        ],
+                      ],
+                    ],
+                  ),
+                ],
+                const Divider(),
+                const SizedBox(height: 16),
+                _detail(
+                  'Current Agent provider',
+                  _s.agentProvider == null
+                      ? 'Not verified'
+                      : '${_s.agentProvider!['provider']} · ${_s.agentProvider!['model']}',
+                ),
+                _detail('Approval requests', '${_s.approvals.length}'),
+                Text(
+                  'Inspecting a task does not change the recipient of a new instruction. Use its Steer or Stop control to affect that task.',
+                  style: agentMutedStyle(
+                    context,
+                    Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     ),
   );
 

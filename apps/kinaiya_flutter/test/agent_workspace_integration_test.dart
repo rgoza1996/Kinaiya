@@ -686,4 +686,225 @@ void main() {
       await close(tester, state);
     },
   );
+
+  testWidgets(
+    'Task details presents objective, state, owner action, remaining work, and evidence before expandable technical metadata',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1560, 1000);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final api = WorkspaceUiApi()
+        ..fixtures = [
+          AgentTask.fromJson({
+            'schema_version': '1.0',
+            'task_id': 'task-running-pin',
+            'session_id': 'a',
+            'thread_id': 'thread-a',
+            'epoch': 1,
+            'objective': 'Inspect running task objective',
+            'objective_revision': 2,
+            'state': 'running',
+            'idempotency_key': 'k-run',
+            'remaining_required_work': ['Verify test suite output'],
+            'evidence': [
+              {
+                'schema_version': '1.0',
+                'kind': 'external',
+                'summary': 'External tool call receipt',
+                'objective_revision': 2,
+              },
+            ],
+            'model_pin': {
+              'model': 'qwen2.5-coder',
+              'provider': 'ollama',
+              'profile_id': 'local-coder',
+              'reasoning': 'medium',
+              'settings_revision': 7,
+              'catalog_revision': 4,
+              'catalog_binding': {
+                'id': 'ollama-local',
+                'generation': 3,
+                'configuration_sha256': 'abc123def456',
+              },
+            },
+          }),
+        ];
+
+      final state = wired(api);
+      await state.refreshAgentHarnesses();
+      await state.selectAgentHarness('seed-v1');
+      await state.selectAgentSession('a');
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ListenableBuilder(
+              listenable: state,
+              builder: (_, _) => AgentChat(state: state),
+            ),
+          ),
+        ),
+      );
+      await settle(tester);
+
+      final detailsPanel = find.byKey(const ValueKey('agent-details-panel'));
+      expect(detailsPanel, findsOneWidget);
+
+      Finder inDetails(String text) =>
+          find.descendant(of: detailsPanel, matching: find.text(text));
+
+      // Primary fields appear in order above Technical details.
+      final objectiveY = tester.getTopLeft(inDetails('Objective')).dy;
+      final stateY = tester.getTopLeft(inDetails('Current state')).dy;
+      final actionY = tester.getTopLeft(inDetails('Owner action')).dy;
+      final remainingY = tester.getTopLeft(inDetails('Remaining work')).dy;
+      final evidenceY = tester.getTopLeft(inDetails('Evidence')).dy;
+      final technicalY = tester
+          .getTopLeft(find.byKey(const ValueKey('agent-details-technical')))
+          .dy;
+
+      expect(objectiveY, lessThan(stateY));
+      expect(stateY, lessThan(actionY));
+      expect(actionY, lessThan(remainingY));
+      expect(remainingY, lessThan(evidenceY));
+      expect(evidenceY, lessThan(technicalY));
+
+      // Running state owner action and unverified receipt disclosure.
+      expect(
+        inDetails(
+          'Task is active; use Steer or Stop in the task card if you need to adjust or cancel it.',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        inDetails(
+          'external: External tool call receipt (receipt; effects unverified)',
+        ),
+        findsOneWidget,
+      );
+
+      // Technical details are collapsed initially, then expand to show all original metadata and unknown historical harness.
+      expect(inDetails('task-running-pin'), findsNothing);
+      final technicalTile = find.byKey(
+        const ValueKey('agent-details-technical'),
+      );
+      await tester.ensureVisible(technicalTile);
+      await tester.pump();
+      await tester.tap(technicalTile);
+      await settle(tester);
+      expect(inDetails('task-running-pin'), findsOneWidget);
+      expect(inDetails('Unknown historical harness'), findsOneWidget);
+      expect(inDetails('qwen2.5-coder'), findsOneWidget);
+      expect(inDetails('local-coder'), findsOneWidget);
+      expect(inDetails('ollama-local'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: detailsPanel,
+          matching: find.text('abc123def456', skipOffstage: false),
+        ),
+        findsOneWidget,
+      );
+
+      // Awaiting approval state.
+      state.setTasks([
+        AgentTask.fromJson({
+          'schema_version': '1.0',
+          'task_id': 'task-approval',
+          'session_id': 'a',
+          'thread_id': 'thread-a',
+          'epoch': 1,
+          'objective': 'Awaiting approval objective',
+          'objective_revision': 1,
+          'state': 'awaiting_approval',
+          'idempotency_key': 'k-app',
+          'harness_version': 'seed-v1',
+        }),
+      ]);
+      await tester.pump();
+      expect(
+        inDetails(
+          'Review pending approval request in the task card, or Stop this task.',
+        ),
+        findsOneWidget,
+      );
+
+      // Succeeded without independent evidence vs grounded succeeded.
+      state.setTasks([
+        AgentTask.fromJson({
+          'schema_version': '1.0',
+          'task_id': 'task-unverified-success',
+          'session_id': 'a',
+          'thread_id': 'thread-a',
+          'epoch': 1,
+          'objective': 'Unverified success objective',
+          'objective_revision': 1,
+          'state': 'succeeded',
+          'idempotency_key': 'k-unv',
+        }),
+      ]);
+      await tester.pump();
+      expect(
+        inDetails(
+          'Finished without independent completion evidence; verify receipts before relying on completion.',
+        ),
+        findsOneWidget,
+      );
+
+      state.setTasks([
+        AgentTask.fromJson({
+          'schema_version': '1.0',
+          'task_id': 'task-grounded-success',
+          'session_id': 'a',
+          'thread_id': 'thread-a',
+          'epoch': 1,
+          'objective': 'Grounded success objective',
+          'objective_revision': 1,
+          'state': 'succeeded',
+          'idempotency_key': 'k-gnd',
+          'evidence': [
+            {
+              'schema_version': '1.0',
+              'kind': 'file',
+              'summary': 'Wrote result.txt',
+              'path': 'result.txt',
+              'sha256': '1234567890abcdef',
+              'objective_revision': 1,
+            },
+          ],
+        }),
+      ]);
+      await tester.pump();
+      expect(
+        inDetails(
+          'Completed with recorded evidence below; inspect receipts to verify.',
+        ),
+        findsOneWidget,
+      );
+
+      // Failed state.
+      state.setTasks([
+        AgentTask.fromJson({
+          'schema_version': '1.0',
+          'task_id': 'task-failed',
+          'session_id': 'a',
+          'thread_id': 'thread-a',
+          'epoch': 1,
+          'objective': 'Failed task objective',
+          'objective_revision': 1,
+          'state': 'failed',
+          'error': 'Sandbox command exited with status 2',
+          'idempotency_key': 'k-fail',
+        }),
+      ]);
+      await tester.pump();
+      expect(
+        inDetails('Task failed: Sandbox command exited with status 2'),
+        findsOneWidget,
+      );
+
+      expect(tester.takeException(), isNull);
+      await close(tester, state);
+    },
+  );
 }
