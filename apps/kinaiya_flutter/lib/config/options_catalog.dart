@@ -50,14 +50,16 @@ const settingsEntries = <SettingsEntry>[
     section: SettingsSection.converse,
     title: 'Models & conversation',
     description: 'Inspect host models and choose the optional Converse view.',
-    keywords: 'conversation stt tts decisions reasoning modalities setup',
+    keywords:
+        'conversation stt tts decisions reasoning modalities setup llm model provider',
   ),
   SettingsEntry(
     action: SettingsAction.connection,
     section: SettingsSection.connection,
     title: 'Service connection & privacy',
     description: 'Connect to your services and choose where input may be sent.',
-    keywords: 'host url owner token credentials local cloud disclosure',
+    keywords:
+        'host url owner token credentials local cloud disclosure api key endpoint connect setup privacy',
   ),
   SettingsEntry(
     action: SettingsAction.appearance,
@@ -66,7 +68,7 @@ const settingsEntries = <SettingsEntry>[
     description:
         'Colors, character packs, captions, interface transitions and reduced motion.',
     keywords:
-        'mascot sprites animation accessibility palette import export reset',
+        'mascot sprites animation accessibility palette import export reset character avatar theme font captions',
   ),
   SettingsEntry(
     action: SettingsAction.voice,
@@ -75,14 +77,15 @@ const settingsEntries = <SettingsEntry>[
     description:
         'Conversation timing for the current view: live Decisions timing or fallback clip silence.',
     keywords:
-        'speech microphone vad live call tell audio window decisions clip fallback timing silence',
+        'speech microphone vad live call tell audio window decisions clip fallback timing silence mic speaker tts stt',
   ),
   SettingsEntry(
     action: SettingsAction.memory,
     section: SettingsSection.converse,
     title: 'Saved Converse notes',
     description: 'Inspect existing notes and choose whether to use them.',
-    keywords: 'memory dag recall retained storage selected access',
+    keywords:
+        'memory dag recall retained storage selected access notes privacy',
   ),
   SettingsEntry(
     action: SettingsAction.agentControls,
@@ -91,7 +94,7 @@ const settingsEntries = <SettingsEntry>[
     description:
         'Open Agent controls for models, permissions, skills and tools.',
     keywords:
-        'provider profile yolo approvals sandbox workspace resources plugins commands',
+        'provider profile yolo approvals sandbox workspace resources plugins commands permissions harnesses',
   ),
   SettingsEntry(
     action: SettingsAction.mcp,
@@ -99,7 +102,8 @@ const settingsEntries = <SettingsEntry>[
     title: 'MCP connections',
     description:
         'Manage Agent tool servers and inspect their connection state.',
-    keywords: 'integrations extensions tools authentication enable disable',
+    keywords:
+        'integrations extensions tools authentication enable disable mcp servers',
   ),
 ];
 
