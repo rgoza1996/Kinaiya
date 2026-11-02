@@ -16,6 +16,7 @@ async def test_snapshot_keeps_original_context_with_release_only_control(physica
     value = await physical()
     await physical_module.bound(value)
     await physical_module.closure(value)
+    controls_before = (tuple(value.starts), tuple(value.stops))
     gate = value.native.gate = physical_module.Gate(physical_module.CONTEXT, "read")
     public = physical_module.begin(value)
     await physical_module.gate_entered(gate.entered)
@@ -56,5 +57,6 @@ async def test_snapshot_keeps_original_context_with_release_only_control(physica
     assert receipt.finalization.restoration == "not-required"
     await physical_module.join_context_originals(value, originals)
     assert originals[1].exception() is None
-    assert value.starts == value.stops == [] and value.effect_checks == 0
+    assert (tuple(value.starts), tuple(value.stops)) == controls_before
+    assert value.starts == [] and value.effect_checks == 0
     assert value.provider.calls == []
