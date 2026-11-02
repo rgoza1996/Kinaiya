@@ -9,6 +9,36 @@ The owner requested reconciliation before further feature work. Inputs were the 
 
 **Implemented** means the cited bounded behavior exists and has the stated verification. **Experimental** retains research, environment or reliability limits. **Unverified** identifies an acceptance gate without sufficient evidence. **Planned** identifies work without a qualified implementation. A milestone can contain all four. Open parent issues are not closed by this ledger; stale “queued” descriptions do not erase merged work. No percentage-complete or production-readiness claim is made.
 
+## November 2 merged prerequisites and Agent retirement
+
+[PR314](https://github.com/rgoza1996/Kinaiya/pull/314) merged the reviewed
+standing-work prerequisites into main `d2bbd30a`, whose tree exactly matches
+qualified head `a553a7d3`. All five
+[CI439 jobs](https://github.com/rgoza1996/Kinaiya/actions/runs/41448966365)
+passed; Python 3.11 and 3.12 each passed 10,951 tests with six skips and two
+deselections. All five
+[Linux lifecycle jobs](https://github.com/rgoza1996/Kinaiya/actions/runs/41448966375)
+also passed their 16 ordered checks. Earlier red runs remain evidence; these
+passes do not reconstruct or establish a causal fix for their timing failures.
+The older dated entries below retain their original source cutoffs.
+
+The subsequent [current-process Agent claim owner](adr/0109-agent-claim-retirement.md)
+retains preflight, original worker/model/control/HTTP cleanup and a separate
+automatic Resources finalizer. A permanent fence prevents new effects, late
+replies cannot reopen launch, and captured original clients survive replacement
+and bounded shutdown. Standing claims no longer use the early per-worker legacy
+restoration callback; ordinary behavior remains. The
+[qualification record](../evaluation/evidence/agent-claim-retirement-2026-11-02.json)
+records 30 new controlled checks and 414 existing regressions, separately
+attributed source cuts, preserved failures, fixture calibration and independent
+review. Applicable exact-head CI remains required for this new increment.
+
+These tests establish architectural behavior with controlled inference outputs.
+They do not qualify model accuracy, a live stack or a demonstration. Native Task
+settlement, claim/reservation and active-slot release, recurrence, inbox and
+editor remain unfinished under #228 / #239. Historical records cannot reconstruct
+lost original work ownership after restart. The full roadmap remains open.
+
 ## October 31 Options increment
 
 [ADR0092](adr/0092-approval-expiry-renewal.md) adds visible paused approval
