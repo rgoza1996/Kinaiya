@@ -21,20 +21,158 @@ from types import SimpleNamespace
 from typing import Any, cast
 from urllib.parse import urlsplit
 
+MIN_BUBBLEWRAP_VERSION = (0, 6, 1)
+MIN_LIBSECCOMP_VERSION = (2, 5)
 
-def preflight(layout):
+
+def _parse_version_tuple(raw: str | None) -> tuple[int, ...] | None:
+    if not raw or not isinstance(raw, str):
+        return None
+    match = re.search(r"(\d+(?:\.\d+)+)", raw)
+    if not match:
+        return None
+    return tuple(int(part) for part in match.group(1).split("."))
+
+
+def installed_package_version(
+    package: str, status_path: Path = Path("/var/lib/dpkg/status")
+) -> str | None:
+    try:
+        text = status_path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    for stanza in text.split("\n\n"):
+        fields: dict[str, str] = {}
+        for line in stanza.splitlines():
+            if ":" in line and not line[:1].isspace():
+                key, val = line.split(":", 1)
+                fields[key.strip()] = val.strip()
+        if fields.get("Package") == package and "installed" in fields.get("Status", "").split():
+            return fields.get("Version")
+    return None
+
+
+def _venv_available() -> bool:
+    try:
+        import ensurepip  # noqa: F401
+        import venv  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
+def missing_system_dependencies() -> list[str]:
     import ctypes.util
-    import ensurepip  # noqa: F401
+
+    missing: list[str] = []
+    if shutil.which("bwrap") is None:
+        missing.append("bubblewrap")
+    if ctypes.util.find_library("seccomp") is None:
+        missing.append("libseccomp2")
+    if not _venv_available():
+        missing.append(f"python{sys.version_info[0]}.{sys.version_info[1]}-venv")
+    return missing
+
+
+def dependency_install_command(missing: list[str] | tuple[str, ...]) -> list[str]:
+    return ["sudo", "apt-get", "install", "--no-upgrade", "-y", *missing]
+
+
+def install_missing_dependencies(missing: list[str] | tuple[str, ...]) -> list[str]:
+    """Install missing system packages without updating or upgrading existing packages."""
+    if not missing:
+        return []
+    for pkg in missing:
+        if not isinstance(pkg, str) or not re.fullmatch(r"[a-z0-9][a-z0-9.+-]*", pkg):
+            raise InstallError(f"Refusing invalid system dependency name: {pkg!r}")
+    cmd = dependency_install_command(missing)
+    env = {**os.environ, "DEBIAN_FRONTEND": "noninteractive"}
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300, env=env)
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise InstallError(
+            f"Failed to install missing dependencies ({', '.join(missing)}) via `{' '.join(cmd)}`: {exc}"
+        ) from None
+    if result.returncode != 0:
+        detail = (getattr(result, "stderr", "") or getattr(result, "stdout", "") or "").strip()
+        suffix = f" ({detail.splitlines()[-1]})" if detail else ""
+        raise InstallError(
+            f"Out-of-date system blocker: could not install missing dependencies ({', '.join(missing)}) "
+            f"with `--no-upgrade`{suffix}. An existing installed package or your local apt package index "
+            "is out of date. Please update that specific package or refresh your package index manually "
+            "first; Kinaiya never runs `sudo apt-get update` or `sudo apt-get upgrade` for you."
+        )
+    return list(missing)
+
+
+def check_outdated_system_blockers(*, probe_subprocesses: bool = False) -> None:
+    """Warn the user if an existing host component is out of date and blocks installation."""
+    import ctypes.util
     import platform
-    import venv  # noqa: F401 -- refuse missing stdlib venv before writes
+
+    py_major, py_minor = sys.version_info[:2]
+    if (py_major, py_minor) < (3, 11):
+        raise InstallError(
+            f"Out-of-date system blocker: Python {py_major}.{py_minor} is out of date "
+            "(Kinaiya requires Python 3.11-3.13). Please update Python first; "
+            "the installer will not update existing system packages for you."
+        )
+    if platform.system() != "Linux":
+        return
+    try:
+        release = platform.freedesktop_os_release()
+    except OSError:
+        release = {}
+    distro_id = release.get("ID")
+    version_id = release.get("VERSION_ID", "")
+    if distro_id == "ubuntu" and version_id not in {"22.04", "24.04"}:
+        parsed_ubuntu = _parse_version_tuple(version_id)
+        if parsed_ubuntu is not None and parsed_ubuntu < (22, 4):
+            raise InstallError(
+                f"Out-of-date system blocker: Ubuntu {version_id} is out of date "
+                "(Kinaiya requires Ubuntu 22.04 or 24.04). Please update Ubuntu first; "
+                "the installer will not update your system for you."
+            )
+    bwrap_bin = shutil.which("bwrap")
+    if bwrap_bin is not None:
+        bwrap_ver = installed_package_version("bubblewrap")
+        if bwrap_ver is None and probe_subprocesses:
+            try:
+                ver_probe = subprocess.run(
+                    [bwrap_bin, "--version"], capture_output=True, text=True, timeout=5
+                )
+                bwrap_ver = getattr(ver_probe, "stdout", None)
+            except (OSError, subprocess.SubprocessError):
+                bwrap_ver = None
+        parsed_bwrap = _parse_version_tuple(bwrap_ver)
+        if parsed_bwrap is not None and parsed_bwrap < MIN_BUBBLEWRAP_VERSION:
+            raise InstallError(
+                f"Out-of-date system blocker: bubblewrap {bwrap_ver.strip()} is out of date "
+                "(Kinaiya requires bubblewrap >= 0.6.1). Please update bubblewrap first; "
+                "the installer will not update existing system packages for you."
+            )
+    if ctypes.util.find_library("seccomp") is not None:
+        seccomp_ver = installed_package_version("libseccomp2")
+        parsed_seccomp = _parse_version_tuple(seccomp_ver)
+        if parsed_seccomp is not None and parsed_seccomp < MIN_LIBSECCOMP_VERSION:
+            raise InstallError(
+                f"Out-of-date system blocker: libseccomp2 {seccomp_ver.strip()} is out of date "
+                "(Kinaiya requires libseccomp2 >= 2.5). Please update libseccomp2 first; "
+                "the installer will not update existing system packages for you."
+            )
+
+
+def preflight(layout, *, allow_missing_dependencies: bool = False):
+    import platform
 
     layout.validate()
     if platform.system() != "Linux":
         raise InstallError("Native Linux required; Windows/macOS/WSL are not qualified")
     if os.geteuid() == 0:
         raise InstallError(
-            "Do not run the installer as root; install system prerequisites separately"
+            "Do not run the installer as root; the CLI invokes sudo only for missing dependencies"
         )
+    check_outdated_system_blockers(probe_subprocesses=True)
     release = platform.freedesktop_os_release()
     if release.get("ID") != "ubuntu" or release.get("VERSION_ID") not in {"22.04", "24.04"}:
         raise InstallError(
@@ -45,59 +183,67 @@ def preflight(layout):
         13,
     ):
         raise InstallError("Require x86_64/aarch64 and Python 3.11-3.13 with venv/ensurepip")
-    binary = shutil.which("bwrap")
-    if binary is None or ctypes.util.find_library("seccomp") is None:
+    missing = missing_system_dependencies()
+    if missing and not allow_missing_dependencies:
+        cmd = " ".join(dependency_install_command(missing))
         raise InstallError(
-            "Install bubblewrap and libseccomp2 explicitly (sudo apt-get install bubblewrap libseccomp2)"
+            f"Missing required system dependencies: {', '.join(missing)}. "
+            f"Run `kinaiya install` or `{cmd}` (never runs apt-get update/upgrade)"
         )
     ancestor = next(p for p in [layout.install, *layout.install.parents] if p.exists())
     if shutil.disk_usage(ancestor).free < 1024**3:
         raise InstallError(
             "Insufficient disk: at least 1 GiB free is required for Agent-only staging"
         )
-    try:
-        probe = subprocess.run(
-            [
-                binary,
-                "--unshare-all",
-                "--die-with-parent",
-                "--new-session",
-                "--ro-bind",
-                "/",
-                "/",
-                "--proc",
-                "/proc",
-                "--dev",
-                "/dev",
-                "--tmpfs",
-                "/tmp",
-                "--clearenv",
-                "/usr/bin/true",
-            ],
-            capture_output=True,
-            timeout=15,
-        )
-        if probe.returncode:
-            raise InstallError(
-                "bubblewrap namespace probe denied; configure host isolation, never disable it"
+    binary = shutil.which("bwrap")
+    if binary is not None:
+        try:
+            probe = subprocess.run(
+                [
+                    binary,
+                    "--unshare-all",
+                    "--die-with-parent",
+                    "--new-session",
+                    "--ro-bind",
+                    "/",
+                    "/",
+                    "--proc",
+                    "/proc",
+                    "--dev",
+                    "/dev",
+                    "--tmpfs",
+                    "/tmp",
+                    "--clearenv",
+                    "/usr/bin/true",
+                ],
+                capture_output=True,
+                timeout=15,
             )
-    except (OSError, subprocess.SubprocessError):
-        raise InstallError(
-            "bubblewrap namespace probe failed; verify kernel/user namespace policy"
-        ) from None
-    return {
+            if probe.returncode:
+                raise InstallError(
+                    "bubblewrap namespace probe denied; configure host isolation, never disable it"
+                )
+        except (OSError, subprocess.SubprocessError):
+            raise InstallError(
+                "bubblewrap namespace probe failed; verify kernel/user namespace policy"
+            ) from None
+    result: dict[str, Any] = {
         "platform": "linux",
         "architecture": platform.machine(),
         "distro": release.get("VERSION_ID"),
         "python": platform.python_version(),
-        "sandbox_probe": "passed",
+        "sandbox_probe": "passed" if binary is not None else "pending_dependencies",
     }
+    if missing:
+        result["missing_dependencies"] = missing
+    return result
 
 
 def setup(layout, *, endpoint, model, allow_cloud=False, credential_env=None, converse=False):
     """Reuse native init; configuration is not evidence of provider/task readiness."""
     from services.launcher import initialize
 
+    check_outdated_system_blockers(probe_subprocesses=False)
     layout.validate()
     if (layout.install / "layout.json").exists():
         verify_layout(layout)

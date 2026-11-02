@@ -3,6 +3,14 @@
 # Trust: official GitHub HTTPS metadata + immutable release assets + SHA-256,
 # not an independent publisher signature. Never fetch or execute main/latest code.
 set -eu
+if [ -z "${KINAIYA_PYTHON:-}" ]; then
+  for candidate in python3 python3.13 python3.12 python3.11; do
+    if command -v "$candidate" >/dev/null 2>&1 && "$candidate" -c 'import sys; raise SystemExit(0 if (3, 11) <= sys.version_info[:2] <= (3, 13) else 1)' 2>/dev/null; then
+      KINAIYA_PYTHON="$candidate"
+      break
+    fi
+  done
+fi
 exec "${KINAIYA_PYTHON:-python3}" -I - "$@" <<'KINAIYA_BOOTSTRAP_PY'
 # BEGIN PYTHON BOOTSTRAP
 import argparse
@@ -31,6 +39,8 @@ API = "https://api.github.com/repos/rgoza1996/Kinaiya/releases"
 ROOT = "https://github.com/rgoza1996/Kinaiya/releases"
 MAX_BYTES = 512 * 1024**2
 VERSION = r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)"
+MIN_BUBBLEWRAP_VERSION = (0, 6, 1)
+MIN_LIBSECCOMP_VERSION = (2, 5)
 
 
 class BootstrapError(RuntimeError):
@@ -42,19 +52,142 @@ def require(value, message):
         raise BootstrapError(message)
 
 
-def preflight():
-    import ensurepip  # noqa: F401
-    import venv  # noqa: F401
+def _parse_version_tuple(raw):
+    if not raw or not isinstance(raw, str):
+        return None
+    match = re.search(r"(\d+(?:\.\d+)+)", raw)
+    return tuple(int(part) for part in match.group(1).split(".")) if match else None
+
+
+def installed_package_version(package, status_path=Path("/var/lib/dpkg/status")):
+    try:
+        text = status_path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    for stanza in text.split("\n\n"):
+        fields = {}
+        for line in stanza.splitlines():
+            if ":" in line and not line[:1].isspace():
+                key, val = line.split(":", 1)
+                fields[key.strip()] = val.strip()
+        if fields.get("Package") == package and "installed" in fields.get("Status", "").split():
+            return fields.get("Version")
+    return None
+
+
+def _venv_available():
+    try:
+        import ensurepip  # noqa: F401
+        import venv  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
+def missing_dependencies():
+    missing = []
+    if shutil.which("bwrap") is None:
+        missing.append("bubblewrap")
+    if ctypes.util.find_library("seccomp") is None:
+        missing.append("libseccomp2")
+    if not _venv_available():
+        missing.append(f"python{sys.version_info[0]}.{sys.version_info[1]}-venv")
+    return missing
+
+
+def dependency_install_command(missing):
+    return ["sudo", "apt-get", "install", "--no-upgrade", "-y", *missing]
+
+
+def install_missing_dependencies(missing):
+    if not missing:
+        return []
+    for pkg in missing:
+        require(isinstance(pkg, str) and re.fullmatch(r"[a-z0-9][a-z0-9.+-]*", pkg), f"Invalid dependency name: {pkg!r}")
+    cmd = dependency_install_command(missing)
+    env = {**os.environ, "DEBIAN_FRONTEND": "noninteractive"}
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=300, env=env)
+    if result.returncode != 0:
+        detail = (getattr(result, "stderr", "") or getattr(result, "stdout", "") or "").strip()
+        suffix = f" ({detail.splitlines()[-1]})" if detail else ""
+        raise BootstrapError(
+            f"Out-of-date system blocker: could not install missing dependencies ({', '.join(missing)}) "
+            f"with `--no-upgrade`{suffix}. An existing installed package or your local apt package index "
+            "is out of date. Please update that specific package or refresh your package index manually "
+            "first; Kinaiya never runs `sudo apt-get update` or `sudo apt-get upgrade` for you."
+        )
+    return list(missing)
+
+
+def check_outdated_system_blockers():
+    if sys.version_info[:2] < (3, 11):
+        raise BootstrapError(
+            f"Out-of-date system blocker: Python {sys.version_info[0]}.{sys.version_info[1]} is out of date "
+            "(Kinaiya requires Python 3.11-3.13). Please update Python first; "
+            "the installer will not update existing system packages for you."
+        )
+    if platform.system() != "Linux":
+        return
+    try:
+        distro = platform.freedesktop_os_release()
+    except OSError:
+        distro = {}
+    distro_id = distro.get("ID")
+    version_id = distro.get("VERSION_ID", "")
+    if distro_id == "ubuntu" and version_id not in {"22.04", "24.04"}:
+        parsed_ubuntu = _parse_version_tuple(version_id)
+        if parsed_ubuntu is not None and parsed_ubuntu < (22, 4):
+            raise BootstrapError(
+                f"Out-of-date system blocker: Ubuntu {version_id} is out of date "
+                "(Kinaiya requires Ubuntu 22.04 or 24.04). Please update Ubuntu first; "
+                "the installer will not update your system for you."
+            )
+    bwrap_bin = shutil.which("bwrap")
+    if bwrap_bin is not None:
+        bwrap_ver = installed_package_version("bubblewrap")
+        if bwrap_ver is None:
+            try:
+                ver_probe = subprocess.run([bwrap_bin, "--version"], capture_output=True, text=True, timeout=5)
+                bwrap_ver = getattr(ver_probe, "stdout", None)
+            except (OSError, subprocess.SubprocessError):
+                bwrap_ver = None
+        parsed_bwrap = _parse_version_tuple(bwrap_ver)
+        if parsed_bwrap is not None and parsed_bwrap < MIN_BUBBLEWRAP_VERSION:
+            raise BootstrapError(
+                f"Out-of-date system blocker: bubblewrap {bwrap_ver.strip()} is out of date "
+                "(Kinaiya requires bubblewrap >= 0.6.1). Please update bubblewrap first; "
+                "the installer will not update existing system packages for you."
+            )
+    if ctypes.util.find_library("seccomp") is not None:
+        seccomp_ver = installed_package_version("libseccomp2")
+        parsed_seccomp = _parse_version_tuple(seccomp_ver)
+        if parsed_seccomp is not None and parsed_seccomp < MIN_LIBSECCOMP_VERSION:
+            raise BootstrapError(
+                f"Out-of-date system blocker: libseccomp2 {seccomp_ver.strip()} is out of date "
+                "(Kinaiya requires libseccomp2 >= 2.5). Please update libseccomp2 first; "
+                "the installer will not update existing system packages for you."
+            )
+
+
+def preflight(*, allow_missing_dependencies=False):
     require(platform.system() == "Linux" and "microsoft" not in platform.release().lower(), "Native Linux required; WSL/Windows/macOS are not qualified")
-    require(os.geteuid() != 0, "Never run the installer as root; install system prerequisites separately")
+    require(os.geteuid() != 0, "Never run the installer as root; the CLI invokes sudo only for missing dependencies")
+    check_outdated_system_blockers()
     distro = platform.freedesktop_os_release()
     require(distro.get("ID") == "ubuntu" and distro.get("VERSION_ID") in {"22.04", "24.04"}, "Candidate baseline: Ubuntu 22.04/24.04 only")
     require(platform.machine() in {"x86_64", "aarch64"} and (3, 11) <= sys.version_info[:2] <= (3, 13), "Require x86_64/aarch64 Python 3.11-3.13 with venv/ensurepip")
     require(shutil.disk_usage(Path.home()).free >= 1024**3, "At least 1 GiB free disk is required")
+    missing = missing_dependencies()
+    if missing and not allow_missing_dependencies:
+        cmd = " ".join(dependency_install_command(missing))
+        raise BootstrapError(
+            f"Missing required system dependencies: {', '.join(missing)}. "
+            f"Run `{cmd}` (never runs apt-get update/upgrade)"
+        )
     binary = shutil.which("bwrap")
-    require(binary and ctypes.util.find_library("seccomp"), "Install bubblewrap and libseccomp2 separately; no automatic sudo/package installation")
-    result = subprocess.run([binary, "--unshare-all", "--die-with-parent", "--new-session", "--ro-bind", "/", "/", "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp", "--clearenv", "/usr/bin/true"], capture_output=True, timeout=15)
-    require(result.returncode == 0, "bubblewrap namespace probe denied; check kernel/user-namespace policy. Never disable isolation to install")
+    if binary is not None:
+        result = subprocess.run([binary, "--unshare-all", "--die-with-parent", "--new-session", "--ro-bind", "/", "/", "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp", "--clearenv", "/usr/bin/true"], capture_output=True, timeout=15)
+        require(result.returncode == 0, "bubblewrap namespace probe denied; check kernel/user-namespace policy. Never disable isolation to install")
 
 
 def open_url(url):
@@ -206,20 +339,37 @@ def open_terminal():
 
 
 def run(argv=None):
-    parser = argparse.ArgumentParser(description="Verified native Linux Kinaiya bootstrap; never installs system packages")
+    parser = argparse.ArgumentParser(description="Verified native Linux Kinaiya bootstrap; installs missing dependencies without upgrading existing packages")
     parser.add_argument("--channel", choices=("stable", "nightly"), default="stable")
     parser.add_argument("--yes", action="store_true")
     parser.add_argument("--no-setup", action="store_true")
     parser.add_argument("--workspace", type=Path)
     parser.add_argument("--data-dir", type=Path)
+    parser.add_argument("--endpoint")
+    parser.add_argument("--model")
+    parser.add_argument("--credential-env")
+    parser.add_argument("--allow-cloud", action="store_true")
+    parser.add_argument("--converse", action="store_true")
     args = parser.parse_args(argv)
-    preflight()
+    try:
+        preflight(allow_missing_dependencies=True)
+        missing = missing_dependencies()
+    except TypeError:
+        preflight()
+        missing = []
     manifest, artifact = resolve(args.channel)
-    print(json.dumps({"channel": args.channel, "source_sha": manifest["source_sha"], "download_bytes": artifact["size"], "install": str(Path.home() / ".local/share/kinaiya/install"), "dependencies": "hash-locked isolated venv; no voice/model downloads", "trust": "official GitHub HTTPS plus artifact SHA-256, not publisher signing"}), flush=True)
+    plan_summary = {"channel": args.channel, "source_sha": manifest["source_sha"], "download_bytes": artifact["size"], "install": str(Path.home() / ".local/share/kinaiya/install"), "dependencies": "hash-locked isolated venv; no voice/model downloads", "trust": "official GitHub HTTPS plus artifact SHA-256, not publisher signing"}
+    if missing:
+        plan_summary["missing_system_dependencies"] = missing
+        plan_summary["system_dependency_command"] = " ".join(dependency_install_command(missing))
+    print(json.dumps(plan_summary), flush=True)
     if not args.yes:
         with open_terminal() as tty:
             tty.write("Review the plan. Type yes to download and install: ")
             require(tty.readline().strip() == "yes", "Installation cancelled; no files changed")
+    if missing:
+        install_missing_dependencies(missing)
+        preflight()
     cache = Path.home() / ".cache/kinaiya"
     require(cache.resolve() == cache.absolute(), "Bootstrap cache cannot use symlink aliases")
     cache.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -245,7 +395,21 @@ def run(argv=None):
     if not args.no_setup and not layout.config.exists():
         # The bootstrap interpreter has no runtime dependencies. Setup must execute
         # in the verified managed venv, not import the native launcher into system Python.
-        result = subprocess.run([str(layout.bin / "kinaiya"), "setup"], check=False)
+        setup_cmd = [str(layout.bin / "kinaiya"), "setup"]
+        if args.endpoint or args.model:
+            if args.yes:
+                setup_cmd.append("--yes")
+            if args.endpoint:
+                setup_cmd.extend(["--endpoint", args.endpoint])
+            if args.model:
+                setup_cmd.extend(["--model", args.model])
+            if args.credential_env:
+                setup_cmd.extend(["--credential-env", args.credential_env])
+            if args.allow_cloud:
+                setup_cmd.append("--allow-cloud")
+            if args.converse:
+                setup_cmd.append("--converse")
+        result = subprocess.run(setup_cmd, check=False)
         require(result.returncode == 0, "Code installed; setup incomplete. Run kinaiya setup explicitly")
 
 
