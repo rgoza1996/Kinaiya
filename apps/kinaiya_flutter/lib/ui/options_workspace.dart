@@ -33,6 +33,7 @@ import 'options_context_history.dart';
 import 'presentation_settings.dart';
 import 'settings_controls.dart';
 import 'setup_dialog.dart';
+import 'visual_theme.dart';
 import 'widgets.dart';
 import 'motion_transition.dart';
 
@@ -903,19 +904,10 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
                       ),
                     ),
                     for (final page in category.pages)
-                      ListTile(
+                      KinaiyaSidebarDestination(
                         key: ValueKey('options-${page.name}'),
                         selected: page == _page,
-                        selectedColor: Theme.of(
-                          context,
-                        ).colorScheme.onPrimaryContainer,
-                        selectedTileColor: Theme.of(
-                          context,
-                        ).colorScheme.primaryContainer,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        title: Text(page.label),
+                        title: page.label,
                         onTap: () => _select(page),
                       ),
                     const Divider(),

@@ -21,6 +21,7 @@ import 'package:kinaiya_flutter/state/app_state.dart';
 import 'package:kinaiya_flutter/ui/agent_chat.dart';
 import 'package:kinaiya_flutter/ui/character_view.dart';
 import 'package:kinaiya_flutter/ui/settings_controls.dart';
+import 'package:kinaiya_flutter/ui/visual_theme.dart';
 
 import 'converse_stage_test.dart' show StageAudio;
 import 'model_setup_test.dart' show setupFixture;
@@ -865,7 +866,9 @@ void main() {
       );
       expect(
         tester
-            .widget<ListTile>(find.byKey(const ValueKey('options-models')))
+            .widget<KinaiyaSidebarDestination>(
+              find.byKey(const ValueKey('options-models')),
+            )
             .selected,
         isTrue,
       );
@@ -1187,6 +1190,126 @@ void main() {
       expect(f.dispatchedEffect, isFalse);
       expect(tester.takeException(), isNull);
       await f.dispose(tester);
+    },
+  );
+
+  testWidgets(
+    'primary action button and sidebar destination enforce >=48x48 touch bounds, contrast-safe focus/hover/pressed feedback across palettes, disabled state, and single-dispatch keyboard activation',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      for (final theme in [
+        kinaiyaTheme(designSystem: true),
+        kinaiyaTheme(designSystem: true, brightness: Brightness.dark),
+        kinaiyaTheme(
+          designSystem: true,
+          primary: const Color(0xFFFFD600),
+          background: const Color(0xFF101820),
+        ),
+      ]) {
+        var primaryDispatches = 0;
+        var destinationDispatches = 0;
+        var disabledDispatches = 0;
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: theme,
+            home: Scaffold(
+              body: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  FilledButton(
+                    key: const ValueKey('pilot-primary-button'),
+                    style: kinaiyaPrimaryButtonStyle(theme.colorScheme),
+                    onPressed: () => primaryDispatches++,
+                    child: const Text('Connect'),
+                  ),
+                  FilledButton(
+                    key: const ValueKey('pilot-primary-disabled'),
+                    style: kinaiyaPrimaryButtonStyle(theme.colorScheme),
+                    onPressed: null,
+                    child: const Text('Disabled Connect'),
+                  ),
+                  SizedBox(
+                    width: 264,
+                    child: KinaiyaSidebarDestination(
+                      key: const ValueKey('pilot-sidebar-destination'),
+                      title: 'Models',
+                      subtitle: 'Role bindings',
+                      selected: true,
+                      onTap: () => destinationDispatches++,
+                    ),
+                  ),
+                  SizedBox(
+                    width: 264,
+                    child: KinaiyaSidebarDestination(
+                      key: const ValueKey('pilot-sidebar-disabled'),
+                      title: 'Disabled Destination',
+                      enabled: false,
+                      onTap: () => disabledDispatches++,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        // 1. Touch target bounds >= 48x48.
+        final primarySize = tester.getSize(
+          find.byKey(const ValueKey('pilot-primary-button')),
+        );
+        expect(primarySize.width, greaterThanOrEqualTo(48));
+        expect(primarySize.height, greaterThanOrEqualTo(48));
+
+        final destSize = tester.getSize(
+          find.byKey(const ValueKey('pilot-sidebar-destination')),
+        );
+        expect(destSize.width, greaterThanOrEqualTo(48));
+        expect(destSize.height, greaterThanOrEqualTo(48));
+
+        // 2. Contrast-safe focused/hovered/pressed style resolution.
+        final style = kinaiyaPrimaryButtonStyle(theme.colorScheme);
+        final focusSide = style.side?.resolve({WidgetState.focused});
+        expect(focusSide, isNotNull);
+        expect(focusSide!.width, 2);
+        expect(style.overlayColor?.resolve({WidgetState.hovered}), isNotNull);
+        expect(style.overlayColor?.resolve({WidgetState.pressed}), isNotNull);
+        expect(
+          style.overlayColor?.resolve({WidgetState.disabled}),
+          Colors.transparent,
+        );
+
+        // 3. Screen reader labels & states.
+        expect(
+          tester
+              .getSemantics(
+                find.byKey(const ValueKey('pilot-sidebar-destination')),
+              )
+              .label,
+          contains('Models'),
+        );
+
+        // 4. Keyboard focus and single-dispatch activation on primary button and sidebar destination.
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pump();
+        expect(primaryDispatches, 1);
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pump();
+        expect(destinationDispatches, 1);
+
+        // 5. Disabled controls cannot be activated by tap.
+        await tester.tap(find.byKey(const ValueKey('pilot-primary-disabled')));
+        await tester.tap(find.byKey(const ValueKey('pilot-sidebar-disabled')));
+        await tester.pump();
+        expect(disabledDispatches, 0);
+      }
+      semantics.dispose();
     },
   );
 }
