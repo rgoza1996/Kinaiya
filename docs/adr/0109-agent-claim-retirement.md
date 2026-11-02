@@ -105,6 +105,19 @@ All 188 affected local regressions passed with unchanged deadlines. The baseline
 also passed the two cases locally, so no causal timeout repair or performance
 claim follows. The changed publication head still requires passing CI.
 
+The following [fresh-graph reuse qualification](../../evaluation/evidence/native-report-fresh-reuse-2026-11-02.json)
+records source `5bae42ea`: the complete Context constructor replaces two
+immediately repeated validators, and `_schema` locally encodes five freshly
+parsed or constructed operands without recursively revalidating those same
+private graphs. Every encoding still walks the complete actual graph. Public
+validators, old native-state bridges, fresh observations, pre-commit passes and
+transaction/cleanup guards remain unchanged; there is no cross-call authority
+cache. All 188 unchanged regressions pass, with independent source and artifact
+review. CI442 still failed the same two eight-second Python 3.12 cases on the
+earlier `102913a7` head; iOS never acquired a hosted runner. These results remain
+separate from the new local qualification. Changed-head CI is required; no
+timeout cause or causal timing repair is established.
+
 The original oversized conversation fixture was invalid: Store rejects a
 serialized AppendRequest above 65,536 bytes. Its failed run is retained rather
 than called a client-capacity regression. Corrected controls exercise exact
