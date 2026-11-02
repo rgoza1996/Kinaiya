@@ -102,6 +102,34 @@ slot release, the durable inbox and embedded owner editor remain required before
 The historical source cutoff above and frozen 8808 settings preview are unchanged;
 this addendum establishes no live model/device or full-roadmap qualification.
 
+## November 1 native d1 text Decisions increment
+
+[ADR0106](adr/0106-native-d1-decisions.md) adds an explicit local native d1
+provider, exact catalog/host selection, native request captures and model pins,
+and embedded provider/Decisions editors. Its owner-entered confidence cutoff is
+a refusal policy. Saving does not load a model or establish readiness. Native
+send/read/sole-close ownership survives cancellation; a cancelled or expired
+exchange cannot become a routing result after cleanup.
+
+[Offline evidence](../evaluation/evidence/native-d1-text-integration-2026-11-01.json)
+records 160 native checks, 497 legacy/authority checks and 193 post-main-merge
+checks (including those 160), with original failures and justified new-fixture
+corrections retained. Flutter analysis, format and a local release web build
+passed. The first main-based full Flutter run had 1,016 passes and one existing
+random bubble-drag failure; unchanged exact-case/module reruns passed without
+erasing that result. Exact published-head CI remains a separate merge gate.
+After the independently reviewed bubble and cancellation fixtures merged in
+main `30fc0bf`, the complete native app passed all 1,018 Flutter tests and the
+160 native checks at `bc724bb`. All 1,281 tracked pins stayed unchanged during
+qualification. Production app inputs remain byte identical to the earlier
+analysis/format/release-build source. The same evidence retains the original
+failures and distinguishes this later pass; new exact-head CI is still required.
+These controlled-response tests qualify harness behavior, independently of model
+accuracy and model-dependent latency measurements.
+Direct multimodal Decisions, native Omni speech, model quality/latency/VRAM and
+the complete local demonstration remain unqualified under [#204](https://github.com/rgoza1996/Kinaiya/issues/204).
+This increment does not change the historical cutoff or close the full roadmap.
+
 ## Milestone status
 
 The [native operating-mode prerequisite](adr/0105-agent-operating-modes.md) for
@@ -237,9 +265,9 @@ Eight setup bubbles have randomized valid positions, slow bounded collisions, in
 
 Agent's two sidebars, real catalog/session pagination and native immutable session/task pins are implemented by [PR159](https://github.com/rgoza1996/Kinaiya/pull/159). Selection is not promotion. Unassociated history remains unassociated and a host with no configured selector registry exposes native Seed Agent; a configured empty or failed catalog does not invent that fallback. The current extension kind is `context_selector.v1`, not an entire self-generated Agent runtime. Project/media libraries and arbitrary generated navigation remain broader design work. [Workspace API](agent-workspace-api.md) and [ADR0065](adr/0065-agent-sidebars.md) define uncertainty and ownership.
 
-The default idle atlas sits on water under the moon; the bundled flat backgrounds use an anchored water contact and responsive desktop/phone artwork. [ADR0055](adr/0055-seated-idle-and-live-timing.md). A fresh confirmed owner-off shows sleeping Home artwork. General unavailable/sleep visual mapping remains to reconcile with explicit failure/unknown/intent labels; the running implementation must not be described as already displaying sleeping art for every unavailable state.
+The default idle atlas sits on water under the moon; the bundled flat backgrounds use an anchored water contact and responsive desktop/phone artwork. [ADR0055](adr/0055-seated-idle-and-live-timing.md). A confirmed owner-off or unavailable Converse shows the sleeping Home sprite, independently of Agent availability; the visual does not assert owner intent. A resource handoff alone does not imply sleep.
 
-Playback-synchronized close-up mouth motion and restrained generated mouth poses are merged in [PR158](https://github.com/rgoza1996/Kinaiya/pull/158). Actual decoded PCM/playback timing drives amplitude states; silence, Stop, stale generations and motion preferences close the mouth. Timed viseme input is optional; current providers supply no qualified phoneme timing. The Penpot chat's newer removal of hair ornaments, tiny chest mole and moonlight-highlight refinements are reference artwork only at the cutoff. No assertion is made that they are in the released pack.
+Playback-synchronized close-up mouth motion and restrained generated mouth poses are merged in [PR158](https://github.com/rgoza1996/Kinaiya/pull/158). Actual decoded PCM/playback timing drives amplitude states; silence, Stop, stale generations and motion preferences close the mouth. Timed viseme input is optional; current providers supply no qualified phoneme timing. The revised seated idle and Converse portraits use the updated hair highlights and chest mole; the older core and activity atlases may still use the original design.
 
 The latest Decisions desktop mockup is complete as a design; the design chat reports condensed mobile scripts and visual-only prototype filters/copy controls. Production has its own native-backed literal inspection and responsive tests. Those are separate artifacts: neither the prototype's examples nor production code prove every Penpot frame is finished or synchronized.
 

@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 
 import '../config/connection.dart';
 import '../config/service_root.dart';
+import '../config/transport_problem.dart';
 import 'models.dart';
 
 class CompanionFailure implements Exception {
@@ -105,9 +106,9 @@ class CompanionClient {
       throw const CompanionFailure(
         'The host returned an unsupported response.',
       );
-    } catch (_) {
-      throw const CompanionFailure(
-        'Host unavailable. Check the connection and retry.',
+    } catch (error) {
+      throw CompanionFailure(
+        transportProblemMessage(classifyTransportError(error)),
       );
     } finally {
       _requests.remove(client);

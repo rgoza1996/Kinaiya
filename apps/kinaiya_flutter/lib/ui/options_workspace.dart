@@ -7,8 +7,9 @@ import '../api/agent_model_client.dart';
 import '../api/agent_runtime_settings.dart';
 import '../api/agent_workspace.dart';
 import '../api/client.dart';
-import '../config/options_catalog.dart';
 import '../config/options_navigation.dart';
+import '../distribution/build_identity.dart';
+import '../distribution/release_panel.dart';
 import '../presentation/controller.dart';
 import '../state/app_state.dart';
 import '../state/agent_model_writes.dart';
@@ -882,9 +883,8 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
         'Local conversation. Independent work. Inspectable decisions.',
       ),
       const SizedBox(height: 24),
-      Text(const SettingsBuildInfo.fromEnvironment().label),
-      if (const SettingsBuildInfo.fromEnvironment().revision.isNotEmpty)
-        SelectableText(const SettingsBuildInfo.fromEnvironment().revision),
+      // Release provenance and the explicit, user-initiated update check.
+      const BuildAndUpdatesPanel(app: DistributedApp.kinaiya),
     ]),
   };
 

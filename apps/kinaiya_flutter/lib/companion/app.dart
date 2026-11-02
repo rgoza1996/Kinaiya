@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../distribution/build_identity.dart';
+import '../distribution/release_panel.dart';
 import 'controller.dart';
 import 'models.dart';
 
@@ -264,6 +266,16 @@ class _CompanionHomeState extends State<CompanionHome>
                   ..._state.calls.map(_call),
                 ] else
                   _pairing(),
+                const Divider(height: 40),
+                const ExpansionTile(
+                  key: ValueKey('companion-about'),
+                  title: Text('About this build'),
+                  childrenPadding: EdgeInsets.only(bottom: 16),
+                  expandedCrossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    BuildAndUpdatesPanel(app: DistributedApp.companion),
+                  ],
+                ),
               ],
             ),
           ),
