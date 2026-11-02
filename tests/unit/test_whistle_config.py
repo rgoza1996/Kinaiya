@@ -1,5 +1,6 @@
 """Explicit managed selection; construction only, no worker or model execution."""
 
+import asyncio
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -10,13 +11,14 @@ import pytest
 from packages.resources.processes import WorkerSpec
 from services.common.auth import Auth
 from services.resources import launcher
+from services.resources.whistle import WhistleEndpoint
 
 
 @pytest.mark.parametrize("selection", ["whisper", "whistle", "missing", "wrong-port"])
 async def test_resources_selects_only_explicit_matching_whistle_and_preserves_voice(
     tmp_path, monkeypatch, selection
 ):
-    clients, selected = [], []
+    clients, selected, endpoints = [], [], []
     original = httpx.AsyncClient
 
     def client(*args, **kwargs):
@@ -26,9 +28,13 @@ async def test_resources_selects_only_explicit_matching_whistle_and_preserves_vo
 
     def factory(settings, root, workspace):
         selected.append(settings)
+        directory = tmp_path / "whistle-ipc"
+        directory.mkdir(mode=0o700)
+        endpoint = WhistleEndpoint(directory)
+        endpoints.append(endpoint)
         return WorkerSpec(
             "whistle", (sys.executable, "-c", "raise AssertionError('no launch')"), root
-        ), object()
+        ), endpoint
 
     monkeypatch.setattr(httpx, "AsyncClient", client)
     monkeypatch.setattr(launcher, "whistle_worker", factory)
@@ -70,6 +76,19 @@ async def test_resources_selects_only_explicit_matching_whistle_and_preserves_vo
         assert voice["url"] == "http://127.0.0.1:8915" and voice["profile"] == "Kokoro 82M"
     finally:
         if app is not None:
-            await app.state.coordinator.close()
+            try:
+                await app.state.coordinator.close()
+            finally:
+                owner = app.state.coordinator._close_owner
+                if owner is not None:
+                    await asyncio.shield(owner)
+            assert app.state.coordinator._retirement_complete
+            assert app.state.coordinator.manager._closed
+        for endpoint in endpoints:
+            assert endpoint.ready is None
+            assert not endpoint.stream_closes.pending and not endpoint.stream_closes.owners
+            assert not endpoint.stream_closes.failed
+            endpoint.close()
+            assert not endpoint.directory.exists()
         for connection in clients:
             await connection.aclose()

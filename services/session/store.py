@@ -85,6 +85,7 @@ ALLOWED_KINDS = {
         "routing.window_status",
     },
     "resources": {"resource.changed"},
+    "standing-supervisor": {"agent.standing-command"},
 }
 
 
@@ -425,6 +426,14 @@ class Store:
 
     def delete(self, session_id: str):
         with self.lock, self.db:
+            if (
+                self.db.execute(
+                    "SELECT 1 FROM entries WHERE session_id=? AND kind='agent.standing-command' LIMIT 1",
+                    (session_id,),
+                ).fetchone()
+                is not None
+            ):
+                raise JournalError("Admitted standing task history must be retained")
             self.db.execute("DELETE FROM sessions WHERE session_id=?", (session_id,))
 
     def entry(self, event_id: str) -> JournalEntry:
@@ -490,6 +499,87 @@ class Store:
         request = AgentExportRequest.model_validate(request)
         try:
             with self.lock:
+                # A standing initial cannot acquire disclosure authority by
+                # presenting the old owner/Decisions packet, even if one native
+                # projection or the initial entry is missing/corrupted.
+                try:
+                    standing = self.db.execute(
+                        "WITH native AS (SELECT kind,writer,"
+                        "CASE WHEN typeof(request)='text' AND length(CAST(request AS BLOB)) "
+                        "BETWEEN 1 AND 65536 THEN CASE WHEN json_valid(request) THEN request END "
+                        "END AS req,"
+                        "CASE WHEN typeof(value)='text' AND length(CAST(value AS BLOB)) "
+                        "BETWEEN 1 AND 69632 THEN CASE WHEN json_valid(value) THEN value END "
+                        "END AS val FROM entries) "
+                        "SELECT 1 FROM native WHERE (kind='agent.standing-command' "
+                        "OR writer='standing-supervisor' "
+                        "OR json_extract(req,'$.kind')='agent.standing-command' "
+                        "OR json_extract(val,'$.kind')='agent.standing-command') AND ("
+                        "req IS NULL OR val IS NULL "
+                        "OR coalesce(json_type(req,'$.payload.task_id'),'')!='text' "
+                        "OR coalesce(json_type(val,'$.payload.task_id'),'')!='text' "
+                        "OR json_extract(req,'$.payload.task_id')=? "
+                        "OR json_extract(val,'$.payload.task_id')=? "
+                        "OR EXISTS(SELECT 1 FROM json_each(req,'$.task_refs') "
+                        "WHERE type='text' AND value=?) "
+                        "OR EXISTS(SELECT 1 FROM json_each(val,'$.task_refs') "
+                        "WHERE type='text' AND value=?)) LIMIT 1",
+                        (request.task_id,) * 4,
+                    ).fetchone()
+                    table = self.db.execute(
+                        "SELECT type FROM sqlite_schema WHERE name='standing_task_admissions'"
+                    ).fetchone()
+                    if table is not None:
+                        if table["type"] != "table":
+                            raise JournalError("Standing export authority is unavailable")
+                        from packages.contracts.standing_admission import StandingInitialProof
+                        from packages.contracts.standing_work import canonical_bytes
+
+                        links = self.db.execute(
+                            "SELECT CASE WHEN typeof(claim_id)='text' "
+                            "AND length(CAST(claim_id AS BLOB))=64 THEN claim_id END AS claim_id,"
+                            "CASE WHEN typeof(event_id)='text' "
+                            "AND length(CAST(event_id AS BLOB)) BETWEEN 1 AND 512 "
+                            "THEN event_id END AS event_id,"
+                            "CASE WHEN typeof(sequence)='integer' THEN sequence END AS sequence,"
+                            "CASE WHEN typeof(proof)='text' "
+                            "AND length(CAST(proof AS BLOB)) BETWEEN 1 AND 163840 "
+                            "THEN proof END AS body FROM standing_task_admissions LIMIT 2"
+                        ).fetchall()
+                        if len(links) > 1:
+                            raise JournalError("Standing export authority is unavailable")
+                        linked = None
+                        for link in links:
+                            if type(link["body"]) is not str:
+                                raise JournalError("Standing export authority is unavailable")
+                            proof = StandingInitialProof.from_json(link["body"].encode("utf-8"))
+                            if (
+                                proof.canonical_bytes().decode("utf-8") != link["body"]
+                                or link["claim_id"] != proof.claim.claim_id
+                                or link["event_id"] != proof.event_id
+                                or type(link["sequence"]) is not int
+                                or link["sequence"] != proof.sequence
+                            ):
+                                raise JournalError("Standing export authority is unavailable")
+                            claims = self.db.execute(
+                                "SELECT CASE WHEN typeof(claim)='text' "
+                                "AND length(CAST(claim AS BLOB)) BETWEEN 1 AND 147456 "
+                                "THEN claim END AS body FROM standing_execution_claims "
+                                "WHERE claim_id=? LIMIT 2",
+                                (proof.claim.claim_id,),
+                            ).fetchall()
+                            if len(claims) != 1 or claims[0]["body"] != canonical_bytes(
+                                proof.claim
+                            ).decode("utf-8"):
+                                raise JournalError("Standing export authority is unavailable")
+                            if proof.claim.request.task.task_id == request.task_id:
+                                linked = True
+                    else:
+                        linked = None
+                    if standing is not None or linked is not None:
+                        raise JournalError("Standing tasks require standing export admission")
+                except Exception:
+                    raise JournalError("Standing export authority is unavailable") from None
                 session = self.session(request.session_id)
                 if (session.thread_id, session.epoch) != (request.thread_id, request.epoch):
                     raise JournalError("Agent export source authority is unavailable")
@@ -767,6 +857,8 @@ class Store:
         return event
 
     def append(self, request: AppendRequest, role: str) -> JournalEntry:
+        if request.kind == "agent.standing-command":
+            raise JournalError("Standing tasks require native admission")
         if (
             request.kind == "agent.command"
             and isinstance(request.payload, dict)
@@ -1606,6 +1698,11 @@ class Store:
     def close(self):
         self.db.close()
 
+    def transcript_scan(self, request):
+        from services.session.transcript_scan import transcript_scan
+
+        return transcript_scan(self, request)
+
 
 class LocalJournal:
     """In-process adapter used by tests and single-service development, same authority checks."""
@@ -1666,6 +1763,11 @@ class LocalJournal:
 
     async def read(self, **kwargs):
         return self.store.read(**kwargs)
+
+    async def transcript_scan(self, request):
+        if self.role != "agent":
+            raise PermissionError("Transcript scan requires Agent")
+        return self.store.transcript_scan(request)
 
     async def recent(self, **kwargs):
         return self.store.recent(**kwargs)

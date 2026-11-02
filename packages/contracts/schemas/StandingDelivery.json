@@ -1,0 +1,67 @@
+{
+  "$defs": {
+    "StandingQuietHours": {
+      "additionalProperties": false,
+      "properties": {
+        "timezone": {
+          "title": "Timezone",
+          "type": "string"
+        },
+        "start_local_time": {
+          "title": "Start Local Time",
+          "type": "string"
+        },
+        "end_local_time": {
+          "title": "End Local Time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "timezone",
+        "start_local_time",
+        "end_local_time"
+      ],
+      "title": "StandingQuietHours",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "kind": {
+      "const": "in_app",
+      "title": "Kind",
+      "type": "string"
+    },
+    "attention": {
+      "enum": [
+        "routine",
+        "important"
+      ],
+      "title": "Attention",
+      "type": "string"
+    },
+    "preview": {
+      "const": "status_only",
+      "title": "Preview",
+      "type": "string"
+    },
+    "quiet_hours": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/StandingQuietHours"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "kind",
+    "attention",
+    "preview",
+    "quiet_hours"
+  ],
+  "title": "StandingDelivery",
+  "type": "object"
+}

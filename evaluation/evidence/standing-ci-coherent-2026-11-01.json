@@ -1,0 +1,276 @@
+{
+  "record_date": "2026-11-01",
+  "scope": "Coherent standing-work branch qualification with scalar schema metadata reuse and independently reviewed fixture corrections; no native d1 feature mixed into PR259.",
+  "status": "Scoped local qualification; original full-order Python3.11 CI trigger remains unresolved and new exact-head CI is required.",
+  "issues": [
+    "https://github.com/rgoza1996/Kinaiya/issues/239",
+    "https://github.com/rgoza1996/Kinaiya/issues/270",
+    "https://github.com/rgoza1996/Kinaiya/issues/273"
+  ],
+  "pull_requests": [
+    "https://github.com/rgoza1996/Kinaiya/pull/259",
+    "https://github.com/rgoza1996/Kinaiya/pull/275",
+    "https://github.com/rgoza1996/Kinaiya/pull/276"
+  ],
+  "source": {
+    "published_baseline": "9a1de6a0e2b74d57844106ca879f316e41d08c76",
+    "qualified_head": "15c222b392918039602665e19c3607964dd1a7f2",
+    "merged_main": "f253c447a1374554da839178d7729ac2d89b88ec",
+    "source_author_commit": "8cb19df1f2b3a9c6b784b745522ee0fb152997a5",
+    "source_integration_commit": "50f44fcf17a99cca38e3780884e8a52f4415b001",
+    "source_path": "packages/contracts/standing_admission.py",
+    "source_sha256": "fd6601303745789a81500aa50799b0fb90f97cac2e5194d498ce35c5437cde00",
+    "change": "Construct two private TypeAdapters once for static fully resolved scalar annotations; invoke fresh strict validation for every actual input. All exact-type, NUL, UTF-8, graph, canonical, hash, identity, authority and join checks remain.",
+    "no_value_or_proof_cache": true,
+    "fixture_commits": {
+      "Converse_author": "e1b7d6712615f082f77169f769d280614c590368",
+      "Converse_replay": "6e3c5ea651b1ea6ea444ed1a3978d4ec9b96953e",
+      "bubble_author": "4635ce783f0a3cba4ce7136e011b158e16ae229f",
+      "bubble_replay": "15c222b392918039602665e19c3607964dd1a7f2"
+    },
+    "native_d1_not_present": true
+  },
+  "original_ci": {
+    "head": "9a1de6a0e2b74d57844106ca879f316e41d08c76",
+    "run_url": "https://github.com/rgoza1996/Kinaiya/actions/runs/41367165450",
+    "python311": {
+      "job_id": 125029659548,
+      "result": "failure",
+      "passed": 10140,
+      "failed": 1,
+      "skipped": 6,
+      "deselected": 2,
+      "warnings": 1,
+      "pytest_seconds": 2336.83
+    },
+    "python312": {
+      "job_id": 125029659931,
+      "result": "cancelled"
+    },
+    "flutter_android_ios": "success",
+    "failure_case": "tests/integration/test_standing_resources_handoff.py::test_new_action_original_is_frozen_before_context_await_and_same_key_conflicts",
+    "failure": "Original unchanged four-second wait expired after context-gate release. CI snapshot showed capture.started finished while the facade waiter was cancelled. Later capture suppression can result from that cancellation; it does not establish its original cause.",
+    "root_cause": "Unresolved. A local pass is not a flakiness diagnosis or proof that this small optimization fixes that original full-order CI failure.",
+    "prior_failed_runs_retained": [
+      41364558355
+    ]
+  },
+  "read_only_diagnostics": {
+    "local_environment": "Existing pinned dependencies, Python3.12.3; original CI failure was Python3.11.",
+    "plain_original_case": "Unchanged case passed; transparent phase replay observed 2.831299s wall and 2.644207s process CPU after gate release. Nested phase measurements are not additive.",
+    "profile_original_case": "Original four-second wait failed under diagnostic cProfile. The capture future was pending, differing from CI; this is not an exact reproduction of the original CI trigger. Original owners were positively joined afterward.",
+    "schema_work": "Profile observed repeated scalar TypeAdapter construction. The reviewed change removes that repeated schema construction while preserving per-value validation; no speedup or CI-cause-resolution claim.",
+    "differential": "Code-adjacent probe retained the same outcomes/error type/text across78 observations. It is not an independent oracle or performance benchmark."
+  },
+  "python_qualification": {
+    "head": "15c222b392918039602665e19c3607964dd1a7f2",
+    "python": "Python 3.12.3",
+    "command": [
+      "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+      "-m",
+      "pytest",
+      "-q",
+      "-p",
+      "no:cacheprovider",
+      "-o",
+      "junit_family=xunit1",
+      "-o",
+      "asyncio_default_fixture_loop_scope=function",
+      "--junitxml=/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/259-ci-coherent-215-v1/qualification.xml",
+      "-m",
+      "not live",
+      "tests/unit/test_standing_admission_contract.py",
+      "tests/unit/test_standing_admission_closure.py",
+      "tests/unit/test_standing_resources_contract.py",
+      "tests/integration/test_standing_resources_handoff.py::test_new_action_original_is_frozen_before_context_await_and_same_key_conflicts",
+      "tests/integration/test_converse_window_recovery.py"
+    ],
+    "result": {
+      "passed": 215,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "warnings": 0,
+      "pytest_seconds": 92.47
+    },
+    "per_module_counts": {
+      "tests.integration.test_converse_window_recovery": 158,
+      "tests.integration.test_standing_resources_handoff": 1,
+      "tests.unit.test_standing_admission_closure": 16,
+      "tests.unit.test_standing_admission_contract": 27,
+      "tests.unit.test_standing_resources_contract": 13
+    },
+    "all_tracked_pins_stable": 1431,
+    "head_unchanged": true,
+    "original_resource_case_and_three_contract_modules_byte_exact_CI_baseline": true,
+    "retained_actual_cleanup": {
+      "Converse_lost_ACK_cleanup": "Reviewed Faults.run preserves actual acquired HTTP response and original sole-close Task through injected timeout/cancellation before rethrowing. Full158 retains source response-close assertions, including new delay controls. This is localASGI/HTTPXsynthetictransport evidence, not physicalaudio/model proof.",
+      "Converse_negative_provider_cleanup": "Twelve parameterized cases (three negative endings: close_error, close_cancel, close_error_diagnostic; each with compatible/meta and local/http) intentionally retain cleanup_failed and original pending records, reject later generation, and do not demonstrate positive retirement. The underlying215 receipt describes the six adapter/ending combinations; this public summary states the full twelve-case expansion.",
+      "overall": "0testerrors/teardownerrors/warnings. No model/GPU/provider endpoint/live service/config/device/install performed. Native resource worker is temporary synthetic CPU fixture only. No newCI/push bythisagent.",
+      "resource_handoff_case": "Unchanged fixture asserts actual disposableworker.process.wait returncode; stop evidence reaped/group_empty/ownership_verified, emptyresidualPIDs/noownedidentity, nopendingspawn/cleanup and positive drain Task joins. Its real JournalClients/CountedStreams retain original response/sole-close ownership and join registry; actual assertions passed."
+    },
+    "overlap": "These215 contain the earlier57-case scalar group and full158-case Converse group; counts are not additive."
+  },
+  "interface_qualification": {
+    "head": "15c222b392918039602665e19c3607964dd1a7f2",
+    "sdk_commit": "737ba8f885dc774b53b442759999a312c9461e4e",
+    "result": {
+      "passed": 1071,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "runner_elapsed": "01:13"
+    },
+    "analyze": "No issues found",
+    "format": "236files/0changes",
+    "release_web_build": "Passed; local artifact only, no preview or deployment",
+    "commands": [
+      {
+        "command": "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/flutter/bin/flutter test --no-pub --reporter expanded",
+        "exit_code": 0,
+        "log": "tests.log",
+        "result": "1071 passed,0failed/errors/skips; runner01:13",
+        "session_id": 51786
+      },
+      {
+        "command": "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/flutter/bin/flutter analyze --no-pub",
+        "exit_code": 0,
+        "log": "analyze.log",
+        "result": "No issues found (full ROOT M7 app)",
+        "session_id": 89472
+      },
+      {
+        "command": "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/flutter/bin/cache/dart-sdk/bin/dart format --output=none --set-exit-if-changed lib test",
+        "exit_code": 0,
+        "log": "format.log",
+        "result": "236 files,0changed",
+        "session_id": 51512
+      },
+      {
+        "command": "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/flutter/bin/flutter build web --no-pub --release --no-web-resources-cdn",
+        "exit_code": 0,
+        "log": "build-web.log",
+        "result": "Built build/web; Wasm dry run succeeded; local artifact only",
+        "session_id": 99706
+      }
+    ],
+    "app_pins_sha256": "14625dc127f91da5687d9a6c01b9eb191a8007f211261ab4e3b4b005c1ff9259",
+    "all_tracked_pins_stable": 1431,
+    "all_app_pins_stable": 335,
+    "old_M7_test_tree_files": 101,
+    "other_old_test_tree_files_byte_exact": 100,
+    "only_Dart_change": "Reviewed deterministic bubble fixture",
+    "warning": "Existing expected CupertinoIcons font-family warning remains; release build succeeds. No font/pubspec/source changes made.",
+    "build_artifacts": {
+      "flutter_bootstrap.js": "784fdb992c661789a566d868630fef2fb4cdc1f292fe872ef53b8ce4d526d059",
+      "index.html": "f298506763628afdbccab15a3ba7d10ca2f1e864af5074f2dd55b85bf8e090e4",
+      "main.dart.js": "008c7eba4d6458bad57783b522c35ceb9ecb65b8f002893bf069ed2fef28d9a8",
+      "manifest.json": "23d79dc33e1b8fb9f98e6531f4a5539aa476e08f3f5b139fc3e13f3d1940405c"
+    },
+    "scope": "FlutterVM/widget/static/release compilation; no model/audio/physical resource qualification."
+  },
+  "independent_review": {
+    "kind": "Independent source-only review of exact four-insertion/two-deletion metadata change; no test imports/runs or oracle reads.",
+    "findings": [],
+    "scope": "Resolved static aliases, fresh strict validation of every value, unchanged prechecks and graph/digest/authority behavior, import-order and initialization safety.",
+    "fixture_reviews": "Converse and bubble fixtures have separately recorded independent source reviews. Original assertions and deadlines remain; only intentional fault-timer scope and deterministic bubble setup are changed."
+  },
+  "external_operations": {
+    "inference_calls": 0,
+    "hardware_or_device_requests": 0,
+    "live_service_or_preview_changes": 0,
+    "provider_settings_changes": 0,
+    "dependency_installs": 0
+  },
+  "remaining_gates": [
+    "Exact-head full-project CI, including the unchanged four-second resource case, must pass before merge.",
+    "Physical Resources acquisition/restoration witness and durable report producer are unfinished.",
+    "Claim-wide Agent retirement testimony, positive native settlement and active-claim release are unfinished.",
+    "Recurring scheduler, owner editor, deduplication and durable inbox remain separate M7 work.",
+    "No model quality, native Omni audio, physical voice, readiness, release or whole-roadmap completion is established."
+  ],
+  "artifacts": {
+    "python215": {
+      "owner": "integration",
+      "path": ".dev-run/259-ci-coherent-215-v1/receipt.json",
+      "sha256": "0c1f9408f7dbbeeb63a3b794433bdd49c15cee369e39f4cc0f664d4141f33076",
+      "availability": "Retained locally; raw artifacts are not published by this summary"
+    },
+    "source57": {
+      "owner": "source_author",
+      "path": ".dev-run/259-scalar-validator-reuse-v1/receipt.json",
+      "sha256": "f074145f521e5acdacdd115815ab627ccf096f7e047b9256d2f25180725b849b",
+      "availability": "Retained locally; raw artifacts are not published by this summary"
+    },
+    "source_review": {
+      "owner": "independent_reviewer",
+      "path": ".dev-run/259-standing-adapter-review-v1/receipt.json",
+      "sha256": "d2c5577eb32a21a2eea6127477fef10dd25d13bd6a3f6da95683708265d6186f",
+      "availability": "Retained locally; raw artifacts are not published by this summary"
+    },
+    "ci_failure_log": {
+      "owner": "integration",
+      "path": ".dev-run/259-ci-fixture9a1-python311.log",
+      "sha256": "896e84d64a83ba2eec6e4d42fd970409124cd8b189c1e9be481ef3441821f842",
+      "availability": "Retained locally; raw artifacts are not published by this summary"
+    },
+    "plain_diagnostic": {
+      "owner": "source_author",
+      "path": ".dev-run/259-ci-new-action-context-v1/receipt.json",
+      "sha256": "37a1684ebd93c64cc6a4e5b8be54793e22dd47e8e4fa1a85ab7930e15454b2d4",
+      "availability": "Retained locally; raw artifacts are not published by this summary"
+    },
+    "profile_failure": {
+      "owner": "source_author",
+      "path": ".dev-run/259-ci-new-action-profiler-v1/receipt.json",
+      "sha256": "9d04bbfcd9a60b2f51c7bd13d774596554bf053b2354860d970a169a2e68595e",
+      "availability": "Retained locally; raw artifacts are not published by this summary"
+    },
+    "flutter1071": {
+      "owner": "independent_interface_runner",
+      "path": ".dev-run/259-m7-final-flutter-v1/receipt.json",
+      "sha256": "dbea18f78212d6075435376631435f93e49b70746f1007994d5282ae40d75ae4",
+      "availability": "Retained locally; raw artifacts are not published by this summary"
+    },
+    "negative_case_expansion": {
+      "owner": "source_author",
+      "path": ".dev-run/259-ci-coherent-215-v1/cleanup-negative-count-addendum.json",
+      "sha256": "4a194228bf00e0d740602e18ed63eae54fed3471778e9a83009e2c980df4aea2",
+      "availability": "Retained locally; original215receipt/logs unchanged"
+    },
+    "later_steering69": {
+      "owner": "integration",
+      "path": ".dev-run/228-277-steer-coherent-lo_conaa/receipt.json",
+      "sha256": "efc0a2f66e107751de9ee47a09403f60509807d5510305944a0e59a8a921619b",
+      "availability": "Retained locally; raw artifacts are not published by this summary"
+    }
+  },
+  "later_steering_fixture": {
+    "issue": "https://github.com/rgoza1996/Kinaiya/issues/277",
+    "public_evidence": "evaluation/evidence/steer-preflight-fixture-2026-11-01.json",
+    "source_replay_commits": [
+      "1ff34927a497385ce85551fb2ea869d0a99c5895",
+      "8e345faab263e6737828d9d7d92f77757afc6c88"
+    ],
+    "qualified_head": "8e345faab263e6737828d9d7d92f77757afc6c88",
+    "passed": 69,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "warnings": 0,
+    "pytest_seconds": 8.81,
+    "all_tracked_pins_stable": 1432,
+    "note": "Separate full native-mode module, not a combined run with215 or a full-project CI pass. Production source is unchanged; prior Python215 and Flutter1071 artifacts remain pinned to their original head.",
+    "fixture_sha256": "6044fdb1bf819c9c0924f624e521b71e13823f3af8e2622f0483c818e2946484"
+  },
+  "later_main_merge": "90c9d89d1c725c31c7ea32e0722b670a4d3e1b82; reviewed bubble fixture matches already qualified source, only its public evidence is newly added.",
+  "publication_checks": {
+    "whole_project_ruff": "Passed",
+    "whole_project_format": "744 files already formatted",
+    "schema_export": "Passed, no schema diff",
+    "git_diff_check": "Passed",
+    "python215_input_pins_still_exact": true,
+    "flutter335_app_pins_still_exact": true,
+    "native_d1_absent": true
+  }
+}

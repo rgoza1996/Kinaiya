@@ -1,0 +1,372 @@
+{
+  "schema_version": "1.0",
+  "date": "2026-11-02",
+  "requirements": [
+    "issue239",
+    "issue228",
+    "Roadmap9 action truth",
+    "Roadmap14.3 safe handoff"
+  ],
+  "status": "Offline scoped Resources finalization transport qualified; applicable exact-head CI and parent integration remain required.",
+  "base_head": "a19a1e3ffda46bb280d6b3df9dfce4baeca7573f",
+  "source_head": "fab6e613e17c49cca1ccc9b08a7f9125db97d588",
+  "source_sha256": {
+    "services/resources/api.py": "d5ca1adb8c6e035e5ffe5a307e39ad38a80a57f8738fa9fe666f30db2490026b",
+    "services/resources/standing_client.py": "7840f2354e05e2335313f3da1ef0795df1561997ca7080249a2343ef6f16f263",
+    "services/resources/standing_barrier.py": "318a57cc9fefff39a88cfd4b45a151861379e66378e86d60021ec25313b8004f"
+  },
+  "test_sha256": {
+    "tests/unit/test_standing_resources_finalization_transport_client.py": "23dc8af1746163c53374022a56e09b91491510b35ce0455062655e43084cfaab",
+    "tests/integration/test_standing_resources_finalization_transport_api.py": "68069a60c5112b0b3a156a65ec8fa5e506121f9fc2e32c824cd2f2a432b610ce",
+    "tests/unit/test_standing_resources_finalization_client_deadline.py": "b190d1925296c52badc5b8bb577749e044eb31179d208e7e76278760eb5205fa"
+  },
+  "frozen_contracts": {
+    ".dev-run/239-resources-finalization-rpc-v1.md": "918d042c5234972a6ba8547475799dcd4bbddf3c21f640042fffefff3f220873",
+    ".dev-run/239-resources-finalization-deadline-v2.md": "01aab10877f77b69434192b88f649341372d302f9082a96d21742a8b04fcac7a"
+  },
+  "behavior": [
+    "Two fixed Agent-role finalization/lookup routes reuse the same strict ingress, shared64 actual operations and original producer scope.",
+    "Fresh complete detached request precedes the first await; complete receipt/native/request identity joins and original response sole-close precede positive return.",
+    "One25s public-operation budget includes freeze, readiness, actual HTTP and final receipt validation. Five-second ingress and all existing byte/tree caps remain unchanged.",
+    "Lost replies reconcile exact immutable native history without repeating physical restoration. Lookup cannot manufacture a report.",
+    "Cancellation/late originals stay retained; actual cleanup failure remains sticky. No new pool/client or private executor capability is sent."
+  ],
+  "independence": {
+    "original40": "Frozen tests-only5324e02470f6844d44ace033d4da0c61a3d85f42 before source-author consultation; cherry-picked c41634d. These files remain byte-exact.",
+    "source_aware6": "Written after review of28c3210, frozen488b6e2924aa661e8d7675798e719daee3b1247e before correction; cherry-picked c2a621d. Logical clock advances only after actual complete serializer/readiness/receipt validation.",
+    "reviews": "Independent28c review identified both budget edges. Independent review of correctedfab6e61 found no remaining actionable finding: exact full deadline, old four method/default-exchange compatibility, original ownership and frozen controls were statically checked. No execution was performed by that reviewer.",
+    "root_ast_receipt_sha256": "63ee7083cba4e40d41a787a5e07de7e5e78129ee3a51ac18d194dd742d2569b0",
+    "initial_source_seal_sha256": "6d40984063d48c540a1523fa03caf1c4e0e26c048c8244df114a7ccead34b45d",
+    "original40_seal_sha256": "8b88ce5cd999963aa55dee481c6a09198a51a846582cedda1398a49913418eea",
+    "deadline6_seal_sha256": "1db39c8f4b627e7ae151018079433632555da9a80bc2ff47fee1889777a1b2c6",
+    "correction_review_receipt_sha256": "e09415593c00ec1ec77dc223c9bf2117f7195b0a005ae807ae126228cce30e3c"
+  },
+  "runs": [
+    {
+      "name": "capability_absence",
+      "receipt_local": ".dev-run/239-finalization-rpc-capability-cold-v1-w8qkreqq/receipt.json",
+      "receipt_sha256": "f69cb3231d53117ba11a8c71a511503c84cf4d74d17aa2465c3e3c88f523ff5b",
+      "source_head": "c41634dc88b5f52a4d5927135fd520433fafd4fb",
+      "tracked_inputs": 1495,
+      "pins_preserved": true,
+      "exit_code": 1,
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-m",
+        "not live",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "-o",
+        "junit_family=xunit1",
+        "tests/unit/test_standing_resources_finalization_transport_client.py::test_frozen_resources_finalization_transport_capability_is_present",
+        "--junitxml=/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/239-finalization-rpc-capability-cold-v1-w8qkreqq/junit.xml"
+      ],
+      "elapsed_wall_s": 0.5704217340025934,
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "1",
+          "hostname": "roggoz",
+          "name": "pytest",
+          "skipped": "0",
+          "tests": "1",
+          "time": "0.271",
+          "timestamp": "2026-11-01T23:53:58.552830-08:00"
+        }
+      ]
+    },
+    {
+      "name": "independent40_initial",
+      "receipt_local": ".dev-run/239-finalization-rpc-hot-v1-0lb7dqhg/receipt.json",
+      "receipt_sha256": "8571ed31e80cee0ae6f20083c1e2bd701260c2a001ed573573dde4766f9876de",
+      "source_head": "0cb0e450946b95daa206406a264e5a3edc66615b",
+      "tracked_inputs": 1495,
+      "pins_preserved": true,
+      "exit_code": 0,
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-m",
+        "not live",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "-o",
+        "junit_family=xunit1",
+        "tests/unit/test_standing_resources_finalization_transport_client.py",
+        "tests/integration/test_standing_resources_finalization_transport_api.py",
+        "--junitxml=/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/239-finalization-rpc-hot-v1-0lb7dqhg/junit.xml"
+      ],
+      "elapsed_wall_s": 39.30270299800031,
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "0",
+          "hostname": "roggoz",
+          "name": "pytest",
+          "skipped": "0",
+          "tests": "40",
+          "time": "38.510",
+          "timestamp": "2026-11-02T00:03:40.498981-08:00"
+        }
+      ]
+    },
+    {
+      "name": "old254_before_correction",
+      "receipt_local": ".dev-run/239-finalization-rpc-old-compat-v1-hfar8cm3/receipt.json",
+      "receipt_sha256": "a636b267c29706d1ba8172d5414c710171a7b977de1587a2b3e994918a1bd894",
+      "source_head": "0cb0e450946b95daa206406a264e5a3edc66615b",
+      "tracked_inputs": 1495,
+      "pins_preserved": true,
+      "exit_code": 0,
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-m",
+        "not live",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "-o",
+        "junit_family=xunit1",
+        "tests/unit/test_standing_resource_barrier_client.py",
+        "tests/unit/test_standing_resource_finalization_client.py",
+        "tests/integration/test_standing_resource_barrier.py",
+        "tests/integration/test_standing_resource_finalization_api.py",
+        "--junitxml=/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/239-finalization-rpc-old-compat-v1-hfar8cm3/junit.xml"
+      ],
+      "elapsed_wall_s": 190.70230885699857,
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "0",
+          "hostname": "roggoz",
+          "name": "pytest",
+          "skipped": "0",
+          "tests": "254",
+          "time": "190.166",
+          "timestamp": "2026-11-02T00:07:49.208919-08:00"
+        }
+      ]
+    },
+    {
+      "name": "source_aware_deadline6_cold",
+      "receipt_local": ".dev-run/239-finalization-deadline-cold-v1-1h4fz73e/receipt.json",
+      "receipt_sha256": "ba432b49e63319ee14b09ec9d85266bed3fcb8821370ccaab0bbdade05f4caf8",
+      "source_head": "c2a621d90e017a543a98f32b16680eb327252eb0",
+      "tracked_inputs": 1496,
+      "pins_preserved": true,
+      "exit_code": 1,
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-m",
+        "not live",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "-o",
+        "junit_family=xunit1",
+        "tests/unit/test_standing_resources_finalization_client_deadline.py",
+        "--junitxml=/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/239-finalization-deadline-cold-v1-1h4fz73e/junit.xml"
+      ],
+      "elapsed_wall_s": 1.044600384993828,
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "6",
+          "hostname": "roggoz",
+          "name": "pytest",
+          "skipped": "0",
+          "tests": "6",
+          "time": "0.721",
+          "timestamp": "2026-11-02T00:11:21.325031-08:00"
+        }
+      ]
+    },
+    {
+      "name": "deadline6_and_independent40_hot",
+      "receipt_local": ".dev-run/239-finalization-deadline-and-rpc-hot-v1-k7vzwcde/receipt.json",
+      "receipt_sha256": "a6e3d4f7c50000e4d0d801e2677d8dd9e26ec8cd4ce69a39882f9224d4f9efa9",
+      "source_head": "fab6e613e17c49cca1ccc9b08a7f9125db97d588",
+      "tracked_inputs": 1496,
+      "pins_preserved": true,
+      "exit_code": 0,
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-m",
+        "not live",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "-o",
+        "junit_family=xunit1",
+        "tests/unit/test_standing_resources_finalization_client_deadline.py",
+        "tests/unit/test_standing_resources_finalization_transport_client.py",
+        "tests/integration/test_standing_resources_finalization_transport_api.py",
+        "--junitxml=/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/239-finalization-deadline-and-rpc-hot-v1-k7vzwcde/junit.xml"
+      ],
+      "elapsed_wall_s": 39.951563234004425,
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "0",
+          "hostname": "roggoz",
+          "name": "pytest",
+          "skipped": "0",
+          "tests": "46",
+          "time": "39.106",
+          "timestamp": "2026-11-02T00:12:47.704368-08:00"
+        }
+      ]
+    },
+    {
+      "name": "old254_after_correction",
+      "receipt_local": ".dev-run/239-finalization-rpc-old-compat-hot-v2-k_f6ie11/receipt.json",
+      "receipt_sha256": "2cb8d2a8e3b4f3081804521c4d192ef2ca6dadf8d48fb61a8d316d51bd2ad179",
+      "source_head": "fab6e613e17c49cca1ccc9b08a7f9125db97d588",
+      "tracked_inputs": 1496,
+      "pins_preserved": true,
+      "exit_code": 0,
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-m",
+        "not live",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "-o",
+        "junit_family=xunit1",
+        "tests/unit/test_standing_resource_barrier_client.py",
+        "tests/unit/test_standing_resource_finalization_client.py",
+        "tests/integration/test_standing_resource_barrier.py",
+        "tests/integration/test_standing_resource_finalization_api.py",
+        "--junitxml=/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/239-finalization-rpc-old-compat-hot-v2-k_f6ie11/junit.xml"
+      ],
+      "elapsed_wall_s": 190.51635477999662,
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "0",
+          "hostname": "roggoz",
+          "name": "pytest",
+          "skipped": "0",
+          "tests": "254",
+          "time": "189.964",
+          "timestamp": "2026-11-02T00:13:42.954526-08:00"
+        }
+      ]
+    }
+  ],
+  "static": {
+    "receipt_local": ".dev-run/239-finalization-rpc-static-v1-n0amodyy/receipt.json",
+    "receipt_sha256": "3a83bcd7566fe88e5d16a518bbaba75e0bd29fcf2ccbb869799ef5ded6d16603",
+    "changed_pins": [],
+    "commands": [
+      {
+        "command": [
+          "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/ruff",
+          "check",
+          "."
+        ],
+        "exit_code": 0,
+        "output": "All checks passed!\n"
+      },
+      {
+        "command": [
+          "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/ruff",
+          "format",
+          "--check",
+          "."
+        ],
+        "exit_code": 0,
+        "output": "777 files already formatted\n"
+      },
+      {
+        "command": [
+          "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+          "-B",
+          "scripts/export_contracts.py"
+        ],
+        "exit_code": 0,
+        "output": ""
+      },
+      {
+        "command": [
+          "git",
+          "diff",
+          "--exit-code",
+          "--",
+          "packages/contracts/schemas"
+        ],
+        "exit_code": 0,
+        "output": ""
+      },
+      {
+        "command": [
+          "git",
+          "diff",
+          "--check"
+        ],
+        "exit_code": 0,
+        "output": ""
+      }
+    ],
+    "head": "fab6e613e17c49cca1ccc9b08a7f9125db97d588",
+    "head_after": "fab6e613e17c49cca1ccc9b08a7f9125db97d588",
+    "pins_preserved": true,
+    "tracked_inputs": 1496
+  },
+  "preserved_findings": [
+    "The single bounded cold capability check failed because new methods were absent; this is a missing-feature result, not an original-owner cleanup failure.",
+    "All40 independent cases passed at0cb0e45. Subsequent source-aware review found two deadline edges; all6 added clock controls actually failed with late positive returns before the correction. Their failures are preserved, not replaced by the later46pass.",
+    "The old four methods inherit a missing post-receipt-validation clock check. Their behavior remains scope-frozen; follow-up https://github.com/rgoza1996/Kinaiya/issues/239#issuecomment-6572228960 records the static finding separately.",
+    "An initial source-only format check needed a signature line wrap; format-onlyfab6e61 precedes all corrected-source qualifications."
+  ],
+  "next_agent_boundary": {
+    "status": "Design only, not an implemented retirement/finalization caller.",
+    "proposal_sha256": "aeff87e71dfbf087b3728a1fd399342ce0a9a7b38b9ad23c4d89215bf92d0d3e",
+    "needs": [
+      "Claim owner/root and restricted closure authority before preflight await, retaining original binding even for never-admitted work.",
+      "Permanent fence, exact original worker/model/history HTTP/control/late-child enrollment and separately retained finalizer outside its own joins.",
+      "Shutdown dependency retention before captured journal/Resources/model/workspace retirement.",
+      "Then separately gated Resources report stage; native Task settlement, slot release, recurrence, inbox and editor remain later."
+    ]
+  },
+  "limitations": [
+    "Counts overlap or repeat and are not unique coverage.",
+    "Actual temporary ASGI/SQLite/CPU-process and original HTTP/stream owners are exercised; no model accuracy, inference, paid/provider/account, live GPU/device or general performance qualification.",
+    "A terminal Task, empty registry, cancellation request or teardown alone cannot prove original-owner retirement.",
+    "No automatic Agent caller, claim-wide retirement, native Task settlement/release, recurrence/inbox/editor or demo readiness is established.",
+    "Raw logs/JUnit/receipts are local ignored artifacts identified by SHA, not published CI artifacts.",
+    "No dependency install, live service/configuration or preview change occurred. Exact integrated-head CI remains a separate gate."
+  ]
+}

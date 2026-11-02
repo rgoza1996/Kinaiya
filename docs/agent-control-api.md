@@ -6,8 +6,11 @@ Requirement: [Roadmap §13.1](../Roadmap.md#131-operating-modes),
 The version 1.0 contract, native enforcement and owner panel are implemented.
 [Local evidence](../evaluation/evidence/agent-operating-modes-2026-10-31.json)
 records independent fault/race checks, Flutter checks and actual Dart-to-native
-HTTP work. Exact-final-head CI and review remain merge gates; consult the linked
-issue/PR for their observed results. See [ADR0105](adr/0105-agent-operating-modes.md).
+HTTP work. [PR227](https://github.com/rgoza1996/Kinaiya/pull/227) passed exact-head
+[CI350](https://github.com/rgoza1996/Kinaiya/actions/runs/41283718366) and independent
+Codex review, then merged with its tested tree verified. This qualifies the
+Off/on-demand prerequisite; standing work remains separate.
+See [ADR0105](adr/0105-agent-operating-modes.md).
 
 ## Ownership and routes
 

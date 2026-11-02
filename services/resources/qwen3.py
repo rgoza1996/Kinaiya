@@ -69,12 +69,17 @@ def _snapshot(path, expected=None, *, complete=False, remove=False):
 
 
 class Qwen3Endpoint:
+    actual_ownership_supported = True
+
     def __init__(self, directory, *, max_input_tokens=2048, max_new_tokens=128):
+        from packages.contracts.operation_ownership import StreamClosures
+
         self.directory = wire.private_directory(directory)
         self.limits = wire.validate_limits(max_input_tokens, max_new_tokens)
         self.ready = None
         self.bindings = weakref.WeakKeyDictionary()
         self.released_identities = weakref.WeakSet()
+        self.stream_closes = StreamClosures()
 
     def ready_for(self, identity):
         if self.ready is None or self.ready[0] != identity.pid:
@@ -113,8 +118,8 @@ class Qwen3Endpoint:
             wire.peer_pid(writer.get_extra_info("socket"), pid)
             yield reader, writer
         finally:
-            writer.close()
-            await asyncio.wait_for(writer.wait_closed(), 0.5)
+            if not await self.stream_closes.close(writer, timeout=0.5):
+                raise TimeoutError
 
     async def probe(self, spec, process):
         if process.returncode is not None:

@@ -1,0 +1,786 @@
+{
+  "additional_run_guard": {
+    "local_ignored_artifact": ".dev-run/239-row-parent-observer-guard-v1.txt",
+    "sha256": "659d5b9eaf233afd8cd90d190bbd6e123dad5d5d01604952ed64beeceb0c9c9e"
+  },
+  "base": "52c650865875d719a35c58540d592e681894f555",
+  "date": "2026-11-02",
+  "environment": "Existing pinned Python3.12.3 venv; explicit isolated worktree PYTHONPATH; serial offline non-live pytest, no cache provider, function loop scope, xunit1.",
+  "implementation": {
+    "author_commit": "c73a350275619c511019f0eab8cb5eba8595fd6d",
+    "author_seal_sha256": "314c8521bc94b2458f5e4a9d15faca958beab7ae68f90b5fb95ac8bfd0116aff",
+    "contract": {
+      "local_ignored_artifact": ".dev-run/239-fresh-barrier-row-contract-v1.md",
+      "sha256": "c1665b89f8ac77b3b3801d01b98041debbeff26d6fd194569c4434c318e44132"
+    },
+    "independent_source_review_sha256": "759e5ffb168a7a58c3c528db71cf4b001b92e6d6cac22ee05cfd66f9e00bcb2f",
+    "preserved": [
+      "Every raw canonical comparison, smaller packet cap, exact scalar/controller/phase/null check and detached return",
+      "Full graph traversal on every encoding; no cache or cross-call/await/COMMIT reuse",
+      "Global _wire/_join_request/_join_context and all other async/native/physical/permission/ownership/deadline/schema boundaries"
+    ],
+    "scope": "Only StandingBarrier._checked_row changed. Retain strict raw Claim/Binding/Receipt/Seal/Context parsers and Claim bridge. Encode exact private fresh locals within this no-await call using full actual-graph _encode; compare complete receipt/request/binding/original/backend/instance joins with the same errors and order.",
+    "sha256": "5063a8088a47338d90ab1eca501083b66f3df3ec3c4e7eccf44b7904e66b70a7",
+    "source": "services/resources/standing_barrier.py"
+  },
+  "limits": [
+    "These controlled harness gates test architecture, not model accuracy, semantic decision quality or model recommendations.",
+    "Existing affected tests use actual temporary ASGI/SQLite/disposable CPU owners. New pure row cases and microbenchmark do not simulate physical success.",
+    "New86 and old affected groups overlap repeated qualifications; never add repeated counts as unique coverage.",
+    "No model inference, paid/provider/account probe, GPU/model lifecycle, device/capture, install or live service/configuration/preview change.",
+    "No automatic Agent retirement/settlement/active-slot release/recurrence/inbox caller is added; roadmap and demo readiness remain open.",
+    "The following evidence-only commit does not imply rerunning the same gates on a changed production tree."
+  ],
+  "local_physical_cleanup": {
+    "actual_stream_tasks_joined_all": true,
+    "artifact": {
+      "local_ignored_artifact": ".dev-run/239-row-physical-cleanup-v1.json",
+      "sha256": "3c07649f59b2f0411fcf4637809e2ed9928951e56b8660f9a522fbbba6a33c2a"
+    },
+    "control_http_closed_once_all": true,
+    "historical_cleanup_errors": {
+      "None": 63
+    },
+    "inference_calls": 0,
+    "limitation": "Eventual fixture teardown, including expected-negative cases; not proof of timely original operation or historical CI cleanup.",
+    "manager_reaped_all": true,
+    "native_http_closed_once_all": true,
+    "original_close_done_all": true,
+    "physical_cleanup_records": 63
+  },
+  "oracle": {
+    "calibration": "Original frozen baseline passed84/failed2 because foreign backend/controller receipt fixtures hashed the envelope rather than raw request. Both fail at from_json validity precondition BEFORE the consumer. One-line fixture correction9ed792cc uses binding-domain hash of complete raw request, matching public full_digest and older literals. All40 assertion ASTs,86 cases, expectations/decorators/deadlines remain exact. This is disclosed source-aware calibration, not a pass of the original frozen oracle.",
+    "calibration_receipt_sha256": "39a9e2a7dc8123b6cf75b63482a62aa2cb3cd7bc8f799d3bbc8ca1b5ce3530b1",
+    "corrected_sha256": "7657c2c9c0e6e46511de70ee688c20d67126779fc766ebccdf30553ca27fec41",
+    "coverage": [
+      "pending/bound/sealed/drained; admitted/unadmitted/reserved and required nulls",
+      "Literal Unicode/golden bytes, duplicate/malformed/noncanonical/strict/extra/digest/cap failures",
+      "Complete valid-but-foreign receipt, seal, context joins and exact refusal/error precedence",
+      "Exact SQL scalar/backend/controller/phase/null joins, detached actual models/fields sets across calls"
+    ],
+    "frozen_author_commit": "9aecaa77aa311c9a010f81ffbbc10dffb622f3f5",
+    "frozen_seal_sha256": "7ba9e4fa06a4e91801fda1a9346a57c4749c8ba14171ca5bcb697d18b5fe3d30",
+    "frozen_sha256": "39653800d0cd469c3acdbc35d18701d5dcd2ad27b09a55b84510d37b9f8c0a47",
+    "independence": "Contract first; author did not read candidate source or candidate tests. Complete pre-existing literal dictionaries/golden hashes and stdlib JSON/SHA expectations, no copied validator or implementation call counts. Both baseline/candidate are expected-pass equivalence, not new-capability cold/hot.",
+    "independent_calibration_review_sha256": "7d62e89323dddd83f3ac2bd4adb7f778bce7861af0582c9a864aae1cc4b7f5a5",
+    "path": "tests/unit/test_standing_barrier_row_equivalence.py"
+  },
+  "performance": {
+    "baseline": {
+      "batches": 5,
+      "dataset_sha256": "07ae19b29aa1dc4fd744635ab793d7e52e7bf04f6524a54cd5d8cedd1ffbda67",
+      "head": "52c650865875d719a35c58540d592e681894f555",
+      "iterations_per_batch": 10,
+      "kind": "ordinary bounded CPU microbenchmark; not acceptance timing or CI-cause proof",
+      "limits": [
+        "Synthetic literal row parsing only; no native DB, worker, HTTP or model qualification.",
+        "No profiler, disabled GC, CPU affinity or control of unrelated host activity.",
+        "Existing public serializer result checks occur outside each timed batch.",
+        "No new timing threshold or global performance guarantee."
+      ],
+      "phase": "baseline",
+      "python": "3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]",
+      "results": {
+        "bound": {
+          "median_cpu_ns_per_call": 11510703.1,
+          "median_wall_ns_per_call": 11511368.8,
+          "raw_bytes": {
+            "binding": 2728,
+            "claim": 2582,
+            "context": null,
+            "receipt": 2871,
+            "seal": null
+          },
+          "samples": [
+            {
+              "cpu_ns": 114957071,
+              "wall_ns": 114972176
+            },
+            {
+              "cpu_ns": 115107031,
+              "wall_ns": 115113688
+            },
+            {
+              "cpu_ns": 116168181,
+              "wall_ns": 116168430
+            },
+            {
+              "cpu_ns": 118090272,
+              "wall_ns": 118096682
+            },
+            {
+              "cpu_ns": 114086240,
+              "wall_ns": 114087166
+            }
+          ]
+        },
+        "drained_reserved": {
+          "median_cpu_ns_per_call": 97100080.1,
+          "median_wall_ns_per_call": 97102597.7,
+          "raw_bytes": {
+            "binding": 2728,
+            "claim": 2582,
+            "context": 12186,
+            "receipt": 2871,
+            "seal": 2391
+          },
+          "samples": [
+            {
+              "cpu_ns": 1023200059,
+              "wall_ns": 1023279282
+            },
+            {
+              "cpu_ns": 983150037,
+              "wall_ns": 983249637
+            },
+            {
+              "cpu_ns": 966241348,
+              "wall_ns": 966318889
+            },
+            {
+              "cpu_ns": 968239829,
+              "wall_ns": 968319649
+            },
+            {
+              "cpu_ns": 971000801,
+              "wall_ns": 971025977
+            }
+          ]
+        },
+        "drained_unreserved": {
+          "median_cpu_ns_per_call": 40913061.5,
+          "median_wall_ns_per_call": 40917055.6,
+          "raw_bytes": {
+            "binding": 2728,
+            "claim": 2582,
+            "context": 8819,
+            "receipt": 2871,
+            "seal": 2391
+          },
+          "samples": [
+            {
+              "cpu_ns": 418799860,
+              "wall_ns": 418828989
+            },
+            {
+              "cpu_ns": 403929563,
+              "wall_ns": 403951008
+            },
+            {
+              "cpu_ns": 405515223,
+              "wall_ns": 405543375
+            },
+            {
+              "cpu_ns": 409130615,
+              "wall_ns": 409170556
+            },
+            {
+              "cpu_ns": 410710926,
+              "wall_ns": 410735874
+            }
+          ]
+        },
+        "pending": {
+          "median_cpu_ns_per_call": 5704195.0,
+          "median_wall_ns_per_call": 5707919.8,
+          "raw_bytes": {
+            "binding": 2728,
+            "claim": 2582,
+            "context": null,
+            "receipt": null,
+            "seal": null
+          },
+          "samples": [
+            {
+              "cpu_ns": 58350951,
+              "wall_ns": 58351403
+            },
+            {
+              "cpu_ns": 57041950,
+              "wall_ns": 57079198
+            },
+            {
+              "cpu_ns": 58029250,
+              "wall_ns": 58068750
+            },
+            {
+              "cpu_ns": 55938609,
+              "wall_ns": 55946695
+            },
+            {
+              "cpu_ns": 54675519,
+              "wall_ns": 54679281
+            }
+          ]
+        },
+        "sealed_unadmitted": {
+          "median_cpu_ns_per_call": 26263835.8,
+          "median_wall_ns_per_call": 26266211.8,
+          "raw_bytes": {
+            "binding": 2728,
+            "claim": 2582,
+            "context": 6017,
+            "receipt": 2871,
+            "seal": 2391
+          },
+          "samples": [
+            {
+              "cpu_ns": 261184917,
+              "wall_ns": 261214693
+            },
+            {
+              "cpu_ns": 266922080,
+              "wall_ns": 266977030
+            },
+            {
+              "cpu_ns": 265198909,
+              "wall_ns": 265218299
+            },
+            {
+              "cpu_ns": 262041338,
+              "wall_ns": 262064843
+            },
+            {
+              "cpu_ns": 262638358,
+              "wall_ns": 262662118
+            }
+          ]
+        }
+      },
+      "script_sha256": "c971589b9a492499580d73604ad338d19ac4c57787317a32fc6beaf2072f4507",
+      "source_pins_and_head_stable": true,
+      "tracked_count": 1501,
+      "warmup": "One full consumer validation and canonical-result check per case before timing."
+    },
+    "baseline_receipt": {
+      "local_ignored_artifact": ".dev-run/239-row-cost-baseline-yyq9d757/receipt.json",
+      "sha256": "488a7bcdb8926f64c0f6cd4ca118d110a8cbc1dd3558d558fbc9388d025dd248"
+    },
+    "candidate": {
+      "batches": 5,
+      "dataset_sha256": "07ae19b29aa1dc4fd744635ab793d7e52e7bf04f6524a54cd5d8cedd1ffbda67",
+      "head": "9926ebd6209e8feae1874bf02e55d3e2189cbd20",
+      "iterations_per_batch": 10,
+      "kind": "ordinary bounded CPU microbenchmark; not acceptance timing or CI-cause proof",
+      "limits": [
+        "Synthetic literal row parsing only; no native DB, worker, HTTP or model qualification.",
+        "No profiler, disabled GC, CPU affinity or control of unrelated host activity.",
+        "Existing public serializer result checks occur outside each timed batch.",
+        "No new timing threshold or global performance guarantee."
+      ],
+      "phase": "candidate",
+      "python": "3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]",
+      "results": {
+        "bound": {
+          "median_cpu_ns_per_call": 4612249.4,
+          "median_wall_ns_per_call": 4612269.1,
+          "raw_bytes": {
+            "binding": 2728,
+            "claim": 2582,
+            "context": null,
+            "receipt": 2871,
+            "seal": null
+          },
+          "samples": [
+            {
+              "cpu_ns": 46268415,
+              "wall_ns": 46273162
+            },
+            {
+              "cpu_ns": 46122494,
+              "wall_ns": 46122691
+            },
+            {
+              "cpu_ns": 46041564,
+              "wall_ns": 46041780
+            },
+            {
+              "cpu_ns": 46380765,
+              "wall_ns": 46388564
+            },
+            {
+              "cpu_ns": 46020034,
+              "wall_ns": 46020320
+            }
+          ]
+        },
+        "drained_reserved": {
+          "median_cpu_ns_per_call": 32899746.3,
+          "median_wall_ns_per_call": 32900660.2,
+          "raw_bytes": {
+            "binding": 2728,
+            "claim": 2582,
+            "context": 12186,
+            "receipt": 2871,
+            "seal": 2391
+          },
+          "samples": [
+            {
+              "cpu_ns": 332623465,
+              "wall_ns": 332632769
+            },
+            {
+              "cpu_ns": 328997463,
+              "wall_ns": 329006602
+            },
+            {
+              "cpu_ns": 330467784,
+              "wall_ns": 330501767
+            },
+            {
+              "cpu_ns": 324740291,
+              "wall_ns": 324766367
+            },
+            {
+              "cpu_ns": 327119922,
+              "wall_ns": 327122732
+            }
+          ]
+        },
+        "drained_unreserved": {
+          "median_cpu_ns_per_call": 14089865.4,
+          "median_wall_ns_per_call": 14090567.0,
+          "raw_bytes": {
+            "binding": 2728,
+            "claim": 2582,
+            "context": 8819,
+            "receipt": 2871,
+            "seal": 2391
+          },
+          "samples": [
+            {
+              "cpu_ns": 141718194,
+              "wall_ns": 141718739
+            },
+            {
+              "cpu_ns": 141186924,
+              "wall_ns": 141187752
+            },
+            {
+              "cpu_ns": 140376114,
+              "wall_ns": 140377035
+            },
+            {
+              "cpu_ns": 140898654,
+              "wall_ns": 140905670
+            },
+            {
+              "cpu_ns": 140277734,
+              "wall_ns": 140285303
+            }
+          ]
+        },
+        "pending": {
+          "median_cpu_ns_per_call": 2859173.5,
+          "median_wall_ns_per_call": 2859170.9,
+          "raw_bytes": {
+            "binding": 2728,
+            "claim": 2582,
+            "context": null,
+            "receipt": null,
+            "seal": null
+          },
+          "samples": [
+            {
+              "cpu_ns": 28591735,
+              "wall_ns": 28591709
+            },
+            {
+              "cpu_ns": 28674675,
+              "wall_ns": 28674019
+            },
+            {
+              "cpu_ns": 28842375,
+              "wall_ns": 28842131
+            },
+            {
+              "cpu_ns": 28348805,
+              "wall_ns": 28385286
+            },
+            {
+              "cpu_ns": 28071415,
+              "wall_ns": 28079583
+            }
+          ]
+        },
+        "sealed_unadmitted": {
+          "median_cpu_ns_per_call": 9421123.9,
+          "median_wall_ns_per_call": 9421150.2,
+          "raw_bytes": {
+            "binding": 2728,
+            "claim": 2582,
+            "context": 6017,
+            "receipt": 2871,
+            "seal": 2391
+          },
+          "samples": [
+            {
+              "cpu_ns": 95437730,
+              "wall_ns": 95437635
+            },
+            {
+              "cpu_ns": 92025118,
+              "wall_ns": 92024960
+            },
+            {
+              "cpu_ns": 92548629,
+              "wall_ns": 92548725
+            },
+            {
+              "cpu_ns": 95086340,
+              "wall_ns": 95092472
+            },
+            {
+              "cpu_ns": 94211239,
+              "wall_ns": 94211502
+            }
+          ]
+        }
+      },
+      "script_sha256": "c971589b9a492499580d73604ad338d19ac4c57787317a32fc6beaf2072f4507",
+      "source_pins_and_head_stable": true,
+      "tracked_count": 1502,
+      "warmup": "One full consumer validation and canonical-result check per case before timing."
+    },
+    "candidate_receipt": {
+      "local_ignored_artifact": ".dev-run/239-row-cost-candidate-820utu53/receipt.json",
+      "sha256": "5205ece0d1b666b8650ff6f438a4fe37490107cecdff734894d91514081d7d40"
+    },
+    "classification": "Bounded serial ordinary CPU microbenchmark; not model accuracy, timing acceptance, CI causation or whole-stack latency.",
+    "comparison": {
+      "bound": {
+        "baseline_median_cpu_ms": 11.510703099999999,
+        "candidate_median_cpu_ms": 4.6122494000000005,
+        "cpu_reduction_percent": 59.93077607917798
+      },
+      "drained_reserved": {
+        "baseline_median_cpu_ms": 97.1000801,
+        "candidate_median_cpu_ms": 32.899746300000004,
+        "cpu_reduction_percent": 66.11769396470353
+      },
+      "drained_unreserved": {
+        "baseline_median_cpu_ms": 40.9130615,
+        "candidate_median_cpu_ms": 14.0898654,
+        "cpu_reduction_percent": 65.56144936745933
+      },
+      "pending": {
+        "baseline_median_cpu_ms": 5.704195,
+        "candidate_median_cpu_ms": 2.8591735,
+        "cpu_reduction_percent": 49.87595094487478
+      },
+      "sealed_unadmitted": {
+        "baseline_median_cpu_ms": 26.263835800000003,
+        "candidate_median_cpu_ms": 9.4211239,
+        "cpu_reduction_percent": 64.12891105571106
+      }
+    },
+    "host_limit": "No profiler, watchdog, forced GC, affinity or control of unrelated host activity. No other root test/benchmark runner overlapped either measurement. Raw script/log/receipt/pin artifacts are local ignored files, not published CI artifacts.",
+    "input_note": "Identical five valid literal row cases generated from the pre-existing independent vectors; raw claim2582B, binding2728B, reservedcontext12186B. Not maximum-size coverage. One untimed consumer/result warmup per case; five batches of ten calls with perf_counter_ns/process_time_ns outside each batch. Public complete canonical-result checks outside timing.",
+    "pin_difference": "Baseline was measured before adding the new oracle (1501 tracked inputs); candidate includes it (1502). Production differences are only the reviewed method. Benchmark imports unchanged older vectors, never the new oracle. Script and dataset hashes match; every run kept all its tracked pins and HEAD stable.",
+    "script": {
+      "local_ignored_artifact": ".dev-run/239-barrier-row-cost.py",
+      "sha256": "c971589b9a492499580d73604ad338d19ac4c57787317a32fc6beaf2072f4507"
+    }
+  },
+  "qualified_source": "9926ebd6209e8feae1874bf02e55d3e2189cbd20",
+  "remaining_ci": "CI434 #285 failed2 pre-effect4s waits. It has no local prework-binding rows and does not exercise this method, so this optimization cannot be asserted to repair those cases. CI431/432 parent physical8s failures remain unresolved. CI435 #311 was still running when this slice was prepared; exact changed-head CI and all relevant parents remain mandatory before merge.",
+  "requirement": [
+    "#239 retained resource ownership",
+    "#228 integrated standing work",
+    "AGENTS.md preserve full validation, evidence and completion truth"
+  ],
+  "runs": {
+    "affected_existing_gates": {
+      "changed_pins": [],
+      "exit_code": 0,
+      "head": "9926ebd6209e8feae1874bf02e55d3e2189cbd20",
+      "head_after": "9926ebd6209e8feae1874bf02e55d3e2189cbd20",
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "0",
+          "skipped": "0",
+          "tests": "510",
+          "time": "541.476"
+        }
+      ],
+      "junit_xml": {
+        "local_ignored_artifact": ".dev-run/239-row-affected-candidate-v1-8vkyykv6/junit.xml",
+        "sha256": "1c6bccd6e604f43646390eb4266903a56c80f433db0df145b45afcd7ee0af03e"
+      },
+      "log": {
+        "local_ignored_artifact": ".dev-run/239-row-affected-candidate-v1-8vkyykv6/pytest.log",
+        "sha256": "601635e5ee5c73d7a584260a20f217ce29838ad36e6a83bad28d4ba19fdc7dcd"
+      },
+      "manifest": {
+        "local_ignored_artifact": ".dev-run/239-row-affected-candidate-v1-8vkyykv6/manifest.json",
+        "sha256": "764cae8c04f865bd77c437a25b346e823e649358da390e5b6d051b3d474683e9"
+      },
+      "phase": "239-row-affected-candidate-v1",
+      "pins_preserved": true,
+      "pytest_targets": [
+        "tests/unit/test_standing_finalization_encoding_equivalence.py",
+        "tests/unit/test_standing_finalization_join_equivalence.py",
+        "tests/unit/test_standing_resource_barrier_client.py",
+        "tests/unit/test_standing_resource_finalization_client.py",
+        "tests/unit/test_standing_resource_finalization_contracts.py",
+        "tests/unit/test_standing_resources_finalization_transport_client.py",
+        "tests/integration/test_standing_resource_barrier.py",
+        "tests/integration/test_standing_resource_binding_agent.py",
+        "tests/integration/test_standing_resource_finalization_api.py",
+        "tests/integration/test_standing_agent_runtime.py",
+        "tests/integration/test_standing_physical_finalization.py",
+        "tests/integration/test_standing_physical_capture_fences.py"
+      ],
+      "receipt": {
+        "local_ignored_artifact": ".dev-run/239-row-affected-candidate-v1-8vkyykv6/receipt.json",
+        "sha256": "8e73b53e466eeda7e458b9e043306cb438364c409bfcbedc3c307026960c9661"
+      },
+      "subprocess_seconds": 543.7047624359984,
+      "tracked_inputs": 1502
+    },
+    "candidate": {
+      "changed_pins": [],
+      "exit_code": 0,
+      "head": "9926ebd6209e8feae1874bf02e55d3e2189cbd20",
+      "head_after": "9926ebd6209e8feae1874bf02e55d3e2189cbd20",
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "0",
+          "skipped": "0",
+          "tests": "86",
+          "time": "1.848"
+        }
+      ],
+      "junit_xml": {
+        "local_ignored_artifact": ".dev-run/239-row-equivalence-candidate-v1-8bb03wou/junit.xml",
+        "sha256": "8f4721c941ffd8fcb807b69a9f39e52cdfa572b8b96e4a0c47dbed9d6c61179d"
+      },
+      "log": {
+        "local_ignored_artifact": ".dev-run/239-row-equivalence-candidate-v1-8bb03wou/pytest.log",
+        "sha256": "ce29c56aac77e159a7f2dbc17f8a0e28fb20fbaafec382ba98f5bd98343084c0"
+      },
+      "manifest": {
+        "local_ignored_artifact": ".dev-run/239-row-equivalence-candidate-v1-8bb03wou/manifest.json",
+        "sha256": "7655ee6f75f8936fabc81c9452185e04dc86d9c4843fd1d1b163b582b974d819"
+      },
+      "phase": "239-row-equivalence-candidate-v1",
+      "pins_preserved": true,
+      "pytest_targets": [
+        "tests/unit/test_standing_barrier_row_equivalence.py"
+      ],
+      "receipt": {
+        "local_ignored_artifact": ".dev-run/239-row-equivalence-candidate-v1-8bb03wou/receipt.json",
+        "sha256": "cff6db3bf09c7a9f7a34440330d8b4eb53f6d2f2d5e5e1a65d4b9ed1567894d6"
+      },
+      "subprocess_seconds": 2.1244164149975404,
+      "tracked_inputs": 1502
+    },
+    "corrected_baseline": {
+      "changed_pins": [],
+      "exit_code": 0,
+      "head": "45f196b18888f125ccb13830be8894d575219dc6",
+      "head_after": "45f196b18888f125ccb13830be8894d575219dc6",
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "0",
+          "skipped": "0",
+          "tests": "86",
+          "time": "3.317"
+        }
+      ],
+      "junit_xml": {
+        "local_ignored_artifact": ".dev-run/239-row-equivalence-baseline-v2-yyr6zm7o/junit.xml",
+        "sha256": "7f1d34286c3e69e103143130778d357d50a435a764bc8186a97f78b05eee25ef"
+      },
+      "log": {
+        "local_ignored_artifact": ".dev-run/239-row-equivalence-baseline-v2-yyr6zm7o/pytest.log",
+        "sha256": "e4ffd4175f486a078f374199b2503bfd361898643a7e4efe25e269435e5fc188"
+      },
+      "manifest": {
+        "local_ignored_artifact": ".dev-run/239-row-equivalence-baseline-v2-yyr6zm7o/manifest.json",
+        "sha256": "fea6a475c1de88b3808acda9c719a5e41a7667873c7dbd4773bd91f1479fd9cf"
+      },
+      "phase": "239-row-equivalence-baseline-v2",
+      "pins_preserved": true,
+      "pytest_targets": [
+        "tests/unit/test_standing_barrier_row_equivalence.py"
+      ],
+      "receipt": {
+        "local_ignored_artifact": ".dev-run/239-row-equivalence-baseline-v2-yyr6zm7o/receipt.json",
+        "sha256": "46d212945091e5d94462e996719e220422dccb6a7265235dd1313d6bc2874bff"
+      },
+      "subprocess_seconds": 3.588462152001739,
+      "tracked_inputs": 1502
+    },
+    "original_frozen_baseline": {
+      "changed_pins": [],
+      "exit_code": 1,
+      "head": "0d2b3915da47066e929a885a741885bbb15056fc",
+      "head_after": "0d2b3915da47066e929a885a741885bbb15056fc",
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "2",
+          "skipped": "0",
+          "tests": "86",
+          "time": "3.290"
+        }
+      ],
+      "junit_xml": {
+        "local_ignored_artifact": ".dev-run/239-row-equivalence-baseline-v1-ltq_g0od/junit.xml",
+        "sha256": "fde39756daaed6e7da42e0c63e1bd2dcf00e055221c7b3a0a5dc34c9415294bb"
+      },
+      "log": {
+        "local_ignored_artifact": ".dev-run/239-row-equivalence-baseline-v1-ltq_g0od/pytest.log",
+        "sha256": "7dabf37c6fa74716ddb40602673e163dfc2d337e554932edec1e059eb297f6c7"
+      },
+      "manifest": {
+        "local_ignored_artifact": ".dev-run/239-row-equivalence-baseline-v1-ltq_g0od/manifest.json",
+        "sha256": "1d2e8927d367cf0cd4b73042294389c95396f19727abda55ee84e3be5d8415d1"
+      },
+      "phase": "239-row-equivalence-baseline-v1",
+      "pins_preserved": true,
+      "pytest_targets": [
+        "tests/unit/test_standing_barrier_row_equivalence.py"
+      ],
+      "receipt": {
+        "local_ignored_artifact": ".dev-run/239-row-equivalence-baseline-v1-ltq_g0od/receipt.json",
+        "sha256": "102e6d8148b494a76ba1f8137f50ec723a37e7cbc41f88f556d9e26a55841243"
+      },
+      "subprocess_seconds": 3.573315403002198,
+      "tracked_inputs": 1502
+    },
+    "parent_observer": {
+      "changed_pins": [],
+      "exit_code": 0,
+      "head": "9926ebd6209e8feae1874bf02e55d3e2189cbd20",
+      "head_after": "9926ebd6209e8feae1874bf02e55d3e2189cbd20",
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "0",
+          "skipped": "0",
+          "tests": "1",
+          "time": "3.310"
+        }
+      ],
+      "junit_xml": {
+        "local_ignored_artifact": ".dev-run/239-row-parent-observer-candidate-v2-7x7vc38c/junit.xml",
+        "sha256": "cca223bbcddef4f9a7a1f6f9d30944ee53fe8cc02533ceb6311270cd3d754555"
+      },
+      "log": {
+        "local_ignored_artifact": ".dev-run/239-row-parent-observer-candidate-v2-7x7vc38c/pytest.log",
+        "sha256": "0517cf6c560cba62fb38bb2d8b01f0d1d05365bd89554f57f900644f7e7d28ca"
+      },
+      "manifest": {
+        "local_ignored_artifact": ".dev-run/239-row-parent-observer-candidate-v2-7x7vc38c/manifest.json",
+        "sha256": "c38852c7a26515b5160a30afaa1f462e404c09d0cea1c9634c6929d25ccb0cc8"
+      },
+      "phase": "239-row-parent-observer-candidate-v2",
+      "pins_preserved": true,
+      "pytest_targets": [
+        "tests/integration/test_standing_physical_timeout_observation.py"
+      ],
+      "receipt": {
+        "local_ignored_artifact": ".dev-run/239-row-parent-observer-candidate-v2-7x7vc38c/receipt.json",
+        "sha256": "c9284307d73a155c0992d1707f5019260e45ca07208e66cc14c95fcc587b669a"
+      },
+      "subprocess_seconds": 3.66815674299869,
+      "tracked_inputs": 1502
+    },
+    "parent_release_control": {
+      "changed_pins": [],
+      "exit_code": 0,
+      "head": "9926ebd6209e8feae1874bf02e55d3e2189cbd20",
+      "head_after": "9926ebd6209e8feae1874bf02e55d3e2189cbd20",
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "0",
+          "skipped": "0",
+          "tests": "1",
+          "time": "3.106"
+        }
+      ],
+      "junit_xml": {
+        "local_ignored_artifact": ".dev-run/239-row-parent-release-control-candidate-v1-5xiuwz08/junit.xml",
+        "sha256": "4d21edaf368b2a2053282a7263b7628c839a02e09a6ac849efd0201d4c81fefe"
+      },
+      "log": {
+        "local_ignored_artifact": ".dev-run/239-row-parent-release-control-candidate-v1-5xiuwz08/pytest.log",
+        "sha256": "b04931fa99b7fc225b849a515e4eadcc8612c4cd7c0fb2df1395bac32a64def3"
+      },
+      "manifest": {
+        "local_ignored_artifact": ".dev-run/239-row-parent-release-control-candidate-v1-5xiuwz08/manifest.json",
+        "sha256": "1ad216c1713f9e32d7a9988873713313beea06b38ec036f918dff4e1d949b582"
+      },
+      "phase": "239-row-parent-release-control-candidate-v1",
+      "pins_preserved": true,
+      "pytest_targets": [
+        "tests/integration/test_standing_physical_timeout_controls.py"
+      ],
+      "receipt": {
+        "local_ignored_artifact": ".dev-run/239-row-parent-release-control-candidate-v1-5xiuwz08/receipt.json",
+        "sha256": "7bfc91d53e44f9821307c040b6d47827006beba9d9a1eed8dd1302b2a30c6cda"
+      },
+      "subprocess_seconds": 3.4860353879994364,
+      "tracked_inputs": 1502
+    }
+  },
+  "static": {
+    "base": "52c650865875d719a35c58540d592e681894f555",
+    "changed_paths": [
+      "services/resources/standing_barrier.py",
+      "tests/unit/test_standing_barrier_row_equivalence.py"
+    ],
+    "commands": [
+      {
+        "command": [
+          "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/ruff",
+          "check",
+          "."
+        ],
+        "exit_code": 0,
+        "stderr": "",
+        "stdout": "All checks passed!\n"
+      },
+      {
+        "command": [
+          "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/ruff",
+          "format",
+          "--check",
+          "."
+        ],
+        "exit_code": 0,
+        "stderr": "",
+        "stdout": "781 files already formatted\n"
+      },
+      {
+        "command": [
+          "git",
+          "diff",
+          "--check",
+          "52c650865875d719a35c58540d592e681894f555",
+          "HEAD"
+        ],
+        "exit_code": 0,
+        "stderr": "",
+        "stdout": ""
+      }
+    ],
+    "head": "9926ebd6209e8feae1874bf02e55d3e2189cbd20",
+    "method_await_yield_nodes": 0,
+    "method_signature_ast_exact": true,
+    "pins_and_head_stable": true,
+    "public_codecs_schemas_other_production_files_unchanged": true,
+    "receipt_sha256": "c7e262df10920ab5e290bf48becae0c4a5b99b3568fdeef194f571c786bf042e",
+    "schema_export_not_rerun_reason": "No public codec/schema or export input changes.",
+    "tracked_input_count": 1502,
+    "whole_rest_of_module_ast_exact": true,
+    "whole_rest_of_source_byte_exact": true
+  },
+  "status": "Behavior-equivalent private synchronous row optimization qualified offline; exact published-head CI and red parent integration gates remain required."
+}

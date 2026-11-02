@@ -1,0 +1,778 @@
+{
+  "$defs": {
+    "AgentTaskIdentity": {
+      "additionalProperties": false,
+      "description": "Immutable canonical native initial-submit identity, never a mutable Task.",
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "session_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Session Id",
+          "type": "string"
+        },
+        "thread_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Thread Id",
+          "type": "string"
+        },
+        "epoch": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Epoch",
+          "type": "integer"
+        },
+        "task_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Task Id",
+          "type": "string"
+        },
+        "submit_event_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Submit Event Id",
+          "type": "string"
+        },
+        "submit_sequence": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Submit Sequence",
+          "type": "integer"
+        },
+        "submit_idempotency_key": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Submit Idempotency Key",
+          "type": "string"
+        },
+        "submit_payload_digest": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Submit Payload Digest",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "session_id",
+        "thread_id",
+        "epoch",
+        "task_id",
+        "submit_event_id",
+        "submit_sequence",
+        "submit_idempotency_key",
+        "submit_payload_digest"
+      ],
+      "title": "AgentTaskIdentity",
+      "type": "object"
+    },
+    "CatalogModelBinding": {
+      "additionalProperties": false,
+      "description": "Explicit immutable native provider reference, never a display alias.",
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "generation": {
+          "maximum": 64,
+          "minimum": 1,
+          "title": "Generation",
+          "type": "integer"
+        },
+        "configuration_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Configuration Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "generation",
+        "configuration_sha256"
+      ],
+      "title": "CatalogModelBinding",
+      "type": "object"
+    },
+    "StandingExecutionClaim": {
+      "additionalProperties": false,
+      "description": "Immutable retained claim proof, never itself a created disposition.",
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "request": {
+          "$ref": "#/$defs/StandingExecutionIntent"
+        },
+        "claim_id": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Claim Id",
+          "type": "string"
+        },
+        "occurrence_id": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Occurrence Id",
+          "type": "string"
+        },
+        "intent_digest": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Intent Digest",
+          "type": "string"
+        },
+        "prepared_utc": {
+          "title": "Prepared Utc",
+          "type": "string"
+        },
+        "claim_digest": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Claim Digest",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "request",
+        "claim_id",
+        "occurrence_id",
+        "intent_digest",
+        "prepared_utc",
+        "claim_digest"
+      ],
+      "title": "StandingExecutionClaim",
+      "type": "object"
+    },
+    "StandingExecutionIntent": {
+      "additionalProperties": false,
+      "description": "Frozen full claim proposal; native joined authority remains necessary.",
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "idempotency_key": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9:._-]+$",
+          "title": "Idempotency Key",
+          "type": "string"
+        },
+        "expected_backend": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Expected Backend",
+          "type": "string"
+        },
+        "expected_instance": {
+          "maxLength": 36,
+          "minLength": 36,
+          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+          "title": "Expected Instance",
+          "type": "string"
+        },
+        "responsibility_id": {
+          "maxLength": 36,
+          "minLength": 36,
+          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+          "title": "Responsibility Id",
+          "type": "string"
+        },
+        "authorization_revision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Authorization Revision",
+          "type": "integer"
+        },
+        "authorization_digest": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Authorization Digest",
+          "type": "string"
+        },
+        "record_digest": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Record Digest",
+          "type": "string"
+        },
+        "occurrence": {
+          "$ref": "#/$defs/StandingOccurrence"
+        },
+        "dispatch_epoch": {
+          "maximum": 10000,
+          "minimum": 1,
+          "title": "Dispatch Epoch",
+          "type": "integer"
+        },
+        "activation_digest": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Activation Digest",
+          "type": "string"
+        },
+        "control_revision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Control Revision",
+          "type": "integer"
+        },
+        "producer": {
+          "$ref": "#/$defs/StandingProducerReceipt"
+        },
+        "executor_id": {
+          "maxLength": 36,
+          "minLength": 36,
+          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+          "title": "Executor Id",
+          "type": "string"
+        },
+        "capability_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Capability Sha256",
+          "type": "string"
+        },
+        "task": {
+          "$ref": "#/$defs/StandingExecutionTask"
+        }
+      },
+      "required": [
+        "schema_version",
+        "idempotency_key",
+        "expected_backend",
+        "expected_instance",
+        "responsibility_id",
+        "authorization_revision",
+        "authorization_digest",
+        "record_digest",
+        "occurrence",
+        "dispatch_epoch",
+        "activation_digest",
+        "control_revision",
+        "producer",
+        "executor_id",
+        "capability_sha256",
+        "task"
+      ],
+      "title": "StandingExecutionIntent",
+      "type": "object"
+    },
+    "StandingExecutionModelPin": {
+      "additionalProperties": false,
+      "description": "Complete exact model declaration; no legacy omitted-field form.",
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "profile_id": {
+          "maxLength": 80,
+          "minLength": 1,
+          "title": "Profile Id",
+          "type": "string"
+        },
+        "provider": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Provider",
+          "type": "string"
+        },
+        "model": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Model",
+          "type": "string"
+        },
+        "local": {
+          "title": "Local",
+          "type": "boolean"
+        },
+        "reasoning": {
+          "anyOf": [
+            {
+              "maxLength": 16,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Reasoning"
+        },
+        "settings_revision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Settings Revision",
+          "type": "integer"
+        },
+        "catalog_binding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CatalogModelBinding"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "catalog_revision": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740990,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Catalog Revision"
+        }
+      },
+      "required": [
+        "schema_version",
+        "profile_id",
+        "provider",
+        "model",
+        "local",
+        "reasoning",
+        "settings_revision",
+        "catalog_binding",
+        "catalog_revision"
+      ],
+      "title": "StandingExecutionModelPin",
+      "type": "object"
+    },
+    "StandingExecutionTask": {
+      "additionalProperties": false,
+      "description": "Explicit future native-files task family, without runtime enforcement.",
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "task_id": {
+          "maxLength": 36,
+          "minLength": 36,
+          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+          "title": "Task Id",
+          "type": "string"
+        },
+        "task_session": {
+          "$ref": "#/$defs/StandingTaskSession"
+        },
+        "objective": {
+          "maxLength": 16000,
+          "minLength": 1,
+          "title": "Objective",
+          "type": "string"
+        },
+        "content_scope": {
+          "enum": [
+            "public_synthetic",
+            "private_cloud_authorized",
+            "local_only"
+          ],
+          "title": "Content Scope",
+          "type": "string"
+        },
+        "workspace_pin": {
+          "$ref": "#/$defs/WorkspacePin"
+        },
+        "harness_version": {
+          "title": "Harness Version",
+          "type": "string"
+        },
+        "model_pin": {
+          "$ref": "#/$defs/StandingExecutionModelPin"
+        },
+        "tool_subset": {
+          "const": "native-files-v1",
+          "title": "Tool Subset",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "task_id",
+        "task_session",
+        "objective",
+        "content_scope",
+        "workspace_pin",
+        "harness_version",
+        "model_pin",
+        "tool_subset"
+      ],
+      "title": "StandingExecutionTask",
+      "type": "object"
+    },
+    "StandingInitialProof": {
+      "additionalProperties": false,
+      "description": "Immutable metadata proof, never an admission or worker launch signal.",
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "claim": {
+          "$ref": "#/$defs/StandingExecutionClaim"
+        },
+        "event_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Event Id",
+          "type": "string"
+        },
+        "sequence": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "created_at": {
+          "title": "Created At",
+          "type": "string"
+        },
+        "entry_digest": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Entry Digest",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "claim",
+        "event_id",
+        "sequence",
+        "created_at",
+        "entry_digest"
+      ],
+      "title": "StandingInitialProof",
+      "type": "object"
+    },
+    "StandingOccurrence": {
+      "additionalProperties": false,
+      "description": "Civil occurrence identity, without an IANA schedule qualification.",
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "local_date": {
+          "title": "Local Date",
+          "type": "string"
+        },
+        "due_utc": {
+          "title": "Due Utc",
+          "type": "string"
+        },
+        "utc_offset_seconds": {
+          "maximum": 86399,
+          "minimum": -86399,
+          "title": "Utc Offset Seconds",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schema_version",
+        "local_date",
+        "due_utc",
+        "utc_offset_seconds"
+      ],
+      "title": "StandingOccurrence",
+      "type": "object"
+    },
+    "StandingProducerReceipt": {
+      "additionalProperties": false,
+      "description": "An acknowledged renewal packet, without a claim of current liveness.",
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "request": {
+          "$ref": "#/$defs/StandingProducerRenewal"
+        },
+        "lease_token": {
+          "maxLength": 36,
+          "minLength": 36,
+          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+          "title": "Lease Token",
+          "type": "string"
+        },
+        "issued_monotonic_ms": {
+          "maximum": 9007199254725991,
+          "minimum": 0,
+          "title": "Issued Monotonic Ms",
+          "type": "integer"
+        },
+        "expires_monotonic_ms": {
+          "maximum": 9007199254740991,
+          "minimum": 15000,
+          "title": "Expires Monotonic Ms",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schema_version",
+        "request",
+        "lease_token",
+        "issued_monotonic_ms",
+        "expires_monotonic_ms"
+      ],
+      "title": "StandingProducerReceipt",
+      "type": "object"
+    },
+    "StandingProducerRenewal": {
+      "additionalProperties": false,
+      "description": "Renewal identity only; the native controller owns the monotonic clock.",
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "expected_backend": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Expected Backend",
+          "type": "string"
+        },
+        "expected_instance": {
+          "maxLength": 36,
+          "minLength": 36,
+          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+          "title": "Expected Instance",
+          "type": "string"
+        },
+        "producer_id": {
+          "maxLength": 36,
+          "minLength": 36,
+          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+          "title": "Producer Id",
+          "type": "string"
+        },
+        "sequence": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Sequence",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schema_version",
+        "expected_backend",
+        "expected_instance",
+        "producer_id",
+        "sequence"
+      ],
+      "title": "StandingProducerRenewal",
+      "type": "object"
+    },
+    "StandingTaskSession": {
+      "additionalProperties": false,
+      "properties": {
+        "session_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Session Id",
+          "type": "string"
+        },
+        "thread_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Thread Id",
+          "type": "string"
+        },
+        "epoch": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Epoch",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "session_id",
+        "thread_id",
+        "epoch"
+      ],
+      "title": "StandingTaskSession",
+      "type": "object"
+    },
+    "TaskResourceQuery": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "task_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+          "title": "Task Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "task_id"
+      ],
+      "title": "TaskResourceQuery",
+      "type": "object"
+    },
+    "WorkspacePin": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "workspace_id": {
+          "maxLength": 64,
+          "minLength": 64,
+          "title": "Workspace Id",
+          "type": "string"
+        },
+        "root_identity": {
+          "maxLength": 64,
+          "minLength": 64,
+          "title": "Root Identity",
+          "type": "string"
+        },
+        "settings_revision": {
+          "maximum": 9007199254740990,
+          "minimum": 0,
+          "title": "Settings Revision",
+          "type": "integer"
+        },
+        "source": {
+          "enum": [
+            "host",
+            "owner_saved"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "shell_backend": {
+          "const": "bubblewrap",
+          "title": "Shell Backend",
+          "type": "string"
+        },
+        "mode": {
+          "const": "direct",
+          "title": "Mode",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "workspace_id",
+        "root_identity",
+        "settings_revision",
+        "source",
+        "shell_backend",
+        "mode"
+      ],
+      "title": "WorkspacePin",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "query": {
+      "$ref": "#/$defs/TaskResourceQuery"
+    },
+    "backend_id": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Backend Id",
+      "type": "string"
+    },
+    "family": {
+      "enum": [
+        "standing",
+        "ordinary"
+      ],
+      "title": "Family",
+      "type": "string"
+    },
+    "standing": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/StandingInitialProof"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "ordinary": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AgentTaskIdentity"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "context_digest": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Context Digest",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "query",
+    "backend_id",
+    "family",
+    "standing",
+    "ordinary",
+    "context_digest"
+  ],
+  "title": "TaskResourceContext",
+  "type": "object"
+}

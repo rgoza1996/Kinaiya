@@ -1,0 +1,383 @@
+{
+  "baseline": "20767c4624d1a33b510dbc2b54c65770e0468c4a",
+  "date": "2026-11-01",
+  "frozen_contracts": {
+    "exact-client-retirement-addendum": "16f55d40d73dc51ae97fba4ae61c393c0afc96e4f8e69365ae26ef372d540f62",
+    "post-worker-resource-completion-v1": "c0371f960793e0508bf63733db81c6992e0dea788858f6a427f057afc2ce600a"
+  },
+  "implemented_behavior": [
+    "Existing task work truth and wait/done semantics are preserved; terminal status alone cannot authorize notification.",
+    "Capture original current worker, exact record/lease/client before cleanup awaits; close original lease and recheck identities at release boundaries.",
+    "One retained notification waits for actual original worker success and exact owned model-cleanup Task success with both sticky uncertainty flags clear.",
+    "Recovered/closing/nonterminal or changed captured identities cannot acquire notification authority; existing exact-key ResourceClient transport reconciliation is unchanged.",
+    "Original callback cancellation/failure is observed and sticky; it neither cancels the ended worker nor rewrites native work evidence.",
+    "Each captured original client retains its own sole closer across pointer/record replacement, bounded shutdown and cancellation of waiting callers.",
+    "Workspace accounting and watchers retain pending/failed notification, aggregate retirement and exact-client cleanup using the existing fixed state keyset."
+  ],
+  "independent_oracles": {
+    "final_unchanged_24": {
+      "all_case_actual_cleanup_fields_true": true,
+      "all_tracked_inputs_unchanged": 1400,
+      "log": {
+        "name": "hot24.log",
+        "sha256": "a1915af17758b42d8e1a9bb9d333471184125a6ec3e4f8866fb3c838f1baa6ed"
+      },
+      "receipt": {
+        "name": "hot24-summary.json",
+        "sha256": "e45d56162efa54b10b8b92fc49e4f4208e13e45cdd5fc2495324fd910d93f442"
+      },
+      "replacement_product_cleanup": [
+        {
+          "actual_cleanup": {
+            "callback_owner_done": true,
+            "client_closed": true,
+            "lease_cleanup_done": true,
+            "worker_done": true
+          },
+          "name": "test_entered_original_callback_keeps_its_exact_client_close_owner_after_replacement[client-B]",
+          "replacement_actual_cleanup": {
+            "fixture_original_close_fallback": false,
+            "fixture_other_close_fallback": false,
+            "original_actual_close_owner_done": true,
+            "original_callback_done": true,
+            "original_close_calls": 1,
+            "original_lease_cleanup_done": true,
+            "original_worker_done": true,
+            "other_closed": true,
+            "product_original_closer_observed": true
+          }
+        },
+        {
+          "actual_cleanup": {
+            "callback_owner_done": true,
+            "client_closed": true,
+            "lease_cleanup_done": true,
+            "worker_done": true
+          },
+          "name": "test_entered_original_callback_keeps_its_exact_client_close_owner_after_replacement[none]",
+          "replacement_actual_cleanup": {
+            "fixture_original_close_fallback": false,
+            "fixture_other_close_fallback": false,
+            "original_actual_close_owner_done": true,
+            "original_callback_done": true,
+            "original_close_calls": 1,
+            "original_lease_cleanup_done": true,
+            "original_worker_done": true,
+            "other_closed": true,
+            "product_original_closer_observed": true
+          }
+        }
+      ],
+      "result": {
+        "errors": 0,
+        "failed": 0,
+        "passed": 24,
+        "pytest_seconds": 40.8,
+        "skipped": 0,
+        "warnings": "none, -Werror"
+      },
+      "source": "ce56183211afc0d7f29ed3919eb1eb886fde1a94",
+      "xml": {
+        "name": "hot24.xml",
+        "sha256": "5427500e0c91a8659372a52352e3aa6a90e3fc262565d9a934ae7552b2778be7"
+      }
+    },
+    "original_22": {
+      "classification": {
+        "changed_actual_owner": {
+          "count": 5,
+          "detail": "record, worker, lease, malformed replacement cleanup and current ResourceClient change still notify original or redirect notification"
+        },
+        "original_notification_failure": {
+          "count": 2,
+          "detail": "RuntimeError not sticky in workspace accounting; CancelledError propagates to original worker. Native work result remains separately captured."
+        },
+        "post_worker_order": {
+          "count": 6,
+          "detail": "3 ordinary/standing positive paths, held native-workspace callback and 2 real ResourceClient HTTP acquisition/response-close cases observe original worker not done. The latter cases fail before shutdown assertions; they are not separate cold proof of transport-retirement regression."
+        },
+        "recovered_record": {
+          "count": 1,
+          "detail": "a running original marked recovered while its actual model close is held still notifies"
+        }
+      },
+      "cold": {
+        "errors": 0,
+        "failed": 14,
+        "passed": 8,
+        "pytest_seconds": 5.44,
+        "skipped": 0,
+        "warnings": "-Werror, none reported"
+      },
+      "cold_log": {
+        "name": "cold.log",
+        "sha256": "7541b31b0075f17922a05238f8f9e52a5fb0ea1891ddbc8e659daa51e657a67f"
+      },
+      "cold_receipt": {
+        "name": "receipt.json",
+        "sha256": "238405b7f9919e71fb5c731dfb757d2f6db08fe5fac73c70b56dd3d0e290b2f2"
+      },
+      "cold_xml": {
+        "name": "cold.xml",
+        "sha256": "b967efd77283949febd985b4d44d5df6d5e4efbadb9ec3b9acdfcf14829cb633"
+      },
+      "first_hot": {
+        "errors": 0,
+        "failed": 0,
+        "passed": 22,
+        "pytest_seconds": 20.7,
+        "skipped": 0,
+        "warnings": "none, -Werror"
+      },
+      "first_hot_log": {
+        "name": "hot.log",
+        "sha256": "1670de01a8aab9990ec155fbc94e1811434e167f68c98bb9ba824ff214b6238c"
+      },
+      "first_hot_receipt": {
+        "name": "hot-summary.json",
+        "sha256": "aae8a7dc15c392f0634959ab4bd295fbd113d95e9c1e8eafddefc5aedb5e47cb"
+      },
+      "first_hot_source": "1f7136fba18df6aa8a2980e78ca252f1594f00b0",
+      "limit": "Six cold ordering failures stopped before later shutdown assertions; final hot reaches those assertions. Cold property failure_type=null is not a separate classification; failure counts come from actual JUnit/results.",
+      "old_tracked_inputs_unchanged": 1397,
+      "sha256": "78960a9f694e7830de10bf6dc9a7fa675d7e89f717867dbc70e3f68ec29444b1",
+      "test": "tests/integration/test_agent_post_worker_resource_completion.py"
+    },
+    "review_derived_replacement_2": {
+      "classification": "Both genuine source behavior failures wait for missing original A transport aclose only after actual original callback joined. This is the confirmed current-client-only retirement gap, not a fixture/setup failure. Changed client makes original completion unconfirmed; native work truth remains independently captured.",
+      "cold": {
+        "errors": 0,
+        "failed": 2,
+        "passed": 0,
+        "pytest_seconds": 10.63,
+        "skipped": 0,
+        "warnings": "none, -Werror"
+      },
+      "cold_cleanup": "Original callback/worker/lease join; explicit fixture-only original-A close because product lost its closer. This is not product cleanup evidence.",
+      "cold_log": {
+        "name": "cold.log",
+        "sha256": "7bb35bd218f280036b1a392d7915a2e8d71cf935e91cea64ec5c7f607d039ce7"
+      },
+      "cold_receipt": {
+        "name": "receipt.json",
+        "sha256": "92a8046fb42740d800e91fa5303d35793540e112abeb8f0bddefecd8ff0cbf2d"
+      },
+      "cold_source": "1f7136fba18df6aa8a2980e78ca252f1594f00b0",
+      "cold_xml": {
+        "name": "cold.xml",
+        "sha256": "d567f650619c128dfbbfebba2933d66f48fd3ab45386d082a2d691555e8f51fd"
+      },
+      "sha256": "c2cbfa27443e9a3a6ebae823892bf4197c36cc523fbf6e44bf559151a373cb8f",
+      "test": "tests/integration/test_agent_resource_completion_replacement.py"
+    }
+  },
+  "independent_source_review": {
+    "conclusion": "No remaining actionable findings in the reviewed two-file production delta.",
+    "limits": "Local post-worker Resources notification/dependency retirement only. This source review does not establish full Agent-original preflight/effect retirement, Session settlement, physical Resources restoration/finalization, or independent qualification of test results reported by other agents.",
+    "prior_finding_preserved": {
+      "finding": "After an original callback entered exact client A, replacement by B or None before shutdown could leave A without its dependent close owner; closing the current client did not retire A. The original finding and qualification history were not rewritten.",
+      "observed_source": [
+        "1f7136fba18df6aa8a2980e78ca252f1594f00b0",
+        "f7e301ba8e183cef60a078394d86199628e7bc79"
+      ],
+      "resolution": "Addressed in ce56183211afc0d7f29ed3919eb1eb886fde1a94 by retaining exact captured-client ownership independently of current record/client/pending-operation slots and joining each original use before its sole close."
+    },
+    "receipt": {
+      "name": "239-post-worker-final-source-review-v1.json",
+      "sha256": "f483f0c961b3103a958114f81f8ab0f48299bc7d71080aa2e7b1c08b1fc63d51"
+    },
+    "source": "ce56183211afc0d7f29ed3919eb1eb886fde1a94",
+    "tests_by_reviewer": false
+  },
+  "integrated_verification": {
+    "after_manifest": {
+      "name": "239-post-worker-final-after.json",
+      "sha256": "00288b3661c035b584899204c40bd312cf779ba2ceeca81727e47b3bead83a5d"
+    },
+    "before_manifest": {
+      "name": "239-post-worker-final-before.json",
+      "sha256": "904acc84caa42023bcbc3795259d84bc569e2e354df19a6dd13ead3f1de01437"
+    },
+    "explicit_pythonpath_isolated_worktree": true,
+    "head_unchanged": true,
+    "log": {
+      "name": "pytest.log",
+      "sha256": "1f89e8d1a0c2d2db16e91af7b2625d82b06d734810f596569dd6e42691f25e9d"
+    },
+    "options": "-q -W error -p no:cacheprovider -o asyncio_default_fixture_loop_scope=function -o junit_family=xunit1",
+    "receipt": {
+      "name": "receipt.json",
+      "sha256": "bab186df063cdf5cffb8d31b5a04ece9ffa1af681786c1d6cadf759668b1b0d7"
+    },
+    "result": {
+      "errors": 0,
+      "failures": 0,
+      "pytest_seconds": 174.75,
+      "skipped": 0,
+      "tests": 154
+    },
+    "scope": "Nine listed modules only. The original25, ancestor81, new24 and integrated154 groups overlap and must not be added. Not a full-project CI result.",
+    "source": "e259c45e45751ac1c8b6bd5460a02d7558833efb",
+    "static": [
+      "whole-project Ruff check passed",
+      "whole-project Ruff format check passed:719files",
+      "contract export passed with empty schema diff",
+      "git diff --check passed"
+    ],
+    "target_sha256": {
+      "tests/integration/test_agent_mode_workspace.py": "c76ab4ff76383841777fb7c37103339413a9ee69c78af89696ea42bdc5d7ea04",
+      "tests/integration/test_agent_post_worker_resource_completion.py": "78960a9f694e7830de10bf6dc9a7fa675d7e89f717867dbc70e3f68ec29444b1",
+      "tests/integration/test_agent_resource_completion_replacement.py": "c2cbfa27443e9a3a6ebae823892bf4197c36cc523fbf6e44bf559151a373cb8f",
+      "tests/integration/test_agent_resource_restore_retirement.py": "04df84f345e7fa63db99dddb8180f148e5863b56c3980b141836fdb91bfea031",
+      "tests/integration/test_agent_workspace.py": "9f321289de40809440bdcf7ca320ce98747e51be3b4bc8c9409303657f65708f",
+      "tests/integration/test_resource_restore_model_retirement.py": "5aef2678099a6791f3dee09eb62b4a861334bbe672486a6ff477b13e8688f73e",
+      "tests/integration/test_standing_agent_runtime.py": "06d4800fe9c07fcbc6ab0f9c755705bea3b5acb1c9f816eef9d5a86709a8db36",
+      "tests/integration/test_standing_resource_binding_agent.py": "d3d0aed0eacbb3273d4bd491d663bfa52d1b41b5d1b21ef3130c12d7f04dea77",
+      "tests/unit/test_agent_runtime.py": "a71b5844974b896cf39e943d74204b072d7daba57f931be6c8425eeddc8c635f"
+    },
+    "targets": [
+      "tests/integration/test_agent_mode_workspace.py",
+      "tests/integration/test_agent_post_worker_resource_completion.py",
+      "tests/integration/test_agent_resource_completion_replacement.py",
+      "tests/integration/test_agent_resource_restore_retirement.py",
+      "tests/integration/test_agent_workspace.py",
+      "tests/integration/test_resource_restore_model_retirement.py",
+      "tests/integration/test_standing_agent_runtime.py",
+      "tests/integration/test_standing_resource_binding_agent.py",
+      "tests/unit/test_agent_runtime.py"
+    ],
+    "tracked_implementation_test_build_pins_unchanged": 1095,
+    "xml": {
+      "name": "junit.xml",
+      "sha256": "cc65e91ccb30b868bdb43e3608c26fcd968395f8c79b0f6be5422376545a7245"
+    }
+  },
+  "integration_source": "e259c45e45751ac1c8b6bd5460a02d7558833efb",
+  "kind": "Agent post-worker Resources completion and exact-client dependency retirement",
+  "limits_and_remaining": [
+    "Local post-worker notification order and dependent-client retirement only; no physical Resources acquisition/restoration report is produced.",
+    "Full Agent-original preflight/effect/model retirement testimony, native settlement, reservation/active-claim release remain unfinished.",
+    "Scheduled recurrence, inbox/delivery and owner editor plus the broader roadmap remain open.",
+    "No new paid inference, model/GPU/microphone/camera/device or live service changes. Synthetic providers do not establish actual model quality, latency or hardware acceptance.",
+    "Exact-publication-head full-project CI remains required before merge. Separate ongoing ancestor CI is not a result for these changes."
+  ],
+  "pull_request": 259,
+  "real_and_synthetic_boundaries": {
+    "http": "Unchanged ResourceClient and httpx.AsyncClient with synthetic AsyncBaseTransport and AsyncByteStream. Test subclass adds only read-only closed property, no method override. Gates expose original acquisition/callback Task, response sole-close and transport aclose Task. Teardown releases gates and joins captured handles; body close count checked once. No live listener/network.",
+    "ordinary": "Unchanged test_agent_resource_restore_retirement.ordinary; actual AgentRuntime/Store/LocalJournal/TaskModelLease and synthetic adapter close",
+    "standing": "Unchanged test_standing_agent_runtime.factory/stack; real Session SQLite/ASGI/JournalClient/standing claim and measured synthetic file workflow; native binding client teardown joins unchanged fixture"
+  },
+  "related_issues": [
+    228,
+    239
+  ],
+  "schema_version": "1.0",
+  "source_and_test_aliases": [
+    {
+      "corresponding_bytes_equal": true,
+      "kind": "test",
+      "original_isolated_commit": "dc945f9b8d2cf64ee1cda178ea143732012eef62",
+      "reachable_integration_commit": "c7d06b366323c46aefca41eacec8ad0fe4635cf2"
+    },
+    {
+      "corresponding_bytes_equal": true,
+      "kind": "source",
+      "original_isolated_commit": "1f7136fba18df6aa8a2980e78ca252f1594f00b0",
+      "reachable_integration_commit": "9d6737386209ca043833bf8e6e97186c4df8eac3"
+    },
+    {
+      "corresponding_bytes_equal": true,
+      "kind": "source",
+      "original_isolated_commit": "f7e301ba8e183cef60a078394d86199628e7bc79",
+      "reachable_integration_commit": "51d0145902711fd9896c9aecc4c87f63650f4925"
+    },
+    {
+      "corresponding_bytes_equal": true,
+      "kind": "test",
+      "original_isolated_commit": "f48b60b067bdb2a4e9cf789bd08bf7a888113171",
+      "reachable_integration_commit": "72f5209958b1d37520cad50805f8eb304596400f"
+    },
+    {
+      "corresponding_bytes_equal": true,
+      "kind": "source",
+      "original_isolated_commit": "ce56183211afc0d7f29ed3919eb1eb886fde1a94",
+      "reachable_integration_commit": "e259c45e45751ac1c8b6bd5460a02d7558833efb"
+    }
+  ],
+  "source_author_seal": {
+    "protected_behavior_checks": {
+      "changed_AgentRuntime_methods": [
+        "__init__",
+        "workspace_operation_state",
+        "_workspace_settled",
+        "close",
+        "_run",
+        "_release_task_resources",
+        "_notify_task_resources"
+      ],
+      "old_tests_all_unchanged": true,
+      "run_body_except_finally_AST_identical": true,
+      "wait_success_failure_cancel_ASTs_identical": true,
+      "workspace_operation_state_return_keys_unchanged": [
+        "closed",
+        "tasks",
+        "workers",
+        "processes",
+        "retirements",
+        "submit_preflights",
+        "submit_operations",
+        "pending_submits",
+        "ecosystem_operations",
+        "cleanup_pending",
+        "cleanup_failed"
+      ]
+    },
+    "qualified_ancestor_runs": [
+      {
+        "cleanup": "Original fixture/teardown assertions unchanged; no teardown error. Strict-W error. No inference/services/devices.",
+        "counts": {
+          "errors": 0,
+          "failures": 0,
+          "skipped": 0,
+          "tests": 25
+        },
+        "head": "1f7136fba18df6aa8a2980e78ca252f1594f00b0",
+        "head_unchanged": true,
+        "pins_unchanged": true,
+        "receipt": "old-restoration.receipt.json",
+        "returncode": 0,
+        "runner_wall_seconds": 27.40481526500298
+      },
+      {
+        "cleanup": "Original fixture/teardown assertions unchanged; no teardown error. Strict-W error. No inference/services/devices.",
+        "counts": {
+          "errors": 0,
+          "failures": 0,
+          "skipped": 0,
+          "tests": 81
+        },
+        "head": "f7e301ba8e183cef60a078394d86199628e7bc79",
+        "head_unchanged": true,
+        "pins_unchanged": true,
+        "receipt": "existing-regressions.receipt.json",
+        "returncode": 0,
+        "runner_wall_seconds": 108.63913314800084
+      }
+    ],
+    "receipt": {
+      "name": "final-seal.json",
+      "sha256": "1f58c7931de955416856437fe87b5cc0167436b7f3678c81263f865a3ebd22e4"
+    }
+  },
+  "source_sha256": {
+    "services/agent/resource_completion.py": "3d50a19f49704fd617024af2fc22a463550662fc7278382cc5f6177e5b5d9be1",
+    "services/agent/runtime.py": "76d7057c7b001bb5a549f889f235f647494c4ba131afe7da953efc1bd20dbbdc"
+  },
+  "unchanged": [
+    "all existing tests/assertions/deadlines",
+    "Resources wire/auth/body limits and Session schemas/hash domains",
+    "task outcome producers and Agent run body outside finally",
+    "model/provider selections, disclosure and live device/service configuration",
+    "disconnected 8820 frontend build"
+  ]
+}

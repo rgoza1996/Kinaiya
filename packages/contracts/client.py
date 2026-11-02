@@ -1,5 +1,6 @@
 import asyncio
 import copy
+import json
 
 import httpx
 
@@ -44,15 +45,19 @@ from packages.contracts.interfaces import (
     AgentModeOff,
 )
 from packages.contracts.models import AppendRequest, JournalEntry, PlaybackGeneration, Session
+from packages.contracts.operation_ownership import current_owner
 
 AGENT_EXPORT_TIMEOUT_S = 15
 _SUBMIT_CLOSE_DRAIN_S = 1.0
+_RESOURCE_PUBLICATION_BYTES = 1024 * 1024
 
 
 class _SubmitExchange:
     """Keep late acquisition and actual response cleanup owned after public refusal."""
 
     def __init__(self, owner, request, proposal, result_type, deadline):
+        if len(owner._submit_exchanges) >= 64:
+            raise AgentSubmitUnavailable
         self.owner = owner
         self.response = None
         self.close_task = None
@@ -60,6 +65,9 @@ class _SubmitExchange:
         self.abandoned = False
         self.work_cancel_requested = False
         self.close_cancel_requested = False
+        self.actual_owner = current_owner()
+        if self.actual_owner is not None:
+            self.actual_owner.hold(self)
         owner._submit_exchanges.add(self)
         self.task = asyncio.create_task(self._run(request, proposal, result_type, deadline))
         self.task.add_done_callback(self._settled)
@@ -77,6 +85,8 @@ class _SubmitExchange:
             self.owner._submit_cleanup_failed = True
         if self.task.done() and (self.close_task is None or self.close_task.done()):
             self.owner._submit_exchanges.discard(self)
+            if self.actual_owner is not None:
+                self.actual_owner.release(self, failed=self.owner._submit_cleanup_failed)
 
     def abandon(self):
         self.abandoned = True
@@ -215,7 +225,41 @@ class _ControlExchange(_SubmitExchange):
                 await asyncio.shield(self.close_task)
 
 
+class _JournalMetadataExchange(_SubmitExchange):
+    """Scoped Resources publication, on the same actual exchange registry.
+
+    A publication timeout says nothing about notification delivery and is not
+    cleanup proof. Its original raw read and sole close remain enrolled even
+    after the best-effort publication facade is cancelled.
+    """
+
+    async def _run(self, request, proposal, result_type, deadline):
+        try:
+            self.response = await self.owner.http.send(request, stream=True, follow_redirects=False)
+            if self.abandoned:
+                raise AgentSubmitUnavailable
+            self.response.raise_for_status()
+            if (
+                self.response.headers.get("content-encoding", "identity").strip().lower()
+                != "identity"
+            ):
+                raise AgentSubmitUnavailable
+            raw = bytearray()
+            async for chunk in self.response.stream:
+                if type(chunk) is not bytes or len(raw) + len(chunk) > _RESOURCE_PUBLICATION_BYTES:
+                    raise AgentSubmitUnavailable
+                raw.extend(chunk)
+            return json.loads(bytes(raw))
+        finally:
+            if self.response is not None:
+                self.close_task = asyncio.create_task(self._close())
+                self.close_task.add_done_callback(self._settled)
+                await asyncio.shield(self.close_task)
+
+
 class JournalClient:
+    actual_ownership_supported = True
+
     def __init__(self, url: str, token: str, *, transport=None):
         self.http = httpx.AsyncClient(
             base_url=url,
@@ -227,6 +271,104 @@ class JournalClient:
         self._submit_stt_closes = set()
         self._submit_cleanup_failed = False
         self._submit_closed = False
+
+    async def _owned_metadata(self, method, path, **kwargs):
+        if self._submit_closed or self._submit_cleanup_failed:
+            raise AgentSubmitUnavailable
+        request = self.http.build_request(
+            method, path, headers={"Accept-Encoding": "identity"}, **kwargs
+        )
+        exchange = _JournalMetadataExchange(self, request, None, None, None)
+        return await asyncio.shield(exchange.task)
+
+    async def standing_renew(self, request):
+        from packages.contracts.standing_client import standing_renew
+
+        return await standing_renew(self, request)
+
+    async def standing_prepare(self, request):
+        from packages.contracts.standing_client import standing_prepare
+
+        return await standing_prepare(self, request)
+
+    async def standing_claim_lookup(self, request):
+        from packages.contracts.standing_client import standing_claim_lookup
+
+        return await standing_claim_lookup(self, request)
+
+    async def standing_unresolved(self):
+        from packages.contracts.standing_client import standing_unresolved
+
+        return await standing_unresolved(self)
+
+    async def standing_admit(self, request, *, capability=None):
+        from packages.contracts.standing_client import standing_admit
+
+        return await standing_admit(self, request, capability=capability)
+
+    async def standing_task_lookup(self, request):
+        from packages.contracts.standing_client import standing_task_lookup
+
+        return await standing_task_lookup(self, request)
+
+    async def standing_export_admission(self, request):
+        from packages.contracts.standing_client import standing_export_admission
+
+        return await standing_export_admission(self, request)
+
+    async def standing_close_admission(self, request, *, capability=None):
+        from packages.contracts.standing_client import standing_close_admission
+
+        return await standing_close_admission(self, request, capability=capability)
+
+    async def standing_closure_lookup(self, request):
+        from packages.contracts.standing_client import standing_closure_lookup
+
+        return await standing_closure_lookup(self, request)
+
+    async def resource_task_context(self, request):
+        from packages.contracts.standing_client import resource_task_context
+
+        return await resource_task_context(self, request)
+
+    async def standing_resource_reserve(self, request):
+        from packages.contracts.standing_client import standing_resource_reserve
+
+        return await standing_resource_reserve(self, request)
+
+    async def standing_resource_observe(self, request):
+        from packages.contracts.standing_client import standing_resource_observe
+
+        return await standing_resource_observe(self, request)
+
+    async def standing_resource_bind(self, request):
+        from packages.contracts.standing_finalization_client import standing_resource_bind
+
+        return await standing_resource_bind(self, request)
+
+    async def standing_resource_binding_lookup(self, request):
+        from packages.contracts.standing_finalization_client import standing_resource_binding_lookup
+
+        return await standing_resource_binding_lookup(self, request)
+
+    async def standing_resource_finalize_context(self, request):
+        from packages.contracts.standing_finalization_client import (
+            standing_resource_finalize_context,
+        )
+
+        return await standing_resource_finalize_context(self, request)
+
+    async def standing_resource_report(self, report):
+        from packages.contracts.standing_finalization_client import standing_resource_report
+
+        return await standing_resource_report(self, report)
+
+    async def standing_resource_finalization_lookup(self, request):
+        from packages.contracts.standing_finalization_client import (
+            standing_resource_finalization_lookup,
+        )
+
+        return await standing_resource_finalization_lookup(self, request)
 
     async def admit_submit(self, request: AppendRequest) -> AgentSubmitReceipt:
         deadline = asyncio.get_running_loop().time() + AGENT_SUBMIT_ADMISSION_TIMEOUT_S
@@ -379,6 +521,11 @@ class JournalClient:
         )
 
     async def append(self, request):
+        if current_owner() is not None:
+            result = await self._owned_metadata(
+                "POST", "/v1/transcript/entries", json=request.model_dump(mode="json")
+            )
+            return JournalEntry.model_validate(result)
         response = await self.http.post(
             "/v1/transcript/entries", json=request.model_dump(mode="json")
         )
@@ -455,6 +602,11 @@ class JournalClient:
         response.raise_for_status()
         return [JournalEntry.model_validate(value) for value in response.json()]
 
+    async def transcript_scan(self, request):
+        from packages.contracts.transcript_scan_client import transcript_scan
+
+        return await transcript_scan(self, request)
+
     async def recent(self, **kwargs):
         response = await self.http.get("/v1/transcript/recent", params=kwargs)
         response.raise_for_status()
@@ -526,6 +678,10 @@ class JournalClient:
         return maximum
 
     async def sessions(self):
+        if current_owner() is not None:
+            return [
+                Session.model_validate(s) for s in await self._owned_metadata("GET", "/v1/sessions")
+            ]
         response = await self.http.get("/v1/sessions")
         response.raise_for_status()
         return [Session.model_validate(s) for s in response.json()]

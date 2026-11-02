@@ -1,0 +1,612 @@
+{
+  "requirement": "https://github.com/rgoza1996/Kinaiya/issues/228",
+  "parents": [
+    "https://github.com/rgoza1996/Kinaiya/issues/239",
+    "https://github.com/rgoza1996/Kinaiya/issues/9",
+    "https://github.com/rgoza1996/Kinaiya/issues/208"
+  ],
+  "scope": "Native full-identity Task-bound Resources registration before handoff effects, exact HTTP/client ownership and retained process cleanup authority. This is not positive no-lease/cleanup/effect settlement, claim release, recurrence, inbox, editor or full #228 acceptance.",
+  "implementation": {
+    "basis": "6f50cae14cf19c73bc5b7f71fdd3882ad0c8cc60",
+    "qualified_source": "8b0a5b7089b52e697b996dd9234ff02eec2f1bb7",
+    "source_sha256": {
+      "packages/contracts/client.py": "ad8ca06632bc02c3ea5d2ccf2f73a4bc6222d2e3f04321bfb425ea379fa0b5a3",
+      "packages/contracts/schemas/StandingResourceObservation.json": "2f7f141f7512bd883bd0d8273f25389f34980fdfd8127e35937f6b92e141152a",
+      "packages/contracts/schemas/StandingResourceReservation.json": "9f2c707f74c42d6f174a833d116983f091685e0d4055c32644a1e4285904da90",
+      "packages/contracts/schemas/StandingResourceReservationReceipt.json": "3cc46b9cf073bc76b6b1638ecd1c150486b0af11039717c182234da8c6477713",
+      "packages/contracts/schemas/TaskResourceContext.json": "24bcc6cba246472a375d8cd51af5681557847a26478a86483e073cbc3abef6c2",
+      "packages/contracts/schemas/TaskResourceQuery.json": "97169dd92299a52ae70b588125e40dc8a9735f1a60a037852bc45fe57e22935f",
+      "packages/contracts/standing_client.py": "fd1c2bca28e5e2d077211a9cbed5b9879aa568355d34568404da63f315396a5f",
+      "packages/contracts/standing_resources.py": "d089e2c493f065c3ebb29471e282ed04ac8f930494c812ea16a0e79c5954f9df",
+      "packages/resources/processes.py": "5cd990d663d7bd337ac27201773565af0e00d023b9c5a05ca430443b476d0b13",
+      "scripts/export_contracts.py": "5677aa89ae3db4f843c0f34daa0984bf3dfd56da2204fa0d0bcdc4cbab9191d6",
+      "services/resources/api.py": "868af0fa4592ee3ce47cdc9bf7d36f9a42f6042e416aad5d8e7149698854cf7f",
+      "services/resources/coordinator.py": "7cebce2480fda700b2514360b03c2fb0bb809beaf9aa1b4d24cab61ec378ea6e",
+      "services/resources/launcher.py": "db8a482703299b66e92d4c6f7b816603c7eb556c2890da9f655f746ba1b32831",
+      "services/resources/standing_handoff.py": "89aa641353f72f45e5ef13a758099d75df2d6bf82bc31ce10679a9c4cf2e9db8",
+      "services/session/api.py": "588bc89da07b05724fce06896a0ec143530e5f8d522d3f01af7cbefa23993a3a",
+      "services/session/standing_resources.py": "77dcde04213449852d33611e6001b993db875bb87735e9c41516eaa06b14bf9b",
+      "services/session/standing_work_api.py": "13ce511b50374857206386615e7ed0277c0bb831a5226d1dd7db7543a5ea888b"
+    },
+    "test_sha256": {
+      "tests/integration/test_resource_boundaries.py": "8830eddbbcf67016399dfd843d98dbceace61be8b36d4bdb1b9432593dbd103e",
+      "tests/integration/test_resource_close_ownership_retained.py": "476d9050edabcaed83f8db044dff8a4820975dcdbafe16b4b0986622d3a22fa3",
+      "tests/integration/test_resource_handoff.py": "04d87e020ce9ea05f65a3577a19091aa81e681447272b01f7b6d142db0119c6a",
+      "tests/integration/test_resource_parent.py": "1e22b03779900eb3d52ff79eba93989592e9e7e3dcc8c73b327b22f41d6f413a",
+      "tests/integration/test_resource_processes.py": "a6c7ee0b0d8ca4f873006aacb6c50064d3f90e520ade1d399853702f4bbab751",
+      "tests/integration/test_standing_resources_handoff.py": "2344a9162958dd7eecf2e405baa1e1e5b44fa395db84db9456918c7359d63dc0",
+      "tests/integration/test_standing_resources_registration.py": "139ed1a9865928a234309a69e558bc888af9f4b80c5156b19081a62cae34dac3",
+      "tests/integration/test_standing_resources_slot_corruption.py": "310dc63198404eefb83c1c6ce48df7318e72cc464eba98dcbc284cc582e8684c",
+      "tests/integration/test_text_resource_barrier.py": "c780fed891223f59fd2e833ba5efb0b403e2ee74858a5aacd3bca2c07f48d257",
+      "tests/unit/test_resource_complete_budget.py": "c31363f44a029d418096ffdeb4cfcda1b94b370141a9f089e8dade0eac47819f",
+      "tests/unit/test_resource_gpu.py": "e5d76babd8d8451eeedd7ae1e61e4dbfcd30461825ca53dd85a983d6c5004361",
+      "tests/unit/test_resource_provider_cleanup.py": "a238e2ac7fe225775ba8cc5eb96af981cf89f0d643db6c93d396bae5530a01c3",
+      "tests/unit/test_standing_resources_contract.py": "400311d11f082abcfcff80f12cab36be03de20c9985aeaa820f69b3a55f266fc"
+    },
+    "boundaries_sha256": {
+      "228-resource-registration-v1.md": "648403314fde0d553be1f39c5a7967361451bf0ef11a86e5116724c5bdc4f3e3",
+      "228-resource-registration-http-supplement.md": "5178a93b4b645b30734503371553fdf3af75d73b1bf275a31d58545e674a869a"
+    },
+    "commits": {
+      "native_contract_author": "f04d0f626de045fad7bc861517d78d2b548a00df",
+      "root_http_client": "014d08ad54447dd1d3403960f730c1a434f0b8e8",
+      "resources_author": "58b8baebcb4e1ec7861909945da0b94feef88924",
+      "pure_error_fix": "44f831d",
+      "old_unbound_call_compatibility_fix": "ac802f8",
+      "owner_close_error_fix": "48dbec065035ac21d239771043d7d551e9e183ac",
+      "postclose_guard": "6d0b296",
+      "slot_discovery_fix": "65f51f3395c215a2db14c218129d4a9cd097e473",
+      "cleanup_ownership_fix": "8b0a5b7089b52e697b996dd9234ff02eec2f1bb7"
+    }
+  },
+  "independent_oracles": {
+    "frozen_before_root_implementation_consultation": true,
+    "freeze": {
+      "local_bundle": "228-resource-registration-oracles-595c86f2",
+      "receipt_file": "receipt.json",
+      "receipt_sha256": "465aa31dda93ff39d17c57ac9e6d4d00d781bee4f677b223fba6cf0e0dfe9613",
+      "manifest.json_sha256": "2d3c68b964350655ba920a0c5b2120f5775c386681b152261ce659b3ac688472"
+    },
+    "cold": {
+      "local_bundle": "228-resource-registration-cold-6a855e1a",
+      "receipt_file": "receipt.json",
+      "receipt_sha256": "e83c49cfe3c72d3f08c00bc1709c3799e668a9f5aea42f14b60413b56550c3e7",
+      "manifest.json_sha256": "deb4bedc79c8e170563c8278ed48e743269fc5969f927c67670f94406dfe0e51",
+      "head": "e7c8b9afb7fc9b6498957959c4d25a6e4b5282a2",
+      "counts": {
+        "tests": 50,
+        "failures": 37,
+        "errors": 13,
+        "skipped": 0,
+        "passed": 0
+      },
+      "seconds": 7.524330142005056,
+      "classification": "Missing new pure/native/API capabilities; no passing implementation result. Original tests and source pins retained.",
+      "original_test_sha256": {
+        "tests/unit/test_standing_resources_contract.py": "400311d11f082abcfcff80f12cab36be03de20c9985aeaa820f69b3a55f266fc",
+        "tests/integration/test_standing_resources_registration.py": "a42569858df7d9f26ebd69fa98c8a1935ba262bff9fc216828d0311925c36666",
+        "tests/integration/test_standing_resources_handoff.py": "88a9abadaa9907bff0917cbc0562939d12cb2173c114eee301073573e10e46fe"
+      }
+    },
+    "additional_frozen_slot_regression": {
+      "local_bundle": "codex-228-resource-slot-review-bva6q3pe",
+      "receipt_file": "receipt.json",
+      "receipt_sha256": "3cb3beec724f114c47dc0280ad6f6e8ffeca968ca3431d130e5b0bbbd73351cf",
+      "manifest.json_sha256": "a0a2a4e0a2977e457e83523b7b4d728898e3dd4b0e14fa9fe504d6fdf9007678",
+      "baseline": "1 failed / 1 passing ambiguity control on native source before slot-discovery fix. Both actual native submit slots retained; paired serialized-op corruption must not hide one possible identity."
+    },
+    "additional_frozen_close_regression": {
+      "local_bundle": "228-resource-close-ready-fixture-us8b1asu",
+      "receipt_file": "qualification-receipt.json",
+      "receipt_sha256": "f8fa981270a8e1f5d2284e3609d37ec6e13d2f0618708905703ecfb3c7736c3b",
+      "qualification-manifest.json_sha256": "8047ad2f5ad9d11bc41baa2b9d52f0c324f033da01e12ad29c59c63f86f685db",
+      "freeze-manifest.json_sha256": "d3ba9415327ebd9fe71d44a58587ef3b1d1a72ff5a52e1a057503a61b9735d84",
+      "baseline": {
+        "errors": 0,
+        "failed": 1,
+        "log": "actual-baseline.log",
+        "passed": 1,
+        "pytest_returncode": 1,
+        "seconds": 5.03,
+        "skipped": 0,
+        "xml": "actual-baseline.xml"
+      },
+      "source_before_sha256": "184f4474c16a2bb86851f19d1cc9a646c86877670ab0a29d99e9ce37c57d72d3",
+      "first_setup_diagnosis": "Initial readiness-less fixture produced two setup errors, no body proof. Child-written readiness correction preserves all37 original assertions and outside-fixture AST. Corrected actual red is 1 failed/1control passed; four children actually reaped through independently retained verified pidfds."
+    }
+  },
+  "preserved_failures_and_corrections": {
+    "first_native35": {
+      "local_bundle": "228-resource-native-first-_x0899nk",
+      "receipt_file": "receipt.json",
+      "receipt_sha256": "f40e87475d2ca8f160e5739be82df8848820e919344eca7a7a3a958814173bb4",
+      "manifest.json_sha256": "958cc2bee79b4b8980db1e7c882bcd34fee6075156101d43f655235a6b3607bd",
+      "source_head": "8c84d6ebb5c060a69d48615558f6277c3cee477a",
+      "exit_code": 1,
+      "summary": "29 passed / 6 failed, 42.17s",
+      "junit": [
+        {
+          "tests": "35",
+          "failures": "6",
+          "errors": "0",
+          "skipped": "0",
+          "time": "42.172"
+        }
+      ],
+      "test_sha256": {
+        "tests/integration/test_standing_resources_registration.py": "a42569858df7d9f26ebd69fa98c8a1935ba262bff9fc216828d0311925c36666",
+        "tests/unit/test_standing_resources_contract.py": "400311d11f082abcfcff80f12cab36be03de20c9985aeaa820f69b3a55f266fc"
+      },
+      "diagnosis": "Five frozen-mutation failures exposed supplied input; new-family-only mutation overrides corrected source. One fixture guessed a nonexistent SQL epoch column; corrected using actual Store reset, all50 original assertions preserved.",
+      "fixture_receipt": {
+        "local_bundle": "228-resource-epoch-fixture-correction-4bb02f6d",
+        "receipt_file": "receipt.json",
+        "receipt_sha256": "89d6fc6bc611a8e2d19c19cf3ec278b10e64c494b53947c8daab29fdf61827f6",
+        "manifest.json_sha256": "701e0aeefa27114ad1d3cccac85eb2e08f9965dfc4191d0adcaaa27145052dec"
+      }
+    },
+    "first_handoff15": {
+      "local_bundle": "228-resource-handoff-first-esn_8n7x",
+      "receipt_file": "receipt.json",
+      "receipt_sha256": "6c640ff9042a383f5f5d90c2bf74f464c6685f9312d006273c1210c2a4e03cc5",
+      "manifest.json_sha256": "bd85ef6c06897a4996d85f5b534b219661b65ced929ea6040cc9d2ee5c207b1e",
+      "source_head": "69b665b6eb2b738113ec588193b561716652e2c3",
+      "exit_code": 1,
+      "summary": "10 passed / 5 failed / 15 teardown errors over15 actual cases, 62.62s",
+      "junit": [
+        {
+          "tests": "20",
+          "failures": "5",
+          "errors": "15",
+          "skipped": "0",
+          "time": "62.617"
+        }
+      ],
+      "test_sha256": {
+        "tests/integration/test_standing_resources_handoff.py": "88a9abadaa9907bff0917cbc0562939d12cb2173c114eee301073573e10e46fe"
+      },
+      "junit_note": "JUnit records20 entries because failed cases and teardown errors overlap; not20 unique cases.",
+      "genuine_source_issue": "Owner close surfaced internal CancelledError to uncancelled caller; fixed without conceding expected StandingUnavailable.",
+      "independent_fixture_diagnosis": {
+        "local_bundle": "228-resource-handoff-fixture-diagnosis-94db05d0",
+        "receipt_file": "receipt.json",
+        "receipt_sha256": "b90dbc0a44577cedabd7eefdb803c9f40da9f6e7b7823a32370ca269fa29eafc",
+        "manifest.json_sha256": "c4a1c6fe1214f8890dcdbc7bc8e9cb353ae3cdf97f3bab896e4a19e3077a03ab"
+      },
+      "fixture_correction": {
+        "local_bundle": "228-resource-handoff-fixture-correction-a7ff3250",
+        "receipt_file": "receipt.json",
+        "receipt_sha256": "57c8f40f491f05eb0ebc8887f4c236f39359f51e3b34d64c41b273174d2866e7",
+        "manifest.json_sha256": "87db10bc4563ba4aaf6b918578db89054df4db6714e76d08ebfb0677bfd3ed39",
+        "assertion_classification": {
+          "original_assert_count": 61,
+          "unchanged_original_assert_count": 57,
+          "changed_original_assert_count": 4,
+          "corrected_assert_count": 79,
+          "changed_assert_source": [
+            "assert row['owned_pid'] is None and before > 0 and (not env.runtime.enabled)",
+            "assert before is not None and before[1] is None",
+            "assert row['owned_pid'] is None and row['stop_evidence']['reaped'] and row['stop_evidence']['group_empty']",
+            "assert row['state'] == 'stopped' and row['owned_pid'] is None"
+          ],
+          "all_original_pytest_raises_calls_identical": true,
+          "all_other_top_level_functions_source_bytes_identical": true,
+          "new_helpers": [
+            "assert_stopped_worker",
+            "assert_pending_without_start"
+          ],
+          "new_postclose_case_source_bytes_unchanged": true,
+          "pure_and_epoch_corrected_registration_files_byte_exact": true,
+          "formatting_whole_ast_preserved": true
+        },
+        "approved_changes": [
+          "Retained PID is diagnostic: actual Process.wait/returncode and native reaped/group-empty/ownership/residual/PGID/settled-owner evidence instead",
+          "Explicit pending-restart fixture verifies no process/startup/sends and failed read-only policy; default Ready startup unchanged",
+          "Lost ACK remains NULL; retained ACK requires exact canonical full RETAINED receipt bound to local/native request",
+          "Return actual non-200 Session response normally; post-200 ACK fault/gate handling only for200"
+        ]
+      }
+    },
+    "first_old215": {
+      "local_bundle": "228-resource-existing-first-rti8hdxh",
+      "receipt_file": "receipt.json",
+      "receipt_sha256": "11d491b347b020a3e12172f2364047985232f41ea5978a3299be7c47a2092dc6",
+      "manifest.json_sha256": "1be667cdc91bfa6c646b2183b60405c82500d662f98b3cf0c35b0836c29e1cef",
+      "source_head": "69b665b6eb2b738113ec588193b561716652e2c3",
+      "exit_code": 1,
+      "summary": "203 passed / 12 failed,45.92s",
+      "junit": [
+        {
+          "tests": "215",
+          "failures": "12",
+          "errors": "0",
+          "skipped": "0",
+          "time": "45.901"
+        }
+      ],
+      "test_sha256": {
+        "tests/integration/test_resource_boundaries.py": "8830eddbbcf67016399dfd843d98dbceace61be8b36d4bdb1b9432593dbd103e",
+        "tests/integration/test_resource_handoff.py": "f515cf1e8d3a041b0892d78027252254972495993c25bbc23f57140a3bff9c8b",
+        "tests/integration/test_resource_parent.py": "1e22b03779900eb3d52ff79eba93989592e9e7e3dcc8c73b327b22f41d6f413a",
+        "tests/integration/test_resource_processes.py": "a6c7ee0b0d8ca4f873006aacb6c50064d3f90e520ade1d399853702f4bbab751",
+        "tests/integration/test_text_resource_barrier.py": "c780fed891223f59fd2e833ba5efb0b403e2ee74858a5aacd3bca2c07f48d257",
+        "tests/unit/test_resource_complete_budget.py": "c31363f44a029d418096ffdeb4cfcda1b94b370141a9f089e8dade0eac47819f",
+        "tests/unit/test_resource_gpu.py": "e5d76babd8d8451eeedd7ae1e61e4dbfcd30461825ca53dd85a983d6c5004361",
+        "tests/unit/test_resource_provider_cleanup.py": "a238e2ac7fe225775ba8cc5eb96af981cf89f0d643db6c93d396bae5530a01c3"
+      },
+      "diagnosis": "Eight old fake-Task fixtures lacked an actual native identity/gateway; three unbound-call CAS failures were real capture-keyword compatibility defects; one process warning was traced to pre-existing lost close ownership.",
+      "fixture_correction": {
+        "local_bundle": "codex-228-resource-old-task-fixture-6wr4rxeq",
+        "receipt_file": "receipt.json",
+        "receipt_sha256": "6ec4b4a43fa3012bbcc733d9c3998ca9239712fa01192b356ed387b0f994799c",
+        "manifest.json_sha256": "4446991d808db179ab658ce7cb6285f40706b0057ad095b4c9ff223706afd7e3",
+        "preservation": {
+          "all_original_assert_AST_and_source_preserved": 200,
+          "all_other_definitions_byte_exact": 46,
+          "metadata_note": "Initial unsealed count73 included imports/module statements; corrected to the actual top-level definitions. Byte-exact outside-fixture proof and all200assertions were unchanged.",
+          "new_fixture_asserts": 3,
+          "new_sha256": "04d87e020ce9ea05f65a3577a19091aa81e681447272b01f7b6d142db0119c6a",
+          "original_sha256": "f515cf1e8d3a041b0892d78027252254972495993c25bbc23f57140a3bff9c8b",
+          "outside_make_coordinated_byte_exact": true
+        },
+        "native_fixture": "Enter real Session ASGI lifespan; seed actual ordinary target via production Agent-role JournalClient into the already-created Converse session, close that seed client, provide production Resources-role JournalClient before ResourceCoordinator.initialize, observe original native target across reopen instead of duplicating TaskID. Wrapped fixture close owns actual client and Session lifecycle joins; no fake receipt or status bypass."
+      }
+    },
+    "postclose_red": {
+      "local_bundle": "228-resource-postclose-first-t73a7isz",
+      "receipt_file": "receipt.json",
+      "receipt_sha256": "fd1a885fe1e29bcec7e1a9236a6cd4e4ba47046ecc535f000872f64d91aef0dc",
+      "manifest.json_sha256": "31f6018c8e1800e56eb66acf644b881823daeefd21742345cb22e972e61b49b6",
+      "source_head": "ce8c99d37ea2bc0e0c28591dcaef7c3ef569e961",
+      "exit_code": 1,
+      "summary": "One genuine ProgrammingError failure and one separately diagnosed diagnostic-PID teardown fixture error,2.53s",
+      "junit": [
+        {
+          "tests": "2",
+          "failures": "1",
+          "errors": "1",
+          "skipped": "0",
+          "time": "2.532"
+        }
+      ],
+      "test_sha256": {
+        "tests/integration/test_standing_resources_handoff.py": "ceeecd4680b80a12febb1fea9cefd101f12945601240e70e79b4998daba5fcb5"
+      },
+      "source_fix": "Closed-owner guard before old action SQL preserves typed unavailable instead of API500.",
+      "observer_only_attempt": "Earlier guessed nonexistent node ID exited4 before any test; retained separately and not counted as behavioral red."
+    },
+    "preexisting_process_failure": {
+      "local_bundle": "228-resource-qualified-xz13aaw3",
+      "receipt_file": "receipt.json",
+      "receipt_sha256": "2138b708b38940e8615fa63378eaea932eaa0306d702e95f7bd1ce0e8113f697",
+      "manifest.json_sha256": "bdddea3c3c8edb74625d38f488c1c33986ca884d6e7130414fc841709a58267e",
+      "source_head": "c9f66e9e3113a743403fafda82af586d2e28a9ae",
+      "exit_code": 1,
+      "summary": "265 passed / 1 failed,170.64s",
+      "junit": [
+        {
+          "tests": "266",
+          "failures": "1",
+          "errors": "0",
+          "skipped": "0",
+          "time": "170.624"
+        }
+      ],
+      "test_sha256": {
+        "tests/integration/test_resource_boundaries.py": "8830eddbbcf67016399dfd843d98dbceace61be8b36d4bdb1b9432593dbd103e",
+        "tests/integration/test_resource_handoff.py": "04d87e020ce9ea05f65a3577a19091aa81e681447272b01f7b6d142db0119c6a",
+        "tests/integration/test_resource_parent.py": "1e22b03779900eb3d52ff79eba93989592e9e7e3dcc8c73b327b22f41d6f413a",
+        "tests/integration/test_resource_processes.py": "a6c7ee0b0d8ca4f873006aacb6c50064d3f90e520ade1d399853702f4bbab751",
+        "tests/integration/test_standing_resources_handoff.py": "2344a9162958dd7eecf2e405baa1e1e5b44fa395db84db9456918c7359d63dc0",
+        "tests/integration/test_standing_resources_registration.py": "139ed1a9865928a234309a69e558bc888af9f4b80c5156b19081a62cae34dac3",
+        "tests/integration/test_text_resource_barrier.py": "c780fed891223f59fd2e833ba5efb0b403e2ee74858a5aacd3bca2c07f48d257",
+        "tests/unit/test_resource_complete_budget.py": "c31363f44a029d418096ffdeb4cfcda1b94b370141a9f089e8dade0eac47819f",
+        "tests/unit/test_resource_gpu.py": "e5d76babd8d8451eeedd7ae1e61e4dbfcd30461825ca53dd85a983d6c5004361",
+        "tests/unit/test_resource_provider_cleanup.py": "a238e2ac7fe225775ba8cc5eb96af981cf89f0d643db6c93d396bae5530a01c3",
+        "tests/unit/test_standing_resources_contract.py": "400311d11f082abcfcff80f12cab36be03de20c9985aeaa820f69b3a55f266fc"
+      },
+      "origin_proof": {
+        "local_bundle": "228-resource-subprocess-origin-_nhfo0lt",
+        "receipt_file": "receipt.json",
+        "receipt_sha256": "83b46699a1ca5844ba1e6078db0daebb2a105d30be7b2a1553dfffce6d7f205a",
+        "manifest.json_sha256": "b0f213da0175e8005a01fccb16bd3ca48e685f7aea8c0d07d31ece383c3f8da3"
+      },
+      "diagnosis": "Unconditional close handle release destroyed cleanup authority after an injected stop failure; same unchanged old fixture and subsequent barrier failed on both baseline6f50 and current source. Independent original pidfds verified live workers and owned cleanup.",
+      "source_fix_author": {
+        "local_bundle": "239-resource-close-ownership-7_xjbw90",
+        "receipt_file": "qualification-receipt.json",
+        "receipt_sha256": "50042689f257840c33cdb9a376dee44b0597f17b53b3ffadc13e106b854cb91b",
+        "manifest.json_sha256": "ace158e1e0c962e33709d05290f73416ddce9397ab7aec59bb7137cc6bb0b8e9"
+      }
+    },
+    "reporter_setup_errors": {
+      "local_bundle": "228-resource-ownership-final-122qu3in",
+      "receipt_file": "receipt.json",
+      "receipt_sha256": "506c5054e72b7a83312f7fb2ba90f48ba59b2e13ae1225bb66d925a9443bf1ae",
+      "manifest.json_sha256": "2223cb683361aa17a4e6b7483a850e4bfc0dac62430c78b021eff16453242640",
+      "source_head": "8b0a5b7089b52e697b996dd9234ff02eec2f1bb7",
+      "exit_code": 1,
+      "summary": "268 passed / 2 setup errors,122.47s",
+      "junit": [
+        {
+          "tests": "270",
+          "failures": "0",
+          "errors": "2",
+          "skipped": "0",
+          "time": "122.466"
+        }
+      ],
+      "test_sha256": {
+        "tests/integration/test_resource_boundaries.py": "8830eddbbcf67016399dfd843d98dbceace61be8b36d4bdb1b9432593dbd103e",
+        "tests/integration/test_resource_close_ownership_retained.py": "476d9050edabcaed83f8db044dff8a4820975dcdbafe16b4b0986622d3a22fa3",
+        "tests/integration/test_resource_handoff.py": "04d87e020ce9ea05f65a3577a19091aa81e681447272b01f7b6d142db0119c6a",
+        "tests/integration/test_resource_parent.py": "1e22b03779900eb3d52ff79eba93989592e9e7e3dcc8c73b327b22f41d6f413a",
+        "tests/integration/test_resource_processes.py": "a6c7ee0b0d8ca4f873006aacb6c50064d3f90e520ade1d399853702f4bbab751",
+        "tests/integration/test_standing_resources_handoff.py": "2344a9162958dd7eecf2e405baa1e1e5b44fa395db84db9456918c7359d63dc0",
+        "tests/integration/test_standing_resources_registration.py": "139ed1a9865928a234309a69e558bc888af9f4b80c5156b19081a62cae34dac3",
+        "tests/integration/test_standing_resources_slot_corruption.py": "310dc63198404eefb83c1c6ce48df7318e72cc464eba98dcbc284cc582e8684c",
+        "tests/integration/test_text_resource_barrier.py": "c780fed891223f59fd2e833ba5efb0b403e2ee74858a5aacd3bca2c07f48d257",
+        "tests/unit/test_resource_complete_budget.py": "c31363f44a029d418096ffdeb4cfcda1b94b370141a9f089e8dade0eac47819f",
+        "tests/unit/test_resource_gpu.py": "e5d76babd8d8451eeedd7ae1e61e4dbfcd30461825ca53dd85a983d6c5004361",
+        "tests/unit/test_resource_provider_cleanup.py": "a238e2ac7fe225775ba8cc5eb96af981cf89f0d643db6c93d396bae5530a01c3",
+        "tests/unit/test_standing_resources_contract.py": "400311d11f082abcfcff80f12cab36be03de20c9985aeaa820f69b3a55f266fc"
+      },
+      "diagnosis": "record_property evidence fixture is incompatible with default xunit2 under -Werror. Final rerun uses supported junit_family=xunit1, the same format as frozen close red. No production source, test/assertion, warning filter or timing threshold changed."
+    }
+  },
+  "qualification": {
+    "final270": {
+      "local_bundle": "228-resource-ownership-compatible-report-tmka_3yg",
+      "receipt_file": "receipt.json",
+      "receipt_sha256": "7b634fbaa761dad16ca2c4dbfa9dc3fdc4a4995a1d09a59e05e4ff84be0dd386",
+      "manifest.json_sha256": "ad8073b4536d066e358d26330c884b044e4cd381e37baf76c6b096ccf66255ab",
+      "source_head": "8b0a5b7089b52e697b996dd9234ff02eec2f1bb7",
+      "exit_code": 0,
+      "summary": "270 passed / zero failures/errors/skips,156.84s, warnings treated as errors",
+      "junit": [
+        {
+          "tests": "270",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0",
+          "time": "156.816"
+        }
+      ],
+      "test_sha256": {
+        "tests/integration/test_resource_boundaries.py": "8830eddbbcf67016399dfd843d98dbceace61be8b36d4bdb1b9432593dbd103e",
+        "tests/integration/test_resource_close_ownership_retained.py": "476d9050edabcaed83f8db044dff8a4820975dcdbafe16b4b0986622d3a22fa3",
+        "tests/integration/test_resource_handoff.py": "04d87e020ce9ea05f65a3577a19091aa81e681447272b01f7b6d142db0119c6a",
+        "tests/integration/test_resource_parent.py": "1e22b03779900eb3d52ff79eba93989592e9e7e3dcc8c73b327b22f41d6f413a",
+        "tests/integration/test_resource_processes.py": "a6c7ee0b0d8ca4f873006aacb6c50064d3f90e520ade1d399853702f4bbab751",
+        "tests/integration/test_standing_resources_handoff.py": "2344a9162958dd7eecf2e405baa1e1e5b44fa395db84db9456918c7359d63dc0",
+        "tests/integration/test_standing_resources_registration.py": "139ed1a9865928a234309a69e558bc888af9f4b80c5156b19081a62cae34dac3",
+        "tests/integration/test_standing_resources_slot_corruption.py": "310dc63198404eefb83c1c6ce48df7318e72cc464eba98dcbc284cc582e8684c",
+        "tests/integration/test_text_resource_barrier.py": "c780fed891223f59fd2e833ba5efb0b403e2ee74858a5aacd3bca2c07f48d257",
+        "tests/unit/test_resource_complete_budget.py": "c31363f44a029d418096ffdeb4cfcda1b94b370141a9f089e8dade0eac47819f",
+        "tests/unit/test_resource_gpu.py": "e5d76babd8d8451eeedd7ae1e61e4dbfcd30461825ca53dd85a983d6c5004361",
+        "tests/unit/test_resource_provider_cleanup.py": "a238e2ac7fe225775ba8cc5eb96af981cf89f0d643db6c93d396bae5530a01c3",
+        "tests/unit/test_standing_resources_contract.py": "400311d11f082abcfcff80f12cab36be03de20c9985aeaa820f69b3a55f266fc"
+      }
+    },
+    "earlier_native557": {
+      "local_bundle": "228-resource-prior-native-3_vhr2nv",
+      "receipt_file": "receipt.json",
+      "receipt_sha256": "28b317a69338af02cf5a31f59c745e891f760ff6078f4c7b38108b31d243f683",
+      "manifest.json_sha256": "a74a48ccb5b833dfef7d1c7e1a2d0ff07b08592006a840bd9ec93731a0310dea",
+      "source_head": "c9f66e9e3113a743403fafda82af586d2e28a9ae",
+      "exit_code": 0,
+      "summary": "557 passed,431.42s, warnings treated as errors",
+      "junit": [
+        {
+          "tests": "557",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0",
+          "time": "431.410"
+        }
+      ],
+      "test_sha256": {
+        "tests/integration/test_agent_submit_http_stack.py": "615905f8213e8d9dd0ca21c386ff2caecccc09ac3aba4314fb044fc6f3f03f1d",
+        "tests/integration/test_standing_admission_closure_http.py": "a8457f5ff4f1e70b094accab8d5ab1324c6453e8a6112e171c420745abadd512",
+        "tests/integration/test_standing_admission_closure_native.py": "a16cb65eefd2ca0fe1d8119496269332ebdce78c8b09f67489649776f28b1591",
+        "tests/integration/test_standing_agent_runtime.py": "43d6fe17e28b50ea40766fcd82ba09599c17317a9f6e1ba6e11d5e5b7f27ad82",
+        "tests/integration/test_standing_closure_final_writer.py": "fc35f3ed9be4341b3835c8f33068754c39f05bb687690f72e934236ad32152f0",
+        "tests/integration/test_standing_dispatch_api.py": "2cb96d69b7c20f1609d917f7cfefcac178f4aca03b06e10250515e309eaf9301",
+        "tests/integration/test_standing_execution_api.py": "4fb96e41dcd0b89423a277b61a7586bea05a3b394c81925874e35169d87ede47",
+        "tests/integration/test_standing_export_admission.py": "b9e89d46838653b75a6408c196599bc825dc8b551582d130c04ac42ecf542bf5",
+        "tests/integration/test_standing_export_guard_bounds.py": "862874f08c641b858120e42bdc47040d856b6258eb40574234cc40ee1b8c3e31",
+        "tests/integration/test_standing_export_guard_corruption.py": "d76e047d2c40e958d7aba622726b67001d2f9e7d9a826072a751d69da2e27ca5",
+        "tests/integration/test_standing_task_admission.py": "fbdff0386d826625025bf282236087964143ecae14e7bcd0de5153f148a01c5d",
+        "tests/integration/test_standing_worker_final_deadline.py": "637fcb40c736183c568fa39ba620faf1c708f2d711b9bdad11adb66a9930812b",
+        "tests/unit/test_agent_submit_client.py": "5f72f4729cad62016c032d3c59081ff3b9cf4f0f104f990d5ca8629d6f63ec4a",
+        "tests/unit/test_standing_admission_closure.py": "b08e1539282ea9250c9e474e86853f1fa50f6aacbf77d5c25fcde1cddc8f8fe4",
+        "tests/unit/test_standing_admission_contract.py": "edca79ee5313ab2e395c39e3ae12b04043801dd47d6d3099d5830ed3297e2bf8",
+        "tests/unit/test_standing_agent_client.py": "10a23a273592307ceaf148ea95041c0800f27afbb83a9acd59a5bbd6a2f31b87",
+        "tests/unit/test_standing_export_api_client.py": "36f69bb79dbbe67a72f0012046594faf59596246cfbacc18e58870c4751cfa64",
+        "tests/unit/test_standing_shared_capacity.py": "6f07f371c68955da0291f1761ce46a3a2277b055dbd52fdabfc92b4cfb7c2e4a"
+      },
+      "limits": "Exact source c9f66 before subsequent native slot-discovery and WorkerManager close corrections; not claimed as a new557 run at final source."
+    },
+    "earlier_new53": {
+      "local_bundle": "228-resource-registration-final-df48i563",
+      "receipt_file": "receipt.json",
+      "receipt_sha256": "b471071b1addce480bfcdd599f83067a3c312d5197c4e9c6f5e1691f8b6d1ba9",
+      "manifest.json_sha256": "f43f5cde02034ee92867363f535cb3af7b9c0b1d98e7dd9e901a440d8479c1d0",
+      "source_head": "65f51f3395c215a2db14c218129d4a9cd097e473",
+      "exit_code": 0,
+      "summary": "53 passed,105.41s at65f51; included again in final270",
+      "junit": [
+        {
+          "tests": "53",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0",
+          "time": "105.404"
+        }
+      ],
+      "test_sha256": {
+        "tests/integration/test_standing_resources_handoff.py": "2344a9162958dd7eecf2e405baa1e1e5b44fa395db84db9456918c7359d63dc0",
+        "tests/integration/test_standing_resources_registration.py": "139ed1a9865928a234309a69e558bc888af9f4b80c5156b19081a62cae34dac3",
+        "tests/integration/test_standing_resources_slot_corruption.py": "310dc63198404eefb83c1c6ce48df7318e72cc464eba98dcbc284cc582e8684c",
+        "tests/unit/test_standing_resources_contract.py": "400311d11f082abcfcff80f12cab36be03de20c9985aeaa820f69b3a55f266fc"
+      }
+    },
+    "counts_overlap": "Runs overlap; do not sum into a unique full-project test count.",
+    "static": {
+      "local_bundle": "228-resource-static-k8s_4j60",
+      "receipt_file": "receipt.json",
+      "receipt_sha256": "ee793cc21852b58346dc0451d4808621212da2326843cb8c7c076ed3224251b7",
+      "manifest.json_sha256": "70b1bd38e6aa28a6fad6e80c2886cfd7403fb09a73d13d81a0caa5aa2dc534df",
+      "head": "8b0a5b7089b52e697b996dd9234ff02eec2f1bb7",
+      "checks": [
+        {
+          "name": "ruff",
+          "command": [
+            "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/ruff",
+            "check",
+            "packages/contracts/client.py",
+            "packages/contracts/standing_client.py",
+            "packages/contracts/standing_resources.py",
+            "packages/resources/processes.py",
+            "scripts/export_contracts.py",
+            "services/resources/api.py",
+            "services/resources/coordinator.py",
+            "services/resources/launcher.py",
+            "services/resources/standing_handoff.py",
+            "services/session/api.py",
+            "services/session/standing_resources.py",
+            "services/session/standing_work_api.py",
+            "tests/integration/test_resource_close_ownership_retained.py",
+            "tests/integration/test_resource_handoff.py",
+            "tests/integration/test_standing_resources_handoff.py",
+            "tests/integration/test_standing_resources_registration.py",
+            "tests/integration/test_standing_resources_slot_corruption.py",
+            "tests/unit/test_standing_resources_contract.py"
+          ],
+          "exit_code": 0
+        },
+        {
+          "name": "format",
+          "command": [
+            "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/ruff",
+            "format",
+            "--check",
+            "packages/contracts/client.py",
+            "packages/contracts/standing_client.py",
+            "packages/contracts/standing_resources.py",
+            "packages/resources/processes.py",
+            "scripts/export_contracts.py",
+            "services/resources/api.py",
+            "services/resources/coordinator.py",
+            "services/resources/launcher.py",
+            "services/resources/standing_handoff.py",
+            "services/session/api.py",
+            "services/session/standing_resources.py",
+            "services/session/standing_work_api.py",
+            "tests/integration/test_resource_close_ownership_retained.py",
+            "tests/integration/test_resource_handoff.py",
+            "tests/integration/test_standing_resources_handoff.py",
+            "tests/integration/test_standing_resources_registration.py",
+            "tests/integration/test_standing_resources_slot_corruption.py",
+            "tests/unit/test_standing_resources_contract.py"
+          ],
+          "exit_code": 0
+        },
+        {
+          "name": "diff",
+          "command": [
+            "git",
+            "diff",
+            "--check",
+            "6f50cae14cf19c73bc5b7f71fdd3882ad0c8cc60",
+            "HEAD"
+          ],
+          "exit_code": 0
+        },
+        {
+          "name": "export",
+          "command": [
+            "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+            "-B",
+            "scripts/export_contracts.py"
+          ],
+          "exit_code": 0
+        }
+      ],
+      "all179oldschemas_byte_exact": true,
+      "additive_schema_count": 5,
+      "total_schema_count": 184
+    },
+    "reproduce": {
+      "environment": "Pinned existing development Python environment, PYTHONPATH at exact worktree, PYTHONDONTWRITEBYTECODE=1. No dependency installation.",
+      "arguments": [
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-W",
+        "error",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "-o",
+        "junit_family=xunit1",
+        "tests/unit/test_standing_resources_contract.py",
+        "tests/integration/test_standing_resources_registration.py",
+        "tests/integration/test_standing_resources_handoff.py",
+        "tests/integration/test_standing_resources_slot_corruption.py",
+        "tests/integration/test_resource_close_ownership_retained.py",
+        "tests/integration/test_resource_handoff.py",
+        "tests/integration/test_resource_boundaries.py",
+        "tests/integration/test_resource_parent.py",
+        "tests/integration/test_resource_processes.py",
+        "tests/integration/test_text_resource_barrier.py",
+        "tests/unit/test_resource_provider_cleanup.py",
+        "tests/unit/test_resource_gpu.py",
+        "tests/unit/test_resource_complete_budget.py"
+      ],
+      "exact_local_command": "Retained in the final270 receipt with SHA above."
+    }
+  },
+  "independent_reviews": {
+    "http_client": {
+      "local_bundle": "228-independent-resource-transport-review-lp8e2uv8",
+      "receipt_file": "receipt.json",
+      "receipt_sha256": "c276b3ab977a48c6fc82bb0783ce17f67d39d8ba90e3615fec787f22d0503248",
+      "manifest.json_sha256": "5339dca01bcbb972d431bf652cc106a2e75fdbdd376f15beac367f3901566c72"
+    },
+    "resources_helper": {
+      "local_bundle": "228-resource-handoff-source-review-0lx59rcg",
+      "receipt_file": "receipt.json",
+      "receipt_sha256": "89ced9036085c59b60646e7c7f4e8bfbcf18a379d5e62053d6f4af8ca4f61b19",
+      "manifest.json_sha256": "cc64f78c1750f6e4b358015995dd92a53b89bfad08ba1321469ee6a73515d7be"
+    },
+    "native_slot_finding": {
+      "local_bundle": "codex-228-resource-slot-review-bva6q3pe",
+      "receipt_file": "receipt.json",
+      "receipt_sha256": "3cb3beec724f114c47dc0280ad6f6e8ffeca968ca3431d130e5b0bbbd73351cf",
+      "manifest.json_sha256": "a0a2a4e0a2977e457e83523b7b4d728898e3dd4b0e14fa9fe504d6fdf9007678"
+    },
+    "root_initial_source_review": {
+      "local_bundle": "228-resource-source-review-e7i21x80",
+      "receipt_file": "receipt.json",
+      "receipt_sha256": "d4ce353c42e452bb52c19134ec241aad132ed60a6b0c3768012a9b100929f65e",
+      "manifest.json_sha256": "6d730105fa37b84f01dc94d556cb2f2e36ea91a7e0bfeee4fc42d51ac63338ae"
+    },
+    "close_fix": {
+      "local_bundle": "239-resource-close-ownership-7_xjbw90",
+      "receipt_file": "qualification-receipt.json",
+      "receipt_sha256": "50042689f257840c33cdb9a376dee44b0597f17b53b3ffadc13e106b854cb91b",
+      "manifest.json_sha256": "ace158e1e0c962e33709d05290f73416ddce9397ab7aec59bb7137cc6bb0b8e9"
+    },
+    "attribution": "Separate Codex source/oracle/review roles; not Muse CLI inference or human approval. Reviewed source pins and later narrow fixes remain distinct."
+  },
+  "limits": [
+    "No live GPU/model/provider or physical-memory-cap qualification. Real disposable subprocess ownership, SQLite/ASGI and production JournalClient paths were exercised with synthetic inputs.",
+    "No no-lease or cleanup certificate from absent reservation/coverage/generic ok/None Resource client; single lifetime claim and reservation remain retained.",
+    "Exact Resources finalization and original-worker/effect settlement, active/history claim split, recurrence, deduplicated inbox and embedded editor remain required for #228.",
+    "No feature PR/full-project CI/merge/live promotion or edits to active ports8780/8782/8808.",
+    "No new paid inference, budget reset, model/device/configuration/dependency changes. Earlier cumulative Meta25USD/OpenRouter10USD limits and all unknown reservations remain in force."
+  ]
+}

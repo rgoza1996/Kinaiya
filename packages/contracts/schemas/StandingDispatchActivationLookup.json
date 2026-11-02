@@ -1,0 +1,454 @@
+{
+  "$defs": {
+    "AgentModeChange": {
+      "additionalProperties": false,
+      "description": "Seven required immutable fields; owner authority comes from the service.",
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "idempotency_key": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9:._-]+$",
+          "title": "Idempotency Key",
+          "type": "string"
+        },
+        "expected_backend": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Expected Backend",
+          "type": "string"
+        },
+        "expected_instance": {
+          "maxLength": 36,
+          "minLength": 36,
+          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+          "title": "Expected Instance",
+          "type": "string"
+        },
+        "expected_revision": {
+          "maximum": 9007199254740990,
+          "minimum": 0,
+          "title": "Expected Revision",
+          "type": "integer"
+        },
+        "mode": {
+          "enum": [
+            "off",
+            "on_demand",
+            "autonomous"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "active_work_policy": {
+          "const": "finish_already_accepted",
+          "title": "Active Work Policy",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "idempotency_key",
+        "expected_backend",
+        "expected_instance",
+        "expected_revision",
+        "mode",
+        "active_work_policy"
+      ],
+      "title": "AgentModeChange",
+      "type": "object"
+    },
+    "AgentModeReceipt": {
+      "additionalProperties": false,
+      "description": "Historical full-request proof. Returning it must never reapply its mode.",
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "status": {
+          "const": "mode_saved",
+          "title": "Status",
+          "type": "string"
+        },
+        "backend_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Backend Id",
+          "type": "string"
+        },
+        "service_instance": {
+          "maxLength": 36,
+          "minLength": 36,
+          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+          "title": "Service Instance",
+          "type": "string"
+        },
+        "revision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "request": {
+          "$ref": "#/$defs/AgentModeChange"
+        }
+      },
+      "required": [
+        "schema_version",
+        "status",
+        "backend_id",
+        "service_instance",
+        "revision",
+        "request"
+      ],
+      "title": "AgentModeReceipt",
+      "type": "object"
+    },
+    "StandingDispatchActivation": {
+      "additionalProperties": false,
+      "description": "Explicit owner activation with the original mode key and observed fence.",
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "mode_change": {
+          "$ref": "#/$defs/AgentModeChange"
+        },
+        "expected_epoch": {
+          "exclusiveMaximum": 10000,
+          "minimum": 0,
+          "title": "Expected Epoch",
+          "type": "integer"
+        },
+        "expected_fence_token": {
+          "maxLength": 36,
+          "minLength": 36,
+          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+          "title": "Expected Fence Token",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "mode_change",
+        "expected_epoch",
+        "expected_fence_token"
+      ],
+      "title": "StandingDispatchActivation",
+      "type": "object"
+    },
+    "StandingDispatchActivationReceipt": {
+      "additionalProperties": false,
+      "description": "Full historical activation proof; replay never rearms dispatch.",
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "request": {
+          "$ref": "#/$defs/StandingDispatchActivation"
+        },
+        "mode_receipt": {
+          "$ref": "#/$defs/AgentModeReceipt"
+        },
+        "epoch": {
+          "maximum": 10000,
+          "minimum": 1,
+          "title": "Epoch",
+          "type": "integer"
+        },
+        "activation_digest": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Activation Digest",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "request",
+        "mode_receipt",
+        "epoch",
+        "activation_digest"
+      ],
+      "title": "StandingDispatchActivationReceipt",
+      "type": "object"
+    },
+    "StandingDispatchState": {
+      "additionalProperties": false,
+      "description": "A native gate observation; permissions and occurrence slots are separate.",
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "backend_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Backend Id",
+          "type": "string"
+        },
+        "instance_id": {
+          "anyOf": [
+            {
+              "maxLength": 36,
+              "minLength": 36,
+              "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Instance Id"
+        },
+        "control_revision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Control Revision",
+          "type": "integer"
+        },
+        "mode": {
+          "enum": [
+            "off",
+            "on_demand",
+            "autonomous"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "control_writable": {
+          "title": "Control Writable",
+          "type": "boolean"
+        },
+        "epoch": {
+          "maximum": 10000,
+          "minimum": 0,
+          "title": "Epoch",
+          "type": "integer"
+        },
+        "stopped_through_epoch": {
+          "maximum": 10000,
+          "minimum": 0,
+          "title": "Stopped Through Epoch",
+          "type": "integer"
+        },
+        "fence_token": {
+          "maxLength": 36,
+          "minLength": 36,
+          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+          "title": "Fence Token",
+          "type": "string"
+        },
+        "activation_digest": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 64,
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Activation Digest"
+        },
+        "activation_control_revision": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Activation Control Revision"
+        },
+        "producer": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StandingProducerReceipt"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "dispatch_ready": {
+          "title": "Dispatch Ready",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "schema_version",
+        "backend_id",
+        "instance_id",
+        "control_revision",
+        "mode",
+        "control_writable",
+        "epoch",
+        "stopped_through_epoch",
+        "fence_token",
+        "activation_digest",
+        "activation_control_revision",
+        "producer",
+        "dispatch_ready"
+      ],
+      "title": "StandingDispatchState",
+      "type": "object"
+    },
+    "StandingProducerReceipt": {
+      "additionalProperties": false,
+      "description": "An acknowledged renewal packet, without a claim of current liveness.",
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "request": {
+          "$ref": "#/$defs/StandingProducerRenewal"
+        },
+        "lease_token": {
+          "maxLength": 36,
+          "minLength": 36,
+          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+          "title": "Lease Token",
+          "type": "string"
+        },
+        "issued_monotonic_ms": {
+          "maximum": 9007199254725991,
+          "minimum": 0,
+          "title": "Issued Monotonic Ms",
+          "type": "integer"
+        },
+        "expires_monotonic_ms": {
+          "maximum": 9007199254740991,
+          "minimum": 15000,
+          "title": "Expires Monotonic Ms",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schema_version",
+        "request",
+        "lease_token",
+        "issued_monotonic_ms",
+        "expires_monotonic_ms"
+      ],
+      "title": "StandingProducerReceipt",
+      "type": "object"
+    },
+    "StandingProducerRenewal": {
+      "additionalProperties": false,
+      "description": "Renewal identity only; the native controller owns the monotonic clock.",
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "expected_backend": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Expected Backend",
+          "type": "string"
+        },
+        "expected_instance": {
+          "maxLength": 36,
+          "minLength": 36,
+          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+          "title": "Expected Instance",
+          "type": "string"
+        },
+        "producer_id": {
+          "maxLength": 36,
+          "minLength": 36,
+          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+          "title": "Producer Id",
+          "type": "string"
+        },
+        "sequence": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Sequence",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schema_version",
+        "expected_backend",
+        "expected_instance",
+        "producer_id",
+        "sequence"
+      ],
+      "title": "StandingProducerRenewal",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Full-request observation; only native history can prove retired authority.",
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "recorded",
+        "unobserved"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "request": {
+      "$ref": "#/$defs/StandingDispatchActivation"
+    },
+    "state": {
+      "$ref": "#/$defs/StandingDispatchState"
+    },
+    "receipt": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/StandingDispatchActivationReceipt"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "mutation_fenced": {
+      "title": "Mutation Fenced",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "schema_version",
+    "status",
+    "request",
+    "state",
+    "receipt",
+    "mutation_fenced"
+  ],
+  "title": "StandingDispatchActivationLookup",
+  "type": "object"
+}

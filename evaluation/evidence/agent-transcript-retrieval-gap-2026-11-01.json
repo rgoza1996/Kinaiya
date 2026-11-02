@@ -1,0 +1,122 @@
+{
+  "issue": "https://github.com/rgoza1996/Kinaiya/issues/255",
+  "requirements": [
+    "Roadmap.md sections 5.1 and 5.3",
+    "clarification.md sections 10.3 and 18"
+  ],
+  "status": "Confirmed original retrieval defect; not repaired or closed by this record.",
+  "scope": "Independent transcript persistence and selective Decisions routing exist. The Agent read_transcript tool silently clips long entries and lacks explicit continuation; stored complete text remains present.",
+  "reproduction": {
+    "head": "3e8cd4f9cfda66ff2c58a98567da97a1cebd0aad",
+    "source_sha256": {
+      "harnesses/seed/__init__.py": "92256dbd1a7379a46dc1565b0403cb3f6fa52febbefb7d70470a8af1dafc6db1",
+      "packages/contracts/native_tool_schemas.py": "95f0616316d3fca84dc9fef7b0ea41c674796044f47099eac3be03b2ef6883f7",
+      "packages/providers/completion_budget.py": "6907c1b3d5054a6e5180d4c00ee9cb63de6676820a87d0d308028d6ceacb821a",
+      "services/agent/runtime.py": "9098e0f170494d01f059d4c062a88a07393b6e9935fd1f10a2936f6437f318d6",
+      "services/session/store.py": "b67785019bf6776a8d0fc75a9328410345b20086a7f243a44fff3b5024376c3a",
+      "tests/integration/test_agent_boundaries.py": "cea58092dd8e2c1e05f2997c70ea70edc839f3acd0e316bccdea55e9ff583c22"
+    },
+    "receipt_sha256": "a7f26f749e2cae77c908e641f983a3f99971adc0b5dbb684b652cf1146046029",
+    "probe_sha256": "9dfbeb7b79863169e73f35698d005f36767c8edfb1d9e875520171712149a540",
+    "run_log_sha256": "8a7a6c7538cb186347d91a8d8d94c7c421e9869c319e230248948862f75273cb",
+    "observations": {
+      "capture_sha256": "05bba3c3f6ce0c6994c1d46150cd546da26ab6ea9f4037448ac1cd7246572612",
+      "continuation_or_truncation_keys": [],
+      "entry_keys": [
+        "event_id",
+        "kind",
+        "origin",
+        "revision",
+        "sequence",
+        "text"
+      ],
+      "final_marker_character_offset": 3800,
+      "final_marker_sha256": "7836c6d1440375a2359dcde6cd276baeac1916604ec2600055a68856cfab1d0e",
+      "first_request_contains_target_transcript": false,
+      "first_request_contains_unrelated_transcript": false,
+      "instruction_source_ids": 0,
+      "marker_retrieved": false,
+      "marker_stored": true,
+      "prepared_fixture_calls": 2,
+      "provider_generation_calls": 2,
+      "response_shape": "JSON array",
+      "retained_context_ids": 1,
+      "retrieved_characters": 2000,
+      "retrieved_text_sha256": "e41077748c00320644aa948973f8bfc00b61223ae5b42193dbad61fc6c721935",
+      "retrieved_utf8_bytes": 2000,
+      "stored_characters": 3855,
+      "stored_text_sha256": "727ba98edbcecd7aa201c664bc4d27014d09bb119ac162c4ad0a8e9d2eab7541",
+      "stored_utf8_bytes": 3855,
+      "task_state": "succeeded"
+    },
+    "teardown": {
+      "all_native_workers_done": true,
+      "other_pending_asyncio_tasks": 0,
+      "provider_fixture_closed": true,
+      "runtime_operations": {
+        "cleanup_failed": 0,
+        "cleanup_pending": 0,
+        "closed": true,
+        "ecosystem_operations": 0,
+        "pending_submits": 0,
+        "processes": 0,
+        "retirements": 0,
+        "submit_operations": 0,
+        "submit_preflights": 0,
+        "tasks": 0,
+        "workers": 0
+      },
+      "sqlite_connection_closed": true
+    },
+    "head_and_tracked_files_preserved": true,
+    "inference_calls": 0,
+    "network_attempts": [],
+    "limits": "One synthetic explicit-ID retrieval; does not qualify pagination or a future repair."
+  },
+  "existing_behavior_regressions": {
+    "head": "92f0e88c0a5736e8709c6786a976e91ab281ac7e",
+    "head_preserved": true,
+    "test_pins_preserved": true,
+    "test_sha256": {
+      "tests/integration/test_agent_boundaries.py": "cea58092dd8e2c1e05f2997c70ea70edc839f3acd0e316bccdea55e9ff583c22",
+      "tests/integration/test_agent_retained_transcript.py": "980fc37514940c1ef178fce798d51d17b75ef54f082ef41121fb3076ded4074c",
+      "tests/integration/test_speech_windows.py": "67bfdddcb98baac80c9bb274e72d61ef6720a566505b500a937af84c1d8e7963",
+      "tests/integration/test_window_agent_routing.py": "8e0107faebc4e17e0a52e2e171b2dbcb8332949554696584541169c5e5e942b8"
+    },
+    "receipt_sha256": "a14a4f96abe91cf1a28802a7c85c4123267de96f262a31a76057099f2f294133",
+    "junit_sha256": "e185f955af372435521b50646f541444752a5886ddab94964020d6017d1e8270",
+    "log_sha256": "84ed5c713ddefb668f000decd78d2c29e385cd098c9d87a4015969806001bebf",
+    "manifest_sha256": "1d54114fb80d07383431f7d0d625d1bbcf7343e5da2d46382a408ea1b77e8a60",
+    "results": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "102",
+        "time": "18.063",
+        "timestamp": "2026-11-01T11:29:41.593988-08:00",
+        "hostname": "roggoz"
+      }
+    ],
+    "targets": [
+      "tests/integration/test_speech_windows.py",
+      "tests/integration/test_window_agent_routing.py",
+      "tests/integration/test_agent_boundaries.py::test_transcript_is_retrieved_only_on_demand_and_cannot_cross_sessions",
+      "tests/integration/test_agent_retained_transcript.py"
+    ],
+    "pytest_options": "-q -W error -p no:cacheprovider -o asyncio_default_fixture_loop_scope=function -o junit_family=xunit1",
+    "qualification": "102 unchanged deterministic cases cover retained ignored windows, selected routing, on-demand retrieval, cross-session refusal and retained disclosure. They do not test a future pagination repair or qualify unrestricted history access."
+  },
+  "remaining": [
+    "Add explicit bounded continuation without silently treating clipped prefixes as complete entries.",
+    "Use native scan progress/exhaustion and current-epoch scope so filtered or byte-limited pages cannot falsely imply end of history.",
+    "Bind continuation to exact scope/source view and revision; preserve disclosure and source-authority checks.",
+    "Keep the current 128-root and 256-node task provenance bounds explicit; arbitrary cumulative history requires a separate protected provenance design."
+  ],
+  "not_established": [
+    "No pagination repair, native Omni pipeline or multimodal Decisions integration is established.",
+    "No model, capture, media, paid call or live service change occurred.",
+    "The successful synthetic Task reports its own read workflow, not successful full-entry retrieval."
+  ]
+}

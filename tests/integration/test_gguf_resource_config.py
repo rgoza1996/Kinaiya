@@ -1,5 +1,6 @@
 """Managed GGUF selection/auth wiring; no native process, server or model load."""
 
+import asyncio
 import copy
 import hashlib
 import json
@@ -12,14 +13,17 @@ import httpx
 import pytest
 from pydantic import ValidationError
 
+from packages.contracts.operation_ownership import StreamClosures
 from packages.providers.gguf import ManagedGGUFProvider
 from packages.resources.processes import WorkerManager, WorkerSpec
 from services.common.auth import Auth
 from services.launcher import provider
 from services.resources import launcher
 from services.resources.api import create_app
+from services.resources.coordinator import ResourceCoordinator
 from services.resources.gguf import ManagedGGUFConfig, configured_manifest
 from services.resources.providers import ResourceBoundProvider
+from services.resources.state import ResourceState
 
 TOKENS = {
     role: f"synthetic-{role}-credential-" + role[0] * 24
@@ -128,6 +132,9 @@ async def host(selected, monkeypatch):
                 "max_new_tokens": settings.max_new_tokens,
             }
             self.leases, self.exchanges = {}, set()
+            # No native socket is acquired by this configuration endpoint;
+            # the real empty registry participates in shutdown enrollment.
+            self.stream_closes = StreamClosures()
             self.releases = []
 
         async def probe(self, spec, process):
@@ -416,6 +423,46 @@ class Body:
         self.closed = True
 
 
+@pytest.fixture
+async def route_coordinator(tmp_path, monkeypatch):
+    manager = WorkerManager(
+        [
+            WorkerSpec(
+                "voice",
+                (sys.executable, "-c", "raise AssertionError('router fixture must never launch')"),
+                tmp_path,
+            )
+        ]
+    )
+
+    async def no_start(*args, **kwargs):
+        pytest.fail("Router tests must not start a native process")
+
+    monkeypatch.setattr(manager, "start", no_start)
+    state = ResourceState(tmp_path / "resources.json")
+    # The ordinary router never calls Converse; this object owns no transport.
+    coordinator = ResourceCoordinator(manager, state, object())
+    try:
+        yield coordinator
+    finally:
+        try:
+            await coordinator.close()
+        finally:
+            if coordinator._close_owner is not None:
+                await asyncio.shield(coordinator._close_owner)
+            await manager.close()
+            state.close()
+        assert coordinator._retirement_complete and manager._closed
+        assert all(
+            row["owned_pid"] is None and row["state"] == "stopped"
+            for row in manager.status()["workers"].values()
+        )
+        assert all(
+            worker.pending_spawn is None and worker.pending_cleanup is None
+            for worker in manager._workers.values()
+        )
+
+
 @pytest.mark.parametrize(
     "role,status",
     [
@@ -428,7 +475,7 @@ class Body:
         ("converse", 200),
     ],
 )
-async def test_native_http_route_accepts_only_owner_or_converse(role, status):
+async def test_native_http_route_accepts_only_owner_or_converse(route_coordinator, role, status):
     calls, bodies = [], []
 
     class Broker:
@@ -438,7 +485,7 @@ async def test_native_http_route_accepts_only_owner_or_converse(role, status):
             bodies.append(body)
             return body
 
-    app = create_app(SimpleNamespace(), Auth(TOKENS), gguf=Broker())
+    app = create_app(route_coordinator, Auth(TOKENS), gguf=Broker())
     token = TOKENS.get(role, "unknown-token")
     headers = {} if role is None else {"Authorization": "Bearer " + token}
     async with httpx.AsyncClient(
@@ -465,12 +512,12 @@ async def test_native_http_route_accepts_only_owner_or_converse(role, status):
         assert calls == []
 
 
-async def test_native_route_does_not_fall_back_to_qwen_or_other_worker():
+async def test_native_route_does_not_fall_back_to_qwen_or_other_worker(route_coordinator):
     class Unexpected:
         async def stream(self, request):
             pytest.fail("Wrong managed provider fallback")
 
-    app = create_app(SimpleNamespace(), Auth(TOKENS), qwen3=Unexpected())
+    app = create_app(route_coordinator, Auth(TOKENS), qwen3=Unexpected())
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app), base_url="http://test"
     ) as client:

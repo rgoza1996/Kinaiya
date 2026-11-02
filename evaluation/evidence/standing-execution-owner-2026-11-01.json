@@ -1,0 +1,99 @@
+{
+  "requirement": "https://github.com/rgoza1996/Kinaiya/issues/228",
+  "scope": "Protected native claim preparation and historical readback only; not task admission/execution/settlement/inbox/editor",
+  "implementation": {
+    "author_commit": "1b6dedebfcc90faf88d41eab52236c15a2e14644",
+    "integrated_commit": "8ae1efb",
+    "source_only_fix": "4818f6492e3583851c296e86406befeba1ed44a9",
+    "source_sha256": "8832861059cc725c250692512e5470aaad2ed1dea50fdc425ca5597777fb50a9",
+    "changed_production_paths": [
+      "services/session/standing_execution.py"
+    ]
+  },
+  "independent_initial_oracles": {
+    "commit": "b153abe",
+    "path": "tests/integration/test_standing_execution_owner.py",
+    "sha256": "a970ecff59d8e485cde6a4e2613430c7cb92e84e655d68f0552408f28f6319d7",
+    "frozen_before_source_consultation": true,
+    "author_receipt_sha256": "4a81b7a0648dde44bc413f4041c0075ddb257ba28461223f56ad5bd723eef7ef",
+    "author_manifest_sha256": "6882ffe3b014a675abe3d6bfe0c2afaa37b5c77fb91ed3ea8f1fb8f6ebaf2e92",
+    "cold_baseline": {
+      "failed": 62,
+      "passed": 2,
+      "classification": "Actual runtime missing-module capability failures; existing fixture controls passed",
+      "receipt_sha256": "4160091aa30fd2e3d4f584f14a39854c3ef8c37bb82d8c38f1db19a65a046528",
+      "manifest_sha256": "aeda091bc38c80ca2391ecc4add7f6565186a658875e7d80349b4017cc62c1d0"
+    },
+    "first_qualification": {
+      "passed": 64,
+      "failed": 0,
+      "pytest_seconds": 18.74,
+      "receipt_sha256": "ad3a26a807bc1af5a0157f4fbf85fcfd9dcc47c6826eeba9eb2385449adc5bd1",
+      "manifest_sha256": "a0cf539e55bd9bbed8de4e215229b6f2c52f05624e3d31fa87423335c6d79af9"
+    }
+  },
+  "additional_schema_regressions": {
+    "commit": "7f1fe23",
+    "path": "tests/integration/test_standing_execution_schema.py",
+    "sha256": "ed1dfd4089ca7c6efeafc49549ca18ab680c4fffc685870d637b9e0bbf844068",
+    "frozen_before_fix": true,
+    "author_receipt_sha256": "239aa4e6fad436ccf7ada8c3ace1b007adaee69c7a5e226eb340644c7adb477a",
+    "author_manifest_sha256": "ab59d87b8ed4182b1a81a183b648557f2286d1a6457a22e87e53c53c26db622a",
+    "observed_first_failures": 2,
+    "behavior": "Actual replacement table preserves all rows/columns/unique indexes but adds a cascading Session foreign key. Old validation accepted it; actual Session deletion erased the claim and incorrectly yielded absence while the owner grant remained.",
+    "red_log_sha256": "e16dd315e1d8609a85fd1a02e06561d293f17feef4c54a1ed5d2fbbcf0644d6c",
+    "red_junit_sha256": "e324251641de07cf1da5c49574dc4c83e430a9d7cc9617b3c94932751270558d",
+    "red_exit_note": "Preserved JUnit/log prove two pytest failures. Shell later ran cat, so its exit0 is not claimed as pytest process status.",
+    "fix": "Reject any PRAGMA foreign_key_list row for each of the two protected tables; no oracle changes"
+  },
+  "unchanged_final_qualification": {
+    "passed": 66,
+    "failed": 0,
+    "original_cases": 64,
+    "new_schema_cases": 2,
+    "pytest_seconds": 20.61,
+    "warnings_as_errors": true,
+    "receipt_sha256": "3c1b566bb9fa8b3d74beb6e6702e91706d9600b881785aab743364dabc68557a",
+    "manifest_sha256": "c7b777382adebca176839294c7c322b0b6d444b5413aa230bfbb0fd3c2393816"
+  },
+  "independent_review": {
+    "first_receipt_sha256": "75a12aa9a8c6518ee44a1241ee7b092e6e43c3178b46d0873802025593ee03ea",
+    "first_report_sha256": "52b110904752aba5a204e67c3f3bcabcd75cab03beb4ed998147f0683b4627f7",
+    "first_finding": "No actionable static defect reported; this review missed the explicit no-FK invariant. Original seal preserved.",
+    "followup_receipt_sha256": "eafa3f0125f98ea2b53df4868a14ecea2d483725b462f88f75b9167f7a5e1760",
+    "followup": "Read-only review confirms the two-line fix closes the reproduced gap before registration or claim/absence readback; no tests/probes rerun"
+  },
+  "verified_behavior": [
+    "Explicit same-Store registration, passive lifecycle, strict schema/canonical/history validation and rollback poisoning",
+    "One durable global unresolved claim across all responsibility revisions, with no release API",
+    "Exact full-original replay/lookup; actual COMMIT before-ACK loss remains retained, never another created opportunity",
+    "Current native grant/Agent session/dispatch mode/Stop/producer/UTC/latest-due and final cancellation/deadline guards",
+    "Gregorian grace/expiry/earlier fold/gap/offset/no pre-arm backlog; quiet hours do not delay recording",
+    "Actual session reset/delete and Store reopen retain claim history; nullable-controller history uses validated passive owner joins",
+    "Two concurrent callers yield one claim; actual second SQLite connection controller registration serializes after commit"
+  ],
+  "instrumentation_limits": [
+    "Generation capacity uses a 10000-row schema seed, not 10000 native registrations.",
+    "Foreign-key regressions deliberately replace a table with unsupported schema; ordinary bootstrap creates no such foreign key.",
+    "Final deadline test waits for real elapsed monotonic time after actual post-insert SQL; no process-wide clock patch.",
+    "Native calls are synchronous; cooperative deadline checks do not preempt blocked operations."
+  ],
+  "static_checks": "Ruff and format passed for the final native source and both frozen test files",
+  "runtime": {
+    "python": "3.12.3",
+    "python_path": "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+    "pythonpath": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya",
+    "pytest_options": [
+      "-B",
+      "-W error",
+      "-p no:cacheprovider",
+      "-o asyncio_default_fixture_loop_scope=function"
+    ]
+  },
+  "limitations": [
+    "No HTTP claim/task-admission route, actual Agent producer, task worker, effect settlement, inbox or owner editor is qualified by this increment.",
+    "No full-project CI, PR or completion claim for #228, M7, #208 or the whole roadmap.",
+    "No paid/model/provider calls, dependency installs or live configuration/services/preview changes.",
+    "Configured model/workspace metadata is not a witness of external filesystem/provider ownership."
+  ]
+}

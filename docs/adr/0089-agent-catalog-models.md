@@ -74,12 +74,14 @@ failed; it does not rewrite already published task completion evidence.
 
 The Agent's generic Resources completion notification follows successful
 skill/plugin release and the exact task model lease's positively returned close.
-Pending or cancelled close and earlier uncertain request cleanup suppress that
-notification, even if a later adapter close succeeds. The actual lease retains
-its own cleanup operation through waiter cancellation. Tasks without a lease
-retain their existing notification behavior when cleanup is otherwise confirmed;
-closing/nonterminal tasks still suppress it. This ordering does not certify
-physical GPU release or change the authoritative work outcome.
+It cannot run while that close is pending, after its waiter is cancelled, or
+after earlier provider cleanup became uncertain. That uncertainty remains
+sticky for ordinary and standing tasks even when a later adapter close succeeds.
+The actual lease retains its independent cleanup owner through cancellation.
+Tasks without a model lease preserve their existing notification behavior when
+cleanup is otherwise confirmed; closing and nonterminal tasks still suppress it.
+This ordering is not a positive standing Resources finalization certificate;
+physical model/GPU release still requires actual native Resources evidence.
 
 The existing runtime busy boundary includes model cleanup, so an execution
 settings change cannot treat terminal publication alone as idle. Shutdown waits

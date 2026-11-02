@@ -1,0 +1,456 @@
+{
+  "record_date": "2026-11-01",
+  "status": "Qualified in stated integration slices at15ea5117; not main, full-project CI or physical-finalization qualification.",
+  "scope": "Reduce repeated pure-contract work in finalization context joins without changing accepted full-graph semantics, native testimony or actual cleanup ownership.",
+  "related_issues": [
+    "https://github.com/rgoza1996/Kinaiya/issues/239",
+    "https://github.com/rgoza1996/Kinaiya/issues/255"
+  ],
+  "source": {
+    "baseline_head": "a9f8045df41009b0fec769e5ccd77caa778409da",
+    "baseline_source_sha256": "20c98c77b2f47936f94d7425287e43f76950d2c47e83614546db5eff5cdf951b",
+    "repair_head": "15ea5117ee9b70094efa5656b51fef3fcff0e2f7",
+    "repair_source_sha256": "5602fd825d08cef416fef0cc63bc29a1f5774b8474ae8e411d5151f6f335e809",
+    "path": "packages/contracts/standing_resource_finalization.py",
+    "draft_observation_head": "15ea5117ee9b70094efa5656b51fef3fcff0e2f7",
+    "only_changed_top_level_definition": "_context_body",
+    "change": "Replace the two repeated closure.validate_request(original) and observation.validate_request(original) calls inside the private join helper with four explicit digest/claim joins to fresh binding.claim.",
+    "four_joins": [
+      "closure.intent_digest == binding.claim.intent_digest",
+      "closure.claim_id == binding.claim.claim_id",
+      "observation.intent_digest == binding.claim.intent_digest",
+      "observation.claim_id == binding.claim.claim_id"
+    ],
+    "retained_requirements": [
+      "Both helper paths freshly reconstruct/check all four complete children before joining; no cache or materialized-old-model trust shortcut.",
+      "Full canonical binding.claim.request == request.original; full initial.claim == binding.claim; reservation.context.standing == initial and its claim == binding.claim.",
+      "Own child hashes, field sets, exact actual typed/raw graphs, subclass/extra refusal, coverage/accepted sequence, closure digest, backend/controller identities, graph/byte bounds and canonical hash domains/bytes.",
+      "Public request validators, deadlines, fixed errors, sole response close and retained actual cleanup ownership remain unchanged."
+    ],
+    "contract_refs": [
+      "contract_v1",
+      "contract_v2"
+    ]
+  },
+  "original_failure_provenance": {
+    "public_record": "evaluation/evidence/agent-transcript-paging-2026-11-01.json",
+    "public_record_ref": "original_failures_public_record",
+    "original_head": "166bee314c4c49ab874c585ca76cf3b421dfb3b0",
+    "original_result": {
+      "passed": 292,
+      "failed": 4,
+      "errors": 0,
+      "skipped": 0,
+      "pytest_seconds": 103.54
+    },
+    "failure": "Four unchanged standing-client cases timed out waiting 2 seconds for close entry.",
+    "limit": "Original failure logs remain preserved. Isolated reruns and timing measurements do not establish the trigger of that original 296-case process or erase its failures."
+  },
+  "frozen_tests_and_fixture_scope": {
+    "author_test_commit": "14a794e9f1b49d891358414970b085c6322b936a",
+    "integration_test_commit": "7956d9bd418cd308d770a3fca3cd1ea51bea2d1f",
+    "receipt_ref": "independent_freeze",
+    "original_pure63_sha256": "c4c436472d333ba37b05cb681c14790de36d649780864fef1c34d1eb6e3114a2",
+    "maintained_pure63_sha256": "9e2d549abff2adbb93b72a084815a3ae7be10173381e0eb51adcee32fdca22c0",
+    "unchanged_client49_sha256": "6418939cd3e03d6d1319fa0f56cc0a9ec83b22d44aa9f219f8e50a691e4310d3",
+    "additive15_sha256": "e36ad1e492a32dd9e8e493c4add908843377af7796051adbced591874fee0609",
+    "original_schema_pin_cold": {
+      "head": "474a60a64a56e870f4388793fc0ebce120c9e64a",
+      "passed": 0,
+      "failed": 1,
+      "errors": 0,
+      "skipped": 0,
+      "pytest_seconds": 0.29,
+      "source_sha256": "20c98c77b2f47936f94d7425287e43f76950d2c47e83614546db5eff5cdf951b",
+      "actual_schema_count": 186,
+      "expected_schema_count": 184,
+      "interpretation": "Historical fixture counted two later #255 additive schemas; original test/module/log retained before maintenance."
+    },
+    "only_fixture_change": "schema_pin explicitly additionally excludes TranscriptScanPage and TranscriptScanRequest; no general filename pattern or changed expected count/hash.",
+    "unchanged184_schema_hash": "21351c70f152823480441448d140c49cd561aa9be0a9a4e760c1d8035257328a",
+    "all_other36_definitions_and_old_depth_assertions_byte_exact": true,
+    "prior190_schema_bytes_exact": true,
+    "new_guards": "12 foreign unadmitted/no-reservation cases: closure/observation \u00d7 intent_digest/claim_id \u00d7 raw/typed/public hash helper, with independently own-valid child bodies/hashes; 3 valid controls retain exact bytes/digest.",
+    "baseline78": {
+      "head": "474a60a64a56e870f4388793fc0ebce120c9e64a",
+      "source_sha256": "20c98c77b2f47936f94d7425287e43f76950d2c47e83614546db5eff5cdf951b",
+      "passed": 78,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "pytest_seconds": 42.95,
+      "scope": "Existing 63 with helper-only maintenance plus 15 new cases; source frozen before production authoring."
+    }
+  },
+  "completed_qualification": {
+    "head": "15ea5117ee9b70094efa5656b51fef3fcff0e2f7",
+    "head_preserved": true,
+    "passed": 127,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "pytest_seconds": 43.21,
+    "scopes": [
+      "tests/unit/test_standing_resource_finalization_contracts.py",
+      "tests/unit/test_standing_finalization_join_equivalence.py",
+      "tests/unit/test_standing_resource_finalization_client.py"
+    ],
+    "composition": "63 pure-contract + 15 additive joins + 49 unchanged client cases.",
+    "test_sha256": {
+      "tests/unit/test_standing_finalization_join_equivalence.py": "e36ad1e492a32dd9e8e493c4add908843377af7796051adbced591874fee0609",
+      "tests/unit/test_standing_resource_finalization_client.py": "6418939cd3e03d6d1319fa0f56cc0a9ec83b22d44aa9f219f8e50a691e4310d3",
+      "tests/unit/test_standing_resource_finalization_contracts.py": "9e2d549abff2adbb93b72a084815a3ae7be10173381e0eb51adcee32fdca22c0"
+    },
+    "test_pins_preserved": true,
+    "artifact_refs": [
+      "repaired127_receipt",
+      "repaired127_log",
+      "repaired127_junit",
+      "source_check"
+    ],
+    "overlap": "The baseline 78 cases repeat inside 127; counts are not additive."
+  },
+  "independent_review_and_timing": {
+    "receipt_ref": "independent_comparison",
+    "review_findings": [],
+    "review_kind": "Independent read-only equivalence/ownership review, not user approval or release acceptance.",
+    "case": "test_success_requires_actual_close_and_close_failure_is_sticky",
+    "order": [
+      "baseline-unprofiled",
+      "repair-unprofiled",
+      "baseline-profile",
+      "repair-profile"
+    ],
+    "original_assertions_and_2_second_wait_unchanged": true,
+    "runs": [
+      {
+        "label": "baseline-unprofiled",
+        "source_head": "a9f8045df41009b0fec769e5ccd77caa778409da",
+        "preclose_wall_seconds": 1.6086291689989594,
+        "preclose_thread_cpu_seconds": 1.608330505,
+        "product_case_error": null,
+        "interpretation": "Original product case completed without error",
+        "cleanup": {
+          "all_public_handles_done": true,
+          "all_responses_closed": true,
+          "close_calls": [
+            1
+          ],
+          "http_closed": true,
+          "registry_count": 0
+        },
+        "raw_receipt_ref": "baseline-unprofiled_raw_receipt"
+      },
+      {
+        "label": "repair-unprofiled",
+        "source_head": "15ea5117ee9b70094efa5656b51fef3fcff0e2f7",
+        "preclose_wall_seconds": 0.7577510999999504,
+        "preclose_thread_cpu_seconds": 0.757666248,
+        "product_case_error": null,
+        "interpretation": "Original product case completed without error",
+        "cleanup": {
+          "all_public_handles_done": true,
+          "all_responses_closed": true,
+          "close_calls": [
+            1
+          ],
+          "http_closed": true,
+          "registry_count": 0
+        },
+        "raw_receipt_ref": "repair-unprofiled_raw_receipt"
+      },
+      {
+        "label": "baseline-profile",
+        "source_head": "a9f8045df41009b0fec769e5ccd77caa778409da",
+        "preclose_wall_seconds": 4.317875549000746,
+        "preclose_thread_cpu_seconds": 4.317681811,
+        "product_case_error": "TimeoutError",
+        "interpretation": "Unchanged 2-second wait timed out under cProfile; diagnostic outcome, not a product pass",
+        "cleanup": {
+          "all_public_handles_done": true,
+          "all_responses_closed": true,
+          "close_calls": [
+            1
+          ],
+          "http_closed": true,
+          "registry_count": 0
+        },
+        "raw_receipt_ref": "baseline-profile_raw_receipt"
+      },
+      {
+        "label": "repair-profile",
+        "source_head": "15ea5117ee9b70094efa5656b51fef3fcff0e2f7",
+        "preclose_wall_seconds": 2.072760480001307,
+        "preclose_thread_cpu_seconds": 2.0724598399999996,
+        "product_case_error": "TimeoutError",
+        "interpretation": "Unchanged 2-second wait timed out under cProfile; diagnostic outcome, not a product pass",
+        "cleanup": {
+          "all_public_handles_done": true,
+          "all_responses_closed": true,
+          "close_calls": [
+            1
+          ],
+          "http_closed": true,
+          "registry_count": 0
+        },
+        "raw_receipt_ref": "repair-profile_raw_receipt"
+      }
+    ],
+    "timing_limits": "One sample of one unchanged case per mode/source. Unprofiled close-entry wall times 1.608629 seconds baseline and 0.757751 seconds repair are observations, not an aggregate benchmark/distribution or general latency promise. Both cProfile cases retain TimeoutError and are not product passes.",
+    "cleanup": "All four diagnostic runs joined their actual owners, exactly one response close, all public handles done, HTTP/responses closed and registry empty."
+  },
+  "external_operations": {
+    "real_or_paid_inference_calls": 0,
+    "hardware_or_physical_media_requests": 0,
+    "current_service_or_live_backend_changes": 0,
+    "settings_or_model_changes": 0,
+    "network_attempts_in_comparison": [],
+    "dependency_installs": 0
+  },
+  "not_established": [
+    "No main, release or full-project CI qualification.",
+    "No physical Resources certificate, actual acquisition/restoration witness, Agent retirement/settlement or claim-release qualification.",
+    "No reconstruction of the original296 process trigger; original failures remain retained, and the exact unchanged296 scope passes at the later repair head.",
+    "No aggregate latency or model-performance claim from one unprofiled sample; both cProfile runs still exceeded the unchanged2s fixture wait.",
+    "No timeout increase, assertion relaxation, native authority change, cache or whole-graph validation bypass."
+  ],
+  "artifact_references": {
+    "contract_v1": {
+      "owner": "integration",
+      "path": ".dev-run/239-finalization-context-join-equivalence-v1.md",
+      "sha256": "2945ad25b7a47dd7991007d3a2a3a46cc7a62975eeb99bc6d4a4c66bea476ce2",
+      "availability": "retained locally; raw artifacts are not published by this summary"
+    },
+    "contract_v2": {
+      "owner": "integration",
+      "path": ".dev-run/239-finalization-context-join-equivalence-v2.md",
+      "sha256": "686950930ff10232313d812aef689c5161b837b77db37ebdd03e32fc36a6ed4b",
+      "availability": "retained locally; raw artifacts are not published by this summary"
+    },
+    "independent_freeze": {
+      "owner": "oracle",
+      "path": ".dev-run/239-finalization-join-oracles-v1/receipt.json",
+      "sha256": "91d1cf0ab58773b2901d709497def83a3a7b85a75279cf35c164028773f7f816",
+      "availability": "retained locally; raw artifacts are not published by this summary"
+    },
+    "fixture_ast_and_schema_audit": {
+      "owner": "oracle",
+      "path": ".dev-run/239-finalization-join-oracles-v1/schema-and-ast-audit.json",
+      "sha256": "51f86ca9102b8a85e32800fa43beeedae55ef0d4b4f78bba5c0054b65c3b420d",
+      "availability": "retained locally; raw artifacts are not published by this summary"
+    },
+    "original_schema_failure_log": {
+      "owner": "oracle",
+      "path": ".dev-run/239-finalization-join-oracles-v1/original-schema.log",
+      "sha256": "75a37bf23c9ff352891b5e8613622d4e9d726bbbb7dbd30518569e468c0dc400",
+      "availability": "retained locally; raw artifacts are not published by this summary"
+    },
+    "baseline78_log": {
+      "owner": "oracle",
+      "path": ".dev-run/239-finalization-join-oracles-v1/corrected-gates.log",
+      "sha256": "e2064b5c04e1c9588f1325e26afb04f89313c4e433f3a197b8eb8e96c1227161",
+      "availability": "retained locally; raw artifacts are not published by this summary"
+    },
+    "baseline78_junit": {
+      "owner": "oracle",
+      "path": ".dev-run/239-finalization-join-oracles-v1/corrected-gates.junit.xml",
+      "sha256": "15ff484f922a0dc6e2135222cea6bcdb67adb49d30d3d6055e2331493e822973",
+      "availability": "retained locally; raw artifacts are not published by this summary"
+    },
+    "repaired127_receipt": {
+      "owner": "integration",
+      "path": ".dev-run/228-finalization-join-repair-uvqw6bpn/receipt.json",
+      "sha256": "2c2d15bc7aef8ab17e9e744e6f913ffbfa33fabadf26226dd0b922ffd3b158a5",
+      "availability": "retained locally; raw artifacts are not published by this summary"
+    },
+    "repaired127_log": {
+      "owner": "integration",
+      "path": ".dev-run/228-finalization-join-repair-uvqw6bpn/pytest.log",
+      "sha256": "5eaf13c4e4bdf8c1bb36ce26a7b88bac246a6119630c26ff6c81561ce21639fb",
+      "availability": "retained locally; raw artifacts are not published by this summary"
+    },
+    "repaired127_junit": {
+      "owner": "integration",
+      "path": ".dev-run/228-finalization-join-repair-uvqw6bpn/junit.xml",
+      "sha256": "d027074534226abfefae001b370ef963984f89e3247f81ee6239b867bff464c0",
+      "availability": "retained locally; raw artifacts are not published by this summary"
+    },
+    "source_check": {
+      "owner": "integration",
+      "path": ".dev-run/228-finalization-join-repair-uvqw6bpn/source-check.json",
+      "sha256": "186ccf7bbaea1f84cc8fd8b59e0c26ae3547e6a0710dc53adcd57f41aeb2a62c",
+      "availability": "retained locally; raw artifacts are not published by this summary"
+    },
+    "independent_comparison": {
+      "owner": "independent_reviewer",
+      "path": ".dev-run/228-finalization-join-comparison-fhx9o_ka/receipt.json",
+      "sha256": "51c2bf01dd036cce7f2fa702af721ee5ac7a59d831ed647a2ba15b8c2bf7ba5a",
+      "availability": "retained locally; raw artifacts are not published by this summary"
+    },
+    "original_failures_public_record": {
+      "owner": "integration",
+      "path": "evaluation/evidence/agent-transcript-paging-2026-11-01.json",
+      "sha256": "501a2c8b2fca6f96ebf1da094ac06fd7bf46b3bc6ce85e6556c032643d38efdc",
+      "availability": "retained locally; raw artifacts are not published by this summary"
+    },
+    "baseline-unprofiled_raw_receipt": {
+      "owner": "independent_reviewer",
+      "path": ".dev-run/228-finalization-join-comparison-fhx9o_ka/baseline-unprofiled/profile-receipt.json",
+      "sha256": "174dd6861bf9fe1ea00b4a03852bcf5814aebd097a827023a83cb576104a5f16",
+      "availability": "retained locally; raw artifacts are not published by this summary"
+    },
+    "repair-unprofiled_raw_receipt": {
+      "owner": "independent_reviewer",
+      "path": ".dev-run/228-finalization-join-comparison-fhx9o_ka/repair-unprofiled/profile-receipt.json",
+      "sha256": "5b9c30ab8b6d5bd97328e6b14a4a6e6e8f9cdf869d978a261db2e325ecab844a",
+      "availability": "retained locally; raw artifacts are not published by this summary"
+    },
+    "baseline-profile_raw_receipt": {
+      "owner": "independent_reviewer",
+      "path": ".dev-run/228-finalization-join-comparison-fhx9o_ka/baseline-profile/profile-receipt.json",
+      "sha256": "a85424956619d4eee2f5e064e0db868a18fd4e8c57e16e7580088c009af41af9",
+      "availability": "retained locally; raw artifacts are not published by this summary"
+    },
+    "repair-profile_raw_receipt": {
+      "owner": "independent_reviewer",
+      "path": ".dev-run/228-finalization-join-comparison-fhx9o_ka/repair-profile/profile-receipt.json",
+      "sha256": "306f0383ee1d0d8e8ff618be642cc6103d0dd70a2a37a81e4081bc1b8d5b8ba3",
+      "availability": "retained locally; raw artifacts are not published by this summary"
+    },
+    "native96_receipt_json": {
+      "owner": "integration",
+      "path": ".dev-run/228-finalization-context-native-v7t_g3z0/receipt.json",
+      "sha256": "3662fb90c53f214d697e19e7ecaeeae3cf59abde9213cb7c0603e9fc6516d566",
+      "availability": "retained locally; raw artifacts are not published by this summary"
+    },
+    "native96_pytest_log": {
+      "owner": "integration",
+      "path": ".dev-run/228-finalization-context-native-v7t_g3z0/pytest.log",
+      "sha256": "a587dd09a365cbbfb18cd0607bb0bffb12af50ab81e55e441514dff7324e3a12",
+      "availability": "retained locally; raw artifacts are not published by this summary"
+    },
+    "native96_junit_xml": {
+      "owner": "integration",
+      "path": ".dev-run/228-finalization-context-native-v7t_g3z0/junit.xml",
+      "sha256": "51cfbdeb177d05de739a4f51550ec6f9fad45026812222fba975f62f0f55f0d4",
+      "availability": "retained locally; raw artifacts are not published by this summary"
+    },
+    "native96_manifest_json": {
+      "owner": "integration",
+      "path": ".dev-run/228-finalization-context-native-v7t_g3z0/manifest.json",
+      "sha256": "c24a5605e12a24f2162f800855a6038b87fc2e6c82f5238c689dad7a79aa2f43",
+      "availability": "retained locally; raw artifacts are not published by this summary"
+    },
+    "old296_receipt_json": {
+      "owner": "integration",
+      "path": ".dev-run/228-finalization-context-old-regressions-j8q9t7jk/receipt.json",
+      "sha256": "848aa3e904e70539bdb7df5bc136858033035ac0114e8e10477b7958fdcd5437",
+      "availability": "retained locally; raw artifacts are not published by this summary"
+    },
+    "old296_pytest_log": {
+      "owner": "integration",
+      "path": ".dev-run/228-finalization-context-old-regressions-j8q9t7jk/pytest.log",
+      "sha256": "6bcaec716272fbff053dc866c10be0ce8407edd4987993fc8eb73de36c94d1a9",
+      "availability": "retained locally; raw artifacts are not published by this summary"
+    },
+    "old296_junit_xml": {
+      "owner": "integration",
+      "path": ".dev-run/228-finalization-context-old-regressions-j8q9t7jk/junit.xml",
+      "sha256": "7ba59e67fd43be56884c76b8d068437c658d811b9aee9c679ca702b7dacfce8f",
+      "availability": "retained locally; raw artifacts are not published by this summary"
+    },
+    "old296_manifest_json": {
+      "owner": "integration",
+      "path": ".dev-run/228-finalization-context-old-regressions-j8q9t7jk/manifest.json",
+      "sha256": "a6f4dbb8b0395408c7ab960fa56422d537de317e6a1c7fc512797c571c73da39",
+      "availability": "retained locally; raw artifacts are not published by this summary"
+    }
+  },
+  "additional_qualification": {
+    "native96": {
+      "head": "15ea5117ee9b70094efa5656b51fef3fcff0e2f7",
+      "head_preserved": true,
+      "passed": 96,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "junit_seconds": 290.987,
+      "test_sha256": {
+        "tests/integration/test_standing_resource_finalization_api.py": "c8dc586fca81bd0441b3c0181fc6e1b33818be4c2ab258fb2802b48a92320407",
+        "tests/integration/test_standing_resources_registration.py": "139ed1a9865928a234309a69e558bc888af9f4b80c5156b19081a62cae34dac3",
+        "tests/integration/test_standing_resources_slot_corruption.py": "310dc63198404eefb83c1c6ce48df7318e72cc464eba98dcbc284cc582e8684c"
+      },
+      "targets": [
+        "tests/integration/test_standing_resource_finalization_api.py",
+        "tests/integration/test_standing_resources_registration.py",
+        "tests/integration/test_standing_resources_slot_corruption.py"
+      ],
+      "artifact_refs": [
+        "native96_receipt_json",
+        "native96_pytest_log",
+        "native96_junit_xml",
+        "native96_manifest_json"
+      ]
+    },
+    "old296": {
+      "head": "15ea5117ee9b70094efa5656b51fef3fcff0e2f7",
+      "head_preserved": true,
+      "passed": 296,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "junit_seconds": 66.568,
+      "test_sha256": {
+        "tests/integration/test_agent_boundaries.py": "cea58092dd8e2c1e05f2997c70ea70edc839f3acd0e316bccdea55e9ff583c22",
+        "tests/integration/test_agent_retained_disclosure.py": "1b8982bf380796335fe5c54953817215458036fc7b90efbaa101c303f20a0488",
+        "tests/integration/test_agent_retained_transcript.py": "980fc37514940c1ef178fce798d51d17b75ef54f082ef41121fb3076ded4074c",
+        "tests/integration/test_agent_revision_disclosure.py": "712a66ee784eaad0feacbcf31306d941c7f4d5f8af2555d916a87dd60dfeb307",
+        "tests/integration/test_speech_windows.py": "67bfdddcb98baac80c9bb274e72d61ef6720a566505b500a937af84c1d8e7963",
+        "tests/integration/test_standing_owner_cors.py": "9a0467a628cce44dcce91a5950cdbb25656aaac017008a045d2d95278609ba85",
+        "tests/integration/test_window_agent_routing.py": "8e0107faebc4e17e0a52e2e171b2dbcb8332949554696584541169c5e5e942b8",
+        "tests/unit/test_standing_agent_client.py": "10a23a273592307ceaf148ea95041c0800f27afbb83a9acd59a5bbd6a2f31b87",
+        "tests/unit/test_standing_export_api_client.py": "36f69bb79dbbe67a72f0012046594faf59596246cfbacc18e58870c4751cfa64",
+        "tests/unit/test_standing_resource_finalization_client.py": "6418939cd3e03d6d1319fa0f56cc0a9ec83b22d44aa9f219f8e50a691e4310d3"
+      },
+      "targets": [
+        "tests/integration/test_speech_windows.py",
+        "tests/integration/test_window_agent_routing.py",
+        "tests/integration/test_agent_retained_transcript.py",
+        "tests/integration/test_agent_retained_disclosure.py",
+        "tests/integration/test_agent_revision_disclosure.py",
+        "tests/integration/test_agent_boundaries.py",
+        "tests/unit/test_standing_agent_client.py",
+        "tests/unit/test_standing_export_api_client.py",
+        "tests/unit/test_standing_resource_finalization_client.py",
+        "tests/integration/test_standing_owner_cors.py"
+      ],
+      "artifact_refs": [
+        "old296_receipt_json",
+        "old296_pytest_log",
+        "old296_junit_xml",
+        "old296_manifest_json"
+      ],
+      "original_order_and_test_bytes_preserved": true,
+      "original_result_retained": "292 passed / 4 failed at166bee3; this later exact-scope pass is not a reconstruction of the original trigger."
+    }
+  },
+  "overlap": {
+    "baseline78_inside_repair127": 78,
+    "repair127_and_old296": 49,
+    "native96_and_other_groups": 0,
+    "counts_not_reported_as_an_additive_suite": true
+  },
+  "static_checks": {
+    "ruff_check": "passed",
+    "ruff_format_check": "3 files unchanged",
+    "git_diff_check": "passed",
+    "initial_invocation_error": "First lint invocation named a nonexistent new test filename; corrected before successful checks; no product test was collected by that invocation."
+  },
+  "publication_checks": {
+    "artifact_sha256_verified_before_new_root_results": 17,
+    "only_changed_top_level_source_definition": "_context_body",
+    "other_top_level_definitions_ast_exact": 21,
+    "old296_test_modules_byte_exact": 10,
+    "graph_and_type_checks_unchanged": true
+  }
+}

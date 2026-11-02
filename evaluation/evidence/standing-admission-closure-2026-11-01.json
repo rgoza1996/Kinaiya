@@ -1,0 +1,452 @@
+{
+  "requirement": "https://github.com/rgoza1996/Kinaiya/issues/228",
+  "parents": [
+    "https://github.com/rgoza1996/Kinaiya/issues/10",
+    "https://github.com/rgoza1996/Kinaiya/issues/208"
+  ],
+  "scope": "Permanent native standing admission closure, full-original historical readback, Agent-only HTTP and JournalClient ownership. Actual protected SQLite/ASGI/control retirement and owned transport tests; no provider inference. Closure is not positive worker/effect/Resources settlement or claim release.",
+  "implementation": {
+    "basis": "d59228204e73f365092a3a74c9844f45b209c9f1",
+    "native_author": "915df84c90a32649a0bf9b7126ad7e38d8335e17",
+    "native_integrated": "d8253c6232ca0bac1b315e5a19c93ac2f76dd318",
+    "http_client": "a2653f670456e9145a279655020c584811c133c3",
+    "final_writer_fix": "27b4e3cf32ea4e7c39beb01c8064bd2e80ba6878",
+    "source_sha256": {
+      "packages/contracts/standing_closure.py": "c5b8b1e9836d22653cf25b822b5308add3716f711006b333ab942320c274eb95",
+      "services/session/standing_closure.py": "b8adf97a874439cd143368c2b5e8f07ea965ff101e995c9e27c47c4d05473183",
+      "services/session/standing_admission.py": "482b7e53f1521050540d2fa5bb35dfc12b826007a3ad8978d78c3c02bd5e27be",
+      "packages/contracts/client.py": "6f2c13c913c45f09eeb32799a1c3b4dab76794c6d2099f98e809e41a973a162a",
+      "packages/contracts/standing_client.py": "5aa1d236cb3aa663fb0ae442af572880e283078a646bd3e4272bd0a20ed22c3e",
+      "services/session/standing_work_api.py": "af63ed3328dbbab78c87ff64cb35de37662d93566abaabd31ffd169a831adb95",
+      "scripts/export_contracts.py": "67bf98df0c63012d82560f6e6086b1d7895c19637b546914ceec2ba9e8be88e8"
+    },
+    "test_sha256": {
+      "tests/unit/test_standing_admission_closure.py": "b08e1539282ea9250c9e474e86853f1fa50f6aacbf77d5c25fcde1cddc8f8fe4",
+      "tests/integration/test_standing_admission_closure_native.py": "a16cb65eefd2ca0fe1d8119496269332ebdce78c8b09f67489649776f28b1591",
+      "tests/integration/test_standing_admission_closure_http.py": "a8457f5ff4f1e70b094accab8d5ab1324c6453e8a6112e171c420745abadd512",
+      "tests/integration/test_standing_closure_final_writer.py": "fc35f3ed9be4341b3835c8f33068754c39f05bb687690f72e934236ad32152f0",
+      "tests/integration/test_standing_task_admission.py": "fbdff0386d826625025bf282236087964143ecae14e7bcd0de5153f148a01c5d"
+    },
+    "boundaries_sha256": {
+      "228-admission-closure-v1.md": "40242b0c892da2462d12fdb48ac65eab4fcbff1ca0b2ad062b1cdd43db12a8cc",
+      "228-admission-closure-http-v1.md": "ffcc52c55c05bf2eb52617e07f585e23c625aabf8c486645ee11f88cd373fe09",
+      "228-admission-closure-v2.md": "0df3c4df3f19d25a2504b3937693c55e58d7c2df4fc468cb7a9369c2ddc01212"
+    }
+  },
+  "independent_oracles": {
+    "frozen_before_root_consulted_native_implementation": true,
+    "pure_native51": {
+      "author_commit": "7f9e820e4136cebb090eb8b944194985060e7d25",
+      "freeze": {
+        "local_bundle": "228-admission-closure-oracles-8nyalv1k",
+        "sha256": {
+          "manifest.json": "cf353706f7ca369f58cdf61c718dcd943dc3e0dccdb33fc371ca99aaab4838a7",
+          "receipt.json": "ed5e95118362dc09092cf325dddcba2b97d00bc5cfb20b4ffd076fc723bb06ad"
+        }
+      },
+      "cold": {
+        "failed": 49,
+        "passed": 2,
+        "errors": 0,
+        "skipped": 0,
+        "seconds": 14.35,
+        "classification": "15 missing pure contract and34 missing native capability failures;2 existing controls pass.",
+        "evidence": {
+          "local_bundle": "228-admission-closure-cold-f4yz31o1",
+          "sha256": {
+            "junit.xml": "5be8cbe803df2b0511a67b8ba16579917cea9d609d01bc08cc9fb6c18307761d",
+            "manifest.json": "ef95447d092ce4db3c0433567acf4320a732d53e3f53b9e2e2a7e688926b4d10",
+            "receipt.json": "2a1289fc20dec9509cc91c1036a74d4c88821e89f90f13557f45161aad3ad445"
+          }
+        }
+      }
+    },
+    "http_client36": {
+      "author_commit": "8440a238ac22b29770b5cddffc190abf8bf4735c",
+      "original_test_sha256": "3588c380594f1528f194b57c950dcd754295099240d3fc80a42d6f0fd981cc3f",
+      "freeze": {
+        "local_bundle": "228-admission-closure-http-oracles-38c5c138",
+        "sha256": {
+          "manifest.json": "7da62b4a7f540d1c5a4e7bdc65a7cd9bdf4c83344d890c21d5523916a3ba2f27",
+          "receipt.json": "e1f6e1c7d7c678aa3723f63ffa7e7744f5a6ccfa6ddab9d719c5449fc4823715"
+        }
+      },
+      "cold": {
+        "failed": 16,
+        "passed": 0,
+        "errors": 20,
+        "skipped": 0,
+        "seconds": 8.08,
+        "classification": "8 missing-contract case failures,20 missing-contract fixture errors,8 absent-route404 failures. Two existing fixture controls passed separately before freeze.",
+        "evidence": {
+          "local_bundle": "228-admission-closure-http-cold-f0520ab0",
+          "sha256": {
+            "manifest.json": "7025022cbed0336fd91c2e4f7e1ce49c75a7e7bd22d9754dc92149d7ded546fd",
+            "receipt.json": "6123b912f2e929630522ad32e726c0708c2fe4ecbcd083bb3153d9c044871cec",
+            "result.xml": "580076bd447e0327c80679de8adc48784432c04ebf0c2fabdd8cfe06025a7a26"
+          }
+        }
+      }
+    }
+  },
+  "preserved_failures_and_corrections": {
+    "first87": {
+      "passed": 86,
+      "failed": 1,
+      "errors": 0,
+      "skipped": 0,
+      "seconds": 56.269,
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-W",
+        "error",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "tests/unit/test_standing_admission_closure.py",
+        "tests/integration/test_standing_admission_closure_native.py",
+        "tests/integration/test_standing_admission_closure_http.py",
+        "--junitxml=/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/228-closure-first-1ur7anr0/junit.xml"
+      ],
+      "pythonpath": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya",
+      "head": "d8253c6232ca0bac1b315e5a19c93ac2f76dd318",
+      "head_after": "d8253c6232ca0bac1b315e5a19c93ac2f76dd318",
+      "exit_code": 1,
+      "test_pins_preserved": true,
+      "evidence": {
+        "local_bundle": "228-closure-first-1ur7anr0",
+        "sha256": {
+          "junit.xml": "a574fd8b39a6676ee9505fd8104fad988d79445b084f3348ef4666466af7e184",
+          "manifest.json": "f61eeb0346c3aaca18f95198a9c13f5f5ca84aa93375105db0d7170c455671f0",
+          "receipt.json": "5f5302c9296265fa2fe175a358a30276014144e629b9a4e0733327fc599edeee"
+        }
+      }
+    },
+    "new_http_error_family_fixture": {
+      "diagnosis": "An existing agent_control_state call at actual64 capacity correctly raises AgentControlUnavailable; the new oracle incorrectly expected StandingUnavailable. Production old error semantics stay unchanged.",
+      "author_correction": "35a0957796db03baae677563215448104af43c9b",
+      "integrated_correction": "fea8857bdf1acdd38b9a40d03c6652325e41c593",
+      "change": "Only import plus one raises context class; all71 Assert ASTs and other code preserved.",
+      "independent_diagnosis": {
+        "local_bundle": "228-closure-old-error-family-review-ac4c8f18",
+        "sha256": {
+          "first-receipt.json": "5f5302c9296265fa2fe175a358a30276014144e629b9a4e0733327fc599edeee",
+          "manifest.json": "0bdf457d8c11aed8334f57eae7a51cac697b7fb7512817462a7041ce418ef350",
+          "receipt.json": "6ad4ba2e306ab5f64564f6e71c5de75baa8bff030cc2ab06dbc44a58025a108d"
+        }
+      },
+      "correction": {
+        "local_bundle": "228-closure-oracle-error-family-correction-2a7e9779",
+        "sha256": {
+          "manifest.json": "7a31cdf80c81a59a93ea07e87e68edb990b86dd5745b80c49c67821010ed231c",
+          "receipt.json": "f3c68fddab2adf1bbcea493791fc502d260eee1a925f3fe31fc7fe5909ac97f7"
+        }
+      },
+      "individual_result": {
+        "passed": 1,
+        "failed": 0,
+        "errors": 0,
+        "skipped": 0,
+        "seconds": 1.021,
+        "command": [
+          "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+          "-B",
+          "-m",
+          "pytest",
+          "-q",
+          "-W",
+          "error",
+          "-p",
+          "no:cacheprovider",
+          "-o",
+          "asyncio_default_fixture_loop_scope=function",
+          "tests/integration/test_standing_admission_closure_http.py::test_new64_actual_client_owners_block_new_and_old_calls_until_real_cleanup",
+          "--junitxml=/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/228-closure-control-fixture-qualified-yx3wdhoo/junit.xml"
+        ],
+        "pythonpath": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya",
+        "head": "fea8857bdf1acdd38b9a40d03c6652325e41c593",
+        "head_after": "fea8857bdf1acdd38b9a40d03c6652325e41c593",
+        "exit_code": 0,
+        "test_pins_preserved": true,
+        "evidence": {
+          "local_bundle": "228-closure-control-fixture-qualified-yx3wdhoo",
+          "sha256": {
+            "junit.xml": "6eb5295e7b5086a6b786a3b6266713d89cf95693c4bbdb5b0d98705c1d3bde3f",
+            "manifest.json": "e0bef675ac705c91bff9ead1c1065807fb09307c826f4e825cdc945c2d17ff4f",
+            "receipt.json": "94426a9639d80b14e8202720a8f58f14a7a89534e19c49aa60de70754741a613"
+          }
+        }
+      }
+    },
+    "first_existing467": {
+      "passed": 466,
+      "failed": 1,
+      "errors": 0,
+      "skipped": 0,
+      "seconds": 336.018,
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-W",
+        "error",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "tests/unit/test_standing_admission_contract.py",
+        "tests/integration/test_standing_task_admission.py",
+        "tests/integration/test_standing_execution_api.py",
+        "tests/unit/test_standing_agent_client.py",
+        "tests/unit/test_standing_shared_capacity.py",
+        "tests/unit/test_standing_export_api_client.py",
+        "tests/integration/test_standing_export_admission.py",
+        "tests/integration/test_standing_export_guard_corruption.py",
+        "tests/integration/test_standing_export_guard_bounds.py",
+        "tests/integration/test_standing_agent_runtime.py",
+        "tests/integration/test_standing_worker_final_deadline.py",
+        "tests/integration/test_standing_dispatch_api.py",
+        "tests/integration/test_agent_submit_http_stack.py",
+        "tests/unit/test_agent_submit_client.py",
+        "--junitxml=/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/228-closure-old-regressions-c6taf9fp/junit.xml"
+      ],
+      "pythonpath": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya",
+      "head": "d8253c6232ca0bac1b315e5a19c93ac2f76dd318",
+      "head_after": "d8253c6232ca0bac1b315e5a19c93ac2f76dd318",
+      "exit_code": 1,
+      "test_pins_preserved": true,
+      "evidence": {
+        "local_bundle": "228-closure-old-regressions-c6taf9fp",
+        "sha256": {
+          "junit.xml": "52b94b483060364c718380b20803279c39c1f6442acf44b1f6c3033d55aac9ef",
+          "manifest.json": "56a548f4e0387ee52b68b6b8052baaac4492425d96881c6ddaca9440b3a86a33",
+          "receipt.json": "b0c48400c1c3e5716cfb00eacc7e301365d24bd8cdd9f5f688fd0c74c3d7f8d4"
+        }
+      }
+    },
+    "old_exact_schema_inventory_update": {
+      "diagnosis": "The frozen feature intentionally adds two exact closure tables during explicit registration. The old exact inventory asserted only the task-admission table.",
+      "author_commit": "414a22d202b001984f822f067473b30926344a69",
+      "original_test_sha256": "bbc7adbd531e710fdfdd2f403c089c374b11e974ca8203e61a8dd0960b613db6",
+      "change": "Exactly2 old inventory/projection Assert ASTs changed;173 other assertions preserved. Four stronger checks add exact backend metadata, empty closures, preservation of all prior schema/index rows, and no-FK for both new tables. No arbitrary-table filter or other production/test change.",
+      "independent_diagnosis": {
+        "local_bundle": "228-closure-old-inventory-review-5_emmoid",
+        "sha256": {
+          "manifest.json": "e80634a64c22efd3e936a27d002513ec43e8b6a91fa1d335f263db68410c94d5",
+          "receipt.json": "a9466119d51149f90d3f330a1e40536642fa47a05fd17f67beaa3edc4b7d08f8"
+        }
+      },
+      "correction_and_frozen_race_evidence": {
+        "local_bundle": "228-closure-final-writer-oracles-dwcyg4on",
+        "sha256": {
+          "manifest.json": "2ac730dbd84d40b8d9082d7f7b8a32e5e3c8bb6f83fd59077f8ce3bb84249708",
+          "receipt.json": "8b8a2817e384094be34172e4ca2498693e4971f8decf3a768af1430124f62f43"
+        }
+      }
+    },
+    "final_writer_P2": {
+      "finding": "First-close writer check preceded final blocking native SQL; actual controller close can clear RAM ownership while waiting on the same Store lock.",
+      "independent_static_review": {
+        "local_bundle": "228-admission-closure-native-source-review-fd20a440",
+        "sha256": {
+          "manifest.json": "02c21985d74fbc72b7073c5f5f3eb2cecc5c400ec8e39d153af74fa6ce66ec2e",
+          "receipt.json": "0010b70ee04b0df367ff176f1152987c60ee202cf3df9014254c1a38398d5bcf"
+        }
+      },
+      "additional_frozen_test_commit": "6397b476bb50b9aa913c2ba2c48e2279a58fd8ca",
+      "actual_red": {
+        "failed": 2,
+        "passed": 1,
+        "errors": 0,
+        "skipped": 0,
+        "seconds": 2.87,
+        "evidence": {
+          "local_bundle": "228-closure-final-writer-oracles-dwcyg4on",
+          "sha256": {
+            "manifest.json": "2ac730dbd84d40b8d9082d7f7b8a32e5e3c8bb6f83fd59077f8ce3bb84249708",
+            "receipt.json": "8b8a2817e384094be34172e4ca2498693e4971f8decf3a768af1430124f62f43"
+          }
+        }
+      },
+      "instrumentation": "Actual empty/admitted native claims, final actual receipt SQL and real underlying RLock; second thread calls actual AgentControl.close, clears RAM instance and waits for Store lock. Timely same-point current-writer control passes. All threads joined.",
+      "fix": "Move self.observe before if-created _writer; retain final cancellation/deadline guard. Reverse move restores original helper bytes exactly.",
+      "final_independent_review": {
+        "local_bundle": "228-closure-writer-fix-source-review-851d571b",
+        "sha256": {
+          "manifest.json": "31104405ec9f18e6242c43062b27c096a2eecddcb88e0ec6184d2891436f9bc9",
+          "receipt.json": "3b3a4facd714336a92a36091ec6609fe8cc3eebb671675da962fc67d1c457221"
+        }
+      },
+      "remaining_actionable_findings_in_scope": 0,
+      "historical_replay": "Frozen FIRST/new-fence writer requirement does not invent a new writer requirement for historical exact replay. Replay still needs correct private capability and full healthy native joins; passive lookup needs no secret. No boundary or source waiver."
+    }
+  },
+  "qualification": {
+    "final": {
+      "passed": 157,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "seconds": 100.969,
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-W",
+        "error",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "tests/unit/test_standing_admission_closure.py",
+        "tests/integration/test_standing_admission_closure_native.py",
+        "tests/integration/test_standing_admission_closure_http.py",
+        "tests/integration/test_standing_closure_final_writer.py",
+        "tests/integration/test_standing_task_admission.py",
+        "--junitxml=/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/228-closure-qualified-vh0bvot4/junit.xml"
+      ],
+      "pythonpath": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya",
+      "head": "27b4e3cf32ea4e7c39beb01c8064bd2e80ba6878",
+      "head_after": "27b4e3cf32ea4e7c39beb01c8064bd2e80ba6878",
+      "exit_code": 0,
+      "test_pins_preserved": true,
+      "evidence": {
+        "local_bundle": "228-closure-qualified-vh0bvot4",
+        "sha256": {
+          "junit.xml": "d209cf58bf9cb5625377e94b5be6c5cc3ff83f5e86722af1231d3f432620a2f3",
+          "manifest.json": "0f0064227d06f1dc600815099c8ed1d5563a31ef152de31ae9484728df668303",
+          "receipt.json": "9f9873ab5405bdd4ba4ca8b4072325e6018726170082d638285c389631778361"
+        }
+      }
+    },
+    "composition": "90 closure checks (16pure+35native+36HTTP/client+3final-writer) and67 existing native admission checks. Existing467 first run was466pass/1 stale inventory failure before the close-only source reorder; do not call that run fully passed or sum overlapping runs as unique tests.",
+    "warnings_as_errors": true,
+    "http_client_independent_static_review": {
+      "local_bundle": "codex-228-closure-http-review-s9sfmbfg",
+      "sha256": {
+        "manifest.json": "acbf8299add00168fe8998978fdf6799f3f2a581355bc66a6fe04aff10585b1d",
+        "receipt.json": "4f166b72cd690d60c519e59b93de50f96b4da4c3907ad8f38cf0d9d56c9dac28"
+      }
+    },
+    "final_static": {
+      "head": "27b4e3cf32ea4e7c39beb01c8064bd2e80ba6878",
+      "checks": [
+        {
+          "command": [
+            "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/ruff",
+            "check",
+            "packages/contracts/standing_closure.py",
+            "services/session/standing_closure.py",
+            "services/session/standing_admission.py",
+            "packages/contracts/client.py",
+            "packages/contracts/standing_client.py",
+            "services/session/standing_work_api.py",
+            "scripts/export_contracts.py",
+            "tests/unit/test_standing_admission_closure.py",
+            "tests/integration/test_standing_admission_closure_native.py",
+            "tests/integration/test_standing_admission_closure_http.py",
+            "tests/integration/test_standing_closure_final_writer.py",
+            "tests/integration/test_standing_task_admission.py"
+          ],
+          "exit_code": 0
+        },
+        {
+          "command": [
+            "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/ruff",
+            "format",
+            "--check",
+            "packages/contracts/standing_closure.py",
+            "services/session/standing_closure.py",
+            "services/session/standing_admission.py",
+            "packages/contracts/client.py",
+            "packages/contracts/standing_client.py",
+            "services/session/standing_work_api.py",
+            "scripts/export_contracts.py",
+            "tests/unit/test_standing_admission_closure.py",
+            "tests/integration/test_standing_admission_closure_native.py",
+            "tests/integration/test_standing_admission_closure_http.py",
+            "tests/integration/test_standing_closure_final_writer.py",
+            "tests/integration/test_standing_task_admission.py"
+          ],
+          "exit_code": 0
+        },
+        {
+          "command": [
+            "git",
+            "diff",
+            "--check"
+          ],
+          "exit_code": 0
+        },
+        {
+          "command": [
+            "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+            "-B",
+            "scripts/export_contracts.py"
+          ],
+          "exit_code": 0
+        }
+      ],
+      "source_sha256": {
+        "packages/contracts/standing_closure.py": "c5b8b1e9836d22653cf25b822b5308add3716f711006b333ab942320c274eb95",
+        "services/session/standing_closure.py": "b8adf97a874439cd143368c2b5e8f07ea965ff101e995c9e27c47c4d05473183",
+        "services/session/standing_admission.py": "482b7e53f1521050540d2fa5bb35dfc12b826007a3ad8978d78c3c02bd5e27be",
+        "packages/contracts/client.py": "6f2c13c913c45f09eeb32799a1c3b4dab76794c6d2099f98e809e41a973a162a",
+        "packages/contracts/standing_client.py": "5aa1d236cb3aa663fb0ae442af572880e283078a646bd3e4272bd0a20ed22c3e",
+        "services/session/standing_work_api.py": "af63ed3328dbbab78c87ff64cb35de37662d93566abaabd31ffd169a831adb95",
+        "scripts/export_contracts.py": "67bf98df0c63012d82560f6e6086b1d7895c19637b546914ceec2ba9e8be88e8"
+      },
+      "test_sha256": {
+        "tests/unit/test_standing_admission_closure.py": "b08e1539282ea9250c9e474e86853f1fa50f6aacbf77d5c25fcde1cddc8f8fe4",
+        "tests/integration/test_standing_admission_closure_native.py": "a16cb65eefd2ca0fe1d8119496269332ebdce78c8b09f67489649776f28b1591",
+        "tests/integration/test_standing_admission_closure_http.py": "a8457f5ff4f1e70b094accab8d5ab1324c6453e8a6112e171c420745abadd512",
+        "tests/integration/test_standing_closure_final_writer.py": "fc35f3ed9be4341b3835c8f33068754c39f05bb687690f72e934236ad32152f0",
+        "tests/integration/test_standing_task_admission.py": "fbdff0386d826625025bf282236087964143ecae14e7bcd0de5153f148a01c5d"
+      },
+      "old_schemas_byte_exact": 178,
+      "total_schemas": 179,
+      "only_native_helper_delta_from_reviewed915df84": "Move final self.observe before if-created _writer; final deadline guard unchanged. Reverse exactly restores original bytes.",
+      "other_author_native_and_root_transport_bytes_preserved": true,
+      "pythonpath": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya"
+    },
+    "final_static_evidence": {
+      "local_bundle": "228-closure-static-final-5qypdjdt",
+      "sha256": {
+        "manifest.json": "e1b5b26d3b16dd83d6f58a4ff4ada4e6d72496f6e70650c29d57d20cbe993d6b",
+        "receipt.json": "d7766bd2cf9eff413e0c97d59ac3a07a6fe43a5586b85b875e151dca800a4c3b"
+      }
+    },
+    "native_author_probes": {
+      "local_bundle": "codex-228-admission-closure-2rbf5kfv",
+      "sha256": {
+        "manifest.json": "b23c074ceebe5a422a924592fcbbfda5cfff401b64bad4e26a60128808179ee1",
+        "receipt.json": "080350425c473459dbaef6880c13fc10b03928edf18260cc014610a7738bc731"
+      }
+    }
+  },
+  "verified_behavior": [
+    "Same native transaction linearizes close-first null fence against admit-first retained InitialProof. No later first admission crosses a null fence; retained readback never launches.",
+    "Exact complete original/private32-byte capability, backend/controller/claim/journal joins and strict bounded immutable receipts; corrupted/partial/orphan storage fails closed without repair.",
+    "Stop/disable/expiry/controller replacement/restart do not erase native history or release claims. First close needs current writer; historical replay/readback does not reauthorize current work.",
+    "Actual pre/post-COMMIT faults and lost HTTP acknowledgements preserve either rollback or retained closure. Null is allowed only on read-only lookup.",
+    "Agent-only routes, identity JSON,5s ingress/25s absolute bounds, no-store and existing64 actual operation/exchange owners, including cancellation-resistant acquisition/response close and cross-old/new capacity.",
+    "Real cross-thread RAM retirement during final native SQL refuses and rolls back a new fence after the source-only correction; original accepted initial/claim stays retained."
+  ],
+  "limits": [
+    "Integration-branch prerequisite only. No feature PR, full-project CI, merge, live promotion or complete228 acceptance.",
+    "No running recurrence/producer, standing Stop/steering/restart hydration, positive worker/effect/Resources settlement, active-slot release, deduplicated inbox or embedded editor.",
+    "Generic Resources task_finished.ok or resource_client=None is not exact positive Task settlement; dependency239 remains open.",
+    "No provider inference, hardware/model/device probe, configuration/dependency change, paid allowance reset or live8780/8782/8808 change. Cumulative Meta25/OpenRouter10 constraints remain; zero new billable inference calls.",
+    "Full Roadmap and all208 handoff issues remain active; ending the source design chat was not completion of this goal."
+  ],
+  "next": "Implement exact Resources registration/finalization and original-process worker/effect joins, retaining uncertainty; then release only positively settled active reservations while preserving history, and integrate trusted recurrence, durable inbox and owner editor."
+}

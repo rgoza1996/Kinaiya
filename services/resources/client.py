@@ -67,6 +67,8 @@ class ResourceClient:
 
 
 class ConverseControl:
+    actual_ownership_supported = True
+
     def __init__(self, url, token, *, transport=None):
         self.http = httpx.AsyncClient(
             base_url=local_base(url),
@@ -77,18 +79,34 @@ class ConverseControl:
             transport=transport,
         )
 
-    async def health(self):
+    async def _owned(self, invoke):
+        from packages.contracts.operation_ownership import current_owner
+
+        owner = current_owner()
+        if owner is None:
+            return await invoke()
+        task = asyncio.create_task(invoke())
+        owner.retain_task(task, cleanup=True)
+        return await asyncio.shield(task)
+
+    async def _health(self):
         response = await self.http.get("/health")
         response.raise_for_status()
         return response.json()
 
-    async def enabled(self, enabled):
+    async def health(self):
+        return await self._owned(self._health)
+
+    async def _enabled(self, enabled):
         response = await self.http.post("/v1/converse/enabled", json={"enabled": enabled})
         response.raise_for_status()
         result = response.json()
         if result.get("resource_enabled") is not enabled:
             raise RuntimeError("Converse did not acknowledge its requested state")
         return result
+
+    async def enabled(self, enabled):
+        return await self._owned(lambda: self._enabled(enabled))
 
     async def close(self):
         await self.http.aclose()

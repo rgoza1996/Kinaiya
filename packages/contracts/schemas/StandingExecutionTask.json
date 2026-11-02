@@ -1,0 +1,269 @@
+{
+  "$defs": {
+    "CatalogModelBinding": {
+      "additionalProperties": false,
+      "description": "Explicit immutable native provider reference, never a display alias.",
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "generation": {
+          "maximum": 64,
+          "minimum": 1,
+          "title": "Generation",
+          "type": "integer"
+        },
+        "configuration_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Configuration Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "generation",
+        "configuration_sha256"
+      ],
+      "title": "CatalogModelBinding",
+      "type": "object"
+    },
+    "StandingExecutionModelPin": {
+      "additionalProperties": false,
+      "description": "Complete exact model declaration; no legacy omitted-field form.",
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "profile_id": {
+          "maxLength": 80,
+          "minLength": 1,
+          "title": "Profile Id",
+          "type": "string"
+        },
+        "provider": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Provider",
+          "type": "string"
+        },
+        "model": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Model",
+          "type": "string"
+        },
+        "local": {
+          "title": "Local",
+          "type": "boolean"
+        },
+        "reasoning": {
+          "anyOf": [
+            {
+              "maxLength": 16,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Reasoning"
+        },
+        "settings_revision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Settings Revision",
+          "type": "integer"
+        },
+        "catalog_binding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CatalogModelBinding"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "catalog_revision": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740990,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Catalog Revision"
+        }
+      },
+      "required": [
+        "schema_version",
+        "profile_id",
+        "provider",
+        "model",
+        "local",
+        "reasoning",
+        "settings_revision",
+        "catalog_binding",
+        "catalog_revision"
+      ],
+      "title": "StandingExecutionModelPin",
+      "type": "object"
+    },
+    "StandingTaskSession": {
+      "additionalProperties": false,
+      "properties": {
+        "session_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Session Id",
+          "type": "string"
+        },
+        "thread_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Thread Id",
+          "type": "string"
+        },
+        "epoch": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Epoch",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "session_id",
+        "thread_id",
+        "epoch"
+      ],
+      "title": "StandingTaskSession",
+      "type": "object"
+    },
+    "WorkspacePin": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "workspace_id": {
+          "maxLength": 64,
+          "minLength": 64,
+          "title": "Workspace Id",
+          "type": "string"
+        },
+        "root_identity": {
+          "maxLength": 64,
+          "minLength": 64,
+          "title": "Root Identity",
+          "type": "string"
+        },
+        "settings_revision": {
+          "maximum": 9007199254740990,
+          "minimum": 0,
+          "title": "Settings Revision",
+          "type": "integer"
+        },
+        "source": {
+          "enum": [
+            "host",
+            "owner_saved"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "shell_backend": {
+          "const": "bubblewrap",
+          "title": "Shell Backend",
+          "type": "string"
+        },
+        "mode": {
+          "const": "direct",
+          "title": "Mode",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "workspace_id",
+        "root_identity",
+        "settings_revision",
+        "source",
+        "shell_backend",
+        "mode"
+      ],
+      "title": "WorkspacePin",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Explicit future native-files task family, without runtime enforcement.",
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "task_id": {
+      "maxLength": 36,
+      "minLength": 36,
+      "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+      "title": "Task Id",
+      "type": "string"
+    },
+    "task_session": {
+      "$ref": "#/$defs/StandingTaskSession"
+    },
+    "objective": {
+      "maxLength": 16000,
+      "minLength": 1,
+      "title": "Objective",
+      "type": "string"
+    },
+    "content_scope": {
+      "enum": [
+        "public_synthetic",
+        "private_cloud_authorized",
+        "local_only"
+      ],
+      "title": "Content Scope",
+      "type": "string"
+    },
+    "workspace_pin": {
+      "$ref": "#/$defs/WorkspacePin"
+    },
+    "harness_version": {
+      "title": "Harness Version",
+      "type": "string"
+    },
+    "model_pin": {
+      "$ref": "#/$defs/StandingExecutionModelPin"
+    },
+    "tool_subset": {
+      "const": "native-files-v1",
+      "title": "Tool Subset",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "task_id",
+    "task_session",
+    "objective",
+    "content_scope",
+    "workspace_pin",
+    "harness_version",
+    "model_pin",
+    "tool_subset"
+  ],
+  "title": "StandingExecutionTask",
+  "type": "object"
+}

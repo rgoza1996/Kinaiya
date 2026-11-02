@@ -1,0 +1,346 @@
+{
+  "schema_version": "1.0",
+  "requirements": [
+    "Roadmap 14.3 safe handoff",
+    "Roadmap 9 action truth",
+    "issue239",
+    "issue228"
+  ],
+  "status": "Offline in-process producer qualified at the stated source; main integration, transport, Agent retirement and CI remain separate gates.",
+  "source_head": "40c239e8721340a8764a54d2b1997fdca983dd16",
+  "source_sha256": {
+    "services/resources/standing_finalization.py": "2198f81a566de3d96736bf8c4b0c5ceb7088e806503f0bd47430bcdb14aba26f",
+    "services/resources/standing_handoff.py": "aacd4a9a96f5a1cee429dbd0bc396be025718105aac177dbc2db88a2628eefc6",
+    "services/resources/coordinator.py": "bf05c6ba34e7f6c699475c136ae7acf19c3ec81a4f437e3841d57003692dda9d",
+    "services/resources/standing_barrier.py": "b43eff1a15798cad15a1890f63914d3fed9dbf18d78ee74b64d24ad072744927",
+    "packages/contracts/standing_admission.py": "be6db9f02ad753ebf12982494c72af0eb1688a203ff7c4284f827b9ca7d0fd88",
+    "packages/contracts/standing_execution.py": "6ad41626bfd562b4547f8bbadb4e40a39722423d40eadb286a336fdd74d0b122",
+    "packages/contracts/standing_resources.py": "31c0ed3e0f3b2f596ea60ceefebaebe6deba4d4c69f7e7157835863ba91cf50d",
+    "packages/contracts/standing_work.py": "ad1656fbc0b52b69f4cfadc16f9ccf516608a8a5457aaf68cea22ce033c0dea1"
+  },
+  "behavior": [
+    "Fresh protected coverage precedes native binding; pending effects precede both physical latches.",
+    "Exact original capture, process, endpoint, control, HTTP and SQLite owners remain retained through cancellation and late completion.",
+    "Healthy late capture history can reconcile across an observed permanent fence; genuine failed Off/cleanup remains sticky.",
+    "Only complete matching physical testimony can commit an immutable local report before exact native publication/replay."
+  ],
+  "encoding_repair": {
+    "source_commit": "1bf23198c48aef84297620ea4ad01340f5a8f61d",
+    "integrated_commit": "40c239e8721340a8764a54d2b1997fdca983dd16",
+    "scope": "Eight encodes of same-call freshly parsed/checked local snapshots inside synchronous _checked; retain every actual-graph walk, raw parser, native join and later fresh check.",
+    "unchanged": "Public codecs, old intent serializer, schemas, caps, authority, SQL/lifecycle rules and test deadlines.",
+    "independent_gate_sha256": "70895eb301d1ad772c5cde82a1e5002bdae4f262ebd4ecfa6480fcb651243fb8",
+    "source_seal_sha256": "24e123aeed20040add57959bd743e0998283ec93b056848bb7dab63856b26caf",
+    "review": "Independent before/after source review found no actionable finding; root AST reversal restored the old entire module after removing the local helper/import and eight callee substitutions."
+  },
+  "runs": [
+    {
+      "name": "original_physical_before_encoding",
+      "source_head": "464263d098671a7e6df2ac3f40aedffc0e7c51fc",
+      "receipt_local": ".dev-run/239-original-physical-full-v1-x7rxdpty/receipt.json",
+      "receipt_sha256": "822bd149e4dc2d19a25d8f0d5d42ded59947779e081b91a1d7998a5eb759dd22",
+      "tracked_inputs": 1445,
+      "pins_preserved": true,
+      "exit_code": 1,
+      "outcomes": {
+        "tests": 55,
+        "failures": 2,
+        "errors": 0,
+        "skipped": 0,
+        "passed": 53
+      },
+      "pytest_wall_s": 291.938
+    },
+    {
+      "name": "encoding_baseline",
+      "source_head": "89fe0ff07993152d9dbdb44b97a03fc3c9e39b57",
+      "receipt_local": ".dev-run/239-fresh-encoding-baseline-v1-mu67gzw6/receipt.json",
+      "receipt_sha256": "aa7768800fd48691922048653bc99c8e6e44acbcbc21d154a9d42a57b46ec610",
+      "tracked_inputs": 1446,
+      "pins_preserved": true,
+      "exit_code": 0,
+      "outcomes": {
+        "tests": 39,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "passed": 39
+      },
+      "pytest_wall_s": 1.189
+    },
+    {
+      "name": "encoding_targeted",
+      "source_head": "40c239e8721340a8764a54d2b1997fdca983dd16",
+      "receipt_local": ".dev-run/239-fresh-encoding-targeted-hot-v1-1kldd4zs/receipt.json",
+      "receipt_sha256": "88b9f4c5f5cecd0d87b42d14e9e226d72f9b355f030926b456d8caea3165c0e2",
+      "tracked_inputs": 1446,
+      "pins_preserved": true,
+      "exit_code": 0,
+      "outcomes": {
+        "tests": 41,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "passed": 41
+      },
+      "pytest_wall_s": 25.1
+    },
+    {
+      "name": "contracts",
+      "source_head": "40c239e8721340a8764a54d2b1997fdca983dd16",
+      "receipt_local": ".dev-run/239-fresh-encoding-contracts-hot-v1-_tfdy18m/receipt.json",
+      "receipt_sha256": "62c2116d4c9cc2a252e67d5d0fdb1289db4237f8b86c13fb79cb2485703fd8af",
+      "tracked_inputs": 1446,
+      "pins_preserved": true,
+      "exit_code": 0,
+      "outcomes": {
+        "tests": 1291,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "passed": 1291
+      },
+      "pytest_wall_s": 39.8
+    },
+    {
+      "name": "physical_ownership",
+      "source_head": "40c239e8721340a8764a54d2b1997fdca983dd16",
+      "receipt_local": ".dev-run/239-fresh-encoding-physical-ownership-hot-v1-5q84jdz9/receipt.json",
+      "receipt_sha256": "e1c395965087bce29e4e74fbe2dc770738bdfe31d5048a398d2c5f0d949cec0b",
+      "tracked_inputs": 1446,
+      "pins_preserved": true,
+      "exit_code": 0,
+      "outcomes": {
+        "tests": 99,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "passed": 99
+      },
+      "pytest_wall_s": 625.632
+    },
+    {
+      "name": "capture_cold",
+      "source_head": "58b7527d81366d7b46a0758848c1a34bdcc78d0f",
+      "receipt_local": ".dev-run/239-capture-fences-cold-v1-zkr9rw_o/receipt.json",
+      "receipt_sha256": "8728b909a80c05939b8ad6dbc0aa6525f7a28605fb5e42462215cd01b0ebbda9",
+      "tracked_inputs": 1444,
+      "pins_preserved": true,
+      "exit_code": 1,
+      "outcomes": {
+        "tests": 7,
+        "failures": 5,
+        "errors": 0,
+        "skipped": 0,
+        "passed": 2
+      },
+      "pytest_wall_s": 38.565
+    },
+    {
+      "name": "capture_hot",
+      "source_head": "04eb45d8447f7a094e006abc974fbd7011ed0357",
+      "receipt_local": ".dev-run/239-capture-fences-hot-v1-k14t2b1l/receipt.json",
+      "receipt_sha256": "af95810ca23d2c8e43402e941245507c658cea98cdf8a88ec0afdc70fe778a85",
+      "tracked_inputs": 1444,
+      "pins_preserved": true,
+      "exit_code": 0,
+      "outcomes": {
+        "tests": 7,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "passed": 7
+      },
+      "pytest_wall_s": 78.532
+    },
+    {
+      "name": "failed_off_cold",
+      "source_head": "18b8ec08b4e8fb91dfb2d4a78fbc80b2bb849b9b",
+      "receipt_local": ".dev-run/239-failed-off-race-cold-v1-dwqs_ohx/receipt.json",
+      "receipt_sha256": "a7e74d921314ecd69c15e94b0750c344b0fa712874329ea80bff5c5ad1161dba",
+      "tracked_inputs": 1445,
+      "pins_preserved": true,
+      "exit_code": 1,
+      "outcomes": {
+        "tests": 1,
+        "failures": 1,
+        "errors": 0,
+        "skipped": 0,
+        "passed": 0
+      },
+      "pytest_wall_s": 16.852
+    },
+    {
+      "name": "failed_off_and_capture_hot",
+      "source_head": "ae7e3b7d8ba3fff4d240877e40e481aa59b3aea4",
+      "receipt_local": ".dev-run/239-failed-off-race-and-capture-hot-v1-lcv59mh0/receipt.json",
+      "receipt_sha256": "70268a07e7a1b829213adc339a50a4ce79c49ebf71505a7fcc1735448c3fc0df",
+      "tracked_inputs": 1445,
+      "pins_preserved": true,
+      "exit_code": 0,
+      "outcomes": {
+        "tests": 14,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "passed": 14
+      },
+      "pytest_wall_s": 152.714
+    },
+    {
+      "name": "http_fixture_eligibility",
+      "source_head": "ec3a0f6b051c00e738bc0b556b1fe332d3e83280",
+      "receipt_local": ".dev-run/239-restoration-http-eligibility-hot-v1-8tb7saba/receipt.json",
+      "receipt_sha256": "ea9e523e2a687fcc5baf191d46aa46a763a1d3a34e13b89e3900232a452b07d8",
+      "tracked_inputs": 1444,
+      "pins_preserved": true,
+      "exit_code": 0,
+      "outcomes": {
+        "tests": 2,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "passed": 2
+      },
+      "pytest_wall_s": 29.277
+    },
+    {
+      "name": "actual_fence_fixture",
+      "source_head": "464263d098671a7e6df2ac3f40aedffc0e7c51fc",
+      "receipt_local": ".dev-run/239-original-physical-fences-hot-v1-zwu3pdy0/receipt.json",
+      "receipt_sha256": "50404e2eda396768d35306bc3bf4ab2e5019cfa78010a9f718957fb52ea0295d",
+      "tracked_inputs": 1445,
+      "pins_preserved": true,
+      "exit_code": 0,
+      "outcomes": {
+        "tests": 2,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "passed": 2
+      },
+      "pytest_wall_s": 29.181
+    }
+  ],
+  "static": {
+    "source_head": "40c239e8721340a8764a54d2b1997fdca983dd16",
+    "receipt_sha256": "93f466c44e8894fe2c631431e348ab71e06d50ec836e1f1522eaa4366c9b2313",
+    "pins_preserved": true,
+    "ruff_check": "passed",
+    "ruff_format": "756 files already formatted",
+    "contract_export": "passed; no schema diff",
+    "diff_check": "passed"
+  },
+  "preserved_failures": [
+    "The original full55 at464263d retained two eight-second completion timeouts (exact reserved-lease restoration and genuine large report); both pass unchanged at40c239e, also within the full99.",
+    "The seven source-aware capture-fence controls first recorded five healthy-path failures and two sticky-negative passes before their source repair.",
+    "A separately frozen failed-Off race reproduced false-positive publication before the durable failed-witness guard; all three later operations now refuse and no positive native history is manufactured.",
+    "Earlier deadline failures, partial fixture setup faults and diagnostic/profiler failures remain in ignored local raw evidence and issue239; no exclusive profile attribution or generalized speedup is claimed.",
+    "PR259 Actions41378202510 worker-start ownership refusal is unresolved; this local qualification does not turn that failed CI run into a pass."
+  ],
+  "fixture_maintenance": [
+    "HTTP retry tests now positively join their actual original work/control/sole-close owners before requiring an eligible retry; old assertions and finalization deadlines retained.",
+    "Reaper/preemption tests now observe genuine native context and the actual permanent physical fence before releasing held originals; old expected dispositions and deadlines retained.",
+    "The valid large fixture uses the old10500-NUL graph within nested task limits and asserts complete report/reply beyond262144 within the unchanged family caps.",
+    "Source-aware chronology controls are labeled separately from the original independently frozen55; no source-derived expectation is represented as an original blinded oracle."
+  ],
+  "limits": [
+    "Counts overlap and must not be added as unique coverage.",
+    "Actual disposable CPU processes, ASGI/HTTP ownership and SQLite are exercised; no live GPU, audio/video/device, model inference or model-quality qualification.",
+    "Passing negative cleanup cases means uncertainty remains refused; terminal tasks, empty registries or teardown alone are not physical proof.",
+    "This adds no Resources HTTP finalization route or automatic Agent caller. Claim-wide Agent retirement, native settlement/release, recurrence/inbox/editor and broader hardware/accounting controls remain unfinished.",
+    "No paid/provider/account/model/config/dependency/live-service/preview action occurred.",
+    "Raw logs/JUnit/receipts are local ignored artifacts identified by hash; this record does not claim they are published CI artifacts.",
+    "Applicable exact integrated-head CI must pass before merge; this record does not qualify a future changed tree."
+  ],
+  "post_main_integration": {
+    "main_source": "e537923e16135126b670d1d3b492458783954e85",
+    "prerequisite_merge": "3d1aae06c1723f4f7be72ce067de520b4f69d01a",
+    "fixture_commit": "bd9c612d436120cbf9cfdc7a09a2c16ed7a6a5f9",
+    "combined_test_head": "52c1792e4d3df59e4703066e78afc6c8295c433b",
+    "physical_and_metadata_files_still_match_source_sha256_above": true,
+    "combined_before_fixture": {
+      "source_head": "1b1a2fb9a8c16f321bd23c39a558f5d497491a5f",
+      "receipt_local": ".dev-run/239-main-combined-ownership-hot-v1-j1fxo26y/receipt.json",
+      "receipt_sha256": "03048b3a9e825009d678096d4bd720dee23d729450deafad98cc91fed8a821f4",
+      "tracked_inputs": 1493,
+      "pins_preserved": true,
+      "outcomes": {
+        "tests": 1309,
+        "failures": 1,
+        "errors": 0,
+        "skipped": 0
+      },
+      "pytest_wall_s": 139.305
+    },
+    "combined_contracts_after_fixture": {
+      "source_head": "52c1792e4d3df59e4703066e78afc6c8295c433b",
+      "receipt_local": ".dev-run/239-main-schema-reconciled-contracts-hot-v1-81cgyuxm/receipt.json",
+      "receipt_sha256": "7b00e22acc595e11e7f954d9b765a00c02eff674b5864cf5e83ca8d6813a2fb5",
+      "tracked_inputs": 1493,
+      "pins_preserved": true,
+      "outcomes": {
+        "tests": 1291,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "pytest_wall_s": 38.92
+    },
+    "combined_static": {
+      "source_head": "52c1792e4d3df59e4703066e78afc6c8295c433b",
+      "receipt_local": ".dev-run/239-main-combined-static-v1/receipt.json",
+      "receipt_sha256": "a26734bc6238a1a989254c4063b2171e9266be9a6c3564fffd7f3b8ce0411556",
+      "tracked_inputs": 1493,
+      "pins_preserved": true,
+      "commands": [
+        {
+          "command": [
+            "check",
+            "."
+          ],
+          "exit_code": 0,
+          "output": "All checks passed!\n"
+        },
+        {
+          "command": [
+            "format",
+            "--check",
+            "."
+          ],
+          "exit_code": 0,
+          "output": "774 files already formatted\n"
+        },
+        {
+          "command": [
+            "-B",
+            "scripts/export_contracts.py"
+          ],
+          "exit_code": 0,
+          "output": ""
+        },
+        {
+          "command": [
+            "diff",
+            "--exit-code",
+            "--",
+            "packages/contracts/schemas"
+          ],
+          "exit_code": 0,
+          "output": ""
+        },
+        {
+          "command": [
+            "diff",
+            "--check"
+          ],
+          "exit_code": 0,
+          "output": ""
+        }
+      ]
+    },
+    "schema_fixture": "The only combined-run failure was the old184 schema pin. Pin both complete approved-main Decisions schema files, remove only three exact counted added enum lines, then retain the unchanged original184 aggregate. Every old test function and codec/depth assertion is unchanged. No source/schema/cap/deadline or file exclusion change.",
+    "physical_scope": "The18 combined physical/bootstrap checks passed before this test-only fixture correction; the full99 belongs to the earlier stated40c source. No fresh full99 claim is made for the combined tree.",
+    "ci": "PR259 prerequisite exact-head CI430 runs atbd9c612. Its result is separate and does not qualify the physical producer; producer exact-head CI remains pending."
+  }
+}

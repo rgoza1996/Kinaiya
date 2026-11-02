@@ -1,0 +1,188 @@
+{
+  "$defs": {
+    "AgentModeChange": {
+      "additionalProperties": false,
+      "description": "Seven required immutable fields; owner authority comes from the service.",
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "idempotency_key": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9:._-]+$",
+          "title": "Idempotency Key",
+          "type": "string"
+        },
+        "expected_backend": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Expected Backend",
+          "type": "string"
+        },
+        "expected_instance": {
+          "maxLength": 36,
+          "minLength": 36,
+          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+          "title": "Expected Instance",
+          "type": "string"
+        },
+        "expected_revision": {
+          "maximum": 9007199254740990,
+          "minimum": 0,
+          "title": "Expected Revision",
+          "type": "integer"
+        },
+        "mode": {
+          "enum": [
+            "off",
+            "on_demand",
+            "autonomous"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "active_work_policy": {
+          "const": "finish_already_accepted",
+          "title": "Active Work Policy",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "idempotency_key",
+        "expected_backend",
+        "expected_instance",
+        "expected_revision",
+        "mode",
+        "active_work_policy"
+      ],
+      "title": "AgentModeChange",
+      "type": "object"
+    },
+    "AgentModeReceipt": {
+      "additionalProperties": false,
+      "description": "Historical full-request proof. Returning it must never reapply its mode.",
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "status": {
+          "const": "mode_saved",
+          "title": "Status",
+          "type": "string"
+        },
+        "backend_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Backend Id",
+          "type": "string"
+        },
+        "service_instance": {
+          "maxLength": 36,
+          "minLength": 36,
+          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+          "title": "Service Instance",
+          "type": "string"
+        },
+        "revision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "request": {
+          "$ref": "#/$defs/AgentModeChange"
+        }
+      },
+      "required": [
+        "schema_version",
+        "status",
+        "backend_id",
+        "service_instance",
+        "revision",
+        "request"
+      ],
+      "title": "AgentModeReceipt",
+      "type": "object"
+    },
+    "StandingDispatchActivation": {
+      "additionalProperties": false,
+      "description": "Explicit owner activation with the original mode key and observed fence.",
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "mode_change": {
+          "$ref": "#/$defs/AgentModeChange"
+        },
+        "expected_epoch": {
+          "exclusiveMaximum": 10000,
+          "minimum": 0,
+          "title": "Expected Epoch",
+          "type": "integer"
+        },
+        "expected_fence_token": {
+          "maxLength": 36,
+          "minLength": 36,
+          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+          "title": "Expected Fence Token",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "mode_change",
+        "expected_epoch",
+        "expected_fence_token"
+      ],
+      "title": "StandingDispatchActivation",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Full historical activation proof; replay never rearms dispatch.",
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "request": {
+      "$ref": "#/$defs/StandingDispatchActivation"
+    },
+    "mode_receipt": {
+      "$ref": "#/$defs/AgentModeReceipt"
+    },
+    "epoch": {
+      "maximum": 10000,
+      "minimum": 1,
+      "title": "Epoch",
+      "type": "integer"
+    },
+    "activation_digest": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Activation Digest",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "request",
+    "mode_receipt",
+    "epoch",
+    "activation_digest"
+  ],
+  "title": "StandingDispatchActivationReceipt",
+  "type": "object"
+}

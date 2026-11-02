@@ -1,0 +1,761 @@
+{
+  "version": 1,
+  "status": "Dependent implementation locally verified; draft PR259, exact-head full CI still required; full scheduled-work chain unfinished",
+  "issues": [
+    228,
+    239,
+    255
+  ],
+  "integration_branch": "codex/228-standing-work",
+  "integration_source_head": "e70a6e616214aa200c8cf6d6ea1a433411391e16",
+  "production_source_commits": [
+    "71cd7023c88af9a78c64eced8fadb91275bdf665",
+    "e732a29dd3e115ab0e65657678f6d1fe8df3778e",
+    "982e387fd868ec4a2fba3d84f419082e7e78b9bf",
+    "3dede82afac66824011d7f582e52e0772ccc1786"
+  ],
+  "production_sha256": {
+    "packages/contracts/client.py": "97fb4722d638afc77eb5ca45f5893f9233132691b5ec2509cc94991c0dc51872",
+    "packages/contracts/operation_ownership.py": "b0fa106baa0d72ada9a3b33c9f1379d422ce49e7738aa195d39b17807cd7ae56",
+    "packages/contracts/standing_resource_finalization.py": "bd24174c9207fc7c2a8d1b7b79c4a8be22d3e8f347cbe584646660740bafe173",
+    "packages/resources/processes.py": "1cc42fb82d239eb55b22f553d6212e2610f1653056712b051557032eb42ff17e",
+    "services/agent/runtime.py": "876a62b2150d6a4f94d3e837ef5cd7791fbfd2da4807ec9a9404aa11fbbc1df9",
+    "services/agent/standing_runtime.py": "82ad9971f5ef2d012e8eda905948a87d89904c17e50af29cbde22f54c45f676d",
+    "services/launcher.py": "fd5745a99afe87bbf3dadebe3c97975e2886229c5c8fe9cc58676a52eb32d8f0",
+    "services/resources/api.py": "826281b8036a0f59acf4d902198be494fc1b039374585940e7fa6f4c4845c2aa",
+    "services/resources/client.py": "61b6969311aa3c1cfe2eb873e9e09923db2bc68887ffd993bb15b29fda1e38a7",
+    "services/resources/coordinator.py": "861fbdd989e0fb3c039a2859b573604bcf85d12b4db91386410759f0629f2690",
+    "services/resources/gguf.py": "e6a02cf9b4dda246f494c462fabd84c883cd418563717fd633cc0bfae6ae41f7",
+    "services/resources/launcher.py": "83529c40ea762cea5f460924fa9cff7d7cd49139069d37e4d68ef7b72e0e28f5",
+    "services/resources/managed_text.py": "d0b09346d95aa94cf9a2c58bf94b123b5e55f7a654bc9f750ed3516ad317006d",
+    "services/resources/qwen3.py": "c7b92cf64ac4413126d5b86159089dab93e8248c6257c3c6505c8410d5d35e44",
+    "services/resources/standing_barrier.py": "4243750a6b1fbd563c87f279efa6277c785618fafde811373c6aa8a46add0c18",
+    "services/resources/standing_client.py": "68567695263ee9bec982791b6ef8544d0b31cf46e6e8ec15322b359d76254c51",
+    "services/resources/standing_handoff.py": "3df95d6097d8f31b3d45c580cdacee206261f895cc96bcee49cb11ffa0f82673",
+    "services/resources/whistle.py": "5a6b4f70ed1b60ecf94c7b8e69b82c1869645324d9fe3225a166e5eabfa95921"
+  },
+  "requirement_contract_sha256": "63ee17f1e145b4680c409e81783909e73d21d342a6dccb06e898349a0a91b7c5",
+  "requirement_addendum_sha256": "3126543e2b37047149311ba0929ada28159acd12abb0a22b7b6dc56a02a9bc8c",
+  "independent_tests": {
+    "initial149": "0ad28514502c512cdc1c6c2e04f0e6f1aabab65d",
+    "synchronization_only": "6bac0382505c72c0b3118f8a2a744349cfe248e9",
+    "explicit_original_close_fault_only": "0b73016770844d3a0852c804897ed979ea620869",
+    "replay3": "be888d6146aedf07b7b4801579cb1e21eebe5b5b"
+  },
+  "review_evidence_receipt_sha256": {
+    "source_seal": "e980761a233ef1b71b2996e9122435d52827129df71a5d3afa6788c26bb002bf",
+    "initial_oracles": "37f5ffff2f98fb6b1c03fb673dcd24b91240a1b51f3ea050f5ca20fda4d3e113",
+    "sync": "b35fc21ef46e063b78de8737e6a2b6ef34da015450fc652cebac9a874da2f894",
+    "close_fault": "c2913b523f8a3f9f54476e252861473eedc75884ce9419e48aec587a5bb997fc",
+    "replay_cold": "c25a4c598a68285c24909026b1d9c6b4ef4822fd9bf7fff16b7a7d78080c5435",
+    "owner_review": "6ad966c5b3e3d77f8668df2182aec5e10aeaa9b99f2ab76cd32eac645330d4ae",
+    "suppression_review": "e6f98c40825a02378b8d00436e60ccca587a07622f4d52d7141ef55d376d88a4",
+    "legacy_agent_fixture": "ccf02e3fc610d0ccb8ec23b1c335224064475d2a0b0c86444ce93e5598f46219",
+    "ci_helper": "1c5179a514a79cbeeaa5faabfef0c61469c8be18f2a4c76362c0948d2d20c861"
+  },
+  "cold": {
+    "classification": {
+      "behavioral_red_existing_agent_omits_binding_or_owned_close": 12,
+      "passed_existing_or_old_codec_control": 3,
+      "unimplemented_coordinator_capability": 54,
+      "unimplemented_fixed_resource_route": 20,
+      "unimplemented_standalone_client": 60
+    },
+    "functional_new_barrier_qualification": "Not established on baseline: new client, four Coordinator methods and fixed routes are absent. Parent owns unchanged hot qualification at source integration head.",
+    "integration_and_agent88": {
+      "errors": 0,
+      "failed": 86,
+      "full144_result": "142failed/2passed; one earlier new large-control false assertion retained; use corrected unit61 instead of old unit56",
+      "full144_run_pytest_seconds": 80.68,
+      "junit": "sealed-cold.junit.xml",
+      "log": "sealed-cold.log",
+      "passed": 2,
+      "run": "sealed-cold-run.json",
+      "selected_modules": [
+        "tests/integration/test_standing_resource_barrier.py",
+        "tests/integration/test_standing_resource_binding_agent.py"
+      ],
+      "skipped": 0
+    },
+    "not_one149_case_run": true,
+    "passed_controls": [
+      "test_independent_owner_off_and_legacy_session_admission_need_no_new_gateway",
+      "test_retained_task_proof_is_read_only_without_binding_or_model_capture",
+      "test_independent_large_complete_graph_control_is_valid_above_legacy_clamp"
+    ],
+    "same_baseline_and_exact_current_module_pins": true,
+    "unit61": {
+      "errors": 0,
+      "failed": 60,
+      "junit": "unit-cold-final.junit.xml",
+      "log": "unit-cold-final.log",
+      "passed": 1,
+      "pytest_seconds": 0.85,
+      "run": "unit-cold-final-run.json",
+      "skipped": 0
+    }
+  },
+  "original_first_hot": {
+    "passed": 139,
+    "failed": 10,
+    "teardown_errors": 3,
+    "skipped": 0,
+    "source": "71cd702",
+    "tests": "0ad2851",
+    "retained": true
+  },
+  "post_source_synchronization": {
+    "activity": "post-source reviewed fixture synchronization correction; not a new blinded oracle freeze",
+    "test_commit": "6bac0382505c72c0b3118f8a2a744349cfe248e9",
+    "preservation": {
+      "all132_original_assert_AST_nodes_retained": true,
+      "all17_original_explicit_wait_for_AST_calls_retained": true,
+      "all6_original20ms_yields_retained": true,
+      "all_other_1380_pins_exact": true,
+      "new_repaired_source": "Not consulted before this source-bound run.",
+      "old_tracked_count": 1381,
+      "root_first_hot": "Root reports original0bcc139pass10fail3teardownerror preserved. Root artifact paths/hashes not independently asserted here."
+    },
+    "rationale": [
+      "Observe actual JournalClient native context return with matching full request and binding before observing actual synchronous fence; starting seal facade+20ms is not v1 clause14 boundary proof.",
+      "Use witnessed fence before after-sealing captures or releasing held healthy reaper/preemption.",
+      "Replace1000scheduler-yield polling with actual reservation request-entry Event under held lock and64th actual ingress receive Event.",
+      "Retain original20ms yields as scheduling only; no production early hold/fence change."
+    ]
+  },
+  "synchronization_hot": {
+    "reported_passed": 142,
+    "failed": 7,
+    "teardown_errors": 4,
+    "skipped": 0,
+    "warnings": 75,
+    "functional_selected": 149,
+    "junit_count_note": "Two functional pass cases have teardown-only error nodes and no clean XML node; two functional failures additionally have teardown error nodes. XML151 is not149 new independent cases.",
+    "pytest_seconds": 139.05
+  },
+  "explicit_actual_close_fault": {
+    "activity": "Root-approved explicit actual-close fault-injection fixture maintenance after source; not blinded preimplementation oracle",
+    "commit": "0b73016770844d3a0852c804897ed979ea620869",
+    "scope": "Only tests/integration/test_standing_resource_barrier.py +21lines; no old assertion/deadline/time-limit removal/change, production/unit/foreign409 changes.",
+    "test_change": {
+      "all_existing137_assert_AST_nodes_retained": true,
+      "all_existing23_wait_for_AST_calls_retained": true,
+      "fault_seam": "At actual NATIVE_RESERVE cooperative-close entered gate, retain matching ORIGINAL exchange, pending close_task and matching actual Capture.task; preserve facade cancellation assertion; cancel that original close_task exactly once; bounded join exchange work/close/Capture and original join_client; assert actual close_task.cancelled.",
+      "only_changed_definition": [
+        "test_cooperative_cancelled_capture_close_never_becomes_positive_after_registry_empty"
+      ],
+      "original0ad_and_first149_failures": "Preserved in original refs/receipts; not overwritten.",
+      "single_new_bounded_join_seconds": 5
+    },
+    "causal_probe": {
+      "command": "<local-workspace>/.venv/bin/python .dev-run/239-cooperative-capture-classification-v1/probe.py > .dev-run/239-cooperative-capture-classification-v1/probe.log 2>&1",
+      "conclusion": "Cancelling only the public capture facade does not cancel its owned original close. Healthy original work/close/Capture settle and native drained seal succeeds. Explicitly cancelling the matching entered original close produces actual close.cancelled and NativeBody.cancelled_close, sticky uncertainty and seal refusal after actual owners joined.",
+      "exit_code": 0,
+      "results": [
+        {
+          "actual_capture_done": true,
+          "actual_capture_done_after_facade": false,
+          "actual_original_close_cancelled": false,
+          "actual_original_close_done": true,
+          "actual_original_work_done": true,
+          "case": "facade-only",
+          "cleanup_properties": [
+            [
+              "actual_cleanup",
+              "[{\"inference_calls\": 0, \"manager_closed\": true, \"native_http_joined\": true, \"sole_closes\": 5}]"
+            ]
+          ],
+          "exchange_abandoned_after_facade": false,
+          "fixture_teardown": [],
+          "native_session_closed": true,
+          "original_close_cancel_requests_after_facade": 0,
+          "original_close_done_after_facade": false,
+          "registry_empty": true,
+          "seal": "genuine-drained-context",
+          "sticky": false,
+          "stream_cancelled_close": false
+        },
+        {
+          "actual_capture_done": true,
+          "actual_capture_done_after_facade": false,
+          "actual_original_close_cancelled": true,
+          "actual_original_close_done": true,
+          "actual_original_work_done": true,
+          "case": "actual-close-cancel",
+          "cleanup_properties": [],
+          "exchange_abandoned_after_facade": false,
+          "fixture_teardown": [
+            "Original71cd fixture Coordinator.close raised sticky StandingUnavailable; retained as classification, not hidden."
+          ],
+          "native_session_closed": true,
+          "original_close_cancel_requests_after_facade": 0,
+          "original_close_done_after_facade": false,
+          "registry_empty": true,
+          "seal": "unavailable",
+          "sticky": true,
+          "stream_cancelled_close": true
+        },
+        {
+          "case": "genuine-prebind-lookup",
+          "cleanup_properties": [
+            [
+              "actual_cleanup",
+              "[{\"inference_calls\": 0, \"manager_closed\": true, \"native_http_joined\": true, \"sole_closes\": 2}]"
+            ]
+          ],
+          "fixture_teardown": [],
+          "foreign_self_consistent_claim_refused": true,
+          "genuine_claim_absent_binding": true,
+          "native_bind_effects": 0,
+          "native_paths": [
+            "/v1/standing/resources/binding/lookup",
+            "/v1/standing/resources/binding/lookup"
+          ],
+          "native_session_closed": true
+        }
+      ],
+      "session": 16371,
+      "teardown_limit": "Actual-close fault retains original71cd Coordinator.close stickyUnavailable. Probe records it and independently joins/closes remaining native gateway/Agent/client/Session and checks no native/capture/barrier owners or worker process handles remain; this does not turn the original tracked fixture teardown into a pass."
+    },
+    "corrected_single_cold": {
+      "command": "<local-workspace>/.venv/bin/python -m pytest -q tests/integration/test_standing_resource_barrier.py::test_cooperative_cancelled_capture_close_never_becomes_positive_after_registry_empty --junitxml=.dev-run/239-cooperative-capture-classification-v1/corrected-cold.xml > .dev-run/239-cooperative-capture-classification-v1/corrected-cold.log 2>&1",
+      "exit_code": 1,
+      "functional_failed": 0,
+      "functional_passed": 1,
+      "junit": {
+        "errors": "1",
+        "failures": "0",
+        "hostname": "roggoz",
+        "name": "pytest",
+        "skipped": "0",
+        "tests": "1",
+        "time": "4.074",
+        "timestamp": "2026-11-01T14:47:11.956436-08:00"
+      },
+      "meaning": "Actual sticky/no-lease/seal refusal assertions pass; original71cd fixture Coordinator.close still raises stickyUnavailable during teardown. No all-green claim.",
+      "pytest_seconds": 4.2,
+      "session": 79649,
+      "teardown_errors": 1,
+      "warnings": 1
+    },
+    "limits": [
+      "No production/test unit/foreign fixture changes, new agents, installs/settings/networkwrites/paidinference/liveports/hardware/services.",
+      "Only paired synthetic native metadata controls plus one corrected trackedcase cold; no broad hot/physicalfinalization/mainqualification.",
+      "Sourceauthor will apply released test-only commit only after preserving first corrected149 terminal source gate."
+    ]
+  },
+  "historical_binding_replay_cold": {
+    "classification": {
+      "positive": "same-controller exact replay retains binding history and actual synthetic Agent Task launch succeeds",
+      "restart": "Expected AgentSubmitUnavailable was not raised: actual native Task admitted from old-controller completed receipt",
+      "sealed": "Actual AgentSubmitUnavailable eventually occurs, but no-model assertion fails because one adapter was allocated before native closure rejects admission"
+    },
+    "final_exact_committed_module": {
+      "exit_code": 1,
+      "log": "final-cold.log",
+      "pytest_seconds": 6.97,
+      "result": "1 passed, 2 behavioral failed, 0 errors/skips, 3 retained record_property/xunit2 warnings",
+      "xml": "final-cold.xml",
+      "xml_seconds": 6.744
+    },
+    "first": {
+      "log": "cold.log",
+      "pre_lint_module": "original-pre-lint.py",
+      "pytest_seconds": 7.82,
+      "result": "1 passed, 2 behavioral failed, 0 errors/skips, 3 retained record_property/xunit2 warnings",
+      "xml": "cold.xml"
+    }
+  },
+  "actual_cleanup_limits": "No physical report, resident acquisition/restoration witness, negative acquisition testimony, capacity/reservation/claim release, Agent settlement or whole-feature completion. No paid provider, configured model/device, listener, dependency install or GitHub mutation. Actual disposable process owners are only the frozen authorized integration fixtures. Own cleanup probe is synthetic and is not native socket evidence.",
+  "independent_review": {
+    "initial_findings": [
+      {
+        "consequence": "StandingBarrier._settled sets global uncertain, so _join_claim and final seal checks permanently refuse healthy drained native context, including exact retry.",
+        "contract": "v1 clauses16-19 and addendum2: do not infer positive drainage from pending/failed actual ownership; once cancellation-resistant healthy owners positively settle, exact same request may obtain drained native context. This is not negative-acquisition or physical restoration proof.",
+        "file": "services/resources/standing_handoff.py",
+        "lines": [
+          492,
+          494
+        ],
+        "priority": "P2",
+        "recommendation": "Distinguish a trusted intentional seal-fence guard refusal from actual failed/unconfirmed physical, native or HTTP cleanup. Preserve sticky real failures and original ownership/fresh-context joins. Do not excuse every StandingUnavailable just because the Task is sealed.",
+        "status": "reported to integrator; no source changes by reviewer",
+        "trigger": "A capture has effects_started=True, the seal synchronously fences/suppresses it while its actual healthy native reaper is held, then the original reaper and HTTP cleanup positively finish. The next require/guard refuses the intentionally revoked phase with StandingUnavailable. The broad except marks ActualOperation.failed even though that refusal establishes no cleanup failure. effects_started may already be true at pre-lock preemption counting before physical effect."
+      }
+    ],
+    "final_suppression_receipt_sha256": "e6f98c40825a02378b8d00436e60ccca587a07622f4d52d7141ef55d376d88a4",
+    "human_approval": false
+  },
+  "legacy_agent_before": {
+    "source_head": "cef13e56a25eb98100a60c834b3b2c65a3dbde8d",
+    "passed": 120,
+    "failed": 23,
+    "errors": 0,
+    "skipped": 0,
+    "seconds": 90.62,
+    "cause": "Old Agent fixture lacked the mandatory new Resources binding supervisor dependency. Original failures and source/test pins retained."
+  },
+  "legacy_agent_fixture": {
+    "commit": "444b2776b46dec0b46de2f29c1a63d7d77a9965c",
+    "scope": "Only old stack fixture/imports; actual Resources-role Session binding, complete claim/receipt joins, original client retained and joined even when replaced. No real Resources API qualification claimed.",
+    "all_116_original_assertions_preserved": true,
+    "deadline_module_unchanged": true,
+    "affected_passed": 39,
+    "full_original_five_modules_passed": 143,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "seconds": 124.78
+  },
+  "original_ci": {
+    "run": 41352672422,
+    "head": "340d57439874de85abb4d882fd753003127a911d",
+    "python_3_12": {
+      "failed": 3,
+      "passed": 9739,
+      "skipped": 6,
+      "deselected": 2,
+      "warnings": 1,
+      "seconds": 1631.98
+    },
+    "python_3_11": "cancelled at73%; no terminal pytest result",
+    "flutter_android_ios": "success",
+    "lint": "passed",
+    "schema_and_dependency_audit": "skipped after pytest failure",
+    "full_ci_pass": false
+  },
+  "ci_test_fixture_repairs": {
+    "ordinary_context_commit": "3778499517a235bd045170467d8510168daed4b8",
+    "registration_oracles_commit": "605dbe0293580de14783865a793c349060e2f3b4",
+    "registration_helper_commit": "7a0c07ba5b5b2c1e6afd9839dfbcc63ca1883209",
+    "51_independent_helper_oracles_and_original_deadline_case_passed": 52,
+    "full_affected_three_modules_passed": 64,
+    "overlap": "The 52 and64 groups overlap in the unchanged four-second case; the149/3/143 and subsequent integration groups also overlap. Counts are not additive.",
+    "original_assertions_and_deadlines_unchanged": true
+  },
+  "static": {
+    "ruff_check": "passed",
+    "ruff_format_checked_files": 716,
+    "schema_export_diff": "empty on final integrated source",
+    "initial_schema_command_environment_failure": "First invocation inherited the primary checkout editable install and failed during import before writing. Rerun with explicit integration PYTHONPATH passed. Tests use explicit integration PYTHONPATH.",
+    "ruff_checked": "entire project",
+    "git_diff_check": "passed"
+  },
+  "holds": {
+    "paid_calls": 0,
+    "model_stack_or_device_changes": false,
+    "sign_language_news_video_demo": "not run"
+  },
+  "remaining": [
+    "durable actual acquisition/restoration witnesses",
+    "immutable physical finalization report and lost-ACK reconciliation",
+    "original Agent effect/model retirement and positive settlement",
+    "active-slot/claim release",
+    "recurrence and deduplicated inbox/delivery",
+    "owner editor",
+    "applicable provider/device and full-roadmap acceptance"
+  ],
+  "limits": [
+    "Native context after drained operation owners is not physical finalization, negative acquisition testimony or restoration proof.",
+    "No reservation, claim or active slot is released by this increment.",
+    "Focused qualification groups overlap and do not establish full-project CI.",
+    "No comparative timing, model performance or hardware VRAM conclusion follows from these deterministic checks."
+  ],
+  "integrator_cross_fixture_qualification": {
+    "head": "8701b4f2d2503d29d1627a1cd3c6eb3b0877e894",
+    "head_after": "8701b4f2d2503d29d1627a1cd3c6eb3b0877e894",
+    "source_matches_982e387": true,
+    "command": [
+      "<local-workspace>/.venv/bin/python",
+      "-B",
+      "-m",
+      "pytest",
+      "-q",
+      "-W",
+      "error",
+      "-p",
+      "no:cacheprovider",
+      "-o",
+      "asyncio_default_fixture_loop_scope=function",
+      "-o",
+      "junit_family=xunit1",
+      "tests/integration/test_standing_resource_binding_agent.py",
+      "tests/integration/test_standing_resource_binding_replay.py",
+      "tests/integration/test_resource_restore_model_retirement.py",
+      "tests/integration/test_converse_owner_processes.py",
+      "--junitxml=<local-workspace>/model-write-authority/Kinaiya/.dev-run/228-barrier-final-cross-fixtures-h2hbs81z/junit.xml"
+    ],
+    "junit": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "36",
+        "time": "55.289",
+        "timestamp": "2026-11-01T14:53:58.379717-08:00",
+        "hostname": "roggoz"
+      }
+    ],
+    "pins": {
+      "tests/integration/test_converse_owner_processes.py": "6da85f309e0af9d0570a385f5cd11a0ab36ee44feea1999c282eb19cd41eccd4",
+      "tests/integration/test_resource_restore_model_retirement.py": "5aef2678099a6791f3dee09eb62b4a861334bbe672486a6ff477b13e8688f73e",
+      "tests/integration/test_standing_resource_binding_agent.py": "d3d0aed0eacbb3273d4bd491d663bfa52d1b41b5d1b21ef3130c12d7f04dea77",
+      "tests/integration/test_standing_resource_binding_replay.py": "d647867ffe26832500b784750ac09e0da943643c344f244ecd66e9091d1fcaa8"
+    },
+    "pins_preserved": true,
+    "receipt_sha256": "c2f83a217446fa14470329854dbc8f7e8b6d91dc412f8256c9608b0148c64243",
+    "artifact_sha256": {
+      "pytest.log": "1cf7ee7ad72e6f5724f8ba406269efc67d920f59ae3acfeb40a315833bc1563b",
+      "junit.xml": "7ecba07a5ac00a9873f107d22d080675dd830788b7dc3b20f78274277437f93f"
+    },
+    "overlap": "Repeats binding-agent and replay cases; eight ordinary restore cases overlap the independent293 group. Not additive coverage."
+  },
+  "independent_existing_regressions_before_repeat_close_repair": {
+    "source": "982e387fd868ec4a2fba3d84f419082e7e78b9bf",
+    "head": "fe40056c631e662a682481a6334c8800bdf3c433",
+    "passed": 292,
+    "failed": 1,
+    "errors": 0,
+    "skipped": 0,
+    "warnings": 10,
+    "seconds": 168.46,
+    "receipt_sha256": "1a805bb928a4c6abe2a8915b920cc8122da69d34c4799adf59d1565d4207fda3",
+    "failure": "test_text_resource_barrier::test_shutdown_fences_admission_and_always_closes_manager_on_failed_drain: second close rethrows the first lifecycle failure after actual retirement instead of the old idempotent return. Original first-error/failed-state/manager-close/fenced-admission assertions pass.",
+    "classification": "Genuine compatibility regression; original test unchanged. Repair and independent pending/failed-cleanup controls required."
+  },
+  "repeat_close_review_oracles": {
+    "commit": "2c4723ccadaf761cb30586cabf331d23b602a362",
+    "module": "tests/integration/test_resource_repeat_close_retirement.py",
+    "module_sha256": "e91fee58900b8be234249b9a069a04b98369d393c940fe93abb8dc84f79c1bbc",
+    "baseline_source": "982e387fd868ec4a2fba3d84f419082e7e78b9bf",
+    "cold": {
+      "failed": 1,
+      "passed": 5,
+      "errors": 0,
+      "skipped": 0,
+      "warnings": 6,
+      "seconds": 6.81
+    },
+    "receipt_sha256": "5bcc961acad44cb7f738b1559f76bf3fdb8c5c39b89a5cb671ad0959b5ada3cc",
+    "observable_cases": [
+      "failed drain with independently positive current retirement: idempotent later close preserves failed state and historical uncertainty",
+      "pending actual Manager close keeps original owner",
+      "pending actual HTTP transport close despite public closed flag keeps original owner",
+      "current Manager close failure remains unavailable",
+      "current actual transport close failure remains unavailable",
+      "current actual transport close cancellation remains unavailable"
+    ],
+    "scope": "Current direct-await original factory layout; no claim all future child-task implementations must share root Task identity. Coordinator closed-flag phase is recorded only, not an acceptance requirement.",
+    "all_existing_tests_unchanged": true,
+    "workers_started": 0
+  },
+  "preceding_source_qualifications": [
+    {
+      "head": "69279dbead749786ea7d6a7059eb171fb6688f62",
+      "test_sha256": "d92645386a9cf6c24aa3803ae4205c698393dcdccc1ddaab8733292cee8369ff",
+      "source_unchanged": true,
+      "tests_unchanged": true,
+      "exit_code": 1,
+      "elapsed_seconds": 7.669,
+      "junit_suites": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "1",
+          "skipped": "0",
+          "tests": "1",
+          "time": "7.329",
+          "timestamp": "2026-11-01T14:43:00.866107-08:00",
+          "hostname": "roggoz"
+        }
+      ],
+      "cleanup": {
+        "properties": 1,
+        "fixture_records": 1,
+        "all_managers_closed": true,
+        "all_native_http_joined": true,
+        "inference_calls": 0,
+        "selected": [
+          {
+            "name": "test_healthy_actual_worker_reaper_gate_allows_exact_drained_context_then_ignores_replacement",
+            "value": [
+              {
+                "inference_calls": 0,
+                "manager_closed": true,
+                "native_http_joined": true,
+                "sole_closes": 5
+              }
+            ]
+          }
+        ]
+      },
+      "artifacts_sha256": {
+        "before.json": "a2c151c1fbc5897ffc105f07edc8870795396ace0a3778185c69116be5da2904",
+        "after.json": "48b98adc2e0e5c1263891f3ff5ad72daa0e89db0d546ab440c8c196c62a13ece",
+        "pytest.log": "8e05055a232e863279a0bb52587842408d8c3c550d1a7fd523fd6540bec8adca",
+        "junit.xml": "68fe71c3128e07fb6464bc64a080eefb1120f116fbb888d01adb0380db337c1d"
+      }
+    },
+    {
+      "head": "69279dbead749786ea7d6a7059eb171fb6688f62",
+      "test_sha256": {
+        "tests/unit/test_standing_resource_barrier_client.py": "8cfff6f75dfdbca51b8ece62477e94be0bc6b2317b29cf4bc56fe8ac5d5e299b",
+        "tests/integration/test_standing_resource_barrier.py": "d92645386a9cf6c24aa3803ae4205c698393dcdccc1ddaab8733292cee8369ff",
+        "tests/integration/test_standing_resource_binding_agent.py": "d3d0aed0eacbb3273d4bd491d663bfa52d1b41b5d1b21ef3130c12d7f04dea77"
+      },
+      "source_unchanged": true,
+      "tests_unchanged": true,
+      "exit_code": 0,
+      "elapsed_seconds": 150.617,
+      "junit_suites": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "0",
+          "skipped": "0",
+          "tests": "149",
+          "time": "149.333",
+          "timestamp": "2026-11-01T14:46:47.290487-08:00",
+          "hostname": "roggoz"
+        }
+      ],
+      "cleanup": {
+        "properties": 75,
+        "fixture_records": 77,
+        "all_managers_closed": true,
+        "all_native_http_joined": true,
+        "inference_calls": 0,
+        "selected": [
+          {
+            "name": "test_cooperative_cancelled_capture_close_never_becomes_positive_after_registry_empty",
+            "value": [
+              {
+                "inference_calls": 0,
+                "manager_closed": true,
+                "native_http_joined": true,
+                "sole_closes": 4
+              }
+            ]
+          },
+          {
+            "name": "test_healthy_actual_worker_reaper_gate_allows_exact_drained_context_then_ignores_replacement",
+            "value": [
+              {
+                "inference_calls": 0,
+                "manager_closed": true,
+                "native_http_joined": true,
+                "sole_closes": 6
+              }
+            ]
+          }
+        ]
+      },
+      "artifacts_sha256": {
+        "before.json": "17e8e09d339e410394e21a0664748f044fb99188b6e8f8fce2a069c2d9aa2fde",
+        "after.json": "fe26afb89e6a66bb86147ed79c929561e5460e5a82a71dc891e3244186e1ce4e",
+        "pytest.log": "e0797c858102073cbbff86d728d8531962eaced9606dda35a9471e2d61c22a8c",
+        "junit.xml": "4b9d6f1717d104ad336896a9d93856c5b85eee6f1d46b685b8113e6b45f5f289"
+      }
+    },
+    {
+      "head": "c90bd49a377cc98eb4f1bccf9bb6ca3b43685ca7",
+      "test_sha256": {
+        "tests/unit/test_standing_resource_barrier_client.py": "8cfff6f75dfdbca51b8ece62477e94be0bc6b2317b29cf4bc56fe8ac5d5e299b",
+        "tests/integration/test_standing_resource_barrier.py": "0381ef7cf55a731ef06d0bb86ffd60a49be53d2e6c980b0522e95eec16391f85",
+        "tests/integration/test_standing_resource_binding_agent.py": "d3d0aed0eacbb3273d4bd491d663bfa52d1b41b5d1b21ef3130c12d7f04dea77"
+      },
+      "source_unchanged": true,
+      "tests_unchanged": true,
+      "exit_code": 0,
+      "elapsed_seconds": 152.122,
+      "junit_suites": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "0",
+          "skipped": "0",
+          "tests": "149",
+          "time": "150.871",
+          "timestamp": "2026-11-01T14:49:46.405420-08:00",
+          "hostname": "roggoz"
+        }
+      ],
+      "cleanup": {
+        "properties": 75,
+        "fixture_records": 77,
+        "all_managers_closed": true,
+        "all_native_http_joined": true,
+        "inference_calls": 0,
+        "selected": [
+          {
+            "name": "test_cooperative_cancelled_capture_close_never_becomes_positive_after_registry_empty",
+            "value": [
+              {
+                "inference_calls": 0,
+                "manager_closed": true,
+                "native_http_joined": true,
+                "sole_closes": 4
+              }
+            ]
+          },
+          {
+            "name": "test_healthy_actual_worker_reaper_gate_allows_exact_drained_context_then_ignores_replacement",
+            "value": [
+              {
+                "inference_calls": 0,
+                "manager_closed": true,
+                "native_http_joined": true,
+                "sole_closes": 6
+              }
+            ]
+          }
+        ]
+      },
+      "artifacts_sha256": {
+        "before.json": "df0a3ded64c9dec2f755c471cbd212127a83f1f85afafe589ba34de7d12749de",
+        "after.json": "50bc3cf7a74afc9183e01702a2302230b04739e1a206a0e273b85efef9b06c6b",
+        "pytest.log": "54483ae85ad850a14dfd3a675ba985f3a5e629adad16365dc15bffe093920faa",
+        "junit.xml": "d4986bebccce823ba81f0eb448bbe343c553513e3c757bf008d8f391870e12c0"
+      }
+    },
+    {
+      "head": "c90bd49a377cc98eb4f1bccf9bb6ca3b43685ca7",
+      "test_sha256": {
+        "tests/integration/test_standing_resource_binding_replay.py": "d647867ffe26832500b784750ac09e0da943643c344f244ecd66e9091d1fcaa8"
+      },
+      "source_unchanged": true,
+      "tests_unchanged": true,
+      "exit_code": 0,
+      "elapsed_seconds": 7.836,
+      "junit_suites": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "0",
+          "skipped": "0",
+          "tests": "3",
+          "time": "7.422",
+          "timestamp": "2026-11-01T14:52:25.058105-08:00",
+          "hostname": "roggoz"
+        }
+      ],
+      "cleanup": {
+        "properties": 3,
+        "fixture_records": 4,
+        "all_managers_closed": true,
+        "all_native_http_joined": true,
+        "inference_calls": 0,
+        "selected": []
+      },
+      "artifacts_sha256": {
+        "before.json": "236afe84cbefbdbcbbaba7257d759985f6f4acd151a780b40eabe30ff85159cf",
+        "after.json": "37103687972f67542ced44fb68f73fb5f23949be8caf1ee1b23730b67017e40f",
+        "pytest.log": "21d88ccf8c64e414421ed9401883dab1a017a4bc9d99fbcb36c13670d7affd8b",
+        "junit.xml": "82cffbbad60cd1ff9d5505e13b5649f392fddd1b7ca13df8e608c48acc1cdfff"
+      }
+    }
+  ],
+  "integrated_source_equivalences": {
+    "namespace": "core/packages/services byte-exact comparisons, independent of docs and tests",
+    "original_to_integrated": {
+      "71cd7023c88af9a78c64eced8fadb91275bdf665": "2c4dffc1ef015519d7fee0b4b0b3caa30145531b",
+      "e732a29dd3e115ab0e65657678f6d1fe8df3778e": "d402e134e6f969981d603646af4dcacad79d84ad",
+      "982e387fd868ec4a2fba3d84f419082e7e78b9bf": "5052317ceb97a74e46d5f2de985df9a8c93ae744",
+      "3dede82afac66824011d7f582e52e0772ccc1786": "e70a6e616214aa200c8cf6d6ea1a433411391e16"
+    },
+    "all_compared_equal": true,
+    "note": "Qualification identities from isolated local branches are mapped to the replay commits reachable from this PR; original local receipt SHAs remain verification identities."
+  },
+  "final_integrator_qualification": {
+    "head": "e70a6e616214aa200c8cf6d6ea1a433411391e16",
+    "head_after": "e70a6e616214aa200c8cf6d6ea1a433411391e16",
+    "command": [
+      "<local-workspace>/.venv/bin/python",
+      "-B",
+      "-m",
+      "pytest",
+      "-q",
+      "-W",
+      "error",
+      "-p",
+      "no:cacheprovider",
+      "-o",
+      "asyncio_default_fixture_loop_scope=function",
+      "-o",
+      "junit_family=xunit1",
+      "tests/integration/test_standing_resource_barrier.py",
+      "tests/integration/test_standing_resource_binding_agent.py",
+      "tests/unit/test_standing_resource_barrier_client.py",
+      "tests/integration/test_standing_resource_binding_replay.py",
+      "tests/integration/test_resource_repeat_close_retirement.py",
+      "tests/integration/test_text_resource_barrier.py",
+      "tests/integration/test_resource_close_ownership_retained.py",
+      "--junitxml=<local-workspace>/model-write-authority/Kinaiya/.dev-run/228-barrier-final-integrated-mt5ny7we/junit.xml"
+    ],
+    "junit": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "180",
+        "time": "170.211",
+        "timestamp": "2026-11-01T15:14:37.535328-08:00",
+        "hostname": "roggoz"
+      }
+    ],
+    "passed": 180,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "seconds": 170.22,
+    "test_sha256": {
+      "tests/integration/test_resource_close_ownership_retained.py": "476d9050edabcaed83f8db044dff8a4820975dcdbafe16b4b0986622d3a22fa3",
+      "tests/integration/test_resource_repeat_close_retirement.py": "e91fee58900b8be234249b9a069a04b98369d393c940fe93abb8dc84f79c1bbc",
+      "tests/integration/test_standing_resource_barrier.py": "0381ef7cf55a731ef06d0bb86ffd60a49be53d2e6c980b0522e95eec16391f85",
+      "tests/integration/test_standing_resource_binding_agent.py": "d3d0aed0eacbb3273d4bd491d663bfa52d1b41b5d1b21ef3130c12d7f04dea77",
+      "tests/integration/test_standing_resource_binding_replay.py": "d647867ffe26832500b784750ac09e0da943643c344f244ecd66e9091d1fcaa8",
+      "tests/integration/test_text_resource_barrier.py": "c780fed891223f59fd2e833ba5efb0b403e2ee74858a5aacd3bca2c07f48d257",
+      "tests/unit/test_standing_resource_barrier_client.py": "8cfff6f75dfdbca51b8ece62477e94be0bc6b2317b29cf4bc56fe8ac5d5e299b"
+    },
+    "test_pins_preserved": true,
+    "all_tracked_source_test_pins": {
+      "head_before": "e70a6e616214aa200c8cf6d6ea1a433411391e16",
+      "head_after": "e70a6e616214aa200c8cf6d6ea1a433411391e16",
+      "source_test_pin_count": 756,
+      "changed": {}
+    },
+    "receipt_sha256": "aecee1ef756975dd968982505ea980e0919f3144c65e145ee288b4a48c136eda",
+    "artifact_sha256": {
+      "pytest.log": "2023fe46725491fea8ed27b37808cc9af1561e0708561783e1ebbe49a1fe29a9",
+      "junit.xml": "be8bab94562d2ea6317decb78374080fee93200b04e5308d694e5c1e9ee6706f"
+    },
+    "overlap": "Includes the149 barrier cases,3 replay cases,6 repeat-close controls and22 existing shutdown/retained-owner cases; overlaps earlier groups, not additive coverage."
+  },
+  "repeat_close_source_repair": {
+    "source_commit": "3dede82afac66824011d7f582e52e0772ccc1786",
+    "production_base": "982e387fd868ec4a2fba3d84f419082e7e78b9bf",
+    "changed_source_files": [
+      "services/resources/coordinator.py"
+    ],
+    "implementation": "Separate positive retirement latch checked at entry only after original noncancelled shutdown owner is terminal. Current Manager/cleanup/client/ledger failures prevent it; historical proof/capability errors remain stored. Known original JournalClient work/sole-close/STT handles and callbacks join before transport, outside lock; unconfirmed registry joins retain that transport while independent other cleanup continues.",
+    "original_owner_preserved": true,
+    "new_close_owners": 0,
+    "tracked_tests_authored_or_edited": false,
+    "original_assertions_deadlines_unchanged": true,
+    "native_context_source_unchanged": {
+      "services/resources/standing_barrier.py": "4243750a6b1fbd563c87f279efa6277c785618fafde811373c6aa8a46add0c18",
+      "services/resources/standing_handoff.py": "3df95d6097d8f31b3d45c580cdacee206261f895cc96bcee49cb11ffa0f82673",
+      "packages/contracts/standing_resource_finalization.py": "bd24174c9207fc7c2a8d1b7b79c4a8be22d3e8f347cbe584646660740bafe173",
+      "services/session/standing_resource_finalization.py": "18a297f481d0bf8142ceb4ccaec6be044e009a98576aecf00250f80d77e976f1",
+      "services/session/api.py": "1ba6dc6cc6175952d3eaaa37eff400bd5a7a60e9c7fe48a5bb095af7085e285f"
+    },
+    "qualification_summary": "Original old case red preserved. Intermediate exact35 hots each35passed0fail/error/skip, at e1 and a1 source pins separately. Final guarded861 source6frozen cases passed0fail/error/skip6.212s plus4 own actualJournalClient controls. Root explicitly owns final integrated149+replay3/broader checks; no third35/293 was claimed or run.",
+    "cleanup_summary": "Both intermediate35 JUnits retain positive original-owner retirement properties for six new dormant-WorkerManager fixtures, independent actual-child reaping/pidfd disposal for two old Manager fixtures, and four standing actual_cleanup properties for native/worker/client shutdown controls. Final6 JUnit records original owner joined/no workers started for each case. Final own4 controls record every original task done, registry empty only after independent cleanup, managerclosedonce,0nativehandles and0inference. Malformed/replaced cases observe0transportcloses before independent fixture cleanup.",
+    "limitations": "No physical report, resident acquisition/restoration witness, negative acquisition testimony, capacity/reservation/claim release, Agent settlement or whole-feature completion. No paid provider, configured model/device, listener, install or GitHub mutation. Actual disposable process owners only in existing approved ownership fixtures. STT close registry path is joined in source; own controls exercise metadata/exchange sole-close, not a live STT publication.",
+    "receipt_sha256": "1e563053a48183202a66026b7133b95eb3cf95b374246e7e1c20d63309be3be1",
+    "independent_review_sha256": "34ba7fe030e8a4d3208f91637b9dad599a261d8439aacde6f2353d4ce2d4d79f",
+    "review_followups": "Premature transport retirement on unconfirmed/malformed owners and empty-old-registry replacement were reproduced on preserved intermediate source views, then repaired and replayed with actual original HTTP/sole-close cleanup. Known settled failed close remains unavailable; historical capability poison is not cleared."
+  }
+}

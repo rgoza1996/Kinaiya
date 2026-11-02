@@ -1,0 +1,272 @@
+{
+  "schema_version": "1.0",
+  "date_local": "2026-11-01",
+  "kind": "Resources strict-ownership fixture compatibility and independent shutdown controls",
+  "issues": [
+    239,
+    228
+  ],
+  "pull_request": 259,
+  "baseline": "ca2c825cb272d0a1c3ddd08f72d8d71bba3207fa",
+  "qualification_commit": "ee758e7f47682588b1abce2d14ce04e19a4f45f6",
+  "main_readme_only_merge": "e12a95c0440ea648de6d79dea709779c08b3fec2",
+  "commits": {
+    "fixture_author": "c3edb2819b0e141979c135aed0cce9d1d79f7a8e",
+    "fixture_root_replay": "891d29e",
+    "independent_oracles": "fa96ae91e754c4be5a4837fbdf91822899799ccf",
+    "oracle_root_replay": "ee758e7f47682588b1abce2d14ce04e19a4f45f6"
+  },
+  "change": {
+    "production_and_build_inputs_unchanged": true,
+    "existing_test_assertions_preserved": 102,
+    "existing_protected_error_and_timeout_calls_preserved": 21,
+    "existing_parameter_sets_preserved": true,
+    "no_skip_or_xfail_added": true,
+    "fixtures": [
+      "Real StreamClosures on the known no-native-I/O GGUF configuration endpoint and synthetic prompt endpoint",
+      "Real ResourceCoordinator, ResourceState and never-started WorkerManager for native route authentication/no-fallback tests; no no-op registration",
+      "Real constructor-only WhistleEndpoint retained and closed after original coordinator/manager retirement"
+    ]
+  },
+  "preserved_ci_failure": {
+    "run_id": 41361753939,
+    "job_id": 125013393669,
+    "url": "https://github.com/rgoza1996/Kinaiya/actions/runs/41361753939/job/125013393669",
+    "head": "20767c4624d1a33b510dbc2b54c65770e0468c4a",
+    "python": "3.11",
+    "failed": 9,
+    "passed": 9942,
+    "errors": 31,
+    "skipped": 6,
+    "deselected": 2,
+    "warnings": 1,
+    "seconds": 1998.63,
+    "python_3_12": "cancelled; no passing result claimed"
+  },
+  "root_cold": {
+    "baseline": "ca2c825cb272d0a1c3ddd08f72d8d71bba3207fa",
+    "command": [
+      "-m",
+      "pytest",
+      "-q",
+      "-W",
+      "error",
+      "-p",
+      "no:cacheprovider",
+      "-o",
+      "asyncio_default_fixture_loop_scope=function",
+      "-o",
+      "junit_family=xunit1",
+      "tests/integration/test_gguf_resource_config.py",
+      "tests/integration/test_prompt_measurement_lifecycle.py",
+      "tests/unit/test_whistle_config.py"
+    ],
+    "result": {
+      "failed": 9,
+      "passed": 64,
+      "errors": 31,
+      "skipped": 0,
+      "pytest_seconds": 5.16
+    },
+    "pins_preserved": true,
+    "test_sha256": {
+      "tests/integration/test_gguf_resource_config.py": "249cb1b5a948c6fa019fd10854d72d3b0d036a00be5bdadf217cd2206449d5f8",
+      "tests/integration/test_prompt_measurement_lifecycle.py": "deb4472b00a855635e2822b2bed033229118643d936bff3a29547ca8d487b41a",
+      "tests/unit/test_whistle_config.py": "88ca1801888b3039660e1915f6b2e0061e8c4b5f3ade91119dac495197cf54de"
+    },
+    "artifacts": {
+      "receipt.json": {
+        "sha256": "0cf9b429f1cce6a1900fbf1259be32000791d67a8789b832f2de4c58aad5776e"
+      },
+      "pytest.log": {
+        "sha256": "490335473ec0ad4cfc952dbc4cda7afac1de8b6bbcdf77657fb929855e160a31"
+      },
+      "junit.xml": {
+        "sha256": "ebc027ce9390b78a4bbe5c14bf7caa8f2840eaebe9b7b7f7f5e15351c042c2ba"
+      }
+    }
+  },
+  "independent_controls": {
+    "commit": "fa96ae91e754c4be5a4837fbdf91822899799ccf",
+    "expected_baseline_controls_not_feature_red": true,
+    "candidate_fixture_edits_consulted": false,
+    "result": {
+      "errors": 0,
+      "failed": 0,
+      "passed": 4,
+      "pytest_seconds": 4.52,
+      "skipped": 0,
+      "warnings": "none, -Werror"
+    },
+    "old_tracked_files_unchanged": 1401,
+    "test_sha256": "77eeaab07257e09721c29e641bbfa3ef10dffb50136656da62f443399e8ec117",
+    "receipt": {
+      "sha256": "af64449a472284d2af8e858067e097858aca6835a857c1a15dd18e136004ebf3"
+    },
+    "log": "3cc17f0812835471df453b6f2aafe22dec6c47f505527c64b163550893e60f8c",
+    "junit": "4ab78fb28c3d310b369c7e22b628c30bd3e54d4be3ff8926b71c39a64f3dbf9f"
+  },
+  "integrated_qualification": {
+    "commit": "ee758e7f47682588b1abce2d14ce04e19a4f45f6",
+    "command": [
+      "-m",
+      "pytest",
+      "-q",
+      "-W",
+      "error",
+      "-p",
+      "no:cacheprovider",
+      "-o",
+      "asyncio_default_fixture_loop_scope=function",
+      "-o",
+      "junit_family=xunit1",
+      "tests/integration/test_gguf_resource_config.py",
+      "tests/integration/test_prompt_measurement_lifecycle.py",
+      "tests/unit/test_whistle_config.py",
+      "tests/integration/test_resource_fixture_ownership.py"
+    ],
+    "pythonpath": "isolated qualification worktree",
+    "result": {
+      "passed": 77,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "pytest_seconds": 8.51,
+      "warnings": 0
+    },
+    "test_sha256": {
+      "tests/integration/test_gguf_resource_config.py": "08c32d97af98d487c23e42040b8bc57b6a7e8a9c81be4d5787e51dd27871fbd1",
+      "tests/integration/test_prompt_measurement_lifecycle.py": "86708676ed5716bdeee4f9b8815e12b5480a0d26b11c34529e13b90bc06b4c24",
+      "tests/integration/test_resource_fixture_ownership.py": "77eeaab07257e09721c29e641bbfa3ef10dffb50136656da62f443399e8ec117",
+      "tests/unit/test_whistle_config.py": "4f8b52a2034c5b2b8c9a61b0ba8aed5b5f44a8d5a7acba16f28010508c2c7390"
+    },
+    "pins_preserved": true,
+    "artifacts": {
+      "receipt.json": {
+        "sha256": "c87fb4f7249b0a489fad7bc620725e36caf0c4da943b2a13e8014a2943bc672c"
+      },
+      "pytest.log": {
+        "sha256": "9af67f094ef16681ba569be9f0ce025c1a6e6019c557b17928f6b2377467901b"
+      },
+      "junit.xml": {
+        "sha256": "1db77814c6877bc0e52679cf201bea1e4aa9bb1e7aa1e13e274bd795a9e7759b"
+      }
+    },
+    "actual_cleanup_controls": [
+      {
+        "test": "test_real_broker_shutdown_retains_original_stream_close_and_its_outcome[positive-release-text]",
+        "observed": {
+          "family": "text",
+          "stream_wait_done": true,
+          "shutdown_owner_done": true,
+          "writer_close_calls": 1,
+          "writer_wait_calls": 1,
+          "control_transport_close_calls": 1,
+          "no_process_or_request": true,
+          "stream_failed": false
+        }
+      },
+      {
+        "test": "test_real_broker_shutdown_retains_original_stream_close_and_its_outcome[positive-release-whistle]",
+        "observed": {
+          "family": "whistle",
+          "stream_wait_done": true,
+          "shutdown_owner_done": true,
+          "writer_close_calls": 1,
+          "writer_wait_calls": 1,
+          "control_transport_close_calls": 1,
+          "no_process_or_request": true,
+          "stream_failed": false
+        }
+      },
+      {
+        "test": "test_real_broker_shutdown_retains_original_stream_close_and_its_outcome[failed-original-close-text]",
+        "observed": {
+          "family": "text",
+          "stream_wait_done": true,
+          "shutdown_owner_done": true,
+          "writer_close_calls": 1,
+          "writer_wait_calls": 1,
+          "control_transport_close_calls": 1,
+          "no_process_or_request": true,
+          "stream_failed": true
+        }
+      },
+      {
+        "test": "test_real_broker_shutdown_retains_original_stream_close_and_its_outcome[failed-original-close-whistle]",
+        "observed": {
+          "family": "whistle",
+          "stream_wait_done": true,
+          "shutdown_owner_done": true,
+          "writer_close_calls": 1,
+          "writer_wait_calls": 1,
+          "control_transport_close_calls": 1,
+          "no_process_or_request": true,
+          "stream_failed": true
+        }
+      }
+    ]
+  },
+  "review": {
+    "independent_source_review": {
+      "sha256": "7925e016492e551c5990d45ebeb8001246e9d3329a693163bc45b59157bac548"
+    },
+    "fixture_author_seal": {
+      "sha256": "4c7c5d350391572751d5016c4e636d9745d67d6a005ceb44f44296944b6f965b"
+    },
+    "root_ast_review": {
+      "sha256": "66c941a591b6beb917e67a60e3e13798cdad1710819fec0a72176688c28ba3a8"
+    },
+    "result": "No actionable findings; genuine original ownership preserved; production source unchanged"
+  },
+  "static_checks": {
+    "ruff_check": "passed",
+    "ruff_format": "720 files already formatted",
+    "git_diff_check": "passed"
+  },
+  "preceding_ci_snapshot": {
+    "run_id": 41364558355,
+    "head": "ca2c825cb272d0a1c3ddd08f72d8d71bba3207fa",
+    "jobs": [
+      {
+        "id": 125021850390,
+        "name": "python (3.11)",
+        "status": "in_progress",
+        "conclusion": null
+      },
+      {
+        "id": 125021850564,
+        "name": "flutter",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 125021850573,
+        "name": "ios",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 125021850581,
+        "name": "android",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 125021850649,
+        "name": "python (3.12)",
+        "status": "in_progress",
+        "conclusion": null
+      }
+    ],
+    "note": "Snapshot before this fixture update, not exact-head full CI proof"
+  },
+  "limits": [
+    "Only deterministic fixture tests; no live socket, process, model, paid inference, GPU, device, service or live configuration action",
+    "A pending original stream close blocks dependent retirement; its failure stays sticky even after registry drains",
+    "77-case group includes the independent four controls; do not add overlapping runs as unique tests",
+    "Fixture compatibility does not complete physical Resources finalization, Agent settlement, recurrence, inbox, M7 or the whole Roadmap",
+    "Latest-head full-project CI remains required; no merge or production-readiness claim",
+    "Preview 8820 and its static build were not changed"
+  ]
+}

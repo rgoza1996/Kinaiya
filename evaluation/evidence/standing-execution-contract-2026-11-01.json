@@ -1,0 +1,139 @@
+{
+  "requirement": "https://github.com/rgoza1996/Kinaiya/issues/228",
+  "scope": "Six pure standing execution contracts and explicit initial builder; no native reservation or worker launch",
+  "implementation": {
+    "author_commit": "f3992e22db1c0029319c51e246725edb0226df23",
+    "integrated_commit": "3314cfae56e990811f65933c5123e17dee031dab",
+    "source_sha256": "a190b5eec029a36271bde8850a1d128824d94e20422ed108b636dce058f31038"
+  },
+  "independent_oracles": {
+    "commit": "fcef7152f41b0f4a1e253caf13e23a158bbeed2f",
+    "file": "tests/unit/test_standing_execution_contract.py",
+    "sha256": "6f4e1abbd17808eaa8f5c1c930c877327bcc95232911f82560890b84e38fdc61",
+    "frozen_before_source_consultation": true,
+    "author_receipt_sha256": "cfd31f4ee26353f0b38aad1fca7ff364977e5901d43d16eb2f61ad655912a94b",
+    "cold_baseline": {
+      "failed": 60,
+      "passed": 2,
+      "failure_class": "actual runtime missing-module capability failures; legacy positive controls passed",
+      "receipt_sha256": "c27797e9cb8da0bb4e3c2c7f41e8dc2c228a39e8f12e308fe6074b6790bc3cc4",
+      "manifest_sha256": "2f1bc0ba7030fceabecf8f0876f908e55ee332f8dff216443456e102045f4d2b"
+    },
+    "unchanged_first_qualification": {
+      "passed": 62,
+      "failed": 0,
+      "pytest_seconds": 0.45,
+      "warnings_as_errors": true,
+      "receipt_sha256": "7079aed43382d11ea2b0ab7327d6b471d4773ab1a2800ef7ebea4381b26fd765",
+      "manifest_sha256": "d5a89fd7bf3cdee6f81f25ac074603bb9eb3575c8487d5a225840638b125fbe3"
+    }
+  },
+  "existing_contract_regressions": {
+    "passed": 546,
+    "failed": 0,
+    "pytest_seconds": 1.19,
+    "warnings_as_errors": true,
+    "files": [
+      "tests/unit/test_agent_submit_contract.py",
+      "tests/unit/test_agent_submit_contract_supplement.py",
+      "tests/unit/test_standing_work_contract.py",
+      "tests/unit/test_standing_work_time.py",
+      "tests/unit/test_standing_work_owner_contract.py",
+      "tests/unit/test_standing_dispatch_contract.py"
+    ],
+    "evidence": "Root tools.exec_command session44612 completed exit0; existing source and assertions unchanged"
+  },
+  "independent_source_review": {
+    "receipt_sha256": "0028300745b267f622cceeaa20ec3449d7db1e3f78dc2dd6cbec95a8f66849b2",
+    "manifest_sha256": "6f4e8d669aa56f76cc592cd557ffc68c827ea6868a59df86c521121167dc2a1b",
+    "actionable_findings": 0,
+    "source_commit": "3314cfae56e990811f65933c5123e17dee031dab",
+    "scope": "Read-only full module against frozen v1/v2 boundary; no suite reruns"
+  },
+  "schema_export": {
+    "previous_schema_count": 168,
+    "previous_schema_bytes_unchanged": true,
+    "added": 6,
+    "total": 174,
+    "two_exports_byte_identical": true,
+    "receipt_sha256": "e552574eb22371d32778f279e549a83a223c27dc5f2b6f9cce3490a438b6588b"
+  },
+  "static_checks": {
+    "ruff": "Passed on new module, new oracle and exporter",
+    "format": "3 files already formatted"
+  },
+  "preserved_setup_failures": [
+    {
+      "kind": "Oracle author provisional legacy Decisions fixture lacked required authenticated source",
+      "correction": "Added synthetic authenticated source before digest; assertions unchanged; first failure retained in oracle author bundle"
+    },
+    {
+      "kind": "Root first pytest startup exit3 before collection",
+      "cause": "Unset pytest-asyncio fixture scope produced a deprecation warning under -Werror",
+      "correction": "Passed -o asyncio_default_fixture_loop_scope=function, preserving source/tests and all warnings as errors",
+      "receipt_sha256": "68656425d34a2c0480de8e078e054c50d3b18ed53af5bc18b018aed82e156675",
+      "classification": "Setup failure, not semantic or cold behavior result; corrected classification retained in cold baseline receipt"
+    }
+  ],
+  "runtime": {
+    "python": "3.12.3",
+    "python_path": "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+    "qualification_pythonpath": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya",
+    "pytest_options": [
+      "-B",
+      "-W error",
+      "-p no:cacheprovider",
+      "-o asyncio_default_fixture_loop_scope=function"
+    ]
+  },
+  "limitations": [
+    "No public execution route, producer, native claim/admission, provider inference, tool execution, positive settlement, inbox or editor qualified by this increment.",
+    "This is not full issue #228, M7 or roadmap completion. No full-project CI or PR for metadata-only standing work.",
+    "No paid/model calls, dependency installs, live service/settings changes or spend allowance increases."
+  ],
+  "initial_entry_proof": {
+    "author_commit": "0984f63f1e6befac9c68d5540e2dba0df18d8b06",
+    "source_sha256": "bcedb2f3252bf31b012a3439234cdf5c9d0208dbbd0832522ed91da792c68435",
+    "independent_oracles": {
+      "frozen_commit": "a3412c8",
+      "file": "tests/unit/test_standing_admission_contract.py",
+      "sha256": "edca79ee5313ab2e395c39e3ae12b04043801dd47d6d3099d5830ed3297e2bf8",
+      "frozen_before_source_consultation": true,
+      "stdlib_golden_entry_digest": "c3129fef6eff8b209d811fc1c1e0c79b4f196b58329a0afc74ca9af22b7b5f58",
+      "cold_baseline": {
+        "failed": 26,
+        "passed": 1,
+        "classification": "Runtime missing-module capability failures; independent fixture control passed",
+        "receipt_sha256": "74d045e017586e3238ced417c22417e37ca303daa594e6bb1f0caa8179f698be",
+        "manifest_sha256": "a27cabb3813ff15e16b2d2dd9a2e29e61ddbc58e339ad48fb06b9acdccee32b1"
+      },
+      "unchanged_first_qualification": {
+        "passed": 89,
+        "new_cases": 27,
+        "prior_execution_cases": 62,
+        "failed": 0,
+        "pytest_seconds": 1.47,
+        "warnings_as_errors": true,
+        "receipt_sha256": "c2e042df5e6ac2ce6095afb2f5856a47c6276a432e5faec4ce99588e7706bf5d",
+        "manifest_sha256": "edcb2ef74065408579dd7e3e9a2fe31f23c15baa20a5b9c28fd4736b7b863793"
+      }
+    },
+    "review": {
+      "actionable_static_findings": 0,
+      "receipt_sha256": "2958915916f4249451a480a160f93123075e8ec8a605902b7805f292db02991f",
+      "scope": "Read-only full311-line source against frozen v1/v2 boundary; no test execution"
+    },
+    "schema_export": {
+      "new": 2,
+      "previous_count": 174,
+      "total_count": 176,
+      "previous_bytes_unchanged": true,
+      "two_exports_byte_identical": true,
+      "receipt_sha256": "ff54996526bf3db6382632d4e08ba38089c603ab82ec52a425e12a9068bc4569"
+    },
+    "static_checks": "Ruff and format passed for new source/oracle and exporter",
+    "author_bookkeeping_failure": "Post-commit evidence seal script used stale base guard once; corrected without production/probe changes; original failure retained in author bundle",
+    "author_receipt_sha256": "e5c57e56d01068f991171aa10db7405b298a6ba889892e16add37ad3af3ca8ce",
+    "limitations": "Pure entry/proof grammar only; no native task admission, selection, execution or settlement is implemented by these models."
+  }
+}

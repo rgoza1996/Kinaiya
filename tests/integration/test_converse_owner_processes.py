@@ -12,6 +12,9 @@ import sys
 from pathlib import Path
 
 import httpx
+import pytest
+from test_standing_resources_registration import factory as factory
+from test_standing_resources_registration import gateway, ordinary, query
 
 from packages.resources import WorkerManager, WorkerSpec
 from services.common.auth import load_or_create_tokens
@@ -23,7 +26,18 @@ from services.resources.state import ResourceState
 MiB = 1024 * 1024
 
 
-async def test_native_owner_off_during_restore_and_later_explicit_on(tmp_path):
+@pytest.fixture
+async def ordinary_handoff(factory):
+    native = await factory()
+    identity = ordinary(native.store, task_id="synthetic-native-task", key="native-converse-owner")
+    async with gateway(native) as journal:
+        context = await journal.resource_task_context(query(identity.task_id))
+        assert context.family == "ordinary" and context.standing is None
+        assert context.ordinary == identity
+        yield journal
+
+
+async def test_native_owner_off_during_restore_and_later_explicit_on(tmp_path, ordinary_handoff):
     data = tmp_path / "owner-data"
     tokens = load_or_create_tokens(data)
     state = ResourceState(data / "resources-state.json", profile="local_work_priority")
@@ -52,6 +66,7 @@ async def test_native_owner_off_during_restore_and_later_explicit_on(tmp_path):
         manager,
         state,
         ConverseControl(url, tokens["resources"]),
+        handoff_journal=ordinary_handoff,
         memory_probe=lambda: 2 * 1024 * MiB,
     )
     config = data / "config.json"

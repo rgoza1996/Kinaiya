@@ -1,0 +1,19 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "local_date": {
+      "title": "Local Date",
+      "type": "string"
+    },
+    "due_utc": {
+      "title": "Due Utc",
+      "type": "string"
+    }
+  },
+  "required": [
+    "local_date",
+    "due_utc"
+  ],
+  "title": "DailyOccurrence",
+  "type": "object"
+}
