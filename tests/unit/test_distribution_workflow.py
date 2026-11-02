@@ -16,8 +16,8 @@ def test_distribution_defaults_to_manual_nonpublishing_validation():
     config = workflow()
     assert config["on"]["workflow_dispatch"]["inputs"]["dry_run"]["default"] == "true"
     assert config["on"]["workflow_dispatch"]["inputs"]["channel"]["default"] == "nightly"
-    assert config["on"]["workflow_run"]["workflows"] == ["deterministic-ci"]
-    assert config["on"]["workflow_run"]["types"] == ["completed"]
+    assert config["on"]["schedule"] == [{"cron": "0 0 * * *", "timezone": "America/Los_Angeles"}]
+    assert "workflow_run" not in config["on"]
     publisher = config["jobs"]["publish"]
     assert "needs.prepare.outputs.dry_run == 'false'" in publisher["if"]
     assert "refs/heads/main" in publisher["if"]

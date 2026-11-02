@@ -55,7 +55,7 @@ kinaiya version
 kinaiya update --check
 ```
 
-Nightly installs only a qualified, pinned GitHub release—not arbitrary commits from `main`. **Stable is a separate approval-gated channel:** when no approved stable release exists, the default installer refuses rather than silently choosing an alpha/nightly. Review the [release policy and trust limits](docs/releases.md).
+Nightly installs only a qualified, pinned GitHub release—not arbitrary commits from `main`. Nightly builds are scheduled for **midnight Las Vegas time (`America/Los_Angeles`)**, rather than after every commit; publication still requires passing checks and may be delayed or skipped. **Stable is a separate approval-gated channel:** when no approved stable release exists, the default installer refuses rather than silently choosing an alpha/nightly. Review the [release policy and trust limits](docs/releases.md).
 
 After choosing and validating a supported provider configuration, use `kinaiya serve host` for Agent-only services and `kinaiya web` for a matching release's prebuilt web client. Setup and update do not prove provider/model readiness or start work. Optional [Converse setup](docs/converse-setup.md), the [web client guide](apps/kinaiya_flutter/README.md), and the [manual development-host path](#run-the-host) remain separate. Windows support is deferred; Android/iOS distribution and native calling remain separate qualification work.
 
