@@ -220,13 +220,7 @@ ThemeData kinaiyaTheme({
       ),
     ),
     filledButtonTheme: FilledButtonThemeData(
-      style: FilledButton.styleFrom(
-        minimumSize: minTap,
-        shape: buttonShape,
-        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-        disabledBackgroundColor: scheme.onSurface.withValues(alpha: 0.12),
-        disabledForegroundColor: scheme.onSurface.withValues(alpha: 0.55),
-      ),
+      style: kinaiyaPrimaryButtonStyle(scheme, actionInk: actionInk),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
@@ -371,4 +365,236 @@ Color _readableActionInk(ColorScheme scheme) {
     }
   }
   return scheme.onSurface;
+}
+
+/// Reusable primary action [ButtonStyle] with unified keyboard focus ring,
+/// hover/pressed overlay states, unambiguous disabled styling, and a minimum
+/// 48x48 interactive touch target.
+///
+/// Pattern documentation:
+/// - **Keyboard focus (`WidgetState.focused`)**: Renders a 2px high-contrast
+///   border (`onSurface` or `actionInk`) plus a subtle `onPrimary` focus
+///   overlay so keyboard position is unmistakable on light, dark, and custom
+///   user palettes.
+/// - **Hover (`WidgetState.hovered`) & Pressed (`WidgetState.pressed`)**:
+///   Applies distinct `onPrimary` overlays and border emphasis without
+///   relying on hover-only guidance.
+/// - **Disabled (`WidgetState.disabled`)**: Uses muted `onSurface` fill (`12%`)
+///   and foreground (`55%`) with transparent overlay.
+ButtonStyle kinaiyaPrimaryButtonStyle(ColorScheme scheme, {Color? actionInk}) {
+  final focusInk = actionInk ?? _readableActionInk(scheme);
+  final focusRing = _contrast(focusInk, scheme.primary) >= 3.0
+      ? focusInk
+      : scheme.onPrimary;
+  return ButtonStyle(
+    minimumSize: const WidgetStatePropertyAll<Size>(Size(48, 48)),
+    padding: const WidgetStatePropertyAll<EdgeInsetsGeometry>(
+      EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+    ),
+    textStyle: const WidgetStatePropertyAll<TextStyle>(
+      TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+    ),
+    shape: WidgetStatePropertyAll<OutlinedBorder>(
+      RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    ),
+    backgroundColor: WidgetStateProperty.resolveWith<Color?>((states) {
+      if (states.contains(WidgetState.disabled)) {
+        return scheme.onSurface.withValues(alpha: 0.12);
+      }
+      return scheme.primary;
+    }),
+    foregroundColor: WidgetStateProperty.resolveWith<Color?>((states) {
+      if (states.contains(WidgetState.disabled)) {
+        return scheme.onSurface.withValues(alpha: 0.55);
+      }
+      return scheme.onPrimary;
+    }),
+    overlayColor: WidgetStateProperty.resolveWith<Color?>((states) {
+      if (states.contains(WidgetState.disabled)) {
+        return Colors.transparent;
+      }
+      if (states.contains(WidgetState.pressed)) {
+        return scheme.onPrimary.withValues(alpha: 0.24);
+      }
+      if (states.contains(WidgetState.focused)) {
+        return scheme.onPrimary.withValues(alpha: 0.16);
+      }
+      if (states.contains(WidgetState.hovered)) {
+        return scheme.onPrimary.withValues(alpha: 0.12);
+      }
+      return null;
+    }),
+    side: WidgetStateProperty.resolveWith<BorderSide?>((states) {
+      if (states.contains(WidgetState.disabled)) {
+        return BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.45));
+      }
+      if (states.contains(WidgetState.focused)) {
+        return BorderSide(color: focusRing, width: 2);
+      }
+      if (states.contains(WidgetState.pressed)) {
+        return BorderSide(color: focusRing.withValues(alpha: 0.85), width: 1.5);
+      }
+      if (states.contains(WidgetState.hovered)) {
+        return BorderSide(color: focusRing.withValues(alpha: 0.65), width: 1);
+      }
+      return BorderSide.none;
+    }),
+  );
+}
+
+/// Reusable sidebar navigation destination with unified keyboard focus, hover,
+/// pressed, selected, and disabled feedback.
+///
+/// Preserves:
+/// - Minimum 48x48 interactive touch target.
+/// - Contrast-safe focus ring, hover fill, and pressed highlight across default
+///   and user-configured palettes.
+/// - Screen reader labels/states and single-dispatch keyboard activation
+///   (`Enter` / `Space`).
+class KinaiyaSidebarDestination extends StatefulWidget {
+  const KinaiyaSidebarDestination({
+    super.key,
+    required this.title,
+    this.subtitle,
+    this.leading,
+    this.selected = false,
+    this.enabled = true,
+    this.onTap,
+  });
+
+  final String title;
+  final String? subtitle;
+  final Widget? leading;
+  final bool selected;
+  final bool enabled;
+  final VoidCallback? onTap;
+
+  @override
+  State<KinaiyaSidebarDestination> createState() =>
+      _KinaiyaSidebarDestinationState();
+}
+
+class _KinaiyaSidebarDestinationState extends State<KinaiyaSidebarDestination> {
+  bool _focused = false;
+  bool _hovered = false;
+  bool _pressed = false;
+
+  bool get _interactive => widget.enabled && widget.onTap != null;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final actionInk = _readableActionInk(scheme);
+
+    final Color bg;
+    if (!_interactive) {
+      bg = scheme.onSurface.withValues(alpha: 0.05);
+    } else if (_pressed) {
+      bg = Color.alphaBlend(
+        actionInk.withValues(alpha: 0.20),
+        widget.selected ? scheme.primaryContainer : scheme.surfaceContainerLow,
+      );
+    } else if (_hovered || _focused) {
+      bg = Color.alphaBlend(
+        actionInk.withValues(alpha: 0.12),
+        widget.selected ? scheme.primaryContainer : scheme.surfaceContainerLow,
+      );
+    } else if (widget.selected) {
+      bg = scheme.primaryContainer;
+    } else {
+      bg = Colors.transparent;
+    }
+
+    final Color fg = !_interactive
+        ? scheme.onSurface.withValues(alpha: 0.50)
+        : widget.selected
+        ? scheme.onPrimaryContainer
+        : scheme.onSurface;
+
+    final BorderSide borderSide;
+    if (!_interactive) {
+      borderSide = BorderSide(
+        color: scheme.outlineVariant.withValues(alpha: 0.35),
+      );
+    } else if (_focused) {
+      borderSide = BorderSide(color: actionInk, width: 2);
+    } else if (_pressed) {
+      borderSide = BorderSide(color: actionInk, width: 1.5);
+    } else if (_hovered || widget.selected) {
+      borderSide = BorderSide(
+        color: widget.selected ? actionInk : scheme.outlineVariant,
+        width: 1,
+      );
+    } else {
+      borderSide = BorderSide.none;
+    }
+
+    return Semantics(
+      selected: widget.selected,
+      enabled: _interactive,
+      button: true,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+        child: Material(
+          color: bg,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+            side: borderSide,
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            canRequestFocus: _interactive,
+            onTap: _interactive ? widget.onTap : null,
+            onFocusChange: (value) => setState(() => _focused = value),
+            onHover: (value) => setState(() => _hovered = value),
+            onHighlightChanged: (value) => setState(() => _pressed = value),
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              child: Row(
+                children: [
+                  if (widget.leading != null) ...[
+                    IconTheme.merge(
+                      data: IconThemeData(color: fg, size: 20),
+                      child: widget.leading!,
+                    ),
+                    const SizedBox(width: 12),
+                  ],
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.title,
+                          style: theme.textTheme.bodyLarge?.copyWith(
+                            color: fg,
+                            fontWeight: widget.selected || _focused
+                                ? FontWeight.w600
+                                : FontWeight.w500,
+                          ),
+                        ),
+                        if (widget.subtitle != null) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            widget.subtitle!,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: fg.withValues(alpha: 0.82),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

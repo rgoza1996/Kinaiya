@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import '../config/connection.dart';
 import '../config/credential_picker.dart';
 import '../state/app_state.dart';
+import 'visual_theme.dart';
 import 'widgets.dart';
 
 /// Connection setup: service URLs plus an owner access token password field.
@@ -378,6 +379,8 @@ class _SetupDialogState extends State<SetupDialog> {
             Align(
               alignment: Alignment.centerLeft,
               child: FilledButton(
+                key: const ValueKey('setup-connect-primary-action'),
+                style: kinaiyaPrimaryButtonStyle(Theme.of(context).colorScheme),
                 onPressed: _connect,
                 child: Text(
                   widget.privacyOnly ? 'Apply disclosure choice' : 'Connect',
