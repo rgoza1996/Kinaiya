@@ -507,6 +507,19 @@ The owner prioritized the intermittent bubble CI failure and trailing-slash conn
 
 Local evidence uses pinned Flutter 3.47.8: `flutter test --no-pub` passed 771 tests after the production fixes, before the final WebSocket test was added; `flutter test --no-pub test/events_service_root_test.dart test/service_root_test.dart` then passed all nine tests at the cutoff. `flutter analyze --no-pub` and 33 `node --test web/audio_bridge.test.js` tests passed. The loopback test runs actual HTTP upgrades and first-frame auth with synthetic data, without live Kinaiya services or paid inference. Full builds and exact-head CI are recorded in the associated PR rather than inferred from local test counts. This work does not change the running preview, production provider settings or milestone acceptance gates.
 
+Two later test-only repairs preserve production timing and actual ownership.
+[#273](https://github.com/rgoza1996/Kinaiya/issues/273) scopes an injected restart
+fault to the blocked append and retains the acquired response's original close;
+its full 158-case recovery module passed. [#277](https://github.com/rgoza1996/Kinaiya/issues/277)
+retains the genuine Session-read child inside the deliberately cancellation-resistant
+steering fixture, with an explicit delayed-read gate and the original whole
+50ms request bound. All 69 native-mode tests passed at `ec44121`. The
+[restart evidence](../evaluation/evidence/restart-barrier-fault-2026-11-01.json)
+and [steering evidence](../evaluation/evidence/steer-preflight-fixture-2026-11-01.json)
+retain original CI failures, controlled diagnostics, independent review and
+remaining limits. These are harness checks, not model-accuracy qualification;
+applicable exact-head CI is still required before merge.
+
 ## Optional Converse memory
 
 The Korina DAG began as a prototype specification, not an existing implementation to port. Current opt-in [memory core](adr/0047-converse-memory-core.md), [selected recall](adr/0051-converse-selected-recall.md) and [owner UI](adr/0052-converse-memory-owner-ui.md) implement scoped owner-curated source-pinned notes, immutable hard dependencies, correction/refutation reconciliation, bounded complete closure, forgetting and explicit selected use. Saved namespace access and runtime selected use are separate; runtime use starts off after restart. Another backend remains an explicit interface/compatibility responsibility, not a claim that a second backend is already delivered.
