@@ -2125,6 +2125,10 @@ class _CharacterViewState extends State<CharacterView> {
                           ),
                           notice: notice,
                           attachedToMessage: false,
+                          destinationStatus: _s.handoffTaskDestinationStatus(
+                            notice,
+                          ),
+                          onOpenTask: () => _s.openHandoffTask(notice),
                         ),
                         null => MessageBubble(
                           role: m.role,
@@ -2144,6 +2148,10 @@ class _CharacterViewState extends State<CharacterView> {
                     ConverseHandoffStatusBanner(
                       key: ValueKey('converse-handoff-${notice.sourceEventId}'),
                       notice: notice,
+                      destinationStatus: _s.handoffTaskDestinationStatus(
+                        notice,
+                      ),
+                      onOpenTask: () => _s.openHandoffTask(notice),
                     ),
                 ],
               ),
@@ -3103,10 +3111,25 @@ class ConverseHandoffStatusBanner extends StatelessWidget {
     super.key,
     required this.notice,
     this.attachedToMessage = true,
+    this.destinationStatus = HandoffTaskDestinationStatus.none,
+    this.onOpenTask,
   });
 
   final HandoffNotice notice;
   final bool attachedToMessage;
+  final HandoffTaskDestinationStatus destinationStatus;
+  final VoidCallback? onOpenTask;
+
+  String? get _destinationMessage => switch (destinationStatus) {
+    HandoffTaskDestinationStatus.none ||
+    HandoffTaskDestinationStatus.known => null,
+    HandoffTaskDestinationStatus.missing =>
+      'Task ${notice.nativeTaskId} is unavailable or retired in current Agent tasks.',
+    HandoffTaskDestinationStatus.stale =>
+      'Task ${notice.nativeTaskId} belongs to an earlier session or epoch.',
+    HandoffTaskDestinationStatus.unauthorized =>
+      'Reconnect to inspect task ${notice.nativeTaskId} in Agent.',
+  };
 
   IconData get _icon => switch (notice.status) {
     HandoffStatus.queued => Icons.schedule_rounded,
@@ -3191,6 +3214,40 @@ class ConverseHandoffStatusBanner extends StatelessWidget {
                 key: ValueKey('converse-handoff-text-${notice.sourceEventId}'),
                 style: TextStyle(fontSize: 12, color: fg, height: 1.35),
               ),
+              if (notice.hasConfirmedTaskIdentifier &&
+                  destinationStatus == HandoffTaskDestinationStatus.known &&
+                  onOpenTask != null)
+                TextButton.icon(
+                  key: ValueKey(
+                    'converse-handoff-open-task-${notice.sourceEventId}',
+                  ),
+                  style: TextButton.styleFrom(
+                    foregroundColor: fg,
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                  ),
+                  onPressed: onOpenTask,
+                  icon: const Icon(Icons.open_in_new_rounded, size: 15),
+                  label: const Text(
+                    'Open task',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                  ),
+                )
+              else if (_destinationMessage case final destText?)
+                Text(
+                  destText,
+                  key: ValueKey(
+                    'converse-handoff-destination-status-${notice.sourceEventId}',
+                  ),
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontStyle: FontStyle.italic,
+                    color: fg,
+                  ),
+                ),
             ],
           ),
         ),
