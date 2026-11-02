@@ -68,7 +68,9 @@ class StandingResourceClient:
             if pending:
                 raise StandingUnavailable
 
-    async def _exchange(self, suffix, original, kind, result_type, *, nullable=False, _deadline=None):
+    async def _exchange(
+        self, suffix, original, kind, result_type, *, nullable=False, _deadline=None
+    ):
         exchange = None
         loop = asyncio.get_running_loop()
         deadline = loop.time() + 25 if _deadline is None else _deadline
