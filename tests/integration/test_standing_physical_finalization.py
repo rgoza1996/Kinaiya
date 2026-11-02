@@ -38,6 +38,7 @@ from packages.contracts.models import ProviderInfo
 from packages.contracts.standing_resource_finalization import (
     StandingResourceBindingReceipt,
     StandingResourceFinalizationReceipt,
+    StandingResourceFinalizeContext,
     StandingResourceFinalizeRequest,
 )
 from packages.contracts.standing_resources import (
@@ -1221,12 +1222,44 @@ async def test_original_response_close_failure_remains_sticky_after_registry_emp
     assert any((body.failed or body.cancelled) and body.closed for body in value.native.bodies)
 
 
+class ObservedPhysicalFence:
+    """Observe a full native context and the unchanged real Resources fence."""
+
+    def __init__(self, value, monkeypatch):
+        self.entered = asyncio.Event()
+        self.contexts = []
+        original_context = value.gateway.standing_resource_finalize_context
+        original_fence = value.coordinator.standing_barrier.fence
+
+        async def context(request):
+            result = await original_context(request)
+            assert type(result) is StandingResourceFinalizeContext
+            self.contexts.append(result.validate_request(request))
+            return result
+
+        def fence(task_id, request):
+            original_fence(task_id, request)
+            assert task_id == value.packet.task.task_id
+            assert request.canonical_bytes() == value.request.canonical_bytes()
+            assert self.contexts and self.contexts[-1].request == request
+            assert self.contexts[-1].binding == value.binding.request
+            assert self.contexts[-1].closure.initial == value.initial
+            barrier = value.coordinator.standing_barrier
+            assert barrier.sealed(task_id)
+            assert barrier.seal_requests[task_id] == request.canonical_bytes().decode()
+            self.entered.set()
+
+        monkeypatch.setattr(value.gateway, "standing_resource_finalize_context", context)
+        monkeypatch.setattr(value.coordinator.standing_barrier, "fence", fence)
+
+
 async def test_actual_worker_reaper_prevents_empty_ids_from_becoming_positive(
     physical, monkeypatch
 ):
     value = await physical()
     await bound(value)
     child = await ready(value)
+    fence = ObservedPhysicalFence(value, monkeypatch)
     entered, release = asyncio.Event(), asyncio.Event()
     value.releases.append(release)
     actual = value.coordinator.manager._wait_reap
@@ -1240,10 +1273,19 @@ async def test_actual_worker_reaper_prevents_empty_ids_from_becoming_positive(
     monkeypatch.setattr(value.coordinator.manager, "_wait_reap", reaper)
     capture = handoff(value)
     await gate_entered(entered)
+    original = value.coordinator.standing_handoff.attempts[value.payload["idempotency_key"]]
+    managed = value.coordinator.manager._workers["whistle"]
+    leader_fd = managed.leader_fd
+    assert original.task in original.ownership.handles and not original.task.done()
+    assert managed.process is child and leader_fd is not None
     await closure(value)
     finalizer = begin(value)
     await asyncio.sleep(0)
     await no_report_yet(value, finalizer)
+    await gate_entered(fence.entered, 8)
+    assert not release.is_set() and not original.task.done() and not capture.done()
+    assert managed.process is child and managed.leader_fd == leader_fd
+    assert reports(value) == []
     assert value.coordinator.state.record.lease_id is None
     assert value.coordinator.manager._workers["whistle"].leader_fd is not None
     release.set()
@@ -1253,18 +1295,30 @@ async def test_actual_worker_reaper_prevents_empty_ids_from_becoming_positive(
     await completed(value, "registered-no-lease", "restored", reservation)
 
 
-async def test_preemption_intent_commits_before_lifecycle_lock_and_requires_restoration(physical):
+async def test_preemption_intent_commits_before_lifecycle_lock_and_requires_restoration(
+    physical, monkeypatch
+):
     value = await physical()
     await bound(value)
     await ready(value)
+    fence = ObservedPhysicalFence(value, monkeypatch)
+    child = value.coordinator.manager._workers["whistle"].process
+    assert child is not None and child.returncode is None
     await value.coordinator.lock.acquire()
     try:
         capture = handoff(value)
         await gate_entered(value.effects_entered)
+        original = value.coordinator.standing_handoff.attempts[value.payload["idempotency_key"]]
+        assert original.task in original.ownership.handles and not original.task.done()
+        assert original.effects_started and value.coordinator.state.record.lease_id is None
         await closure(value)
         finalizer = begin(value)
         await asyncio.sleep(0)
         await no_report_yet(value, finalizer)
+        await gate_entered(fence.entered, 8)
+        assert value.coordinator.lock.locked() and not original.task.done() and not capture.done()
+        assert value.coordinator.manager._workers["whistle"].process is child
+        assert value.coordinator.state.record.lease_id is None and reports(value) == []
     finally:
         value.coordinator.lock.release()
     await asyncio.gather(capture, finalizer, return_exceptions=True)
