@@ -149,23 +149,28 @@ def _request_json(claim):
     return raw
 
 
+def _entry_against_request(entry, expected):
+    # Each caller builds expected after checking its claim in this invocation.
+    raw = _entry_json(entry)
+    actual = {key: raw[key] for key in _REQUEST_FIELDS}
+    # JSON identity distinguishes bool/int and every nested field. Python
+    # equality alone would incorrectly equate True with 1 and tuples/lists.
+    if _encode(actual) != _encode(expected):
+        raise ValueError(_ERROR)
+    detached = json.loads(_encode(raw))
+    detached["created_at"] = _timestamp(detached["created_at"])
+    result = JournalEntry.model_validate(detached, strict=True)
+    if len(result.model_dump_json().encode("utf-8")) > _MAX_ENTRY_BYTES:
+        raise ValueError(_ERROR)
+    return result
+
+
 def standing_entry(entry, claim: StandingExecutionClaim) -> JournalEntry:
     """Validate an existing complete entry; never infer native provenance."""
     try:
         claim = _checked(claim, StandingExecutionClaim)
-        raw = _entry_json(entry)
         expected = _request_json(claim)
-        actual = {key: raw[key] for key in _REQUEST_FIELDS}
-        # JSON identity distinguishes bool/int and every nested field. Python
-        # equality alone would incorrectly equate True with 1 and tuples/lists.
-        if _encode(actual) != _encode(expected):
-            raise ValueError(_ERROR)
-        detached = json.loads(_encode(raw))
-        detached["created_at"] = _timestamp(detached["created_at"])
-        result = JournalEntry.model_validate(detached, strict=True)
-        if len(result.model_dump_json().encode("utf-8")) > _MAX_ENTRY_BYTES:
-            raise ValueError(_ERROR)
-        return result
+        return _entry_against_request(entry, expected)
     except _FAILURES:
         raise ValueError(_ERROR) from None
 
@@ -179,15 +184,16 @@ def standing_entry_digest(
         _event_id(event_id)
         _sequence(sequence)
         _timestamp(created_at)
-        entry = standing_entry(
+        expected = _request_json(claim)
+        entry = _entry_against_request(
             {
-                **_request_json(claim),
+                **expected,
                 "event_id": event_id,
                 "sequence": sequence,
                 "origin": "standing-supervisor",
                 "created_at": created_at,
             },
-            claim,
+            expected,
         )
         body = {
             "claim_id": claim.claim_id,
