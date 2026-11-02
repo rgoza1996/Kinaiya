@@ -72,6 +72,7 @@
         "protocol": {
           "enum": [
             "laya_systemone",
+            "native_d1_systemone",
             "host_configured"
           ],
           "title": "Protocol",
@@ -235,6 +236,7 @@
     "request_format": {
       "enum": [
         "laya_systemone",
+        "native_d1_systemone",
         "chat_completions",
         "responses",
         "not_submitted",

@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import math
 import os
 import re
 import secrets
@@ -181,6 +182,38 @@ class LayaProfile(TextProfile):
         return self
 
 
+class NativeD1Profile(TextProfile):
+    kind: Literal["native_d1"]
+    allow_cloud: Literal[False] = False
+    credential: CredentialBinding | None = None
+    timeout_s: int = Field(default=5, ge=1, le=120)
+    min_confidence: float = Field(ge=0, le=1, allow_inf_nan=False)
+
+    @field_validator("allow_cloud", mode="before")
+    @classmethod
+    def local_only(cls, value):
+        if type(value) is not bool or value is not False:
+            raise ValueError("Native d1 is local only")
+        return value
+
+    @model_validator(mode="after")
+    def native(self):
+        parsed = urlsplit(self.base_url)
+        self.base_url = _origin(self.base_url, cloud=False)
+        if (
+            parsed.port is None
+            or parsed.path not in {"", "/"}
+            or re.fullmatch(
+                r"(?:localhost|127\.0\.0\.1|\[::1\]):[0-9]+", parsed.netloc, re.IGNORECASE
+            )
+            is None
+        ):
+            raise ValueError("Native d1 requires an explicit loopback port and server root")
+        if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,127}", self.model) is None:
+            raise ValueError("Native d1 requires a bounded canonical model alias")
+        return self
+
+
 class MetaSTTProfile(StrictSettings):
     kind: Literal["meta_stt"]
     base_url: str = Field(min_length=1, max_length=2048)
@@ -235,6 +268,7 @@ ProfileConfig = Annotated[
     | CompatibleProfile
     | LMStudioProfile
     | LayaProfile
+    | NativeD1Profile
     | MetaSTTProfile
     | OpenRouterTTSProfile,
     Field(discriminator="kind"),
@@ -307,7 +341,7 @@ def _canonical(value):
     )
 
 
-def _stored_json(value, limit):
+def _stored_json(value, limit, *, profile_config=False):
     """Parse a projected bounded stored document without duplicate/unsafe JSON."""
     if type(value) is not str or not 1 <= len(value.encode("utf-8")) <= limit:
         raise ValueError("Stored provider document exceeds its bound")
@@ -325,26 +359,40 @@ def _stored_json(value, limit):
 
     try:
         decoded = json.loads(value, object_pairs_hook=unique, parse_constant=constant)
-        pending, nodes = [(decoded, 0)], 0
+        pending, nodes = [(decoded, 0, False)], 0
         while pending:
-            item, depth = pending.pop()
+            item, depth, confidence = pending.pop()
             nodes += 1
             if depth > 16 or nodes > 1024:
                 raise ValueError("Stored provider document exceeds its structural bound")
             if type(item) is dict:
                 if len(item) > 32:
                     raise ValueError("Stored provider document exceeds its field bound")
-                pending.extend((key, depth + 1) for key in item)
-                pending.extend((child, depth + 1) for child in item.values())
+                pending.extend((key, depth + 1, False) for key in item)
+                pending.extend(
+                    (
+                        child,
+                        depth + 1,
+                        profile_config
+                        and depth == 0
+                        and item.get("kind") == "native_d1"
+                        and key == "min_confidence",
+                    )
+                    for key, child in item.items()
+                )
             elif type(item) is list:
                 if len(item) > 64:
                     raise ValueError("Stored provider document exceeds its item bound")
-                pending.extend((child, depth + 1) for child in item)
+                pending.extend((child, depth + 1, False) for child in item)
             elif type(item) is str:
                 item.encode("utf-8")
             elif type(item) is int:
                 if not -MAX_REVISION <= item <= MAX_REVISION:
                     raise ValueError("Stored provider document has an unsafe integer")
+            elif type(item) is float and confidence and math.isfinite(item) and 0 <= item <= 1:
+                # Only this new declaration field admits fractional JSON. Keep
+                # receipt counters, legacy profiles and nested fields integral.
+                pass
             elif item is not None and type(item) is not bool:
                 raise ValueError("Stored provider document has an invalid primitive")
         return decoded
@@ -527,7 +575,7 @@ class ProviderCatalog:
         from pydantic import TypeAdapter
 
         config = TypeAdapter(ProfileConfig).validate_python(
-            _stored_json(version[2], _CONFIG_BYTES), strict=True
+            _stored_json(version[2], _CONFIG_BYTES, profile_config=True), strict=True
         )
         canonical = _canonical(config.model_dump(mode="json"))
         if hashlib.sha256(canonical.encode("utf-8")).hexdigest() != version[1]:
@@ -584,7 +632,7 @@ class ProviderCatalog:
                     else ["stt"]
                     if kind == "meta_stt"
                     else ["decisions"]
-                    if kind == "laya"
+                    if kind in {"laya", "native_d1"}
                     else ["agent", "converse", "auxiliary"]
                     if kind == "lmstudio"
                     else ["agent", "converse", "decisions", "auxiliary"],

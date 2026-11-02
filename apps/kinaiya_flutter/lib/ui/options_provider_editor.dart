@@ -45,6 +45,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
   final _max = TextEditingController(), _context = TextEditingController();
   final _timeout = TextEditingController(), _maxLen = TextEditingController();
   final _headLen = TextEditingController(), _artifact = TextEditingController();
+  final _confidence = TextEditingController();
   final _credentialId = TextEditingController(), _key = TextEditingController();
   ProviderCatalogSnapshot? _catalog;
   ProviderProfile? _editing;
@@ -111,6 +112,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
       _maxLen,
       _headLen,
       _artifact,
+      _confidence,
       _credentialId,
       _key,
     ]) {
@@ -320,6 +322,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
       _maxLen.text = '${config?['max_len'] ?? ''}';
       _headLen.text = '${config?['head_max_len'] ?? ''}';
       _artifact.text = config?['expected_artifact_sha256'] as String? ?? '';
+      _confidence.text = '${config?['min_confidence'] ?? ''}';
       _credential = profile?.credential?.value;
     });
   }
@@ -390,6 +393,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
       'allow_cloud': _cloud,
       if (_kind != 'lmstudio') 'credential': credential,
       if (_kind != 'laya' &&
+          _kind != 'native_d1' &&
           _kind != 'meta_stt' &&
           _kind != 'openrouter_tts') ...{
         'max_tokens': int.tryParse(_max.text),
@@ -400,6 +404,8 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
             ? null
             : int.tryParse(_context.text),
       if (_kind != 'meta') 'timeout_s': int.tryParse(_timeout.text),
+      if (_kind == 'native_d1')
+        'min_confidence': double.tryParse(_confidence.text),
       if (_kind == 'laya') ...{
         'max_len': _maxLen.text.isEmpty ? null : int.tryParse(_maxLen.text),
         'head_max_len': _headLen.text.isEmpty
@@ -480,6 +486,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
     String? Function(String?)? validator,
     String? help,
     bool numeric = false,
+    bool decimal = false,
     bool secret = false,
   }) => TextFormField(
     controller: controller,
@@ -490,7 +497,9 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
     enableSuggestions: !secret,
     enableIMEPersonalizedLearning: !secret,
     autofillHints: secret ? const [] : null,
-    keyboardType: numeric
+    keyboardType: decimal
+        ? const TextInputType.numberWithOptions(decimal: true)
+        : numeric
         ? TextInputType.number
         : secret
         ? TextInputType.visiblePassword
@@ -615,6 +624,10 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
               value: 'laya',
               child: Text('Laya · typed Decisions'),
             ),
+            DropdownMenuItem(
+              value: 'native_d1',
+              child: Text('D1 · native local Decisions'),
+            ),
           ],
           onChanged: _enabled
               ? (kind) {
@@ -643,7 +656,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
                       _timeout.text =
                           kind == 'meta_stt' || kind == 'openrouter_tts'
                           ? '120'
-                          : kind == 'laya'
+                          : kind == 'laya' || kind == 'native_d1'
                           ? '5'
                           : kind == 'lmstudio'
                           ? '60'
@@ -652,6 +665,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
                       _maxLen.clear();
                       _headLen.clear();
                       _artifact.clear();
+                      _confidence.clear();
                       _endpoint.clear();
                       if (kind == 'lmstudio') _credential = null;
                     });
@@ -670,6 +684,8 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
               ? 'Exact https://openrouter.ai/api/v1 origin, or an explicit loopback HTTP /api/v1 gateway.'
               : _kind == 'lmstudio'
               ? 'Explicit loopback native endpoint with a port, such as http://127.0.0.1:1234.'
+              : _kind == 'native_d1'
+              ? 'Local root URL with an explicit port, such as http://127.0.0.1:8816. No /v1 path.'
               : 'No embedded credentials, queries or fragments. Remote origins require HTTPS.',
         ),
         _field(
@@ -700,7 +716,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
           const Text(
             'Meta is a cloud provider, including when reached through a local budget gateway. Contributor disclosure restrictions still apply.',
           ),
-        if (_kind != 'lmstudio')
+        if (_kind != 'lmstudio' && _kind != 'native_d1')
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             value: _cloud,
@@ -768,6 +784,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
             'To register or rotate a key, use Credentials. Rotation retires the old generation for new use; update each affected profile explicitly.',
           ),
         if (_kind != 'laya' &&
+            _kind != 'native_d1' &&
             _kind != 'meta_stt' &&
             _kind != 'openrouter_tts') ...[
           _field(
@@ -822,7 +839,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
             validator: (v) => _number(
               v,
               1,
-              _kind == 'laya'
+              _kind == 'laya' || _kind == 'native_d1'
                   ? 120
                   : _kind == 'meta_stt'
                   ? 300
@@ -831,6 +848,25 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
                   : 900,
             ),
           ),
+        if (_kind == 'native_d1') ...[
+          _field(
+            _confidence,
+            'Minimum decision confidence',
+            maxLength: 24,
+            decimal: true,
+            validator: (value) {
+              final floor = double.tryParse(value ?? '');
+              return floor == null || !floor.isFinite || floor < 0 || floor > 1
+                  ? 'Enter a number from 0 to 1.'
+                  : null;
+            },
+            help:
+                'Choose your refusal threshold. This is not measured accuracy.',
+          ),
+          const Text(
+            'Native d1 provides text Decisions only. Lower-confidence decisions are refused. Saving does not run or load a model, check readiness, or enable audio.',
+          ),
+        ],
         if (_kind == 'laya') ...[
           const Text(
             'Laya returns typed choices. It has no conversational reasoning or voice controls.',
