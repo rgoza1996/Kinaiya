@@ -297,10 +297,11 @@ class _AgentChatState extends State<AgentChat> {
   final Map<String, GlobalKey> _historyKeys = {};
   int _historyJump = 0;
   String? _lastJumpedMessage;
-  bool _detailsInline = false;
-  bool _harnessCollapsed = false,
-      _sessionsCollapsed = false,
-      _showDetails = true;
+  bool _canShowDetailsInline = false;
+  bool _harnessCollapsed = false, _sessionsCollapsed = false;
+  bool? _detailsVisibilityOverride;
+  bool _effectiveShowDetails(AgentTask? selected) =>
+      _detailsVisibilityOverride ?? (selected != null);
   double _harnessWidth = 246;
   double _sessionsWidth = 260;
   double _detailsWidth = AgentDesign.detailsWidth;
@@ -438,6 +439,7 @@ class _AgentChatState extends State<AgentChat> {
     _lastJumpedMessage = null;
     _steerScopes.clear();
     _selectedTaskId = null;
+    _detailsVisibilityOverride = null;
     if (_input.text != _s.agentDraft) _input.text = _s.agentDraft;
     for (final controller in _steer.values) {
       controller.clear();
@@ -1749,7 +1751,7 @@ class _AgentChatState extends State<AgentChat> {
         const SizedBox(height: 8),
         IconButton(
           tooltip: 'Expand details',
-          onPressed: () => setState(() => _showDetails = true),
+          onPressed: () => setState(() => _detailsVisibilityOverride = true),
           icon: const Icon(Icons.chevron_left),
         ),
       ],
@@ -2347,10 +2349,11 @@ class _AgentChatState extends State<AgentChat> {
                   3 * AgentDesign.sidebarResizeWidth +
                   AgentDesign.detailsMinWidth +
                   AgentDesign.conversationMinWidth;
-      _detailsInline = canShowDetails && _showDetails;
+      _canShowDetailsInline = canShowDetails;
       final tasks = _s.selectedAgentTasks;
       final matches = tasks.where((t) => t.taskId == _selectedTaskId);
       final selected = matches.firstOrNull ?? tasks.lastOrNull;
+      final showDetails = _effectiveShowDetails(selected);
       final panes = Column(
         children: [
           if (!wide)
@@ -2387,7 +2390,7 @@ class _AgentChatState extends State<AgentChat> {
                       ? 2 * AgentDesign.sidebarResizeWidth
                       : 0.0;
                   final detailsMinimum = canShowDetails
-                      ? (_showDetails
+                      ? (showDetails
                                 ? AgentDesign.detailsMinWidth
                                 : AgentDesign.sidebarCollapsedWidth) +
                             AgentDesign.sidebarResizeWidth
@@ -2430,7 +2433,7 @@ class _AgentChatState extends State<AgentChat> {
                     maximumDetailsWidth,
                   );
                   final detailsOccupied = canShowDetails
-                      ? (_showDetails
+                      ? (showDetails
                                 ? detailsWidth
                                 : AgentDesign.sidebarCollapsedWidth) +
                             AgentDesign.sidebarResizeWidth
@@ -2514,35 +2517,36 @@ class _AgentChatState extends State<AgentChat> {
                         _SidebarResizeHandle(
                           key: const ValueKey('agent-details-resize-handle'),
                           label: 'task details',
-                          width: _showDetails
+                          width: showDetails
                               ? detailsWidth
                               : AgentDesign.sidebarCollapsedWidth,
                           minimum: AgentDesign.detailsMinWidth,
                           maximum: maximumDetailsWidth,
                           growsRight: false,
-                          collapsed: !_showDetails,
+                          collapsed: !showDetails,
                           restoreWidth: _detailsWidth,
                           onResize: (value) =>
                               setState(() => _detailsWidth = value),
                           onCollapse: (previous) => setState(() {
                             _detailsWidth = previous;
-                            _showDetails = false;
+                            _detailsVisibilityOverride = false;
                           }),
                           onExpand: (value) => setState(() {
                             _detailsWidth = value;
-                            _showDetails = true;
+                            _detailsVisibilityOverride = true;
                           }),
                         ),
-                        if (_showDetails)
+                        if (showDetails)
                           SizedBox(
                             width: detailsWidth,
                             child: _details(
                               selected,
-                              onCollapse: () =>
-                                  setState(() => _showDetails = false),
+                              onCollapse: () => setState(
+                                () => _detailsVisibilityOverride = false,
+                              ),
                             ),
                           ),
-                        if (!_showDetails) _collapsedDetails(),
+                        if (!showDetails) _collapsedDetails(),
                       ],
                     ],
                   );
@@ -2565,8 +2569,11 @@ class _AgentChatState extends State<AgentChat> {
   );
 
   void _inspectTask(AgentTask task) {
-    setState(() => _selectedTaskId = task.taskId);
-    if (!_detailsInline) {
+    setState(() {
+      _selectedTaskId = task.taskId;
+      _detailsVisibilityOverride = true;
+    });
+    if (!_canShowDetailsInline) {
       showModalBottomSheet<void>(
         context: context,
         isScrollControlled: true,

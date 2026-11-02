@@ -573,4 +573,117 @@ void main() {
       }
     },
   );
+
+  testWidgets(
+    'Task details pane collapses when no task is selected, opens on task selection, and preserves explicit collapse across refresh and session switches',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1560, 1000);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final api = WorkspaceUiApi()
+        ..fixtures = [
+          AgentTask(
+            taskId: 't-1',
+            sessionId: 'b',
+            threadId: 'thread-b',
+            epoch: 1,
+            objective: 'First synthetic task',
+            objectiveRevision: 1,
+            state: 'running',
+            idempotencyKey: 'k-1',
+          ),
+          AgentTask(
+            taskId: 't-2',
+            sessionId: 'b',
+            threadId: 'thread-b',
+            epoch: 1,
+            objective: 'Second synthetic task',
+            objectiveRevision: 1,
+            state: 'succeeded',
+            idempotencyKey: 'k-2',
+          ),
+        ];
+
+      final state = wired(api);
+      await state.refreshAgentHarnesses();
+      await state.selectAgentHarness('seed-v1');
+      await state.selectAgentSession('a');
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ListenableBuilder(
+              listenable: state,
+              builder: (_, _) => AgentChat(state: state),
+            ),
+          ),
+        ),
+      );
+      await settle(tester);
+
+      // 1. Fresh no-task workspace leaves details collapsed with accessible expand affordance.
+      expect(find.byKey(const ValueKey('agent-details-panel')), findsNothing);
+      expect(
+        find.byKey(const ValueKey('agent-details-collapsed')),
+        findsOneWidget,
+      );
+      expect(find.byTooltip('Expand details'), findsOneWidget);
+
+      // 2. Switching to a session with tasks makes details visible; entering a draft keeps it across details toggles.
+      await state.selectAgentSession('b');
+      await settle(tester);
+      await tester.enterText(
+        find.byKey(const ValueKey('agent-input')),
+        'Draft for task session',
+      );
+      await tester.pump();
+      expect(find.byKey(const ValueKey('agent-details-panel')), findsOneWidget);
+      expect(find.text('Second synthetic task'), findsWidgets);
+      expect(state.agentDraft, 'Draft for task session');
+
+      // 3. Explicit collapse choice is preserved across routine refresh/polling.
+      await tester.tap(find.byTooltip('Collapse details'));
+      await tester.pump();
+      expect(find.byKey(const ValueKey('agent-details-panel')), findsNothing);
+      expect(
+        find.byKey(const ValueKey('agent-details-collapsed')),
+        findsOneWidget,
+      );
+      await tester.pump(const Duration(seconds: 5));
+      await settle(tester);
+      expect(find.byKey(const ValueKey('agent-details-panel')), findsNothing);
+
+      // 4. Selecting a task via Inspect task reopens the inline details pane on desktop without losing drafts.
+      await tester.tap(find.widgetWithText(TextButton, 'Inspect task').first);
+      await settle(tester);
+      expect(find.byKey(const ValueKey('agent-details-panel')), findsOneWidget);
+      expect(state.agentDraft, 'Draft for task session');
+
+      // 5. Switching back to an empty session collapses details again.
+      await state.selectAgentSession('a');
+      await settle(tester);
+      expect(find.byKey(const ValueKey('agent-details-panel')), findsNothing);
+      expect(
+        find.byKey(const ValueKey('agent-details-collapsed')),
+        findsOneWidget,
+      );
+
+      // 6. Narrow layout keeps task inspection reachable via modal bottom sheet.
+      tester.view.physicalSize = const Size(360, 800);
+      await state.selectAgentSession('b');
+      await settle(tester);
+      await tester.ensureVisible(
+        find.widgetWithText(TextButton, 'Inspect task').first,
+      );
+      await tester.tap(find.widgetWithText(TextButton, 'Inspect task').first);
+      await settle(tester);
+      expect(find.text('Task details'), findsOneWidget);
+      Navigator.of(tester.element(find.text('Task details'))).pop();
+      await settle(tester);
+
+      expect(tester.takeException(), isNull);
+      await close(tester, state);
+    },
+  );
 }
