@@ -133,14 +133,30 @@ class SettingsAvailability {
   }
 }
 
+// Release builds pass the same identity defines used by BuildIdentity; an
+// explicit KINAIYA_BUILD_LABEL/REVISION still takes priority for local builds.
+// This is display text only; update checks use the validated BuildIdentity.
+const _releaseChannel = String.fromEnvironment('KINAIYA_CHANNEL');
+const _releaseVersion = String.fromEnvironment('KINAIYA_VERSION');
+const _releaseBuild = String.fromEnvironment('KINAIYA_BUILD_NUMBER');
+const _releaseLabel =
+    (_releaseChannel == 'nightly' || _releaseChannel == 'stable') &&
+        _releaseVersion != '' &&
+        _releaseBuild != ''
+    ? 'Kinaiya $_releaseVersion ($_releaseChannel build $_releaseBuild)'
+    : 'Development build';
+
 class SettingsBuildInfo {
   const SettingsBuildInfo({required this.label, this.revision = ''});
   const SettingsBuildInfo.fromEnvironment()
     : label = const String.fromEnvironment(
         'KINAIYA_BUILD_LABEL',
-        defaultValue: 'Development build',
+        defaultValue: _releaseLabel,
       ),
-      revision = const String.fromEnvironment('KINAIYA_BUILD_REVISION');
+      revision = const String.fromEnvironment(
+        'KINAIYA_BUILD_REVISION',
+        defaultValue: String.fromEnvironment('KINAIYA_SOURCE_SHA'),
+      );
 
   final String label, revision;
 }

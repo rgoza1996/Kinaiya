@@ -35,6 +35,30 @@ def test_distribution_defaults_to_manual_nonpublishing_validation():
                 assert re.fullmatch(r"[^@]+@[0-9a-f]{40}", step["uses"])
 
 
+def test_mobile_jobs_keep_signing_material_inside_the_protected_environment():
+    jobs = workflow()["jobs"]
+    android, ios = jobs["mobile-android"], jobs["mobile-ios"]
+    assert "release-{0}" in android["environment"]["name"]
+    assert "needs.prepare.outputs.dry_run == 'false'" in android["if"]
+    assert "refs/heads/main" in android["if"]
+    assert android["permissions"] == {"contents": "read"}
+    assert ios["permissions"] == {"contents": "read"}
+    # Only the Android signing step sees secrets; iOS/build/prepare never do.
+    for name, job in jobs.items():
+        for step in job["steps"]:
+            text = str(step)
+            if "secrets." in text:
+                assert name == "mobile-android" and step.get("id") == "apk", (name, step)
+    signing = next(s for s in android["steps"] if s.get("id") == "apk")["run"]
+    assert "KINAIYA_ANDROID_CERT_SHA256" in signing and "rm -f" in signing
+    assert "built=false" in signing  # unconfigured signing publishes no APK
+    assert set(jobs["publish"]["needs"]) == {"prepare", "build", "mobile-android", "mobile-ios"}
+    names = [step.get("name", "") for step in jobs["publish"]["steps"]]
+    assert names.index("Verify mobile candidates and add them to the bundle") < names.index(
+        "Attest complete bundle"
+    )
+
+
 def test_draft_is_checked_before_publication_and_final_target_is_read_back():
     steps = workflow()["jobs"]["publish"]["steps"]
     names = [step.get("name", "") for step in steps]

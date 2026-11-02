@@ -1,0 +1,257 @@
+name: mobile-distribution-qualification
+# Secretless qualification of the mobile distribution path (#263/#264).
+# - Android: real release builds through scripts/mobile_build.py with *ephemeral,
+#   throwaway* test keys generated in this job (never a distribution identity),
+#   the fail-closed refusal without signing material, then install / in-place
+#   upgrade / foreign-key rejection / channel coexistence on an Android emulator.
+# - iOS: the unsigned sideload IPA, its embedded identity, and a simulator launch.
+# Emulator/simulator evidence is not physical-device evidence.
+on:
+  pull_request:
+    paths:
+      - apps/kinaiya_flutter/android/**
+      - apps/kinaiya_flutter/ios/**
+      - apps/kinaiya_flutter/lib/distribution/**
+      - apps/kinaiya_flutter/pubspec.lock
+      - scripts/mobile_build.py
+      - .github/workflows/mobile-distribution.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+env:
+  FLUTTER_SUPPRESS_ANALYTICS: 'true'
+  SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+jobs:
+  android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          ref: ${{ env.SOURCE_SHA }}
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - name: Select hosted JDK and verify Android prerequisites
+        run: |
+          echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
+          echo "ANDROID_AVD_HOME=$RUNNER_TEMP/avd" >> "$GITHUB_ENV"
+          echo "$JAVA_HOME_17_X64/bin" >> "$GITHUB_PATH"
+          test -d "$ANDROID_HOME/platforms/android-36"
+          if test ! -d "$ANDROID_HOME/ndk/28.2.13676358"; then
+            "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;28.2.13676358" </dev/null
+          fi
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/28.2.13676358" >> "$GITHUB_ENV"
+      - name: Install pinned official Flutter SDK
+        run: |
+          git init "$RUNNER_TEMP/flutter"
+          git -C "$RUNNER_TEMP/flutter" remote add origin https://github.com/flutter/flutter.git
+          git -C "$RUNNER_TEMP/flutter" fetch --depth=1 origin refs/tags/3.47.8:refs/tags/3.47.8
+          test "$(git -C "$RUNNER_TEMP/flutter" rev-parse refs/tags/3.47.8)" = 737ba8f885dc774b53b442759999a312c9461e4e
+          git -C "$RUNNER_TEMP/flutter" checkout --detach 737ba8f885dc774b53b442759999a312c9461e4e
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+      - run: flutter pub get --enforce-lockfile
+        working-directory: apps/kinaiya_flutter
+      - name: Generate throwaway test signing keys (never distribution identities)
+        run: |
+          umask 077
+          mkdir -p "$RUNNER_TEMP/keys"
+          for name in alpha beta; do
+            keytool -genkeypair -keystore "$RUNNER_TEMP/keys/$name.jks" -storetype PKCS12 \
+              -storepass "ci-$name-pass" -keypass "ci-$name-pass" -alias "$name" \
+              -keyalg RSA -keysize 3072 -validity 2 \
+              -dname "CN=Kinaiya CI throwaway $name, O=Kinaiya CI" </dev/null
+          done
+      - name: Release build without signing material must refuse
+        working-directory: apps/kinaiya_flutter
+        run: |
+          set +e
+          flutter build apk --release --no-pub -t lib/main.dart --build-number 1 \
+            --dart-define=KINAIYA_CHANNEL=nightly > "$RUNNER_TEMP/unsigned.log" 2>&1
+          status=$?
+          set -e
+          tail -n 20 "$RUNNER_TEMP/unsigned.log"
+          test "$status" -ne 0
+          grep -F "requires distribution signing" "$RUNNER_TEMP/unsigned.log"
+      - name: Build nightly APKs with throwaway keys
+        run: |
+          build() { # key build app output
+            KINAIYA_ANDROID_KEYSTORE="$RUNNER_TEMP/keys/$1.jks" \
+            KINAIYA_ANDROID_KEYSTORE_PASSWORD="ci-$1-pass" KINAIYA_ANDROID_KEY_ALIAS="$1" \
+            KINAIYA_ANDROID_KEY_PASSWORD="ci-$1-pass" \
+            python -m scripts.mobile_build --platform android --app "$3" --channel nightly \
+              --version 0.1.0 --build-number "$2" --source-sha "$SOURCE_SHA" --output "$4"
+          }
+          build alpha 1 kinaiya "$RUNNER_TEMP/apk/alpha-1"
+          build alpha 2 kinaiya "$RUNNER_TEMP/apk/alpha-2"
+          build beta 3 kinaiya "$RUNNER_TEMP/apk/beta-3"
+          build alpha 1 companion "$RUNNER_TEMP/apk/companion-1"
+          aapt2=$(ls "$ANDROID_HOME"/build-tools/*/aapt2 | sort -V | tail -1)
+          "$aapt2" dump badging "$RUNNER_TEMP"/apk/alpha-2/*.apk | grep -E "^(package|application-label):"
+      - name: Enable KVM for the hosted emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Install emulator image under the runner's existing license state
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost || true
+          df -h
+          mkdir -p "$ANDROID_AVD_HOME"
+          sdk="$ANDROID_HOME/cmdline-tools/latest/bin"
+          "$sdk/sdkmanager" "emulator" "platform-tools" "system-images;android-34;default;x86_64" </dev/null
+          echo no | "$sdk/avdmanager" create avd -f -n kinaiya -k "system-images;android-34;default;x86_64" -d pixel_6
+          test -f "$ANDROID_AVD_HOME/kinaiya.ini"
+          "$ANDROID_HOME/emulator/emulator" -list-avds | grep -Fx kinaiya
+      - name: Install, upgrade and reject foreign-key updates on the emulator
+        run: |
+          set -eu
+          adb="$ANDROID_HOME/platform-tools/adb"
+          evidence="$RUNNER_TEMP/evidence"; mkdir -p "$evidence"
+          "$adb" start-server </dev/null >/dev/null 2>&1
+          "$ANDROID_HOME/emulator/emulator" -avd kinaiya -no-window -no-audio -no-boot-anim \
+            -gpu swiftshader_indirect -no-snapshot -partition-size 2048 -memory 2048 \
+            -camera-back none </dev/null > "$evidence/emulator.log" 2>&1 &
+          emu_pid=$!
+          cleanup() {
+            status=$?
+            if [ "$status" -ne 0 ]; then
+              echo "=== emulator.log tail ==="
+              tail -n 120 "$evidence/emulator.log" || true
+            fi
+            "$adb" emu kill </dev/null >/dev/null 2>&1 || true
+            kill "$emu_pid" 2>/dev/null || true
+            "$adb" kill-server </dev/null >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          booted=0
+          for i in $(seq 1 90); do
+            if ! kill -0 "$emu_pid" 2>/dev/null; then
+              echo "Emulator process exited before boot completed"
+              exit 1
+            fi
+            if [ "$("$adb" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; then
+              booted=1
+              break
+            fi
+            sleep 3
+          done
+          test "$booted" -eq 1
+          "$adb" shell settings put global package_verifier_enable 0 || true
+          pkg=dev.kinaiya.kinaiya_flutter.nightly
+          info() { "$adb" shell dumpsys package "$1" | grep -E "versionCode|firstInstallTime|lastUpdateTime" | tr -d '\r' | sed 's/^ *//'; }
+          launch() {
+            "$adb" shell am start -W -n "$1/dev.kinaiya.kinaiya_flutter.MainActivity"
+            sleep 8
+            test -n "$("$adb" shell pidof "$1" | tr -d '\r')"
+            "$adb" exec-out screencap -p > "$evidence/$2.png"
+          }
+          "$adb" install "$RUNNER_TEMP"/apk/alpha-1/*.apk
+          info "$pkg" | tee "$evidence/install-1.txt"
+          launch "$pkg" nightly-build-1
+          "$adb" install -r "$RUNNER_TEMP"/apk/alpha-2/*.apk
+          info "$pkg" | tee "$evidence/upgrade-2.txt"
+          grep -q "versionCode=2" "$evidence/upgrade-2.txt"
+          # In-place update keeps the original install time (app data retained).
+          test "$(grep firstInstallTime "$evidence/install-1.txt")" = "$(grep firstInstallTime "$evidence/upgrade-2.txt")"
+          launch "$pkg" nightly-build-2
+          set +e
+          "$adb" install -r "$RUNNER_TEMP"/apk/beta-3/*.apk > "$evidence/foreign-key.txt" 2>&1
+          status=$?
+          set -e
+          cat "$evidence/foreign-key.txt"
+          test "$status" -ne 0
+          grep -E "INSTALL_FAILED_UPDATE_INCOMPATIBLE|signatures do not match" "$evidence/foreign-key.txt"
+          info "$pkg" | grep -q "versionCode=2"
+          "$adb" install "$RUNNER_TEMP"/apk/companion-1/*.apk
+          launch dev.kinaiya.kinaiya_flutter.companion.nightly companion-build-1
+          "$adb" shell pm list packages dev.kinaiya | sort | tee "$evidence/coexisting-packages.txt"
+          grep -qx "package:$pkg" "$evidence/coexisting-packages.txt"
+          grep -qx "package:dev.kinaiya.kinaiya_flutter.companion.nightly" "$evidence/coexisting-packages.txt"
+          "$adb" logcat -d -t 400 > "$evidence/logcat-tail.txt" || true
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: android-emulator-evidence
+          path: |
+            ${{ runner.temp }}/evidence/
+            ${{ runner.temp }}/apk/**/*.json
+          if-no-files-found: warn
+          retention-days: 30
+
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      FLUTTER_SWIFT_PACKAGE_MANAGER: 'true'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          ref: ${{ env.SOURCE_SHA }}
+      - name: Select hosted Xcode
+        run: |
+          sudo xcode-select --switch /Applications/Xcode_26.3.app/Contents/Developer
+          xcodebuild -version
+      - name: Install pinned official Flutter SDK
+        run: |
+          git init "$RUNNER_TEMP/flutter"
+          git -C "$RUNNER_TEMP/flutter" remote add origin https://github.com/flutter/flutter.git
+          git -C "$RUNNER_TEMP/flutter" fetch --depth=1 origin refs/tags/3.47.8:refs/tags/3.47.8
+          test "$(git -C "$RUNNER_TEMP/flutter" rev-parse refs/tags/3.47.8)" = 737ba8f885dc774b53b442759999a312c9461e4e
+          git -C "$RUNNER_TEMP/flutter" checkout --detach 737ba8f885dc774b53b442759999a312c9461e4e
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+      - run: flutter pub get --enforce-lockfile
+        working-directory: apps/kinaiya_flutter
+      - name: Build unsigned sideload IPAs and inspect embedded identity
+        run: |
+          for app in kinaiya companion; do
+            python3 -m scripts.mobile_build --platform ios --app "$app" --channel nightly \
+              --version 0.1.0 --build-number 7 --source-sha "$SOURCE_SHA" --output "$RUNNER_TEMP/ipa"
+          done
+          mkdir -p "$RUNNER_TEMP/evidence"
+          for ipa in "$RUNNER_TEMP"/ipa/*.ipa; do
+            rm -rf "$RUNNER_TEMP/unzipped"; mkdir "$RUNNER_TEMP/unzipped"
+            unzip -q "$ipa" -d "$RUNNER_TEMP/unzipped"
+            plist="$RUNNER_TEMP/unzipped/Payload/Runner.app/Info.plist"
+            {
+              echo "$(basename "$ipa")"
+              for key in CFBundleIdentifier CFBundleDisplayName CFBundleShortVersionString CFBundleVersion; do
+                echo "$key=$(/usr/libexec/PlistBuddy -c "Print :$key" "$plist")"
+              done
+              codesign -dv "$RUNNER_TEMP/unzipped/Payload/Runner.app" 2>&1 | head -3 || true
+            } | tee -a "$RUNNER_TEMP/evidence/ipa-identity.txt"
+          done
+          grep -Fx "CFBundleIdentifier=dev.kinaiya.kinaiyaFlutter.nightly" "$RUNNER_TEMP/evidence/ipa-identity.txt"
+          grep -Fx "CFBundleIdentifier=dev.kinaiya.kinaiyaFlutter.companion.nightly" "$RUNNER_TEMP/evidence/ipa-identity.txt"
+          grep -Fx "CFBundleDisplayName=Kinaiya Nightly" "$RUNNER_TEMP/evidence/ipa-identity.txt"
+          grep -Fx "CFBundleVersion=7" "$RUNNER_TEMP/evidence/ipa-identity.txt"
+          test ! -e apps/kinaiya_flutter/ios/Flutter/Distribution.xcconfig
+      - name: Launch the nightly identity on an iOS simulator
+        working-directory: apps/kinaiya_flutter
+        run: |
+          set -eu
+          printf 'KINAIYA_BUNDLE_ID = dev.kinaiya.kinaiyaFlutter.nightly\nKINAIYA_DISPLAY_NAME = Kinaiya Nightly\n' > ios/Flutter/Distribution.xcconfig
+          flutter build ios --simulator --debug --no-pub -t lib/main.dart \
+            --dart-define=KINAIYA_CHANNEL=nightly --dart-define=KINAIYA_VERSION="0.1.0-nightly.7+${SOURCE_SHA:0:12}" \
+            --dart-define=KINAIYA_BUILD_NUMBER=7 --dart-define=KINAIYA_SOURCE_SHA="$SOURCE_SHA"
+          rm ios/Flutter/Distribution.xcconfig
+          device=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next(x["udid"] for r,v in d.items() if "iOS" in r for x in v if x["name"].startswith("iPhone")))')
+          xcrun simctl boot "$device"
+          xcrun simctl bootstatus "$device" -b
+          xcrun simctl install "$device" build/ios/iphonesimulator/Runner.app
+          xcrun simctl launch "$device" dev.kinaiya.kinaiyaFlutter.nightly | tee "$RUNNER_TEMP/evidence/simulator-launch.txt"
+          sleep 15
+          xcrun simctl spawn "$device" launchctl list | grep -F dev.kinaiya.kinaiyaFlutter.nightly
+          xcrun simctl io "$device" screenshot "$RUNNER_TEMP/evidence/simulator-nightly.png"
+          xcrun simctl shutdown "$device"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: ios-sideload-evidence
+          path: |
+            ${{ runner.temp }}/evidence/
+            ${{ runner.temp }}/ipa/*.json
+          if-no-files-found: warn
+          retention-days: 30

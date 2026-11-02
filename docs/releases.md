@@ -236,10 +236,25 @@ new qualified release/build with a fix or documented migration/recovery path.
 Store-managed Android/iOS rollouts/withdrawals and app-signing identities follow
 separate platform procedures and cannot be rolled back by changing this Linux feed.
 
+## Mobile release files
+
+The same release can carry signed Android APKs and unsigned iOS sideload IPAs for
+the owner and companion clients, built from the identical `source_sha` and build
+number by the `mobile-android`/`mobile-ios` jobs. They are deliberately **outside**
+the v1 `release-manifest.json` artifact list (which stays Linux/web, so existing
+installed updaters keep validating new releases) and are described in a separate
+`mobile-manifest.json` with digests, installed identities and signing kind. The
+publish job verifies those files before attestation, and attestation, draft
+staging, download comparison and read-back cover them like every other asset.
+Android signing secrets live only in the protected `release-<channel>`
+environment; without them the release has no APK and its notes say so. See
+[mobile distribution](mobile-distribution.md) for identities, install/update
+routes and limits.
+
 **Not verified by these offline tests:** public staging publication/download/install,
 real OIDC issuance and negative-signature verification against published candidates,
-clean Linux consumption of an integrated source/web release, signed Android tester
-installation/update, or iOS upload/processing/TestFlight installation. The delegated
+clean Linux consumption of an integrated source/web release, physical-device
+Android installation/update, or any signed iOS/TestFlight installation. The delegated
 implementation was told no repository secrets/environments were configured; store
 and protected-promotion acceptance therefore remain blocked, not passed. Complete
 these with authorized accounts/credentials and record each platform separately.

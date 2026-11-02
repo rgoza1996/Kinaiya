@@ -112,7 +112,7 @@ jobs:
           data = validate_bundle('dist')
           select_artifact(data, 'web', 'any')
           notes = f"# Kinaiya {data['version']} ({data['channel']})\n\nSource: `{data['source_sha']}`; build {data['build_number']}.\n\n"
-          notes += 'Experimental Linux source/runtime-lock and matching web assets. No signed mobile/store distribution is included. Voice/calling/provider and production qualification remain separate gates; this does not close #11 or #13. See docs/releases.md for compatibility, trust, recovery and blocked platform acceptance.\n'
+          notes += 'Experimental Linux source/runtime-lock and matching web assets. Mobile client files, when present, are listed below and in mobile-manifest.json; there is no Play Store, App Store or TestFlight distribution. Voice/calling/provider and production qualification remain separate gates; this does not close #11 or #13. See docs/releases.md and docs/mobile-distribution.md for compatibility, trust, recovery and blocked platform acceptance.\n'
           Path('dist/release-notes.md').write_text(notes, encoding='utf-8')
           PY
       - name: Retain nonpublishing validation or release candidate
@@ -123,8 +123,137 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+  mobile-android:
+    # Signed APKs only: the distribution key lives in the protected release-<channel>
+    # environment. Without it this job publishes nothing (and says so) instead of
+    # substituting a debug or ad hoc key. Dry runs never receive signing secrets.
+    needs: prepare
+    if: needs.prepare.outputs.dry_run == 'false' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment:
+      name: ${{ format('release-{0}', needs.prepare.outputs.channel) }}
+    permissions:
+      contents: read
+    outputs:
+      built: ${{ steps.apk.outputs.built }}
+    env:
+      SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
+      CHANNEL: ${{ needs.prepare.outputs.channel }}
+      BUILD_NUMBER: ${{ needs.prepare.outputs.build_number }}
+      FLUTTER_SUPPRESS_ANALYTICS: 'true'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.prepare.outputs.source_sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - name: Select hosted JDK and Android NDK
+        run: |
+          echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
+          echo "$JAVA_HOME_17_X64/bin" >> "$GITHUB_PATH"
+          if test ! -d "$ANDROID_HOME/ndk/28.2.13676358"; then
+            "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;28.2.13676358" </dev/null
+          fi
+      - name: Install pinned official Flutter SDK
+        run: |
+          git init "$RUNNER_TEMP/flutter"
+          git -C "$RUNNER_TEMP/flutter" remote add origin https://github.com/flutter/flutter.git
+          git -C "$RUNNER_TEMP/flutter" fetch --depth=1 origin refs/tags/3.47.8:refs/tags/3.47.8
+          test "$(git -C "$RUNNER_TEMP/flutter" rev-parse refs/tags/3.47.8)" = 737ba8f885dc774b53b442759999a312c9461e4e
+          git -C "$RUNNER_TEMP/flutter" checkout --detach 737ba8f885dc774b53b442759999a312c9461e4e
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+      - name: Build signed APKs when distribution signing is configured
+        id: apk
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KINAIYA_ANDROID_KEYSTORE_BASE64 }}
+          KINAIYA_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.KINAIYA_ANDROID_KEYSTORE_PASSWORD }}
+          KINAIYA_ANDROID_KEY_ALIAS: ${{ secrets.KINAIYA_ANDROID_KEY_ALIAS }}
+          KINAIYA_ANDROID_KEY_PASSWORD: ${{ secrets.KINAIYA_ANDROID_KEY_PASSWORD }}
+          KINAIYA_ANDROID_CERT_SHA256: ${{ vars.KINAIYA_ANDROID_CERT_SHA256 }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          if test -z "$KEYSTORE_BASE64"; then
+            echo "::warning::Android distribution signing is not configured for release-$CHANNEL; this release has no APK."
+            echo built=false >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # The public certificate fingerprint pins the identity every update must keep.
+          test -n "$KINAIYA_ANDROID_CERT_SHA256"
+          (cd apps/kinaiya_flutter && flutter pub get --enforce-lockfile)
+          umask 077
+          export KINAIYA_ANDROID_KEYSTORE="$RUNNER_TEMP/distribution.jks"
+          trap 'rm -f "$KINAIYA_ANDROID_KEYSTORE"' EXIT
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$KINAIYA_ANDROID_KEYSTORE"
+          base="${VERSION%%-*}"
+          for app in kinaiya companion; do
+            python -m scripts.mobile_build --platform android --app "$app" --channel "$CHANNEL" \
+              --version "$base" --build-number "$BUILD_NUMBER" --source-sha "$SOURCE_SHA" \
+              --output "$RUNNER_TEMP/mobile-android"
+          done
+          echo built=true >> "$GITHUB_OUTPUT"
+      - name: Retain signed APK candidates
+        if: steps.apk.outputs.built == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mobile-android-${{ needs.prepare.outputs.tag }}
+          path: ${{ runner.temp }}/mobile-android/*
+          if-no-files-found: error
+          retention-days: 30
+
+  mobile-ios:
+    # Unsigned IPAs for sideloading tools that re-sign with the installer's Apple ID.
+    # No Apple credentials exist in this workflow; nothing is notarized or uploaded.
+    needs: prepare
+    runs-on: macos-15
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    env:
+      SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
+      CHANNEL: ${{ needs.prepare.outputs.channel }}
+      BUILD_NUMBER: ${{ needs.prepare.outputs.build_number }}
+      VERSION: ${{ needs.prepare.outputs.version }}
+      FLUTTER_SUPPRESS_ANALYTICS: 'true'
+      FLUTTER_SWIFT_PACKAGE_MANAGER: 'true'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.prepare.outputs.source_sha }}
+          persist-credentials: false
+      - name: Select hosted Xcode
+        run: |
+          sudo xcode-select --switch /Applications/Xcode_26.3.app/Contents/Developer
+          xcodebuild -version
+      - name: Install pinned official Flutter SDK
+        run: |
+          git init "$RUNNER_TEMP/flutter"
+          git -C "$RUNNER_TEMP/flutter" remote add origin https://github.com/flutter/flutter.git
+          git -C "$RUNNER_TEMP/flutter" fetch --depth=1 origin refs/tags/3.47.8:refs/tags/3.47.8
+          test "$(git -C "$RUNNER_TEMP/flutter" rev-parse refs/tags/3.47.8)" = 737ba8f885dc774b53b442759999a312c9461e4e
+          git -C "$RUNNER_TEMP/flutter" checkout --detach 737ba8f885dc774b53b442759999a312c9461e4e
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+      - name: Build unsigned sideload IPAs
+        run: |
+          (cd apps/kinaiya_flutter && flutter pub get --enforce-lockfile)
+          base="${VERSION%%-*}"
+          for app in kinaiya companion; do
+            python3 -m scripts.mobile_build --platform ios --app "$app" --channel "$CHANNEL" \
+              --version "$base" --build-number "$BUILD_NUMBER" --source-sha "$SOURCE_SHA" \
+              --output "$RUNNER_TEMP/mobile-ios"
+          done
+      - name: Retain IPA candidates
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mobile-ios-${{ needs.prepare.outputs.tag }}
+          path: ${{ runner.temp }}/mobile-ios/*
+          if-no-files-found: error
+          retention-days: 30
+
   publish:
-    needs: [prepare, build]
+    needs: [prepare, build, mobile-android, mobile-ios]
     if: >-
       needs.prepare.outputs.dry_run == 'false' &&
       github.repository == 'rgoza1996/Kinaiya' && github.ref == 'refs/heads/main'
@@ -156,6 +285,45 @@ jobs:
         with:
           name: release-candidate-${{ needs.prepare.outputs.tag }}
           path: dist
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: mobile-ios-${{ needs.prepare.outputs.tag }}
+          path: dist-mobile
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        if: needs.mobile-android.outputs.built == 'true'
+        with:
+          name: mobile-android-${{ needs.prepare.outputs.tag }}
+          path: dist-mobile
+      - name: Verify mobile candidates and add them to the bundle
+        env:
+          BUILD_NUMBER: ${{ needs.prepare.outputs.build_number }}
+          ANDROID_BUILT: ${{ needs.mobile-android.outputs.built }}
+        run: |
+          python -m scripts.mobile_build --merge --output dist-mobile --channel "$CHANNEL" \
+            --build-number "$BUILD_NUMBER" --source-sha "$SOURCE_SHA"
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          manifest = json.loads(Path('dist-mobile/mobile-manifest.json').read_text())
+          platforms = {a['platform'] for a in manifest['artifacts']}
+          assert ('android' in platforms) == (os.environ['ANDROID_BUILT'] == 'true'), platforms
+          assert 'ios' in platforms, platforms
+          lines = ['', '## Mobile clients', '']
+          for a in manifest['artifacts']:
+              kind = 'signed APK' if a['signing']['kind'] == 'android-distribution' else 'unsigned IPA for sideloading tools'
+              cert = a['signing']['certificate_sha256']
+              lines.append(f"- `{a['name']}`: {a['app']} {a['platform']} {kind}, `{a['application_id']}`, SHA-256 `{a['sha256']}`" + (f", signing certificate SHA-256 `{cert}`" if cert else ''))
+          if 'android' not in platforms:
+              lines.append('- Android: not included; distribution signing was not configured for this release.')
+          lines.append('')
+          lines.append('Install/update guidance and limits: docs/mobile-distribution.md. Emulator/simulator checks are not physical-device qualification.')
+          with Path('dist/release-notes.md').open('a', encoding='utf-8') as notes:
+              notes.write('\n'.join(lines) + '\n')
+          PY
+          for file in dist-mobile/*; do
+            test ! -e "dist/$(basename "$file")"
+            mv "$file" dist/
+          done
       - name: Recheck qualification after environment approval
         run: |
           git fetch origin main --tags
