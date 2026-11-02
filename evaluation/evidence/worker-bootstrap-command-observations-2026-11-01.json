@@ -1,0 +1,143 @@
+{
+  "status": "locally qualified; exact published-head CI required before merge",
+  "requirement": "https://github.com/rgoza1996/Kinaiya/issues/278",
+  "parent_reliability_issue": "https://github.com/rgoza1996/Kinaiya/issues/9",
+  "contract": {
+    "path": "docs/worker-bootstrap-command-observations.md",
+    "sha256": "5c29484cbe9f4c813ffef86fe8dfccebbcc353323413702bd86b789c8e57a76d"
+  },
+  "scope": "Diagnostic refinement only. Existing boolean/tuple authority, native reads, predicates, handle closure, execution grant and cleanup remain unchanged. No startup-cause or reliability repair claim.",
+  "historical_failure": {
+    "run": "https://github.com/rgoza1996/Kinaiya/actions/runs/41378202510",
+    "job_id": 125063009683,
+    "head": "73b9177c7b2dc87a291c8c6c72200f3db5801ce3",
+    "python": "3.12",
+    "result": {
+      "passed": 10158,
+      "failed": 1,
+      "skipped": 6,
+      "deselected": 2,
+      "warnings": 1
+    },
+    "observation": "initial synthetic worker pre_command_mismatch / ownership-unverified; later low-headroom recovery assertion at test_resource_handoff.py:506 failed",
+    "log_sha256": "db2c22a3e827b9d9c1dbcd83341ce8382985e31c0fb8acd2b29c7265db9216ae",
+    "cause": "Unresolved. A later passing start does not explain this refusal. Source trace identifies a reachable downstream path via a missing fixture-ready prerequisite and zero recorded reserve, not the cmdline mismatch cause."
+  },
+  "source": {
+    "base": "545c182a33becb82e7b62f45a904f76d35f07500",
+    "author_commit": "136661caec55cbe33a4bd062b062a3c901393b91",
+    "qualified_integration_head": "24bc9bd760f0cbfa72217b7434e01ac88828e57c",
+    "path": "packages/resources/processes.py",
+    "sha256": "1921a481121c2475ac6ef0ae00f679f9d15e29ab37b402ff2dc3474a40464615",
+    "author_static_seal_sha256": "c587c552af51037c9b2349b7ed919aaf25e463be5f36a42324537b4d2ec26397"
+  },
+  "independence": {
+    "new_test_freeze": "da2b362ba87a5b82193412dd05a5a4a36ec1db52",
+    "test_freeze_seal_sha256": "c30a2f31ea63f16a18a3f48480d9f0063f32422e5f151cd9dce50712c11e54c3",
+    "source_author_did_not_read_new_oracles": true,
+    "independent_source_review_sha256": "3c37ea2f5d4e94bc9c98fe2749e1e3feea8b01dbe82b06936ed81cee11167888",
+    "findings": "No actionable finding in bounded source review. Internal capture-storage fault behavior is source-review-only; no invented test API."
+  },
+  "preserved_first_baseline": {
+    "source": "545c182a33becb82e7b62f45a904f76d35f07500",
+    "test_head": "da2b362ba87a5b82193412dd05a5a4a36ec1db52",
+    "tests": 2,
+    "failed": 2,
+    "errors": 1,
+    "passed": 0,
+    "elapsed_pytest_s": 0.21,
+    "receipt_sha256": "b5081ff89899ce892854cb98023530439179e29e343d9444adca56b22a5a5abf",
+    "classification": "Both new diagnostics absent. Own fixture additionally conflated an inline Process.wait await with completion of its containing Task; full final native-cleanup assertions were not reached. No full cleanup claim for this phase."
+  },
+  "fixture_maintenance": {
+    "commit": "6dd48547c855d04ede68df9347e03a75b399a8d2",
+    "scope": "Only the new integration fixture. Five containing-Task assumptions replaced by explicit observations of genuine native wait invocation/outer return or cancellation. Same eight cases, original native wait call count and deadlines; no extra waiter or fake Task. Python3.12 wait_for may await inline; caught wait cancellation need not cancel the enclosing Manager.start Task.",
+    "unit_sha256": "acc52437d0e0b18a77caeca476f65f34beb61741595af5bdc24de542aed6507c",
+    "integration_sha256": "586137dc2ad52ab695002647caa45ae68dbd3a8c042b5ca1f6ec58915a4efc7d"
+  },
+  "corrected_baseline": {
+    "head": "6dd48547c855d04ede68df9347e03a75b399a8d2",
+    "source_unchanged": true,
+    "tests": 2,
+    "failed": 2,
+    "passed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "elapsed_pytest_s": 0.16,
+    "seal_sha256": "d7fdccd7622414ecac31d65af7be3dbc0290fb913e1b67aaa6233f96cd2a3972",
+    "classification": "Expected absent new diagnostic capability, not historical startup/authority regression. Actual original spawn/waits/Process/grant/control fds/pipes/Manager retirement and configured-marker absence reached their assertions."
+  },
+  "qualification": {
+    "changed_pins": [],
+    "command": [
+      "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+      "-B",
+      "-m",
+      "pytest",
+      "-q",
+      "-m",
+      "not live",
+      "-p",
+      "no:cacheprovider",
+      "-o",
+      "asyncio_default_fixture_loop_scope=function",
+      "-o",
+      "junit_family=xunit1",
+      "tests/unit/test_worker_bootstrap_command_observations.py",
+      "tests/integration/test_resource_bootstrap_observations.py",
+      "tests/unit/test_worker_bootstrap_diagnostics.py",
+      "tests/integration/test_resource_processes.py",
+      "tests/integration/test_resource_boundaries.py",
+      "tests/integration/test_resource_parent.py",
+      "--junitxml=/home/roggoz/.codex/worktrees/native-tool-capabilities/Kinaiya/.dev-run/278-hot-bootstrap-diagnostics-v1-7p6srhz1/junit.xml"
+    ],
+    "elapsed_wall_s": 10.660331405000761,
+    "exit_code": 0,
+    "head": "24bc9bd760f0cbfa72217b7434e01ac88828e57c",
+    "head_after": "24bc9bd760f0cbfa72217b7434e01ac88828e57c",
+    "initial_status": "",
+    "junit": [
+      {
+        "errors": "0",
+        "failures": "0",
+        "hostname": "roggoz",
+        "name": "pytest",
+        "skipped": "0",
+        "tests": "217",
+        "time": "10.349",
+        "timestamp": "2026-11-01T20:04:57.206392-08:00"
+      }
+    ],
+    "limitations": [
+      "Offline synthetic CPU/ASGI/SQLite harness test; no model quality or live-device claim.",
+      "Task completion or empty registries alone are not original-owner cleanup proof."
+    ],
+    "phase": "278-hot-bootstrap-diagnostics-v1",
+    "pins_preserved": true,
+    "pythonpath": "/home/roggoz/.codex/worktrees/native-tool-capabilities/Kinaiya",
+    "tracked_input_count": 1284
+  },
+  "qualification_receipt_sha256": "40d123319d0d55fb0ae6c35ac1f80986e7ec8c73b442bf1429ed809c25cffa68",
+  "qualification_groups": {
+    "new_unit": 54,
+    "new_actual_manager": 8,
+    "unchanged_prior_diagnostics": 107,
+    "unchanged_process_lifecycle": 33,
+    "unchanged_process_boundaries": 13,
+    "unchanged_parent_restart": 2
+  },
+  "actual_fixture_limits": [
+    "Synthetic disposable bootstrap faults include controlled self-termination of only the fixture child. No foreign signal, adoption, execution grant or configured-marker execution.",
+    "Cached None means no reported return code, not proof of liveness. A post-grant-close exit does not establish pre-close exit.",
+    "Cancelled original outer wait is retained distinctly from the already returned native child-wait value; later actual process/fd/pipe retirement is asserted.",
+    "No model inference, GPU/model/device, live service/configuration/preview operation or installation."
+  ],
+  "static_checks": {
+    "ruff_check": "passed",
+    "ruff_format": "passed; 665 files already formatted",
+    "schema_export": "passed with explicit isolated PYTHONPATH; no schema diff",
+    "diff_check": "passed",
+    "preserved_export_setup_error": "Initial export omitted isolated PYTHONPATH and reached the primary editable package, raising ImportError for agent_control before export. Corrected environment; no product/source fix or dependency install."
+  },
+  "ci": "Pending after publication. Full M6 and original startup causation remain open."
+}
