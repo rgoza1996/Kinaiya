@@ -713,6 +713,7 @@ class _HomeShellState extends State<HomeShell> {
                                             ? CharacterSurface.interaction
                                             : CharacterSurface.home,
                                         onModelSettings: _modelSetup,
+                                        onConnectionSetup: _setup,
                                         setupOpen: _modelSetupOpen,
                                         animateTransitions:
                                             widget

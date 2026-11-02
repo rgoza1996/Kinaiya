@@ -16,6 +16,7 @@ class MoonlitHome extends StatefulWidget {
     required this.status,
     required this.callLabel,
     this.callTooltip = 'Start Live listen (armed mic)',
+    this.setupLabel = 'Setup',
     required this.onSetup,
     this.onCall,
     this.onAgent,
@@ -32,7 +33,7 @@ class MoonlitHome extends StatefulWidget {
     this.ownerControl,
   });
   final Widget character;
-  final String status, callLabel, agentStatus, callTooltip;
+  final String status, callLabel, agentStatus, callTooltip, setupLabel;
   final String? sessionName;
   final VoidCallback onSetup;
   final VoidCallback? onCall, onAgent;
@@ -208,7 +209,7 @@ class _MoonlitHomeState extends State<MoonlitHome>
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    if (!widget.sleeping)
+                    if (!widget.sleeping && widget.onCall != null) ...[
                       Tooltip(
                         message: widget.callTooltip,
                         child: Semantics(
@@ -217,7 +218,8 @@ class _MoonlitHomeState extends State<MoonlitHome>
                             key: const ValueKey('call-kinaiya'),
                             onPressed: widget.onCall,
                             icon: Icon(
-                              widget.callLabel == 'End conversation'
+                              widget.callLabel == 'End conversation' ||
+                                      widget.callLabel == 'Stop microphone'
                                   ? Icons.call_end_rounded
                                   : Icons.mic_none,
                             ),
@@ -225,11 +227,32 @@ class _MoonlitHomeState extends State<MoonlitHome>
                           ),
                         ),
                       ),
-                    OutlinedButton(
-                      key: const ValueKey('home-setup'),
-                      onPressed: widget.onSetup,
-                      child: const Text('Setup'),
-                    ),
+                      OutlinedButton(
+                        key: const ValueKey('home-setup'),
+                        onPressed: widget.onSetup,
+                        child: Text(widget.setupLabel),
+                      ),
+                    ] else ...[
+                      FilledButton.icon(
+                        key: const ValueKey('home-setup'),
+                        onPressed: widget.onSetup,
+                        icon: const Icon(Icons.tune_rounded),
+                        label: Text(widget.setupLabel),
+                      ),
+                      if (!widget.sleeping)
+                        Tooltip(
+                          message: widget.callTooltip,
+                          child: Semantics(
+                            key: const ValueKey('home-talk'),
+                            child: OutlinedButton.icon(
+                              key: const ValueKey('call-kinaiya'),
+                              onPressed: null,
+                              icon: const Icon(Icons.mic_none),
+                              label: Text(widget.callLabel),
+                            ),
+                          ),
+                        ),
+                    ],
                   ],
                 ),
                 if (widget.ownerControl != null)
