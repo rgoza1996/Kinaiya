@@ -1,10 +1,13 @@
 import 'dart:async';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kinaiya_flutter/api/models.dart';
 import 'package:kinaiya_flutter/api/client.dart';
 import 'package:kinaiya_flutter/config/connection.dart';
 import 'package:kinaiya_flutter/state/app_state.dart';
 import 'package:kinaiya_flutter/state/converse_handoff.dart';
+import 'package:kinaiya_flutter/ui/character_view.dart';
+import 'package:kinaiya_flutter/ui/widgets.dart';
 
 final scope = SessionInfo(
   sessionId: 's',
@@ -655,6 +658,243 @@ void main() {
       await pending;
       expect(owner.converseHistory, isEmpty);
       owner.dispose();
+    },
+  );
+
+  testWidgets(
+    'causal handoff status renders beside originating message across states, revisions and stale speech windows',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      final api = ReceiptApi();
+      final state = wired(api);
+
+      // Add a typed user turn bound to eventId 'source'.
+      state.appendHistory(
+        AppView.character,
+        ChatMsg(role: 'user', text: 'Public request'),
+      );
+      state.acceptedConverseSource(scope, 'source', 0);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: CharacterView(
+              state: state,
+              surface: CharacterSurface.interaction,
+              showCharacter: false,
+              richArtifactsEnabled: false,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // 1. Decisions route suggestion alone never displays queued or accepted.
+      api.entries = [source(), decision()];
+      await state.refreshNotices();
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('converse-handoff-source')),
+        findsNothing,
+      );
+
+      // 2. Native queued receipt shows Queued beside the originating message.
+      api.entries.add(receipt('queued'));
+      await state.refreshNotices();
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('converse-handoff-source')),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-status-source')),
+            )
+            .data,
+        'Queued',
+      );
+      expect(find.byIcon(Icons.schedule_rounded), findsOneWidget);
+      expect(find.text('Waiting for Agent acceptance.'), findsOneWidget);
+      expect(
+        tester
+            .getSemantics(find.byKey(const ValueKey('converse-handoff-source')))
+            .label,
+        contains('Agent handoff Queued: Waiting for Agent acceptance.'),
+      );
+      // Positioned directly beneath the originating user bubble.
+      final userRect = tester.getRect(find.byType(MessageBubble).first);
+      final handoffRect = tester.getRect(
+        find.byKey(const ValueKey('converse-handoff-source')),
+      );
+      expect(handoffRect.top, greaterThanOrEqualTo(userRect.bottom - 4));
+
+      // 3. Rejection, not-applied, and unknown states BEFORE terminal acceptance.
+      api.entries.add(receipt('rejected', id: 'r-rej', sequence: 4));
+      await state.refreshNotices();
+      await tester.pump();
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-status-source')),
+            )
+            .data,
+        'Rejected',
+      );
+      expect(find.byIcon(Icons.block_rounded), findsOneWidget);
+      expect(find.text('Agent did not accept this request.'), findsOneWidget);
+
+      api.entries.add(receipt('not_applied', id: 'r-na', sequence: 5));
+      await state.refreshNotices();
+      await tester.pump();
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-status-source')),
+            )
+            .data,
+        'Not applied',
+      );
+      expect(find.byIcon(Icons.do_not_disturb_on_outlined), findsOneWidget);
+
+      api.entries.add(receipt('unknown', id: 'r-unk', sequence: 6));
+      await state.refreshNotices();
+      await tester.pump();
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-status-source')),
+            )
+            .data,
+        'Unconfirmed',
+      );
+      expect(find.byIcon(Icons.help_outline_rounded), findsOneWidget);
+
+      // 4. Native accepted receipt updates status to Accepted.
+      api.entries.add(receipt('accepted', id: 'r-acc', sequence: 7));
+      await state.refreshNotices();
+      await tester.pump();
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-status-source')),
+            )
+            .data,
+        'Accepted',
+      );
+      expect(find.byIcon(Icons.task_alt_rounded), findsOneWidget);
+      expect(
+        find.text('Agent accepted the request · Task task-1'),
+        findsOneWidget,
+      );
+
+      // 5. Typed revision invalidates prior revision receipt until new revision receipt arrives.
+      api.entries.add(
+        event('conversation.revision', 8, {
+          'target_event_id': 'source',
+          'revision': 2,
+          'text': 'Revised request',
+        }, id: 'rev-2'),
+      );
+      await state.refreshNotices();
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('converse-handoff-source')),
+        findsNothing,
+      );
+
+      // 6. Speech window receipt attaches to live window and drops when window text changes.
+      api.entries.addAll([
+        source(
+          id: 'win-0',
+          sequence: 9,
+          utterance: 'utt-1',
+          index: 0,
+          text: 'Draft a checklist',
+        ),
+        event(
+          'routing.window_status',
+          10,
+          {
+            'source_event_id': 'win-0',
+            'source_sequence': 9,
+            'source_revision': 1,
+            'phase': 'agent_unavailable',
+            'reason': 'agent_status_unavailable',
+          },
+          id: 'win-unavail',
+          causes: ['win-0'],
+        ),
+      ]);
+      await state.refreshNotices();
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('converse-handoff-win-0')),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-status-win-0')),
+            )
+            .data,
+        'Unavailable',
+      );
+      expect(find.byIcon(Icons.cloud_off_rounded), findsOneWidget);
+
+      api.entries.addAll([
+        decision(
+          window: true,
+          id: 'win-dec',
+          decisionId: 'win-d1',
+          sourceId: 'win-0',
+          sourceSequence: 9,
+          sequence: 11,
+          cause: 'win-0',
+        ),
+        receipt(
+          'applied',
+          window: true,
+          id: 'win-app',
+          sequence: 12,
+          sourceId: 'win-0',
+          sourceSequence: 9,
+          decisionId: 'win-d1',
+          cause: 'win-dec',
+        ),
+      ]);
+      await state.refreshNotices();
+      await tester.pump();
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-status-win-0')),
+            )
+            .data,
+        'Applied',
+      );
+      expect(find.byIcon(Icons.published_with_changes_rounded), findsOneWidget);
+
+      // A newer speech window in the same utterance with changed text invalidates the stale window receipt.
+      api.entries.add(
+        source(
+          id: 'win-1',
+          sequence: 13,
+          utterance: 'utt-1',
+          index: 1,
+          text: 'Never mind, just chatting',
+        ),
+      );
+      await state.refreshNotices();
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('converse-handoff-win-0')),
+        findsNothing,
+      );
+      semantics.dispose();
+      await tester.pumpWidget(const SizedBox.shrink());
+      state.dispose();
+      await tester.pump(const Duration(seconds: 1));
     },
   );
 }
