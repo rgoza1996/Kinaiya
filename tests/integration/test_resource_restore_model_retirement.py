@@ -19,6 +19,7 @@ from test_standing_agent_runtime import TEXT
 from test_standing_agent_runtime import factory as factory
 from test_standing_agent_runtime import stack as stack
 from test_standing_agent_runtime import submit as standing_submit
+from test_standing_physical_finalization import physical as physical
 
 from core.policy import ToolPolicy
 from packages.contracts.models import InterruptRequest, SessionRequest, TaskRequest, TaskState
