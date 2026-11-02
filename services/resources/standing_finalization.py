@@ -182,11 +182,22 @@ class StandingFinalization:
             self._checked(row)
 
     def _checked(self, row):
+        from packages.contracts.standing_resource_finalization import _ERROR, _FAILURES, _encode
+
+        def fresh_wire(value):
+            # Only freshly validated locals and their exact children reach here.
+            # Every encoding still walks the complete actual graph.
+            try:
+                raw = _encode(value)
+            except _FAILURES:
+                raise ValueError(_ERROR) from None
+            return raw.decode("utf-8")
+
         binding = StandingResourceBindingRequest.from_json(row["binding"].encode())
         key = binding.claim.claim_id
         if (
             row["claim_id"] != key
-            or _wire(binding) != row["binding"]
+            or fresh_wire(binding) != row["binding"]
             or binding.resource_backend != self.gate.backend
             or row["phase"]
             not in {
@@ -216,9 +227,9 @@ class StandingFinalization:
                 StandingResourceReservation,
             )
             if (
-                _wire(reservation) != row["reservation"]
+                fresh_wire(reservation) != row["reservation"]
                 or reservation.context.family != "standing"
-                or _wire(reservation.context.standing.claim) != _wire(binding.claim)
+                or fresh_wire(reservation.context.standing.claim) != fresh_wire(binding.claim)
                 or reservation.resource_backend != binding.resource_backend
                 or reservation.resource_instance != binding.resource_instance
                 or reservation.lease_id != row["lease_id"]
@@ -265,8 +276,8 @@ class StandingFinalization:
         if row["report"] is not None:
             report = StandingResourceFinalization.from_json(row["report"].encode())
             if (
-                _wire(report) != row["report"]
-                or _wire(report.context.binding) != row["binding"]
+                fresh_wire(report) != row["report"]
+                or fresh_wire(report.context.binding) != row["binding"]
                 or row["phase"] not in {"covered", "never", "complete"}
                 or report.policy_revision != row["policy_revision"]
                 or report.owner_intent_revision != row["owner_intent_revision"]
@@ -274,7 +285,7 @@ class StandingFinalization:
                 or report.handoff_action_key != row["action_key"]
                 or (reservation is None) != (report.context.observation.reservation is None)
                 or reservation is not None
-                and _wire(report.context.observation.reservation) != _wire(reservation)
+                and fresh_wire(report.context.observation.reservation) != fresh_wire(reservation)
                 or report.resource_disposition
                 != (
                     "no-reservation"
