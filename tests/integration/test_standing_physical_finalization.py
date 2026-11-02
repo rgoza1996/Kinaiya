@@ -89,6 +89,354 @@ MARKER = "SYNTHETIC-PHYSICAL-PRODUCER-FAILURE"
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def _physical_timeout_snapshot(value):
+    """Bounded cached original-owner observations, never retirement evidence."""
+    truncated = False
+
+    def first(values):
+        nonlocal truncated
+        result = []
+        for item in values:
+            if len(result) == 32:
+                truncated = True
+                break
+            result.append(item)
+        return result
+
+    def known(item, allowed):
+        return item if type(item) is str and item in allowed else "unavailable"
+
+    def flag(item):
+        return item if type(item) is bool else None
+
+    def number(item):
+        return item if type(item) is int and abs(item) <= (1 << 53) - 1 else None
+
+    def task(item):
+        nonlocal truncated
+        result = {
+            "id": None if item is None else id(item),
+            "kind": "unavailable",
+            "done": None,
+            "cancelled": None,
+            "await_chain": [],
+        }
+        if not isinstance(item, asyncio.Future):
+            return result
+        result.update(
+            kind="task" if isinstance(item, asyncio.Task) else "future",
+            done=item.done(),
+            cancelled=item.cancelled(),
+        )
+        current = item.get_coro() if isinstance(item, asyncio.Task) else None
+        seen = set()
+        while current is not None:
+            if len(result["await_chain"]) == 24 or id(current) in seen:
+                truncated = True
+                break
+            seen.add(id(current))
+            code = getattr(current, "cr_code", None) or getattr(current, "gi_code", None)
+            frame = getattr(current, "cr_frame", None) or getattr(current, "gi_frame", None)
+            name = code.co_qualname if code is not None else "awaitable"
+            if len(name) > 64:
+                truncated = True
+            result["await_chain"].append(
+                {
+                    "name": name[:64],
+                    "line": frame.f_lineno
+                    if frame is not None
+                    else code.co_firstlineno
+                    if code is not None
+                    else None,
+                }
+            )
+            current = getattr(current, "cr_await", None) or getattr(current, "gi_yieldfrom", None)
+        return result
+
+    def exchange(item, kind):
+        response = item.response
+        return {
+            "id": id(item),
+            "kind": kind,
+            "task": task(item.task),
+            "close": task(item.close_task),
+            "response_acquired": response is not None,
+            "response_closed": None if response is None else flag(response.is_closed),
+        }
+
+    def scope(item):
+        if item is None:
+            return {"id": None, "kind": "unavailable", "handles": []}
+        handles = []
+        for handle in first(item.handles):
+            details = getattr(handle, "__dict__", {})
+            if isinstance(handle, asyncio.Future):
+                summary = task(handle)
+            elif "task" in details and "close_task" in details and "response" in details:
+                summary = exchange(handle, "exchange")
+            else:
+                summary = {"id": id(handle), "kind": "handle"}
+            handles.append(summary)
+        return {
+            "id": id(item),
+            "kind": "scope",
+            "failed": flag(item.failed),
+            "finished": flag(item.finished),
+            "handles": handles,
+        }
+
+    def event(item):
+        return item.is_set() if isinstance(item, (asyncio.Event, threading.Event)) else None
+
+    coordinator = value.coordinator
+    barrier, handoff, finalization = (
+        coordinator.standing_barrier,
+        coordinator.standing_handoff,
+        coordinator.standing_finalization,
+    )
+    calls = [
+        {
+            "id": id(call),
+            "kind": known(
+                name,
+                {
+                    "bind",
+                    "binding_lookup",
+                    "seal",
+                    "seal_lookup",
+                    "finalize",
+                    "finalization_lookup",
+                },
+            ),
+            "operation": task(original),
+            "scope": scope(call.scope),
+            "active": flag(call.active),
+        }
+        for name, call, original in first(value.original_calls)
+    ]
+    operations = []
+
+    def collect(values, describe):
+        nonlocal truncated
+        for item in values:
+            if len(operations) == 32:
+                truncated = True
+                break
+            operations.append(describe(item))
+
+    collect(barrier.operations, scope)
+    collect(
+        handoff.operations,
+        lambda item: {"id": id(item), "kind": "capture-work", "task": task(item)},
+    )
+    collect(handoff.native, lambda item: {"id": id(item), "kind": "native", "task": task(item)})
+    collect(
+        finalization.observers,
+        lambda item: {"id": id(item), "kind": "observer", "task": task(item)},
+    )
+    collect(
+        value.stream_tasks,
+        lambda item: {"id": id(item), "kind": "stream-close", "task": task(item)},
+    )
+    collect(
+        value.endpoint.stream_closes.pending,
+        lambda item: {"id": id(item), "kind": "endpoint-close", "task": task(item)},
+    )
+    collect(
+        finalization.lifecycles.values(),
+        lambda item: {
+            "id": id(item),
+            "kind": "lifecycle",
+            "scope": scope(item.scope),
+            "observer": task(item.observer),
+        },
+    )
+    exchanges = []
+    for kind, client in (("gateway", value.gateway), ("control", value.control)):
+        close = getattr(client, "_close_task", None)
+        if close is not None:
+            collect(
+                (close,),
+                lambda item: {"id": id(item), "kind": "client-close", "task": task(item)},
+            )
+        for item in first(getattr(client, "_submit_exchanges", ())):
+            if len(exchanges) == 32:
+                truncated = True
+                break
+            exchanges.append(exchange(item, kind))
+    if coordinator._close_owner is not None:
+        collect(
+            (coordinator._close_owner,),
+            lambda item: {"id": id(item), "kind": "coordinator-close", "task": task(item)},
+        )
+    captures, captured = [], set()
+    for candidates in (handoff.attempts.values(), finalization.captures.values()):
+        for item in first(candidates):
+            if id(item) in captured:
+                continue
+            if len(captures) == 32:
+                truncated = True
+                break
+            captured.add(id(item))
+            captures.append(
+                {
+                    "id": id(item),
+                    "kind": "capture",
+                    "task": task(item.task),
+                    "scope": scope(item.ownership),
+                    "active": flag(item.active),
+                    "effects_started": flag(item.effects_started),
+                    "started": task(item.started),
+                    "suppression": None
+                    if item.suppression is None
+                    else known(item.suppression, {"fence", "facade", "shutdown"}),
+                }
+            )
+    workers = []
+    for item in first(coordinator.manager._workers.values()):
+        stop = item.stop_evidence or {}
+        workers.append(
+            {
+                "id": id(item),
+                "kind": "worker",
+                "state": known(
+                    item.state, {"stopped", "starting", "running", "stopping", "failed"}
+                ),
+                "ready": flag(item.ready),
+                "process_id": None if item.process is None else id(item.process),
+                "returncode": None if item.process is None else number(item.process.returncode),
+                "pending_spawn": task(item.pending_spawn),
+                "pending_cleanup": task(item.pending_cleanup),
+                "drains": [task(original) for original in first(item.drains)],
+                "reaped": flag(stop.get("reaped")),
+                "group_empty": flag(stop.get("group_empty")),
+            }
+        )
+    streams, gates = [], []
+    for kind, transport in (("native", value.native), ("control", value.control_transport)):
+        for body in first(transport.bodies):
+            if len(streams) == 32:
+                truncated = True
+                break
+            streams.append(
+                {
+                    "id": id(body),
+                    "kind": kind,
+                    "closes": number(body.closes),
+                    "closed": flag(body.closed),
+                    "failed": flag(body.failed),
+                    "cancelled": flag(body.cancelled),
+                }
+            )
+        gate = transport.gate
+        if gate is not None:
+            gates.append(
+                {
+                    "id": id(gate),
+                    "kind": kind,
+                    "phase": known(
+                        gate.phase,
+                        {"acquire", "read", "close", "lost", "fail-close", "cooperative-close"},
+                    ),
+                    "claimed": flag(gate.claimed),
+                    "entered": event(gate.entered),
+                    "released": event(gate.release),
+                    "exchange": task(gate.exchange_task),
+                    "close": task(gate.close_task),
+                }
+            )
+    for fault in first(value.faults):
+        if len(gates) == 32:
+            truncated = True
+            break
+        gates.append(
+            {
+                "id": id(fault),
+                "kind": "sql",
+                "mode": known(fault.mode, {"before", "held", "after"}),
+                "entered": event(fault.entered),
+                "released": event(fault.release),
+                "fired": flag(fault.fired),
+                "wrote": flag(fault.wrote),
+            }
+        )
+    for release in first(value.releases):
+        if len(gates) == 32:
+            truncated = True
+            break
+        gates.append({"id": id(release), "kind": "release", "released": event(release)})
+    snapshot = {
+        "calls": calls,
+        "operations": operations,
+        "exchanges": exchanges,
+        "captures": captures,
+        "workers": workers,
+        "streams": streams,
+        "gates": gates,
+        "locks": {
+            "coordinator": coordinator.lock.locked(),
+            "manager": coordinator.manager._lock.locked(),
+            "admission": coordinator.admission_lock.locked(),
+        },
+        "state": {
+            "phase": known(
+                coordinator.state.record.phase,
+                {
+                    "initializing",
+                    "ready",
+                    "quiescing",
+                    "unloading",
+                    "local_work",
+                    "restoring",
+                    "off",
+                    "failed",
+                },
+            ),
+            "closing": flag(coordinator._closing),
+            "closed": flag(coordinator._closed),
+            "barrier_failed": flag(barrier.failed),
+            "barrier_uncertain": flag(barrier.uncertain),
+            "handoff_failed": flag(handoff.failed),
+            "finalization_failed": flag(finalization.failed),
+            "gateway_cleanup_failed": flag(value.gateway._submit_cleanup_failed),
+            "effects_entered": event(value.effects_entered),
+        },
+        "truncated": truncated,
+    }
+
+    def size():
+        return len(
+            json.dumps(snapshot, ensure_ascii=True, separators=(",", ":"), allow_nan=False).encode()
+        )
+
+    if size() > 32768:
+        snapshot["truncated"] = True
+        # Prune only newly constructed diagnostic data, never retained owners.
+        pending = [snapshot]
+        while pending:
+            item = pending.pop()
+            if type(item) is dict:
+                if "await_chain" in item:
+                    item["await_chain"] = []
+                pending.extend(item.values())
+            elif type(item) is list:
+                pending.extend(item)
+        for section in (
+            "operations",
+            "captures",
+            "workers",
+            "exchanges",
+            "streams",
+            "gates",
+            "calls",
+        ):
+            while size() > 32768 and snapshot[section]:
+                snapshot[section].pop()
+    if size() > 32768:
+        raise ValueError("Bounded physical timeout observation unavailable")
+    return snapshot
+
+
 def wire(value):
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
 
@@ -885,7 +1233,24 @@ async def acquired(value):
 
 
 async def completed(value, disposition, restoration, reservation=None):
-    receipt = await asyncio.wait_for(begin(value), 8)
+    try:
+        receipt = await asyncio.wait_for(begin(value), 8)
+    except TimeoutError as error:
+        try:
+            error.add_note(
+                "Physical finalization timeout observation: "
+                + json.dumps(
+                    _physical_timeout_snapshot(value), ensure_ascii=True, separators=(",", ":")
+                )
+            )
+        except BaseException as diagnostic:
+            try:
+                error.add_note(
+                    "Physical observation unavailable: " + type(diagnostic).__name__[:64]
+                )
+            except BaseException:
+                pass
+        raise
     assert type(receipt) is StandingResourceFinalizationReceipt
     receipt = receipt.validate_request(value.request)
     report = receipt.finalization
@@ -1186,7 +1551,24 @@ async def test_actual_http_originals_survive_facade_cancel_and_only_healthy_retr
     )
     if originals is not None:
         await join_context_originals(value, originals)
-    result = await asyncio.wait_for(begin(value), 8)
+    try:
+        result = await asyncio.wait_for(begin(value), 8)
+    except TimeoutError as error:
+        try:
+            error.add_note(
+                "Physical finalization timeout observation: "
+                + json.dumps(
+                    _physical_timeout_snapshot(value), ensure_ascii=True, separators=(",", ":")
+                )
+            )
+        except BaseException as diagnostic:
+            try:
+                error.add_note(
+                    "Physical observation unavailable: " + type(diagnostic).__name__[:64]
+                )
+            except BaseException:
+                pass
+        raise
     assert result.validate_request(value.request) == result
     if path == RESERVE:
         assert result.finalization.resource_disposition == "registered-no-lease"
@@ -1368,7 +1750,24 @@ async def test_actual_selected_stream_wait_closed_is_enrolled_until_original_ret
     assert value.endpoint.stream_closes.pending
     release.set()
     await asyncio.gather(capture, finalizer, return_exceptions=True)
-    result = await asyncio.wait_for(begin(value), 8)
+    try:
+        result = await asyncio.wait_for(begin(value), 8)
+    except TimeoutError as error:
+        try:
+            error.add_note(
+                "Physical finalization timeout observation: "
+                + json.dumps(
+                    _physical_timeout_snapshot(value), ensure_ascii=True, separators=(",", ":")
+                )
+            )
+        except BaseException as diagnostic:
+            try:
+                error.add_note(
+                    "Physical observation unavailable: " + type(diagnostic).__name__[:64]
+                )
+            except BaseException:
+                pass
+        raise
     assert result.finalization.restoration == "restored"
     assert not value.endpoint.stream_closes.pending
     assert all(
