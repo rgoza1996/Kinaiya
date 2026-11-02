@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../api/client.dart';
 import '../state/app_state.dart';
+import 'design_tokens.dart';
 import 'settings_surface.dart';
 
 /// Owner controls, available without inference and only linked from Agent.
@@ -234,6 +235,7 @@ class _McpSettingsState extends State<McpSettings> {
 
   @override
   Widget build(BuildContext context) {
+    final roles = KinaiyaDesign.textRoles(context);
     final configured = _snapshot?['configured'] == true;
     final blocked = _snapshot?['blocked'] == true;
     final rows = (_snapshot?['servers'] as List? ?? const [])
@@ -247,127 +249,159 @@ class _McpSettingsState extends State<McpSettings> {
         constraints: const BoxConstraints(maxWidth: 760, maxHeight: 700),
         child: Padding(
           padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Expanded(
-                    child: Text(
-                      'MCP connections',
-                      style: TextStyle(fontSize: 22),
-                    ),
-                  ),
-                  if (!widget.embedded)
-                    IconButton(
-                      tooltip: 'Close MCP settings',
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close),
-                    ),
-                ],
-              ),
-              const Text(
-                'Owner controls run without model inference. Finish or stop active Agent tasks before changing connections. '
-                'Inspection never starts a server; Test and Reconnect do.',
-              ),
-              if (_notice != null)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Text(_notice!),
-                ),
-              if (_snapshot == null && _notice == null)
-                const LinearProgressIndicator(),
-              if (_snapshot != null && !configured)
-                const Text(
-                  'MCP management is not enabled. Enable the optional MCP host in owner configuration, then restart Agent.',
-                ),
-              if (configured)
-                Text('Configuration revision ${_snapshot!['revision']}'),
-              if (blocked)
-                const Text(
-                  'A configuration change needs owner reconciliation. Review the saved profiles before applying them.',
-                ),
-              Wrap(
-                spacing: 8,
-                children: [
-                  TextButton.icon(
-                    onPressed: _busy ? null : _refresh,
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Refresh connections'),
-                  ),
-                  FilledButton.icon(
-                    onPressed: canControl && !blocked ? _configure : null,
-                    icon: const Icon(Icons.add),
-                    label: const Text('Add or replace profile'),
-                  ),
-                  if (blocked)
-                    TextButton(
-                      onPressed: canControl
-                          ? () => _action('reconcile', null)
-                          : null,
-                      child: const Text('Review and reconcile'),
-                    ),
-                ],
-              ),
-              Flexible(
-                child: ListView(
-                  shrinkWrap: true,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    if (configured && rows.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.all(16),
-                        child: Text('No MCP connections configured.'),
+                    Expanded(
+                      child: Text(
+                        'MCP connections',
+                        key: const ValueKey('mcp-page-title'),
+                        style: roles.pageTitle,
                       ),
-                    for (final row in rows)
-                      Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '${row['id']} · ${row['enabled'] == true ? 'enabled' : 'disabled'}',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              Text('${row['transport']} · ${row['endpoint']}'),
-                              Text(
-                                'Disclosure: ${row['content_scope']} · Allowed tools: ${(row['allowed_tools'] as List? ?? []).join(', ')}',
-                              ),
-                              if (row['credentialed'] == true)
-                                const Text(
-                                  'Uses owner-scoped secret references.',
-                                ),
-                              Wrap(
-                                spacing: 8,
-                                children: [
-                                  for (final operation in [
-                                    'test',
-                                    if (row['enabled'] == true) ...[
-                                      'reconnect',
-                                      'disable',
-                                    ] else
-                                      'enable',
-                                    'remove',
-                                  ])
-                                    TextButton(
-                                      onPressed: canControl && !blocked
-                                          ? () => _action(operation, row)
-                                          : null,
-                                      child: Text('$operation ${row['id']}'),
-                                    ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
+                    ),
+                    if (!widget.embedded)
+                      IconButton(
+                        tooltip: 'Close MCP settings',
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.close),
                       ),
                   ],
                 ),
-              ),
-            ],
+                const SizedBox(height: 6),
+                Text(
+                  'Owner controls run without model inference. Finish or stop active Agent tasks before changing connections. '
+                  'Inspection never starts a server; Test and Reconnect do.',
+                  key: const ValueKey('mcp-supporting-guidance'),
+                  style: roles.supportingText,
+                ),
+                if (_notice != null)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Text(
+                      _notice!,
+                      key: const ValueKey('mcp-status-notice'),
+                      style: roles.primaryContent,
+                    ),
+                  ),
+                if (_snapshot == null && _notice == null)
+                  const LinearProgressIndicator(),
+                if (_snapshot != null && !configured)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      'MCP management is not enabled. Enable the optional MCP host in owner configuration, then restart Agent.',
+                      style: roles.primaryContent,
+                    ),
+                  ),
+                if (configured)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8, bottom: 4),
+                    child: Text(
+                      'Configuration revision ${_snapshot!['revision']}',
+                      key: const ValueKey('mcp-technical-revision'),
+                      style: roles.technicalMetadata,
+                    ),
+                  ),
+                if (blocked)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Text(
+                      'A configuration change needs owner reconciliation. Review the saved profiles before applying them.',
+                      style: roles.primaryContent,
+                    ),
+                  ),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    TextButton.icon(
+                      onPressed: _busy ? null : _refresh,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Refresh connections'),
+                    ),
+                    FilledButton.icon(
+                      onPressed: canControl && !blocked ? _configure : null,
+                      icon: const Icon(Icons.add),
+                      label: const Text('Add or replace profile'),
+                    ),
+                    if (blocked)
+                      TextButton(
+                        onPressed: canControl
+                            ? () => _action('reconcile', null)
+                            : null,
+                        child: const Text('Review and reconcile'),
+                      ),
+                  ],
+                ),
+                if (configured && rows.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Text(
+                      'No MCP connections configured.',
+                      style: roles.primaryContent,
+                    ),
+                  ),
+                for (final row in rows)
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${row['id']} · ${row['enabled'] == true ? 'enabled' : 'disabled'}',
+                            key: ValueKey('mcp-server-title-${row['id']}'),
+                            style: roles.sectionTitle,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Disclosure: ${row['content_scope']} · Allowed tools: ${(row['allowed_tools'] as List? ?? []).join(', ')}',
+                            key: ValueKey('mcp-server-scope-${row['id']}'),
+                            style: roles.primaryContent,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${row['transport']} · ${row['endpoint']}',
+                            key: ValueKey('mcp-server-endpoint-${row['id']}'),
+                            style: roles.technicalMetadata,
+                          ),
+                          if (row['credentialed'] == true)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Text(
+                                'Uses owner-scoped secret references.',
+                                style: roles.supportingText,
+                              ),
+                            ),
+                          Wrap(
+                            spacing: 8,
+                            children: [
+                              for (final operation in [
+                                'test',
+                                if (row['enabled'] == true) ...[
+                                  'reconnect',
+                                  'disable',
+                                ] else
+                                  'enable',
+                                'remove',
+                              ])
+                                TextButton(
+                                  onPressed: canControl && !blocked
+                                      ? () => _action(operation, row)
+                                      : null,
+                                  child: Text('$operation ${row['id']}'),
+                                ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),

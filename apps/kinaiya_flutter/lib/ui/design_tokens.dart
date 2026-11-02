@@ -27,6 +27,80 @@ abstract final class KinaiyaDesign {
     sourceSize: Size(1024, 1536),
     surfaceAnchor: Offset(.5, 950 / 1536),
   );
+
+  /// Bounded text hierarchy roles for owner configuration and inspection pages.
+  static OwnerTextRoles textRoles(BuildContext context) =>
+      OwnerTextRoles.of(context);
+}
+
+/// Bounded text hierarchy roles for owner configuration and inspection screens.
+///
+/// Each role inherits colors and baseline metrics from the active [ThemeData]
+/// (`colorScheme.onSurface` and `colorScheme.onSurfaceVariant`) so light, dark,
+/// and custom character palettes remain contrast-safe and scale with the
+/// system text scaler without hard-coded tiny text.
+///
+/// Roles:
+/// - [pageTitle]: Primary heading of an owner page or dialog (`22px`, `w700`).
+/// - [sectionTitle]: Group or card heading (`16px`, `w600`).
+/// - [primaryContent]: Actionable owner guidance and primary labels (`15px`, `w500`).
+/// - [supportingText]: Secondary explanations and context (`14px`, `w400`).
+/// - [technicalMetadata]: Revisions, endpoints, transport IDs, and hashes (`13px`, `w500`, monospace).
+class OwnerTextRoles {
+  const OwnerTextRoles._({
+    required this.pageTitle,
+    required this.sectionTitle,
+    required this.primaryContent,
+    required this.supportingText,
+    required this.technicalMetadata,
+  });
+
+  factory OwnerTextRoles.of(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final text = theme.textTheme;
+    final primaryInk = scheme.onSurface;
+    final supportingInk = scheme.onSurfaceVariant;
+    return OwnerTextRoles._(
+      pageTitle: (text.titleLarge ?? const TextStyle()).copyWith(
+        fontSize: 22,
+        fontWeight: FontWeight.w700,
+        height: 1.25,
+        color: primaryInk,
+      ),
+      sectionTitle: (text.titleMedium ?? const TextStyle()).copyWith(
+        fontSize: 16,
+        fontWeight: FontWeight.w600,
+        height: 1.3,
+        color: primaryInk,
+      ),
+      primaryContent: (text.bodyLarge ?? const TextStyle()).copyWith(
+        fontSize: 15,
+        fontWeight: FontWeight.w500,
+        height: 1.4,
+        color: primaryInk,
+      ),
+      supportingText: (text.bodyMedium ?? const TextStyle()).copyWith(
+        fontSize: 14,
+        fontWeight: FontWeight.w400,
+        height: 1.4,
+        color: supportingInk,
+      ),
+      technicalMetadata: (text.bodySmall ?? const TextStyle()).copyWith(
+        fontSize: 13,
+        fontWeight: FontWeight.w500,
+        height: 1.35,
+        fontFamily: 'monospace',
+        color: supportingInk,
+      ),
+    );
+  }
+
+  final TextStyle pageTitle;
+  final TextStyle sectionTitle;
+  final TextStyle primaryContent;
+  final TextStyle supportingText;
+  final TextStyle technicalMetadata;
 }
 
 /// Reusable surface; palette overrides still come from the active theme.
