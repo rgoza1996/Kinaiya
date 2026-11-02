@@ -814,4 +814,156 @@ void main() {
       await f.dispose(tester);
     },
   );
+
+  testWidgets(
+    'Options category orientation, breadcrumb, direct category switching, and search return path preserve owners and drafts',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1280, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final f = NavigationFixture();
+      await f.mount(tester);
+      final characterState = tester.state(find.byType(CharacterView));
+      final agentState = tester.state(
+        find.byType(AgentChat, skipOffstage: false),
+      );
+      await openSettings(tester);
+
+      // Overview has no breadcrumb bar.
+      expect(
+        find.byKey(const ValueKey('options-breadcrumb-bar')),
+        findsNothing,
+      );
+
+      // Open Models & Providers category.
+      await tester.tap(find.byKey(const ValueKey('options-category-models')));
+      await routePump(tester);
+      expect(
+        find.byKey(const ValueKey('options-breadcrumb-bar')),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('options-current-category')),
+            )
+            .data,
+        'Models & providers',
+      );
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('options-breadcrumb-category')),
+            )
+            .data,
+        'Models & providers',
+      );
+      expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey('options-breadcrumb-page')))
+            .data,
+        'Models',
+      );
+      expect(
+        tester
+            .widget<ListTile>(find.byKey(const ValueKey('options-models')))
+            .selected,
+        isTrue,
+      );
+
+      // Switch directly to Voice & audio and then Connection & privacy without resetting through overview.
+      final voiceCategory = find.byKey(
+        const ValueKey('options-category-voice'),
+      );
+      await tester.ensureVisible(voiceCategory);
+      await tester.tap(voiceCategory);
+      await routePump(tester);
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('options-current-category')),
+            )
+            .data,
+        'Voice & audio',
+      );
+      expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey('options-breadcrumb-page')))
+            .data,
+        'Voice',
+      );
+
+      final systemCategory = find.byKey(
+        const ValueKey('options-category-connection'),
+      );
+      await tester.ensureVisible(systemCategory);
+      await tester.tap(systemCategory);
+      await routePump(tester);
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('options-current-category')),
+            )
+            .data,
+        'Connection & privacy',
+      );
+      expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey('options-breadcrumb-page')))
+            .data,
+        'Connection',
+      );
+
+      // Search-result navigation provides an explicit path back to the search results.
+      final search = find.byKey(const ValueKey('settings-search'));
+      await tester.ensureVisible(search);
+      await tester.pump();
+      await tester.enterText(search, 'microphone');
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('options-search-voice')));
+      await routePump(tester);
+      final returnSearch = find.byKey(
+        const ValueKey('options-breadcrumb-return-search'),
+      );
+      expect(returnSearch, findsOneWidget);
+      expect(find.text('Back to search ("microphone")'), findsOneWidget);
+      await tester.tap(returnSearch);
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('options-search-voice')),
+        findsOneWidget,
+      );
+      await tester.tap(find.byTooltip('Clear search'));
+      await tester.pump();
+
+      // Explicit All settings breadcrumb returns to overview.
+      await tester.tap(
+        find.byKey(const ValueKey('options-breadcrumb-all-settings')),
+      );
+      await routePump(tester);
+      expect(
+        find.byKey(const ValueKey('options-breadcrumb-bar')),
+        findsNothing,
+      );
+      await tester.tap(find.byKey(const ValueKey('settings-close')));
+      await routePump(tester);
+
+      // Native owners, drafts, and tasks stay mounted and intact.
+      expect(
+        identical(tester.state(find.byType(CharacterView)), characterState),
+        isTrue,
+      );
+      expect(
+        identical(
+          tester.state(find.byType(AgentChat, skipOffstage: false)),
+          agentState,
+        ),
+        isTrue,
+      );
+      expect(f.state.converseDraft, 'Retained conversation draft');
+      expect(f.state.agentDraft, 'Retained Agent draft');
+      expect(f.state.tasks.single.taskId, 'kept-task');
+      expect(f.dispatchedEffect, isFalse);
+      await f.dispose(tester);
+    },
+  );
 }

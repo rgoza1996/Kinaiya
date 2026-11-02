@@ -59,6 +59,7 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
   String? _harness;
   String? _auxiliaryPurpose;
   String _query = '';
+  String? _lastSearchQuery;
   final _search = TextEditingController();
   final _scaffold = GlobalKey<ScaffoldState>();
   Map<String, Object?>? _agent;
@@ -268,14 +269,33 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
     if (current()) setState(() => _loading = false);
   }
 
-  void _select(OptionsPage page) {
+  void _select(OptionsPage page, {bool fromSearch = false}) {
+    final previousQuery = _query.trim();
     _scaffold.currentState?.closeDrawer();
     setState(() {
       _page = page;
       _harness = null;
+      _lastSearchQuery = fromSearch && previousQuery.isNotEmpty
+          ? previousQuery
+          : null;
       _query = '';
       _search.clear();
     });
+  }
+
+  void _restoreSearch({required bool wide}) {
+    final saved = _lastSearchQuery;
+    if (saved == null || saved.isEmpty) return;
+    setState(() {
+      _query = saved;
+      _search.value = TextEditingValue(
+        text: saved,
+        selection: TextSelection.collapsed(offset: saved.length),
+      );
+    });
+    if (!wide) {
+      _scaffold.currentState?.openDrawer();
+    }
   }
 
   OptionsCategory? get _category {
@@ -532,6 +552,8 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
                       key: ValueKey('options-content-heading-divider'),
                       height: 1,
                     ),
+                    if (_page != OptionsPage.overview)
+                      _breadcrumbBar(wide: wide),
                     if (_loading) const LinearProgressIndicator(minHeight: 2),
                     if (_notice != null)
                       Padding(
@@ -648,7 +670,7 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
                                 wide ? 32 : 16,
                                 8,
                                 wide ? 32 : 16,
-                                24,
+                                bounds.maxHeight < 520 ? 8 : 24,
                               ),
                         child: UiFadeTransition(
                           alignment: Alignment.topLeft,
@@ -673,6 +695,89 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
     },
   );
 
+  Widget _breadcrumbBar({required bool wide}) {
+    final category = _category;
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return Container(
+      key: const ValueKey('options-breadcrumb-bar'),
+      padding: EdgeInsets.symmetric(horizontal: wide ? 24 : 12, vertical: 2),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerLowest,
+        border: Border(bottom: BorderSide(color: scheme.outlineVariant)),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            TextButton.icon(
+              key: const ValueKey('options-breadcrumb-all-settings'),
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                minimumSize: Size.zero,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              ),
+              onPressed: () => _select(OptionsPage.overview),
+              icon: const Icon(Icons.arrow_back, size: 16),
+              label: const Text('All settings'),
+            ),
+            if (category != null) ...[
+              const SizedBox(width: 6),
+              Text(
+                '›',
+                style: textTheme.labelLarge?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                category.label,
+                key: const ValueKey('options-breadcrumb-category'),
+                style: textTheme.labelLarge?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+            const SizedBox(width: 6),
+            Text(
+              '›',
+              style: textTheme.labelLarge?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              _pageTitle,
+              key: const ValueKey('options-breadcrumb-page'),
+              style: textTheme.labelLarge?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            if (_lastSearchQuery case final savedQuery?) ...[
+              const SizedBox(width: 12),
+              TextButton.icon(
+                key: const ValueKey('options-breadcrumb-return-search'),
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  minimumSize: Size.zero,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                ),
+                onPressed: () => _restoreSearch(wide: wide),
+                icon: const Icon(Icons.search, size: 16),
+                label: Text('Back to search ("$savedQuery")'),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _navigation() {
     final category = _category, searching = _query.trim().isNotEmpty;
     final searchResults = searching
@@ -680,65 +785,141 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
         : const <OptionsSearchResult>[];
     return Material(
       color: Theme.of(context).colorScheme.surfaceContainerLow,
-      child: ListView(
-        padding: EdgeInsets.zero,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: 48),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                heightFactor: 1,
-                child: Text(
-                  'Options',
-                  style: Theme.of(context).textTheme.titleLarge,
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 48),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  heightFactor: 1,
+                  child: Text(
+                    'Options',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
                 ),
               ),
             ),
-          ),
-          const Divider(
-            key: ValueKey('options-sidebar-heading-divider'),
-            height: 1,
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 16, 12, 0),
-            child: TextField(
-              key: const Key('settings-search'),
-              controller: _search,
-              maxLength: 128,
-              decoration: InputDecoration(
-                hintText: 'Search options',
-                counterText: '',
-                prefixIcon: const Icon(Icons.search),
-                border: const OutlineInputBorder(),
-                suffixIcon: _query.isEmpty
-                    ? null
-                    : IconButton(
-                        tooltip: 'Clear search',
-                        onPressed: () => setState(() {
-                          _query = '';
-                          _search.clear();
-                        }),
-                        icon: const Icon(Icons.clear),
-                      ),
-              ),
-              onChanged: (value) => setState(() => _query = value),
+            const Divider(
+              key: ValueKey('options-sidebar-heading-divider'),
+              height: 1,
             ),
-          ),
-          const SizedBox(height: 12),
-          Padding(
-            padding: const EdgeInsets.all(8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (searching) ...[
-                  if (searchResults.isNotEmpty && searchResults.first.isPartial)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 16, 12, 0),
+              child: TextField(
+                key: const Key('settings-search'),
+                controller: _search,
+                maxLength: 128,
+                decoration: InputDecoration(
+                  hintText: 'Search options',
+                  counterText: '',
+                  prefixIcon: const Icon(Icons.search),
+                  border: const OutlineInputBorder(),
+                  suffixIcon: _query.isEmpty
+                      ? null
+                      : IconButton(
+                          tooltip: 'Clear search',
+                          onPressed: () => setState(() {
+                            _query = '';
+                            _search.clear();
+                          }),
+                          icon: const Icon(Icons.clear),
+                        ),
+                ),
+                onChanged: (value) => setState(() => _query = value),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.all(8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (searching) ...[
+                    if (searchResults.isNotEmpty &&
+                        searchResults.first.isPartial)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+                        child: Text(
+                          'Partial matches',
+                          key: const ValueKey('options-search-partial-heading'),
+                          style: Theme.of(context).textTheme.labelMedium
+                              ?.copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                              ),
+                        ),
+                      ),
+                    for (final result in searchResults)
+                      ListTile(
+                        key: ValueKey('options-search-${result.page.name}'),
+                        title: Text(result.page.label),
+                        subtitle: Text(
+                          '${result.category.label} · ${result.page.description}',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        leading: Icon(result.category.icon),
+                        onTap: () => _select(result.page, fromSearch: true),
+                      ),
+                    if (searchResults.isEmpty)
+                      const ListTile(
+                        key: ValueKey('options-search-empty'),
+                        title: Text('No matching options'),
+                        subtitle: Text(
+                          'Try searching by setting name, category, or keyword.',
+                        ),
+                      ),
+                  ] else if (category != null) ...[
+                    ListTile(
+                      key: const Key('options-back'),
+                      leading: const Icon(Icons.arrow_back),
+                      title: const Text('All settings'),
+                      subtitle: const Text(
+                        'Back to Options overview',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      onTap: () => _select(OptionsPage.overview),
+                    ),
+                    const Divider(),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
                       child: Text(
-                        'Partial matches',
-                        key: const ValueKey('options-search-partial-heading'),
+                        category.label,
+                        key: const ValueKey('options-current-category'),
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                    for (final page in category.pages)
+                      ListTile(
+                        key: ValueKey('options-${page.name}'),
+                        selected: page == _page,
+                        selectedColor: Theme.of(
+                          context,
+                        ).colorScheme.onPrimaryContainer,
+                        selectedTileColor: Theme.of(
+                          context,
+                        ).colorScheme.primaryContainer,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        title: Text(page.label),
+                        onTap: () => _select(page),
+                      ),
+                    const Divider(),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+                      child: Text(
+                        'Other categories',
+                        key: const ValueKey('options-other-categories-heading'),
                         style: Theme.of(context).textTheme.labelMedium
                             ?.copyWith(
                               color: Theme.of(
@@ -747,65 +928,34 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
                             ),
                       ),
                     ),
-                  for (final result in searchResults)
-                    ListTile(
-                      key: ValueKey('options-search-${result.page.name}'),
-                      title: Text(result.page.label),
-                      subtitle: Text(
-                        '${result.category.label} · ${result.page.description}',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+                    for (final item in optionsCategories.where(
+                      (item) => item != category,
+                    ))
+                      ListTile(
+                        key: ValueKey(
+                          'options-category-${item.pages.first.name}',
+                        ),
+                        dense: true,
+                        leading: Icon(item.icon, size: 18),
+                        title: Text(item.label),
+                        onTap: () => _select(item.pages.first),
                       ),
-                      leading: Icon(result.category.icon),
-                      onTap: () => _select(result.page),
-                    ),
-                  if (searchResults.isEmpty)
-                    const ListTile(
-                      key: ValueKey('options-search-empty'),
-                      title: Text('No matching options'),
-                      subtitle: Text(
-                        'Try searching by setting name, category, or keyword.',
+                  ] else ...[
+                    for (final item in optionsCategories)
+                      ListTile(
+                        key: ValueKey(
+                          'options-category-${item.pages.first.name}',
+                        ),
+                        leading: Icon(item.icon, size: 20),
+                        title: Text(item.label),
+                        onTap: () => _select(item.pages.first),
                       ),
-                    ),
-                ] else if (category != null) ...[
-                  for (final page in category.pages)
-                    ListTile(
-                      key: ValueKey('options-${page.name}'),
-                      selected: page == _page,
-                      selectedColor: Theme.of(
-                        context,
-                      ).colorScheme.onPrimaryContainer,
-                      selectedTileColor: Theme.of(
-                        context,
-                      ).colorScheme.primaryContainer,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      title: Text(page.label),
-                      onTap: () => _select(page),
-                    ),
-                  const Divider(),
-                  ListTile(
-                    key: const Key('options-back'),
-                    leading: const Icon(Icons.arrow_back),
-                    title: const Text('Back'),
-                    onTap: () => _select(OptionsPage.overview),
-                  ),
-                ] else ...[
-                  for (final item in optionsCategories)
-                    ListTile(
-                      key: ValueKey(
-                        'options-category-${item.pages.first.name}',
-                      ),
-                      leading: Icon(item.icon, size: 20),
-                      title: Text(item.label),
-                      onTap: () => _select(item.pages.first),
-                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
