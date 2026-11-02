@@ -49,12 +49,11 @@ JournalEntry _source({
   int sequence = 1,
   int revision = 1,
   String text = 'Run the unit tests and summarize failures in report.md',
-}) => _entry(
-  'conversation.user',
-  sequence,
-  {'revision': revision, 'text': text, 'final': true},
-  id: id,
-);
+}) => _entry('conversation.user', sequence, {
+  'revision': revision,
+  'text': text,
+  'final': true,
+}, id: id);
 
 JournalEntry _decision({
   String id = 'dec-1',
