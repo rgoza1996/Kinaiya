@@ -31,6 +31,78 @@ abstract final class KinaiyaDesign {
   /// Bounded text hierarchy roles for owner configuration and inspection pages.
   static OwnerTextRoles textRoles(BuildContext context) =>
       OwnerTextRoles.of(context);
+
+  /// Resolves a contrast-safe semantic state style with non-color meaning.
+  static SemanticStateStyle semanticState(
+    BuildContext context,
+    SemanticStateVariant variant,
+  ) => SemanticStateStyle.of(context, variant);
+}
+
+/// Explicit semantic state variants with non-color textual meaning and icons.
+///
+/// Unknown or uncertain states always map to [unavailableOrUnknown] and never
+/// receive [completed] or [active] styling.
+enum SemanticStateVariant {
+  active('Active', Icons.play_circle_outline_rounded),
+  pending('Pending', Icons.schedule_rounded),
+  needsAttention('Needs attention', Icons.warning_amber_rounded),
+  failedOrBlocked('Failed or blocked', Icons.error_outline_rounded),
+  completed('Completed', Icons.check_circle_outline_rounded),
+  unavailableOrUnknown('Unavailable or unknown', Icons.help_outline_rounded);
+
+  const SemanticStateVariant(this.meaning, this.icon);
+  final String meaning;
+  final IconData icon;
+}
+
+/// Theme-aware visual and accessible contract for a [SemanticStateVariant].
+class SemanticStateStyle {
+  const SemanticStateStyle({
+    required this.variant,
+    required this.tone,
+    required this.background,
+    required this.foreground,
+    required this.border,
+    required this.icon,
+    required this.meaning,
+  });
+
+  factory SemanticStateStyle.of(
+    BuildContext context,
+    SemanticStateVariant variant,
+  ) {
+    final scheme = Theme.of(context).colorScheme;
+    final tone = switch (variant) {
+      SemanticStateVariant.completed => scheme.primary,
+      SemanticStateVariant.failedOrBlocked => scheme.error,
+      SemanticStateVariant.needsAttention => scheme.tertiary,
+      SemanticStateVariant.active ||
+      SemanticStateVariant.pending => scheme.secondary,
+      SemanticStateVariant.unavailableOrUnknown => scheme.outline,
+    };
+    final background = tone.withValues(alpha: 0.15);
+    final foreground = scheme.onSurface;
+    return SemanticStateStyle(
+      variant: variant,
+      tone: tone,
+      background: background,
+      foreground: foreground,
+      border: tone,
+      icon: variant.icon,
+      meaning: variant.meaning,
+    );
+  }
+
+  final SemanticStateVariant variant;
+  final Color tone;
+  final Color background;
+  final Color foreground;
+  final Color border;
+  final IconData icon;
+  final String meaning;
+
+  String accessibleLabel(String rawLabel) => 'Status: $rawLabel · $meaning';
 }
 
 /// Bounded text hierarchy roles for owner configuration and inspection screens.

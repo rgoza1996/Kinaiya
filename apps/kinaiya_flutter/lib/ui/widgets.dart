@@ -9,6 +9,7 @@ import 'package:flutter/services.dart' show AssetBundle, rootBundle;
 
 import '../character/pack.dart';
 import '../character/playback.dart';
+import 'design_tokens.dart';
 
 /// Local decorative playback. Asset loading never gates speech or runtime work.
 class MascotWidget extends StatefulWidget {
@@ -408,18 +409,35 @@ class SendMascotButton extends StatelessWidget {
 }
 
 class StatusChip extends StatelessWidget {
-  const StatusChip({super.key, required this.text, this.tone = Colors.grey});
+  const StatusChip({
+    super.key,
+    required this.text,
+    this.tone = Colors.grey,
+    this.variant,
+  });
   final String text;
   final Color tone;
+  final SemanticStateVariant? variant;
 
   @override
   Widget build(BuildContext context) {
+    final style = variant == null
+        ? null
+        : KinaiyaDesign.semanticState(context, variant!);
+    final effectiveTone = style?.tone ?? tone;
+    final foreground = Theme.of(context).colorScheme.onSurface;
     return Semantics(
-      label: 'Status: $text',
+      label: style == null ? 'Status: $text' : style.accessibleLabel(text),
       child: Chip(
-        label: Text(text),
-        backgroundColor: tone.withValues(alpha: 0.15),
-        side: BorderSide(color: tone),
+        avatar: style == null
+            ? null
+            : Icon(style.icon, size: 16, color: foreground),
+        label: Text(
+          style == null ? text : '$text · ${style.meaning}',
+          style: TextStyle(color: foreground),
+        ),
+        backgroundColor: effectiveTone.withValues(alpha: 0.15),
+        side: BorderSide(color: effectiveTone),
       ),
     );
   }
