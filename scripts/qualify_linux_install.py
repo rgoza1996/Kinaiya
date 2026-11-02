@@ -420,7 +420,11 @@ class Qualification:
         self.record("services", "passed", **observed, provider_contacted=False, tasks_started=0)
 
     def _cli(self, *args):
-        return json.loads(_run([str(self.layout.bin / "kinaiya"), *args], timeout=120).stdout)
+        # Mutating commands print their reviewed plan line before the JSON result.
+        out = _run([str(self.layout.bin / "kinaiya"), *args], timeout=120).stdout
+        start = out.find("{")
+        _require(start >= 0, f"no JSON result from kinaiya {args[0]}")
+        return json.loads(out[start:])
 
     def rollback(self):
         result = self._cli("rollback", "--generation", self.generation_1, "--yes")
