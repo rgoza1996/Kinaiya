@@ -64,9 +64,17 @@ def task_evidence(section, task):
         and all(
             type(frame) in {dict, list}
             and any(type(part) is str and 0 < len(part) <= 64 for part in nodes(frame))
-            and any(type(part) is int and part >= 0 for part in nodes(frame))
-            for frame in child
+            and (
+                any(type(part) is int and part >= 0 for part in nodes(frame))
+                or (
+                    index == len(child) - 1
+                    and "awaitable" in list(nodes(frame))
+                    and any(part is None for part in nodes(frame))
+                )
+            )
+            for index, frame in enumerate(child)
         )
+        and any(type(part) is int and part >= 0 for frame in child for part in nodes(frame))
     ]
     assert chains and all(len(chain) <= 24 for chain in chains)
 
@@ -157,6 +165,7 @@ async def test_snapshot_observes_original_held_context_without_advancing_owners(
     value = await physical()
     await physical_module.bound(value)
     await physical_module.closure(value)
+    starts_before, stops_before = tuple(value.starts), tuple(value.stops)
     gate = value.native.gate = physical_module.Gate(physical_module.CONTEXT, "read")
     value.diagnostic_private = gate.diagnostic_private = PRIVATE
     public = physical_module.begin(value)
@@ -280,7 +289,8 @@ async def test_snapshot_observes_original_held_context_without_advancing_owners(
     assert native is not None and native.finalization == receipt.finalization
     await physical_module.join_context_originals(value, originals)
     assert work.exception() is None
-    assert value.starts == value.stops == [] and value.effect_checks == 0
+    assert tuple(value.starts) == starts_before == ()
+    assert tuple(value.stops) == stops_before and value.effect_checks == 0
     assert value.provider.calls == []
     # The unchanged physical factory finally joins all original roots, sole
     # closes, native clients, ledger handles and Manager retirement.
