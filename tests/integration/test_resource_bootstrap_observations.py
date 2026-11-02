@@ -98,16 +98,38 @@ async def refused_worker(tmp_path, monkeypatch, record_property):
 
             async def wait(self):
                 task = asyncio.current_task()
-                value.waits.append(task)
+                native = super().wait()
+                observation = SimpleNamespace(
+                    caller=task,
+                    native=native,
+                    native_returned=False,
+                    native_result=None,
+                    outer_returned=False,
+                    outer_finished=False,
+                    outer_cancelled=False,
+                    outer_error=None,
+                )
+                value.waits.append(observation)
                 value.events.append(("wait_enter", task))
-                result = await super().wait()
-                value.native_wait_results.append(result)
-                value.events.append(("wait_native_done", task))
-                if mode == "cancel-reap":
-                    value.wait_entered.set()
-                    await value.wait_release.wait()
-                value.events.append(("wait_return", task))
-                return result
+                try:
+                    result = await native
+                    observation.native_returned = True
+                    observation.native_result = result
+                    value.native_wait_results.append(result)
+                    value.events.append(("wait_native_done", task))
+                    if mode == "cancel-reap":
+                        value.wait_entered.set()
+                        await value.wait_release.wait()
+                    observation.outer_returned = True
+                    value.events.append(("wait_return", task))
+                    return result
+                except BaseException as error:
+                    observation.outer_cancelled = isinstance(error, asyncio.CancelledError)
+                    observation.outer_error = type(error).__name__
+                    raise
+                finally:
+                    observation.outer_finished = True
+                    value.events.append(("wait_finally", task))
 
         async def spawn(*args, **kwargs):
             value.spawn = asyncio.current_task()
@@ -192,7 +214,12 @@ async def refused_worker(tmp_path, monkeypatch, record_property):
             assert value.spawn is not None and value.spawn.done() and not value.spawn.cancelled()
             assert value.process is value.spawn.result()
             assert value.process.returncode is not None
-            assert all(wait.done() for wait in value.waits)
+            assert all(wait.outer_finished and wait.native.cr_frame is None for wait in value.waits)
+            # Python3.12 wait_for can await close inline in this finalizer.
+            # Completion of that native await does not finish its caller Task.
+            assert all(
+                wait.caller is asyncio.current_task() or wait.caller.done() for wait in value.waits
+            )
             assert managed.pending_spawn is managed.pending_cleanup is None
             assert managed.pending_fds == [] and managed.pending_obj is None
             assert managed.drains == [] and managed.leader_fd is None
@@ -209,7 +236,10 @@ async def refused_worker(tmp_path, monkeypatch, record_property):
                     "mode": value.mode,
                     "original_spawn_done": value.spawn.done(),
                     "original_process_exited": value.process.returncode is not None,
-                    "original_waits_done": all(wait.done() for wait in value.waits),
+                    "original_waits_done": all(
+                        wait.outer_finished and wait.native.cr_frame is None for wait in value.waits
+                    ),
+                    "cancelled_outer_waits": sum(wait.outer_cancelled for wait in value.waits),
                     "original_pipes_closed": True,
                     "original_grant_closed_once": len(value.grant_closes) == 1,
                     "original_control_fds_closed": True,
@@ -266,7 +296,14 @@ async def test_cached_original_status_distinguishes_before_grant_close_from_afte
     assert value.pipe_calls == 1
     expected_waits = 2 if mode.startswith("before-") else 1
     assert len(value.waits) == expected_waits
-    assert all(task.done() and not task.cancelled() for task in value.waits)
+    assert all(
+        wait.outer_finished
+        and wait.outer_returned
+        and not wait.outer_cancelled
+        and wait.outer_error is None
+        and wait.native.cr_frame is None
+        for wait in value.waits
+    )
     assert value.native_wait_results[-1] == value.process.returncode
     assert result["returncode"] == value.process.returncode
     if mode in {"after-close", "cached-unavailable"}:
@@ -289,11 +326,15 @@ async def test_cancelled_original_reap_is_an_attempt_not_completed_wait_or_new_w
     try:
         await asyncio.wait_for(value.wait_entered.wait(), 5)
         original_wait = value.waits[0]
-        assert not original_wait.done() and value.native_wait_results == [0]
+        assert not original_wait.outer_finished and value.native_wait_results == [0]
+        assert original_wait.native_returned and original_wait.native_result == 0
         value.start.cancel()
         result = await asyncio.wait_for(asyncio.shield(value.start), 8)
         assert result["ok"] is False and result["error"] == "ownership-unverified"
-        assert original_wait.done() and original_wait.cancelled()
+        assert original_wait.outer_finished and original_wait.outer_cancelled
+        assert not original_wait.outer_returned and original_wait.outer_error == "CancelledError"
+        assert original_wait.native.cr_frame is None
+        assert value.start.done() and not value.start.cancelled()
         assert len(value.waits) == 1, "Cached diagnostics cannot start an extra waiter"
         assert observations(value) == ("not_reported", "exited_zero")
         assert value.process.returncode == 0 and value.pipe_calls == 1
@@ -312,6 +353,9 @@ async def test_hostile_new_warning_sink_preserves_actual_refusal_and_original_cl
     assert result["ok"] is False and result["error"] == "ownership-unverified"
     assert not value.marker.exists() and len(value.grant_closes) == 1
     assert value.process.returncode is not None and value.pipe_calls == 1
-    assert all(task.done() for task in value.waits)
+    assert all(
+        wait.outer_finished and wait.outer_returned and wait.native.cr_frame is None
+        for wait in value.waits
+    )
     assert len([record for record in value.warning_records if record[0] == EXIT]) == 1
     observations(value)
