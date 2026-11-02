@@ -33,6 +33,18 @@ records 30 new controlled checks and 414 existing regressions, separately
 attributed source cuts, preserved failures, fixture calibration and independent
 review. Applicable exact-head CI remains required for this new increment.
 
+[CI441](https://github.com/rgoza1996/Kinaiya/actions/runs/41464568709) subsequently
+passed Flutter/web, Android, iOS and Python 3.11, but Python 3.12 failed two
+unchanged eight-second physical-finalization cases. PR315 remains draft and
+unmerged. The follow-up source `15fbc836` removes two redundant same-call native
+validation passes while retaining fresh pre-commit observation, complete graph
+validation and the original transaction guards. Its
+[qualification record](../evaluation/evidence/native-report-validation-2026-11-02.json)
+records 188 passing affected local regressions and independent source review.
+The baseline also passed a local one-shot of the two failed cases: neither local
+result establishes the CI timeout cause or a causal timing fix. No deadline or
+assertion was relaxed; changed-head CI is still required before merge.
+
 These tests establish architectural behavior with controlled inference outputs.
 They do not qualify model accuracy, a live stack or a demonstration. Native Task
 settlement, claim/reservation and active-slot release, recurrence, inbox and

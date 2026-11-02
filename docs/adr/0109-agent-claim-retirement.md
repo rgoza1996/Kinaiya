@@ -96,6 +96,15 @@ oracles, later source-aware controls, original failures, fixture calibration,
 independent review and applicable exact-head CI. Overlapping runs are not added
 as unique coverage.
 
+The subsequent [validation qualification](../../evaluation/evidence/native-report-validation-2026-11-02.json)
+retains CI441's two Python 3.12 timeout failures and the follow-up source
+`15fbc836`. That source removes only duplicate synchronous reconstruction after
+the same complete graph and native context have already been validated; fresh
+pre-commit observation, transaction guards and public receipt validation remain.
+All 188 affected local regressions passed with unchanged deadlines. The baseline
+also passed the two cases locally, so no causal timeout repair or performance
+claim follows. The changed publication head still requires passing CI.
+
 The original oversized conversation fixture was invalid: Store rejects a
 serialized AppendRequest above 65,536 bytes. Its failed run is retained rather
 than called a client-capacity regression. Corrected controls exercise exact
