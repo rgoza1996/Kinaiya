@@ -436,8 +436,11 @@ at `15ea5117` passed the exact unchanged 296-case group, alongside separate 127
 contract/client and 96 native/Resources cases. These overlapping scopes do not
 establish full-project CI or reconstruct the earlier process's trigger. Complete
 validation and cleanup assertions remain required; the original failures remain
-preserved. The actual Resources report producer, durable physical witnesses and
-standing-work settlement chain are still unfinished.
+preserved. That run predates the later [in-process Resources producer](adr/0107-standing-physical-finalization.md)
+and [scoped finalization transport](adr/0108-standing-finalization-transport.md).
+Agent claim-wide retirement and its automatic finalization caller, native Task
+settlement, claim/reservation and active-slot release, recurrence, inbox and
+editor remain unfinished.
 
 The draft integration now includes the actual [Resources binding and operation
 barrier](standing-work-api.md#resources-prework-binding-and-operation-barrier):

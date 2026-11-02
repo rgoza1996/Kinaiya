@@ -584,9 +584,13 @@ The integration branch adds six strict packets in
 `packages/contracts/standing_resource_finalization.py`: binding request/receipt,
 finalize request/context, finalization and its receipt. They preserve complete
 claim, original intent, admission closure and resource observation graphs.
-Their separate codec accepts at most depth 16 and 16,384 nodes; older codecs and
-their 184 schema files are unchanged. These bounds do not apply to transcript
-metadata or establish physical cleanup.
+Their separate codec accepts at most depth 16 and 16,384 nodes. At this native
+testimony increment, older codecs and all 184 pre-existing schema files stayed
+unchanged. The current integrated tree also includes the approved main
+[native-d1](adr/0106-native-d1-decisions.md) `native_d1_systemone` enum additions
+in the two existing `DecisionsCallStart` and `DecisionsModelPin` schemas. Those
+evolutions are separate from this family's six additive schemas. These bounds
+do not apply to transcript metadata or establish physical cleanup.
 
 | Session POST route | Role | Request → response byte caps |
 |---|---|---|
@@ -615,11 +619,14 @@ transport clamp; all standing routes share one 64-operation registry and the
 existing 25-second total/five-second ingress bounds. Shutdown fences admission
 before joining actual operations and retiring collaborators.
 
-This is **native Session testimony**, not a physical Resources certificate.
-The Resources binding and operation barrier described below consume this
-testimony. Durable lease acquisition/restoration witnesses and production of
-physical reports remain unfinished. Agent supervisor retirement, positive
-settlement, active-slot release, recurrence, inbox and editor remain required.
+This increment supplies **native Session testimony**, not a physical Resources
+certificate. The Resources binding and operation barrier described below consume
+this testimony. The later [in-process Resources producer](adr/0107-standing-physical-finalization.md)
+implements durable acquisition/restoration witnesses and exact report production;
+[scoped finalization transport](adr/0108-standing-finalization-transport.md)
+exposes its Agent-role call and lookup. Agent claim-wide retirement and its
+automatic finalization caller, native Task settlement, claim/reservation and
+active-slot release, recurrence, inbox and editor remain required.
 In particular, `no-reservation` in a parsed packet cannot establish that no
 actual operation acquired resources, and no claim/reservation is released here.
 
