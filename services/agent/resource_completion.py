@@ -276,6 +276,10 @@ class StandingClaimOwner:
             if self.bind_operation is not None:
                 await asyncio.gather(asyncio.shield(self.bind_operation), return_exceptions=True)
             if self.binding_started and self.binding is None:
+                # A bounded bind facade can end before its original exchange
+                # and sole close. Reconcile only after those work owners retire.
+                await self._settle_work()
+                self._healthy(retired=True)
                 self.binding = await self._joined_call(
                     lambda: self.resources.lookup_standing_binding(self.claim)
                 )
