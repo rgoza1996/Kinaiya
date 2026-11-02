@@ -95,24 +95,47 @@ jobs:
           sudo udevadm trigger --name-match=kvm
       - name: Install emulator image under the runner's existing license state
         run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost || true
+          df -h
           sdk="$ANDROID_HOME/cmdline-tools/latest/bin"
-          "$sdk/sdkmanager" "emulator" "platform-tools" "system-images;android-35;google_apis;x86_64" </dev/null
-          echo no | "$sdk/avdmanager" create avd -n kinaiya -k "system-images;android-35;google_apis;x86_64" -d pixel_6
+          "$sdk/sdkmanager" "emulator" "platform-tools" "system-images;android-34;default;x86_64" </dev/null
+          echo no | "$sdk/avdmanager" create avd -f -n kinaiya -k "system-images;android-34;default;x86_64" -d pixel_6
       - name: Install, upgrade and reject foreign-key updates on the emulator
         run: |
           set -eu
           adb="$ANDROID_HOME/platform-tools/adb"
+          evidence="$RUNNER_TEMP/evidence"; mkdir -p "$evidence"
+          "$adb" start-server </dev/null >/dev/null 2>&1
           "$ANDROID_HOME/emulator/emulator" -avd kinaiya -no-window -no-audio -no-boot-anim \
-            -gpu swiftshader_indirect -no-snapshot -camera-back none > "$RUNNER_TEMP/emulator.log" 2>&1 &
-          "$adb" wait-for-device
-          for i in $(seq 1 120); do
-            test "$("$adb" shell getprop sys.boot_completed | tr -d '\r')" = 1 && break
+            -gpu swiftshader_indirect -no-snapshot -partition-size 2048 -memory 2048 \
+            -camera-back none </dev/null > "$evidence/emulator.log" 2>&1 &
+          emu_pid=$!
+          cleanup() {
+            status=$?
+            if [ "$status" -ne 0 ]; then
+              echo "=== emulator.log tail ==="
+              tail -n 120 "$evidence/emulator.log" || true
+            fi
+            "$adb" emu kill </dev/null >/dev/null 2>&1 || true
+            kill "$emu_pid" 2>/dev/null || true
+            "$adb" kill-server </dev/null >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          booted=0
+          for i in $(seq 1 90); do
+            if ! kill -0 "$emu_pid" 2>/dev/null; then
+              echo "Emulator process exited before boot completed"
+              exit 1
+            fi
+            if [ "$("$adb" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; then
+              booted=1
+              break
+            fi
             sleep 3
           done
-          test "$("$adb" shell getprop sys.boot_completed | tr -d '\r')" = 1
+          test "$booted" -eq 1
           "$adb" shell settings put global package_verifier_enable 0 || true
           pkg=dev.kinaiya.kinaiya_flutter.nightly
-          evidence="$RUNNER_TEMP/evidence"; mkdir -p "$evidence"
           info() { "$adb" shell dumpsys package "$1" | grep -E "versionCode|firstInstallTime|lastUpdateTime" | tr -d '\r' | sed 's/^ *//'; }
           launch() {
             "$adb" shell am start -W -n "$1/dev.kinaiya.kinaiya_flutter.MainActivity"
@@ -143,7 +166,6 @@ jobs:
           grep -qx "package:$pkg" "$evidence/coexisting-packages.txt"
           grep -qx "package:dev.kinaiya.kinaiya_flutter.companion.nightly" "$evidence/coexisting-packages.txt"
           "$adb" logcat -d -t 400 > "$evidence/logcat-tail.txt" || true
-          "$adb" emu kill || true
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
