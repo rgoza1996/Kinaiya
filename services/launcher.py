@@ -296,6 +296,29 @@ def initialize(args):
     )
 
 
+def managed_guard_roots():
+    if not os.environ.get("KINAIYA_INSTALL_ROOT"):
+        return ()
+    from services.distribution.cli import chosen_layout
+    from services.distribution.installation import verify_layout
+
+    layout = chosen_layout()
+    verify_layout(layout)
+    # Protect all generations, updater receipts/trust, launchers and download cache,
+    # not just the currently imported core subdirectories.
+    return (layout.install, layout.data, layout.config.parent, layout.cache, layout.bin)
+
+
+def host_service_names(config):
+    """Managed default has no Converse, Decisions, resources, voice or model work."""
+    names = ["session", "agent"]
+    if config.get("distribution", {}).get("converse") is True:
+        names += ["converse", "decisions"]
+    if config.get("resources", {}).get("enabled") is True:
+        names.append("resources")
+    return names
+
+
 def serve(args):
     if getattr(args, "start_paused", False) and args.service != "converse":
         raise SystemExit("--start-paused is only supported by serve converse")
@@ -312,7 +335,8 @@ def serve(args):
         isinstance(config.get("resources"), dict) and config["resources"].get("enabled") is True
     )
     resource_state = args.data_dir.resolve() / "resources-state.json" if resources_enabled else None
-    if service == "all":
+    if service in {"all", "host"}:
+        names = host_service_names(config) if service == "host" else PORTS
         commands = {
             name: [
                 sys.executable,
@@ -327,7 +351,7 @@ def serve(args):
                 "serve",
                 name,
             ]
-            for name in PORTS
+            for name in names
             if name != "resources" or resources_enabled
         }
         if getattr(args, "converse_memory", False):
@@ -366,6 +390,7 @@ def serve(args):
         # The Python environment/import roots and sandbox binary must remain
         # immutable even if an owner selects a new worker directory elsewhere.
         native_roots = {
+            *managed_guard_roots(),
             ROOT / "core",
             ROOT / "services",
             ROOT / "packages",
@@ -1073,7 +1098,7 @@ async def direct_agent(args):
         return 0 if task["state"] == "succeeded" else 1
 
 
-def main():
+def build_parser():
     parser = argparse.ArgumentParser(description="Kinaiya independent runtimes and Agent CLI")
     parser.add_argument("--data-dir", type=Path, default=Path("data"))
     parser.add_argument("--config", type=Path)
@@ -1089,7 +1114,7 @@ def main():
     login = commands.add_parser("owner-login", help="Export an owner-only browser credential file")
     login.add_argument("--output", type=Path)
     server = commands.add_parser("serve")
-    server.add_argument("service", choices=[*PORTS, "all"])
+    server.add_argument("service", choices=[*PORTS, "all", "host"])
     server.add_argument("--port", type=int)
     server.add_argument(
         "--start-paused",
@@ -1103,13 +1128,56 @@ def main():
     )
     agent = commands.add_parser("agent", help="Submit real work directly, without Converse")
     agent.add_argument("objective")
-    args = parser.parse_args()
+    from services.distribution.cli import configure
+
+    configure(commands)
+    return parser
+
+
+def main(argv=None):
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if args.command in {
+        "install",
+        "setup",
+        "update",
+        "version",
+        "recover",
+        "rollback",
+        "uninstall",
+        "web",
+    }:
+        from packages.distribution.releases import ReleaseError
+        from services.distribution.cli import dispatch
+        from services.distribution.installation import InstallError
+
+        try:
+            print(json.dumps(dispatch(args), indent=2))
+        except (InstallError, ReleaseError) as exc:
+            parser.exit(1, f"kinaiya: {exc}\n")
+        except (OSError, ValueError):
+            parser.exit(
+                1,
+                "kinaiya: operation failed; check permissions/network and preserve files for recovery\n",
+            )
+        return
     if args.command == "init":
         initialize(args)
     elif args.command == "owner-login":
         owner_login(args)
     elif args.command == "serve":
-        serve(args)
+        if os.environ.get("KINAIYA_INSTALL_ROOT"):
+            from services.distribution.cli import chosen_layout
+            from services.distribution.installation import InstallError, operation_lock
+
+            try:
+                managed_guard_roots()
+                with operation_lock(chosen_layout().install / "runtime.lock", shared=True):
+                    serve(args)
+            except InstallError as exc:
+                parser.exit(1, f"kinaiya: {exc}\n")
+        else:
+            serve(args)
     else:
         raise SystemExit(asyncio.run(direct_agent(args)))
 
