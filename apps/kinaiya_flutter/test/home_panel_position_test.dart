@@ -437,4 +437,85 @@ void main() {
       semantics.dispose();
     },
   );
+
+  testWidgets(
+    'Home action panel strengthens contrast over moonlit artwork and keeps controls reachable across desktop and 320px 2x',
+    (tester) async {
+      double contrastRatio(Color a, Color b) {
+        final x = a.computeLuminance(), y = b.computeLuminance();
+        return (x > y ? x + .05 : y + .05) / (x > y ? y + .05 : x + .05);
+      }
+
+      tester.view.physicalSize = const Size(1280, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final api = SleepApi();
+      final state = wired(api);
+      final audio = LayoutAudio();
+      await pumpHome(tester, state, audio);
+
+      final cardFinder = find.byKey(const ValueKey('home-action-card'));
+      expect(cardFinder, findsOneWidget);
+      final cardContainer = tester.widget<Container>(cardFinder);
+      final decoration = cardContainer.decoration! as BoxDecoration;
+      final theme = Theme.of(tester.element(cardFinder));
+      expect(decoration.color, theme.colorScheme.surfaceContainer);
+      expect(
+        contrastRatio(decoration.color!, theme.colorScheme.onSurface),
+        greaterThanOrEqualTo(4.5),
+      );
+      expect(decoration.boxShadow, isNotEmpty);
+
+      // Start Call so End conversation, Setup, and owner control are all present.
+      await tester.tap(find.byKey(const ValueKey('call-kinaiya')));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.text('End conversation').hitTestable(), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('home-setup')).hitTestable(),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('home-owner-control')).hitTestable(),
+        findsOneWidget,
+      );
+
+      // Verify 320px at 2x text has no horizontal scroll, overlap, or covered controls.
+      tester.view.physicalSize = const Size(320, 568);
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await tester.pump(const Duration(milliseconds: 100));
+
+      final panelRect = tester.getRect(
+        find.byKey(const ValueKey('home-status-panel')),
+      );
+      expect(panelRect.left, greaterThanOrEqualTo(8));
+      expect(panelRect.right, lessThanOrEqualTo(312));
+      await tester.ensureVisible(find.byKey(const ValueKey('call-kinaiya')));
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('call-kinaiya')).hitTestable(),
+        findsOneWidget,
+      );
+      await tester.ensureVisible(find.byKey(const ValueKey('home-setup')));
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('home-setup')).hitTestable(),
+        findsOneWidget,
+      );
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('home-owner-control')),
+      );
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('home-owner-control')).hitTestable(),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      state.dispose();
+    },
+  );
 }
