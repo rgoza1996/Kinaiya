@@ -811,8 +811,9 @@ async def test_actual_http_off_refuses_new_goal_preserves_receipt_and_stop(http_
     assert stopped.status_code == 200
 
 
+@pytest.mark.parametrize("read_completion_delay", [0, 0.1], ids=["ordinary", "delayed-read"])
 async def test_http_steer_uncooperative_preflight_is_bounded_and_remains_owned(
-    http_stack, monkeypatch
+    http_stack, monkeypatch, read_completion_delay
 ):
     import services.agent.app as app_module
 
@@ -820,18 +821,46 @@ async def test_http_steer_uncooperative_preflight_is_bounded_and_remains_owned(
     entered, release, cancelled = asyncio.Event(), asyncio.Event(), asyncio.Event()
     original = journal.session
     operation = None
+    native_read = None
+    read_calls = []
+    read_responses = []
+    cancellation_phases = []
     calls_after_retirement = []
     retired = False
 
-    async def resistant(session_id):
-        nonlocal operation
-        operation = asyncio.current_task()
+    async def read_original(session_id):
+        read_calls.append(asyncio.current_task())
         result = await original(session_id)
+        if read_completion_delay:
+            await asyncio.sleep(read_completion_delay)
+        return result
+
+    async def observe_read_response(response):
+        if asyncio.current_task() is native_read:
+            read_responses.append(response)
+
+    async def resistant(session_id):
+        nonlocal operation, native_read
+        operation = asyncio.current_task()
+        assert native_read is None
+        # The original read is part of the uncooperative preflight, including
+        # its actual HTTP lifetime. Retain it through the route's cancellation.
+        native_read = asyncio.create_task(read_original(session_id))
         entered.set()
+        while True:
+            try:
+                result = await asyncio.shield(native_read)
+                break
+            except asyncio.CancelledError:
+                if native_read.cancelled():
+                    raise
+                cancellation_phases.append("read" if not native_read.done() else "read-finished")
+                cancelled.set()
         while not release.is_set():
             try:
                 await release.wait()
             except asyncio.CancelledError:
+                cancellation_phases.append("held")
                 cancelled.set()
         return result
 
@@ -846,6 +875,11 @@ async def test_http_steer_uncooperative_preflight_is_bounded_and_remains_owned(
         return call
 
     monkeypatch.setattr(journal, "session", resistant)
+    monkeypatch.setitem(
+        journal.http.event_hooks,
+        "response",
+        [*journal.http.event_hooks["response"], observe_read_response],
+    )
     for name in ("resolve", "entry", "read", "agent_control_backend", "admit_steer"):
         monkeypatch.setattr(journal, name, tracked(name))
     monkeypatch.setattr(app_module, "AGENT_STEER_REQUEST_TIMEOUT_S", 0.05)
@@ -863,13 +897,26 @@ async def test_http_steer_uncooperative_preflight_is_bounded_and_remains_owned(
         assert runtime._tasks[task.task_id].steer_attempt.active is False
     finally:
         release.set()
-        if operation is not None:
-            await asyncio.wait_for(asyncio.gather(operation, return_exceptions=True), 2)
-        await asyncio.gather(call, return_exceptions=True)
+        try:
+            if operation is not None:
+                await asyncio.wait_for(asyncio.gather(operation, return_exceptions=True), 2)
+        finally:
+            try:
+                if native_read is not None:
+                    await asyncio.gather(native_read, return_exceptions=True)
+            finally:
+                await asyncio.gather(call, return_exceptions=True)
     await asyncio.sleep(0)
     assert operation not in runtime._submit_operations
     assert calls_after_retirement == []
     assert runtime._tasks[task.task_id].pending_steer is None
+    assert read_calls == [native_read]
+    assert native_read.done() and not native_read.cancelled()
+    assert native_read.exception() is None
+    assert native_read.result().session_id == task.session_id
+    assert len(read_responses) == 1 and read_responses[0].is_closed
+    if read_completion_delay:
+        assert "read" in cancellation_phases
 
 
 @pytest.mark.parametrize("committed", [False, True])
