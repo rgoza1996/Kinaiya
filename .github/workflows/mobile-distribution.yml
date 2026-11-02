@@ -25,6 +25,8 @@ jobs:
   android:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    env:
+      ANDROID_AVD_HOME: ${{ runner.temp }}/avd
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -97,9 +99,12 @@ jobs:
         run: |
           sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost || true
           df -h
+          mkdir -p "$ANDROID_AVD_HOME"
           sdk="$ANDROID_HOME/cmdline-tools/latest/bin"
           "$sdk/sdkmanager" "emulator" "platform-tools" "system-images;android-34;default;x86_64" </dev/null
           echo no | "$sdk/avdmanager" create avd -f -n kinaiya -k "system-images;android-34;default;x86_64" -d pixel_6
+          test -f "$ANDROID_AVD_HOME/kinaiya.ini"
+          "$ANDROID_HOME/emulator/emulator" -list-avds | grep -Fx kinaiya
       - name: Install, upgrade and reject foreign-key updates on the emulator
         run: |
           set -eu
