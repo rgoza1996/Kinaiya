@@ -512,6 +512,8 @@ class StandingFinalization:
             await asyncio.shield(life.observer)
 
         def finish(row):
+            if row["phase"] == "failed":
+                return
             if capture.ownership.failed or not capture.witness_complete:
                 phase, restoration = "failed", "uncertain"
             elif row["phase"] in {"never", "complete"}:
