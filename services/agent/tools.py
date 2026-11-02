@@ -257,7 +257,10 @@ def build_bwrap_args(
         "--ro-bind",
         "/lib",
         "/lib",
-        "--ro-bind",
+        # /lib64 exists on x86_64 but not on aarch64 Ubuntu. A missing optional
+        # loader root must not make every sandboxed command fail; when present it
+        # is still mounted read-only, and absence creates nothing writable.
+        "--ro-bind-try",
         "/lib64",
         "/lib64",
     ]
