@@ -812,6 +812,7 @@ async def test_actual_failed_settlement_close_cannot_be_replaced_by_retained_pos
 
 async def next_claim(value):
     env, original = value.agent.env, value.agent.original
+    env.wall.value = datetime(2026, 11, 2, 11, 59, 50, tzinfo=UTC)
     old = env.app.state.standing_owner.snapshot(original.responsibility_id).record
     raw = old.receipt.request.model_dump(mode="json")
     raw.update(
@@ -819,6 +820,7 @@ async def next_claim(value):
         idempotency_key="settlement-next-responsibility",
         responsibility_id="23900000-0000-4000-8000-000000000102",
     )
+    raw["authorization"]["schedule"]["start_local_date"] = "2026-11-02"
     grant = StandingChange.model_validate(raw)
     response = await env.client.post(
         "/v1/standing/changes",
@@ -827,6 +829,7 @@ async def next_claim(value):
     )
     checked(response, 200, StandingChangeReceipt).validate_request(grant)
     record = env.app.state.standing_owner.snapshot(grant.responsibility_id).record
+    env.wall.value = datetime(2026, 11, 2, 12, 0, 10, tzinfo=UTC)
     raw = original.model_dump(mode="json")
     raw.update(
         idempotency_key="settlement-next-original",
@@ -834,6 +837,12 @@ async def next_claim(value):
         authorization_revision=record.receipt.revision,
         authorization_digest=record.receipt.authorization_digest,
         record_digest=record.record_digest,
+        occurrence={
+            "schema_version": "1.0",
+            "local_date": "2026-11-02",
+            "due_utc": "2026-11-02T12:00:00Z",
+            "utc_offset_seconds": 0,
+        },
     )
     raw["task"]["task_id"] = "23900000-0000-4000-8000-000000000104"
     raw["capability_sha256"] = capability_digest(

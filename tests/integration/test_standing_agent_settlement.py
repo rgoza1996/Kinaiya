@@ -299,6 +299,18 @@ async def outcome(value, *, state="succeeded", revision=1, fault=None):
         reply = await value.session.client.post(
             "/v1/transcript/entries", json=request.model_dump(mode="json"), headers=headers("owner")
         )
+        assert reply.status_code == 403
+        # Owner cannot publish Agent outcomes. Use a genuine permitted foreign
+        # event to test origin/kind applicability after native integrity passes.
+        request = request.model_copy(
+            update={
+                "kind": "conversation.user",
+                "payload": {**payload, "text": "Synthetic foreign outcome evidence", "final": True},
+            }
+        )
+        reply = await value.session.client.post(
+            "/v1/transcript/entries", json=request.model_dump(mode="json"), headers=headers("owner")
+        )
         assert reply.status_code == 200
         entry = JournalEntry.model_validate(reply.json())
         assert entry.origin == "authenticated-user"
