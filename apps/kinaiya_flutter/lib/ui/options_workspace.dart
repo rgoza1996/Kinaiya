@@ -675,6 +675,9 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
 
   Widget _navigation() {
     final category = _category, searching = _query.trim().isNotEmpty;
+    final searchResults = searching
+        ? searchOptionsPages(_query)
+        : const <OptionsSearchResult>[];
     return Material(
       color: Theme.of(context).colorScheme.surfaceContainerLow,
       child: ListView(
@@ -730,26 +733,40 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 if (searching) ...[
-                  for (final item in optionsCategories)
-                    for (final page in item.pages)
-                      if ('${item.label} ${page.label}'.toLowerCase().contains(
-                        _query.toLowerCase().trim(),
-                      ))
-                        ListTile(
-                          key: ValueKey('options-search-${page.name}'),
-                          title: Text(page.label),
-                          subtitle: Text(item.label),
-                          leading: Icon(item.icon),
-                          onTap: () => _select(page),
-                        ),
-                  if (!optionsCategories.any(
-                    (item) => item.pages.any(
-                      (page) => '${item.label} ${page.label}'
-                          .toLowerCase()
-                          .contains(_query.toLowerCase().trim()),
+                  if (searchResults.isNotEmpty && searchResults.first.isPartial)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+                      child: Text(
+                        'Partial matches',
+                        key: const ValueKey('options-search-partial-heading'),
+                        style: Theme.of(context).textTheme.labelMedium
+                            ?.copyWith(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
+                            ),
+                      ),
                     ),
-                  ))
-                    const ListTile(title: Text('No matching options')),
+                  for (final result in searchResults)
+                    ListTile(
+                      key: ValueKey('options-search-${result.page.name}'),
+                      title: Text(result.page.label),
+                      subtitle: Text(
+                        '${result.category.label} · ${result.page.description}',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      leading: Icon(result.category.icon),
+                      onTap: () => _select(result.page),
+                    ),
+                  if (searchResults.isEmpty)
+                    const ListTile(
+                      key: ValueKey('options-search-empty'),
+                      title: Text('No matching options'),
+                      subtitle: Text(
+                        'Try searching by setting name, category, or keyword.',
+                      ),
+                    ),
                 ] else if (category != null) ...[
                   for (final page in category.pages)
                     ListTile(
