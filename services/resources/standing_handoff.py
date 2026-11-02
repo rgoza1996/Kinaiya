@@ -118,6 +118,8 @@ class _Capture:
             current = asyncio.current_task()
         except RuntimeError:
             current = None  # Native database work runs in its retained thread.
+        if getattr(self, "witness_observer", None) is not None:
+            owner.standing_finalization.effect_revisions()
         # Authority/integrity failures remain uncertain even when a deliberate
         # phase stop also occurred. Only the separate trusted stop below may
         # avoid adding uncertainty; original child/close failures stay sticky.

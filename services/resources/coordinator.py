@@ -829,6 +829,7 @@ class ResourceCoordinator:
         return await self.standing_finalization.lifecycle(self._off_unwitnessed_locked)
 
     async def _off_unwitnessed_locked(self):
+        self.standing_finalization.restoration_guard()
         # The durable owner gate already blocks inference even if Converse's
         # HTTP service is unavailable. Stop only workers this controller owns.
         control_error = None
@@ -1060,6 +1061,7 @@ class ResourceCoordinator:
         return await self.standing_finalization.lifecycle(self._restore_unwitnessed_locked)
 
     async def _restore_unwitnessed_locked(self):
+        self.standing_finalization.restoration_guard()
         if self._closing or not self.intent.read().enabled:
             await self._off_locked()
             return
@@ -1070,11 +1072,15 @@ class ResourceCoordinator:
         if not restored or self._closing or not self.intent.read().enabled:
             await self._off_locked()
             return
+        self.standing_finalization.restoration_guard()
+        self.standing_finalization.capture_restored()
         if self.managed_text_binding is not None:
             self._provider_locality(await self.converse.health())
             if self.local_converse_unmanaged:
                 raise RuntimeError("Selected managed text health does not match its binding")
+        self.standing_finalization.restoration_guard()
         await self.converse.enabled(True)
+        self.standing_finalization.restoration_guard()
         if self._closing or not self.intent.read().enabled:
             await self._off_locked()
             return
@@ -1118,10 +1124,12 @@ class ResourceCoordinator:
             ):
                 raise RuntimeError("Restoration lacks measured GPU headroom")
         for worker_id in self.manager.status()["workers"]:
+            self.standing_finalization.restoration_guard()
             if self._closing or not self.intent.read().enabled:
                 return False
             if self.before_start:
                 await self.before_start(worker_id)
+            self.standing_finalization.restoration_guard()
             if self._closing or not self.intent.read().enabled:
                 return False
             if worker_id == self.text_worker_id:
@@ -1143,6 +1151,7 @@ class ResourceCoordinator:
                 available = self.memory_probe()
                 if available is None or available < needed:
                     raise RuntimeError("Text restoration lacks measured minimum headroom")
+            self.standing_finalization.restoration_guard()
             try:
                 result = await self.manager.start(worker_id)
             except (Exception, asyncio.CancelledError):

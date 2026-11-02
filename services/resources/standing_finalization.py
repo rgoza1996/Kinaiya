@@ -14,7 +14,9 @@ durable writes: an interrupted gap remains pending, not proof of no acquisition.
 from __future__ import annotations
 
 import asyncio
+import os
 import re
+import stat
 from dataclasses import dataclass
 
 from packages.contracts.operation_ownership import ActualOperation, actual_owner, current_owner
@@ -60,6 +62,16 @@ class _Lifecycle:
     scope: ActualOperation
     candidate: tuple | None = None
     observer: asyncio.Task | None = None
+    proof: object | None = None
+
+
+@dataclass(frozen=True)
+class _PhysicalProof:
+    # Exact in-process kernel/endpoint observations, never reconstructed from
+    # durable IDs. Restart may read native history but cannot adopt this proof.
+    workers: tuple
+    endpoints: tuple
+    restoration: str
 
 
 class StandingFinalization:
@@ -77,6 +89,7 @@ class StandingFinalization:
         self.captures = {}
         self.lifecycles = {}
         self.active_key = None
+        self.proofs = {}
 
     def _guard(self):
         if (
@@ -284,7 +297,9 @@ class StandingFinalization:
         return (
             owner.manager,
             owner.converse,
+            getattr(owner.converse, "http", None),
             owner.handoff_journal,
+            getattr(owner.handoff_journal, "http", None),
             owner._text_lifecycle,
             owner._whistle_lifecycle,
             *(owner._standing_composition or (None, None, None)),
@@ -321,9 +336,15 @@ class StandingFinalization:
                 raise StandingUnavailable
             return row
 
-    def _change(self, key, change):
+    def _change(self, key, change, *, guard=None):
         self._guard()
-        with self.gate._transaction(self._guard):
+
+        def final():
+            self._guard()
+            if guard is not None:
+                guard()
+
+        with self.gate._transaction(final):
             self._schema()
             row = self.gate.db.execute(
                 f"SELECT * FROM {_TABLE} WHERE claim_id=?", (key,)
@@ -358,6 +379,10 @@ class StandingFinalization:
         task.add_done_callback(settled)
         return task
 
+    def effect_revisions(self):
+        state, choice = self.owner.state.record, self.owner.intent.read()
+        self._revisions(state.revision, choice.revision)
+
     def permit(self, capture):
         if capture.context is None or capture.context.family != "standing":
             return
@@ -367,6 +392,7 @@ class StandingFinalization:
         self._current(key)
         if self.captures.get(key) is not capture:
             raise StandingUnavailable
+        self.effect_revisions()
 
     async def begin_capture(self, capture):
         if capture.context.family != "standing":
@@ -400,6 +426,7 @@ class StandingFinalization:
             capture.witness_legacy = True
             return
         self._current(key)
+        self.effect_revisions()
 
         def pending(row):
             binding, _, _ = self._checked(row)
@@ -422,6 +449,7 @@ class StandingFinalization:
 
         await self.gate._database(lambda: self._change(key, pending), capture)
         capture.guard()
+        self.effect_revisions()
         capture.witness_complete = False
         capture.ownership.physical_claim = key
         self.active_key = key
@@ -437,6 +465,7 @@ class StandingFinalization:
             return
         key = capture.context.standing.claim.claim_id
         self._current(key)
+        self.effect_revisions()
 
         def acquired(row):
             if (
@@ -455,6 +484,7 @@ class StandingFinalization:
 
         await self.gate._database(lambda: self._change(key, acquired), capture)
         capture.guard()
+        self.effect_revisions()
 
     async def _capture_settled(self, key, capture):
         await capture.ownership.join()
@@ -511,6 +541,152 @@ class StandingFinalization:
 
         return await self.gate._database(find)
 
+    def _snapshot(self, restoration):
+        manager = self.owner.manager
+        rows = manager.status()["workers"]
+        workers, endpoints = [], []
+        for worker_id in rows:
+            identity = manager.owned_identity(worker_id)
+            if restoration == "restored" and identity is None:
+                raise StandingUnavailable
+            if restoration == "owner-off" and identity is not None:
+                raise StandingUnavailable
+            managed = manager._workers[worker_id]
+            workers.append((worker_id, identity, managed.process))
+        if restoration == "restored":
+            for hooks, worker_id in (
+                (self.owner._text_lifecycle, self.owner.text_worker_id),
+                (self.owner._whistle_lifecycle, "whistle"),
+            ):
+                if hooks is None:
+                    continue
+                broker = hooks[0].__self__
+                identity = next(row[1] for row in workers if row[0] == worker_id)
+                endpoint = broker.endpoint
+                if worker_id == "whistle":
+                    lease = endpoint.ready
+                    if lease is None or lease[0] != identity.pid:
+                        raise StandingUnavailable
+                else:
+                    lease = broker.protocol.ready_for(identity)
+                endpoints.append((broker, endpoint, identity, lease, worker_id))
+        return _PhysicalProof(tuple(workers), tuple(endpoints), restoration)
+
+    def restoration_guard(self):
+        if getattr(current_owner(), "require_wire_revision", False):
+            self.effect_revisions()
+
+    def capture_restored(self):
+        """Called immediately after allocation, before enable/publication awaits."""
+        scope = current_owner()
+        key = getattr(scope, "physical_claim", None)
+        life = self.lifecycles.get(key)
+        if life is not None and life.scope is scope:
+            try:
+                life.proof = self._snapshot("restored")
+            except Exception:
+                # A witness failure cannot change independent legacy cleanup.
+                life.scope.fail()
+
+    def _proof_current(self, key, proof):
+        self._current(key)
+        if type(proof) is not _PhysicalProof:
+            raise StandingUnavailable
+        manager = self.owner.manager
+        if getattr(getattr(self.owner.converse, "http", None), "is_closed", False):
+            raise StandingUnavailable
+        if tuple(manager.status()["workers"]) != tuple(row[0] for row in proof.workers):
+            raise StandingUnavailable
+        for worker_id, identity, process in proof.workers:
+            managed = manager._workers[worker_id]
+            if proof.restoration == "restored":
+                if (
+                    identity is None
+                    or not manager.is_current(identity)
+                    or manager.owned_identity(worker_id) is not identity
+                    or managed.process is not process
+                    or process.returncode is not None
+                ):
+                    raise StandingUnavailable
+            elif (
+                manager.owned_identity(worker_id) is not None
+                or managed.state != "stopped"
+                or managed.pgid is not None
+            ):
+                raise StandingUnavailable
+        for broker, endpoint, identity, lease, worker_id in proof.endpoints:
+            if broker.closed or broker.manager is not manager or broker.endpoint is not endpoint:
+                raise StandingUnavailable
+            if worker_id == "whistle":
+                if endpoint.ready != lease:
+                    raise StandingUnavailable
+                from packages.providers.whistle_ipc import socket_path
+
+                path = socket_path(endpoint.directory, identity.pid)
+            elif worker_id == "qwen3":
+                broker.protocol.current(lease, identity)
+                from packages.providers.qwen3_ipc import socket_path
+
+                path = socket_path(endpoint.directory, identity.pid)
+            else:
+                broker.protocol.current(lease, identity)
+                continue
+            info = path.lstat()
+            if (
+                not stat.S_ISSOCK(info.st_mode)
+                or info.st_uid != os.geteuid()
+                or (info.st_dev, info.st_ino) != lease[2:4]
+            ):
+                raise StandingUnavailable
+
+    async def _probe(self, key, proof):
+        self._proof_current(key, proof)
+        for _, endpoint, _identity, _, worker_id in proof.endpoints:
+            managed = self.owner.manager._workers[worker_id]
+            # Reuse the configured startup readiness bound and the original
+            # process. This probes no model input and cannot start a worker.
+            task = asyncio.create_task(endpoint.probe(managed.spec, managed.process))
+            current_owner().retain_task(task, cleanup=True)
+            if await asyncio.wait_for(task, timeout=managed.spec.startup_timeout_s) is not True:
+                raise StandingUnavailable
+            self._proof_current(key, proof)
+        health = await self.owner.converse.health()
+        self._proof_current(key, proof)
+        choice = self.owner.intent.read()
+        expected = proof.restoration == "restored"
+        if (
+            type(health) is not dict
+            or health.get("resource_enabled") is not expected
+            or health.get("owner_enabled") is not choice.enabled
+            or type(health.get("owner_intent_revision")) is not int
+            or health.get("owner_intent_revision") != choice.revision
+            or choice.enabled is not expected
+            or expected
+            and self.owner.managed_text_binding is not None
+            and self.owner._provider_is_unmanaged(health)
+        ):
+            raise StandingUnavailable
+        return choice
+
+    async def _verification(self, key, proof):
+        parent = current_owner()
+        scope = ActualOperation(lambda _: None)
+        root = object()
+        scope.hold(root)
+        parent.hold(scope)
+        scope.on_retire(lambda: parent.release(scope, failed=scope.failed))
+        self.owner.manager.retain_operations(scope)
+
+        async def work():
+            with actual_owner(scope):
+                return await self._probe(key, proof)
+
+        task = asyncio.create_task(work())
+        scope.retain_task(task, cleanup=True)
+        scope.release(root)
+        await asyncio.shield(task)
+        return scope
+
     async def lifecycle(self, invoke):
         """Enroll existing restore/Off without using a standing admission slot.
 
@@ -546,6 +722,11 @@ class StandingFinalization:
             self.lifecycles[key] = life
             self.owner.manager.retain_operations(scope)
         scope = life.scope
+        scope.require_wire_revision = (
+            getattr(scope, "require_wire_revision", False)
+            or getattr(parent, "physical_finalize", False)
+            or getattr(parent, "physical_claim", None) is not None
+        )
 
         def pending(row):
             if row["phase"] == "failed" or row["report"] is not None:
@@ -568,16 +749,23 @@ class StandingFinalization:
 
         async def work():
             with actual_owner(scope):
+                self.restoration_guard()
                 result = await invoke()
                 try:
                     self._current(key)
                     state, choice = self.owner.state.record, self.owner.intent.read()
                     if state.phase == "ready" and choice.enabled:
                         disposition = "restored"
+                        if life.proof is None:
+                            raise StandingUnavailable
                     elif state.phase == "off" and not choice.enabled:
                         disposition = "owner-off"
+                        life.proof = self._snapshot("owner-off")
                     else:
                         raise StandingUnavailable
+                    choice = await self._probe(key, life.proof)
+                    state = self.owner.state.record
+                    self.proofs[key] = life.proof
                     life.candidate = (disposition, state.revision, choice.revision)
                 except Exception:
                     # Refuse testimony without changing the result of an
@@ -614,6 +802,7 @@ class StandingFinalization:
                 )
                 return
             restoration, policy, intent = candidate
+            self._proof_current(life.key, life.proof)
             self._revisions(policy, intent)
             capture = self.captures.get(life.key)
             effects = bool(row["effects"] or capture is not None and capture.effects_started)
@@ -633,7 +822,15 @@ class StandingFinalization:
                 ),
             )
 
-        await self.gate._database(lambda: self._change(life.key, finish))
+        await self.gate._database(
+            lambda: self._change(
+                life.key,
+                finish,
+                guard=(lambda: self._proof_current(life.key, life.proof))
+                if not life.scope.failed and life.candidate is not None
+                else None,
+            )
+        )
         if self.lifecycles.get(life.key) is life:
             self.lifecycles.pop(life.key)
 
@@ -686,11 +883,16 @@ class StandingFinalization:
 
         key = claim_id(request.original)
         self._current(key)
+        self.effect_revisions()
+        call.scope.physical_finalize = True
         row = await self.gate._database(lambda: self._read(key))
         binding, _, report = self._checked(row)
         self.barrier._join_request(binding, request)
         if report is not None:
             report.validate_request(request)
+            await self.barrier._join_claim(call, binding.claim.request.task.task_id)
+            await self._join(key)
+            call.guard()
             return await self._publish(call, request, report)
         context = await self.barrier._seal(call, request, lookup=False)
         call.guard()
@@ -717,7 +919,10 @@ class StandingFinalization:
                 ):
                     raise StandingUnavailable
                 self.active_key = key
+                self.effect_revisions()
+                call.guard()
                 await self.owner._restore_locked()
+                self.effect_revisions()
             elif row["phase"] not in {"never", "complete"}:
                 raise StandingUnavailable
         await self._join(key)
@@ -726,12 +931,26 @@ class StandingFinalization:
         call.guard()
         if _wire(fresh) != _wire(context):
             raise StandingConflict
+        verification = None
+        async with self.owner.lock:
+            row = await self.gate._database(lambda: self._read(key))
+            if row["restoration"] in {"restored", "owner-off"}:
+                proof = self.proofs.get(key)
+                verification = await self._verification(key, proof)
+        if verification is not None:
+            await verification.join()
+            if verification.failed:
+                raise StandingUnavailable
+            self._proof_current(key, proof)
+        call.guard()
         async with self.owner.lock:
             state, choice = self.owner.state.record, self.owner.intent.read()
             self._revisions(state.revision, choice.revision)
             self._current(key)
             row = await self.gate._database(lambda: self._read(key))
             binding, reservation, report = self._checked(row)
+            if row["restoration"] in {"restored", "owner-off"}:
+                self._proof_current(key, self.proofs.get(key))
             if report is None:
                 if row["phase"] not in {"covered", "never", "complete"}:
                     raise StandingUnavailable
@@ -782,7 +1001,16 @@ class StandingFinalization:
                         (_wire(report), state.revision, choice.revision, key),
                     )
 
-                await self.gate._database(lambda: self._change(key, save))
+                def persistence_guard():
+                    call.guard()
+                    self._current(key)
+                    self.effect_revisions()
+                    if self.owner.state.record is not state or self.owner.intent.read() != choice:
+                        raise StandingUnavailable
+                    if row["restoration"] in {"restored", "owner-off"}:
+                        self._proof_current(key, self.proofs.get(key))
+
+                await self.gate._database(lambda: self._change(key, save, guard=persistence_guard))
         call.guard()
         return await self._publish(call, request, report)
 
