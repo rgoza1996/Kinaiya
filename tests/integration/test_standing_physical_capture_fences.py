@@ -167,6 +167,12 @@ async def exact_report(value, first, restoration, reservation):
     )
     replay = await completed(value, "registered-no-lease", restoration, reservation)
     assert replay.finalization == receipt.finalization and physical_calls(value) == settled
+    assert (
+        value.session.store.db.execute(
+            "SELECT count(*) FROM standing_resource_finalizations"
+        ).fetchone()[0]
+        == 1
+    )
     return first_error
 
 
@@ -392,3 +398,4 @@ async def test_actual_reservation_sole_close_failure_after_fence_stays_negative_
         await asyncio.wait_for(begin(value), 30)
     assert reports(value) == []
     assert await value.agent.standing_resource_finalization_lookup(value.request) is None
+    assert len([path for path, _, _ in value.native.requests if path == RESERVE]) == 1
