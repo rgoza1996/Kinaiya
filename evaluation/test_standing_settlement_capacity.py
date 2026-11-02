@@ -2,7 +2,7 @@
 
 Run explicitly with ROOT, ROOT/tests/integration and ROOT/tests/unit on
 PYTHONPATH. Screening2/4 retain the default64 policy and qualify no smaller
-product limit. BOTH required64 cases must pass before capacity publication.
+product limit. ALL THREE required64 cases must pass before capacity publication.
 Each measured RPC retains its original Task, has the unchanged25-second limit,
 and checks elapsed wall time after return. The work budget is four hours per
 case; original cleanup follows separately and is never certified by a timeout.
@@ -49,7 +49,13 @@ from test_standing_dispatch_api import headers, rows
 from test_standing_execution_api import original
 from test_standing_execution_contract import claim as sizing_claim
 from test_standing_execution_contract import initial_expected
-from test_standing_physical_finalization import begin, close_resources
+from test_standing_physical_finalization import (
+    begin,
+    close_resources,
+    handoff,
+    ready,
+    recorded_reservation,
+)
 
 from packages.contracts.client import JournalClient
 from packages.contracts.models import AppendRequest, ProviderInfo, Task
@@ -345,7 +351,10 @@ def accounting(db, snapshot):
     total, families = 0, {}
     for table, columns in FAMILIES.items():
         count, size = logical_bytes(db, table, columns, snapshot.claim_id)
-        assert count == (0 if table == "standing_resource_reservations" else 1)
+        if table == "standing_resource_reservations" and snapshot.reservation is not None:
+            assert count == 1
+        else:
+            assert count == (0 if table == "standing_resource_reservations" else 1)
         families[table] = size
         total += size
         if table in snapshot.bodies:
@@ -520,7 +529,7 @@ async def availability(measure, env):
     )
 
 
-async def run_capacity(factory, physical, record_property, *, count, maximal):
+async def run_capacity(factory, physical, record_property, *, count, maximal, acquired=False):
     measure, snapshots, sizes, accounts = Measure(), [], [], []
     started = time.perf_counter()
     env, observer = None, None
@@ -608,6 +617,34 @@ async def run_capacity(factory, physical, record_property, *, count, maximal):
                 ).proof
                 initial_entry = value.initial.journal_entry()
                 assert env.store.entry(initial_entry.event_id) == initial_entry
+                reservation, original_process, original_identity, restored_process = (
+                    None,
+                    None,
+                    None,
+                    None,
+                )
+                if acquired:
+                    original_process = await measure.rpc("resources.ready", partial(ready, value))
+                    original_identity = value.coordinator.manager.owned_identity("whistle")
+                    assert original_identity is not None and original_process.returncode is None
+                    acquired_result = await measure.rpc(
+                        "resources.handoff", partial(handoff, value)
+                    )
+                    assert (
+                        acquired_result["ok"] and acquired_result["policy"]["phase"] == "local_work"
+                    )
+                    reservation = recorded_reservation(value)
+                    assert reservation.context.standing == value.initial
+                    assert reservation.context.query.task_id == intent.task.task_id
+                    assert value.coordinator.state.record.lease_id == reservation.lease_id
+                    assert original_process.returncode is not None
+                    stopped = value.coordinator.manager._workers["whistle"].stop_evidence
+                    assert (
+                        stopped["reaped"]
+                        and stopped["group_empty"]
+                        and stopped["rss_before_bytes"] > 0
+                    )
+                    assert value.effect_checks >= 2 and "stopped" in value.memories
                 request = sized_outcome(value, maximal=maximal)
                 if maximal:
                     bad = request.model_copy(deep=True)
@@ -665,10 +702,37 @@ async def run_capacity(factory, physical, record_property, *, count, maximal):
                 report = await measure.rpc("resources.finalize", partial(begin, value))
                 assert type(report) is StandingResourceFinalizationReceipt
                 report = report.validate_request(value.request)
-                assert (
-                    report.finalization.resource_disposition == "no-reservation"
-                    and report.finalization.restoration == "not-required"
-                )
+                if acquired:
+                    assert report.finalization.resource_disposition == "matching-lease-finalized"
+                    assert report.finalization.restoration == "restored"
+                    assert report.finalization.context.observation.reservation == reservation
+                    assert report.finalization.reserved_lease_id == reservation.lease_id
+                    assert (
+                        report.finalization.handoff_action_key == value.payload["idempotency_key"]
+                    )
+                    assert report.finalization.handoff_action_digest == reservation.action_digest
+                    restored_identity = value.coordinator.manager.owned_identity("whistle")
+                    restored_process = value.coordinator.manager._workers["whistle"].process
+                    assert (
+                        restored_identity is not None and restored_identity is not original_identity
+                    )
+                    assert value.coordinator.manager.is_current(restored_identity)
+                    assert (
+                        restored_process is not original_process
+                        and restored_process is not None
+                        and restored_process.returncode is None
+                    )
+                    before_replay = list(value.starts), list(value.stops)
+                    replay = await measure.rpc("resources.finalize.replay", partial(begin, value))
+                    assert (
+                        replay.validate_request(value.request).finalization == report.finalization
+                    )
+                    assert (value.starts, value.stops) == before_replay
+                else:
+                    assert (
+                        report.finalization.resource_disposition == "no-reservation"
+                        and report.finalization.restoration == "not-required"
+                    )
                 known = await measure.rpc(
                     "resources.native-lookup",
                     partial(value.agent.standing_resource_finalization_lookup, value.request),
@@ -719,6 +783,14 @@ async def run_capacity(factory, physical, record_property, *, count, maximal):
                         "settlement_receipt_bytes": len(receipt.canonical_bytes()),
                     }
                 )
+                if acquired:
+                    sizes[-1].update(
+                        task_resource_context_bytes=len(reservation.context.canonical_bytes()),
+                        reservation_bytes=len(reservation.canonical_bytes()),
+                        resource_observation_bytes=len(
+                            report.finalization.context.observation.canonical_bytes()
+                        ),
+                    )
                 snapshot = SimpleNamespace(
                     index=index,
                     claim_id=claim.claim_id,
@@ -727,6 +799,7 @@ async def run_capacity(factory, physical, record_property, *, count, maximal):
                     initial=value.initial.canonical_bytes(),
                     resource_request=value.request.canonical_bytes(),
                     resource_report=report.finalization.canonical_bytes(),
+                    reservation=None if reservation is None else reservation.canonical_bytes(),
                     initial_event=initial_entry.event_id,
                     outcome_event=entry.event_id,
                     registration=reg_request.canonical_bytes(),
@@ -751,6 +824,10 @@ async def run_capacity(factory, physical, record_property, *, count, maximal):
                         (entry.event_id, request_bytes, entry_bytes),
                     ),
                 )
+                if acquired:
+                    snapshot.bodies["standing_resource_reservations"] = (
+                        reservation.canonical_bytes()
+                    )
                 snapshots.append(snapshot)
                 accounts.append(accounting(observer, snapshot))
                 await measure.rpc("resources.retire", partial(close_resources, value))
@@ -759,7 +836,17 @@ async def run_capacity(factory, physical, record_property, *, count, maximal):
                 assert value.coordinator._close_owner.exception() is None
                 assert value.gateway.http.is_closed and not value.gateway._submit_exchanges
                 assert value.native.close_calls == value.control_transport.close_calls == 1
-                assert value.provider.calls == [] and value.starts == []
+                if acquired:
+                    assert value.provider.calls == []
+                    assert restored_process.returncode is not None
+                    managed = value.coordinator.manager._workers["whistle"]
+                    assert managed.stop_evidence["reaped"] and managed.stop_evidence["group_empty"]
+                    assert managed.pending_spawn is managed.pending_cleanup is None
+                    assert (
+                        managed.leader_fd is None and managed.pgid is None and managed.drains == []
+                    )
+                else:
+                    assert value.provider.calls == [] and value.starts == []
             assert len(snapshots) == count
             assert len({snapshot.claim_id for snapshot in snapshots}) == count
             assert (
@@ -887,6 +974,7 @@ async def run_capacity(factory, physical, record_property, *, count, maximal):
                         {
                             "requested_histories": count,
                             "maximal_native_boundary_vector": maximal,
+                            "genuine_resources_acquired_and_restored": acquired,
                             "completed_histories": len(snapshots),
                             "work_finished": finished,
                             "failure": failure,
@@ -908,6 +996,9 @@ async def run_capacity(factory, physical, record_property, *, count, maximal):
                                 "native_entry": 69632,
                                 "registration_request": 148480,
                                 "registration_record": 149504,
+                                "task_resource_context": 180224,
+                                "resource_reservation": 196608,
+                                "resource_observation": 212992,
                                 "resource_context": 786432,
                                 "resource_finalization": 802816,
                                 "resource_receipt": 819200,
@@ -936,3 +1027,15 @@ async def test_required64_full_lifetime_and_hplus1(factory, physical, record_pro
 @pytest.mark.asyncio
 async def test_required64_max_native_bodies_and_complete_graphs(factory, physical, record_property):
     await run_capacity(factory, physical, record_property, count=HISTORY, maximal=True)
+
+
+@pytest.mark.asyncio
+async def test_screen2_max_native_bodies_with_reservation(factory, physical, record_property):
+    await run_capacity(factory, physical, record_property, count=2, maximal=True, acquired=True)
+
+
+@pytest.mark.asyncio
+async def test_required64_max_native_bodies_with_reservation(factory, physical, record_property):
+    await run_capacity(
+        factory, physical, record_property, count=HISTORY, maximal=True, acquired=True
+    )
