@@ -41,7 +41,13 @@ from test_standing_physical_finalization import (
 from test_standing_physical_finalization import physical as physical
 from test_standing_resource_finalization_api import make_report
 
-from packages.contracts.models import AppendRequest, JournalEntry, ProviderInfo, SessionRequest, Task
+from packages.contracts.models import (
+    AppendRequest,
+    JournalEntry,
+    ProviderInfo,
+    SessionRequest,
+    Task,
+)
 from packages.contracts.standing_agent_settlement import (
     StandingAgentOutcomeReference,
     StandingAgentRetirementRegistrationReceipt,
@@ -61,7 +67,10 @@ from packages.contracts.standing_execution import (
     capability_digest,
     standing_initial_request,
 )
-from packages.contracts.standing_resource_finalization import StandingResourceFinalizationReceipt
+from packages.contracts.standing_resource_finalization import (
+    StandingResourceFinalizationReceipt,
+    StandingResourceFinalizeContext,
+)
 from packages.contracts.standing_work import (
     StandingChange,
     StandingChangeReceipt,
@@ -555,7 +564,7 @@ async def next_packet(env, previous, *, suffix="b", task_id="23900000-0000-4000-
 @pytest.mark.asyncio
 async def test_default_app_exposes_all_four_v2_routes_on_one_registered_session(factory):
     env = await factory()
-    paths = {route.path for route in env.app.routes}
+    paths = set(env.app.openapi()["paths"])
     assert set(ROUTES) <= paths
     packet = await original(env)
     claim = response(
@@ -829,7 +838,16 @@ async def test_context_and_pure_report_shape_are_not_native_physical_testimony(p
     reg = await register(value)
     await bound(value)
     await closure(value)
-    context = await value.agent.standing_resource_finalize_context(value.request)
+    context = response(
+        await value.session.client.post(
+            "/v1/standing/resources/finalization/context",
+            content=value.request.canonical_bytes(),
+            headers=headers("resources", **{"Content-Type": "application/json"}),
+        ),
+        200,
+        StandingResourceFinalizeContext,
+        value.request,
+    )
     forged = StandingResourceFinalizationReceipt.model_validate(
         {
             "schema_version": "1.0",
