@@ -1616,7 +1616,9 @@ class StandingSettlementOwner:
 
         def final():
             history = self._checked_history()
-            item = expected(history)
+            # Fresh history already joins its retained report to native state.
+            # Full report equality below binds that context to this request.
+            item = self._select(history, original.context.request.original)
             if item.report is None or finalization_bytes(item.report) != finalization_bytes(
                 original
             ):
