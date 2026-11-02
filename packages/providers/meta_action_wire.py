@@ -18,7 +18,11 @@ from pydantic import (
     create_model,
 )
 
-from packages.contracts.agent_tools import NATIVE_TOOL_ORDER, NativeToolSnapshot
+from packages.contracts.agent_tools import (
+    NATIVE_TOOL_ORDER,
+    NativeToolSnapshot,
+    current_agent_tools,
+)
 from packages.contracts.models import AuxiliaryTask
 
 
@@ -142,6 +146,14 @@ _ARGUMENTS = {
         event_ids=list[StrictStr] | None,
         after=StrictInt | None,
         limit=StrictInt | None,
+        paged=StrictBool | None,
+        entry_view=Literal["resolved", "immutable"] | None,
+        offset=Annotated[StrictInt, Field(ge=0, le=9_007_199_254_740_991)] | None,
+        max_chars=Annotated[StrictInt, Field(ge=1, le=12000)] | None,
+        expected_revision=Annotated[StrictInt, Field(ge=1, le=9_007_199_254_740_991)] | None,
+        expected_entry_sha256=_string(64, 64, pattern=r"^[0-9a-f]{64}$") | None,
+        scope_token=_string(64, 64, pattern=r"^[0-9a-f]{64}$") | None,
+        through_sequence=Annotated[StrictInt, Field(ge=0, le=9_007_199_254_740_991)] | None,
     ),
     "select_context": _object("SelectContext", path=StrictStr | None, max_chars=StrictInt | None),
     "mcp_list": _object(
@@ -176,8 +188,23 @@ _ACTIONS = {
 
 def _selection(tools):
     try:
+        snapshot = current_agent_tools()
+        if snapshot is not None:
+            if (
+                type(snapshot) is not NativeToolSnapshot
+                or type(tools) is not tuple
+                or tools != snapshot.available_tools
+            ):
+                raise ValueError
+            return NativeToolSnapshot(
+                tools,
+                schema_version=snapshot.schema_version,
+                owner_disabled=snapshot.owner_disabled,
+                owner_revision=snapshot.owner_revision,
+                task_subset=snapshot.task_subset,
+            ).available_tools
         return NativeToolSnapshot(tools).available_tools
-    except (ValueError, TypeError):
+    except (ValueError, TypeError, AttributeError):
         raise TypedWireError() from None
 
 

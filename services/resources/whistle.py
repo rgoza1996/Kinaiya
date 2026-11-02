@@ -46,9 +46,14 @@ class ManagedWhistleConfig(BaseModel):
 
 
 class WhistleEndpoint:
+    actual_ownership_supported = True
+
     def __init__(self, directory):
+        from packages.contracts.operation_ownership import StreamClosures
+
         self.directory = private_directory(directory)
         self.ready = None
+        self.stream_closes = StreamClosures()
 
     @asynccontextmanager
     async def connection(self, pid):
@@ -57,10 +62,9 @@ class WhistleEndpoint:
             peer_pid(writer.get_extra_info("socket"), pid)
             yield reader, writer
         finally:
-            writer.close()
             try:
-                await asyncio.wait_for(writer.wait_closed(), timeout=0.2)
-            except (OSError, TimeoutError):
+                await self.stream_closes.close(writer)
+            except OSError:
                 pass
 
     async def exchange(self, pid, incarnation, kind, data=None):
@@ -228,6 +232,8 @@ class Transcription:
 class WhistleBroker:
     """One native operation/cleanup owner. Refusal happens before reading audio."""
 
+    actual_ownership_supported = True
+
     def __init__(self, coordinator, endpoint, *, request_timeout_s=300):
         self.coordinator, self.manager, self.endpoint = coordinator, coordinator.manager, endpoint
         self.timeout = request_timeout_s
@@ -301,6 +307,48 @@ class WhistleBroker:
             operation.work.cancel()
         if operation.cleanup is None or operation.cleanup.done():
             operation.cleanup = asyncio.create_task(self.cleanup(operation))
+        from packages.contracts.operation_ownership import current_owner
+
+        owner = current_owner()
+        if owner is not None:
+            closes = getattr(self.endpoint, "stream_closes", None)
+            if closes is None:
+                owner.fail()
+            else:
+                closes.retain(owner)
+            for task in (operation.admission, operation.work, operation.cleanup):
+                if task is not None:
+                    owner.retain_task(task)
+            operation.cleanup.add_done_callback(
+                lambda _: (
+                    owner.fail()
+                    if not operation.cleanup_confirmed or operation.cleanup_failed
+                    else None
+                )
+            )
+
+    def abort_active(self):
+        from packages.contracts.operation_ownership import current_owner
+
+        owner = current_owner()
+        if owner is not None:
+            closes = getattr(self.endpoint, "stream_closes", None)
+            if closes is None:
+                owner.fail()
+            else:
+                closes.retain(owner)
+        if self.operation is not None:
+            self.abort(self.operation)
+
+    async def drain(self):
+        operation = self.operation
+        if operation is not None:
+            self.abort(operation)
+            await asyncio.shield(operation.cleanup)
+            if operation.work is not None:
+                await asyncio.gather(operation.work, return_exceptions=True)
+            if not operation.cleanup_confirmed or operation.cleanup_failed:
+                raise RuntimeError("Whistle cleanup remains retained")
 
     @staticmethod
     async def disconnected(request):

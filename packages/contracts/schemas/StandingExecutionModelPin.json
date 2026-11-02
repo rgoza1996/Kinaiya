@@ -1,0 +1,118 @@
+{
+  "$defs": {
+    "CatalogModelBinding": {
+      "additionalProperties": false,
+      "description": "Explicit immutable native provider reference, never a display alias.",
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "generation": {
+          "maximum": 64,
+          "minimum": 1,
+          "title": "Generation",
+          "type": "integer"
+        },
+        "configuration_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Configuration Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "generation",
+        "configuration_sha256"
+      ],
+      "title": "CatalogModelBinding",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Complete exact model declaration; no legacy omitted-field form.",
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "profile_id": {
+      "maxLength": 80,
+      "minLength": 1,
+      "title": "Profile Id",
+      "type": "string"
+    },
+    "provider": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Provider",
+      "type": "string"
+    },
+    "model": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Model",
+      "type": "string"
+    },
+    "local": {
+      "title": "Local",
+      "type": "boolean"
+    },
+    "reasoning": {
+      "anyOf": [
+        {
+          "maxLength": 16,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Reasoning"
+    },
+    "settings_revision": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "title": "Settings Revision",
+      "type": "integer"
+    },
+    "catalog_binding": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CatalogModelBinding"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "catalog_revision": {
+      "anyOf": [
+        {
+          "maximum": 9007199254740990,
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Catalog Revision"
+    }
+  },
+  "required": [
+    "schema_version",
+    "profile_id",
+    "provider",
+    "model",
+    "local",
+    "reasoning",
+    "settings_revision",
+    "catalog_binding",
+    "catalog_revision"
+  ],
+  "title": "StandingExecutionModelPin",
+  "type": "object"
+}

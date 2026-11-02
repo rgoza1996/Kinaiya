@@ -241,7 +241,7 @@
       "Android owner+companion APK",
       "iOS owner+companion unsigned simulator"
     ],
-    "observed_results": "CI342 and CI347 each passed all five on their explicitly recorded earlier heads/bases. Main advanced again before merge; consult PR227 for the required final combined-head review and CI."
+    "observed_results": "Passed on exact0956f3528e0dee4757e119400dbd5ae0c76fa27c inCI350, independent Codex COMMENT5726939172, then merged b9132f6745403ca07ab8739511e7b36fea549b37. Actual/synthetic/head trees and parents were verified; broaderM7 remains incomplete."
   },
   "limits": [
     "Autonomous, standing schedules, notification/call escalation, broaderM7 and all twelve Options acceptance groups remain incomplete.",
@@ -418,7 +418,7 @@
     "manifest_sha256": "91e97b5d937337d9c39cd460482cdae66594caccb1f79164030574a0b0e883c4",
     "qualification_limit": "Main advanced before merge. Root held the merge and integrated PR225; exact updated-head review and all-five CI remain mandatory."
   },
-  "record_scope": "Historical qualification through PR225 is retained below. The latest_upstream_integration object pins the clean PR229 integration source; exact final-head review and all-five CI remain mandatory before merge.",
+  "record_scope": "Evidence history for the native Agent mode prerequisite. final_publication records exact-head CI350, independent Codex COMMENT review and verified actual merge. Earlier source pins/results remain explicitly historical; later standing-work implementation is separate.",
   "subsequent_qualified_ci": {
     "head": "786915624e5fe5782af5d04c1bc68b4b8f088528",
     "base": "770b828d235f52f25dd7670d21b1538aff6d7d5c",
@@ -479,5 +479,110 @@
       "schema_export_diff": "pass with isolated-root PYTHONPATH"
     },
     "scope": "New STT publication/worker settlement helpers coexist with the native mode/steering seams. Exact-head independent scoped review and combined CI are recorded in PR227 after this source is committed; no full independent STT audit or fresh real-socket execution is asserted."
+  },
+  "final_publication": {
+    "pr": 227,
+    "head": "0956f3528e0dee4757e119400dbd5ae0c76fa27c",
+    "base": "6196be2c0ee17fb484415859b7e087f10e6c7614",
+    "synthetic_merge": "ac47fb65c370564cc8eb3ccca44fe8cda3f7aaad",
+    "actual_merge": "b9132f6745403ca07ab8739511e7b36fea549b37",
+    "tree": "3794d679a12204874d6393dd04d9cee8cd37796f",
+    "jobs": [
+      {
+        "id": 124780658359,
+        "name": "flutter",
+        "conclusion": "success",
+        "bytes": 227417,
+        "sha256": "cca3a8b8bc79bda272a8b8a7ee96699a6c0ebaab7bb5f514a52ded6de8cf9d9b",
+        "flutter_tests": 958,
+        "bridge_tests": 38,
+        "formatted_files": 212,
+        "analysis": "no issues",
+        "owner_and_companion_web": true
+      },
+      {
+        "id": 124780658486,
+        "name": "android",
+        "conclusion": "success",
+        "bytes": 44410,
+        "sha256": "3bebd1c0bded8f5e41ec1e2f60e8675094448b67792596abc0ace6f703012805",
+        "owner_and_companion_debug_apk": true
+      },
+      {
+        "id": 124780658582,
+        "name": "python (3.12)",
+        "conclusion": "success",
+        "bytes": 54097,
+        "sha256": "00fa7946e19d7caeb3e9342bdcdd754b7e456fde58587daf1fc3f9ef4b9c7adc",
+        "pytest": {
+          "passed": 7982,
+          "skipped": 6,
+          "deselected": 2,
+          "warnings": 1,
+          "seconds": 498.64
+        },
+        "schema_export_and_audit": "pass"
+      },
+      {
+        "id": 124780658613,
+        "name": "python (3.11)",
+        "conclusion": "success",
+        "bytes": 54096,
+        "sha256": "5b343b8333100aed8da01603d56785b0b86e004377b151edcfa7f5b44125cceb",
+        "pytest": {
+          "passed": 7982,
+          "skipped": 6,
+          "deselected": 2,
+          "warnings": 1,
+          "seconds": 490.77
+        },
+        "schema_export_and_audit": "pass"
+      },
+      {
+        "id": 124780658662,
+        "name": "ios",
+        "conclusion": "success",
+        "bytes": 32109,
+        "sha256": "62dde5c1379e77882f10604dcfb4bf426bd7f697501404346ae32dc48ac4cc12",
+        "owner_and_companion_unsigned_simulator": true
+      }
+    ],
+    "independent_review": {
+      "head": "0956f3528e0dee4757e119400dbd5ae0c76fa27c",
+      "action": "COMMENT",
+      "human_approval": false,
+      "url": "https://github.com/rgoza1996/Kinaiya/pull/227#pullrequestreview-5726939172",
+      "receipt_sha256": "ca4d12f27e99801e610b9cd1383b71d3cc0063ed1f1264872f85ca4bea7dae3c",
+      "manifest_sha256": "dc9e5d3419fbd8d8c163f10d878e04274fca2c02ed673b370ed0cc808e11bd38",
+      "native_cases_passed": 52,
+      "native_seconds": 12.53,
+      "findings": []
+    },
+    "client_comparison": {
+      "head": "0956f3528e0dee4757e119400dbd5ae0c76fa27c",
+      "receipt_sha256": "473727224010b37618721a302a099184af16c654a316d24e3135371f0ec5e6b8",
+      "all_11_mode_paths_exact_to_ci347": true,
+      "mode_model_runtime_ownership_unchanged": true,
+      "extra_flutter_test_rerun": false
+    },
+    "qualification_limits": [
+      "Six optional PyAV skips per Python version; two live exclusions; one existing Starlette deprecation warning.",
+      "Native actual HTTP/file/Dart checks were previously qualified; later STT integrations used unchanged scoped regressions/source review and this full CI.",
+      "Autonomous standing work, schedules, OS notifications/calls and full Options/M7 remain incomplete.",
+      "Protected unforked nonrolled-back storage and quiesced old binaries required; inherited plugin final reap wait may remain unbounded."
+    ],
+    "paid_calls": 0,
+    "attribution": "Codex authors and independent Codex COMMENT reviewers; no Muse execution or human approval claimed.",
+    "run_id": 41283718366,
+    "run_number": 350,
+    "all_five_passed": true,
+    "actual_merge_parents": [
+      "6196be2c0ee17fb484415859b7e087f10e6c7614",
+      "0956f3528e0dee4757e119400dbd5ae0c76fa27c"
+    ],
+    "actual_head_synthetic_trees_equal": true,
+    "receipt_sha256": "98008de0bb7bd906223610f2f6982510d72c08b92c786030bb9e6ac59f6e6de7",
+    "merge_proof_sha256": "4cd6c08bd03d822f217a20922f2257c240b2ed570ebb8dee74c4b9857add81ba",
+    "manifest_sha256": "7bc0ea81bdd2d1a838c23275562167455a7bce34628e780ac1929c514ade0262"
   }
 }

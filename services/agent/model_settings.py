@@ -786,10 +786,14 @@ class AgentModelSettings:
             for lease in self.catalog_leases
         )
 
-    def task_selection(self, harness_version, content_scope):
+    def task_selection(
+        self, harness_version, content_scope, *, owned_primary=False, include_auxiliary=True
+    ):
         """Capture fresh catalog adapters only for genuinely new accepted work."""
         from services.agent.task_model_lease import TaskModelLease
 
+        if type(owned_primary) is not bool or type(include_auxiliary) is not bool:
+            raise ValueError("Task model selection requires strict native flags")
         if self.catalog_cleanup_busy:
             # An uncertain native operation can use the same backend as a
             # host profile. Changing selection cannot release its ownership.
@@ -808,13 +812,61 @@ class AgentModelSettings:
                 self.catalog_leases.add(lease)
             return lease
 
+        def aliased(candidate):
+            existing = [
+                *self.base.values(),
+                *self.instances.values(),
+                *self.auxiliary_instances.values(),
+            ]
+            active = getattr(self, "_active_primary", None)
+            if active is not None:
+                existing.append(active)
+            for current in self.catalog_leases:
+                existing.extend(current.adapters)
+                existing.extend(
+                    route.provider
+                    for route in current.auxiliary_routes.values()
+                    if route.provider is not None
+                )
+            identities = {id(item) for item in existing}
+            identities.update(id(getattr(item, "provider", item)) for item in existing)
+            return (
+                id(candidate) in identities
+                or id(getattr(candidate, "provider", candidate)) in identities
+            )
+
         def select(purpose=None):
             nonlocal lease
             binding = self._binding(body, harness_version, purpose)
             if "catalog_binding" not in binding:
-                provider = (
-                    self.resolve(binding) if purpose is None else self.resolve_auxiliary(binding)
-                )
+                if purpose is None and owned_primary:
+                    name, effort = binding["profile_id"], binding["reasoning"]
+                    if name not in self.base or (
+                        effort is not None and effort not in self.levels[name]
+                    ):
+                        raise ValueError("Selected Agent model profile is unavailable")
+                    factory = (
+                        self.host_factory if name == HOST_PROFILE else self.factories.get(name)
+                    )
+                    if not callable(factory):
+                        raise ValueError("Selected Agent model cannot create an owned primary")
+                    ensure_lease()
+                    provider = factory(effort)
+                    if aliased(provider):
+                        # An alias belongs to another owner; never close it.
+                        raise ValueError("Selected Agent primary aliases an existing adapter")
+                    lease.own(provider)
+                    expected = self.base[name]
+                    if provider.info != expected.info or self.effort(provider) != (
+                        self.effort(expected) if effort is None else effort
+                    ):
+                        raise ValueError("Selected Agent primary differs from its declaration")
+                else:
+                    provider = (
+                        self.resolve(binding)
+                        if purpose is None
+                        else self.resolve_auxiliary(binding)
+                    )
                 pin = AgentModelPin(
                     profile_id=binding["profile_id"],
                     provider=provider.info.provider,
@@ -837,6 +889,8 @@ class AgentModelSettings:
                 auxiliary=purpose is not None,
                 resource_state=self.resource_state,
             )
+            if purpose is None and owned_primary and aliased(provider):
+                raise ValueError("Selected Agent primary aliases an existing adapter")
             lease.own(provider)
             info = recipe.info
             if provider.info != info or self.effort(provider) != recipe.reasoning:
@@ -857,6 +911,8 @@ class AgentModelSettings:
             if not scope_allowed(provider.info, content_scope):
                 raise PolicyDenied("Input disclosure does not permit the selected model")
             auxiliary, pins = {}, {}
+            if not include_auxiliary:
+                return provider, pin, auxiliary, pins, lease
             try:
                 route_revision, routes = self.auxiliary_routes.configured(
                     harness_version, AUXILIARY_TASKS

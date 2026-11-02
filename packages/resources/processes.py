@@ -519,6 +519,8 @@ class WorkerManager:
     signals. Anything unattributable fails closed and blocks restart.
     """
 
+    actual_ownership_supported = True
+
     def __init__(self, specs: list[WorkerSpec], *, readiness: ReadinessProbe | None = None) -> None:
         if not isinstance(specs, list) or not specs or len(specs) > MAX_WORKERS:
             raise ValueError(f"specs must be a non-empty list of at most {MAX_WORKERS}")
@@ -536,6 +538,32 @@ class WorkerManager:
         self._lock = asyncio.Lock()
         self._closed = False
         self._identities: weakref.WeakSet[WorkerIdentity] = weakref.WeakSet()
+        self._operation_owners = set()
+
+    def retain_operations(self, owner):
+        """Enroll original late spawn/reaper handles, never resident readers."""
+        self._operation_owners.add(owner)
+        owner.on_retire(lambda: self._operation_owners.discard(owner))
+        for managed in self._workers.values():
+            for task in (managed.pending_spawn, managed.pending_cleanup):
+                if task is not None:
+                    owner.retain_task(task, cleanup=task is managed.pending_cleanup)
+
+    def _retain_operation(self, task, *, cleanup=False):
+        from packages.contracts.operation_ownership import current_owner
+
+        owners = set(self._operation_owners)
+        if current_owner() is not None:
+            owners.add(current_owner())
+        for owner in owners:
+            owner.retain_task(task, cleanup=cleanup)
+        return task
+
+    def _operation_failed(self):
+        from packages.contracts.operation_ownership import current_owner
+
+        for owner in {*self._operation_owners, current_owner()} - {None}:
+            owner.fail()
 
     def status(self) -> dict[str, Any]:
         workers = {}
@@ -847,6 +875,7 @@ class WorkerManager:
                 pass_fds=(grant_r, config_fd),
             )
         )
+        self._retain_operation(spawn_task)
         try:
             proc = await asyncio.shield(spawn_task)
         except asyncio.CancelledError:
@@ -1008,6 +1037,11 @@ class WorkerManager:
                                 except BaseException:
                                     pass
                         finally:
+                            if (
+                                isinstance(pending_proc, asyncio.subprocess.Process)
+                                and pending_proc.returncode is None
+                            ):
+                                self._operation_failed()
                             for fd in retain:
                                 try:
                                     os.close(fd)
@@ -1023,7 +1057,9 @@ class WorkerManager:
                             managed.pending_fds = []
                             managed.pending_obj = None
 
-                    managed.pending_cleanup = asyncio.ensure_future(_reap())
+                    managed.pending_cleanup = self._retain_operation(
+                        asyncio.ensure_future(_reap()), cleanup=True
+                    )
                     managed.process = None
                     managed.pgid = None
                     managed.leader_fd = None

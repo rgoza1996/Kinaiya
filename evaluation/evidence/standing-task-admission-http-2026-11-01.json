@@ -1,0 +1,222 @@
+{
+  "requirement": "https://github.com/rgoza1996/Kinaiya/issues/228",
+  "parent_requirements": [
+    "https://github.com/rgoza1996/Kinaiya/issues/10",
+    "https://github.com/rgoza1996/Kinaiya/issues/208"
+  ],
+  "scope": "Protected initial-task acceptance and Agent-only HTTP transport. No standing producer, worker, settled effects, inbox or owner editor qualification.",
+  "implementation": {
+    "native_author_commit": "ec1ec67bd462cb20db4c66f47df7f232c8f814ce",
+    "native_integrated_commit": "de1fbd98fd86c5e20b90c68398df452deeba742e",
+    "http_author_commit": "d3f31efe4a94591f245f6a87d74fa8fd3e8e95d8",
+    "http_integrated_commit": "b21d2a74ba49011941d4bd4041cc44131d879950",
+    "sha256": {
+      "services/session/standing_admission.py": "004f6b3516c27e9ec99e6aa26841d8b17c5f0a24ddba91dea6805b3274cb9308",
+      "services/session/store.py": "0bc288b6a8ee5cdce62e20f559c87be2a7d299c6f8d46b2903531f9e13292577",
+      "services/session/api.py": "21f5375ffbe5decd005ad9c9aa7957354fe5932e7959b8c512eb992a13900481",
+      "services/session/standing_work_api.py": "e8575ab0bad324e23906cdc0bac720395e94b42e9b63fd7a10814067acc09d29",
+      "tests/integration/test_standing_task_admission.py": "bbc7adbd531e710fdfdd2f403c089c374b11e974ca8203e61a8dd0960b613db6",
+      "tests/integration/test_standing_execution_api.py": "4fb96e41dcd0b89423a277b61a7586bea05a3b394c81925874e35169d87ede47"
+    }
+  },
+  "independence": {
+    "native_tests_frozen_commit": "ceed270cd2398e4a26b0de57ddac327fb978159c",
+    "native_original_test_sha256": "bf5fe71ff01c9223578e490a5ed07d189286445b878508c51dbe44466eaffcfd",
+    "http_tests_frozen_commit": "63137f31ca41c02fc06ba17593952500ec4a735a",
+    "http_test_sha256": "4fb96e41dcd0b89423a277b61a7586bea05a3b394c81925874e35169d87ede47",
+    "frozen_before_root_consulted_new_implementation": true,
+    "attribution": "Codex implementation and separate Codex reviews/oracles; no Muse invocation, human approval or certification claim"
+  },
+  "first_results": {
+    "native_cold": {
+      "failed": 66,
+      "passed": 1,
+      "seconds": 20.01,
+      "classification": "actual runtime absent capability; fixture control passed"
+    },
+    "http_cold": {
+      "failed": 44,
+      "passed": 2,
+      "seconds": 12.85,
+      "classification": "actual missing routes/capabilities; existing controls passed"
+    },
+    "native_initial": {
+      "passed": 65,
+      "failed": 2,
+      "seconds": 45.06,
+      "production_fix_required": false
+    },
+    "http_unchanged": {
+      "passed": 46,
+      "failed": 0,
+      "seconds": 16.57,
+      "warnings_as_errors": true
+    }
+  },
+  "native_fixture_corrections": {
+    "commit": "93b697dc3ef485be27a14d75b6c90f51d232b090",
+    "corrected_sha256": "bbc7adbd531e710fdfdd2f403c089c374b11e974ca8203e61a8dd0960b613db6",
+    "independently_diagnosed": true,
+    "original_file_patch_failures_and_seals_retained": true,
+    "identity_case": "Use a fully consistent original intent before expecting native identity Conflict; nested producer identity and contextual capability digest follow changed identity. Original Conflict, no-write and clock-free assertions retained. Invalid graph remains refused separately.",
+    "producer_case": "The unchanged gate correctly forbids replacing a live producer. Expire the old lease before actual replacement; replace impossible old-live precondition with old-expired and new-producer-live/snapshot-ready conditions. Retain original admission refusal/no-entry/lookup-None assertions.",
+    "production_source_changed": false,
+    "qualified_result": {
+      "passed": 67,
+      "failed": 0,
+      "seconds": 44.91,
+      "warnings_as_errors": true
+    }
+  },
+  "reviews": {
+    "native_actionable_findings": 0,
+    "http_actionable_findings": 0,
+    "type": "Read-only source reviews, no suite/probe execution or claim of human approval"
+  },
+  "verified_behavior": [
+    "One native transaction commits initial standing entry and exact protected proof link; actual commit/lost ACK retains history without another created opportunity.",
+    "Private contextual capability gates first admission; only its hash is public. Generic append refuses this family for every role.",
+    "Current grant, Agent session, dispatch activation/Stop, same live producer, UTC/latest due and final deadline/cancellation checks.",
+    "Both stored entry projections/native columns/full claim/proof and no-FK schema are validated. Retained session deletion is refused.",
+    "Historical replay and lookup remain passive through current-state changes and nullable controller capacity.",
+    "Five Agent-only routes authenticate before body/query/private-header parsing and share existing64 actual native owners,5s ingress/25s whole operation.",
+    "Strict full-original proof/null/header/raw/media/byte-bound validation; native thread ownership survives caller cancellation, and shutdown joins before capability retirement."
+  ],
+  "instrumentation_limits": [
+    "Controller capacity uses a real10000-row schema seed, not10000 native registrations.",
+    "Synthetic credentials/model pins and deterministic ASGI/SQLite checks are not live producer/provider/Agent-worker tests.",
+    "Actual65th request refusal and64 entered native callables use an explicit64-thread executor as an oracle precondition."
+  ],
+  "focused_static_checks": {
+    "ruff_check": "pass,6 changed Python files",
+    "ruff_format": "pass,6 files already formatted",
+    "diff_check": "pass"
+  },
+  "broader_regressions": {
+    "status": "passed",
+    "initial_collection_error_preserved": true,
+    "initial_error": "Pinned Starlette TestClient emits its existing httpx fallback deprecation during collection under-Werror. No tests ran in that attempt.",
+    "correction": "Keep all source/assertions unchanged; ignore only that precise known Starlette deprecation, keeping other warnings as errors. No dependency install.",
+    "passed": 377,
+    "failed": 0,
+    "pytest_seconds": 272.16,
+    "original_test_pins_preserved": true,
+    "files": 15,
+    "test_sha256": {
+      "tests/integration/test_standing_dispatch_api.py": "2cb96d69b7c20f1609d917f7cfefcac178f4aca03b06e10250515e309eaf9301",
+      "tests/integration/test_standing_owner.py": "fe200153f81fd0dc59b2ce9fb8012c5e7dac22016bba7fbf962c4d4bee606fd4",
+      "tests/integration/test_standing_owner_history.py": "1ae9d2d11f60c04a39068b88adc8b753dd6401ab01a60fa1bfdf2c2eaaca35de",
+      "tests/integration/test_standing_owner_cors.py": "9a0467a628cce44dcce91a5950cdbb25656aaac017008a045d2d95278609ba85",
+      "tests/integration/test_standing_dispatch_owner.py": "1342761fa4477e8cb30f39c17c83d72d1f619635d9dd2e3b52cabc2d26632dbf",
+      "tests/integration/test_standing_dispatch_stop_context.py": "1e2c0090c36d854d5d159d28eb6b6a442de66fbe6260e4021a8011d832c9f6d0",
+      "tests/integration/test_standing_execution_owner.py": "a970ecff59d8e485cde6a4e2613430c7cb92e84e655d68f0552408f28f6319d7",
+      "tests/integration/test_standing_execution_schema.py": "ed1dfd4089ca7c6efeafc49549ca18ab680c4fffc685870d637b9e0bbf844068",
+      "tests/integration/test_agent_submit_admission.py": "7b3a130095f80dca78d3781a8277b2d295cfbc7c830e9c319345138b0cf7c44d",
+      "tests/integration/test_agent_submit_transactions.py": "23ea5977992079fca613e87dfa7c620e0df1aa352862c716a6e23c1b074bd46a",
+      "tests/integration/test_agent_submit_native_revision.py": "f3153437378cf7e395e3ebc6d380128ead8b12395d4726e5c111b93b2e1b758f",
+      "tests/integration/test_agent_submit_native_provenance.py": "0b545504f4ce37ff3ca952f1b1bb7fcbbb353dbedaa6bf9d7a4efead7fea4258",
+      "tests/integration/test_agent_submit_admission_faults.py": "4076ff99d3aee82ba6ee9bb9a1ca4df1129b6b6128f2654868504b457363ffbe",
+      "tests/integration/test_session.py": "d93dc21f4721e2f36f95a48ec3ec86c19597b5ac5a94b383fd81fdd087938f20",
+      "tests/integration/test_agent_operating_mode.py": "4527b52691480783834dd5564b126e647e4b4b5922f6a591d2d75e802688c3d8"
+    },
+    "command": [
+      "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+      "-B",
+      "-m",
+      "pytest",
+      "-q",
+      "-W",
+      "error",
+      "-W",
+      "ignore:Using `httpx` with `starlette.testclient` is deprecated:starlette.exceptions.StarletteDeprecationWarning",
+      "-p",
+      "no:cacheprovider",
+      "-o",
+      "asyncio_default_fixture_loop_scope=function",
+      "tests/integration/test_standing_dispatch_api.py",
+      "tests/integration/test_standing_owner.py",
+      "tests/integration/test_standing_owner_history.py",
+      "tests/integration/test_standing_owner_cors.py",
+      "tests/integration/test_standing_dispatch_owner.py",
+      "tests/integration/test_standing_dispatch_stop_context.py",
+      "tests/integration/test_standing_execution_owner.py",
+      "tests/integration/test_standing_execution_schema.py",
+      "tests/integration/test_agent_submit_admission.py",
+      "tests/integration/test_agent_submit_transactions.py",
+      "tests/integration/test_agent_submit_native_revision.py",
+      "tests/integration/test_agent_submit_native_provenance.py",
+      "tests/integration/test_agent_submit_admission_faults.py",
+      "tests/integration/test_session.py",
+      "tests/integration/test_agent_operating_mode.py",
+      "--junitxml=/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/228-admission-http-regressions-qualified-b9_nppoa/junit.xml"
+    ],
+    "qualified_head": "93b697dc3ef485be27a14d75b6c90f51d232b090"
+  },
+  "evidence_bundles": {
+    "native_oracle_freeze": {
+      "receipt_sha256": "60c45c3e555acd0ae915d5d327d5365ffd2a421a3b54006ef56d7e51eb543ed3",
+      "manifest_sha256": "e73ab8aa6ce0e1c0d62757d07088ad7846963ec39ea44682da72f1368464b616"
+    },
+    "native_missing_capability": {
+      "receipt_sha256": "7141c380fc8b4b315a8aa6ca530ef8b3f7731be868678522be2a17e4d6754eb7",
+      "manifest_sha256": "876fe06892f95b99187dde552d3cab0b63743deb04857f194034044f7fb2faac",
+      "junit_sha256": "5cb5bc8094beedb4b0ea7dbf2b4d1717958791ae8d0d6bfea9d5dd5b1dc79562"
+    },
+    "native_first_qualification": {
+      "receipt_sha256": "d6aa5d82ca9c5d88c8a94bd8072534fe222ca9b906c59041ffbad0c8179c7d9f",
+      "manifest_sha256": "566d524f34da1472dd04b39373504994f03f9697e918094c0eb6ae155d65b599",
+      "junit_sha256": "b68d2e5a4c3d58b43b7c776c2d63e3146f8bb68eb014af856446eddbb339dac2"
+    },
+    "native_fixture_correction_and_qualification": {
+      "receipt_sha256": "ea0f0eee6a03d88aaeffbd4a989f47cf2f2681883e2acb2afd4b178504ccdb4d",
+      "manifest_sha256": "7aa8c867848561ed67e3da7ce6e39a0e1daf587775bad88c35c1f0afa482202f",
+      "junit_sha256": "2430232700fd7569cf50d4a0ede69a8a8200cfa8ed382b8eeb0508986d206f65"
+    },
+    "http_oracle_freeze": {
+      "receipt_sha256": "70277b087c0d1b897d9bd02f65bf80fcdf85a47764be15f35d57a459aee30a65",
+      "manifest_sha256": "b36e42845025bbbbe4ca2d121484907fe5e57ea3ce5ae310641341c0cca759ac"
+    },
+    "http_missing_routes": {
+      "receipt_sha256": "c93ae02a2c415e36991ca32e993b51f41b28b571af2dea5fc4ad872257558311",
+      "manifest_sha256": "159a075e9e34363c747864338d186deb77cccf7ea0b0e85cbe8c756a9ec5c49f",
+      "junit_sha256": "9f3da3449c2447334296f5fc2faaf5a186ef06e64582a58b3db8e66fff678c81"
+    },
+    "http_first_qualification": {
+      "receipt_sha256": "3c8c6b3959499c7356eedfc23112c704d1701f0af8d86061ba178d48dcfef87d",
+      "manifest_sha256": "b3ceb5b1ae5b7e2a0e4158483c358357da6666666c4217577d1fb0059a05fd6e",
+      "junit_sha256": "c05392bc22fe6ce9a1949970f5fa738fd1eca211bbeece3cec1d0c1cbbae5ec8"
+    },
+    "native_read_only_review": {
+      "receipt_sha256": "ce3dfe47c851503be1c7aaefca60bd8f9bffb8a5efcb169524c1132c6a834739",
+      "manifest_sha256": "f5ca9bf85a536aa2b10298b01395870ead043d9b00f9a88fe5b6dd7aac0a5ee6"
+    },
+    "http_read_only_review": {
+      "receipt_sha256": "0ff2835871b8b89a715f7196805c69740df3e651f03d5f3bd3564a97d3061962",
+      "manifest_sha256": "6b7ed4a3f42fc3f87536346208faf25ff323d5edc9db3e0c5f00e27ddb9fbc6c"
+    },
+    "regression_first_collection_failure": {
+      "receipt_sha256": "e5b4d82643ea79d1d4b5250eecef4d7b77303ee3bd15bfb746eb071accfdef9e",
+      "manifest_sha256": "d6fffb1a390cc59f81cb0efced076b21b7f2e96d33ad25ed15a101ae2d3f7f2e",
+      "junit_sha256": "6072576c395df163a1e6859e5c6f765e02190bbbb328aaccb10b28adac3cbc9b"
+    },
+    "focused_old_regressions": {
+      "receipt.json_sha256": "f7e48de811def09a88ea561fe7fcdf9b552d1d68a1a638920cfe69360498009f",
+      "manifest.json_sha256": "d1dee8f7bc3983db4255197dd909c2799ef5746cc46693dd955bdfd94bc63e48",
+      "junit.xml_sha256": "18053f990426cd9a10fd3bf63134d018149e80f783a42c3e2651ad860fe67aab"
+    }
+  },
+  "remaining": [
+    "Production Agent transport integration and actual scheduled producer",
+    "Actual permitted Agent worker/file-tool execution with positive per-operation cleanup/effect/resource witnesses",
+    "Close/settlement fencing and release of only matching unresolved slots",
+    "Finite recurrence accounting and durable deduplicated inbox/acknowledgement",
+    "Functional embedded authorization/status/inbox editor and native/client workflow qualification",
+    "Exact-final independent review and required CI before a working228 PR"
+  ],
+  "paid_and_live_changes": {
+    "new_Meta_OpenRouter_calls": 0,
+    "budget_reset": false,
+    "preview_or_live_configuration_changes": false,
+    "full_CI_or_PR_claim": false
+  }
+}

@@ -21,6 +21,7 @@ from packages.contracts.models import (
     ProviderInfo,
     Session,
 )
+from packages.contracts.transcript_scan import TranscriptScanPage, TranscriptScanRequest
 
 
 class AgentControlUnavailable(RuntimeError):
@@ -39,6 +40,8 @@ class AgentModeOff(PermissionError):
 
 
 class Journal(Protocol):
+    async def transcript_scan(self, request: TranscriptScanRequest) -> TranscriptScanPage: ...
+
     async def agent_control_backend(self) -> str: ...
 
     async def agent_control_state(self) -> AgentControlSnapshot: ...

@@ -1,0 +1,770 @@
+{
+  "issue": "https://github.com/rgoza1996/Kinaiya/issues/255",
+  "record_date": "2026-11-01",
+  "record_status": "Bounded implementation qualified in stated integration slices; original old-regression failures retained; not main or release qualification.",
+  "requirements": [
+    "Roadmap.md sections 5.1, 5.3 and 7.2.2",
+    "clarification.md sections 10.3 and 18"
+  ],
+  "public_cross_references": [
+    "docs/agent-transcript-retrieval.md",
+    "docs/implementation-status.md",
+    "evaluation/evidence/agent-transcript-retrieval-gap-2026-11-01.json"
+  ],
+  "scope": "Complete persistence remains independent of Decisions-selected immediate references. Agent pulls authorized bounded additional transcript pages on demand; this does not routinely push full history into prompts.",
+  "source": {
+    "pre_feature_integration_head": "6670138fd3c3f10036ef2903e23063c6ef149dea",
+    "original_contract_baseline": "9dbde45933721a51c1a004295640e168cfd5ce56",
+    "final_source_qualified_head": "ff02f0cc0a31ccd3bee73eaa6f5f67bb1f1316f5",
+    "schema_export_head": "166bee314c4c49ab874c585ca76cf3b421dfb3b0",
+    "later_source_equality_observation_head": "a9f8045df41009b0fec769e5ccd77caa778409da",
+    "later_observation_is_not_a_new_python_qualification": true,
+    "source_sha256_pinned_at": "166bee314c4c49ab874c585ca76cf3b421dfb3b0",
+    "source_sha256": {
+      "harnesses/seed/__init__.py": "122d8b19b7267dbd8f1dd81b9781dff99f740c43e7c356d69b973eea1511c5a9",
+      "packages/contracts/client.py": "0f0f19d43b594a0a1d4799caba65f30f03e613284c41dc776edaf7aa4bd4082c",
+      "packages/contracts/interfaces.py": "ae0829816255b1c78057b18338943f6e61b5ab91a17220570121c8eac134aba0",
+      "packages/contracts/native_tool_schemas.py": "0fc04b9d45e073cc76e0c04ba042f60342b35e072819d9579aa5af7ce89a75a0",
+      "packages/contracts/transcript_scan.py": "b2486c0ca6cb9444a81a9c9fc353833c906eb59c131bf4a82cf87e8270ece89f",
+      "packages/contracts/transcript_scan_client.py": "85a1434cc635bdcacfcc8683d71e93c0557ed5dd5d6dcd3c7f65d170bada93bc",
+      "packages/providers/meta_action_wire.py": "607f1af41726ac40fb7fb769aea2f6fd3219de79bf909ab901c9998c96b92fd5",
+      "scripts/export_contracts.py": "30f88e32c73d10ebb8d687e209a63f070c16e408346abf751be3c9756327777f",
+      "services/agent/runtime.py": "6f5acd1e2eacb752ff985111c0913d249c0546d2e2904c22556af6c7abf497bc",
+      "services/agent/transcript_pages.py": "4601675b3dd5294a4d8da69b5b17e2e27a5ee00462c582a028e1cccbc527778d",
+      "services/session/api.py": "1ba6dc6cc6175952d3eaaa37eff400bd5a7a60e9c7fe48a5bb095af7085e285f",
+      "services/session/store.py": "d9d598b020edc0a6cbd4121a78744003b0f3d4d73660c2133be08250b979f04f",
+      "services/session/transcript_scan.py": "c77171a0e012a6603fb968e7b665442830d850e92353733c13b25c902ea403a3",
+      "services/session/transcript_scan_api.py": "2dae3c066d055783cff5a5e14daa2c342a9d9fb8b74284c2a6c79618d1b0fcf3"
+    },
+    "original_runtime_sha256": "9098e0f170494d01f059d4c062a88a07393b6e9935fd1f10a2936f6437f318d6",
+    "final_page_author_commit": "76c8a8e384737c889469ed019eb4ae8a49217a51",
+    "final_codec_author_commit": "54ce968f01611bb14ff4302d7b455ac36f1c98ae",
+    "frozen_contract_sha256": {
+      "255-transcript-page-clarification-v1.md": "da91fa6849a73515729aab50ce876f4c252e44c0f9c8a57edcb9968bc92a8858",
+      "255-transcript-page-clarification-v2.md": "fcb417e3c1b38e9833db7554d4a99adaf41ecc1360ec06ece9863fda352850d2",
+      "255-transcript-page-clarification-v3.md": "203a1792e61dcf68125c0bce68d52ba1dca8d011cd03ddd67273802dce473cc0",
+      "255-transcript-page-clarification-v4.md": "33a1f14c16f15da1bcbd5a6485b7fa2528f168647c34cdc1d480f45ba8390aa0",
+      "255-transcript-page-clarification-v5.md": "7a6d1363de0eff60b7834befc6747145a5e996a5f2f0f35b49487d276ae2a78c",
+      "255-transcript-page-contract-v1.md": "001321137199c61ae99654894f22367c56616c5190a327cf7cd3416d85af16c0"
+    },
+    "native_export_fences_preserved": "AST-exact _complete/_task_scope and native Store.agent_export_admission versus pre-feature 667; disclosure.py and agent_export.py byte exact"
+  },
+  "implemented_bounds": {
+    "model_response_utf8_bytes": 131072,
+    "model_response_text_codepoints": 12000,
+    "entry_slice_default_codepoints": 2000,
+    "entry_slice_max_codepoints": 12000,
+    "discovery_rows_default": 8,
+    "discovery_rows_max": 20,
+    "explicit_id_count": 1,
+    "native_request_raw_and_canonical_bytes": 8192,
+    "native_page_raw_and_canonical_bytes": 262144,
+    "isolated_packet_depth": 512,
+    "isolated_packet_nodes_and_keys": 262144,
+    "retained_task_context_roots": 128,
+    "aggregate_context_provenance_nodes": 256,
+    "shared_native_operations": 64,
+    "shared_actual_client_exchanges": 64,
+    "native_and_client_total_deadline_seconds": 25,
+    "native_ingress_deadline_seconds": 5
+  },
+  "behavior_and_ownership": [
+    "Exact resolved or immutable view identity/revision/full-entry and text hashes bind Unicode-codepoint continuation; current source/cause disclosure remains mandatory for immutable history.",
+    "Native SQLite snapshot chooses real fixed highwater and truthful prefix/exhaustion; filtered empty pages advance. Byte-capped prefixes leave cursor before an unreturned authorized entry; unsplittable metadata refuses.",
+    "Flat deterministic scope token binds native task/objective/session/thread/epoch, full provider.info and final accumulated disclosure floor; it grants no authority. Exact accepted adapter is checked across awaits; owner default changes do not repin accepted tasks.",
+    "Agent-only raw scan API, bounded owned streaming client, fixed input-free refusals, no-store responses, no private capability forwarding, no redirect/compression/retry. Cancellation/deadline never proves actual cleanup; retained owners and sticky close uncertainty remain.",
+    "Final guarded shared closure includes old and prospective roots after earlier view/task/session reads. Raw/resolved views are checked, inconsistent legacy duplicates refuse, and roots are not adopted before checks. This is an asynchronous observation, not atomic publication across external changes.",
+    "Actual native export admission still checks current source/session/disclosure before count/generation, including retained roots after prompt eviction. Retrieved transcript adds no instruction source, objective authority or side-effect grant.",
+    "Legacy short lists retain prior fields; clipped entries label view/truncation/total length and paging hint. Aggregate omission refuses rather than silently ending history."
+  ],
+  "independence_and_failure_history": {
+    "original_gap": {
+      "public_record_ref": "original_retrieval_gap_public_record",
+      "head": "3e8cd4f9cfda66ff2c58a98567da97a1cebd0aad",
+      "receipt_sha256": "a7f26f749e2cae77c908e641f983a3f99971adc0b5dbb684b652cf1146046029",
+      "stored_characters": 3855,
+      "retrieved_characters": 2000,
+      "marker_stored": true,
+      "marker_retrieved": false,
+      "truncation_or_continuation_keys": [],
+      "first_request_contains_target_or_unrelated_transcript": false,
+      "interpretation": "Actual Store/LocalJournal/Runtime with synthetic measured provider; successful Task did not establish complete text retrieval."
+    },
+    "original_frozen_oracles": {
+      "commit": "7404f60ae69a2a11a6700545f35c5a249804c4c5",
+      "base": "9dbde45933721a51c1a004295640e168cfd5ce56",
+      "receipt_ref": "original_oracle_freeze",
+      "outcome": {
+        "passed": 13,
+        "failed": 155,
+        "errors": 0,
+        "skipped": 0,
+        "pytest_seconds": 115.68
+      },
+      "failure_classification": {
+        "existing-legacy-behavioral-red": 2,
+        "existing-safety-or-fixture-control": 6,
+        "unchanged-prior-control": 7,
+        "unimplemented-new-interface": 153
+      },
+      "source_not_consulted_before_freeze": true,
+      "original_test_sha256": {
+        "tests/integration/test_agent_transcript_paging.py": "8a012c17f26d8cbf677f573a0b0c81e7042e83ffece803dc5f5c09b55f76c142",
+        "tests/unit/test_transcript_scan_contracts.py": "a574429813fe6fd9f3de5e421df638e2f307a82805541310a5ca37f34720d443"
+      },
+      "old_tracked_files_byte_exact": 1353,
+      "earlier_harness_failures_retained_in_receipt": true
+    },
+    "first_source_qualification": {
+      "phase_ref": "first_168",
+      "classification": "160 passed / 8 failed: 2 genuine typed-child normalization defects and 6 independently reviewed fixture failures; original outcome/logs not overwritten.",
+      "two_source_failures": [
+        "test_typed_graph_revalidation_rejects_forged_state_without_normalization[request_dict]",
+        "test_typed_graph_revalidation_rejects_forged_state_without_normalization[entry_dict]"
+      ]
+    },
+    "six_fixture_corrections": {
+      "test_only_author_commit": "fa9628ef7624149f890b544dfb8cfb8a52c5bb5b",
+      "integration_commit": "4bee31d7993de9d0e0cb00c8a9bb3f58f21e6315",
+      "receipt_ref": "fixture_corrections",
+      "assertion_audit_ref": "fixture_assertion_audit",
+      "independent_review": "Accepted by integrator after separate read-only review; justified against actual pinned provider, native append/strict-window and actual exchange ownership contracts.",
+      "cases": [
+        {
+          "original_failure": "test_stale_continuation_never_exposes_a_new_tail[provider]",
+          "defect": "Mutated runtime owner default, while accepted rec.provider is pinned.",
+          "correction": "Replace accepted adapter between completed read and next generation; use different full provider.info, actually try the old scope token. Add owner-default-change success control."
+        },
+        {
+          "original_failure": "test_provider_replacement_during_native_read_cannot_publish_a_page",
+          "defect": "Mutated owner default rather than the accepted adapter during native await.",
+          "correction": "Replace accepted rec.provider with equal-info distinct adapter during the await; preserve refusal/no-text publication assertions."
+        },
+        {
+          "original_failure": "test_missing_text_remains_nonconversation_metadata_but_explicit_nonstring_refuses",
+          "defect": "Changed a persisted row into malformed protected agent.command before normal submit; native submission correctly refused first.",
+          "correction": "Append genuine native nonconversation agent.tool with absent text and real metadata; retain explicit nonstring-text refusal."
+        },
+        {
+          "original_failure": "test_resolved_window_revision_cannot_supply_tail_for_an_old_continuation",
+          "defect": "Generic conversation helper injected forbidden final:true into strict SpeechWindow payload.",
+          "correction": "Append exact strict SpeechWindow directly; retain stale resolved-window continuation refusal."
+        },
+        {
+          "original_failure": "test_client_deadline_bounds_wait_without_releasing_pending_actual_close",
+          "defect": "Assumed bounded JournalClient.close drained already-done handle callbacks immediately.",
+          "correction": "Explicitly join actual work/close handles and drain completion callbacks; retain sole-close and registry assertions."
+        },
+        {
+          "original_failure": "test_client_retains_sole_actual_close_after_cancellation_and_latches_uncertainty[False]",
+          "defect": "Cancellation-sensitive fixture close was actually cancelled; sticky uncertainty was correctly true.",
+          "correction": "Use cancellation-resistant sole-close gate for positive/explicit-failure modes; separately verify cooperative cancelled close remains sticky and cannot retry."
+        }
+      ],
+      "source_bound_rerun_before_production_repair_consultation": {
+        "head": "ddc93f701b56fa419f6aafe2affa23b182888a29",
+        "passed": 14,
+        "failed": 2,
+        "errors": 0,
+        "skipped": 0,
+        "pytest_seconds": 4.32,
+        "only_failures": "unchanged request_dict/entry_dict source defects"
+      },
+      "original_unit_and_preflight_files_byte_exact": true,
+      "other_integration_top_level_definitions_ast_exact": 45,
+      "pre_freeze_extra_overstrict_assertion_and_log_preserved": "A new no-replacement-generation assertion was rejected: replacement may receive only a tool refusal. Original no-context-publication/failed-task checks remained."
+    },
+    "format_only_followup": {
+      "commit": "ce53acfcdb0de6cd784f091afe55737e36e50dec",
+      "receipt_ref": "root_fixture_format",
+      "before_sha256": "5986053e76c71a50be605c6b784c63e9b8c1f3ba3bd6b9ec087c42fdf547f54d",
+      "after_sha256": "4bc28846f254f7d0d6b40d36630fd097e87a4968fda27b88625cac155189d269",
+      "complete_module_ast_exact": true,
+      "original_author_ruff_check_passed_but_final_format_was_not_run": true,
+      "root_initial_format_check_failed_and_separate_formatter_passed": true
+    },
+    "preparse_regression": {
+      "test_commit": "8b15a414000029f2f216acad75be9d9d4a8b9ea0",
+      "receipt_ref": "preflight_freeze",
+      "outcome": {
+        "passed": 4,
+        "failed": 2,
+        "errors": 0,
+        "skipped": 0,
+        "pytest_seconds": 0.62
+      },
+      "original_source": "ddc93f701b56fa419f6aafe2affa23b182888a29",
+      "interpretation": "Two over-depth inputs within the byte cap reached recursive json.loads before eventual refusal; valid near-depth and 20,000-scalar parser-entry controls passed. Raw over-node case overlaps byte cap, not isolated raw-node proof."
+    },
+    "codec_repair": {
+      "author_commits": [
+        "87e0be17cd6786ddbd9aa3a9c1c2c135e99a4acb",
+        "54ce968f01611bb14ff4302d7b455ac36f1c98ae"
+      ],
+      "integration_commits": [
+        "52f37831ffaac086aa1b5d1359d3c3592e518533",
+        "16ec2b429a887461599ccd6efd86c19dd7c65ea6"
+      ],
+      "receipt_ref": "codec_author_repair",
+      "change": "Reject dictionary children only in materialized typed pages; retain legitimate raw dictionaries/native legacy entries. Run lexical bounds before recursive JSON parse; earlier author claim of preflight ordering corrected."
+    },
+    "late_disclosure_regression": {
+      "test_commit": "fc146ea98ff942982c575325ad8e1592b722a2ca",
+      "receipt_ref": "late_disclosure_freeze",
+      "original_head": "c045aed2d7aeb8302035d09238cd253d9d796e33",
+      "outcome": {
+        "passed": 2,
+        "failed": 2,
+        "errors": 0,
+        "skipped": 0,
+        "pytest_seconds": 1.77
+      },
+      "interpretation": "Two page-publication floor/token failures; both actual native exports already denied with HTTP403 and only one synthetic generation occurred. No external disclosure claimed.",
+      "repair_author_commit": "a5d85e2526fc664150392f2a6af687837df0ecc6",
+      "repair_integration_commit": "4dff73a7936316d21b0213bbb90319860febae62",
+      "repair_ref": "late_disclosure_author_repair"
+    },
+    "duplicate_view_regression": {
+      "test_commit": "cb35a771561a1f822dd718660e6cbb1951af68d6",
+      "receipt_ref": "duplicate_view_freeze",
+      "original_ddc_result": {
+        "passed": 2,
+        "failed": 0,
+        "pytest_seconds": 1.25
+      },
+      "intermediate_a5d_result": {
+        "passed": 1,
+        "failed": 1,
+        "pytest_seconds": 1.33
+      },
+      "interpretation": "Legacy duplicate IDs captured v1/v2 between awaits; intermediate map overwrite published both. Unchanged duplicate exact-short-list control passed.",
+      "repair_author_commit": "76c8a8e384737c889469ed019eb4ae8a49217a51",
+      "repair_integration_commit": "ff02f0cc0a31ccd3bee73eaa6f5f67bb1f1316f5",
+      "repair_ref": "duplicate_author_repair",
+      "repair": "Restore comparison against each retained entry; retain map only for final callbacks."
+    }
+  },
+  "qualification_phases": {
+    "first_168": {
+      "head": "c045aed2d7aeb8302035d09238cd253d9d796e33",
+      "head_after": "c045aed2d7aeb8302035d09238cd253d9d796e33",
+      "passed": 160,
+      "failed": 8,
+      "errors": 0,
+      "skipped": 0,
+      "junit_seconds": "171.036",
+      "pytest_summary": "8 failed, 160 passed in 171.05s (0:02:51)",
+      "targets": [
+        "tests/unit/test_transcript_scan_contracts.py",
+        "tests/integration/test_agent_transcript_paging.py",
+        "tests/integration/test_agent_boundaries.py::test_transcript_is_retrieved_only_on_demand_and_cannot_cross_sessions",
+        "tests/integration/test_agent_revision_disclosure.py::test_revision_rows_keep_target_scope_floor"
+      ],
+      "by_module": {
+        "tests.integration.test_agent_boundaries": 1,
+        "tests.integration.test_agent_revision_disclosure": 6,
+        "tests.integration.test_agent_transcript_paging": 75,
+        "tests.unit.test_transcript_scan_contracts": 86
+      },
+      "failures": [
+        {
+          "module": "tests.unit.test_transcript_scan_contracts",
+          "case": "test_typed_graph_revalidation_rejects_forged_state_without_normalization[request_dict]"
+        },
+        {
+          "module": "tests.unit.test_transcript_scan_contracts",
+          "case": "test_typed_graph_revalidation_rejects_forged_state_without_normalization[entry_dict]"
+        },
+        {
+          "module": "tests.integration.test_agent_transcript_paging",
+          "case": "test_stale_continuation_never_exposes_a_new_tail[provider]"
+        },
+        {
+          "module": "tests.integration.test_agent_transcript_paging",
+          "case": "test_missing_text_remains_nonconversation_metadata_but_explicit_nonstring_refuses"
+        },
+        {
+          "module": "tests.integration.test_agent_transcript_paging",
+          "case": "test_provider_replacement_during_native_read_cannot_publish_a_page"
+        },
+        {
+          "module": "tests.integration.test_agent_transcript_paging",
+          "case": "test_client_deadline_bounds_wait_without_releasing_pending_actual_close"
+        },
+        {
+          "module": "tests.integration.test_agent_transcript_paging",
+          "case": "test_resolved_window_revision_cannot_supply_tail_for_an_old_continuation"
+        },
+        {
+          "module": "tests.integration.test_agent_transcript_paging",
+          "case": "test_client_retains_sole_actual_close_after_cancellation_and_latches_uncertainty[False]"
+        }
+      ],
+      "test_sha256": {
+        "tests/integration/test_agent_boundaries.py": "cea58092dd8e2c1e05f2997c70ea70edc839f3acd0e316bccdea55e9ff583c22",
+        "tests/integration/test_agent_revision_disclosure.py": "712a66ee784eaad0feacbcf31306d941c7f4d5f8af2555d916a87dd60dfeb307",
+        "tests/integration/test_agent_transcript_paging.py": "8a012c17f26d8cbf677f573a0b0c81e7042e83ffece803dc5f5c09b55f76c142",
+        "tests/unit/test_transcript_scan_contracts.py": "a574429813fe6fd9f3de5e421df638e2f307a82805541310a5ca37f34720d443"
+      },
+      "pins_preserved": true,
+      "artifact_refs": [
+        "first_168_receipt",
+        "first_168_log",
+        "first_168_junit",
+        "first_168_manifest"
+      ]
+    },
+    "codec_595": {
+      "head": "16ec2b429a887461599ccd6efd86c19dd7c65ea6",
+      "head_after": "16ec2b429a887461599ccd6efd86c19dd7c65ea6",
+      "passed": 595,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "junit_seconds": "12.347",
+      "pytest_summary": "595 passed in 12.36s",
+      "targets": [
+        "tests/unit/test_transcript_scan_contracts.py",
+        "tests/unit/test_transcript_scan_preflight.py",
+        "tests/unit/test_native_tool_schemas.py",
+        "tests/unit/test_meta_typed_action_wire.py"
+      ],
+      "by_module": {
+        "tests.unit.test_meta_typed_action_wire": 281,
+        "tests.unit.test_native_tool_schemas": 222,
+        "tests.unit.test_transcript_scan_contracts": 86,
+        "tests.unit.test_transcript_scan_preflight": 6
+      },
+      "failures": [],
+      "test_sha256": {
+        "tests/unit/test_meta_typed_action_wire.py": "8d4fc842d7d42e6b26e1a8ce05ce0a7db03c79aacd62d951247f7c57c8b333f3",
+        "tests/unit/test_native_tool_schemas.py": "c7df02359dcb57a40f099a68af596bd1f5b04c25b37cb492bde8498260ae044a",
+        "tests/unit/test_transcript_scan_contracts.py": "a574429813fe6fd9f3de5e421df638e2f307a82805541310a5ca37f34720d443",
+        "tests/unit/test_transcript_scan_preflight.py": "efd85576973bc4c91de4f987b696dd7d356b9c2ea6199d0263fce6a992e6345b"
+      },
+      "pins_preserved": true,
+      "artifact_refs": [
+        "codec_595_receipt",
+        "codec_595_log",
+        "codec_595_junit",
+        "codec_595_manifest"
+      ]
+    },
+    "final_182": {
+      "head": "ff02f0cc0a31ccd3bee73eaa6f5f67bb1f1316f5",
+      "head_after": "ff02f0cc0a31ccd3bee73eaa6f5f67bb1f1316f5",
+      "passed": 182,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "junit_seconds": "202.267",
+      "pytest_summary": "182 passed in 202.27s (0:03:22)",
+      "targets": [
+        "tests/unit/test_transcript_scan_contracts.py",
+        "tests/unit/test_transcript_scan_preflight.py",
+        "tests/integration/test_agent_transcript_paging.py",
+        "tests/integration/test_agent_transcript_page_rechecks.py",
+        "tests/integration/test_agent_transcript_duplicate_views.py",
+        "tests/integration/test_agent_boundaries.py::test_transcript_is_retrieved_only_on_demand_and_cannot_cross_sessions",
+        "tests/integration/test_agent_revision_disclosure.py::test_revision_rows_keep_target_scope_floor"
+      ],
+      "by_module": {
+        "tests.integration.test_agent_boundaries": 1,
+        "tests.integration.test_agent_revision_disclosure": 6,
+        "tests.integration.test_agent_transcript_duplicate_views": 2,
+        "tests.integration.test_agent_transcript_page_rechecks": 4,
+        "tests.integration.test_agent_transcript_paging": 77,
+        "tests.unit.test_transcript_scan_contracts": 86,
+        "tests.unit.test_transcript_scan_preflight": 6
+      },
+      "failures": [],
+      "test_sha256": {
+        "tests/integration/test_agent_boundaries.py": "cea58092dd8e2c1e05f2997c70ea70edc839f3acd0e316bccdea55e9ff583c22",
+        "tests/integration/test_agent_revision_disclosure.py": "712a66ee784eaad0feacbcf31306d941c7f4d5f8af2555d916a87dd60dfeb307",
+        "tests/integration/test_agent_transcript_duplicate_views.py": "d8bc32dcd244390edea80ea41ea96b342e05930433631dcf68ec196c8722028f",
+        "tests/integration/test_agent_transcript_page_rechecks.py": "f7ef753f8fd0aae50ae9ede05d769ba0a12ad143a15440076e92dccf04d21fdd",
+        "tests/integration/test_agent_transcript_paging.py": "4bc28846f254f7d0d6b40d36630fd097e87a4968fda27b88625cac155189d269",
+        "tests/unit/test_transcript_scan_contracts.py": "a574429813fe6fd9f3de5e421df638e2f307a82805541310a5ca37f34720d443",
+        "tests/unit/test_transcript_scan_preflight.py": "efd85576973bc4c91de4f987b696dd7d356b9c2ea6199d0263fce6a992e6345b"
+      },
+      "pins_preserved": true,
+      "artifact_refs": [
+        "final_182_receipt",
+        "final_182_log",
+        "final_182_junit",
+        "final_182_manifest"
+      ]
+    },
+    "old_296": {
+      "head": "166bee314c4c49ab874c585ca76cf3b421dfb3b0",
+      "head_after": "166bee314c4c49ab874c585ca76cf3b421dfb3b0",
+      "passed": 292,
+      "failed": 4,
+      "errors": 0,
+      "skipped": 0,
+      "junit_seconds": "103.530",
+      "pytest_summary": "4 failed, 292 passed in 103.54s (0:01:43)",
+      "targets": [
+        "tests/integration/test_speech_windows.py",
+        "tests/integration/test_window_agent_routing.py",
+        "tests/integration/test_agent_retained_transcript.py",
+        "tests/integration/test_agent_retained_disclosure.py",
+        "tests/integration/test_agent_revision_disclosure.py",
+        "tests/integration/test_agent_boundaries.py",
+        "tests/unit/test_standing_agent_client.py",
+        "tests/unit/test_standing_export_api_client.py",
+        "tests/unit/test_standing_resource_finalization_client.py",
+        "tests/integration/test_standing_owner_cors.py"
+      ],
+      "by_module": {
+        "tests.integration.test_agent_boundaries": 11,
+        "tests.integration.test_agent_retained_disclosure": 32,
+        "tests.integration.test_agent_retained_transcript": 50,
+        "tests.integration.test_agent_revision_disclosure": 6,
+        "tests.integration.test_speech_windows": 24,
+        "tests.integration.test_standing_owner_cors": 2,
+        "tests.integration.test_window_agent_routing": 27,
+        "tests.unit.test_standing_agent_client": 73,
+        "tests.unit.test_standing_export_api_client": 22,
+        "tests.unit.test_standing_resource_finalization_client": 49
+      },
+      "failures": [
+        {
+          "module": "tests.unit.test_standing_resource_finalization_client",
+          "case": "test_caller_cancellation_retains_actual_exchange_until_send_read_close_join[close]"
+        },
+        {
+          "module": "tests.unit.test_standing_resource_finalization_client",
+          "case": "test_25_second_deadline_is_not_caller_cancellation_or_actual_cleanup[close]"
+        },
+        {
+          "module": "tests.unit.test_standing_resource_finalization_client",
+          "case": "test_success_requires_actual_close_and_close_failure_is_sticky"
+        },
+        {
+          "module": "tests.unit.test_standing_resource_finalization_client",
+          "case": "test_client_close_retains_resistant_close_and_refuses_new_work_until_actual_join"
+        }
+      ],
+      "test_sha256": {
+        "tests/integration/test_agent_boundaries.py": "cea58092dd8e2c1e05f2997c70ea70edc839f3acd0e316bccdea55e9ff583c22",
+        "tests/integration/test_agent_retained_disclosure.py": "1b8982bf380796335fe5c54953817215458036fc7b90efbaa101c303f20a0488",
+        "tests/integration/test_agent_retained_transcript.py": "980fc37514940c1ef178fce798d51d17b75ef54f082ef41121fb3076ded4074c",
+        "tests/integration/test_agent_revision_disclosure.py": "712a66ee784eaad0feacbcf31306d941c7f4d5f8af2555d916a87dd60dfeb307",
+        "tests/integration/test_speech_windows.py": "67bfdddcb98baac80c9bb274e72d61ef6720a566505b500a937af84c1d8e7963",
+        "tests/integration/test_standing_owner_cors.py": "9a0467a628cce44dcce91a5950cdbb25656aaac017008a045d2d95278609ba85",
+        "tests/integration/test_window_agent_routing.py": "8e0107faebc4e17e0a52e2e171b2dbcb8332949554696584541169c5e5e942b8",
+        "tests/unit/test_standing_agent_client.py": "10a23a273592307ceaf148ea95041c0800f27afbb83a9acd59a5bbd6a2f31b87",
+        "tests/unit/test_standing_export_api_client.py": "36f69bb79dbbe67a72f0012046594faf59596246cfbacc18e58870c4751cfa64",
+        "tests/unit/test_standing_resource_finalization_client.py": "6418939cd3e03d6d1319fa0f56cc0a9ec83b22d44aa9f219f8e50a691e4310d3"
+      },
+      "pins_preserved": true,
+      "artifact_refs": [
+        "old_296_receipt",
+        "old_296_log",
+        "old_296_junit",
+        "old_296_manifest"
+      ]
+    }
+  },
+  "overlap": {
+    "codec_595_and_final_182": 92,
+    "codec_595_and_old_296": 0,
+    "final_182_and_old_296": 7,
+    "counts_are_not_additive": true,
+    "reason": "92 frozen packet/preflight cases repeat across595/182; seven unchanged runtime controls repeat across182/296. Runs use different exact heads; no summed unique-green or overall-regression count claimed."
+  },
+  "old_failure_followup": {
+    "original_failure_phase_ref": "old_296",
+    "original_four_failures_preserved": true,
+    "all_four_location": "tests/unit/test_standing_resource_finalization_client.py:505/536/555/575, wait_for(close_entered,2)",
+    "diagnosis_receipt_ref": "old_close_timing_diagnosis",
+    "diagnosis_receipt_sha256": "62c63858190f70fa348d85afc5aeadeed375ece7ce8737fe10b569be2de69678",
+    "unchanged_standing_source_and_fixture_pins_in_diagnosis": true,
+    "shared_client_delta": "Only lazy transcript_scan method added; standing lifecycle unchanged.",
+    "followup_runs": {
+      "166-ordered_plain": {
+        "errors": 0,
+        "failed": 0,
+        "mode": "ordered_plain",
+        "passed": 144,
+        "pytest_seconds": 62.48,
+        "skipped": 0,
+        "source_commit": "166bee314c4c49ab874c585ca76cf3b421dfb3b0"
+      },
+      "166-plain": {
+        "errors": 0,
+        "failed": 0,
+        "mode": "plain",
+        "passed": 4,
+        "pytest_seconds": 9.74,
+        "skipped": 0,
+        "source_commit": "166bee314c4c49ab874c585ca76cf3b421dfb3b0"
+      },
+      "166-timed": {
+        "errors": 0,
+        "failed": 0,
+        "mode": "timed",
+        "passed": 4,
+        "pytest_seconds": 9.57,
+        "skipped": 0,
+        "source_commit": "166bee314c4c49ab874c585ca76cf3b421dfb3b0"
+      },
+      "667-plain": {
+        "errors": 0,
+        "failed": 0,
+        "mode": "plain",
+        "passed": 4,
+        "pytest_seconds": 8.7,
+        "skipped": 0,
+        "source_commit": "6670138fd3c3f10036ef2903e23063c6ef149dea"
+      },
+      "667-timed": {
+        "errors": 0,
+        "failed": 1,
+        "mode": "timed",
+        "passed": 3,
+        "pytest_seconds": 8.79,
+        "skipped": 0,
+        "source_commit": "6670138fd3c3f10036ef2903e23063c6ef149dea"
+      }
+    },
+    "ordered_scope": "73 standing_agent_client + 22 standing_export_api_client + 49 finalization_client, same module order, 144 passed; subset/repetition of original 296.",
+    "measured_pre_feature_failure": {
+      "case": "tests/unit/test_standing_resource_finalization_client.py::test_client_close_retains_resistant_close_and_refuses_new_work_until_actual_join",
+      "pre_actual_close_wall_seconds": 2.074915061,
+      "pre_actual_close_thread_cpu_seconds": 2.068390418,
+      "validation_to_close_task_seconds": 6.633e-05,
+      "validation_to_actual_stream_close_seconds": 8.352e-05
+    },
+    "interpretation": "One pre-feature 667 timed case exceeded 2 seconds in synchronous CPU before close; sole-close then started promptly and joined once. Both plain 4-case controls and ordered 144 pass. No persistent predecessor clock patch/owner leak identified.",
+    "precise_limit": "Original 296-case process was not instrumented; exact scheduling/load/GC/earlier integration state triggering its four failures remains unresolved. Baseline failure used transparent timing wrappers. No #255 regression or cleanup defect demonstrated, and no exoneration/full 296-case pass claimed.",
+    "timeouts_assertions_source_and_tests_unchanged": true
+  },
+  "schema_export": {
+    "head": "166bee314c4c49ab874c585ca76cf3b421dfb3b0",
+    "receipt_ref": "schema_export",
+    "exit_code": 0,
+    "old_count": 190,
+    "old_schemas_byte_exact": true,
+    "new_count": 192,
+    "only_additions_sha256": {
+      "TranscriptScanPage.json": "9080ad9b64db0fd238d4207bdde7cd888d3e9a342275060f43f2c65afb38886f",
+      "TranscriptScanRequest.json": "ae3829c901c27d0ed0ac5921f7cddf9d0443b8738c1dfbc4fca94ec04d11d4b5"
+    },
+    "limits": "Structural additive schemas only; native full-graph/request-binding/cross-field checks remain mandatory. No schema export rerun during this draft."
+  },
+  "cleanup_and_external_operations": {
+    "synthetic_measured_providers": true,
+    "real_model_or_paid_inference_calls": 0,
+    "physical_media_or_device_requests": 0,
+    "live_backend_startups_or_live_backend_changes": 0,
+    "dependency_installs_or_model_configuration_changes": 0,
+    "basis": "Source qualification uses pure packets, real local SQLite/ASGI/client/runtime fixtures and synthetic measured providers; independent run guards record zero network attempts and joined native cleanup. Unrelated UI preview/qualification is outside this record."
+  },
+  "not_established": [
+    "No main-branch or release qualification; integration heads only.",
+    "No claim that all old regressions pass; original 296-case result remains 292 passed / 4 failed.",
+    "No arbitrary cumulative unlimited transcript in one Task;128 retained roots/256 closure nodes remain.",
+    "No atomic asynchronous page publication guarantee; actual native export admission remains the upload fence.",
+    "No new transcript retention/deletion policy, instruction authority, side-effect grant or provider disclosure permission.",
+    "No model-quality, physical audio/video, Omni transport, multimodal Decisions pipeline, M3 or general repository-work qualification."
+  ],
+  "artifact_references": {
+    "original_oracle_freeze": {
+      "owner": "oracle",
+      "path": ".dev-run/255-transcript-page-oracles-v1/oracle-freeze-receipt.json",
+      "sha256": "d06334c7138445db45dc090bc24493451e222666fb57c2151bf73a7a3a1677dc",
+      "availability": "locally retained; raw bundle is not published by this summary"
+    },
+    "preflight_freeze": {
+      "owner": "oracle",
+      "path": ".dev-run/255-transcript-preflight-v1/receipt.json",
+      "sha256": "2564ba859a5ebdf3d66f1ad8bd5c23a768d1d592b78286036c5b3bea0b4097da",
+      "availability": "locally retained; raw bundle is not published by this summary"
+    },
+    "fixture_corrections": {
+      "owner": "oracle",
+      "path": ".dev-run/255-transcript-fixture-corrections-v1/receipt.json",
+      "sha256": "d1e0cc4bd3be058048d187f6b951153827807687f8f3c6e12c557c79a1d6cee6",
+      "availability": "locally retained; raw bundle is not published by this summary"
+    },
+    "fixture_assertion_audit": {
+      "owner": "oracle",
+      "path": ".dev-run/255-transcript-fixture-corrections-v1/ast-and-source-audit.json",
+      "sha256": "bbd2bcc9b5236df4dcc2503cae0770519577e52f48417fe4125354726f9a5319",
+      "availability": "locally retained; raw bundle is not published by this summary"
+    },
+    "fixture_format_addendum": {
+      "owner": "oracle",
+      "path": ".dev-run/255-transcript-fixture-corrections-v1/format-review-addendum.json",
+      "sha256": "825fbcbfe8f4c684eeafc35f8be0d09e9b06368e3f48a084f74296098c2b3d97",
+      "availability": "locally retained; raw bundle is not published by this summary"
+    },
+    "duplicate_view_freeze": {
+      "owner": "oracle",
+      "path": ".dev-run/255-transcript-duplicate-view-oracles-v1/receipt.json",
+      "sha256": "1125ead10b2cffa8c1f24dd2bb64f8d7130c2ecd10f4238eaf72ec25bdb7f871",
+      "availability": "locally retained; raw bundle is not published by this summary"
+    },
+    "late_disclosure_freeze": {
+      "owner": "independent_reviewer",
+      "path": ".dev-run/255-transcript-recheck-oracles-nvluwvp4/recheck-oracle-receipt.json",
+      "sha256": "48bf1edc1d67cfdcf0cd85194c5ff7e97ae39a5fd1f9d8a63229828d0de2405b",
+      "availability": "locally retained; raw bundle is not published by this summary"
+    },
+    "codec_author_repair": {
+      "owner": "source_author",
+      "path": ".dev-run/255-repair-qualification.json",
+      "sha256": "84bc096c289f85cfcfcc5ca87a1768a4504db106344df764afb598052bc9c48e",
+      "availability": "locally retained; raw bundle is not published by this summary"
+    },
+    "late_disclosure_author_repair": {
+      "owner": "source_author",
+      "path": ".dev-run/255-final-pass-qualification.json",
+      "sha256": "252db75f7c754b5819f89bfe9e139fd2780da47b8c6e5afaeb00eb68e969d6f3",
+      "availability": "locally retained; raw bundle is not published by this summary"
+    },
+    "duplicate_author_repair": {
+      "owner": "source_author",
+      "path": ".dev-run/255-duplicate-fix-qualification.json",
+      "sha256": "ad05b59ec0d560301b7a5131e209491237934ed52c2d23a29d18861cdcc30b7f",
+      "availability": "locally retained; raw bundle is not published by this summary"
+    },
+    "old_close_timing_diagnosis": {
+      "owner": "oracle",
+      "path": ".dev-run/255-standing-close-diagnosis-v1/receipt.json",
+      "sha256": "62c63858190f70fa348d85afc5aeadeed375ece7ce8737fe10b569be2de69678",
+      "availability": "locally retained; raw bundle is not published by this summary"
+    },
+    "root_fixture_format": {
+      "owner": "integration",
+      "path": ".dev-run/255-root-fixture-format-_hhtlpce/receipt.json",
+      "sha256": "e22b781f795685f4859b8da9a0a94308144a69894de96ad975d80603e37ac127",
+      "availability": "locally retained; raw bundle is not published by this summary"
+    },
+    "schema_export": {
+      "owner": "integration",
+      "path": ".dev-run/255-transcript-schema-export-8weq2nyk/receipt.json",
+      "sha256": "39514f6b2a72ee0dd22c9e8d63f2851dfe8a2824b7dd10619518a50386d96d3e",
+      "availability": "locally retained; raw bundle is not published by this summary"
+    },
+    "original_retrieval_gap_public_record": {
+      "owner": "integration",
+      "path": "evaluation/evidence/agent-transcript-retrieval-gap-2026-11-01.json",
+      "sha256": "afbaa763c25b58c974a5e4c55ef3f99c7be5797feebadacbea0fc99701f1943a",
+      "availability": "locally retained; raw bundle is not published by this summary"
+    },
+    "documentation_draft_context": {
+      "owner": "integration",
+      "path": ".dev-run/255-agent-transcript-retrieval.md",
+      "sha256": "a28d2ce3c9420e7931f666ed96aea9fc01ed9ae3cad6365f509c9dd156a2ef1f",
+      "availability": "locally retained; raw bundle is not published by this summary"
+    },
+    "first_168_receipt": {
+      "owner": "integration",
+      "path": ".dev-run/228-transcript-pages-first-255-jd06fp0w/receipt.json",
+      "sha256": "c06b60fbee29fa8515407d9f16a5b71bfb635a8650e7a212d4d89c9a74b92b65",
+      "availability": "locally retained; raw bundle is not published by this summary"
+    },
+    "first_168_log": {
+      "owner": "integration",
+      "path": ".dev-run/228-transcript-pages-first-255-jd06fp0w/pytest.log",
+      "sha256": "deed543561371d36db6e5ed056a6dfbad603f82e569a3330d63bc444e1e2302a",
+      "availability": "locally retained; raw bundle is not published by this summary"
+    },
+    "first_168_junit": {
+      "owner": "integration",
+      "path": ".dev-run/228-transcript-pages-first-255-jd06fp0w/junit.xml",
+      "sha256": "06a67f05e5d34dceea42af1b7b7306f6dc32a15b4f598ca6ba90fb5af0ce5626",
+      "availability": "locally retained; raw bundle is not published by this summary"
+    },
+    "first_168_manifest": {
+      "owner": "integration",
+      "path": ".dev-run/228-transcript-pages-first-255-jd06fp0w/manifest.json",
+      "sha256": "f2710dbb20bb6414de0ef5c3693c446e6fca43d1969e42a4cd58b4f298491a73",
+      "availability": "locally retained; raw bundle is not published by this summary"
+    },
+    "codec_595_receipt": {
+      "owner": "integration",
+      "path": ".dev-run/228-transcript-codec-repair-255-3meu1qvr/receipt.json",
+      "sha256": "6789ff68f005526b691a0f2b8ed32a60980d143004c1724e14fe0aa6ef3f0730",
+      "availability": "locally retained; raw bundle is not published by this summary"
+    },
+    "codec_595_log": {
+      "owner": "integration",
+      "path": ".dev-run/228-transcript-codec-repair-255-3meu1qvr/pytest.log",
+      "sha256": "e4197f51b0eb58081928a0c20b89d2b5ed8c53e7ffe1f689bd0c38ff25aea485",
+      "availability": "locally retained; raw bundle is not published by this summary"
+    },
+    "codec_595_junit": {
+      "owner": "integration",
+      "path": ".dev-run/228-transcript-codec-repair-255-3meu1qvr/junit.xml",
+      "sha256": "a82a56f3e21eeb37c5aae98a54da769df9bd5808af52f509f5a91ba60139d255",
+      "availability": "locally retained; raw bundle is not published by this summary"
+    },
+    "codec_595_manifest": {
+      "owner": "integration",
+      "path": ".dev-run/228-transcript-codec-repair-255-3meu1qvr/manifest.json",
+      "sha256": "ddd25cca512adde5f3d676c9a2010d322778bf57db883f3ae615ec6c60316243",
+      "availability": "locally retained; raw bundle is not published by this summary"
+    },
+    "final_182_receipt": {
+      "owner": "integration",
+      "path": ".dev-run/228-transcript-pages-repaired-255-0pvxpnqi/receipt.json",
+      "sha256": "312f9c24ff4f57828ada7949ef768bf384e3035f176f5a67066bc184d27eaf63",
+      "availability": "locally retained; raw bundle is not published by this summary"
+    },
+    "final_182_log": {
+      "owner": "integration",
+      "path": ".dev-run/228-transcript-pages-repaired-255-0pvxpnqi/pytest.log",
+      "sha256": "c870ba5b66921511510e3089d101e3553132564c8ffb5faae87622fe3e5b122d",
+      "availability": "locally retained; raw bundle is not published by this summary"
+    },
+    "final_182_junit": {
+      "owner": "integration",
+      "path": ".dev-run/228-transcript-pages-repaired-255-0pvxpnqi/junit.xml",
+      "sha256": "bbf99cf178ee5549797036b7eb43ed330c5d717915ecbfab25549e3d98a84adb",
+      "availability": "locally retained; raw bundle is not published by this summary"
+    },
+    "final_182_manifest": {
+      "owner": "integration",
+      "path": ".dev-run/228-transcript-pages-repaired-255-0pvxpnqi/manifest.json",
+      "sha256": "40cac047d5affe2491572f40199e6f015e6e59e2f4289e1d2e0e0825aab83420",
+      "availability": "locally retained; raw bundle is not published by this summary"
+    },
+    "old_296_receipt": {
+      "owner": "integration",
+      "path": ".dev-run/228-transcript-pages-old-regressions-255-fdeted53/receipt.json",
+      "sha256": "3efb5f860958adfccdcd6457fef2a34ee33d05c6135a06e996797cc875198ff7",
+      "availability": "locally retained; raw bundle is not published by this summary"
+    },
+    "old_296_log": {
+      "owner": "integration",
+      "path": ".dev-run/228-transcript-pages-old-regressions-255-fdeted53/pytest.log",
+      "sha256": "5e96b999f374fc8ec5fbd149a319e54b18061c5f6c27c28a129e40f73705874a",
+      "availability": "locally retained; raw bundle is not published by this summary"
+    },
+    "old_296_junit": {
+      "owner": "integration",
+      "path": ".dev-run/228-transcript-pages-old-regressions-255-fdeted53/junit.xml",
+      "sha256": "3d2a3072cf382d33d3be33185bdb29776c42858c4e1f258ef01a7e681f6bdaaf",
+      "availability": "locally retained; raw bundle is not published by this summary"
+    },
+    "old_296_manifest": {
+      "owner": "integration",
+      "path": ".dev-run/228-transcript-pages-old-regressions-255-fdeted53/manifest.json",
+      "sha256": "01b3d2974b1a7a2e6e574cb10d2e9a1502cf3cd309e32dee0cc064d1e80fc387",
+      "availability": "locally retained; raw bundle is not published by this summary"
+    }
+  },
+  "publication_checks": {
+    "observation_head": "a9f8045df41009b0fec769e5ccd77caa778409da",
+    "referenced_local_artifacts_sha256_verified": 31,
+    "current_source_sha256_verified": 14,
+    "pre_feature_tracked_test_files_byte_exact": 279,
+    "baseline": "6670138fd3c3f10036ef2903e23063c6ef149dea",
+    "new_test_files": 5,
+    "scope": "Artifact/hash verification, not another product test run."
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "additionalProperties": false,
+  "description": "Civil occurrence identity, without an IANA schedule qualification.",
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "local_date": {
+      "title": "Local Date",
+      "type": "string"
+    },
+    "due_utc": {
+      "title": "Due Utc",
+      "type": "string"
+    },
+    "utc_offset_seconds": {
+      "maximum": 86399,
+      "minimum": -86399,
+      "title": "Utc Offset Seconds",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema_version",
+    "local_date",
+    "due_utc",
+    "utc_offset_seconds"
+  ],
+  "title": "StandingOccurrence",
+  "type": "object"
+}

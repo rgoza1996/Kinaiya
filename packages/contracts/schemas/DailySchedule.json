@@ -1,0 +1,60 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "kind": {
+      "const": "daily_local",
+      "title": "Kind",
+      "type": "string"
+    },
+    "timezone": {
+      "title": "Timezone",
+      "type": "string"
+    },
+    "local_time": {
+      "title": "Local Time",
+      "type": "string"
+    },
+    "fold_policy": {
+      "const": "earlier",
+      "title": "Fold Policy",
+      "type": "string"
+    },
+    "gap_policy": {
+      "const": "skip",
+      "title": "Gap Policy",
+      "type": "string"
+    },
+    "grace_seconds": {
+      "maximum": 86400,
+      "minimum": 1,
+      "title": "Grace Seconds",
+      "type": "integer"
+    },
+    "missed_run_policy": {
+      "const": "latest_within_grace",
+      "title": "Missed Run Policy",
+      "type": "string"
+    },
+    "start_local_date": {
+      "title": "Start Local Date",
+      "type": "string"
+    },
+    "valid_until_utc": {
+      "title": "Valid Until Utc",
+      "type": "string"
+    }
+  },
+  "required": [
+    "kind",
+    "timezone",
+    "local_time",
+    "fold_policy",
+    "gap_policy",
+    "grace_seconds",
+    "missed_run_policy",
+    "start_local_date",
+    "valid_until_utc"
+  ],
+  "title": "DailySchedule",
+  "type": "object"
+}

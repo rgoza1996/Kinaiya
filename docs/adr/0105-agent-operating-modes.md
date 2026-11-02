@@ -1,7 +1,9 @@
 # ADR0105 — Native Agent operating modes
 
-Status: accepted; native/client implementation locally qualified. Final-head CI
-and independent review are merge gates recorded on the linked issue/PR.
+Status: accepted and implemented in
+[PR227](https://github.com/rgoza1996/Kinaiya/pull/227). Exact-head
+[CI350](https://github.com/rgoza1996/Kinaiya/actions/runs/41283718366), independent
+Codex review and actual merge-tree verification passed. Broader M7 remains open.
 Requirement: Roadmap §13.1 and §19.2; [#217](https://github.com/rgoza1996/Kinaiya/issues/217),
 prerequisite to [M7](https://github.com/rgoza1996/Kinaiya/issues/10).
 

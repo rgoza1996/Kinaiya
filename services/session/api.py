@@ -41,9 +41,20 @@ from packages.contracts.interfaces import (
     AgentModeOff,
 )
 from packages.contracts.models import AppendRequest, PlaybackGeneration, SessionRequest
+from packages.contracts.standing_work import StandingConflict, StandingUnavailable
 from packages.contracts.stt_settlement import STTPublication
 from services.common.auth import Auth
 from services.session.agent_control import AgentControl
+from services.session.standing_admission import StandingTaskOwner
+from services.session.standing_dispatch import StandingDispatchOwner
+from services.session.standing_execution import StandingExecutionOwner
+from services.session.standing_resource_finalization import StandingResourceFinalizationOwner
+from services.session.standing_resource_finalization_api import (
+    install_standing_resource_finalization_routes,
+)
+from services.session.standing_resources import StandingResourceOwner
+from services.session.standing_work import StandingOwner
+from services.session.standing_work_api import install_standing_owner_routes
 from services.session.store import JournalError, Store
 
 
@@ -54,6 +65,8 @@ def create_app(
     companion_clock=None,
     converse_memory: bool = False,
     agent_enabled: bool | None = None,
+    standing_clock=None,
+    standing_monotonic_ms=None,
 ) -> FastAPI:
     if auth is None or not hasattr(auth, "require"):
         raise RuntimeError("Session control requires configured authentication")
@@ -68,24 +81,172 @@ def create_app(
     except AgentControlUnavailable:
         control_ready = False
 
+    standing_owner = StandingOwner(store, control, clock=standing_clock)
+    standing_initialized = False
+    if control_ready:
+        try:
+            standing_owner.register()
+            standing_initialized = True
+        except StandingUnavailable:
+            # The independently registered mode controller remains usable.
+            # Standing reads/writes fail closed rather than repairing state.
+            pass
+    standing_dispatch_owner = StandingDispatchOwner(
+        store, control, monotonic_ms=standing_monotonic_ms
+    )
+    standing_dispatch_initialized = False
+    try:
+        # Established healthy dispatch authority remains readable/stoppable
+        # even when no further ordinary controller generation can be issued.
+        standing_dispatch_owner.register()
+        standing_dispatch_initialized = True
+    except StandingUnavailable:
+        pass
+    standing_execution_owner = StandingExecutionOwner(
+        store, control, standing_owner, standing_dispatch_owner, clock=standing_clock
+    )
+    standing_execution_initialized = False
+    try:
+        standing_execution_owner.register()
+        standing_execution_initialized = True
+    except (StandingConflict, StandingUnavailable):
+        pass
+    standing_task_owner = StandingTaskOwner(
+        store, control, standing_owner, standing_dispatch_owner, standing_execution_owner
+    )
+    standing_task_initialized = False
+    try:
+        standing_task_owner.register()
+        standing_task_initialized = True
+    except (StandingConflict, StandingUnavailable):
+        pass
+    standing_resource_owner = StandingResourceOwner(store, control, standing_task_owner)
+    standing_resource_initialized = False
+    try:
+        standing_resource_owner.register()
+        standing_resource_initialized = True
+    except (StandingConflict, StandingUnavailable):
+        pass
+    standing_resource_finalization_owner = StandingResourceFinalizationOwner(
+        store, control, standing_task_owner, standing_resource_owner
+    )
+    standing_resource_owner.register_finalization_owner(standing_resource_finalization_owner)
+    standing_resource_finalization_initialized = False
+    try:
+        standing_resource_finalization_owner.register()
+        standing_resource_finalization_initialized = True
+    except (StandingConflict, StandingUnavailable):
+        pass
+    standing_operations = None
+    standing_resource_finalization_operations = None
+    transcript_scan_operations = None
+
     @asynccontextmanager
     async def lifespan(_app):
         try:
             yield
         finally:
+
+            async def close_operations():
+                # Fence every entry point before waiting for an actual
+                # operation owner; their shared registry stays globally bounded.
+                standing_operations._closed = True
+                standing_resource_finalization_operations._closed = True
+                transcript_scan_operations._closed = True
+                for event in standing_operations._operations.values():
+                    event.set()
+                try:
+                    await transcript_scan_operations.close()
+                finally:
+                    try:
+                        await standing_resource_finalization_operations.close()
+                    finally:
+                        await standing_operations.close()
+
+            shutdown = asyncio.create_task(close_operations())
+            interrupted = False
             try:
-                control.close()
-            except AgentControlUnavailable:
-                # A poisoned connection has already failed closed. Shutdown
-                # cannot confirm retirement or repair it, and must still end.
-                app.state.agent_control_shutdown_unconfirmed = True
-                logging.getLogger(__name__).warning(
-                    "Agent control shutdown could not confirm native generation retirement"
-                )
+                while not shutdown.done():
+                    try:
+                        await asyncio.shield(shutdown)
+                    except asyncio.CancelledError:
+                        # Retiring the Session controller before a real native
+                        # operation settles would confuse cancellation with
+                        # cleanup. Propagate cancellation after the join.
+                        interrupted = True
+                shutdown.result()
+            except BaseException:
+                app.state.standing_owner_shutdown_unconfirmed = True
+                raise
+            finally:
+                try:
+                    try:
+                        try:
+                            standing_resource_finalization_owner.close()
+                        finally:
+                            standing_resource_owner.close()
+                    finally:
+                        standing_task_owner.close()
+                finally:
+                    try:
+                        standing_execution_owner.close()
+                    finally:
+                        try:
+                            standing_owner.close()
+                        finally:
+                            try:
+                                standing_dispatch_owner.close()
+                            finally:
+                                try:
+                                    control.close()
+                                except AgentControlUnavailable:
+                                    # A poisoned connection has already failed closed.
+                                    # Retirement remains unconfirmed after shutdown.
+                                    app.state.agent_control_shutdown_unconfirmed = True
+                                    logging.getLogger(__name__).warning(
+                                        "Agent control shutdown could not confirm native generation retirement"
+                                    )
+            if interrupted:
+                raise asyncio.CancelledError
 
     app = FastAPI(title="Kinaiya shared session journal", version="1.0", lifespan=lifespan)
     app.state.agent_control = control
     app.state.agent_control_shutdown_unconfirmed = False
+    app.state.standing_owner = standing_owner
+    app.state.standing_owner_initialized = standing_initialized
+    app.state.standing_owner_shutdown_unconfirmed = False
+    app.state.standing_dispatch_owner = standing_dispatch_owner
+    app.state.standing_dispatch_initialized = standing_dispatch_initialized
+    app.state.standing_execution_owner = standing_execution_owner
+    app.state.standing_execution_initialized = standing_execution_initialized
+    app.state.standing_task_owner = standing_task_owner
+    app.state.standing_task_initialized = standing_task_initialized
+    app.state.standing_resource_owner = standing_resource_owner
+    app.state.standing_resource_initialized = standing_resource_initialized
+    app.state.standing_resource_finalization_owner = standing_resource_finalization_owner
+    app.state.standing_resource_finalization_initialized = (
+        standing_resource_finalization_initialized
+    )
+    standing_operations = install_standing_owner_routes(
+        app,
+        standing_owner,
+        auth,
+        dispatch=standing_dispatch_owner,
+        execution=standing_execution_owner,
+        tasks=standing_task_owner,
+        resources=standing_resource_owner,
+    )
+    app.state.standing_owner_operations = standing_operations
+    standing_resource_finalization_operations = install_standing_resource_finalization_routes(
+        app, standing_resource_finalization_owner, auth, shared=standing_operations
+    )
+    app.state.standing_resource_finalization_operations = standing_resource_finalization_operations
+    from services.session.transcript_scan_api import install_transcript_scan_routes
+
+    transcript_scan_operations = install_transcript_scan_routes(
+        app, store, auth, shared=standing_operations
+    )
+    app.state.transcript_scan_operations = transcript_scan_operations
     authenticated = Depends(auth.require())
     app.add_middleware(
         CORSMiddleware,
@@ -97,9 +258,16 @@ def create_app(
     @app.middleware("http")
     async def control_no_store(request, call_next):
         response = await call_next(request)
-        if request.url.path.startswith(
-            ("/v1/agent-control", "/v1/transcript/agent-steers", "/v1/transcript/agent-submits")
+        path = request.url.path
+        if (
+            path.startswith(
+                ("/v1/agent-control", "/v1/transcript/agent-steers", "/v1/transcript/agent-submits")
+            )
+            or path in {"/v1/standing", "/v1/transcript/scan"}
+            or path.startswith("/v1/standing/")
         ):
+            # This outer layer also sees CORS preflights, which can finish
+            # before the standing route middleware is entered.
             response.headers["Cache-Control"] = "no-store"
         return response
 

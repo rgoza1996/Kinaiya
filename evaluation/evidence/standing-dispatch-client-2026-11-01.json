@@ -1,0 +1,173 @@
+{
+  "schema_version": "1.0",
+  "kind": "standing-dispatch-owner-client",
+  "date": "2026-11-01",
+  "issues": [
+    228,
+    10,
+    208
+  ],
+  "status": "qualified focused branch increment; full issue remains incomplete",
+  "attribution": "Codex implementation, independent Codex oracle/source review and actual Dart/native socket qualification; no human approval or Muse CLI execution claimed.",
+  "source_head": "191f12ae3c9139e26889acd5e6ba0ac1481ecd16",
+  "branch": "codex/228-standing-work",
+  "implemented": [
+    "Eight strict immutable dispatch DTOs with full-graph/nested closure and original-request/digest/history/null-controller/readiness validation.",
+    "Five typed owner methods through a separate 4096/32768-byte domain in the same global32 actual-owner registry; existing domain limits/ownership unchanged; no owner renewal method or implicit retry."
+  ],
+  "source_sha256": {
+    "AGENTS.md": "8c1593d16f67ee27d90eb44ac301e10094c2cafb48dfdc8b3c1804d2c90ca3b9",
+    "services/session/api.py": "3f74944881020891f5ca0961004e7393e590fa535796f430079951d6ecdcdd15",
+    "services/session/store.py": "3eedd566647ca23c641617b20d988bca443869afb30ab69afb772a859324fd4d",
+    "services/session/standing_work_api.py": "a3801f6f04493b90024c9ba8c28101d2c2b91d751ba3b1bbbde0ba42c0a4dbf6",
+    "services/session/standing_dispatch.py": "038b94f9e64d53514276f1f324eda80cb6842e95067f02a53cc174649058b6fb",
+    "services/session/standing_work.py": "6a9bc8317bf7e778d39cc9e2668d0ca66544f05b7d0726106a89a649b0d0b916",
+    "services/session/agent_control.py": "627df26876231d33189b03cb9962461b54f8cd671dc504be8c126048e1b990ce",
+    "services/common/auth.py": "1af3197f710abbbdc7ebe33e4886789813ac2d3088ee530c52a40023843b4bb6",
+    "packages/contracts/standing_dispatch.py": "b6c84e3532b40e15ecd9b4ba4da6031303722cf0de7cba0573403a15d1df625f",
+    "packages/contracts/agent_control.py": "36b20bb50b69eed185888587867212fa5a681f36d8c5dc1be38d371e51f6ade6",
+    "apps/kinaiya_flutter/lib/api/standing_dispatch.dart": "1ed6929779f8d6d08c3e752afcbd7be97ea3ef3c403120ea85bcbc4a784fbb3d",
+    "apps/kinaiya_flutter/lib/api/standing_dispatch_client.dart": "1edc094f53219be51649f1b96de0850870a1f7eaab5793fdfe0a26290b822043",
+    "apps/kinaiya_flutter/lib/api/owned_settings_client.dart": "205737d9a1933dbce13c6fc8de23ef38b5f27e02354e295f09699a0e0abac197"
+  },
+  "frozen_oracle_sha256": {
+    "test/standing_dispatch_test.dart": "7f9413bed3670346cae3229bd4030af6c233359f13667307038fdf24aaeed8aa",
+    "test/standing_dispatch_transport_test.dart": "887b2d5484f8251ce4b296d74dd3271751591f6be0a32ffaf354bf9eb33f1e5c",
+    "test/standing_work_test.dart": "f2018a7c0645f486732607b61cc7c7405e8fa6b75a40d56652652cde5c05bc74",
+    "test/standing_work_transport_test.dart": "4b31e536219fc5c01e7e5220f529670ac828287c1298333ad14374bfca8b958f",
+    "test/standing_work_read_binding_test.dart": "cf3d3f26e754ef116b098100dca5121db2b653082aad215eb6af8fd409c23ae6",
+    "test/agent_model_transport_test.dart": "795dc826cc85e8f418a8c88a746a4e88efd06c285f79bca0fa666b4764118581",
+    "test/agent_runtime_transport_test.dart": "5b8c81cf4c02f1359b9660d178b6483a3dbf33b5f8acd4431ebe785a36c240ae",
+    "test/agent_control_transport_test.dart": "d6f6825433439de0a0bc791b50a4f8dff2fa305aec01a93569bc35820aa3cc09",
+    "test/fixtures/standing-dispatch-independent-v1.json": "67382ea9edcf990635b162c3efb908a379f56ffff2735a473e190c045086d882"
+  },
+  "first_unchanged_qualification": {
+    "checks": [
+      {
+        "name": "test",
+        "command": [
+          "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/flutter/bin/flutter",
+          "test",
+          "--no-pub",
+          "--reporter",
+          "expanded",
+          "test/standing_dispatch_test.dart",
+          "test/standing_dispatch_transport_test.dart",
+          "test/standing_work_test.dart",
+          "test/standing_work_transport_test.dart",
+          "test/standing_work_read_binding_test.dart",
+          "test/agent_model_transport_test.dart",
+          "test/agent_runtime_transport_test.dart",
+          "test/agent_control_transport_test.dart"
+        ],
+        "exit_code": 0,
+        "seconds": 8.235480888004531,
+        "final_lines": [
+          "00:06 +105: /home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/apps/kinaiya_flutter/test/agent_control_transport_test.dart: typed conflict status is preserved without reading error contents",
+          "00:06 +106: /home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/apps/kinaiya_flutter/test/agent_control_transport_test.dart: public timeout and facade close retain late native ownership through actual cancellation",
+          "00:06 +107: /home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/apps/kinaiya_flutter/test/agent_control_transport_test.dart: 32 actual owners are combined across all three domains and hidden late cleanup",
+          "00:06 +108: /home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/apps/kinaiya_flutter/test/agent_control_transport_test.dart: facade uses Session factory and an injected facade never opens fallback HTTP",
+          "00:06 +109: All tests passed!"
+        ]
+      },
+      {
+        "name": "analyze",
+        "command": [
+          "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/flutter/bin/flutter",
+          "analyze",
+          "--no-pub",
+          "lib/api/standing_dispatch.dart",
+          "lib/api/standing_dispatch_client.dart",
+          "lib/api/owned_settings_client.dart",
+          "test/standing_dispatch_test.dart",
+          "test/standing_dispatch_transport_test.dart"
+        ],
+        "exit_code": 0,
+        "seconds": 1.1186931539996294,
+        "final_lines": [
+          "Analyzing 5 items...                                            ",
+          "No issues found! (ran in 0.7s)"
+        ]
+      },
+      {
+        "name": "format",
+        "command": [
+          "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/flutter/bin/dart",
+          "format",
+          "--output=none",
+          "--set-exit-if-changed",
+          "lib/api/standing_dispatch.dart",
+          "lib/api/standing_dispatch_client.dart",
+          "lib/api/owned_settings_client.dart",
+          "test/standing_dispatch_test.dart",
+          "test/standing_dispatch_transport_test.dart"
+        ],
+        "exit_code": 0,
+        "seconds": 0.08161125600599917,
+        "final_lines": [
+          "Formatted 5 files (0 changed) in 0.04 seconds."
+        ]
+      }
+    ],
+    "receipt_sha256": "76329b76b1bff13551051254f64e0a2ab4670ee7ae1b14d6e2af0c508d6b71db",
+    "manifest_sha256": "923b97fdd3a63f61f07be76c270d9c71ced887482c64d68115cb3ecca7f58869",
+    "count": "109 passed:39 new plus70 existing standing/shared-transport regressions; scoped analysis/format clean",
+    "absence_receipt_sha256": "b5f9494dc2b5c87f646e1caaf81499be425ff58c349751321c9ca9ea66f6984e",
+    "absence_scope": "Initial compilation failed because new DTO/client/domain did not exist; no planned runtime assertion was counted as executed."
+  },
+  "independent_source_review": {
+    "receipt_sha256": "f2b8e66d8eb409df98a2a6c402ca66fbbedc97e904bfc713b9ae65fe6b1599c2",
+    "manifest_sha256": "afe257ef3a8f1565b6f50ac519b6216b91f0f0212bf344767d8c290a46ae793e",
+    "result": "No actionable findings at exact191f12a; no duplicate suites."
+  },
+  "actual_socket": {
+    "actual_requests": 57,
+    "actual_io_clients": 57,
+    "actual_client_sends": 57,
+    "actual_client_closes_once": 57,
+    "typed_attempts_and_genuine_settlements": 46,
+    "raw_fully_read_and_closed_operations": 11,
+    "actual_native_services_exit0_reaped": 4,
+    "actual_dart_phase_children_exit0_reaped": 4,
+    "same_endpoint_reused_only_after_each_actual_join": true,
+    "native_cleanup": "All4 registries0; both local standing capabilities closed, controller retired, SQLite connection and listener closed, asyncio.run joined default executor and no remaining threads. After each actual wait listener refused connection.",
+    "coverage": [
+      "Five typed owner methods over real IOClient to actual Uvicorn/Session/SQLite, complete original saved requests and receipts retained",
+      "Actual Agent-only synthetic lease renewal; all five owner endpoints reject Agent403; owner/Converse/Decisions/Resources cannot renew; invalid bearer401",
+      "Activation replay/full-original lookup, passive Stop-context, target Stop, historical retry never rearm, old target leaves later epoch ready",
+      "Trusted native lease expiry; exact renewal retry retains original expired interval, new sequence creates new current lease",
+      "Same database restart backend stability/new controller/no producer; old original proof reconciles without rearm, old-controller renewal409, new current synthetic renewal makes gate-ready packet only",
+      "Distinct replacement database at exactly same URL refuses all old backend activation/lookup/Stop/renewal with409 and has zero activation rows",
+      "Real null-controller packet/template/history/targetStop on explicitly seeded valid10000-retired-generation fixture retaining2 genuine generation and activation rows; zero native monotonic reads there"
+    ],
+    "limits": [
+      "Explicit seeded null-controller cap is not10000 genuine registration qualification; genuine10000 case already root-qualified in unchanged API49 suite",
+      "All producer renewals are synthetic authenticated protocol packets. No genuine Agent producer, scheduler, task, model/provider inference, inbox/editor, UI or overall issue completion",
+      "No actual32 concurrent socket load claim or whole-suite/CI rerun; prior injected109 qualification is separate evidence",
+      "No tracked source/test changes, dependency installs/pubget, user settings/live services/device calls, protected-port access, deploy or push",
+      "Earlier failed probe and prior literal/injected/socket seals remain byte-exact; original failed compile exit0 log retained with compiler PID unreported, corrected compile and all runtime children have explicit identity/wait evidence"
+    ],
+    "test_or_runtime_processes_active": false
+  },
+  "socket_receipt_sha256": "dfc182a5bd255b6703e67e059e511b1e61c1354b10037adb21cb1ee202e73030",
+  "socket_manifest_sha256": "2c0da9c74ee6a74694e4cb27987d25bf4f2ea3dae1f3221784223a4c43786454",
+  "retained_socket_probe_failure": {
+    "receipt_sha256": "214160acfae91ae084f189e4dc2c56ca5989b6c02890075c81dbdc4a51af888f",
+    "manifest_sha256": "80d6b04e6f1be8ae5beb256ff308aced2014e243b7403a2a5a57565ab0bd6f03",
+    "actual_executed_requests": 42,
+    "initial_passed_requests": 33,
+    "restart_requests_before_private_assertion": 9,
+    "failure": "Ignored probe incorrectly demanded historical issuer while a current controller exists. Native current-controller template is correct; historical issuer is fallback only whenNULL.",
+    "correction": "Only ordinary restart assertion now uses observed current state.instanceId; null-controller historic issuer assertion retained. Diff/probe hashes preserved.",
+    "actual_runtime_children_reaped": 4,
+    "both_native_services_exit0_and_cleanup_confirmed": true,
+    "metadata_only_correction_setup_error": "Separate preserved setup assertion counted one formatted substring as two before any corrected sockets; no source/probe mutation occurred before that setup error."
+  },
+  "runtime": "Existing pinned Flutter3.47.8/Dart3.13.7 and Python3.12.3; exact checkout package mapping; offline cached dependencies/no-pub, no installation.",
+  "not_qualified": [
+    "Actual Agent producer, canonical durable occurrence/admission and worker execution, positive effect/cleanup settlement, inbox/editor, OS notifications/calls or full M7/Options.",
+    "Concurrent32 real socket load; this capacity is separately covered by the injected109 run.",
+    "Full final-head CI or production readiness; no PR is published for this incomplete issue increment."
+  ],
+  "paid_and_live_boundary": "No paid/model/device calls, owner setting/credential changes, user preview/protected-port changes or dependency installation. Same cumulative$10 ceiling and all reservations retained."
+}

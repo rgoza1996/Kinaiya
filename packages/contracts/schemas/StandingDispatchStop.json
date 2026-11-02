@@ -1,0 +1,62 @@
+{
+  "additionalProperties": false,
+  "description": "Target one issued epoch; a retry cannot disable a later activation.",
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "expected_backend": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Expected Backend",
+      "type": "string"
+    },
+    "expected_instance": {
+      "maxLength": 36,
+      "minLength": 36,
+      "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+      "title": "Expected Instance",
+      "type": "string"
+    },
+    "issued_epoch": {
+      "maximum": 10000,
+      "minimum": 0,
+      "title": "Issued Epoch",
+      "type": "integer"
+    },
+    "activation_digest": {
+      "anyOf": [
+        {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Activation Digest"
+    },
+    "expected_fence_token": {
+      "maxLength": 36,
+      "minLength": 36,
+      "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+      "title": "Expected Fence Token",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "expected_backend",
+    "expected_instance",
+    "issued_epoch",
+    "activation_digest",
+    "expected_fence_token"
+  ],
+  "title": "StandingDispatchStop",
+  "type": "object"
+}

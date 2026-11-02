@@ -1,0 +1,24 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "timezone": {
+      "title": "Timezone",
+      "type": "string"
+    },
+    "start_local_time": {
+      "title": "Start Local Time",
+      "type": "string"
+    },
+    "end_local_time": {
+      "title": "End Local Time",
+      "type": "string"
+    }
+  },
+  "required": [
+    "timezone",
+    "start_local_time",
+    "end_local_time"
+  ],
+  "title": "StandingQuietHours",
+  "type": "object"
+}

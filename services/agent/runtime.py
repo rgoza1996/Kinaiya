@@ -93,11 +93,12 @@ from packages.contracts.models import (
     TaskState,
     new_id,
 )
+from packages.contracts.standing_admission import StandingInitialProof, StandingTaskAdmission
+from packages.contracts.standing_execution import StandingExecutionIntent
 from packages.providers.disclosure import (
     ContextScopeClosure,
     combine_scopes,
     context_scope,
-    entry_allowed,
     scope_allowed,
     source_scope,
 )
@@ -107,6 +108,7 @@ from services.agent.artifacts import ArtifactConflict, ArtifactInvalid, Artifact
 from services.agent.completion import append_completion
 from services.agent.history_budget import select_history
 from services.agent.mcp_tools import ModelScopedMCP, run_mcp_call, run_mcp_list
+from services.agent.resource_completion import ResourceCompletion, start_resource_retirement
 from services.agent.tools import (
     ToolFailure,
     _FailedWithEvidence,
@@ -320,6 +322,9 @@ class _Record:
     native_task_identity: AgentTaskIdentity | None = None
     steer_attempt: _SteerAttempt | None = None
     workspace_context: Any | None = None
+    standing_initial: StandingInitialProof | None = None
+    standing_cleanup_uncertain: bool = False
+    resource_completion: Any | None = None
     # A later adapter close cannot confirm an earlier failed request cleanup.
     _cleanup_uncertain: bool = False
 
@@ -397,6 +402,7 @@ class AgentRuntime:
         mcp_host: Any | None = None,
         skill_service: Any | None = None,
         resource_client: Any | None = None,
+        standing_resource_client: Any | None = None,
         plugin_service: Any | None = None,
         mcp_controller: Any | None = None,
         artifact_store: Any | None = None,
@@ -426,6 +432,7 @@ class AgentRuntime:
         self.integration_lock = asyncio.Lock()
         self.skill_service = skill_service
         self.resource_client = resource_client
+        self.standing_resource_client = standing_resource_client
         self.plugin_service = plugin_service
         # Native presentation storage is optional for direct/test runtimes.
         # The actual launcher supplies a protected operator data path.
@@ -435,6 +442,7 @@ class AgentRuntime:
         # sessions; restored by recover for terminal and paused tasks alike.
         self._submit_idem: dict[tuple[str, str], tuple[str, str]] = {}
         self._pending_submits: dict[tuple[str, str], _PendingSubmit] = {}
+        self._standing_pending = {}
         self._submit_operations: set[asyncio.Task] = set()
         self._submit_waiters: set[asyncio.Future] = set()
         self._submit_preflights: set[_SubmitPreflight] = set()
@@ -444,6 +452,11 @@ class AgentRuntime:
         self._workspace_workers = set()
         self._workspace_watched = set()
         self._workspace_cleanup_failed = False
+        self._resource_completions = set()
+        self._resource_retirement_started = False
+        self._resource_retirement = None
+        self._resource_retirements = []
+        self._resource_retirement_workers = set()
         from services.agent.authorizations import AgentAuthorizations
 
         self.authorizations = AgentAuthorizations(self)
@@ -451,7 +464,11 @@ class AgentRuntime:
     def workspace_operation_state(self):
         """Actual owners, including cancelled callers whose native work remains."""
         records = tuple(self._tasks.values())
-        exchanges = getattr(self.journal, "_submit_exchanges", ())
+        exchanges = (
+            *tuple(getattr(self.journal, "_submit_exchanges", ())),
+            *tuple(getattr(self.standing_resource_client, "_submit_exchanges", ())),
+        )
+        standing_close = getattr(self.standing_resource_client, "_close_task", None)
         uncertain_hosts = tuple(getattr(self.mcp_controller, "_uncertain_hosts", ()))
         actors = tuple(getattr(self.mcp_host, "_actors", {}).values()) + tuple(
             actor for host in uncertain_hosts for actor in getattr(host, "_actors", {}).values()
@@ -462,6 +479,13 @@ class AgentRuntime:
         def failed_lease(lease):
             return lease.failed or (
                 lease.cleanup is not None and lease.cleanup.done() and not lease.settled
+            )
+
+        def failed_operation(operation):
+            return (
+                operation is not None
+                and operation.done()
+                and (operation.cancelled() or operation.exception() is not None)
             )
 
         return {
@@ -478,6 +502,7 @@ class AgentRuntime:
             "retirements": sum(rec.retire_lock.locked() for rec in records),
             "submit_preflights": len(self._submit_preflights),
             "submit_operations": sum(not op.done() for op in self._submit_operations)
+            + int(standing_close is not None and not standing_close.done())
             + sum(
                 not ex.task.done() or ex.close_task is not None and not ex.close_task.done()
                 for ex in exchanges
@@ -491,12 +516,22 @@ class AgentRuntime:
             ),
             "cleanup_pending": sum(
                 not lease.settled and not failed_lease(lease) for lease in leases
+            )
+            + sum(not owner.operation.done() for owner in self._resource_completions)
+            + int(self._resource_retirement is not None and not self._resource_retirement.done())
+            + sum(
+                owner.operation is not None and not owner.operation.done()
+                for owner in self._resource_retirements
             ),
             "cleanup_failed": int(
                 self._workspace_cleanup_failed
                 or getattr(self.journal, "_submit_cleanup_failed", False)
+                or getattr(self.standing_resource_client, "_submit_cleanup_failed", False)
             )
             + sum(bool(failed_lease(lease)) for lease in leases)
+            + sum(failed_operation(owner.operation) for owner in self._resource_completions)
+            + int(failed_operation(self._resource_retirement))
+            + sum(failed_operation(owner.operation) for owner in self._resource_retirements)
             + len(uncertain_hosts),
         }
 
@@ -524,9 +559,18 @@ class AgentRuntime:
 
                 operation.add_done_callback(settled)
 
-            for exchange in tuple(getattr(self.journal, "_submit_exchanges", ())):
+            for exchange in (
+                *tuple(getattr(self.journal, "_submit_exchanges", ())),
+                *tuple(getattr(self.standing_resource_client, "_submit_exchanges", ())),
+            ):
                 watch(exchange.task)
                 watch(exchange.close_task, cleanup=True)
+            watch(getattr(self.standing_resource_client, "_close_task", None), cleanup=True)
+            for owner in tuple(self._resource_completions):
+                watch(owner.operation, cleanup=True)
+            watch(self._resource_retirement, cleanup=True)
+            for owner in self._resource_retirements:
+                watch(owner.operation, cleanup=True)
             for lease in tuple(getattr(self.model_settings, "catalog_leases", ())):
                 watch(lease.cleanup)
                 for operation in tuple(lease.retiring):
@@ -2518,6 +2562,8 @@ class AgentRuntime:
 
     async def close(self) -> None:
         self._closed = True
+        resource_retirement = start_resource_retirement(self)
+        resource_retirement_deadline = time.monotonic() + 5
         for rec in self._tasks.values():
             if rec.steer_attempt is not None:
                 rec.steer_attempt.suppress()
@@ -2550,13 +2596,17 @@ class AgentRuntime:
             proc = rec.proc_slot.get("proc")
             if proc is not None:
                 await proc.kill()
-            worker, rec.worker = rec.worker, None
+            worker = rec.worker
+            if rec.standing_initial is None:
+                rec.worker = None
             if worker is not None and not worker.done():
                 worker.cancel()
                 workers.append((rec, worker))
             rec.resume.set()
         for _rec, worker in workers:
             self._retain_workspace_worker(worker)
+            if worker is asyncio.current_task():
+                continue
             try:
                 async with asyncio.timeout(5):
                     await asyncio.shield(worker)
@@ -2585,9 +2635,18 @@ class AgentRuntime:
         plugins, self.plugin_service = self.plugin_service, None
         if plugins is not None:
             await plugins.close()
-        client, self.resource_client = self.resource_client, None
-        if client is not None:
-            await client.close()
+        if (
+            resource_retirement is not None
+            and asyncio.current_task() not in self._resource_retirement_workers
+            and not any(
+                owner.operation is asyncio.current_task() for owner in self._resource_completions
+            )
+        ):
+            try:
+                async with asyncio.timeout(max(0, resource_retirement_deadline - time.monotonic())):
+                    await asyncio.shield(resource_retirement)
+            except TimeoutError:
+                pass
         if self.model_settings is not None:
             await self.model_settings.close()
         artifact_store, self.artifact_store = self.artifact_store, None
@@ -2602,9 +2661,15 @@ class AgentRuntime:
         permissions, self.tool_permissions = self.tool_permissions, None
         if permissions is not None:
             permissions.close()
-        if self.workspace_settings is not None:
-            self._workspace_settled()
-            self.workspace_settings.close()
+        # Keep the configured object retained even if its bounded facade
+        # refuses: it owns late send/read/sole-close and transport retirement.
+        try:
+            if self.standing_resource_client is not None:
+                await self.standing_resource_client.close()
+        finally:
+            if self.workspace_settings is not None:
+                self._workspace_settled()
+                self.workspace_settings.close()
 
     # -- approvals ------------------------------------------------------
     async def pending_approvals(
@@ -3114,6 +3179,14 @@ class AgentRuntime:
         )
 
     def _grants(self, rec=None) -> str:
+        if rec is not None and rec.standing_initial is not None:
+            grants = f"write={self.policy.effective_write} deny_write={self.policy.deny_write}"
+            if self.tool_permissions is not None:
+                grants += " native_tool_rules=" + ",".join(
+                    f"{tool}:{self._permission_decision(rec, tool)['effective']}"
+                    for tool in ("read_file", "write_file")
+                )
+            return grants
         grants = (
             f"write={self.policy.effective_write} "
             f"shell={self.policy.effective_shell} "
@@ -3188,6 +3261,12 @@ class AgentRuntime:
         )
 
     def tool_snapshot(self, task: Task | None = None) -> NativeToolSnapshot:
+        if task is not None:
+            rec = self._tasks.get(task.task_id)
+            if rec is not None and rec.task is task and rec.standing_initial is not None:
+                from services.agent.standing_runtime import tool_snapshot
+
+                return tool_snapshot(self)
         snapshot = self.host_tool_snapshot(task)
         owner = self.capability_settings
         if owner is None:
@@ -3203,6 +3282,20 @@ class AgentRuntime:
             )
         except (ValueError, RuntimeError, OSError, sqlite3.Error):
             raise PolicyDenied("Native capability availability is unavailable") from None
+
+    async def submit_standing(
+        self, original: StandingExecutionIntent, *, capability: bytes
+    ) -> StandingTaskAdmission:
+        """Codex-authored native standing launch; historical proof never launches."""
+        from services.agent.standing_runtime import submit_standing
+
+        return await submit_standing(self, original, capability=capability)
+
+    def _standing_action(self, rec, tool):
+        if rec.standing_initial is not None:
+            from services.agent.standing_runtime import check_action
+
+            check_action(self, rec, tool)
 
     async def inspect_tools(self, arguments: dict, *, task_id: str | None = None) -> dict:
         """Authenticated API projection; never advance a task or create pins."""
@@ -3384,12 +3477,13 @@ class AgentRuntime:
         prepare = getattr(provider, "prepare_complete", None)
         if not callable(prepare):
             raise PromptCountUnavailable("Agent provider cannot measure complete requests")
+        standing = rec.standing_initial is not None
         services = (self.skill_service, self.plugin_service, self.mcp_host, self.artifact_store)
         provider_info = copy.deepcopy(provider.info)
         history = [dict(turn) for turn in rec.history]
         guards = tuple(rec.catalog_guards.items())
         retained_guards = []
-        if self.skill_service is not None:
+        if not standing and self.skill_service is not None:
             retained_guards.append(
                 self.skill_service.capture_task_disclosure(
                     rec.task.task_id,
@@ -3398,7 +3492,7 @@ class AgentRuntime:
                     expected_skill_ids=frozenset(rec.used_skills),
                 )
             )
-        if self.plugin_service is not None:
+        if not standing and self.plugin_service is not None:
             retained_guards.append(
                 self.plugin_service.capture_task_disclosure(self._plugin_task(rec), provider_info)
             )
@@ -3479,12 +3573,12 @@ class AgentRuntime:
 
         async def check():
             current()
-            if self.skill_service is not None:
+            if not standing and self.skill_service is not None:
                 await self.skill_service.validate_task(
                     rec.task.task_id, provider.info, user_skill_id=rec.explicit_skill
                 )
                 current()
-            if self.plugin_service is not None:
+            if not standing and self.plugin_service is not None:
                 await self.plugin_service.validate_task(self._plugin_task(rec), provider.info)
                 current()
             await self._task_scope(rec)
@@ -3504,7 +3598,9 @@ class AgentRuntime:
             from packages.contracts.agent_export import AgentExportAdmission, AgentExportRequest
 
             current()
-            admission = getattr(journal, "agent_export_admission", None)
+            admission = getattr(
+                journal, "standing_export_admission" if standing else "agent_export_admission", None
+            )
             if not callable(admission):
                 raise PromptCountUnavailable("Native Agent export admission is unavailable")
             request = AgentExportRequest(
@@ -3522,6 +3618,12 @@ class AgentRuntime:
                 purpose=purpose,
                 request_nonce=new_id(),
             )
+            if standing:
+                from packages.contracts.standing_export import StandingExportRequest
+
+                request = StandingExportRequest(
+                    schema_version="1.0", initial=rec.standing_initial, export=request
+                )
             try:
                 receipt = await admission(request)
             except (asyncio.CancelledError, ProviderCleanupError):
@@ -3535,6 +3637,13 @@ class AgentRuntime:
                 raise PromptCountUnavailable("Native Agent export admission was refused") from exc
             current()
             try:
+                if standing:
+                    from packages.contracts.standing_export import StandingExportAdmission
+
+                    if type(receipt) is not StandingExportAdmission:
+                        raise ValueError("Invalid native standing admission type")
+                    receipt = receipt.validate_request(request).admission
+                    request = request.export
                 if type(receipt) is not AgentExportAdmission:
                     raise ValueError("Invalid native admission type")
                 receipt.validate_request(request)
@@ -3563,10 +3672,10 @@ class AgentRuntime:
             list(rec.task.source_event_ids),
             history,
             self._grants(rec),
-            self._mcp_server_ids(rec),
-            self.skill_service is not None,
-            self.plugin_service is not None,
-            self.artifact_store is not None,
+            None if standing else self._mcp_server_ids(rec),
+            not standing and self.skill_service is not None,
+            not standing and self.plugin_service is not None,
+            not standing and self.artifact_store is not None,
             tool_snapshot=tools,
         )
         prepared = None
@@ -3608,6 +3717,8 @@ class AgentRuntime:
                 return text
         except ProviderCleanupError:
             rec._cleanup_uncertain = True
+            if standing:
+                rec.standing_cleanup_uncertain = True
             # Unconfirmed owned cleanup cannot authorize another request,
             # including when steering happened at the same time.
             raise
@@ -3621,6 +3732,8 @@ class AgentRuntime:
                     prepared.discard()
                 except ProviderCleanupError:
                     rec._cleanup_uncertain = True
+                    if standing:
+                        rec.standing_cleanup_uncertain = True
                     raise
 
     async def _run(self, rec: _Record) -> None:
@@ -3641,13 +3754,13 @@ class AgentRuntime:
                 await self._apply_steer(rec)
                 # Revocation applies before the next model request, including
                 # content already retained in this task's complete history.
-                if self.skill_service is not None:
+                if rec.standing_initial is None and self.skill_service is not None:
                     await self.skill_service.validate_task(
                         rec.task.task_id,
                         self.provider_for(rec).info,
                         user_skill_id=rec.explicit_skill,
                     )
-                if self.plugin_service is not None:
+                if rec.standing_initial is None and self.plugin_service is not None:
                     await self.plugin_service.validate_task(
                         self._plugin_task(rec), self.provider_for(rec).info
                     )
@@ -3725,18 +3838,27 @@ class AgentRuntime:
             else:
                 await self._fail(rec, f"runtime error: {exc}")
         finally:
-            model_closed = rec.model_lease is None
+            completion = ResourceCompletion(self, rec)
+            lease = completion.lease
+            model_closed = lease is None
             try:
                 await self._release_task_resources(rec)
-            except BaseException:
+                completion.recheck()
+            except BaseException as exc:
                 rec._cleanup_uncertain = True
+                if rec.standing_initial is not None and isinstance(exc, ProviderCleanupError):
+                    rec.standing_cleanup_uncertain = True
                 raise
             finally:
-                if rec.model_lease is not None:
+                if lease is not None:
                     try:
-                        await rec.model_lease.close()
+                        completion.capture_cleanup()
+                        await lease.close()
+                        completion.recheck()
                     except ProviderCleanupError:
                         rec._cleanup_uncertain = True
+                        if rec.standing_initial is not None:
+                            rec.standing_cleanup_uncertain = True
                         # Work evidence is not rewritten by unconfirmed close.
                         # The native lease remains busy and retains capacity.
                         pass
@@ -3745,34 +3867,30 @@ class AgentRuntime:
                         raise
                     else:
                         model_closed = True
-            if model_closed and not rec._cleanup_uncertain:
-                await self._notify_task_resources(rec)
+            if model_closed and not rec._cleanup_uncertain and not rec.standing_cleanup_uncertain:
+                completion.arm()
 
     async def _release_task_resources(self, rec):
-        if self.skill_service is not None:
+        completion = rec.resource_completion
+        if rec.standing_initial is None and self.skill_service is not None:
             await self.skill_service.release_task(rec.task.task_id)
-        if self.plugin_service is not None:
+            if isinstance(completion, ResourceCompletion):
+                completion.recheck()
+        if rec.standing_initial is None and self.plugin_service is not None:
             await self.plugin_service.release_task(rec.task.task_id)
+            if isinstance(completion, ResourceCompletion):
+                completion.recheck()
 
     async def _notify_task_resources(self, rec):
-        # Terminal work evidence precedes cleanup. Restoration also requires
-        # the exact task's owned model close to have positively returned.
-        if self.resource_client is not None and rec.task.state in TERMINAL and not rec.closing:
-            try:
-                await self.resource_client.task_finished(rec.task.task_id)
-            except Exception:
-                # Native task evidence remains authoritative. Restoration
-                # is a separate unconfirmed resource transition.
-                print(
-                    json.dumps(
-                        {
-                            "service": "agent",
-                            "resource_restore": "unconfirmed",
-                            "task_id": rec.task.task_id,
-                        }
-                    ),
-                    flush=True,
-                )
+        # This is only a waiter for the original operation, never a retry or
+        # another source of restoration authority.
+        owner = rec.resource_completion
+        if (
+            owner is not None
+            and owner.operation is not None
+            and asyncio.current_task() not in (owner.worker, owner.operation)
+        ):
+            await asyncio.shield(owner.operation)
 
     async def _verify_finish_files(self, rec: _Record) -> str | None:
         """Re-read every file written in the current revision before accepting finish.
@@ -3824,6 +3942,7 @@ class AgentRuntime:
         return None
 
     async def _finish(self, rec: _Record, args: dict[str, Any], raw: str) -> bool:
+        self._standing_action(rec, "finish")
         await self._task_scope(rec)
         _ = raw
         if rec.cancel_requested:
@@ -3927,6 +4046,7 @@ class AgentRuntime:
         return uncommitted
 
     async def _execute(self, rec: _Record, tool: str, args: dict[str, Any], raw: str) -> None:
+        self._standing_action(rec, tool)
         await self._task_scope(rec)
         self._validate_catalog_history(rec)
         revision = rec.task.objective_revision
@@ -4119,6 +4239,7 @@ class AgentRuntime:
     async def _run_scoped_builtin(
         self, rec, tool, args, digest, revision, approval_id, *, reviewed, speech_review, audit
     ):
+        self._standing_action(rec, tool)
         policy = self.policy
         if tool == "read_file":
             arguments = {"path": args.get("path", ""), "max_bytes": args.get("max_bytes", 65536)}
@@ -4143,6 +4264,7 @@ class AgentRuntime:
             }
 
         async def invoke():
+            self._standing_action(rec, tool)
             if tool == "read_file":
                 return run_read(policy, arguments["path"], arguments["max_bytes"], revision)
             if tool == "write_file":
@@ -4284,6 +4406,7 @@ class AgentRuntime:
         *,
         approval_id: str | None,
     ) -> None:
+        self._standing_action(rec, tool)
         await self._task_scope(rec)
         revision = rec.task.objective_revision
         stale = await self._epoch_error(rec)
@@ -4582,6 +4705,7 @@ class AgentRuntime:
             rec.history.append({"role": "user", "content": observation_text(True, out)})
 
     async def _publish_ui(self, rec: _Record, args: dict[str, Any]) -> tuple[str, Evidence]:
+        self._standing_action(rec, "publish_ui")
         if self.artifact_store is None:
             raise ToolFailure("unknown tool 'publish_ui': UI artifacts are not configured")
         # All asynchronous authority reads completed before this point. No
@@ -4652,6 +4776,7 @@ class AgentRuntime:
         return out, evidence
 
     async def _plugin_result(self, rec, tool, args):
+        self._standing_action(rec, tool)
         service = self.plugin_service
         if service is None:
             raise ToolFailure("No compute-plugin host configured")
@@ -4695,6 +4820,7 @@ class AgentRuntime:
         )
 
     async def _skill_result(self, rec, tool, args):
+        self._standing_action(rec, tool)
         if self.skill_service is None:
             raise ToolFailure("No skill controller configured")
         try:
@@ -4741,58 +4867,6 @@ class AgentRuntime:
         )
 
     async def _read_transcript(self, rec, args):
-        from packages.contracts.agent_export import MAX_AGENT_CONTEXT_REFS
+        from services.agent.transcript_pages import read_transcript
 
-        event_ids = args.get("event_ids", [])
-        limit = int(args.get("limit", 8))
-        if not isinstance(event_ids, list) or len(event_ids) > 20 or not 1 <= limit <= 20:
-            raise ToolFailure("Transcript retrieval is limited to 20 entries per request")
-        if event_ids:
-            entries = [await self.journal.resolve(event_id) for event_id in event_ids]
-        else:
-            entries = await self.journal.read(
-                after=max(0, int(args.get("after", 0))), session_id=rec.task.session_id, limit=limit
-            )
-        if any(e.session_id != rec.task.session_id or e.epoch != rec.task.epoch for e in entries):
-            raise PolicyDenied("Transcript reference outside the task's current session epoch")
-        selected, size = [], 0
-        for entry in entries:
-            try:
-                scope = await context_scope(self.journal, entry)
-            except Exception as exc:
-                raise PolicyDenied("Transcript context disclosure cannot be verified") from exc
-            if not entry_allowed(self.provider_for(rec).info, entry) or not scope_allowed(
-                self.provider_for(rec).info, scope
-            ):
-                if event_ids:
-                    raise PolicyDenied(
-                        "Transcript window disclosure is not authorized for this model"
-                    )
-                continue
-            rec.task.content_scope = combine_scopes(rec.task.content_scope, scope)
-            text = entry.payload.get("text", "")[:2000]
-            size += len(text)
-            if size > 12000:
-                break
-            if len(rec.context_event_ids | {entry.event_id}) > MAX_AGENT_CONTEXT_REFS:
-                raise ToolFailure("Transcript context provenance limit reached")
-            # These references remain disclosure dependencies even if the
-            # associated exchange later leaves the measured prompt suffix.
-            rec.context_event_ids.add(entry.event_id)
-            selected.append(
-                {
-                    "event_id": entry.event_id,
-                    "kind": entry.kind,
-                    "origin": entry.origin,
-                    "sequence": entry.sequence,
-                    "revision": entry.payload.get("revision", 1),
-                    "text": text,
-                }
-            )
-        evidence = Evidence(
-            kind="read",
-            summary=f"Retrieved {len(selected)} scoped journal entries",
-            output=json.dumps({"event_ids": [e["event_id"] for e in selected]}),
-            objective_revision=rec.task.objective_revision,
-        )
-        return json.dumps(selected), evidence
+        return await read_transcript(self, rec, args)

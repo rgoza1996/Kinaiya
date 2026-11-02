@@ -1,0 +1,217 @@
+{
+  "requirements": [
+    "https://github.com/rgoza1996/Kinaiya/issues/9",
+    "https://github.com/rgoza1996/Kinaiya/issues/239",
+    "https://github.com/rgoza1996/Kinaiya/issues/228"
+  ],
+  "scope": "Agent generic ResourceClient completion notification must follow actual owned model retirement and prior releases; pending/cancelled/uncertain cleanup suppresses restoration. Not positive resource finalization or claim settlement.",
+  "base": "281d30069cedf21d824b0abf22b5fe3504c1d3a9",
+  "qualified_source": "a10fafa6ea6f11cbdc26abd2de7c491545b10d23",
+  "source_sha256": {
+    "services/agent/runtime.py": "9098e0f170494d01f059d4c062a88a07393b6e9935fd1f10a2936f6437f318d6",
+    "services/agent/task_model_lease.py": "c9081cfae0012408d396401cdcab8170a758bdd07da807fa33f6eeed6ede2c70"
+  },
+  "frozen_contract_sha256": "23a46f5c937602b183de63e40e588617ec7876271c6b88e8f1cf11a30d910d66",
+  "frozen_oracles": {
+    "commit": "2f87566bb62f915dbb1a835adce0b3aa1e6240d0",
+    "new_test_sha256": "5aef2678099a6791f3dee09eb62b4a861334bbe672486a6ff477b13e8688f73e",
+    "source_before_sha256": "467e4f61c3f091016163e5b21015fe91d94ed49288cf6248f44171293fcaeb99",
+    "receipt_sha256": "5b25863e14bfbefe84912fc5fda402d2b8b048de544d002f8a0dcf511e46ef9e",
+    "manifest_sha256": "4fb9f7df3564f254bca11c45a4b6223ad357f1bca0b59ef6f98789d1eaa82974",
+    "source_consultation_gate": "Test commit and actual cold run completed before integrator consulted authored fix. Independent oracle author subsequently reviewed exact production fix without changing the frozen module.",
+    "cold_summary": "10 failed, 6 passed in 24.75s",
+    "cold_errors": 0,
+    "cold_skipped": 0,
+    "cold_failures": "10 behavioral assertions about premature notification or forgotten uncertainty; six controls passed; full original output and per-case observations retained in hashed bundle.",
+    "unchanged_fixture_controls": "2 passed in 5.03s",
+    "cleanup_ownership": {
+      "all_test_operations": "actual runtime workers explicitly joined; cancellation waiter test joins cancelled worker and separately retained shielded lease cleanup",
+      "ordinary_fixture": "cleanup ownership registered before awaited submission; every gate opened in finally; all retained/runtime workers and actual lease cleanup joined before runtime/client/Store close; completed worker/lease and ResourceSpy.closed asserted",
+      "pending_or_unclosed_runtime_diagnostics_in_logs": false,
+      "pytest_processes": "actual Popen.wait joined both runs; held pidfds terminal and closed",
+      "standing_fixture": "unchanged native stack owns runtime, JournalClient, AgentModelSettings, Session ASGI client/lifespan and SQLite Store; teardown opens gates, boundedly closes runtime then journal; upstream factory closes ASGI client/lifespan/Store"
+    },
+    "fixture_limits": [
+      "Standing cases use actual native model capture, measured synthetic inference, real TaskModelLease and native verified file effects; no live inference.",
+      "Ordinary cases explicitly install an actual TaskModelLease owning the exact captured adapter while native inference is gated; they do not qualify catalog model selection.",
+      "ResourceClient is a callback spy; no real model residency, voice restoration, standing claim settlement or Slot release is qualified."
+    ]
+  },
+  "verification": {
+    "new_oracles": {
+      "bundle": "228-resource-restore-retirement-final-764__jha",
+      "receipt_sha256": "202482b8101bc35601e7606b9379bf5e55716fae7f4aa4392ec1c21cf666121f",
+      "manifest_sha256": "5085ad8a419a695145d6077d99b9b82c00fab6acfb054b76098668cb53a29403",
+      "source_head": "a10fafa6ea6f11cbdc26abd2de7c491545b10d23",
+      "head_preserved": true,
+      "exit_code": 0,
+      "pins_preserved": true,
+      "test_sha256": {
+        "tests/integration/test_resource_restore_model_retirement.py": "5aef2678099a6791f3dee09eb62b4a861334bbe672486a6ff477b13e8688f73e"
+      },
+      "tests": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "0",
+          "skipped": "0",
+          "tests": "16",
+          "time": "24.752",
+          "timestamp": "2026-11-01T10:21:30.670880-08:00",
+          "hostname": "roggoz"
+        }
+      ],
+      "arguments": [
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-W",
+        "error",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "-o",
+        "junit_family=xunit1",
+        "tests/integration/test_resource_restore_model_retirement.py"
+      ]
+    },
+    "affected_existing": {
+      "bundle": "228-resource-restore-affected-a311syk3",
+      "receipt_sha256": "7a463e46566451388b84373ea0cfb0a8466c5f85ec7b97acfe60278561e49060",
+      "manifest_sha256": "64ca73da0205bac430e283dc627c3efa56920c4197b6475092bb38d32932c380",
+      "source_head": "a10fafa6ea6f11cbdc26abd2de7c491545b10d23",
+      "head_preserved": true,
+      "exit_code": 0,
+      "pins_preserved": true,
+      "test_sha256": {
+        "tests/integration/test_auxiliary_models.py": "2cff8937a12886c2514d194b8700dfc6d901fb22232a907554fe4a1efcd28050",
+        "tests/integration/test_compute_plugin_agent.py": "7614d21c6a199706ea0f2ccc22fca154e09bf28b9a49c47294b345d723b28e81",
+        "tests/integration/test_execution_catalog_cleanup.py": "a5eb8b123f086ea31e6c0fa48a573e5635f0597b4400eb3a347d0f7849fc3043",
+        "tests/integration/test_resource_handoff.py": "04d87e020ce9ea05f65a3577a19091aa81e681447272b01f7b6d142db0119c6a",
+        "tests/integration/test_skills_agent.py": "c1910ce08136de220cc46e6186f5c84e05fe79a2ae4f3b5cc897f16c6c651471",
+        "tests/integration/test_standing_agent_runtime.py": "43d6fe17e28b50ea40766fcd82ba09599c17317a9f6e1ba6e11d5e5b7f27ad82",
+        "tests/unit/test_agent_runtime.py": "a71b5844974b896cf39e943d74204b072d7daba57f931be6c8425eeddc8c635f"
+      },
+      "tests": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "0",
+          "skipped": "0",
+          "tests": "186",
+          "time": "110.620",
+          "timestamp": "2026-11-01T10:22:17.960733-08:00",
+          "hostname": "roggoz"
+        }
+      ],
+      "arguments": [
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-W",
+        "error",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "-o",
+        "junit_family=xunit1",
+        "tests/unit/test_agent_runtime.py",
+        "tests/integration/test_standing_agent_runtime.py",
+        "tests/integration/test_execution_catalog_cleanup.py",
+        "tests/integration/test_auxiliary_models.py",
+        "tests/integration/test_resource_handoff.py",
+        "tests/integration/test_skills_agent.py",
+        "tests/integration/test_compute_plugin_agent.py"
+      ]
+    },
+    "summary": "16 new and186 existing cases passed in24.81s and110.63s respectively, zero failures/errors/skips, warnings treated as errors. These are disjoint root integration runs; overlapping author runs are not summed.",
+    "static": {
+      "bundle": "228-resource-restore-static-1ws8r274",
+      "receipt_sha256": "91fc01b032d67d9d63945bb2207274db2ee87e3b4a1ca74495fb650d21f4b19b",
+      "manifest_sha256": "d2608ac661e5af8aa18dcbff817932a993650ae54f99549433d32111b48e09ad",
+      "commands": [
+        {
+          "command": [
+            "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/ruff",
+            "check",
+            "services/agent/runtime.py",
+            "tests/integration/test_resource_restore_model_retirement.py"
+          ],
+          "returncode": 0,
+          "output_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+        },
+        {
+          "command": [
+            "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/ruff",
+            "format",
+            "--check",
+            "services/agent/runtime.py",
+            "tests/integration/test_resource_restore_model_retirement.py"
+          ],
+          "returncode": 0,
+          "output_sha256": "3bc53bf3e981a98a34a852e175bf9b77af841edea74fca595d9aedcbaf9a4938"
+        },
+        {
+          "command": [
+            "git",
+            "diff",
+            "--check",
+            "281d300"
+          ],
+          "returncode": 0,
+          "output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ],
+      "old_python_testfiles_unchanged": 274
+    },
+    "environment": "Pinned workspace Python with -B, explicit checkout PYTHONPATH, no pytest cache, asyncio fixture loop function and xunit1 for record_property; exact absolute commands retained in hashed local receipts."
+  },
+  "independent_review": {
+    "attribution": "Separate Codex production author, independently frozen oracle author, subsequent source reviewer and integrator; not human approval.",
+    "source_sha256": "9098e0f170494d01f059d4c062a88a07393b6e9935fd1f10a2936f6437f318d6",
+    "result": "No actionable findings. Positive lease close precedes notification; cancellation and prior cleanup uncertainty suppress it; no-client/no-lease, closing/nonterminal and native work evidence compatibility preserved.",
+    "author_runs": "Author additionally reported151+35 passing affected checks and static success, but did not retain filesystem receipts. Root captured the same186 affected cases independently; author totals are not added."
+  },
+  "limits": [
+    "This is qualified on the in-progress #228 integration branch, not main or a deployed live port.",
+    "ResourceClient in new oracles is a callback spy; measured inference is synthetic; actual TaskModelLease and native runtime/Session/file work are exercised.",
+    "Generic acknowledgement still cannot finalize standing Resources, release any claim/slot, prove GPU residency/physical model unload or qualify full end-to-end voice restoration.",
+    "No Meta/provider calls, sign-language recognition/demo, camera/microphone, account probe, dependency/configuration/device/model or live-port changes. The requested sign-language test remains held for the user.",
+    "Full #228 editor, recurrence, durable inbox, positive Resources proof and original-supervisor worker/effect settlement remain unfinished."
+  ],
+  "post_main_merge_integration": {
+    "source_head": "09cd0ef36e10638b900068df1d3ec093ebcd7158",
+    "head_and_test_pins_preserved": true,
+    "receipt_sha256": "0fa165e71159aceda03894a3c60f7dab8883be79814f23f0a31cce932d962d50",
+    "manifest_sha256": "bcb5c54ec9ec8443ae0292c7ec07b00c7b04b5748927fe51e7a020ff4877ec9f",
+    "log_sha256": "9b5cd680eb0d5c56fc91a9be1b8f8d9602755ace1af8d38b73b92fb39fa2c76a",
+    "test_sha256": {
+      "tests/integration/test_agent_resource_restore_retirement.py": "04df84f345e7fa63db99dddb8180f148e5863b56c3980b141836fdb91bfea031",
+      "tests/integration/test_auxiliary_models.py": "2cff8937a12886c2514d194b8700dfc6d901fb22232a907554fe4a1efcd28050",
+      "tests/integration/test_compute_plugin_agent.py": "7614d21c6a199706ea0f2ccc22fca154e09bf28b9a49c47294b345d723b28e81",
+      "tests/integration/test_execution_catalog_cleanup.py": "a5eb8b123f086ea31e6c0fa48a573e5635f0597b4400eb3a347d0f7849fc3043",
+      "tests/integration/test_resource_handoff.py": "04d87e020ce9ea05f65a3577a19091aa81e681447272b01f7b6d142db0119c6a",
+      "tests/integration/test_resource_restore_model_retirement.py": "5aef2678099a6791f3dee09eb62b4a861334bbe672486a6ff477b13e8688f73e",
+      "tests/integration/test_skills_agent.py": "c1910ce08136de220cc46e6186f5c84e05fe79a2ae4f3b5cc897f16c6c651471",
+      "tests/integration/test_standing_agent_runtime.py": "43d6fe17e28b50ea40766fcd82ba09599c17317a9f6e1ba6e11d5e5b7f27ad82",
+      "tests/unit/test_agent_runtime.py": "a71b5844974b896cf39e943d74204b072d7daba57f931be6c8425eeddc8c635f"
+    },
+    "results": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "211",
+        "time": "140.257",
+        "timestamp": "2026-11-01T10:57:48.688863-08:00",
+        "hostname": "roggoz"
+      }
+    ],
+    "scope": "Merged main worker-close and ordinary restore repairs integrated with existing standing retirement:16 standing retirement+9 ordinary restore+186 affected existing cases,211passed. These overlap earlier runs; no new resource finalization API or physical lease proof was qualified by this run."
+  }
+}

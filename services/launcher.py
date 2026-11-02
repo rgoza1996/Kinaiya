@@ -619,9 +619,13 @@ def serve(args):
         )
         if resources_enabled:
             from services.resources.client import ResourceClient
+            from services.resources.standing_client import StandingResourceClient
 
             runtime.resource_client = ResourceClient(
                 config.get("resources_url", "http://127.0.0.1:8764"), tokens["owner"]
+            )
+            runtime.standing_resource_client = StandingResourceClient(
+                config.get("resources_url", "http://127.0.0.1:8764"), tokens["agent"]
             )
         owner_journal = JournalClient(config["session_url"], tokens["owner"])
         from services.agent.projects import Projects

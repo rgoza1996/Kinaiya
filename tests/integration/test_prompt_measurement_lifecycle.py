@@ -14,6 +14,7 @@ from fastapi import HTTPException
 from starlette.requests import Request
 from test_text_resource_barrier import BINDING, Control, Manager, wait_until
 
+from packages.contracts.operation_ownership import StreamClosures
 from packages.providers.prompt_budget import PromptTokenCount, binding_digest, request_digest
 from services.common.auth import Auth
 from services.resources.api import create_app
@@ -51,7 +52,9 @@ class Protocol:
 
     def __init__(self):
         self.endpoint = SimpleNamespace(
-            manifest={"alias": "synthetic"}, limits={"max_new_tokens": 128}
+            manifest={"alias": "synthetic"},
+            limits={"max_new_tokens": 128},
+            stream_closes=StreamClosures(),
         )
         self.native = GGUFProtocol(self.endpoint, BINDING["manifest_sha256"])
         self.entered, self.release, self.closing = asyncio.Event(), asyncio.Event(), asyncio.Event()

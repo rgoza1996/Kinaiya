@@ -1,0 +1,155 @@
+{
+  "requirement": "https://github.com/rgoza1996/Kinaiya/issues/228",
+  "scope": "Python Agent standing metadata transport and shared native exchange capacity; not a producer, worker, inbox, settlement or owner editor",
+  "implementation": {
+    "author_commit": "636d71a56fdbe3b5d97cbb3a07d72c6f76a8799c",
+    "integrated_commit": "0098e8131d3f4cc571560df1af02b5ddebd79d11",
+    "shared_allocator_fix": "41f9f25d6c1eb2259f5b89e3c243abf05a784388",
+    "source_sha256": {
+      "packages/contracts/standing_client.py": "a470c8cc0e88d3cccf81b9dd68e260533d725c2883e565eb89b2f27808aa5739",
+      "packages/contracts/client.py": "c33a012c1fe2d3511fc5964d4ace79afdbfed19a094359db2380f4dcf2eb162b"
+    },
+    "old_source_preservation": "Exactly six JournalClient wrappers plus two lines at shared allocator start. All other old module bytes/AST unchanged."
+  },
+  "independent_oracles": {
+    "original73": {
+      "author_commit": "fe99eabc02adf25e8f6696b21c54c7166f062c39",
+      "root_commit": "ec56a3cc406ced8f54be0239c819959e598f3617",
+      "path": "tests/unit/test_standing_agent_client.py",
+      "sha256": "10a23a273592307ceaf148ea95041c0800f27afbb83a9acd59a5bbd6a2f31b87",
+      "frozen_before_root_source_consultation": true,
+      "cold": {
+        "failed": 72,
+        "passed": 1,
+        "seconds": 4.39,
+        "classification": "runtime missing transport methods/module; existing SQLite fixture control passed"
+      },
+      "first_unchanged": {
+        "passed": 73,
+        "failed": 0,
+        "seconds": 4.41
+      }
+    },
+    "additional2": {
+      "author_commit": "2e4bb8b676a810cdd75400a2d962400816295fac",
+      "root_commit": "5a8245a2dbed871ee57c1957c4fcaaa1ce49d635",
+      "path": "tests/unit/test_standing_shared_capacity.py",
+      "sha256": "6f07f371c68955da0291f1761ce46a3a2277b055dbd52fdabfc92b4cfb7c2e4a",
+      "frozen_before_fix": true,
+      "actual_first_failed": 2,
+      "seconds": 0.49,
+      "behavior": "64 actual mixed control/standing acquisition owners remain after caller cancellation. Both ordinary admit and lookup incorrectly sent a65th request and received a valid bound receipt. Tests expect refusal before send.",
+      "assertions_changed_after_freeze": false
+    }
+  },
+  "independent_review": {
+    "original_actionable_findings": 1,
+    "severity": "P2",
+    "finding": "Existing ordinary _submit could bypass the new shared64 bound; frozen preservation/global-bound requirements needed an explicit narrow allocator exception. Original73 tested new65th only, missing the reverse ordinary path.",
+    "fix": "Base _SubmitExchange allocator rejects >=64 before registration/Task allocation with existing AgentSubmitUnavailable. Standing/control callers retain their established mapping. No cleanup or abandonment code changes.",
+    "followup": "Exact final two-line delta closes P2; no additional findings. Static review only, no suite/probe execution. Original sealed review retained."
+  },
+  "final_qualification": {
+    "passed": 228,
+    "failed": 0,
+    "new_cases": 75,
+    "affected_existing_cases": 153,
+    "pytest_seconds": 19.26,
+    "warnings_as_errors": true,
+    "all_test_pins_preserved": true,
+    "command": [
+      "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+      "-B",
+      "-m",
+      "pytest",
+      "-q",
+      "-W",
+      "error",
+      "-p",
+      "no:cacheprovider",
+      "-o",
+      "asyncio_default_fixture_loop_scope=function",
+      "tests/unit/test_standing_agent_client.py",
+      "tests/unit/test_standing_shared_capacity.py",
+      "tests/unit/test_agent_submit_client.py",
+      "tests/unit/test_agent_submit_client_supplement.py",
+      "tests/integration/test_agent_submit_http_stack.py",
+      "tests/integration/test_agent_operating_mode.py",
+      "--junitxml=/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/228-standing-agent-client-qualified-96eobn_a/junit.xml"
+    ],
+    "test_sha256": {
+      "tests/unit/test_standing_agent_client.py": "10a23a273592307ceaf148ea95041c0800f27afbb83a9acd59a5bbd6a2f31b87",
+      "tests/unit/test_standing_shared_capacity.py": "6f07f371c68955da0291f1761ce46a3a2277b055dbd52fdabfc92b4cfb7c2e4a",
+      "tests/unit/test_agent_submit_client.py": "5f72f4729cad62016c032d3c59081ff3b9cf4f0f104f990d5ca8629d6f63ec4a",
+      "tests/unit/test_agent_submit_client_supplement.py": "14d9161dca1b224e2c382843b9c5c11efaf05d5c9d5e1771dacc2898ed4d9fa8",
+      "tests/integration/test_agent_submit_http_stack.py": "615905f8213e8d9dd0ca21c386ff2caecccc09ac3aba4314fb044fc6f3f03f1d",
+      "tests/integration/test_agent_operating_mode.py": "4527b52691480783834dd5564b126e647e4b4b5922f6a591d2d75e802688c3d8"
+    }
+  },
+  "verified_behavior": [
+    "Six exact routes/canonical bodies/full original request and proof validation, private exact32-byte capability only as transient header.",
+    "Bounded raw identity response bodies, strict content length/media/error/null handling; no invalid or unknown response becomes admission or absence.",
+    "One25-second whole exchange deadline starts before request serialization and includes actual response close. Deterministic deadline tests and actual author25.024-second probe are separate evidence.",
+    "Real late acquisition/body/close operations remain owned after caller cancellation/deadline; response closes exactly once, cleanup failure latches uncertainty.",
+    "Old and new exchanges share64 actual owners; public refusal does not release retained native work, and completed cleanup permits capacity reuse.",
+    "Production JournalClient talks through actual ASGI/auth/native SQLite prepare/admit/readback, with retained original replay and no inference."
+  ],
+  "author_probe_limits": [
+    "Fourteen actual ASGI/native exchanges and five focused fake-transport scenario groups; not the independent regression matrix.",
+    "A probe-only .operations attribute typo was corrected to existing active_operations; original failed output retained, no production fix.",
+    "Real deadline probe25.024seconds and inherited close-drain1.000seconds are author evidence, not a claim of root timing measurements."
+  ],
+  "static_checks": {
+    "ruff_check": "pass",
+    "ruff_format": "pass",
+    "diff_check": "pass"
+  },
+  "evidence_bundles": {
+    "oracle_freeze": {
+      "receipt_sha256": "3fcc3c2abcf4721fd6b252e28ae3c3c877bc988ea7d2a5f7521b2c7ab28d2170",
+      "manifest.json_sha256": "f4405c543796dc07eb2f260476ce88011c6ce9bfd16aaafd58c01bc0ed552dc5"
+    },
+    "cold": {
+      "receipt_sha256": "4424dc2cada6ba420510028aca0f736f4075e27a7f13404a3d321852734ca9fe",
+      "manifest.json_sha256": "0ffff63ff6eb6e0fc382989c24bd8159eeb7d09a073738750bc255980d110b99",
+      "junit.xml_sha256": "8484c4e9f81b294b274f938fb2b47b8c16fe2c5d92bffd96fae6b806f3e0a5ea"
+    },
+    "first73": {
+      "receipt_sha256": "96d6a50b42ebfab42ceff894e318534ce3383dddb9b56b54a47747baa27bece6",
+      "manifest.json_sha256": "12deb10d202442c57650b637a7214054feeaca88b8b8e43a673031b3c702e74a",
+      "junit.xml_sha256": "dfa2bcb268744cb7155782152cb1b31bed8acf69f8dd6da2c79c5008a7a3bebf"
+    },
+    "source_review": {
+      "receipt_sha256": "1fcbb77729eede6fecc95de1c6a0eddeb01ff509f2d462ec5e62c0aa8bd5fbf4",
+      "manifest.json_sha256": "15279f67de429c2b1688c8766ff5f6f9b6975108dd7f8525faa0f75d55234ede"
+    },
+    "reverse_capacity_oracle": {
+      "receipt_sha256": "06b923a659217b4abb0d95c84c4dc24fee33de91d9ec6e00a6bdc7e998833a45",
+      "manifest.json_sha256": "14a95ee6f88ecf7acda42007214a840c3a826a0ccb29241855982329ca811ee7"
+    },
+    "reverse_capacity_red": {
+      "receipt_sha256": "c77b64e4365aebfd888eeb5db13109044e9524e86cf11cbd4970cdffe092968f",
+      "manifest.json_sha256": "2bc217b0e855366f68952248371c003be39d69eeb31475689feecb860dbb1435",
+      "junit.xml_sha256": "f977b8465ccbc3fa8af8691be3dd54addd38b0a3dfb291f76dcee93dba0d07e7"
+    },
+    "capacity_followup": {
+      "receipt_sha256": "a08759184fbed11495c685b1c7addd842588eb1e2e9db0a8a90beb6bf98ca76c",
+      "manifest.json_sha256": "0f1d9972b97baf7b36195f4f0935a289e050f6192fc9a3de847922cdb2f093cb"
+    },
+    "qualified": {
+      "receipt_sha256": "f609aca99eab9e557af8fbf01d5849538e2df4aa761a41658232079fe6683f14",
+      "manifest.json_sha256": "5e5ec9cb28c753bf03a8a23eb6cfecbde6c9cfdeea9713d99180af9cb7374ccd",
+      "junit.xml_sha256": "36a780cc8066881370ddfce70386d8c5915b07f19012903ff1e0019ca4926ae5"
+    },
+    "author_probes": {
+      "receipt_sha256": "2180713a8ba372bccf46693cc994f725c8ed4b9ea4cbd5c9f38b94e6f74751f2",
+      "manifest.json_sha256": "e995e84b9a0ad0d94ee08a88610a6013bc58bacacf8665726f01076109cff60a"
+    }
+  },
+  "limits": [
+    "No live network/provider/model/device calls, new budget allowance, configuration change or preview promotion.",
+    "No retry, provider construction, scheduler/worker launch, settlement, inbox/editor or full228CI/PR qualification.",
+    "All twelve Options groups and additive roadmap/handoff obligations remain in scope and unfinished."
+  ],
+  "next": "Native standing inference export joins accepted initial proof and original disclosure/provider floor before actual Agent-worker integration."
+}

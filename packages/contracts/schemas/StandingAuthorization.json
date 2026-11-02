@@ -1,0 +1,287 @@
+{
+  "$defs": {
+    "DailySchedule": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "daily_local",
+          "title": "Kind",
+          "type": "string"
+        },
+        "timezone": {
+          "title": "Timezone",
+          "type": "string"
+        },
+        "local_time": {
+          "title": "Local Time",
+          "type": "string"
+        },
+        "fold_policy": {
+          "const": "earlier",
+          "title": "Fold Policy",
+          "type": "string"
+        },
+        "gap_policy": {
+          "const": "skip",
+          "title": "Gap Policy",
+          "type": "string"
+        },
+        "grace_seconds": {
+          "maximum": 86400,
+          "minimum": 1,
+          "title": "Grace Seconds",
+          "type": "integer"
+        },
+        "missed_run_policy": {
+          "const": "latest_within_grace",
+          "title": "Missed Run Policy",
+          "type": "string"
+        },
+        "start_local_date": {
+          "title": "Start Local Date",
+          "type": "string"
+        },
+        "valid_until_utc": {
+          "title": "Valid Until Utc",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "timezone",
+        "local_time",
+        "fold_policy",
+        "gap_policy",
+        "grace_seconds",
+        "missed_run_policy",
+        "start_local_date",
+        "valid_until_utc"
+      ],
+      "title": "DailySchedule",
+      "type": "object"
+    },
+    "StandingDelivery": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "in_app",
+          "title": "Kind",
+          "type": "string"
+        },
+        "attention": {
+          "enum": [
+            "routine",
+            "important"
+          ],
+          "title": "Attention",
+          "type": "string"
+        },
+        "preview": {
+          "const": "status_only",
+          "title": "Preview",
+          "type": "string"
+        },
+        "quiet_hours": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StandingQuietHours"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "attention",
+        "preview",
+        "quiet_hours"
+      ],
+      "title": "StandingDelivery",
+      "type": "object"
+    },
+    "StandingQuietHours": {
+      "additionalProperties": false,
+      "properties": {
+        "timezone": {
+          "title": "Timezone",
+          "type": "string"
+        },
+        "start_local_time": {
+          "title": "Start Local Time",
+          "type": "string"
+        },
+        "end_local_time": {
+          "title": "End Local Time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "timezone",
+        "start_local_time",
+        "end_local_time"
+      ],
+      "title": "StandingQuietHours",
+      "type": "object"
+    },
+    "StandingTaskSession": {
+      "additionalProperties": false,
+      "properties": {
+        "session_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Session Id",
+          "type": "string"
+        },
+        "thread_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Thread Id",
+          "type": "string"
+        },
+        "epoch": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Epoch",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "session_id",
+        "thread_id",
+        "epoch"
+      ],
+      "title": "StandingTaskSession",
+      "type": "object"
+    },
+    "WorkspacePin": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "workspace_id": {
+          "maxLength": 64,
+          "minLength": 64,
+          "title": "Workspace Id",
+          "type": "string"
+        },
+        "root_identity": {
+          "maxLength": 64,
+          "minLength": 64,
+          "title": "Root Identity",
+          "type": "string"
+        },
+        "settings_revision": {
+          "maximum": 9007199254740990,
+          "minimum": 0,
+          "title": "Settings Revision",
+          "type": "integer"
+        },
+        "source": {
+          "enum": [
+            "host",
+            "owner_saved"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "shell_backend": {
+          "const": "bubblewrap",
+          "title": "Shell Backend",
+          "type": "string"
+        },
+        "mode": {
+          "const": "direct",
+          "title": "Mode",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "workspace_id",
+        "root_identity",
+        "settings_revision",
+        "source",
+        "shell_backend",
+        "mode"
+      ],
+      "title": "WorkspacePin",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "label": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Label",
+      "type": "string"
+    },
+    "objective": {
+      "maxLength": 16000,
+      "minLength": 1,
+      "title": "Objective",
+      "type": "string"
+    },
+    "content_scope": {
+      "enum": [
+        "public_synthetic",
+        "private_cloud_authorized",
+        "local_only"
+      ],
+      "title": "Content Scope",
+      "type": "string"
+    },
+    "enabled": {
+      "title": "Enabled",
+      "type": "boolean"
+    },
+    "task_session": {
+      "$ref": "#/$defs/StandingTaskSession"
+    },
+    "workspace_pin": {
+      "$ref": "#/$defs/WorkspacePin"
+    },
+    "schedule": {
+      "$ref": "#/$defs/DailySchedule"
+    },
+    "delivery": {
+      "$ref": "#/$defs/StandingDelivery"
+    },
+    "overlap_policy": {
+      "const": "one_unresolved_per_authorization",
+      "title": "Overlap Policy",
+      "type": "string"
+    },
+    "maximum_runs": {
+      "maximum": 32,
+      "minimum": 1,
+      "title": "Maximum Runs",
+      "type": "integer"
+    },
+    "inference_authorization": {
+      "const": "configured_agent_profile",
+      "title": "Inference Authorization",
+      "type": "string"
+    }
+  },
+  "required": [
+    "label",
+    "objective",
+    "content_scope",
+    "enabled",
+    "task_session",
+    "workspace_pin",
+    "schedule",
+    "delivery",
+    "overlap_policy",
+    "maximum_runs",
+    "inference_authorization"
+  ],
+  "title": "StandingAuthorization",
+  "type": "object"
+}

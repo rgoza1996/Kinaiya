@@ -1,0 +1,435 @@
+{
+  "requirements": [
+    "https://github.com/rgoza1996/Kinaiya/issues/228",
+    "https://github.com/rgoza1996/Kinaiya/issues/239"
+  ],
+  "scope": "Strict prework Resources binding and immutable native Session testimony with bounded role-specific transport; not physical Resource finalization or standing work settlement.",
+  "qualified_source": "c3bb150c2fe87086adf6ef85f9bbf8410ae62e03",
+  "source_sha256": {
+    "packages/contracts/standing_resource_finalization.py": "20c98c77b2f47936f94d7425287e43f76950d2c47e83614546db5eff5cdf951b",
+    "packages/contracts/standing_finalization_client.py": "27362ebdfaa6a9bf20c6ae22c05b9ac6ae712ab95488bcd21c60d05813088ddf",
+    "packages/contracts/client.py": "e1415189ae9704ef651395ca7a7e13184dc24620acb748613ec24a7cf98d483e",
+    "services/session/standing_resource_finalization.py": "18a297f481d0bf8142ceb4ccaec6be044e009a98576aecf00250f80d77e976f1",
+    "services/session/standing_resource_finalization_api.py": "2970d003120001c88c8ddb68d497153b4c4c2d1252e1a7560e0947e40998b516",
+    "services/session/standing_resources.py": "7282670e1a05d4320c550d677eb9dd120079c3b115621520c3f89f714fba8a7f",
+    "services/session/api.py": "b369fd4fa9e78e90e9365d46a2bec79ecb29a9dc1e61d93d8b7a5f56f536ce0e"
+  },
+  "frozen_contracts_sha256": {
+    "228-resource-finalization-contract-v1.md": "38d1514dcac069cab09147bbc0eeb2bc6bb082065ce5d358fb67a005ee91866c",
+    "228-resource-finalization-transport-v1.md": "66a3cc2486cfe60fd65008d94361cb6d974e8a5ea945da8e73473e5b298fd9ce"
+  },
+  "independent_oracles": {
+    "pure": {
+      "commit": "a7ec1f22db8ca5d0fd8b4d4da6192df2b9bf71b8",
+      "receipt_sha256": "7a3342a457676304d895fe44c19cab2e4fd7c2da31bc936a38436a96cf19e51a",
+      "cold": "61 missing-feature failures,2 unchanged controls passed; no new module existed."
+    },
+    "native": {
+      "commit": "c406684dafa7176505b0375c45e5782331b6e71d",
+      "receipt_sha256": "d7f24b19f8893deebc7a9aaca98d72bedd3362824e5fb4fca6d9cf8768ad0d48",
+      "cold_counts": {
+        "total": 67,
+        "failed": 65,
+        "errors": 0,
+        "skipped": 0,
+        "passed": 2
+      },
+      "new_source_consulted": false
+    },
+    "client": {
+      "commit": "e2df962750f06f3c1beff7d0e7b33c3be768180f",
+      "receipt_sha256": "7eeba3d806d146aac2773039e45bf32ab00db37c14e71a2b194f13b3ce7acefd",
+      "cold": "47 missing-wrapper failures,2 controls passed; unchanged old client suite73 passed.",
+      "new_source_consulted": false
+    }
+  },
+  "preserved_failure_and_corrections": {
+    "first_pure_source_run": {
+      "bundle": "228-resource-finalization-pure-final-7aev3eyh",
+      "source_head": "b2e973a381b3380660c220010c5f1ddd59e5963a",
+      "head_and_test_pins_preserved": true,
+      "exit_code": 1,
+      "results": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "12",
+          "skipped": "0",
+          "tests": "63",
+          "time": "41.101",
+          "timestamp": "2026-11-01T11:05:37.345684-08:00",
+          "hostname": "roggoz"
+        }
+      ],
+      "test_sha256": {
+        "tests/unit/test_standing_resource_finalization_contracts.py": "c4c436472d333ba37b05cb681c14790de36d649780864fef1c34d1eb6e3114a2"
+      },
+      "targets": [
+        "tests/unit/test_standing_resource_finalization_contracts.py"
+      ],
+      "pytest_options": "-q -W error -p no:cacheprovider -o asyncio_default_fixture_loop_scope=function -o junit_family=xunit1",
+      "receipt_sha256": "37833c1d1f4108a31feb019a751eb7815db69b1c76189014ef902f707dec2bcf",
+      "junit_sha256": "4856c50eb2e76d55976f20f8668757227bff0c1980049fb292c2b15112718cdf",
+      "log_sha256": "94c3e158e6c1238bf59e3a4830d6da176a56edc80c4b682d904e87f41f7efffc",
+      "manifest_sha256": "f4b75294d890ddc5c0d2f1fa887034db63533d6877ae03620352537434b7da92"
+    },
+    "pure_repair": "11 correct foreign-join refusals had the old child-family error message;1 typed child replaced by a dictionary was incorrectly normalized. Source-only repair preserved all frozen assertions.",
+    "first_native_source_run": {
+      "bundle": "228-resource-finalization-native-hot-pgva5pf_",
+      "source_head": "f29c3b241ed20a6a4ec3f57542886714643a5c27",
+      "head_and_test_pins_preserved": true,
+      "exit_code": 1,
+      "results": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "12",
+          "skipped": "0",
+          "tests": "67",
+          "time": "351.789",
+          "timestamp": "2026-11-01T11:19:16.564764-08:00",
+          "hostname": "roggoz"
+        }
+      ],
+      "test_sha256": {
+        "tests/integration/test_standing_resource_finalization_api.py": "e83dd752ab0333c0c526dceb0701f6befea1b0b65ca828b5cf58a841be15b9ba"
+      },
+      "targets": [
+        "tests/integration/test_standing_resource_finalization_api.py"
+      ],
+      "pytest_options": "-q -W error -p no:cacheprovider -o asyncio_default_fixture_loop_scope=function -o junit_family=xunit1",
+      "receipt_sha256": "db2866a00c23bfc5a749466b0473912f4eb3f1473b45db939f627d9a06782843",
+      "junit_sha256": "d1ee2238f47f1efd5a0d6e90aa5af99fd02bf3876017d956a9baab92399de317",
+      "log_sha256": "51b8f99b281e08c9b5eb42d7bdaf9e827ddc43d06117c73392121c244dc98123",
+      "manifest_sha256": "94e3a29f608318990159abfcd9b4f2e341cb0a840c287679d423273132828227"
+    },
+    "first_native_classification": "One actual source gap accepted a reservation for a foreign Resources backend/controller. Eleven SQL fault cases replaced the actual connection/lock after ownership capture and correctly refused before the intended fault. Original12-failure/55-pass log remains unchanged.",
+    "fixture_correction": {
+      "commit": "99c7fa7a61a6196b01c9bbc126d840db6c4be89b",
+      "receipt_sha256": "f078b389709d1122b5780284a98df719af9c8a4ad3bbbdbd646578a2154f904e",
+      "original_test_sha256": "e83dd752ab0333c0c526dceb0701f6befea1b0b65ca828b5cf58a841be15b9ba",
+      "corrected_test_sha256": "58ff40b0596fcef80077748db83ffcbf5dce3abd9eae5b169ef0767e05e28c3c",
+      "assertion_preservation": {
+        "all_original_assertion_ast_occurrences_preserved": true,
+        "original_assertion_occurrences": 124,
+        "all_original_test_functions_and_parametrization_preserved": true,
+        "old_test_function_count": 24,
+        "new_test_function_count": 25,
+        "new_parametrized_identity_refusal_cases": 2,
+        "original_module_sha256": "e83dd752ab0333c0c526dceb0701f6befea1b0b65ca828b5cf58a841be15b9ba",
+        "corrected_module_sha256": "58ff40b0596fcef80077748db83ffcbf5dce3abd9eae5b169ef0767e05e28c3c"
+      },
+      "actual_sqlite_hook_controls": [
+        {
+          "phase": "before",
+          "actual_hook_fired": true,
+          "same_native_connection_and_lock": true,
+          "actual_sqlite_row_count": 0,
+          "actual_connection_closed": true,
+          "actual_thread_joined": true
+        },
+        {
+          "phase": "after",
+          "actual_hook_fired": true,
+          "same_native_connection_and_lock": true,
+          "actual_sqlite_row_count": 1,
+          "actual_connection_closed": true,
+          "actual_thread_joined": true
+        },
+        {
+          "phase": "gate",
+          "actual_hook_fired": true,
+          "same_native_connection_and_lock": true,
+          "actual_sqlite_row_count": 1,
+          "actual_connection_closed": true,
+          "actual_thread_joined": true
+        },
+        {
+          "phase": "rollback-poison",
+          "actual_hook_fired": true,
+          "same_native_connection_and_lock": true,
+          "actual_sqlite_row_count": 0,
+          "actual_connection_closed": true,
+          "actual_thread_joined": true
+        }
+      ],
+      "cold_counts": {
+        "total": 69,
+        "passed": 2,
+        "failed": 67,
+        "errors": 0,
+        "skipped": 0
+      },
+      "change": "Instrument actual SQLite connection and lock before Store/owner construction, then arm faults without replacing captured identities; add2 later identity-replacement refusal controls. No behavioral assertion relaxed."
+    },
+    "post_review_composition_regressions": {
+      "commit": "aaf31f4ecf782d5646a96bb6d9dcfa8b7092ed3d",
+      "receipt_sha256": "91b7a2538efffae7f41d67dd5a642d59e7f1058f9bb237dd40f6335e7410289d",
+      "behavioral_red": {
+        "asgi_case_actual_teardown": "each SQLite closed, HTTP closed, actual operations0",
+        "each_failure_reached_actual_insert_and_returned_created_with_changed_native_rows": true,
+        "errors": 0,
+        "failed": 2,
+        "legacy_control": "fresh old native fixture positively observed all three new-family names absent; own reservation created and retained",
+        "passed": 1,
+        "pytest_seconds": 6.45,
+        "root_head": "09de467106fa3e0f2b046f49c049b1285d85d8b5",
+        "skipped": 0
+      },
+      "preserved_assertions": 132,
+      "preserved_functions": 48,
+      "source_fix": "Native registration attaches the exact reciprocal owner; a bare old Resources owner refuses new reservations when any new-family schema object exists. Fresh legacy absence and exact retained history preserve their original protocol."
+    }
+  },
+  "verification": {
+    "pure_repaired": {
+      "bundle": "228-resource-finalization-pure-repaired-tq3xtnif",
+      "source_head": "2e392a8b30b69e16700bf80a320ad6739f4eadaa",
+      "head_and_test_pins_preserved": true,
+      "exit_code": 0,
+      "results": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "0",
+          "skipped": "0",
+          "tests": "63",
+          "time": "42.559",
+          "timestamp": "2026-11-01T11:10:27.344206-08:00",
+          "hostname": "roggoz"
+        }
+      ],
+      "test_sha256": {
+        "tests/unit/test_standing_resource_finalization_contracts.py": "c4c436472d333ba37b05cb681c14790de36d649780864fef1c34d1eb6e3114a2"
+      },
+      "targets": [
+        "tests/unit/test_standing_resource_finalization_contracts.py"
+      ],
+      "pytest_options": "-q -W error -p no:cacheprovider -o asyncio_default_fixture_loop_scope=function -o junit_family=xunit1",
+      "receipt_sha256": "aa65be5c257ee51c5e887d1f8d469055dc19434b833079d15c8b80660893f1e5",
+      "junit_sha256": "2dde3196d9f3408d5a612d64b80a5aa978fa94f46ef137254df13e831a2ad8be",
+      "log_sha256": "f14fdd9c0e3a743584cc2f8448a894bef90a63514aeefe373b53515527c4b0f9",
+      "manifest_sha256": "b23817fa35b8ead789c4e7a0f0614439c52965fb2431e4420e14468ecf09a4ad"
+    },
+    "client_and_reservation_repair": {
+      "bundle": "228-finalization-client-reservation-fzpt6p2f",
+      "source_head": "92f0e88c0a5736e8709c6786a976e91ab281ac7e",
+      "head_and_test_pins_preserved": true,
+      "exit_code": 0,
+      "results": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "0",
+          "skipped": "0",
+          "tests": "74",
+          "time": "80.464",
+          "timestamp": "2026-11-01T11:27:29.542781-08:00",
+          "hostname": "roggoz"
+        }
+      ],
+      "test_sha256": {
+        "tests/integration/test_standing_resource_finalization_api.py": "e83dd752ab0333c0c526dceb0701f6befea1b0b65ca828b5cf58a841be15b9ba",
+        "tests/integration/test_standing_resources_registration.py": "139ed1a9865928a234309a69e558bc888af9f4b80c5156b19081a62cae34dac3",
+        "tests/integration/test_standing_resources_slot_corruption.py": "310dc63198404eefb83c1c6ce48df7318e72cc464eba98dcbc284cc582e8684c",
+        "tests/unit/test_standing_resource_finalization_client.py": "6418939cd3e03d6d1319fa0f56cc0a9ec83b22d44aa9f219f8e50a691e4310d3"
+      },
+      "targets": [
+        "tests/unit/test_standing_resource_finalization_client.py",
+        "tests/integration/test_standing_resource_finalization_api.py::test_bound_claim_reservation_cannot_switch_resource_backend_or_controller",
+        "tests/integration/test_standing_resources_registration.py",
+        "tests/integration/test_standing_resources_slot_corruption.py"
+      ],
+      "pytest_options": "-q -W error -p no:cacheprovider -o asyncio_default_fixture_loop_scope=function -o junit_family=xunit1",
+      "receipt_sha256": "51f77890b29806ed80ef1364bea527f763fda1a8f01cf02daa39a7d984a34c7b",
+      "junit_sha256": "b577dff12f3e0f5a405d76f9f90407ccb50cbdb6631d60abd86080c0e4db18de",
+      "log_sha256": "ffb915ff9f7f40d9b0c24fcb196cee530f55ed00e44d4c0caefe4a9196f12c70",
+      "manifest_sha256": "010d8c1a839bcb27ae610fd2ee253de54b759c744f8fdbdec63b2fbfb0544eae"
+    },
+    "corrected_native_before_composition_review": {
+      "bundle": "228-resource-finalization-native-corrected-4s0dvsjb",
+      "source_head": "09de467106fa3e0f2b046f49c049b1285d85d8b5",
+      "head_and_test_pins_preserved": true,
+      "exit_code": 0,
+      "results": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "0",
+          "skipped": "0",
+          "tests": "69",
+          "time": "363.685",
+          "timestamp": "2026-11-01T11:43:55.533993-08:00",
+          "hostname": "roggoz"
+        }
+      ],
+      "test_sha256": {
+        "tests/integration/test_standing_resource_finalization_api.py": "58ff40b0596fcef80077748db83ffcbf5dce3abd9eae5b169ef0767e05e28c3c"
+      },
+      "targets": [
+        "tests/integration/test_standing_resource_finalization_api.py"
+      ],
+      "pytest_options": "-q -W error -p no:cacheprovider -o asyncio_default_fixture_loop_scope=function -o junit_family=xunit1",
+      "receipt_sha256": "04a173fdae1730dc939c437bb81f02f36fd1cbfb06d0731b28d69fe6a4bfdb68",
+      "junit_sha256": "a8ede56c901341c618c5f46ea2d4daac529faec241713c886e0995bfb2db5c66",
+      "log_sha256": "4328276568cb58de239f151a731383c8d2daae5075d56021d121774ed10fcd29",
+      "manifest_sha256": "287589473d02d545db07c1f6820a8140bbed5f838e8174c63b35bb88abb7ed7e"
+    },
+    "final_native_and_unchanged_resources": {
+      "bundle": "228-resource-finalization-composition-final-sxe5o7ls",
+      "source_head": "c3bb150c2fe87086adf6ef85f9bbf8410ae62e03",
+      "head_and_test_pins_preserved": true,
+      "exit_code": 0,
+      "results": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "0",
+          "skipped": "0",
+          "tests": "96",
+          "time": "410.808",
+          "timestamp": "2026-11-01T11:55:09.484957-08:00",
+          "hostname": "roggoz"
+        }
+      ],
+      "test_sha256": {
+        "tests/integration/test_standing_resource_finalization_api.py": "c8dc586fca81bd0441b3c0181fc6e1b33818be4c2ab258fb2802b48a92320407",
+        "tests/integration/test_standing_resources_registration.py": "139ed1a9865928a234309a69e558bc888af9f4b80c5156b19081a62cae34dac3",
+        "tests/integration/test_standing_resources_slot_corruption.py": "310dc63198404eefb83c1c6ce48df7318e72cc464eba98dcbc284cc582e8684c"
+      },
+      "targets": [
+        "tests/integration/test_standing_resource_finalization_api.py",
+        "tests/integration/test_standing_resources_registration.py",
+        "tests/integration/test_standing_resources_slot_corruption.py"
+      ],
+      "pytest_options": "-q -W error -p no:cacheprovider -o asyncio_default_fixture_loop_scope=function -o junit_family=xunit1",
+      "receipt_sha256": "4ff754e29b22f1aaaa5ba1523f104da792c26d7b8e77913ed422915dd0406615",
+      "junit_sha256": "42b17045131c807ee3041ec1def86eefd5124bdb65a23826dd1b8920d990cc52",
+      "log_sha256": "870a79a8e67a613d399dda69db1bfaaaff7aea0f6224abb769cd9e1750b7288a",
+      "manifest_sha256": "fc133fa8da88b370c22780a8f3a6696296429e6185303fb63488a211dee53573"
+    },
+    "old_session_asgi_regressions": {
+      "bundle": "228-finalization-old-asgi-regressions-dcu3wnw8",
+      "source_head": "9dbde45933721a51c1a004295640e168cfd5ce56",
+      "head_and_test_pins_preserved": true,
+      "exit_code": 0,
+      "results": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "0",
+          "skipped": "0",
+          "tests": "239",
+          "time": "179.251",
+          "timestamp": "2026-11-01T11:33:16.607275-08:00",
+          "hostname": "roggoz"
+        }
+      ],
+      "test_sha256": {
+        "tests/integration/test_standing_admission_closure_http.py": "a8457f5ff4f1e70b094accab8d5ab1324c6453e8a6112e171c420745abadd512",
+        "tests/integration/test_standing_dispatch_api.py": "2cb96d69b7c20f1609d917f7cfefcac178f4aca03b06e10250515e309eaf9301",
+        "tests/integration/test_standing_execution_api.py": "4fb96e41dcd0b89423a277b61a7586bea05a3b394c81925874e35169d87ede47",
+        "tests/integration/test_standing_execution_schema.py": "ed1dfd4089ca7c6efeafc49549ca18ab680c4fffc685870d637b9e0bbf844068",
+        "tests/integration/test_standing_owner_cors.py": "9a0467a628cce44dcce91a5950cdbb25656aaac017008a045d2d95278609ba85",
+        "tests/unit/test_standing_admission_closure.py": "b08e1539282ea9250c9e474e86853f1fa50f6aacbf77d5c25fcde1cddc8f8fe4",
+        "tests/unit/test_standing_agent_client.py": "10a23a273592307ceaf148ea95041c0800f27afbb83a9acd59a5bbd6a2f31b87",
+        "tests/unit/test_standing_resources_contract.py": "400311d11f082abcfcff80f12cab36be03de20c9985aeaa820f69b3a55f266fc",
+        "tests/unit/test_standing_shared_capacity.py": "6f07f371c68955da0291f1761ce46a3a2277b055dbd52fdabfc92b4cfb7c2e4a"
+      },
+      "targets": [
+        "tests/integration/test_standing_owner_cors.py",
+        "tests/integration/test_standing_dispatch_api.py",
+        "tests/integration/test_standing_execution_api.py",
+        "tests/integration/test_standing_admission_closure_http.py",
+        "tests/integration/test_standing_execution_schema.py",
+        "tests/unit/test_standing_shared_capacity.py",
+        "tests/unit/test_standing_agent_client.py",
+        "tests/unit/test_standing_admission_closure.py",
+        "tests/unit/test_standing_resources_contract.py"
+      ],
+      "pytest_options": "-q -W error -p no:cacheprovider -o asyncio_default_fixture_loop_scope=function -o junit_family=xunit1",
+      "receipt_sha256": "d0b3f290bbf9e3119ec882a2cb2782d333b1796c9a0618cfa67fd86c1cf2f064",
+      "junit_sha256": "855b60be71fe3fa39248ed19f411d77a84aa85a401356ea0abe2d4a45aedca7f",
+      "log_sha256": "8512d5b25e6b6028af70d25c2028f3573f007ca5e1783dde784fad5887898690",
+      "manifest_sha256": "1dda6261d554f9822e8948f24b3937e40a9e3c3418dc356b984cf03d8075312d"
+    },
+    "earlier_strict_collection_error": {
+      "bundle": "228-finalization-old-session-regressions-kipu8_mf",
+      "source_head": "9dbde45933721a51c1a004295640e168cfd5ce56",
+      "head_and_test_pins_preserved": true,
+      "exit_code": 2,
+      "results": [
+        {
+          "name": "pytest",
+          "errors": "1",
+          "failures": "0",
+          "skipped": "0",
+          "tests": "1",
+          "time": "1.189",
+          "timestamp": "2026-11-01T11:32:29.509493-08:00",
+          "hostname": "roggoz"
+        }
+      ],
+      "test_sha256": {
+        "tests/integration/test_session.py": "d93dc21f4721e2f36f95a48ec3ec86c19597b5ac5a94b383fd81fdd087938f20",
+        "tests/integration/test_standing_admission_closure_http.py": "a8457f5ff4f1e70b094accab8d5ab1324c6453e8a6112e171c420745abadd512",
+        "tests/integration/test_standing_dispatch_api.py": "2cb96d69b7c20f1609d917f7cfefcac178f4aca03b06e10250515e309eaf9301",
+        "tests/integration/test_standing_execution_api.py": "4fb96e41dcd0b89423a277b61a7586bea05a3b394c81925874e35169d87ede47",
+        "tests/integration/test_standing_execution_schema.py": "ed1dfd4089ca7c6efeafc49549ca18ab680c4fffc685870d637b9e0bbf844068",
+        "tests/integration/test_standing_owner_cors.py": "9a0467a628cce44dcce91a5950cdbb25656aaac017008a045d2d95278609ba85",
+        "tests/unit/test_standing_admission_closure.py": "b08e1539282ea9250c9e474e86853f1fa50f6aacbf77d5c25fcde1cddc8f8fe4",
+        "tests/unit/test_standing_agent_client.py": "10a23a273592307ceaf148ea95041c0800f27afbb83a9acd59a5bbd6a2f31b87",
+        "tests/unit/test_standing_resources_contract.py": "400311d11f082abcfcff80f12cab36be03de20c9985aeaa820f69b3a55f266fc",
+        "tests/unit/test_standing_shared_capacity.py": "6f07f371c68955da0291f1761ce46a3a2277b055dbd52fdabfc92b4cfb7c2e4a"
+      },
+      "targets": [
+        "tests/integration/test_session.py",
+        "tests/integration/test_standing_owner_cors.py",
+        "tests/integration/test_standing_dispatch_api.py",
+        "tests/integration/test_standing_execution_api.py",
+        "tests/integration/test_standing_admission_closure_http.py",
+        "tests/integration/test_standing_execution_schema.py",
+        "tests/unit/test_standing_shared_capacity.py",
+        "tests/unit/test_standing_agent_client.py",
+        "tests/unit/test_standing_admission_closure.py",
+        "tests/unit/test_standing_resources_contract.py"
+      ],
+      "pytest_options": "-q -W error -p no:cacheprovider -o asyncio_default_fixture_loop_scope=function -o junit_family=xunit1",
+      "receipt_sha256": "9ea7764416eac04cb722953d12ce1a591e51576b68aa7ead880d39f9e6d788b9",
+      "junit_sha256": "d9e8081134ada987ddebf99cfed270469531eda2c05b2bf6b5c08b5104e1e5c5",
+      "log_sha256": "be0d4073e13f01b29cebff180371e7cef11ba31ee883752ef71e45e72bd66725",
+      "manifest_sha256": "f8699a94ab4741596978924a29fef8df275e3459b99a72db28e5331beadf952a"
+    },
+    "collection_error_limit": "The old TestClient smoke failed collection under -W error because locked Starlette1.10.0 warns about absent optional httpx2. No dependency or warning filter changed. The other239 old ASGI/contract/client cases then passed unchanged; do not call the TestClient smoke passed.",
+    "counting": "Results are separate runs at the listed heads and overlap. Do not sum them into a distinct-case or full-suite total. Final96 consists of72 native finalization and24 unchanged old Resources cases."
+  },
+  "schema_export": {
+    "base": "ea019b1383de62ee2212e95a3912581922b12f59",
+    "old_count": 184,
+    "all_old_byte_exact": true,
+    "additive_count": 6,
+    "new": {
+      "packages/contracts/schemas/StandingResourceBindingReceipt.json": "2025edd7461bde7d85b4915170c1a03a0c0dbb8512939d6466669429e0888064",
+      "packages/contracts/schemas/StandingResourceBindingRequest.json": "486e41f12dcc072d38d1039674836fb40c2a4de8eb694d45aeca62a39e99f3ee",
+      "packages/contracts/schemas/StandingResourceFinalization.json": "07eda6736dc48146b6811ab0e00f4f793f41c71e7a8c1178e4af8873a2626a5d",
+      "packages/contracts/schemas/StandingResourceFinalizationReceipt.json": "936666b23b103c07feebdd67625d8398578dc4b2eb83b800f71aab850b2b8571",
+      "packages/contracts/schemas/StandingResourceFinalizeContext.json": "4c15dbcf5908d60dfe975a12b90095f1e6aa38bf8ce3e5c537fee24f5f7681dd",
+      "packages/contracts/schemas/StandingResourceFinalizeRequest.json": "1cdbd1f85614738b20e778f3fbdd948a7596ec0174fe0a1627e5633bcd8b5ac9"
+    }
+  },
+  "implementation": [
+    "Full immutable claim/original/closure/observation graphs with isolated family wire/codec limits and strict request joins.",
+    "Genuine pre-admission binding and immutable first native report; same Store transaction joins and captured connection/lock/controller checks.",
+    "Resources-only bind/context/report; Agent or Resources read-only finalization lookup. No private executor capability on these routes.",
+    "All standing HTTP operations share one64-owner registry; actual ingress/native threads and client response-close remain owned beyond caller cancellation/deadlines.",
+    "No deletion/release of claim, reservation, admission closure or lifetime slot; retained history is not another effect permit."
+  ],
+  "remaining_not_qualified": [
+    "Actual Resources prework binding RPC and Agent first-capture integration.",
+    "Permanent actual capture seal, positive drainage, immutable lease acquisition/restoration witness and native Resources report production.",
+    "Original Agent supervisor capability transfer, effect/model retirement, positive settlement and safe active-slot release.",
+    "Recurrence, durable inbox, embedded owner editor and full #228/M7 acceptance.",
+    "Live models/GPU/voice/media/provider qualification; no paid inference, device capture or live service changes occurred.",
+    "This working integration branch is not a release or full CI qualification."
+  ]
+}

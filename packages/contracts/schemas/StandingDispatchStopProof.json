@@ -1,0 +1,311 @@
+{
+  "$defs": {
+    "StandingDispatchState": {
+      "additionalProperties": false,
+      "description": "A native gate observation; permissions and occurrence slots are separate.",
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "backend_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Backend Id",
+          "type": "string"
+        },
+        "instance_id": {
+          "anyOf": [
+            {
+              "maxLength": 36,
+              "minLength": 36,
+              "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Instance Id"
+        },
+        "control_revision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Control Revision",
+          "type": "integer"
+        },
+        "mode": {
+          "enum": [
+            "off",
+            "on_demand",
+            "autonomous"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "control_writable": {
+          "title": "Control Writable",
+          "type": "boolean"
+        },
+        "epoch": {
+          "maximum": 10000,
+          "minimum": 0,
+          "title": "Epoch",
+          "type": "integer"
+        },
+        "stopped_through_epoch": {
+          "maximum": 10000,
+          "minimum": 0,
+          "title": "Stopped Through Epoch",
+          "type": "integer"
+        },
+        "fence_token": {
+          "maxLength": 36,
+          "minLength": 36,
+          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+          "title": "Fence Token",
+          "type": "string"
+        },
+        "activation_digest": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 64,
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Activation Digest"
+        },
+        "activation_control_revision": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Activation Control Revision"
+        },
+        "producer": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StandingProducerReceipt"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "dispatch_ready": {
+          "title": "Dispatch Ready",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "schema_version",
+        "backend_id",
+        "instance_id",
+        "control_revision",
+        "mode",
+        "control_writable",
+        "epoch",
+        "stopped_through_epoch",
+        "fence_token",
+        "activation_digest",
+        "activation_control_revision",
+        "producer",
+        "dispatch_ready"
+      ],
+      "title": "StandingDispatchState",
+      "type": "object"
+    },
+    "StandingDispatchStop": {
+      "additionalProperties": false,
+      "description": "Target one issued epoch; a retry cannot disable a later activation.",
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "expected_backend": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Expected Backend",
+          "type": "string"
+        },
+        "expected_instance": {
+          "maxLength": 36,
+          "minLength": 36,
+          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+          "title": "Expected Instance",
+          "type": "string"
+        },
+        "issued_epoch": {
+          "maximum": 10000,
+          "minimum": 0,
+          "title": "Issued Epoch",
+          "type": "integer"
+        },
+        "activation_digest": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 64,
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Activation Digest"
+        },
+        "expected_fence_token": {
+          "maxLength": 36,
+          "minLength": 36,
+          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+          "title": "Expected Fence Token",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "expected_backend",
+        "expected_instance",
+        "issued_epoch",
+        "activation_digest",
+        "expected_fence_token"
+      ],
+      "title": "StandingDispatchStop",
+      "type": "object"
+    },
+    "StandingProducerReceipt": {
+      "additionalProperties": false,
+      "description": "An acknowledged renewal packet, without a claim of current liveness.",
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "request": {
+          "$ref": "#/$defs/StandingProducerRenewal"
+        },
+        "lease_token": {
+          "maxLength": 36,
+          "minLength": 36,
+          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+          "title": "Lease Token",
+          "type": "string"
+        },
+        "issued_monotonic_ms": {
+          "maximum": 9007199254725991,
+          "minimum": 0,
+          "title": "Issued Monotonic Ms",
+          "type": "integer"
+        },
+        "expires_monotonic_ms": {
+          "maximum": 9007199254740991,
+          "minimum": 15000,
+          "title": "Expires Monotonic Ms",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schema_version",
+        "request",
+        "lease_token",
+        "issued_monotonic_ms",
+        "expires_monotonic_ms"
+      ],
+      "title": "StandingProducerReceipt",
+      "type": "object"
+    },
+    "StandingProducerRenewal": {
+      "additionalProperties": false,
+      "description": "Renewal identity only; the native controller owns the monotonic clock.",
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "expected_backend": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Expected Backend",
+          "type": "string"
+        },
+        "expected_instance": {
+          "maxLength": 36,
+          "minLength": 36,
+          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+          "title": "Expected Instance",
+          "type": "string"
+        },
+        "producer_id": {
+          "maxLength": 36,
+          "minLength": 36,
+          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+          "title": "Producer Id",
+          "type": "string"
+        },
+        "sequence": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Sequence",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schema_version",
+        "expected_backend",
+        "expected_instance",
+        "producer_id",
+        "sequence"
+      ],
+      "title": "StandingProducerRenewal",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Only this target is fenced; admitted workers may still be unsettled.",
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "request": {
+      "$ref": "#/$defs/StandingDispatchStop"
+    },
+    "state": {
+      "$ref": "#/$defs/StandingDispatchState"
+    },
+    "target_fenced": {
+      "const": true,
+      "title": "Target Fenced",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "schema_version",
+    "request",
+    "state",
+    "target_fenced"
+  ],
+  "title": "StandingDispatchStopProof",
+  "type": "object"
+}

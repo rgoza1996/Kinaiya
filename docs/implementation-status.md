@@ -55,6 +55,53 @@ gap for that text role only. It is under source/static review; later PR-specific
 CI and runtime evidence remain separate. Decisions/STT/TTS editing, fallback,
 direct multimodal capture and the other full Options acceptance groups stay open.
 
+## November 1 handoff and standing-work prerequisites
+
+The owner handed the remaining Options and design work back from **Set up local
+Penpot for Kinaiya** through [#208](https://github.com/rgoza1996/Kinaiya/issues/208)
+and its linked issues. The handoff ended that chat's goal; the full product
+requirements remain active here. The timing-sensitive Converse recovery fixture
+in [#247](https://github.com/rgoza1996/Kinaiya/issues/247) was subsequently fixed
+and merged through [PR248](https://github.com/rgoza1996/Kinaiya/pull/248), with all
+five required CI jobs passing. This does not close the remaining Options groups.
+
+[#228](https://github.com/rgoza1996/Kinaiya/issues/228) now has independently
+qualified protected authorization, dispatch/producer metadata, retained execution
+claims, native initial-task acceptance and bounded client transports on the
+integration branch `codex/228-standing-work`. The latest prerequisite binds
+standing inference disclosure to the full accepted proof, exact model and
+captured scope; ordinary export cannot downgrade this task family. Its
+[evidence](../evaluation/evidence/standing-export-admission-2026-11-01.json)
+records the preserved failures, source corrections, 406 combined checks and
+135 affected checks after the final SQL-bound correction. These are distinct
+runs, not a count of unique tests. The [native API documentation](standing-work-api.md)
+describes the actual contracts and limits.
+
+The subsequent [internal worker adapter](standing-work-api.md#internal-agent-worker-launch)
+now runs the actual Agent file-tool loop from a timely native standing admission,
+with fresh primary ownership, a restricted native tool set and full standing
+disclosure proofs. [Worker evidence](../evaluation/evidence/standing-agent-worker-2026-11-01.json)
+records 76 worker/ownership checks, 370 typed-provider checks and 729 earlier
+affected regressions; these runs overlap. Independent reviews exposed and closed
+final-validation deadline and typed-v2 subset gaps. Inference is synthetic and
+provider-wire transport is offline; neither establishes live model readiness.
+
+The subsequent [permanent admission closure](standing-work-api.md#permanent-admission-closure)
+orders recovery against first task acceptance in the same native transaction.
+Close-first prevents later admission; admit-first preserves the exact accepted
+proof. Historical lookup and a lost acknowledgement preserve that fence without
+claim release. [Closure evidence](../evaluation/evidence/standing-admission-closure-2026-11-01.json)
+records independent native/API/client checks, preserved missing-capability and
+first-run failures, and the separately diagnosed old-control error-family
+fixture correction. All prior packet schemas remain unchanged.
+
+This remains reviewable branch work, not a merged or running timed responsibility.
+Recurrence, standing controls/recovery, positive worker/effect/resource settlement,
+slot release, the durable inbox and embedded owner editor remain required before
+#228 acceptance or a feature PR.
+The historical source cutoff above and frozen 8808 settings preview are unchanged;
+this addendum establishes no live model/device or full-roadmap qualification.
+
 ## Milestone status
 
 The [native operating-mode prerequisite](adr/0105-agent-operating-modes.md) for
@@ -66,10 +113,18 @@ Stop, approvals and inspection remain independent of Converse. The combined
 source passed 52 independent/combined native checks, additional corruption and
 restart probes, 958 Flutter tests and actual Dart/HTTP/SQLite file-work and
 restart/replacement checks. [Evidence](../evaluation/evidence/agent-operating-modes-2026-10-31.json)
-retains failed baselines and verification limits; exact-final-head CI/review are
-separate merge gates recorded on the issue/PR. Autonomous remains unavailable.
-Standing responsibilities, scheduling, inbox/notifications and the broader M7
-and full Options acceptance groups remain incomplete.
+retains failed baselines and verification limits.
+[PR227](https://github.com/rgoza1996/Kinaiya/pull/227) merged after exact-head
+[CI350](https://github.com/rgoza1996/Kinaiya/actions/runs/41283718366) passed all
+five jobs: 7,982 Python tests on each version, 958 Flutter tests, 38 bridge tests,
+and owner/companion web, Android and unsigned iOS simulator builds. Six optional
+Python skips, two live exclusions and one existing warning per version remain
+explicit. Independent Codex review and actual merge parents/tree were verified.
+Autonomous remains unavailable. The next bounded increment is owner-authorized
+timed work and a durable in-app inbox in
+[#228](https://github.com/rgoza1996/Kinaiya/issues/228). Standing responsibilities,
+scheduling, inbox/notifications and the broader M7 and full Options acceptance
+groups remain incomplete.
 
 The strict integration retry also exposed an existing plugin subprocess cleanup
 defect, tracked by [#226](https://github.com/rgoza1996/Kinaiya/issues/226).
@@ -147,7 +202,7 @@ The November 1 Omni clarification adds [§7.2.2](../Roadmap.md#722-optional-omni
 | **M4A — plugins/composition** [#7](https://github.com/rgoza1996/Kinaiya/issues/7) | Narrow implemented capability-acquisition experiment: Agent authored executable CSV code, isolated execution passed four frozen owner cases, later Agent work used the approved capability, and rejected update/rollback were recorded. [ADR0016](adr/0016-compute-plugins.md), [evidence](../evaluation/evidence/compute-plugins-2026-10-27.json). | General hooks, plugin commands/aliases, dependency installation/locks, foreign adapters, comprehensive update/recovery and equal-tool harness-composition experiments remain. One acquired program is not general autonomous software acquisition. |
 | **M5 — Flutter/character** [#8](https://github.com/rgoza1996/Kinaiya/issues/8) | Extensive experimental UI: validated pack import/export/palettes/variants, retained panes/drafts, Home/optional Converse, Options, motion preferences, eight interactive setup bubbles, playback mouth and two Agent sidebars plus Decisions inspection. [Pack behavior](character-packs.md), [ADR0059](adr/0059-home-and-optional-converse.md), [ADR0063](adr/0063-floating-setup-bubbles.md), [ADR0064](adr/0064-speech-mouth-playback.md), [ADR0065](adr/0065-agent-sidebars.md), [ADR0066](adr/0066-decisions-owner-window.md). | Full provider/setup editors, direct multimodal input, specialized expression/work artwork, newer identity-reference integration, broader device/voice/accessibility acceptance and a product Meta asset-generation workflow remain. Existing pack/native presentation persistence is real; older ADR limitations are superseded where later work explicitly implements it. |
 | **M6 — resources/reliability** [#9](https://github.com/rgoza1996/Kinaiya/issues/9) | Experimental owned-worker handoff, verified release/restoration, source-bound stop, admission and durable owner-off intent. Actual CPU voice and managed GPU Laya observations exist. [ADR0013](adr/0013-resource-handoff.md), [ADR0022](adr/0022-managed-laya-resources.md), [owner-intent evidence](../evaluation/evidence/converse-owner-intent-2026-10-27.json). | General GPU/Agent scheduling, allocator enforcement, constrained 8 GB/concurrent load, unmanaged model handoff, device loss and broader crash/uncertain-effect recovery remain. Larger development-GPU observations do not qualify the target; preserve unexplained ownership/readiness failures instead of weakening guards. |
-| **M7 — proactive work/notifications** [#10](https://github.com/rgoza1996/Kinaiya/issues/10) | The [native operating-mode prerequisite](adr/0105-agent-operating-modes.md) implements Off/on-demand admission and owner controls with local independent/runtime evidence; its final CI/review are tracked by #217. Task outcome notices and polling remain narrower mechanisms. [Options boundaries](options.md). | Standing responsibilities, source/event adapters, scheduling, attention policy, durable inbox, deduplication, quiet hours, missed-run handling and permitted notification/call escalation require implementation and verification. Autonomous remains unavailable until a real authorized standing-work producer exists. |
+| **M7 — proactive work/notifications** [#10](https://github.com/rgoza1996/Kinaiya/issues/10) | The [native operating-mode prerequisite](adr/0105-agent-operating-modes.md) implements Off/on-demand admission and owner controls; [PR227](https://github.com/rgoza1996/Kinaiya/pull/227) passed independent review, all five CI350 jobs and actual merge-tree verification. Task outcome notices and polling remain narrower mechanisms. [Options boundaries](options.md). | [#228](https://github.com/rgoza1996/Kinaiya/issues/228) is implementing timed responsibilities and an in-app inbox. Source/event adapters, attention policy, deduplication, quiet hours, missed-run handling and permitted notification/call escalation still need working integration and verification. Autonomous remains unavailable until a real authorized standing-work producer exists. |
 | **M8 — mobile calls** [#11](https://github.com/rgoza1996/Kinaiya/issues/11) | Experimental foundations: scoped pairing/revocation, foreground invitations/literal notes, companion client, Android/iOS build targets and private presentation storage. [ADR0045](adr/0045-scoped-companion-control.md), [ADR0046](adr/0046-foreground-companion-client.md), [ADR0048](adr/0048-native-app-foundation.md), [ADR0049](adr/0049-native-presentation-storage.md). | Owner controls [#125](https://github.com/rgoza1996/Kinaiya/issues/125), real duplex media, Telecom/CallKit/push, background/locked-screen delivery, device reconnect/audio routing and in-call interactive artifacts remain. `accepted_waiting_media` explicitly is not connected audio. Compiling Android/iOS does not pass a real-device call gate. |
 | **M9 — intelligent UI/external Agent** [#12](https://github.com/rgoza1996/Kinaiya/issues/12) | Bounded experimental native artifacts: Agent publishes nine declarative component types, authenticated persistent patches/actions and publication-only evidence; Converse displays the main-stage result with corner portrait/transcript, pin/close/reopen, optional fallback and unchanged audio ownership. [#165](https://github.com/rgoza1996/Kinaiya/issues/165), [ADR0068](adr/0068-intelligent-converse-artifacts.md), [contract](intelligent-ui-contract.md). | General live bindings, image/document/code viewers, automatic semantic relevance, real call/mobile media and a genuine external-Agent adapter remain. Ordinary controls and simulated design examples do not establish those capabilities. No OpenUI or LiveKit dependency is selected. |
 | **M10 — distribution/hardening** [#13](https://github.com/rgoza1996/Kinaiya/issues/13) | Selected hardening is implemented: authentication/disclosure, isolation and ownership fences, bounded transports/storage, native builds and extensive deterministic CI. [Threat model](security/threat-model.md), [CI](../.github/workflows/ci.yml). | Clean-machine installation/model setup, supported hardware/provider/platform matrix, production secret/update/recovery/migration/retention flows, licensing inventory and complete accessibility/security/performance release evidence remain. The application is experimental. |
@@ -301,6 +356,99 @@ and [broker regressions](../tests/integration/test_agent_retained_disclosure.py)
 Missing or over-bound provenance refuses the request rather than dropping a
 dependency. This does not qualify general repository work or a new model default.
 
+The November 1 [retrieval audit](../evaluation/evidence/agent-transcript-retrieval-gap-2026-11-01.json)
+remains an unchanged failure record: a complete 3,855-character stored entry
+produced a 2,000-character model-facing prefix without continuation or truncation
+labels. The later [#255](https://github.com/rgoza1996/Kinaiya/issues/255)
+integration adds [bounded transcript pages](agent-transcript-retrieval.md), exact
+resolved/immutable continuation, native fixed-highwater discovery and explicit
+legacy clipping. Decisions still selects immediate references; full transcript
+persistence and Agent's authorized on-demand retrieval remain independent.
+
+[Source-bound evidence](../evaluation/evidence/agent-transcript-paging-2026-11-01.json)
+records 595 codec and tool-contract cases passing at `16ec2b4` and 182 expanded
+transcript/runtime cases passing at `ff02f0c`. These groups share 92 cases and
+are not additive. A separate 296-case old-regression group at `166bee3` retained
+292 passes and four failures waiting two seconds for standing-client close to
+start. Plain four-case follow-ups passed on both source versions, and the two
+predecessor modules plus all 49 finalization-client cases passed 144/144. One
+instrumented pre-feature case reproduced the timeout after 2.075 seconds before
+close, including 2.068 seconds of CPU; actual cleanup then joined once. The trigger in the original
+296-case process remains unresolved; these follow-ups do not establish that all
+old regressions pass. Two additive scan schemas preserve all 190 earlier schemas
+byte for byte.
+
+This is integration evidence, not main or release qualification. The existing
+128 retained context roots, 256 provenance nodes and actual native export
+admission remain required; page checks are bounded asynchronous observations.
+No paid inference, live backend operation or model configuration change was part
+of this work. It does not qualify physical media, an Omni pipeline or M3.
+
+The subsequent [finalization context-cost repair](../evaluation/evidence/standing-finalization-context-cost-2026-11-01.json)
+at `15ea5117` passed the exact unchanged 296-case group, alongside separate 127
+contract/client and 96 native/Resources cases. These overlapping scopes do not
+establish full-project CI or reconstruct the earlier process's trigger. Complete
+validation and cleanup assertions remain required; the original failures remain
+preserved. The actual Resources report producer, durable physical witnesses and
+standing-work settlement chain are still unfinished.
+
+The draft integration now includes the actual [Resources binding and operation
+barrier](standing-work-api.md#resources-prework-binding-and-operation-barrier):
+Agent obtains a genuine prepared claim and Resources binding before new model
+allocation/admission, while Resources fences matching captures and retains their
+original HTTP/native/process cleanup owners. Historical bindings remain readable
+but cannot permit a new launch after restart or sealing. The final integrated
+180-case group passed at `e70a6e6`; the
+[verification record](../evaluation/evidence/standing-resource-barrier-2026-11-01.json)
+preserves original failures, strict-protocol fixture changes, independent review
+and overlapping qualification groups. A genuine repeated-shutdown regression is
+repaired without treating closed flags as cleanup proof. Exact-head full-project
+CI is still required in draft [PR #259](https://github.com/rgoza1996/Kinaiya/pull/259).
+Drained native context still supplies no physical report, settlement or
+claim/reservation release, and the remaining standing-work chain is unchanged.
+
+Agent's restoration notification now runs after the original worker and actual
+model cleanup end, with captured record/worker/lease/client guards. Shutdown
+retains each notification and its exact client's sole close operation; replacing
+the configured client cannot lose original cleanup. Pending and failed operations
+remain visible to the native workspace boundary, and task work evidence is
+preserved. The [post-worker completion contract](standing-work-api.md#agent-resource-completion-after-worker-retirement)
+and [evidence](../evaluation/evidence/agent-post-worker-resource-completion-2026-11-01.json)
+record 154 passing integrated cases at `e259c45`, including 24 independently
+frozen cases. Earlier failures and overlapping groups remain recorded. This is
+local runtime ordering, not full Agent retirement testimony or physical Resources
+finalization. Native settlement, active-claim release, recurrence and inbox work
+remain open; latest-head full-project CI is still required.
+
+The subsequent CI failure was reproduced as obsolete Resources test fixtures:
+eight router cases lacked the real coordinator composition boundary, and endpoint
+doubles lacked the native stream-close registry. The fixture-only correction
+preserves production code, all 102 original assertions, parameter sets and
+deadline/error checks. Its [evidence](../evaluation/evidence/resources-fixture-ownership-2026-11-01.json)
+retains the original 9 failures and 31 teardown errors, independent held/failed
+original-close controls, and 77 passing integrated cases at `ee758e7`. A pending
+close still prevents retirement and a failed close remains unavailable. This
+does not establish full-project CI, model readiness or physical finalization.
+
+The next full CI run at `9a1de6a` passed 10,140 Python3.11 cases but failed the
+unchanged four-second Resources handoff case; Python3.12 was cancelled. The
+original trigger remains unresolved. Read-only local phase observations and a
+profiler-induced timeout are retained without treating either as a reconstruction
+of that CI failure. A reviewed six-line change now reuses two compiled scalar
+validators while freshly validating every actual input; no payload, proof,
+authority or validation result is cached. At coherent source `15c222b`, the
+[qualification record](../evaluation/evidence/standing-ci-coherent-2026-11-01.json)
+records 215 passing Python cases and all 1,071 Flutter tests, plus analysis,
+format and an artifact-only web build. The Python group includes the unchanged
+four-second case and the reviewed Converse recovery fixture. These are harness
+checks with controlled responses, not model-accuracy tests. Passing intentional
+failed-cleanup cases demonstrates retained uncertainty, not positive retirement.
+The separately reviewed steering-fixture replay then passed all 69 native-mode
+cases at `8e345fa`; it changes no production code and is recorded separately from
+the 215-case run.
+Exact-head full-project CI and the physical/settlement/recurrence chain remain
+required; the disconnected preview is unchanged.
+
 ## Initial Agent submission durability
 
 The bounded [#199](https://github.com/rgoza1996/Kinaiya/issues/199) implementation
@@ -361,6 +509,19 @@ The owner prioritized the intermittent bubble CI failure and trailing-slash conn
 [#151](https://github.com/rgoza1996/Kinaiya/issues/151) adds one shared service-root normalizer at profile and client boundaries. Bare, trailing-slash and outer-whitespace spellings use identical Session/Agent/Converse paths; accepted reverse-proxy prefixes also survive WebSocket conversion. Invalid or ambiguous paths, URL credentials/query/fragment and port zero are rejected with bounded errors. Owner setup retains its remote-HTTPS requirement; authentication, disclosure and provider choices retain their existing contracts. [ADR0067](adr/0067-canonical-service-roots.md) maps client, setup, auxiliary APIs and real loopback WebSocket verification.
 
 Local evidence uses pinned Flutter 3.47.8: `flutter test --no-pub` passed 771 tests after the production fixes, before the final WebSocket test was added; `flutter test --no-pub test/events_service_root_test.dart test/service_root_test.dart` then passed all nine tests at the cutoff. `flutter analyze --no-pub` and 33 `node --test web/audio_bridge.test.js` tests passed. The loopback test runs actual HTTP upgrades and first-frame auth with synthetic data, without live Kinaiya services or paid inference. Full builds and exact-head CI are recorded in the associated PR rather than inferred from local test counts. This work does not change the running preview, production provider settings or milestone acceptance gates.
+
+Two later test-only repairs preserve production timing and actual ownership.
+[#273](https://github.com/rgoza1996/Kinaiya/issues/273) scopes an injected restart
+fault to the blocked append and retains the acquired response's original close;
+its full 158-case recovery module passed. [#277](https://github.com/rgoza1996/Kinaiya/issues/277)
+retains the genuine Session-read child inside the deliberately cancellation-resistant
+steering fixture, with an explicit delayed-read gate and the original whole
+50ms request bound. All 69 native-mode tests passed at `ec44121`. The
+[restart evidence](../evaluation/evidence/restart-barrier-fault-2026-11-01.json)
+and [steering evidence](../evaluation/evidence/steer-preflight-fixture-2026-11-01.json)
+retain original CI failures, controlled diagnostics, independent review and
+remaining limits. These are harness checks, not model-accuracy qualification;
+applicable exact-head CI is still required before merge.
 
 ## Optional Converse memory
 

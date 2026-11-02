@@ -1,0 +1,591 @@
+{
+  "requirement": "https://github.com/rgoza1996/Kinaiya/issues/228",
+  "parents": [
+    "https://github.com/rgoza1996/Kinaiya/issues/10",
+    "https://github.com/rgoza1996/Kinaiya/issues/208"
+  ],
+  "scope": "Actual internal Agent standing launch through existing supervised worker, fresh primary ownership, native file subset and full standing export admission. Actual SQLite/ASGI/Agent/files with synthetic measured inference; provider-wire checks use offline MockTransport. No scheduled producer, settlement, claim release, inbox or editor qualification.",
+  "implementation": {
+    "author_commit": "70181b178821ec2140bfc345b442d973cbaf127c",
+    "integrated_commit": "5f145432812a18115604629013de4c15951061b2",
+    "fixture_correction": "fc855eb032098d99c3fe330d95b0f43c4cc6b2d6",
+    "final_fresh_guard_fix": "67f1a762b6296934aa956f39a84377845ddacb78",
+    "typed_subset_fix": "b036653c21c2a5980228cabceac7f2e8f8a84d96",
+    "source_sha256": {
+      "services/agent/standing_runtime.py": "7824b30be2dd00f139d8ee0a2aa49e575b3b872276df2fd04312c51f286494f8",
+      "services/agent/runtime.py": "467e4f61c3f091016163e5b21015fe91d94ed49288cf6248f44171293fcaeb99",
+      "services/agent/model_settings.py": "e86f690472c8ab334ea5c5bf0f750408c24346fed77a93c0014c13206321dd3a",
+      "packages/contracts/agent_tools.py": "f6d604772cd1e85c9675f8e19d133e96bfdd43daeed0022def1f3e557732cbd8",
+      "packages/providers/meta_action_wire.py": "13e548ce0bf28b25c5cd0c553b1b3c95ac7ae7bafc431450728720813ea0e319"
+    },
+    "test_sha256": {
+      "tests/integration/test_standing_agent_runtime.py": "43d6fe17e28b50ea40766fcd82ba09599c17317a9f6e1ba6e11d5e5b7f27ad82",
+      "tests/integration/test_standing_worker_final_deadline.py": "637fcb40c736183c568fa39ba620faf1c708f2d711b9bdad11adb66a9930812b",
+      "tests/unit/test_standing_primary_selection.py": "38058cb1a3b02621a284c8972795d3575b3a67de9404324d1ab215c0f3d190af",
+      "tests/unit/test_standing_worker_tools.py": "b1ea9eb418bc09056b6474ee24623df6fba92e133abb8684633afeec3cd0c5c0",
+      "tests/unit/test_standing_typed_action_subset.py": "9d4922e4c7791688e225a9383ca13169158a7a3f520602eabb5c7e0dd827653e"
+    },
+    "frozen_interfaces": {
+      "v1_sha256": "ca5d018dd14716e238ac46e32083f538a7dd0fa330ed803ff926802ed5713728",
+      "qualification_supplement_sha256": "730f74f4c96b2d8eec7e03fffaab8e69c2b1978af1a9060284498b0e230fae51"
+    }
+  },
+  "independent_oracles": {
+    "runtime_tools49": {
+      "author_commit": "7057a810c2ba3870ab0535c151d90fb042298ab0",
+      "root_commit": "16a3abc433b57f4aace140fb3379751d1defd712",
+      "original_runtime_sha256": "f28480bc04290c1a563184abccae95db5de9600ff1739c49f1f3e152172411e0",
+      "tools_sha256": "b1ea9eb418bc09056b6474ee24623df6fba92e133abb8684633afeec3cd0c5c0",
+      "cold": {
+        "passed": 3,
+        "failed": 46,
+        "errors": 0,
+        "skipped": 0,
+        "junit_seconds": 22.282,
+        "command": [
+          "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+          "-B",
+          "-m",
+          "pytest",
+          "-q",
+          "-W",
+          "error",
+          "-p",
+          "no:cacheprovider",
+          "-o",
+          "asyncio_default_fixture_loop_scope=function",
+          "tests/integration/test_standing_agent_runtime.py",
+          "tests/unit/test_standing_worker_tools.py",
+          "--junitxml=/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/228-standing-runtime-cold-b55i_2sj/junit.xml"
+        ],
+        "exit_code": 1,
+        "head": "16a3abc433b57f4aace140fb3379751d1defd712",
+        "head_after": "16a3abc433b57f4aace140fb3379751d1defd712",
+        "test_pins_preserved": true,
+        "test_sha256": {
+          "tests/integration/test_standing_agent_runtime.py": "f28480bc04290c1a563184abccae95db5de9600ff1739c49f1f3e152172411e0",
+          "tests/unit/test_standing_worker_tools.py": "b1ea9eb418bc09056b6474ee24623df6fba92e133abb8684633afeec3cd0c5c0"
+        },
+        "evidence": {
+          "local_bundle": "228-standing-runtime-cold-b55i_2sj",
+          "junit.xml_sha256": "9a1210bada0004305afad8acd766ad810a01fc202c9974cdf75f055e5cfd0b07",
+          "manifest.json_sha256": "23c6c2f332403b9ec6890985c3f7dfba7ddbb3f416027abf6d83319476369ad5",
+          "receipt.json_sha256": "707bffc9c038b153685c02877132670f0b58304212899b3ef84b1d7754c01fd3"
+        }
+      },
+      "cold_classification": "46 absent worker/subset failures; 3 actual existing-capability controls passed.",
+      "freeze": {
+        "local_bundle": "228-standing-worker-oracles-86vwsaet",
+        "commit-manifest.json_sha256": "6839fdf9b8c1d39852a2b614141a6cf190b5d9bcded705f5917af73bdcbd2df4",
+        "commit-receipt.json_sha256": "5dbc4b44de000a0f83f95ab44b94358fe0269db590255fce4491a8a34987b53c",
+        "freeze-receipt.json_sha256": "2dd31c84e0cad3661efaa38205a1baf99b23d01b4ca9e4e362b2c655ef741e16",
+        "manifest.json_sha256": "57f5f5afae0d5d502bd78dfedc579212561d0678ed72c8f777961ddc929a3d97"
+      }
+    },
+    "primary24": {
+      "author_commit": "d02b6ae40768279d4ee06a6081aafc7b074d0f84",
+      "root_commit": "1f7863795e82780107ef6c9e057ed93d383a2343",
+      "cold": {
+        "passed": 8,
+        "failed": 16,
+        "errors": 0,
+        "skipped": 0,
+        "junit_seconds": 1.024,
+        "command": [
+          "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+          "-B",
+          "-m",
+          "pytest",
+          "-q",
+          "-W",
+          "error",
+          "-p",
+          "no:cacheprovider",
+          "-o",
+          "asyncio_default_fixture_loop_scope=function",
+          "tests/unit/test_standing_primary_selection.py",
+          "--junitxml=/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/228-standing-primary-cold-fpen7_x6/junit.xml"
+        ],
+        "exit_code": 1,
+        "head": "1f7863795e82780107ef6c9e057ed93d383a2343",
+        "head_after": "1f7863795e82780107ef6c9e057ed93d383a2343",
+        "test_pins_preserved": true,
+        "test_sha256": {
+          "tests/unit/test_standing_primary_selection.py": "38058cb1a3b02621a284c8972795d3575b3a67de9404324d1ab215c0f3d190af"
+        },
+        "evidence": {
+          "local_bundle": "228-standing-primary-cold-fpen7_x6",
+          "junit.xml_sha256": "6d647bf3da82bcf651f0fff00c2ad530ef49424e64b49a796599e01ca3790e20",
+          "manifest.json_sha256": "fd00a174479a202bc8b3092e04a99a820ef479324954d606f6a11d802163029b",
+          "receipt.json_sha256": "74a82427c25db1c141eecd1b9dd25fd6e830aeac34b567ba1ac1470db7e19015"
+        }
+      },
+      "cold_classification": "16 missing selection-API failures; 8 refusal-only cases already pass because the old method rejects the new keywords. These8 are not positive capability controls.",
+      "freeze": {
+        "local_bundle": "228-standing-primary-selection-oracles-x5knf4n4",
+        "manifest.json_sha256": "260dc7d41287f097a59b8a47a38a81ce01e6508809b5b9d28ac5abb706693f13",
+        "receipt.json_sha256": "ebe8bde311b2dcf6293018c1db4fb351133e7ac2f39f732338c1c223197980a0"
+      }
+    },
+    "frozen_before_root_consulted_implementation": true,
+    "first_unchanged73": {
+      "passed": 72,
+      "failed": 1,
+      "errors": 0,
+      "skipped": 0,
+      "junit_seconds": 70.515,
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-W",
+        "error",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "tests/integration/test_standing_agent_runtime.py",
+        "tests/unit/test_standing_worker_tools.py",
+        "tests/unit/test_standing_primary_selection.py",
+        "--junitxml=/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/228-standing-worker-first-885sz17_/junit.xml"
+      ],
+      "exit_code": 1,
+      "head": "5f145432812a18115604629013de4c15951061b2",
+      "head_after": "5f145432812a18115604629013de4c15951061b2",
+      "test_pins_preserved": true,
+      "test_sha256": {
+        "tests/integration/test_standing_agent_runtime.py": "f28480bc04290c1a563184abccae95db5de9600ff1739c49f1f3e152172411e0",
+        "tests/unit/test_standing_primary_selection.py": "38058cb1a3b02621a284c8972795d3575b3a67de9404324d1ab215c0f3d190af",
+        "tests/unit/test_standing_worker_tools.py": "b1ea9eb418bc09056b6474ee24623df6fba92e133abb8684633afeec3cd0c5c0"
+      },
+      "evidence": {
+        "local_bundle": "228-standing-worker-first-885sz17_",
+        "junit.xml_sha256": "39b2961981d5a3a53a0dad0262565c902b6bfc36593c64f2419ae31dd395b1f3",
+        "manifest.json_sha256": "46430a6668bfc9f35dcb94a7fb663e35b6c507729f25340e56e4a488cfc37812",
+        "receipt.json_sha256": "836b7d5f649e6046987901e194c4756fa0a2549f6bf10a85e2e98e7da57f5dc5"
+      }
+    },
+    "fixture_correction": {
+      "reason": "Ordinary assignment to the pre-existing frozen StandingExecutionTask raises frozen_instance before the detachment scenario. object.__setattr__ mutates that SAME caller-owned instance; the runtime must still retain the detached original.",
+      "original_sha256": "f28480bc04290c1a563184abccae95db5de9600ff1739c49f1f3e152172411e0",
+      "corrected_sha256": "43d6fe17e28b50ea40766fcd82ba09599c17317a9f6e1ba6e11d5e5b7f27ad82",
+      "assertions_unchanged": true,
+      "assertion_count": 116,
+      "production_source_unchanged": true,
+      "diagnosis_result_sha256": "ba931cd829255dd462c91b5b4561fe3cefef0edb1a44b2f637bdaa2c0943bf05",
+      "original_file_and_failure_preserved": true,
+      "independent_old_model_diagnosis": {
+        "local_bundle": "228-standing-worker-mutation-fixture-z7_tq0yt",
+        "manifest.json_sha256": "bd790a6cf5472dab249a54560fc1d7a2f247e4dba3b11d809f3053b69ab45bd6",
+        "primitive-result.json_sha256": "ba931cd829255dd462c91b5b4561fe3cefef0edb1a44b2f637bdaa2c0943bf05"
+      },
+      "correction_receipt": {
+        "local_bundle": "228-standing-worker-fixture-correction-1nfx0ful",
+        "manifest.json_sha256": "2347a51f5fa094fd7629dc0d0d8f8879d2b10279f766d711708f8753719d441d",
+        "receipt.json_sha256": "3d2dd55a0d0550c7cc232ae8edcf1861703afecd2b21e8c12050875c74c62258"
+      },
+      "individual_qualification": {
+        "passed": 1,
+        "failed": 0,
+        "errors": 0,
+        "skipped": 0,
+        "junit_seconds": 4.375,
+        "command": [
+          "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+          "-B",
+          "-m",
+          "pytest",
+          "-q",
+          "-W",
+          "error",
+          "-p",
+          "no:cacheprovider",
+          "-o",
+          "asyncio_default_fixture_loop_scope=function",
+          "tests/integration/test_standing_agent_runtime.py::test_caller_mutation_during_real_lookup_cannot_change_frozen_native_original",
+          "--junitxml=/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/228-standing-worker-mutation-corrected-phzflrjl/junit.xml"
+        ],
+        "exit_code": 0,
+        "head": "fc855eb032098d99c3fe330d95b0f43c4cc6b2d6",
+        "head_after": "fc855eb032098d99c3fe330d95b0f43c4cc6b2d6",
+        "test_pins_preserved": true,
+        "test_sha256": {
+          "tests/integration/test_standing_agent_runtime.py": "43d6fe17e28b50ea40766fcd82ba09599c17317a9f6e1ba6e11d5e5b7f27ad82"
+        },
+        "evidence": {
+          "local_bundle": "228-standing-worker-mutation-corrected-phzflrjl",
+          "junit.xml_sha256": "ec3a9cfa452f534de364b66fea583afa495e7ecf0525c2d31768d7a9bbd1ad53",
+          "manifest.json_sha256": "eaf4d69d39a40cec6a818a38aa04d7a4ce9773ddfe09c34497c2223d8388eea0",
+          "receipt.json_sha256": "14b760166f2f3802f363785a1d80f6f472fee780a6aa244025b6e04ceca42b40"
+        }
+      }
+    },
+    "all_other_oracle_bytes_and_all116_runtime_assertions_preserved": true
+  },
+  "independent_review_findings": {
+    "final_validation_deadline": {
+      "severity": "P2",
+      "finding": "Freshness guard preceded synchronous native workspace/model/permission checks; a final check completing after the cutoff could still create the worker.",
+      "source_review": {
+        "local_bundle": "228-independent-standing-worker-source-8khnhjeb",
+        "manifest.json_sha256": "f8d9c378d4836b3097f927eb4613a12b922eaec15d2e45579790ab1c869ad0b6",
+        "receipt.json_sha256": "670e6d673a18ab03f8dd8ee0683686ea1ed722983dd9ac5ac1daa4a345646802"
+      },
+      "additional_frozen3_author_commit": "7c371fb469b78967af515589e92072ad6c5ff031",
+      "additional_frozen3_root_commit": "cf021aa4647135753ae93c1358905eac63d0b9fa",
+      "freeze": {
+        "local_bundle": "228-standing-worker-final-deadline-n471dh9p",
+        "freeze-receipt.json_sha256": "c9df5180ad395016c80549a2a39ef94c3dae159371243c65fc12c159a5c72bda",
+        "manifest.json_sha256": "16a06cd649a66d70e88a30389d3b8c8bc36296a4164d1ef488dee92e44400609"
+      },
+      "actual_red": {
+        "passed": 1,
+        "failed": 2,
+        "errors": 0,
+        "skipped": 0,
+        "junit_seconds": 6.452,
+        "command": [
+          "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+          "-B",
+          "-m",
+          "pytest",
+          "-q",
+          "-W",
+          "error",
+          "-p",
+          "no:cacheprovider",
+          "-o",
+          "asyncio_default_fixture_loop_scope=function",
+          "tests/integration/test_standing_worker_final_deadline.py",
+          "--junitxml=/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/228-standing-final-fresh-red-t6ot915e/junit.xml"
+        ],
+        "exit_code": 1,
+        "head": "cf021aa4647135753ae93c1358905eac63d0b9fa",
+        "head_after": "cf021aa4647135753ae93c1358905eac63d0b9fa",
+        "test_pins_preserved": true,
+        "test_sha256": {
+          "tests/integration/test_standing_worker_final_deadline.py": "637fcb40c736183c568fa39ba620faf1c708f2d711b9bdad11adb66a9930812b"
+        },
+        "evidence": {
+          "local_bundle": "228-standing-final-fresh-red-t6ot915e",
+          "junit.xml_sha256": "e87a1907dec99960a809b223a2a9ed337bbe05b2a1ce78d9c6597167ade9a230",
+          "manifest.json_sha256": "4a9a60d4c2aa7409ccf314bd47d225ebb12cec91de1696b7388cc5a168372e92",
+          "receipt.json_sha256": "2dd817846f21acfd287cdc00525583854b62d5d38f325cf24c1af80c229c78af"
+        }
+      },
+      "instrumentation": "Real native committed initial and actual post-ACK Session response, then only helper-scoped monotonic +26 after successful final workspace or model validation. Global/asyncio clocks unchanged. Same-point0 timely control executes actual files.",
+      "source_fix": "Exactly one final self.guard() after all successful freshness validation; no new/reset deadline.",
+      "final_static_review": {
+        "local_bundle": "228-independent-worker-final-guard-nci2enhv",
+        "manifest.json_sha256": "3f9961f21fb6cdeecdd62e114e2d4483e89fd1557b8b9b9d6f70c4dff6320ac8",
+        "receipt.json_sha256": "1055b788447839c9c1a37ade7ecaabfd0eee1c8d8228aab282595c8297bf168d"
+      },
+      "final_actionable_findings": 0
+    },
+    "typed_provider_subset": {
+      "severity": "P2",
+      "finding": "Meta typed-v2 schema/decoder rebuilt NativeToolSnapshot from only its tuple and lost standing task subset/owner mask. Default flat-v1 did not expose this supported-provider gap.",
+      "source_review": {
+        "local_bundle": "228-standing-selection-tools-source-review-vjeywh74",
+        "manifest.json_sha256": "b82b4a2a3aa9de53edf02a733659ab83fc33ee8188e9539cb7c99f8276ae00c1",
+        "receipt.json_sha256": "21c2a2a6cc36cbe977340288842a4217e5890462ddd2aacb1c358c255423a7d3"
+      },
+      "additional_frozen15_author_commit": "73b4eb28ecc6b31ef888505dbdec7ed0bb527dbe",
+      "additional_frozen15_root_commit": "92b5d13e05b7dadf44799f7f86517fc8b0efd5f4",
+      "freeze": {
+        "local_bundle": "228-standing-typed-action-oracles-4qfnw4r8",
+        "manifest.json_sha256": "aeb751654239286c3961c9d224f260bc72d0bce0d2a645b7beac84b064dde129",
+        "receipt.json_sha256": "1ff9d11714cab23e7ab819154fd2e827b2534faa46eb67755939703322e23a32"
+      },
+      "actual_red": {
+        "passed": 5,
+        "failed": 10,
+        "errors": 0,
+        "skipped": 0,
+        "junit_seconds": 0.559,
+        "command": [
+          "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+          "-B",
+          "-m",
+          "pytest",
+          "-q",
+          "-W",
+          "error",
+          "-p",
+          "no:cacheprovider",
+          "-o",
+          "asyncio_default_fixture_loop_scope=function",
+          "tests/unit/test_standing_typed_action_subset.py",
+          "--junitxml=/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/228-standing-typed-subset-red-x9mjj3aj/junit.xml"
+        ],
+        "exit_code": 1,
+        "head": "92b5d13e05b7dadf44799f7f86517fc8b0efd5f4",
+        "head_after": "92b5d13e05b7dadf44799f7f86517fc8b0efd5f4",
+        "test_pins_preserved": true,
+        "test_sha256": {
+          "tests/unit/test_standing_typed_action_subset.py": "9d4922e4c7791688e225a9383ca13169158a7a3f520602eabb5c7e0dd827653e"
+        },
+        "evidence": {
+          "local_bundle": "228-standing-typed-subset-red-x9mjj3aj",
+          "junit.xml_sha256": "81e8758506f67ac809443213f3179dd439260fddb50c8daae335405743b96570",
+          "manifest.json_sha256": "9c7d528760c57842a2f4502859ddcce4037889d781cb570777f4500ed06fbf16",
+          "receipt.json_sha256": "37c294e161d194abee976519a7d34f1648238954647283e5828d52bc029abbe5"
+        }
+      },
+      "source_fix": "One formatter helper/import only: exact current native snapshot and tuple match, full strict snapshot metadata revalidation. Unbound old tuple path stays unchanged; no inference of a standing selection from three bare names.",
+      "final_static_review": {
+        "local_bundle": "228-standing-typed-selection-fix-review-pqf06h2l",
+        "manifest.json_sha256": "78d4788a4d982db08679ce1530834507a5dbadded295077fe58a262cbfeb503b",
+        "receipt.json_sha256": "0aeeb032b551be0275b4ece474bcb878bb5412d018ad5ee0012930ac03ffe5f5"
+      },
+      "final_actionable_findings": 0
+    },
+    "method": "Separate Codex read-only source reviews; no review suite/probe execution, human approval or certification claim.95 other runtime method ASTs and old source around authorized deltas preserved."
+  },
+  "qualification": {
+    "worker_ownership_cases": {
+      "passed": 76,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "junit_seconds": 79.668,
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-W",
+        "error",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "tests/integration/test_standing_agent_runtime.py",
+        "tests/unit/test_standing_worker_tools.py",
+        "tests/unit/test_standing_primary_selection.py",
+        "tests/integration/test_standing_worker_final_deadline.py",
+        "--junitxml=/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/228-standing-worker-qualified-abgeikc6/junit.xml"
+      ],
+      "exit_code": 0,
+      "head": "67f1a762b6296934aa956f39a84377845ddacb78",
+      "head_after": "67f1a762b6296934aa956f39a84377845ddacb78",
+      "test_pins_preserved": true,
+      "test_sha256": {
+        "tests/integration/test_standing_agent_runtime.py": "43d6fe17e28b50ea40766fcd82ba09599c17317a9f6e1ba6e11d5e5b7f27ad82",
+        "tests/integration/test_standing_worker_final_deadline.py": "637fcb40c736183c568fa39ba620faf1c708f2d711b9bdad11adb66a9930812b",
+        "tests/unit/test_standing_primary_selection.py": "38058cb1a3b02621a284c8972795d3575b3a67de9404324d1ab215c0f3d190af",
+        "tests/unit/test_standing_worker_tools.py": "b1ea9eb418bc09056b6474ee24623df6fba92e133abb8684633afeec3cd0c5c0"
+      },
+      "evidence": {
+        "local_bundle": "228-standing-worker-qualified-abgeikc6",
+        "junit.xml_sha256": "bc01213465729f5bdbfb1219510b6364828de3744f874dc9c4d9377f695d5501",
+        "manifest.json_sha256": "6b9c3f82f28c707571236ae8fd4567735e28fdc20b73052379ac3bce66bb26a6",
+        "receipt.json_sha256": "f691ee39e781e15a8f1aea8cdbadb7326584ca1bdbc1b68ba0bccaebd4b87265"
+      }
+    },
+    "typed_subset_and_affected_existing_provider_cases": {
+      "passed": 370,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "junit_seconds": 19.012,
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-W",
+        "error",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "tests/unit/test_standing_typed_action_subset.py",
+        "tests/unit/test_meta_typed_action_wire.py",
+        "tests/integration/test_meta_typed_actions.py",
+        "--junitxml=/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/228-standing-typed-subset-qualified-ke5fdykt/junit.xml"
+      ],
+      "exit_code": 0,
+      "head": "b036653c21c2a5980228cabceac7f2e8f8a84d96",
+      "head_after": "b036653c21c2a5980228cabceac7f2e8f8a84d96",
+      "test_pins_preserved": true,
+      "test_sha256": {
+        "tests/integration/test_meta_typed_actions.py": "3871b2580d9a31fbc6da8c26a64c6f080eb1e56f6106b8638b515db938d118ae",
+        "tests/unit/test_meta_typed_action_wire.py": "8d4fc842d7d42e6b26e1a8ce05ce0a7db03c79aacd62d951247f7c57c8b333f3",
+        "tests/unit/test_standing_typed_action_subset.py": "9d4922e4c7791688e225a9383ca13169158a7a3f520602eabb5c7e0dd827653e"
+      },
+      "evidence": {
+        "local_bundle": "228-standing-typed-subset-qualified-ke5fdykt",
+        "junit.xml_sha256": "09881b0845aa9c51394eab14099b9ce8abab3963b0e8e2c4c3c4333b373fa9f3",
+        "manifest.json_sha256": "c09b2f1421645f6e3d7c62b43d6f6b671ae08d58c3543c654172083e308e36f3",
+        "receipt.json_sha256": "a357b1321702115ec706b4ddd42536b839ca058ed422821f2d3630787877fcca"
+      }
+    },
+    "existing_agent_model_workspace_context_and_provider_cases_before_final_narrow_fixes": {
+      "passed": 729,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "junit_seconds": 35.918,
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-W",
+        "error",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "tests/unit/test_agent_runtime.py",
+        "tests/unit/test_agent_tools.py",
+        "tests/unit/test_model_settings_bound_authority.py",
+        "tests/unit/test_meta_typed_action_wire.py",
+        "tests/integration/test_meta_typed_actions.py",
+        "tests/integration/test_agent_context_admission.py",
+        "tests/integration/test_execution_catalog_cleanup.py",
+        "tests/integration/test_auxiliary_models.py",
+        "tests/integration/test_agent_workspace.py",
+        "tests/integration/test_agent_submit_recovery_authority.py",
+        "--junitxml=/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/228-standing-worker-old-regressions-sm4zmswe/junit.xml"
+      ],
+      "exit_code": 0,
+      "head": "fc855eb032098d99c3fe330d95b0f43c4cc6b2d6",
+      "head_after": "fc855eb032098d99c3fe330d95b0f43c4cc6b2d6",
+      "test_pins_preserved": true,
+      "test_sha256": {
+        "tests/integration/test_agent_context_admission.py": "543090c82d2f0781c33d617658063afa02630b4affb45eaf095d09d5c8e83962",
+        "tests/integration/test_agent_submit_recovery_authority.py": "4e2d147d516d6248762b1a9549e428289593aab4f47dc698e6f922696d3c0e1d",
+        "tests/integration/test_agent_workspace.py": "9f321289de40809440bdcf7ca320ce98747e51be3b4bc8c9409303657f65708f",
+        "tests/integration/test_auxiliary_models.py": "2cff8937a12886c2514d194b8700dfc6d901fb22232a907554fe4a1efcd28050",
+        "tests/integration/test_execution_catalog_cleanup.py": "a5eb8b123f086ea31e6c0fa48a573e5635f0597b4400eb3a347d0f7849fc3043",
+        "tests/integration/test_meta_typed_actions.py": "3871b2580d9a31fbc6da8c26a64c6f080eb1e56f6106b8638b515db938d118ae",
+        "tests/unit/test_agent_runtime.py": "a71b5844974b896cf39e943d74204b072d7daba57f931be6c8425eeddc8c635f",
+        "tests/unit/test_agent_tools.py": "6d4b64a390999ac2bc030f73270ede6c23dd933b8df010101e90e5b8f98b67f1",
+        "tests/unit/test_meta_typed_action_wire.py": "8d4fc842d7d42e6b26e1a8ce05ce0a7db03c79aacd62d951247f7c57c8b333f3",
+        "tests/unit/test_model_settings_bound_authority.py": "6cf58aeaa92ff108fb9a2f2363472b37953e853175b8b375bcc4b3b9c932a3e4"
+      },
+      "evidence": {
+        "local_bundle": "228-standing-worker-old-regressions-sm4zmswe",
+        "junit.xml_sha256": "83d01affd5202b65a989957b2fc53ed4bf4440825af10700003ec6f8aa0d4216",
+        "manifest.json_sha256": "979b8fcae3d0b45dfc20d7323452af304da703c9c2558e3c04f60cc440c04ffa",
+        "receipt.json_sha256": "71deb1a1b95067fb12c8adb1907c896e9d784a28a15cf973ab3df3045d1e789d"
+      }
+    },
+    "counting": "These are separate runs with overlap; do not add76+370+729 as unique cases.76 covers runtime/tools/primary/deadline oracles;370 covers15 new typed cases plus355 old codec/provider cases, also present in729.",
+    "warnings_as_errors": true,
+    "scoped_final_static_checks": {
+      "head": "b036653c21c2a5980228cabceac7f2e8f8a84d96",
+      "checks": [
+        {
+          "command": [
+            "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/ruff",
+            "check",
+            "services/agent/standing_runtime.py",
+            "services/agent/runtime.py",
+            "services/agent/model_settings.py",
+            "packages/contracts/agent_tools.py",
+            "packages/providers/meta_action_wire.py",
+            "tests/integration/test_standing_agent_runtime.py",
+            "tests/integration/test_standing_worker_final_deadline.py",
+            "tests/unit/test_standing_worker_tools.py",
+            "tests/unit/test_standing_primary_selection.py",
+            "tests/unit/test_standing_typed_action_subset.py"
+          ],
+          "exit_code": 0
+        },
+        {
+          "command": [
+            "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/ruff",
+            "format",
+            "--check",
+            "services/agent/standing_runtime.py",
+            "services/agent/runtime.py",
+            "services/agent/model_settings.py",
+            "packages/contracts/agent_tools.py",
+            "packages/providers/meta_action_wire.py",
+            "tests/integration/test_standing_agent_runtime.py",
+            "tests/integration/test_standing_worker_final_deadline.py",
+            "tests/unit/test_standing_worker_tools.py",
+            "tests/unit/test_standing_primary_selection.py",
+            "tests/unit/test_standing_typed_action_subset.py"
+          ],
+          "exit_code": 0
+        },
+        {
+          "command": [
+            "git",
+            "diff",
+            "--check"
+          ],
+          "exit_code": 0
+        },
+        {
+          "command": [
+            "git",
+            "diff",
+            "--exit-code",
+            "d6b82c316892a8a0d5d9dbd704c73c4db98d59cf",
+            "--",
+            "packages/contracts/schemas",
+            "scripts/export_contracts.py"
+          ],
+          "exit_code": 0
+        }
+      ],
+      "pins": {
+        "services/agent/standing_runtime.py": "7824b30be2dd00f139d8ee0a2aa49e575b3b872276df2fd04312c51f286494f8",
+        "services/agent/runtime.py": "467e4f61c3f091016163e5b21015fe91d94ed49288cf6248f44171293fcaeb99",
+        "services/agent/model_settings.py": "e86f690472c8ab334ea5c5bf0f750408c24346fed77a93c0014c13206321dd3a",
+        "packages/contracts/agent_tools.py": "f6d604772cd1e85c9675f8e19d133e96bfdd43daeed0022def1f3e557732cbd8",
+        "packages/providers/meta_action_wire.py": "13e548ce0bf28b25c5cd0c553b1b3c95ac7ae7bafc431450728720813ea0e319",
+        "tests/integration/test_standing_agent_runtime.py": "43d6fe17e28b50ea40766fcd82ba09599c17317a9f6e1ba6e11d5e5b7f27ad82",
+        "tests/integration/test_standing_worker_final_deadline.py": "637fcb40c736183c568fa39ba620faf1c708f2d711b9bdad11adb66a9930812b",
+        "tests/unit/test_standing_worker_tools.py": "b1ea9eb418bc09056b6474ee24623df6fba92e133abb8684633afeec3cd0c5c0",
+        "tests/unit/test_standing_primary_selection.py": "38058cb1a3b02621a284c8972795d3575b3a67de9404324d1ab215c0f3d190af",
+        "tests/unit/test_standing_typed_action_subset.py": "9d4922e4c7791688e225a9383ca13169158a7a3f520602eabb5c7e0dd827653e"
+      }
+    },
+    "scoped_final_static_evidence": {
+      "local_bundle": "228-standing-worker-static-0vjd84sd",
+      "manifest.json_sha256": "4636e396e247bc26fedace75977c5efc767154a72d9c97f59325475872c9ba65",
+      "receipt.json_sha256": "200ba3fb1eafa056ecd5d8091ea44f8ccfb569e1d213c8d3e5a6f679584212a4"
+    }
+  },
+  "verified_behavior": [
+    "Production JournalClient and actual native ASGI/auth/SQLite create one standing initial, run the actual Agent read/write/finish loop, verify file SHA/evidence and publish native success with Converse absent.",
+    "Retained lookup precedes selection; exact direct created ACK plus same live private RAM attempt is the only launch opportunity. Duplicate, lost/malformed/late replies, cancellation, close and retained restart do not relaunch or overwrite another Task.",
+    "Full actual graph/private capability validation before capture; exact current Session/workspace/harness/model pin, real primary TaskModelLease and existing permission/disclosure policy. No shared adapter adoption, auxiliary capture or ordinary submit/control impersonation.",
+    "Distinct task subset intersects real owner mask and is enforced at dispatch and actual broker, including permissions-owner absent. Full count/generation standing proof binding prevents ordinary export fallback.",
+    "Real25-second resistant-created-response test plus deterministic final synchronous validation cutoff. Retained operations outlive abandoned callers without late launch.",
+    "Native completion can precede actual model close. The real worker/finally remains owned while close is gated, and ProviderCleanupError remains sticky after later successful close. Native unresolved claim remains throughout.",
+    "Actual Meta typed-v2 adapter uses offline MockTransport for measured count/generation, exact uploaded-body digest callback binding, same-task decoding, exact response close and refusal envelopes; no live provider inference."
+  ],
+  "author_probes": {
+    "groups": 6,
+    "evidence": {
+      "local_bundle": "codex-228-standing-worker-j93e6pol",
+      "manifest.json_sha256": "5f74eec5d05839c35dea04eda9d9c30f46a5c53553fab0879dec606e4554d606",
+      "receipt.json_sha256": "da0965f2381a89acdbed23c936e9e73f363705f0c9b133d009fcc7391176b9bd"
+    },
+    "scope": "Separate compact actual native file/held-finally/retained duplicate, sticky cleanup, resistant cancellation/late-created, alias/invalid input and injected elapsed-cutoff scenarios. Not the independent oracle suite.",
+    "preserved_probe_failure": "Initial actual-workflow final row assertion compared sqlite3.Row with tuples. Probe projection corrected only; native work had reached success and production source did not change for that correction. Original probe/log retained.",
+    "ownership_preservation": "Author sealed726 pre-existing ignored artifacts unchanged."
+  },
+  "limits": [
+    "This is reviewable integration-branch work, not merged/live preview or complete228 acceptance. No full-project CI/feature PR at this prerequisite boundary.",
+    "No running recurrence/producer, standing Stop/steering/restart Task-hydration adapter, positive worker/effect/Resources settlement, claim/slot release, inbox or embedded owner editor.",
+    "Resources-enabled execution is not removed from scope. Existing generic task_finished.ok is insufficient; exact full-original native lease/no-lease fence remains required in239 before positive standing settlement.",
+    "Synthetic measured inference and MockTransport do not prove live model quality, network latency, physical hardware or realtime speech readiness.",
+    "No new live provider/device/model/network test, paid allowance, dependency/configuration change or promotion of8780/8782/8808. Cumulative Meta25/OpenRouter10 ceilings and prior reservations remain unchanged; zero new billable inference calls.",
+    "All12 Options groups and additive roadmap/handoff obligations remain in scope; no full-goal completion claim."
+  ],
+  "resource_settlement_dependency": "https://github.com/rgoza1996/Kinaiya/issues/239#issuecomment-6558355459",
+  "next": "Join exact positive worker/effect/resource settlement and native admission-close fencing, then wire trusted recurrence, durable deduplicated inbox and the owner editor into a working228 acceptance chain."
+}
