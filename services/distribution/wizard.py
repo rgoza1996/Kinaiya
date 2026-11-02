@@ -10,6 +10,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from services.distribution.installation import InstallError, setup
+from services.distribution.terminal import open_terminal
 
 MASCOT = r"""          .-.( * ).
      ~~~ / ~   .-`\
@@ -36,7 +37,7 @@ def run_wizard(layout, *, tty=None):
     """Use the controlling terminal, so piping the bootstrap cannot consume consent."""
     if tty is None:
         try:
-            with open("/dev/tty", "r+", encoding="utf-8", buffering=1) as terminal:
+            with open_terminal() as terminal:
                 return run_wizard(layout, tty=terminal)
         except OSError:
             raise InstallError(

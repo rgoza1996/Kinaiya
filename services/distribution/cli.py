@@ -24,6 +24,7 @@ from services.distribution.installation import (
     source_artifact,
     update_plan,
 )
+from services.distribution.terminal import open_terminal
 
 
 def configure(commands):
@@ -145,7 +146,7 @@ def confirm(yes, message):
     if yes:
         return
     try:
-        with open("/dev/tty", "r+", encoding="utf-8", buffering=1) as tty:
+        with open_terminal() as tty:
             tty.write("Type yes to continue: ")
             if tty.readline().strip() == "yes":
                 return
