@@ -443,6 +443,9 @@ format and an artifact-only web build. The Python group includes the unchanged
 four-second case and the reviewed Converse recovery fixture. These are harness
 checks with controlled responses, not model-accuracy tests. Passing intentional
 failed-cleanup cases demonstrates retained uncertainty, not positive retirement.
+The separately reviewed steering-fixture replay then passed all 69 native-mode
+cases at `8e345fa`; it changes no production code and is recorded separately from
+the 215-case run.
 Exact-head full-project CI and the physical/settlement/recurrence chain remain
 required; the disconnected preview is unchanged.
 

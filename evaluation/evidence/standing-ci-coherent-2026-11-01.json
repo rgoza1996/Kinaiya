@@ -237,6 +237,40 @@
       "path": ".dev-run/259-ci-coherent-215-v1/cleanup-negative-count-addendum.json",
       "sha256": "4a194228bf00e0d740602e18ed63eae54fed3471778e9a83009e2c980df4aea2",
       "availability": "Retained locally; original215receipt/logs unchanged"
+    },
+    "later_steering69": {
+      "owner": "integration",
+      "path": ".dev-run/228-277-steer-coherent-lo_conaa/receipt.json",
+      "sha256": "efc0a2f66e107751de9ee47a09403f60509807d5510305944a0e59a8a921619b",
+      "availability": "Retained locally; raw artifacts are not published by this summary"
     }
+  },
+  "later_steering_fixture": {
+    "issue": "https://github.com/rgoza1996/Kinaiya/issues/277",
+    "public_evidence": "evaluation/evidence/steer-preflight-fixture-2026-11-01.json",
+    "source_replay_commits": [
+      "1ff34927a497385ce85551fb2ea869d0a99c5895",
+      "8e345faab263e6737828d9d7d92f77757afc6c88"
+    ],
+    "qualified_head": "8e345faab263e6737828d9d7d92f77757afc6c88",
+    "passed": 69,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "warnings": 0,
+    "pytest_seconds": 8.81,
+    "all_tracked_pins_stable": 1432,
+    "note": "Separate full native-mode module, not a combined run with215 or a full-project CI pass. Production source is unchanged; prior Python215 and Flutter1071 artifacts remain pinned to their original head.",
+    "fixture_sha256": "6044fdb1bf819c9c0924f624e521b71e13823f3af8e2622f0483c818e2946484"
+  },
+  "later_main_merge": "90c9d89d1c725c31c7ea32e0722b670a4d3e1b82; reviewed bubble fixture matches already qualified source, only its public evidence is newly added.",
+  "publication_checks": {
+    "whole_project_ruff": "Passed",
+    "whole_project_format": "744 files already formatted",
+    "schema_export": "Passed, no schema diff",
+    "git_diff_check": "Passed",
+    "python215_input_pins_still_exact": true,
+    "flutter335_app_pins_still_exact": true,
+    "native_d1_absent": true
   }
 }
