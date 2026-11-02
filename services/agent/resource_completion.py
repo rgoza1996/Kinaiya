@@ -58,6 +58,7 @@ class StandingClaimOwner:
         self.preflight = self.worker = self.operation = None
         self.attempt = self.record = self.lease = None
         self.claim = self.binding = self.created = self.closure = self.receipt = None
+        self.outcome = None
         self.request = None
         self.bind_operation = None
         self.binding_started = False
@@ -120,6 +121,31 @@ class StandingClaimOwner:
         self.worker = task
         self.scope.retain_task(task)
         task.add_done_callback(self._work_done)
+
+    def capture_outcome(self, request, entry):
+        from services.agent.standing_outcome import capture_outcome
+
+        # A late acknowledgement is knowledge even after fresh effects have
+        # been fenced. Original controls (for example approval denial) may
+        # publish too, while still retained in this claim's work scope.
+        if (
+            self.created is None
+            or self.worker is None
+            or self.record is None
+            or self.record.standing_owner is not self
+            or self.record.task.task_id != self.original.task.task_id
+            or (
+                asyncio.current_task() is not self.worker
+                and asyncio.current_task() not in self.scope.handles
+            )
+        ):
+            raise StandingUnavailable
+        captured = capture_outcome(self.original, self.created, request, entry)
+        if self.outcome is not None and (
+            self.outcome.request != captured.request or self.outcome.entry != captured.entry
+        ):
+            raise StandingUnavailable
+        self.outcome = captured
 
     def _work_done(self, task):
         if task is self.worker and (task.cancelled() or task.exception() is not None):

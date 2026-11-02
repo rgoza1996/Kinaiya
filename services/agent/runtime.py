@@ -802,9 +802,12 @@ class AgentRuntime:
         return owner.journal if owner is not None and owner.runtime is self else self.journal
 
     async def _append(self, rec: _Record, kind: str, payload: dict[str, Any]) -> None:
-        entry = await self._claim_journal(rec).append(self._append_request(rec, kind, payload))
+        request = self._append_request(rec, kind, payload)
+        entry = await self._claim_journal(rec).append(request)
         if kind == "agent.command" and payload.get("op") == "submit":
             rec.submit_sequence = entry.sequence
+        elif kind == "agent.outcome" and rec.standing_owner is not None:
+            rec.standing_owner.capture_outcome(request, entry)
 
     def _outcome_payload(self, rec: _Record, state: str, extra: dict[str, Any]) -> dict[str, Any]:
         """Complete task snapshot for a terminal/awaiting outcome entry."""
@@ -3517,8 +3520,13 @@ class AgentRuntime:
         )
         rec.completion_pending = True
         try:
+            receipt_options = (
+                {"on_confirmed": rec.standing_owner.capture_outcome}
+                if rec.standing_owner is not None
+                else {}
+            )
             confirmed = await append_completion(
-                self._claim_journal(rec), body, after=rec.submit_sequence
+                self._claim_journal(rec), body, after=rec.submit_sequence, **receipt_options
             )
         except (Exception, asyncio.CancelledError):
             # The POST may have committed. A stop/shutdown or unavailable

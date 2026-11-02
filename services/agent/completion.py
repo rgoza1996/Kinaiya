@@ -33,7 +33,21 @@ def _matches(entry: JournalEntry, request: AppendRequest, after: int) -> bool:
     )
 
 
-async def _read_back(journal: Journal, request: AppendRequest, after: int) -> bool:
+def _confirmed(request, entry, on_confirmed):
+    if on_confirmed is not None:
+        try:
+            # The observer captures this exact positive receipt synchronously.
+            # An observer failure is uncertainty, never a reason to POST again.
+            if on_confirmed(request, entry) is not None:
+                return False
+        except Exception:
+            return False
+    return True
+
+
+async def _read_back(
+    journal: Journal, request: AppendRequest, after: int, on_confirmed=None
+) -> bool:
     cursor = after
     for _ in range(READBACK_MAX_PAGES):
         page = await journal.read(
@@ -57,19 +71,24 @@ async def _read_back(journal: Journal, request: AppendRequest, after: int) -> bo
             ):
                 return False
             previous = entry.sequence
-        if any(_matches(entry, request, after) for entry in page):
-            return True
+        for entry in page:
+            if _matches(entry, request, after):
+                return _confirmed(request, entry, on_confirmed)
         cursor = previous
     return False
 
 
-async def append_completion(journal: Journal, request: AppendRequest, *, after: int) -> bool:
+async def append_completion(
+    journal: Journal, request: AppendRequest, *, after: int, on_confirmed=None
+) -> bool:
     """Append once, then accept only its exact acknowledged/read-back receipt.
 
     False means unconfirmed, never permission to append another outcome. Only
     ordinary exceptions are sanitized; cancellation propagates to the caller's
     conservative shutdown path. All remote operations use the Journal adapter's
     existing bounded transport; read-back has an additional total deadline.
+    The optional synchronous observer retains the exact confirmed request and
+    entry. Its failure preserves uncertainty without another publication.
     """
     if (
         not isinstance(request, AppendRequest)
@@ -77,16 +96,20 @@ async def append_completion(journal: Journal, request: AppendRequest, *, after: 
         or len(request.task_refs) != 1
         or type(after) is not int
         or after < 0
+        or on_confirmed is not None
+        and not callable(on_confirmed)
     ):
         return False
+    matched = False
     try:
         entry = await journal.append(request)
-        if _matches(entry, request, after):
-            return True
+        matched = _matches(entry, request, after)
     except Exception:
         pass
+    if matched:
+        return _confirmed(request, entry, on_confirmed)
     try:
         async with asyncio.timeout(READBACK_TIMEOUT_S):
-            return await _read_back(journal, request, after)
+            return await _read_back(journal, request, after, on_confirmed)
     except Exception:
         return False
