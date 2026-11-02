@@ -135,7 +135,20 @@ async def test_snapshot_observes_held_original_without_advancing_real_handoff(ha
     finally:
         gateway.release.set()
 
-    result = await asyncio.wait_for(task, 4)
+    try:
+        result = await asyncio.wait_for(task, 4)
+    except TimeoutError as error:
+        try:
+            error.add_note(
+                "Handoff timeout observation: "
+                + json.dumps(snapshot(env, capture), ensure_ascii=True, separators=(",", ":"))
+            )
+        except BaseException as diagnostic:
+            try:
+                error.add_note("Handoff observation unavailable: " + type(diagnostic).__name__[:64])
+            except BaseException:
+                pass
+        raise
     assert result["ok"] and result["policy"]["phase"] == "local_work"
     assert result["policy"]["required_bytes"] == env.payload["required_bytes"]
     assert operation.done() and not operation.cancelled() and operation.exception() is None
