@@ -247,7 +247,27 @@ class StandingClaimOwner:
             self.native_pending = True
 
             async def original():
-                receipt = await self.journal.standing_retirement_register(self.registration_request)
+                try:
+                    receipt = await self.journal.standing_retirement_register(
+                        self.registration_request
+                    )
+                except Exception:
+                    # This child precedes binding/allocation. The preflight is
+                    # awaiting it, so join its actual IO without joining either
+                    # of those two ancestor/creation roots or this child itself.
+                    original_task = asyncio.current_task()
+                    excluded = {self._root, self.preflight, original_task}
+                    while self.scope.handles - excluded:
+                        self.scope.changed.clear()
+                        if self.scope.handles - excluded:
+                            await self.scope.changed.wait()
+                    self._healthy()
+                    self.attempt.guard()
+                    receipt = await self.journal.standing_retirement_registration_lookup(
+                        self.registration_request
+                    )
+                    if receipt is None:
+                        raise StandingUnavailable
                 # A genuine late ACK is knowledge; it cannot reopen launch.
                 return self._capture_registration(receipt)
 
