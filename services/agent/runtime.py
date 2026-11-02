@@ -557,7 +557,10 @@ class AgentRuntime:
             + sum(failed_operation(owner.operation) for owner in self._resource_completions)
             + int(failed_operation(self._resource_retirement))
             + sum(failed_operation(owner.operation) for owner in self._resource_retirements)
-            + sum(owner.failed or owner.scope.failed for owner in self._standing_claims)
+            + sum(
+                owner.failed or owner.scope.failed or owner.final_scope.failed
+                for owner in self._standing_claims
+            )
             + len(uncertain_hosts),
         }
 

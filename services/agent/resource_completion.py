@@ -367,17 +367,20 @@ class StandingClaimOwner:
 
     async def _joined_call(self, invoke, reconcile=None):
         try:
-            result = await invoke()
-        except Exception:
-            # Await actual work/read/sole-close before exact-key reconciliation.
+            try:
+                return await invoke()
+            except Exception:
+                # Await actual work/read/sole-close before exact-key reconciliation.
+                await self._join_final()
+                self._healthy()
+                if reconcile is None:
+                    raise
+                return await reconcile()
+        finally:
+            # A failing reconciliation can itself leave an original close
+            # pending. Metadata uncertainty must not hide its eventual failure.
             await self._join_final()
             self._healthy()
-            if reconcile is None:
-                raise
-            result = await reconcile()
-        await self._join_final()
-        self._healthy()
-        return result
 
     async def _retire(self):
         try:
@@ -528,7 +531,12 @@ class StandingClaimOwner:
             self._healthy(retired=True)
 
     def _retired(self, operation):
-        if operation.cancelled() or operation.exception() is not None:
+        if (
+            operation.cancelled()
+            or operation.exception() is not None
+            or self.scope.failed
+            or self.final_scope.failed
+        ):
             self.fail()
         if (
             not self.failed
