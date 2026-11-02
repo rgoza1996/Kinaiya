@@ -18,9 +18,11 @@ from test_agent_post_worker_resource_completion import (
     terminal_at_close,
 )
 from test_agent_post_worker_resource_completion import cases as cases
+from test_agent_post_worker_resource_completion import claim_chain as claim_chain
 from test_agent_post_worker_resource_completion import factory as factory
 from test_agent_post_worker_resource_completion import ordinary as ordinary
 from test_agent_post_worker_resource_completion import stack as stack
+from test_standing_physical_finalization import physical as physical
 
 
 @pytest.mark.parametrize("replacement", ["client-B", "none"])
