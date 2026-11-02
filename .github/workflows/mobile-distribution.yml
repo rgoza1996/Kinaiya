@@ -25,8 +25,6 @@ jobs:
   android:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
-    env:
-      ANDROID_AVD_HOME: ${{ runner.temp }}/avd
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -38,6 +36,7 @@ jobs:
       - name: Select hosted JDK and verify Android prerequisites
         run: |
           echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
+          echo "ANDROID_AVD_HOME=$RUNNER_TEMP/avd" >> "$GITHUB_ENV"
           echo "$JAVA_HOME_17_X64/bin" >> "$GITHUB_PATH"
           test -d "$ANDROID_HOME/platforms/android-36"
           if test ! -d "$ANDROID_HOME/ndk/28.2.13676358"; then
