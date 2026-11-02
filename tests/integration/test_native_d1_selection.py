@@ -822,3 +822,111 @@ async def test_actual_http_work_and_sole_close_keep_decisions_lease_and_store_ow
             os.close(settings._owner_fd)
         else:
             await settings.close()
+
+
+class DeadlineTransport(GateTransport):
+    """Witness the actual timeout's cancellation at the original transport owner."""
+
+    def __init__(self, phase):
+        super().__init__(phase)
+        self.cancel_observed = asyncio.Event()
+        self.cancel_owner = None
+
+    async def hold(self):
+        self.entered.set()
+        while not self.release.is_set():
+            try:
+                await self.release.wait()
+            except asyncio.CancelledError:
+                self.cancel_owner = asyncio.current_task()
+                self.cancel_observed.set()
+
+
+@pytest.mark.parametrize("phase", ["send", "read"])
+async def test_actual_request_deadline_survives_transport_suppression_until_original_join(
+    tmp_path, phase
+):
+    wire = DeadlineTransport(phase)
+    adapter = native()(
+        "http://127.0.0.1:8870", MODEL, min_confidence=0.5, timeout=0.03, transport=wire
+    )
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    settings = DecisionsModelSettings(
+        adapter, None, path=tmp_path / "decisions.sqlite", workspace=workspace
+    )
+    leases = []
+
+    async def run():
+        async with settings.operation() as lease:
+            leases.append(lease)
+            return await lease.provider.complete(routing_messages())
+
+    runner = asyncio.create_task(run())
+    try:
+        await asyncio.wait_for(wire.entered.wait(), 5)
+        # No caller cancels runner. This Event witnesses real asyncio timeout
+        # cancellation inside the original send/read, rather than a guessed delay.
+        await asyncio.wait_for(wire.cancel_observed.wait(), 5)
+        owner = wire.cancel_owner
+        assert owner is not None and not owner.done() and owner.cancelling() > 0
+        assert owner is (wire.send_task if phase == "send" else wire.read_task)
+        lease = leases[0]
+        assert not runner.done() and lease in settings.leases and settings.busy()
+        await settings.close()
+        assert settings._owner_fd is not None and not settings._db_closed
+        assert not adapter.http.is_closed and wire.transport_closes == 0
+        wire.release.set()
+        with pytest.raises(ProviderError) as error:
+            await asyncio.wait_for(asyncio.shield(runner), 5)
+        assert not isinstance(error.value, ProviderRefusal)
+        assert owner.done() and wire.close_count == 1
+        assert wire.close_task is not None and wire.close_task.done()
+        await settings.close()
+        assert not settings.leases and settings._db_closed and settings._owner_fd is None
+        assert adapter.http.is_closed and wire.transport_closes == 1
+    finally:
+        wire.release.set()
+        await asyncio.wait_for(asyncio.gather(runner, return_exceptions=True), 5)
+        if leases and leases[0].cleanup is not None:
+            await asyncio.wait_for(asyncio.gather(leases[0].cleanup, return_exceptions=True), 5)
+        await settings.close()
+
+
+async def test_preexisting_nonzero_cancellation_count_allows_a_new_healthy_native_call(tmp_path):
+    wire = GateTransport("healthy")
+    adapter = native()("http://127.0.0.1:8870", MODEL, min_confidence=0.5, transport=wire)
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    settings = DecisionsModelSettings(
+        adapter, None, path=tmp_path / "decisions.sqlite", workspace=workspace
+    )
+    history = []
+
+    async def run():
+        owner = asyncio.current_task()
+        owner.cancel()
+        try:
+            await asyncio.sleep(0)
+        except asyncio.CancelledError:
+            pass
+        history.append(owner.cancelling())
+        assert history[0] > 0
+        # The historical cancellation was already delivered and suppressed.
+        # No new cancellation occurs during this independently owned call.
+        async with settings.operation() as lease:
+            return json.loads(await lease.provider.complete(routing_messages()))
+
+    runner = asyncio.create_task(run())
+    try:
+        result = await asyncio.wait_for(asyncio.shield(runner), 5)
+        assert result["route"] == "ignore" and result["target_task_id"] is None
+        assert runner.cancelling() == history[0] and not runner.cancelled()
+        assert not settings.leases
+        assert wire.close_count == 1 and wire.close_task is not None and wire.close_task.done()
+        await settings.close()
+        assert settings._owner_fd is None and settings._db_closed
+        assert adapter.http.is_closed and wire.transport_closes == 1
+    finally:
+        await asyncio.wait_for(asyncio.gather(runner, return_exceptions=True), 5)
+        await settings.close()
