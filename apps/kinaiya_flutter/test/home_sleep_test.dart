@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -12,7 +11,8 @@ import 'package:kinaiya_flutter/config/connection.dart';
 import 'package:kinaiya_flutter/character/package.dart';
 import 'package:kinaiya_flutter/state/app_state.dart';
 import 'package:kinaiya_flutter/ui/character_view.dart';
-import 'package:kinaiya_flutter/ui/design_tokens.dart';
+import 'package:kinaiya_flutter/ui/anchored_moonlit_scene.dart';
+import 'package:kinaiya_flutter/ui/home_sprite_sheet.dart';
 import 'package:kinaiya_flutter/ui/moonlit_home.dart';
 import 'package:kinaiya_flutter/ui/widgets.dart';
 
@@ -168,6 +168,94 @@ Future<void> pumpHome(
 }
 
 void main() {
+  testWidgets('sleeping sprite opens setup and respects reduced motion', (
+    tester,
+  ) async {
+    var opened = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MediaQuery(
+          data: const MediaQueryData(disableAnimations: true),
+          child: Scaffold(
+            body: MoonlitHome(
+              character: const SizedBox(),
+              status: 'Unavailable',
+              callLabel: 'Talk',
+              onSetup: () => opened++,
+              offlineResting: true,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    final sprite = find.byKey(const ValueKey('home-sleeping-artwork'));
+    expect(sprite, findsOneWidget);
+    await tester.tap(sprite);
+    await tester.pump(const Duration(seconds: 2));
+    expect(opened, 1);
+    expect(find.byKey(const ValueKey('home-sleep-transition')), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('home pose follows Converse independently of Agent', (
+    tester,
+  ) async {
+    final api = SleepApi();
+    final state = wired(api);
+    final audio = LayoutAudio();
+    state.agentOnline = false;
+    state.converseOnline = true;
+    await pumpHome(tester, state, audio);
+    expect(find.byKey(const ValueKey('home-sleeping-artwork')), findsNothing);
+
+    state.agentOnline = true;
+    state.converseOnline = false;
+    await pumpHome(tester, state, audio);
+    expect(find.byKey(const ValueKey('home-sleep-transition')), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 900));
+    expect(
+      tester
+          .widget<HomeSpriteSheet>(
+            find.byKey(const ValueKey('home-sleep-transition')),
+          )
+          .frame,
+      greaterThan(0),
+    );
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(
+      tester
+          .widget<HomeSpriteSheet>(
+            find.byKey(const ValueKey('home-sleep-transition')),
+          )
+          .asset,
+      'assets/character/kinaiya-sleeping-idle-v3.png',
+    );
+    await tester.pump(const Duration(milliseconds: 1400));
+    expect(find.byKey(const ValueKey('home-sleeping-artwork')), findsOneWidget);
+    expect(find.text('Converse unavailable'), findsOneWidget);
+    expect(state.converseSleeping, isFalse);
+    expect(api.writes, isEmpty);
+
+    state.converseOnline = true;
+    state.agentOnline = false;
+    await pumpHome(tester, state, audio);
+    expect(find.byKey(const ValueKey('home-sleep-transition')), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 900));
+    expect(
+      tester
+          .widget<HomeSpriteSheet>(
+            find.byKey(const ValueKey('home-sleep-transition')),
+          )
+          .frame,
+      lessThan(3),
+    );
+    await tester.pump(const Duration(milliseconds: 1800));
+    expect(find.byKey(const ValueKey('home-sleeping-artwork')), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+    state.dispose();
+  });
+
   test(
     'owner off differs from handoff, legacy effective off, and disconnect',
     () async {
@@ -695,41 +783,16 @@ void main() {
         await tester.pump(const Duration(milliseconds: 100));
         final artwork = find.byKey(const ValueKey('home-sleeping-artwork'));
         expect(
-          tester.widget<Image>(artwork).fit,
-          size.width == 320 ? BoxFit.contain : BoxFit.cover,
+          tester.widget<HomeSpriteSheet>(artwork).asset,
+          'assets/character/kinaiya-sleeping-idle-v3.png',
         );
         expect(tester.getSize(artwork).width.isFinite, isTrue);
         expect(tester.getSize(artwork).height, greaterThan(0));
-        final scene = find.byKey(const ValueKey('home-sleeping-scene'));
+        expect(find.byType(AnchoredMoonlitScene), findsOneWidget);
         expect(
-          tester.widget<ColoredBox>(scene).color,
-          KinaiyaDesign.background,
+          find.byKey(const ValueKey('moonlit-illustration')),
+          findsOneWidget,
         );
-        final artworkRect = tester.getRect(artwork);
-        final panelRect = tester.getRect(
-          find.byKey(const ValueKey('home-status-panel')),
-        );
-        expect(panelRect.width, math.min(440, size.width - 32));
-        if (size.width > 320) {
-          // The background must cover the whole scene rather than ending
-          // above the card and exposing a blank lower half.
-          expect(artworkRect.size, size);
-          expect(
-            tester.widget<Image>(artwork).alignment,
-            Alignment.bottomCenter,
-          );
-          final imageScale = math.max(size.width / 1536, size.height / 1024);
-          final imageTop = size.height - 1024 * imageScale;
-          // Native artwork bounds: moon ends near y=452, sleeping character
-          // ends near y=752. The moon remains visible and the panel sits below
-          // the complete character, over the reflected water.
-          expect(imageTop + 452 * imageScale, greaterThan(size.height * .25));
-          expect(imageTop + 752 * imageScale, lessThanOrEqualTo(panelRect.top));
-          expect(panelRect.bottom, lessThanOrEqualTo(size.height));
-        } else {
-          expect(artworkRect.height, closeTo(size.width * 2 / 3, .01));
-          expect(panelRect.top - artworkRect.bottom, closeTo(16, .01));
-        }
         expect(find.text('No duplicate character'), findsNothing);
         expect(find.byIcon(Icons.graphic_eq_rounded), findsNothing);
         await tester.ensureVisible(find.text('Wake Kinaiya'));

@@ -64,7 +64,7 @@ void main() {
     expect(pack.sheets['seated_idle']!.frameHeight, 576);
     expect(
       pack.sheets['seated_idle']!.sha256,
-      '1322c7fa9ba76ad0cbc6ac8409564d5247d0366bf53fe368f9a39338ac938259',
+      'f3b08dde1f248a2ffa8156f24aecf5b8c96eba79f5a91fe39069ddd44a803861',
     );
     expect(pack.sheets.values.fold(0, (n, s) => n + s.capacity), 36);
     for (final alias in ['idle', 'idle_blink']) {
