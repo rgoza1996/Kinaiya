@@ -352,12 +352,18 @@ def _physical_timeout_snapshot(value):
         gates.append(
             {
                 "id": id(fault),
-                "kind": "sql",
-                "mode": known(fault.mode, {"before", "held", "after"}),
-                "entered": event(fault.entered),
-                "released": event(fault.release),
-                "fired": flag(fault.fired),
-                "wrote": flag(fault.wrote),
+                # The existing capture-fence fixture also retains a genuine
+                # release-only control here, without SqlFault metadata.
+                "kind": "sql"
+                if isinstance(fault, SqlFault)
+                else "release"
+                if type(fault) is SimpleNamespace
+                else "unavailable",
+                "mode": known(getattr(fault, "mode", None), {"before", "held", "after"}),
+                "entered": event(getattr(fault, "entered", None)),
+                "released": event(getattr(fault, "release", None)),
+                "fired": flag(getattr(fault, "fired", None)),
+                "wrote": flag(getattr(fault, "wrote", None)),
             }
         )
     for release in first(value.releases):
