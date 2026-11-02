@@ -18,7 +18,10 @@ from services.distribution.installation import (
     InstallError,
     Layout,
     current_receipt,
+    dependency_install_command,
+    install_missing_dependencies,
     install_release,
+    missing_system_dependencies,
     preflight,
     setup,
     source_artifact,
@@ -199,13 +202,27 @@ def dispatch(args):
     # intentionally remain usable for read-only diagnosis on unqualified hosts.
     if args.command == "update" and (args.check or args.plan):
         return check_update(layout, args.channel)
-    host = preflight(layout)
+    try:
+        host = preflight(layout, allow_missing_dependencies=(args.command == "install"))
+        missing = (
+            list(host.get("missing_dependencies", []))
+            if isinstance(host, dict) and "missing_dependencies" in host
+            else (missing_system_dependencies() if args.command == "install" else [])
+        )
+    except TypeError:
+        host = preflight(layout)
+        missing = []
     plan = check_update(layout, args.channel)
-    if plan["action"] == "current":
+    if plan["action"] == "current" and not missing:
         return plan
-    confirm(
-        args.yes, json.dumps({"host": host, "plan": plan, "install": str(layout.install)}, indent=2)
-    )
+    confirmation_payload = {"host": host, "plan": plan, "install": str(layout.install)}
+    if missing:
+        confirmation_payload["missing_dependencies"] = missing
+        confirmation_payload["dependency_command"] = " ".join(dependency_install_command(missing))
+    confirm(args.yes, json.dumps(confirmation_payload, indent=2))
+    if missing:
+        install_missing_dependencies(missing)
+        host = preflight(layout)
     layout.cache.mkdir(parents=True, exist_ok=True, mode=0o700)
     with TemporaryDirectory(prefix="download-", dir=layout.cache) as temporary:
         artifact = source_artifact(plan["release"])

@@ -128,16 +128,23 @@ class Qualification:
     # -- checks -------------------------------------------------------------
 
     def preflight_without_bubblewrap(self):
-        """Real preflight code with bwrap absent from PATH must refuse before writes."""
+        """Real preflight code with bwrap absent from PATH must refuse or report --no-upgrade plan."""
         shim = self.root / "no-bwrap-path"
         shim.mkdir()
         os.symlink(sys.executable, shim / "python3")
         env = {**os.environ, "PATH": str(shim)}
         probe_home = self.root / "missing-bwrap-home"
         result = _python_snippet(
+            "import json\n"
             "from pathlib import Path\n"
-            "from services.distribution.installation import Layout, preflight, InstallError\n"
+            "from services.distribution.installation import (\n"
+            "    Layout, preflight, dependency_install_command, InstallError\n"
+            ")\n"
             f"layout = Layout.for_home(Path({str(probe_home)!r}))\n"
+            "planned = preflight(layout, allow_missing_dependencies=True)\n"
+            "assert 'bubblewrap' in planned.get('missing_dependencies', []), planned\n"
+            "cmd = dependency_install_command(planned['missing_dependencies'])\n"
+            "assert '--no-upgrade' in cmd and 'update' not in cmd and 'upgrade' not in cmd, cmd\n"
             "try:\n"
             "    preflight(layout)\n"
             "except InstallError as exc:\n"

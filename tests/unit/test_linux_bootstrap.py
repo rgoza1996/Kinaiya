@@ -140,3 +140,57 @@ def test_extractors_reject_corrupt_gzip_before_writes(bootstrap, tmp_path, damag
                 },
             )
     assert not destination.exists() or not any(destination.iterdir())
+
+
+def test_bootstrap_warns_on_outdated_system_blockers_and_installs_missing_deps_with_no_upgrade(
+    bootstrap, monkeypatch
+):
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(bootstrap.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(
+        bootstrap.platform,
+        "freedesktop_os_release",
+        lambda: {"ID": "ubuntu", "VERSION_ID": "20.04"},
+    )
+    with pytest.raises(
+        bootstrap.BootstrapError,
+        match="Out-of-date system blocker: Ubuntu 20.04 is out of date",
+    ):
+        bootstrap.check_outdated_system_blockers()
+
+    monkeypatch.setattr(
+        bootstrap.platform,
+        "freedesktop_os_release",
+        lambda: {"ID": "ubuntu", "VERSION_ID": "24.04"},
+    )
+    monkeypatch.setattr(bootstrap.shutil, "which", lambda name: "/usr/bin/bwrap")
+    monkeypatch.setattr(bootstrap, "installed_package_version", lambda pkg: "0.5.0")
+    with pytest.raises(
+        bootstrap.BootstrapError,
+        match="Out-of-date system blocker: bubblewrap 0.5.0 is out of date",
+    ):
+        bootstrap.check_outdated_system_blockers()
+
+    commands = []
+    monkeypatch.setattr(
+        bootstrap.subprocess,
+        "run",
+        lambda argv, **kw: (
+            commands.append(argv) or SimpleNamespace(returncode=0, stdout="", stderr="")
+        ),
+    )
+    bootstrap.install_missing_dependencies(["bubblewrap", "libseccomp2", "python3.12-venv"])
+    assert commands == [
+        [
+            "sudo",
+            "apt-get",
+            "install",
+            "--no-upgrade",
+            "-y",
+            "bubblewrap",
+            "libseccomp2",
+            "python3.12-venv",
+        ]
+    ]
+    assert "update" not in commands[0] and "upgrade" not in commands[0]
