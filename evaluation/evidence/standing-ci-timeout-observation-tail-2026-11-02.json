@@ -1,0 +1,105 @@
+{
+  "requirement": [
+    "#239 retained original Resources operations",
+    "#228 standing-work integration",
+    "AGENTS.md truthful failure/provenance"
+  ],
+  "baseline_head": "774295efc7ff265756674d6f7714347d0408a712",
+  "tested_source": "07589798ea7d30049bbfc64d325a77244da028e7",
+  "scope": "Test-only annotation after the independently frozen handoff observer oracle's original four-second wait fails. No production, deadline, assertion, cancellation, helper or fixture cleanup change.",
+  "historical_ci": {
+    "run": 41416140852,
+    "url": "https://github.com/rgoza1996/Kinaiya/actions/runs/41416140852",
+    "merge": "3d8b7c0589bcbb045f45a65a1557b4bb2056952a",
+    "parents": [
+      "bd9c612d436120cbf9cfdc7a09a2c16ed7a6a5f9",
+      "774295efc7ff265756674d6f7714347d0408a712"
+    ],
+    "tree": "eba441d415691110508b6ac9da49948f4ab0842f",
+    "tree_exactly_matches_published_head": true,
+    "python311": {
+      "job": 125180340079,
+      "passed": 10405,
+      "failed": 0,
+      "skipped": 6,
+      "deselected": 2,
+      "warnings": 1,
+      "seconds": 2199.94,
+      "raw_log_sha256": "9fe0146e07348fde47af0fb054f78ffaf537fcfb8bd238b3cf5ba0f80c6ac5e4"
+    },
+    "python312": {
+      "job": 125180340103,
+      "passed": 10404,
+      "failed": 1,
+      "skipped": 6,
+      "deselected": 2,
+      "warnings": 1,
+      "seconds": 2316.98,
+      "case": "tests/integration/test_standing_handoff_timeout_observation.py::test_snapshot_observes_held_original_without_advancing_real_handoff",
+      "wait_seconds": 4,
+      "raw_log_sha256": "8ad4e2ea58ef9f7b86ebb3c631cc7a40125355a62b0b892640098c28f20ee042"
+    },
+    "platforms": "Flutter, Android and iOS passed.",
+    "observation": "The new control reached all synchronous non-advancement comparisons, released its actual context gate, then timed out in its original four-second positive tail. The older annotated case passed. The facade traceback reaches await shield(operation) after effects; no diagnostic note was attached to the new oracle's failure path. Inner phase, cause and eventual cleanup properties are unknown. Absence of a teardown error in logs is not cleanup testimony.",
+    "count_provenance": "CI430 tested a merge with main074 and its ten installer/README paths; CI433's tree equals head774 built directly on bd9. Their full case counts are not the same checkout/order."
+  },
+  "implementation": {
+    "path": "tests/integration/test_standing_handoff_timeout_observation.py",
+    "added": 14,
+    "removed": 1,
+    "source_sha256": "41de1d192664db91b633092a714749efa3f8303536f698cd8b3870a53dfdf1c0",
+    "behavior": "Only after TimeoutError, use the already captured callable/env/capture to add the existing bounded observation or class-name-only unavailable fallback, then bare re-raise the same exception.",
+    "old_helper": "Byte exact; no production diff.",
+    "static": {
+      "normalized_ast_exact": true,
+      "unchanged_assertions": 49,
+      "unchanged_original_wait_seconds": 4,
+      "no_new_predeadline_observation_or_await": true,
+      "receipt_sha256": "c81ef307f8896fea3ebbf09263daeaef4ee5887c0df897efd72af192e7f2dcd0"
+    }
+  },
+  "local": {
+    "environment": "Pinned existing Python3.12.3 venv, explicit native-tool-capabilities worktree PYTHONPATH; offline ASGI/SQLite and original disposable CPU owners only.",
+    "runner_flags": [
+      "-q",
+      "-m",
+      "not live",
+      "-p",
+      "no:cacheprovider",
+      "-o",
+      "asyncio_default_fixture_loop_scope=function",
+      "-o",
+      "junit_family=xunit1"
+    ],
+    "targets": [
+      "tests/integration/test_standing_handoff_timeout_observation.py",
+      "tests/integration/test_standing_resources_handoff.py::test_new_action_original_is_frozen_before_context_await_and_same_key_conflicts"
+    ],
+    "result": {
+      "exit_code": 0,
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "junit_seconds": 8.259,
+      "subprocess_seconds": 8.612425542996789,
+      "tracked_inputs": 1482,
+      "pins_and_head_stable": true
+    },
+    "receipt_sha256": "81d354431dcb90bd47ceda969ab71dc5ecd1edaafa617d66c017d3b1f4cd78e7",
+    "manifest_sha256": "f5d07635d7e17c8cad52497a367bbe5f07a3bb96eaab8a2900ad57a06c11013b",
+    "ruff_and_format": "Changed Python file passed; final diff check passed. Prior broader qualification remains separately recorded, not rerun or summed as unique coverage.",
+    "scope_limit": "Targeted local passes do not clear the historical full-suite CI433 failure or establish its cause."
+  },
+  "independent_review": {
+    "reviewer": "A, separate source review; no tests/imports/profiling",
+    "result": "No actionable findings.",
+    "receipt_sha256": "cafddc1506879ed3aa269ef05b1d42a0f7a6bdf779fc08b6ac6ca5368cf28ad5"
+  },
+  "artifact_limit": "Raw logs, JUnit and receipts are local ignored artifacts identified by hashes, not claimed as published CI artifacts. Report-retention workflow publication is separately blocked by the connected credential's missing workflow scope.",
+  "remaining": [
+    "CI430/431/432/433 timing failures remain recorded and unresolved.",
+    "Full changed-head CI and parent integration remain merge gates.",
+    "No Agent retirement, Task settlement/release, recurrence/inbox or full roadmap completion claim."
+  ],
+  "provider_activity": "No inference, model-accuracy benchmark, paid/provider/GPU/device/local install/live service/configuration or preview operation."
+}
