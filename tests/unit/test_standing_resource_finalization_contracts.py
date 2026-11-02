@@ -302,8 +302,21 @@ def graph_depth(value):
 def schema_pin():
     root = Path(__file__).resolve().parents[2] / "packages" / "contracts" / "schemas"
     # Preserve the original184 pin plus the exact approved two-schema evolution.
-    # Six finalization and two later #255 schemas are additive families.
-    additive = set(CAPS) | {"TranscriptScanPage", "TranscriptScanRequest"}
+    # Six finalization, two #255 transcript and nine Agent settlement schemas
+    # are additive families; the original 184-schema count/hash stays exact.
+    additive = set(CAPS) | {
+        "TranscriptScanPage",
+        "TranscriptScanRequest",
+        "StandingAgentRetirementRegistrationRequest",
+        "StandingAgentRetirementRegistrationRecord",
+        "StandingAgentRetirementRegistrationReceipt",
+        "StandingAgentOutcomeReference",
+        "StandingAgentRetirementWork",
+        "StandingAgentSettlementRequest",
+        "StandingAgentSettlementRecord",
+        "StandingAgentSettlementReceipt",
+        "StandingAgentSettlementQuery",
+    }
     paths = sorted(path for path in root.glob("*.json") if path.stem not in additive)
     body = bytearray()
     for path in paths:
