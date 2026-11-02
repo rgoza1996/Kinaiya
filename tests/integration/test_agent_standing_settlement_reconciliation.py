@@ -206,8 +206,9 @@ async def test_reconciliation_facade_refusal_retains_original_close_and_sticky_f
         assert shutdown is not None
         await joined(asyncio.gather(shutdown, return_exceptions=True))
         value.agent.runtime_closed = True
-        assert original_journal.http.is_closed and other.http.is_closed
-        assert boundary.close_calls == other_transport.close_calls == 1
+        assert original_journal.http.is_closed and boundary.closed.is_set()
+        assert boundary.close_calls == 1
+        assert not other.http.is_closed and other_transport.close_calls == 0
         assert value.agent.runtime.workspace_operation_state()["cleanup_failed"] > 0
         # Genuine committed native metadata is retained knowledge only. It does
         # not turn the failed original close/Agent finalizer into healthy proof.
@@ -228,9 +229,10 @@ async def test_reconciliation_facade_refusal_retains_original_close_and_sticky_f
                         "cleanup_failed"
                     ]
                     > 0,
-                    "original_and_replacement_transports_closed_once": boundary.close_calls
-                    == other_transport.close_calls
-                    == 1,
+                    "original_transport_closed_once_replacement_untouched": boundary.close_calls
+                    == 1
+                    and not other.http.is_closed
+                    and other_transport.close_calls == 0,
                     "committed_metadata_is_retained_not_original_retirement_proof": owner.settlement
                     is None,
                     "actual_inference_calls": 0,

@@ -921,14 +921,19 @@ async def test_replaced_journal_cannot_substitute_for_entered_original_settlemen
         await reached(value.journal_transport.close_entered)
         closer = value.journal_transport.close_owner
         assert closer is not exchange.close_task and not closer.done()
-        assert value.journal_transport.close_calls == 1 and not original.http.is_closed
+        assert (
+            value.journal_transport.close_calls == 1 and not value.journal_transport.closed.is_set()
+        )
         assert value.agent.runtime.workspace_operation_state()["cleanup_pending"] > 0
         value.journal_transport.close_release.set()
         await joined(closer)
         await joined(value.agent.runtime.close())
         value.agent.runtime_closed = True
-        assert original.http.is_closed and other.http.is_closed
-        assert value.journal_transport.close_calls == other_transport.close_calls == 1
+        assert original.http.is_closed and value.journal_transport.closed.is_set()
+        assert value.journal_transport.close_calls == 1
+        # This unused replacement was never captured by a claim. Its caller
+        # owns its close; retiring A must not close or send through B.
+        assert not other.http.is_closed and other_transport.close_calls == 0
         assert other_transport.paths(REGISTER) == other_transport.paths(SETTLE) == []
     finally:
         gate.release.set()
