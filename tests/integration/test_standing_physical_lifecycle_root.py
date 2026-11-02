@@ -1,12 +1,15 @@
 """Review-derived lifecycle root controls from sealed69be, not blinded oracles.
 
-The independent55-case module remains byte exact. Its genuine SQLite/ASGI/CPU
-fixture is reused as a self-contained CI dependency. This file targets only the
-separately frozen initial-root ordering defect, before consulting its repair.
+The independently frozen55 cases retain their original assertions. Their
+genuine SQLite/ASGI/CPU fixture includes separately recorded endpoint-directory
+maintenance and is reused as a self-contained CI dependency. This file targets
+only the separately frozen initial-root defect, before consulting its repair.
 """
 
 import asyncio
+import fcntl
 import json
+import os
 import threading
 
 import pytest
@@ -45,7 +48,12 @@ async def pending_native_spawn(value, monkeypatch):
 
     async def spawn(*args, **kwargs):
         process = await actual_spawn(*args, **kwargs)
-        observed.update(process=process, original_task=asyncio.current_task())
+        observed.update(
+            process=process,
+            original_task=asyncio.current_task(),
+            retained_fds=tuple(kwargs["pass_fds"]),
+            config_fd=int(args[3]),
+        )
         entered.set()
         await release.wait()
         return process
@@ -65,7 +73,12 @@ async def pending_native_spawn(value, monkeypatch):
     assert original_spawn is observed["original_task"]
     assert isinstance(original_reaper, asyncio.Task)
     assert not original_spawn.done() and not original_reaper.done()
-    assert managed.pending_fds and managed.pending_obj is not None
+    assert tuple(managed.pending_fds) == observed["retained_fds"]
+    assert managed.pending_obj is None  # Native sealed memfd owns no Python file object.
+    for fd in managed.pending_fds:
+        os.fstat(fd)
+    seals = fcntl.F_SEAL_SHRINK | fcntl.F_SEAL_GROW | fcntl.F_SEAL_WRITE | fcntl.F_SEAL_SEAL
+    assert fcntl.fcntl(observed["config_fd"], fcntl.F_GET_SEALS) & seals == seals
     assert managed.granted is False and managed.grant_w is None
     assert not (value.path / "ready").exists(), "Configured CPU fixture was never granted"
     return observed["process"], original_spawn, original_reaper, release

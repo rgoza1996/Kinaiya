@@ -355,6 +355,11 @@ async def physical(factory, tmp_path, monkeypatch, record_property):
     monkeypatch.setattr(_Capture, "begin_effects", effects)
 
     async def make(*, session=None, claim=None, path=None, large=False):
+        path = path or tmp_path / f"physical-{len(opened)}"
+        path.mkdir(mode=0o700, exist_ok=True)
+        endpoint_directory = path / "endpoint"
+        endpoint_directory.mkdir(mode=0o700, exist_ok=True)
+        endpoint = WhistleEndpoint(endpoint_directory)
         session = session or await factory()
         agent = JournalClient(
             "http://127.0.0.1:8760", "a" * 32, transport=httpx.ASGITransport(app=session.app)
@@ -365,8 +370,6 @@ async def physical(factory, tmp_path, monkeypatch, record_property):
             else await (large_original(session) if large else original(session))
         )
         claim = claim or (await agent.standing_prepare(packet)).claim
-        path = path or tmp_path / f"physical-{len(opened)}"
-        path.mkdir(mode=0o700, exist_ok=True)
         ready = path / "ready"
         ready.unlink(missing_ok=True)
         script = write_script(path, "disposable.py", READY_MEM)
@@ -406,7 +409,6 @@ async def physical(factory, tmp_path, monkeypatch, record_property):
                 handoff_journal=gateway,
                 memory_probe=memory,
             )
-            endpoint = WhistleEndpoint(path / "endpoint")
             broker = WhistleBroker(coordinator, endpoint)
             coordinator.register_whistle_lifecycle(abort=broker.abort_active, drain=broker.drain)
             app = resources_app(coordinator, AUTH, whistle=broker)
