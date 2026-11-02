@@ -38,9 +38,26 @@ Explore the [editable interface designs](assets/penpot/README.md) for Converse, 
 
 ## Get started
 
-Kinaiya currently uses a Linux development host and a Flutter web interface. Start with the [host setup](#run-the-host), then follow the [web client guide](apps/kinaiya_flutter/README.md) and [Converse setup](docs/converse-setup.md) for the interfaces you want to use. Choose a supported provider configuration before starting model-backed work.
+Kinaiya uses a native Linux host and a Flutter web interface. An **experimental CLI installer and setup wizard** prepares an isolated runtime, keeps user data separate, and provides explicit update/recovery commands. Read the [Linux prerequisites and recovery guide](docs/linux-installation.md) before installing; do not run the installer as root.
 
-A polished clean-machine installer is not yet available. The detailed commands, provider requirements, and configuration boundaries are retained below.
+### Native Linux quick install
+
+The candidate baseline is Ubuntu 22.04/24.04, Python 3.11–3.13 with `venv`/`ensurepip`, `bubblewrap` and `libseccomp2`. The sandbox probe must pass. Native Ubuntu 24.04/x86_64 has installation and service smoke evidence; other combinations are not automatically qualified by that result.
+
+Download the bootstrap from this reviewed, immutable source revision, inspect it, then select the experimental nightly channel explicitly:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/rgoza1996/Kinaiya/e5a3a849c92a39f9ac1ecafa86e71be42cc7e9bc/install.sh -o kinaiya-install.sh
+# Review kinaiya-install.sh before executing downloaded code.
+sh kinaiya-install.sh --channel nightly
+export PATH="$HOME/.local/bin:$PATH"
+kinaiya version
+kinaiya update --check
+```
+
+Nightly installs only a qualified, pinned GitHub release—not arbitrary commits from `main`. **Stable is a separate approval-gated channel:** when no approved stable release exists, the default installer refuses rather than silently choosing an alpha/nightly. Review the [release policy and trust limits](docs/releases.md).
+
+After choosing and validating a supported provider configuration, use `kinaiya serve host` for Agent-only services and `kinaiya web` for a matching release's prebuilt web client. Setup and update do not prove provider/model readiness or start work. Optional [Converse setup](docs/converse-setup.md), the [web client guide](apps/kinaiya_flutter/README.md), and the [manual development-host path](#run-the-host) remain separate. Windows support is deferred; Android/iOS distribution and native calling remain separate qualification work.
 
 ## Current stage
 
