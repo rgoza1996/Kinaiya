@@ -966,4 +966,99 @@ void main() {
       await f.dispose(tester);
     },
   );
+
+  testWidgets(
+    'Options overview shows setup shortcuts with or without character artwork and tracks recent destination without side effects',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1280, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final f = NavigationFixture();
+      await f.mount(tester);
+      await openSettings(tester);
+      final writesBefore = f.storage.writes;
+
+      // 1. Both artwork and setup shortcuts are visible when showCharacter is true.
+      expect(
+        find.byKey(const ValueKey('options-overview-artwork')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('options-overview-shortcuts')),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Connected to host · Jump to a common configuration area.'),
+        findsOneWidget,
+      );
+      expect(find.text('Connection (Connected)'), findsOneWidget);
+
+      // 2. Disconnecting updates the confirmed readiness hint truthfully.
+      f.state.disconnect();
+      await routePump(tester);
+      expect(
+        find.text(
+          'Not connected to host · Configure connection, models, voice, or character.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Connection (Connected)'), findsNothing);
+
+      // 3. Disabling character display hides artwork but keeps setup shortcuts visible (never blank).
+      await f.presentation.setPreferences(
+        f.presentation.preferences.copyWith(showCharacter: false),
+      );
+      await routePump(tester);
+      expect(
+        find.byKey(const ValueKey('options-overview-artwork')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('options-overview-shortcuts')),
+        findsOneWidget,
+      );
+
+      // 4. Shortcut buttons navigate to real pages and record a recent destination when visiting non-default pages.
+      await tester.tap(find.byKey(const ValueKey('options-shortcut-models')));
+      await routePump(tester);
+      expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey('options-breadcrumb-page')))
+            .data,
+        'Models',
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('options-breadcrumb-all-settings')),
+      );
+      await routePump(tester);
+
+      // Visit Accessibility, then return to overview and verify Recent: Accessibility shortcut appears and works.
+      await chooseSettings(tester, OptionsPage.accessibility);
+      await tester.tap(
+        find.byKey(const ValueKey('options-breadcrumb-all-settings')),
+      );
+      await routePump(tester);
+      final recentShortcut = find.byKey(
+        const ValueKey('options-shortcut-recent'),
+      );
+      expect(recentShortcut, findsOneWidget);
+      expect(find.text('Recent: Accessibility'), findsOneWidget);
+      await tester.tap(recentShortcut);
+      await routePump(tester);
+      expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey('options-breadcrumb-page')))
+            .data,
+        'Accessibility',
+      );
+
+      expect(
+        f.storage.writes,
+        writesBefore + 1,
+      ); // only the explicit showCharacter test change
+      expect(f.audio.vadCalls, 0);
+      expect(f.dispatchedEffect, isFalse);
+      expect(tester.takeException(), isNull);
+      await f.dispose(tester);
+    },
+  );
 }
