@@ -1,1 +1,7 @@
 #include "Generated.xcconfig"
+// Installed identity defaults for local development builds (#264). Release jobs
+// generate the git-ignored Distribution.xcconfig via scripts/mobile_build.py so the
+// bundle ID, display name and channel match the compiled KINAIYA_CHANNEL define.
+KINAIYA_BUNDLE_ID = dev.kinaiya.kinaiyaFlutter.dev
+KINAIYA_DISPLAY_NAME = Kinaiya Dev
+#include? "Distribution.xcconfig"

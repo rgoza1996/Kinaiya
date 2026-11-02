@@ -54,8 +54,11 @@ isolation remain separate owners.
 
 Build information in Settings uses optional
 `--dart-define=KINAIYA_BUILD_LABEL=...` and
-`--dart-define=KINAIYA_BUILD_REVISION=...` values. Without them it says
-**Development build**; a label alone does not establish verification.
+`--dart-define=KINAIYA_BUILD_REVISION=...` values, otherwise the release
+workflow's `KINAIYA_CHANNEL`, `KINAIYA_VERSION`, `KINAIYA_BUILD_NUMBER` and
+`KINAIYA_SOURCE_SHA` defines. Without them it says **Development build**; a
+label alone does not establish verification. About also offers an explicit,
+user-initiated update check on Android/iOS release builds.
 
 ## Voice behavior
 
@@ -172,11 +175,13 @@ flutter build ios --simulator --debug --no-codesign --no-pub -t lib/main.dart
 flutter build ios --simulator --debug --no-codesign --no-pub -t lib/companion_main.dart
 ```
 
-These alternative development builds share an application identity and replace
-each other on installation. CI copies each output before building the other
-target and gives it a distinct owner/companion artifact name. The label is
-**Kinaiya Dev**, with template launcher icons. Debug APKs and unsigned simulator
-applications are development artifacts, not store releases.
+Development builds use `.dev` identities derived from the entry point: the owner
+client is **Kinaiya Dev** and the companion is **Kinaiya Companion Dev** on Android
+(they coexist); iOS development builds share the default development bundle ID.
+Template launcher icons remain. Debug APKs and unsigned simulator applications
+are development artifacts. Release APKs/IPAs, their channel identities, signing
+and install/update routes are described in
+[mobile distribution](../../docs/mobile-distribution.md).
 
 Prefer the scoped companion for phone control; it never requests the host owner
 credential. Native audio still reports unavailable, and voice media, system

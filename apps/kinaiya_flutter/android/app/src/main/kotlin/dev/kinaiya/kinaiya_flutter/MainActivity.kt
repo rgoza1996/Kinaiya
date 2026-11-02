@@ -13,5 +13,8 @@ class MainActivity : FlutterActivity() {
     if (!flutterEngine.plugins.has(PresentationStoragePlugin::class.java)) {
       flutterEngine.plugins.add(PresentationStoragePlugin())
     }
+    if (!flutterEngine.plugins.has(DistributionPlugin::class.java)) {
+      flutterEngine.plugins.add(DistributionPlugin())
+    }
   }
 }
