@@ -19,6 +19,10 @@ from test_standing_resource_barrier import factory as factory
 from test_standing_resources_registration import join_client
 
 from packages.contracts.operation_ownership import current_owner
+from packages.contracts.standing_resource_finalization import (
+    StandingResourceFinalizationReceipt,
+    finalization_bytes,
+)
 from packages.contracts.standing_work import StandingConflict, StandingUnavailable
 from services.converse.intent import IntentRecord
 
@@ -150,6 +154,68 @@ async def join_originals(value, finalizer):
     }
 
 
+def observe_physical_calls(monkeypatch, manager):
+    calls = []
+    for name in ("start", "stop", "stop_if_current"):
+        original = getattr(manager, name)
+
+        async def observed(*args, _name=name, _original=original, **kwargs):
+            calls.append(_name)
+            return await _original(*args, **kwargs)
+
+        monkeypatch.setattr(manager, name, observed)
+    return calls
+
+
+async def reconcile_healthy_owner_off(value, request, finalizer, calls, after_off, record_property):
+    first = None
+    try:
+        first = finalizer.result()
+    except StandingUnavailable as error:
+        assert type(error) is StandingUnavailable
+        first_outcome = "StandingUnavailable"
+    else:
+        assert type(first) is StandingResourceFinalizationReceipt
+        first.validate_request(request)
+        first_outcome = type(first).__name__
+    assert calls == after_off
+    # Only the exact frozen request may reconcile the already completed Off.
+    # A bounded first facade is not a promise of immediate positive testimony.
+    receipt = await value.coordinator.finalize_standing_claim(request)
+    assert type(receipt) is StandingResourceFinalizationReceipt
+    assert receipt.validate_request(request) == receipt
+    if first is not None:
+        assert finalization_bytes(first.finalization) == finalization_bytes(receipt.finalization)
+    assert calls == after_off
+    with value.coordinator.standing_handoff.lock:
+        local = value.coordinator.standing_handoff.db.execute(
+            "SELECT report FROM standing_resource_witnesses WHERE claim_id=?",
+            (value.claim.claim_id,),
+        ).fetchone()[0]
+    assert local.encode() == finalization_bytes(receipt.finalization)
+    native = await value.gateway.standing_resource_finalization_lookup(request)
+    assert type(native) is StandingResourceFinalizationReceipt
+    assert native.validate_request(request) == native
+    assert finalization_bytes(native.finalization) == local.encode()
+    assert native_reports(value) == 1 and calls == after_off
+    record_property(
+        "healthy_exact_reconciliation",
+        json.dumps(
+            {
+                "first_facade_exact_class": first_outcome,
+                "first_unavailability_cause": "Unresolved; reconciliation is an uncertainty control",
+                "request_key": request.idempotency_key,
+                "physical_calls_after_first_off": after_off,
+                "physical_calls_after_reconciliation": calls,
+                "native_reports": native_reports(value),
+                "immutable_report_digest": receipt.finalization.finalization_digest,
+            },
+            sort_keys=True,
+        ),
+    )
+    return receipt
+
+
 @pytest.mark.parametrize("revision", ["valid", "policy", "intent"])
 @pytest.mark.parametrize("failed_close", [False, True], ids=["healthy-close", "failed-close"])
 async def test_independent_off_keeps_originals_without_inheriting_wire_policy(
@@ -158,6 +224,11 @@ async def test_independent_off_keeps_originals_without_inheriting_wire_policy(
     actual_shared_journal(monkeypatch)
     value = await barriers()
     coordinator, manager, boundary = value.coordinator, value.coordinator.manager, value.boundary
+    physical_calls = (
+        observe_physical_calls(monkeypatch, manager)
+        if revision == "valid" and not failed_close
+        else None
+    )
     assert coordinator.journal is coordinator.handoff_journal is value.gateway
     binding = await bind(value)
     await value.agent.standing_admit(value.packet, capability=SECRET)
@@ -183,6 +254,7 @@ async def test_independent_off_keeps_originals_without_inheriting_wire_policy(
     finalizer = asyncio.create_task(coordinator.finalize_standing_claim(request))
     value.tasks.append(finalizer)
     off_ok = stopped_before_release = False
+    after_off = None
     before_reports = None
     body = None
     try:
@@ -208,6 +280,8 @@ async def test_independent_off_keeps_originals_without_inheriting_wire_policy(
             off_ok = type(result) is dict and result.get("ok") is True
         except REFUSALS:
             pass
+        if physical_calls is not None:
+            after_off = list(physical_calls)
         stopped_before_release = not manager.is_current(identity)
         before_reports = native_reports(value)
         record_property(
@@ -256,7 +330,9 @@ async def test_independent_off_keeps_originals_without_inheriting_wire_policy(
             await coordinator.finalize_standing_claim(request)
         assert native_reports(value) == 0
     elif not failed_close:
-        receipt = finalizer.result()
+        receipt = await reconcile_healthy_owner_off(
+            value, request, finalizer, physical_calls, after_off, record_property
+        )
         assert receipt.finalization.reserved_lease_id == lease
         assert receipt.finalization.restoration == "owner-off"
         assert native_reports(value) == 1
