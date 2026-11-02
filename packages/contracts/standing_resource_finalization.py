@@ -165,6 +165,7 @@ def _model_kind(annotation):
 
 def _fields(value, kind):
     _graph(value)
+
     # The entry scan bounds every descendant before field reconstruction.
     # Each frame still checks its exact model and complete dictionary shape.
     def rebuild(value, kind):
