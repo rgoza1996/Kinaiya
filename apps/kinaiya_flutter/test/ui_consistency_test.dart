@@ -356,11 +356,6 @@ void main() {
         expectFrameUsesTheme(tester, 'agent-workspace-frame');
         final harness = find.byKey(const ValueKey('agent-harness-sidebar'));
         final sessions = find.byKey(const ValueKey('agent-session-sidebar'));
-        final details = find.byKey(const ValueKey('agent-details-panel'));
-        expect(tester.getTopLeft(harness).dy, tester.getTopLeft(sessions).dy);
-        expect(tester.getTopLeft(harness).dy, tester.getTopLeft(details).dy);
-        await tester.tap(find.byTooltip('Collapse details'));
-        await tester.pump();
         expect(find.byKey(const ValueKey('agent-details-panel')), findsNothing);
         expect(
           find.byKey(const ValueKey('agent-details-collapsed')),
@@ -368,8 +363,15 @@ void main() {
         );
         await tester.tap(find.byTooltip('Expand details'));
         await tester.pump();
+        final details = find.byKey(const ValueKey('agent-details-panel'));
+        expect(details, findsOneWidget);
+        expect(tester.getTopLeft(harness).dy, tester.getTopLeft(sessions).dy);
+        expect(tester.getTopLeft(harness).dy, tester.getTopLeft(details).dy);
+        await tester.tap(find.byTooltip('Collapse details'));
+        await tester.pump();
+        expect(find.byKey(const ValueKey('agent-details-panel')), findsNothing);
         expect(
-          find.byKey(const ValueKey('agent-details-panel')),
+          find.byKey(const ValueKey('agent-details-collapsed')),
           findsOneWidget,
         );
       }
@@ -458,6 +460,12 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('navigation-agent')));
     await routePump(tester);
     await tester.enterText(find.byKey(const ValueKey('agent-input')), 'Draft');
+    expect(
+      find.byKey(const ValueKey('agent-details-collapsed')),
+      findsOneWidget,
+    );
+    await tester.tap(find.byTooltip('Expand details'));
+    await tester.pump();
 
     final details = find.byKey(const ValueKey('agent-details-panel'));
     final handle = find.byKey(const ValueKey('agent-details-resize-handle'));
@@ -594,6 +602,9 @@ void main() {
         'historical',
       );
 
+      expect(find.byTooltip('Expand details'), findsOneWidget);
+      await tester.tap(find.byTooltip('Expand details'));
+      await tester.pump();
       final detailsGrip = tester.getRect(detailsHandle);
       await tester.dragFrom(
         Offset(detailsGrip.right - 2, detailsGrip.center.dy),
@@ -666,7 +677,6 @@ void main() {
     expectWorkspaceBorder();
     await tester.tap(find.byTooltip('Collapse harnesses'));
     await tester.tap(find.byTooltip('Collapse sessions'));
-    await tester.tap(find.byTooltip('Collapse details'));
     await tester.pump();
     for (final handle in [harnessHandle, sessionsHandle, detailsHandle]) {
       expect(handle, findsOneWidget);

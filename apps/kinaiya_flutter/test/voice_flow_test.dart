@@ -144,7 +144,7 @@ void main() {
     // Capture must not look usable; text still works.
     expect(
       tester
-          .widget<FilledButton>(find.byKey(const ValueKey('call-kinaiya')))
+          .widget<ButtonStyleButton>(find.byKey(const ValueKey('call-kinaiya')))
           .onPressed,
       isNull,
     );

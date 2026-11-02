@@ -691,4 +691,127 @@ void main() {
       await f.dispose(tester);
     },
   );
+
+  test(
+    'searchOptionsPages resolves setting names, descriptions, and synonyms with ranking and deduping',
+    () {
+      List<OptionsPage> pagesFor(String query) =>
+          searchOptionsPages(query).map((r) => r.page).toList();
+
+      for (final query in ['mic', 'microphone']) {
+        final pages = pagesFor(query);
+        expect(pages, containsAll([OptionsPage.voice, OptionsPage.audio]));
+        expect(pages.toSet().length, pages.length);
+      }
+
+      final apiKeyPages = pagesFor('API key');
+      expect(
+        apiKeyPages,
+        containsAll([OptionsPage.providers, OptionsPage.connection]),
+      );
+
+      for (final query in [
+        'captions',
+        'subtitles',
+        'reduced motion',
+        'animation',
+      ]) {
+        expect(pagesFor(query), contains(OptionsPage.accessibility));
+      }
+
+      expect(pagesFor('change character').first, OptionsPage.character);
+      expect(pagesFor('Voice').first, OptionsPage.voice);
+
+      final partial = searchOptionsPages('microphone nonexistenttokenxyz');
+      expect(partial, isNotEmpty);
+      expect(partial.every((r) => r.isPartial), isTrue);
+      expect(
+        partial.map((r) => r.page),
+        containsAll([OptionsPage.voice, OptionsPage.audio]),
+      );
+
+      expect(searchOptionsPages('nonexistenttokenxyz'), isEmpty);
+      expect(searchOptionsPages('   '), isEmpty);
+    },
+  );
+
+  testWidgets(
+    'Options search finds synonym destinations, shows partial/empty states, and restores categories on clear without network or mutation',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1280, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final f = NavigationFixture();
+      await f.mount(tester);
+      await openSettings(tester);
+      final requestsBeforeSearch = List<String>.of(f.requests);
+      final writesBeforeSearch = f.storage.writes;
+
+      final search = find.byKey(const ValueKey('settings-search'));
+      await tester.enterText(search, 'captions');
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('options-search-accessibility')),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('Accessibility · Configure captions, subtitles'),
+        findsOneWidget,
+      );
+
+      await tester.enterText(search, 'API key');
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('options-search-providers')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('options-search-connection')),
+        findsOneWidget,
+      );
+
+      await tester.enterText(search, 'microphone nonexistenttokenxyz');
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('options-search-partial-heading')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('options-search-voice')),
+        findsOneWidget,
+      );
+
+      await tester.enterText(search, 'nonexistenttokenxyz');
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('options-search-empty')),
+        findsOneWidget,
+      );
+      expect(find.text('No matching options'), findsOneWidget);
+
+      // Entering and clearing queries performs zero network requests or storage writes.
+      await tester.tap(find.byTooltip('Clear search'));
+      await tester.pump();
+      expect(f.requests, requestsBeforeSearch);
+      expect(f.storage.writes, writesBeforeSearch);
+      expect(
+        find.byKey(const ValueKey('options-category-models')),
+        findsOneWidget,
+      );
+
+      // Selecting a synonym search result opens the real page.
+      await tester.enterText(search, 'change character');
+      await tester.pump();
+      final characterResult = find.byKey(
+        const ValueKey('options-search-character'),
+      );
+      await tester.ensureVisible(characterResult);
+      await tester.tap(characterResult);
+      await routePump(tester);
+      expect(find.byKey(const ValueKey('options-character')), findsWidgets);
+
+      expect(f.dispatchedEffect, false);
+      expect(tester.takeException(), isNull);
+      await f.dispose(tester);
+    },
+  );
 }

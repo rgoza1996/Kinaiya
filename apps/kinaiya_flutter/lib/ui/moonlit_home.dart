@@ -16,6 +16,8 @@ class MoonlitHome extends StatefulWidget {
     required this.status,
     required this.callLabel,
     this.callTooltip = 'Start Live listen (armed mic)',
+    this.setupLabel = 'Setup',
+    this.helperText,
     required this.onSetup,
     this.onCall,
     this.onAgent,
@@ -32,8 +34,8 @@ class MoonlitHome extends StatefulWidget {
     this.ownerControl,
   });
   final Widget character;
-  final String status, callLabel, agentStatus, callTooltip;
-  final String? sessionName;
+  final String status, callLabel, agentStatus, callTooltip, setupLabel;
+  final String? sessionName, helperText;
   final VoidCallback onSetup;
   final VoidCallback? onCall, onAgent;
   final bool showConverseView,
@@ -154,15 +156,34 @@ class _MoonlitHomeState extends State<MoonlitHome>
     super.dispose();
   }
 
-  Widget _card(Widget child) => Container(
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.surface,
-      borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-    ),
-    child: child,
-  );
+  Widget _card(
+    Widget child, {
+    Key? key,
+    bool prominent = false,
+    EdgeInsetsGeometry padding = const EdgeInsets.all(16),
+  }) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      key: key,
+      padding: padding,
+      decoration: BoxDecoration(
+        color: prominent ? scheme.surfaceContainer : scheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: prominent ? scheme.outline : scheme.outlineVariant,
+          width: prominent ? 1.5 : 1.0,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: prominent ? 0.38 : 0.24),
+            blurRadius: prominent ? 24 : 16,
+            offset: Offset(0, prominent ? 10 : 6),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
 
   Widget _homePanel() => Center(
     child: ConstrainedBox(
@@ -176,39 +197,75 @@ class _MoonlitHomeState extends State<MoonlitHome>
         child: GestureDetector(
           onPanUpdate: (details) => _movePanel(details.delta),
           child: _card(
+            key: const ValueKey('home-action-card'),
+            prominent: true,
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
             Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Tooltip(
+                Tooltip(
                   message: 'Drag to move panel',
                   child: MouseRegion(
                     cursor: SystemMouseCursors.move,
-                    child: Icon(Icons.drag_handle, size: 20),
+                    child: Icon(
+                      Icons.drag_handle,
+                      size: 20,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ),
-                Text(
-                  widget.sleeping ? 'Kinaiya is sleeping' : widget.status,
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.titleMedium,
+                const SizedBox(height: 2),
+                Semantics(
+                  container: true,
+                  liveRegion: false,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        widget.sleeping ? 'Kinaiya is sleeping' : widget.status,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      if (widget.sleeping) const Text('Converse is offline'),
+                      if (widget.helperText != null &&
+                          widget.helperText!.trim().isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Text(
+                            widget.helperText!,
+                            key: const ValueKey('home-helper-copy'),
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
+                                  height: 1.35,
+                                ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
-                if (widget.sleeping) const Text('Converse is offline'),
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 if (!widget.sleeping)
                   ExcludeSemantics(
                     child: Icon(
                       Icons.graphic_eq_rounded,
-                      size: 48,
+                      size: 28,
                       color: Theme.of(context).colorScheme.primary,
                     ),
                   ),
                 if (!widget.sleeping && widget.caption != null) widget.caption!,
-                if (!widget.sleeping) const SizedBox(height: 10),
+                if (!widget.sleeping) const SizedBox(height: 8),
                 Wrap(
+                  key: const ValueKey('home-primary-actions'),
                   alignment: WrapAlignment.center,
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    if (!widget.sleeping)
+                    if (!widget.sleeping && widget.onCall != null) ...[
                       Tooltip(
                         message: widget.callTooltip,
                         child: Semantics(
@@ -217,7 +274,8 @@ class _MoonlitHomeState extends State<MoonlitHome>
                             key: const ValueKey('call-kinaiya'),
                             onPressed: widget.onCall,
                             icon: Icon(
-                              widget.callLabel == 'End conversation'
+                              widget.callLabel == 'End conversation' ||
+                                      widget.callLabel == 'Stop microphone'
                                   ? Icons.call_end_rounded
                                   : Icons.mic_none,
                             ),
@@ -225,11 +283,32 @@ class _MoonlitHomeState extends State<MoonlitHome>
                           ),
                         ),
                       ),
-                    OutlinedButton(
-                      key: const ValueKey('home-setup'),
-                      onPressed: widget.onSetup,
-                      child: const Text('Setup'),
-                    ),
+                      OutlinedButton(
+                        key: const ValueKey('home-setup'),
+                        onPressed: widget.onSetup,
+                        child: Text(widget.setupLabel),
+                      ),
+                    ] else ...[
+                      FilledButton.icon(
+                        key: const ValueKey('home-setup'),
+                        onPressed: widget.onSetup,
+                        icon: const Icon(Icons.tune_rounded),
+                        label: Text(widget.setupLabel),
+                      ),
+                      if (!widget.sleeping)
+                        Tooltip(
+                          message: widget.callTooltip,
+                          child: Semantics(
+                            key: const ValueKey('home-talk'),
+                            child: OutlinedButton.icon(
+                              key: const ValueKey('call-kinaiya'),
+                              onPressed: null,
+                              icon: const Icon(Icons.mic_none),
+                              label: Text(widget.callLabel),
+                            ),
+                          ),
+                        ),
+                    ],
                   ],
                 ),
                 if (widget.ownerControl != null)

@@ -74,6 +74,7 @@ class CharacterView extends StatefulWidget {
     this.voiceOnlyControls = false,
     this.surface = CharacterSurface.legacy,
     this.onModelSettings,
+    this.onConnectionSetup,
     this.showConverseView = true,
     this.setupOpen = false,
     this.animateTransitions = true,
@@ -93,6 +94,7 @@ class CharacterView extends StatefulWidget {
   final bool voiceOnlyControls;
   final CharacterSurface surface;
   final VoidCallback? onModelSettings;
+  final VoidCallback? onConnectionSetup;
   final bool showConverseView, setupOpen, animateTransitions, speechMouthMotion;
   final bool richArtifactsEnabled;
   final ValueChanged<bool>? onRichArtifactsEnabled;
@@ -1787,11 +1789,17 @@ class _CharacterViewState extends State<CharacterView> {
     }
     return Semantics(
       button: true,
-      label: widget.onModelSettings == null
+      label: widget.onModelSettings == null && widget.onConnectionSetup == null
           ? 'Open Agent Chat'
           : 'Open Kinaiya setup',
       child: InkWell(
-        onTap: widget.onModelSettings ?? _openAgent,
+        onTap:
+            (widget.surface == CharacterSurface.home && !_s.connected
+                ? widget.onConnectionSetup
+                : null) ??
+            widget.onModelSettings ??
+            widget.onConnectionSetup ??
+            _openAgent,
         borderRadius: BorderRadius.circular(24),
         child: pack == null
             ? SizedBox(width: size, height: size)
@@ -2603,6 +2611,63 @@ class _CharacterViewState extends State<CharacterView> {
     );
   }
 
+  String get _homeSetupLabel => !_s.connected ? 'Connect / Setup' : 'Setup';
+
+  VoidCallback get _homeSetupAction =>
+      (!_s.connected ? widget.onConnectionSetup : null) ??
+      widget.onModelSettings ??
+      widget.onConnectionSetup ??
+      _openVoiceOptions;
+
+  String? get _homeHelperCopy {
+    if (_homeSleeping) {
+      return 'Wake Kinaiya below to resume voice conversation, or open Setup.';
+    }
+    if (_s.converseControlPending) {
+      return _s.converseControlTarget == true
+          ? 'Waiting for the host to confirm Converse is awake.'
+          : 'Waiting for the host to confirm Converse is sleeping.';
+    }
+    if (!_s.connected) {
+      final error = _s.connectionError?.trim();
+      if (error != null && error.isNotEmpty) {
+        return 'Connection failed: $error. Open Connect / Setup to check your host URLs and owner token, then retry.';
+      }
+      return 'Not connected to a Kinaiya host. Open Connect / Setup to enter your host URLs and owner token.';
+    }
+    if (!_s.sessionAuthenticated) {
+      return 'Host connected, but owner session is not authenticated. Open Setup to verify your owner token.';
+    }
+    if (_s.converseControlUncertain || _s.converseOwnerStatusStale) {
+      return 'Converse status is unconfirmed. Use Check host status below or open Setup.';
+    }
+    if (_s.resourceStatusStale) {
+      return 'Resource status is unconfirmed; voice readiness is unknown until the host responds.';
+    }
+    if (_s.resourceConverseDesired == true &&
+        const {'initializing', 'restoring'}.contains(_s.resourcePhase)) {
+      return 'Voice services are starting on the host. Wait for readiness or open Setup.';
+    }
+    if (_s.resourcesConfigured == true && _s.resourcePhase == 'failed') {
+      return 'Voice restoration failed on the host. Open Setup to review model and voice settings.';
+    }
+    if (!_s.converseEnabled) {
+      return _s.resourcePhase == 'local_work'
+          ? 'Voice is paused for local work. Direct Agent Chat remains available.'
+          : 'Converse is off on the host. Wake Kinaiya or open Setup to configure Converse.';
+    }
+    if (!_s.converseOnline) {
+      return 'Converse service is unreachable. Open Setup to verify the Converse service URL.';
+    }
+    if (!_s.converseInferenceAllowed) {
+      return 'Prerequisite needed: select a qualified Converse model and confirm privacy disclosure in Setup.';
+    }
+    if (!_micReady) {
+      return 'Microphone is unavailable here. Open Converse chat to type, or check Voice settings in Setup.';
+    }
+    return null;
+  }
+
   Widget _homeSurface(CharacterPack? pack, Widget banner) => MoonlitHome(
     character: LayoutBuilder(
       builder: (_, bounds) => _mascot(pack, bounds.maxWidth),
@@ -2616,6 +2681,7 @@ class _CharacterViewState extends State<CharacterView> {
         !_micStopUnconfirmed &&
         !_speaking,
     ownerControl: _ownerSleepControl(),
+    helperText: _homeHelperCopy,
     status: _homeSleeping
         ? 'Offline · Sleeping'
         : _s.converseControlPending
@@ -2642,7 +2708,8 @@ class _CharacterViewState extends State<CharacterView> {
         : _micReady
         ? 'Start Live listen (armed mic)'
         : 'Microphone unavailable here',
-    onSetup: widget.onModelSettings ?? _openVoiceOptions,
+    setupLabel: _homeSetupLabel,
+    onSetup: _homeSetupAction,
     agentStatus: !_s.agentOnline
         ? 'Not connected'
         : !_s.sessionAuthenticated || _s.tasksStatusStale
@@ -2813,22 +2880,46 @@ class _CharacterViewState extends State<CharacterView> {
                           spacing: 12,
                           runSpacing: 12,
                           children: [
-                            FilledButton.icon(
-                              key: const ValueKey('call-kinaiya'),
-                              onPressed: _callAction,
-                              icon: const Icon(Icons.mic_none),
-                              label: Text(
-                                _armed || _micStopUnconfirmed || _micStopPending
-                                    ? _callLabel
-                                    : 'Talk with Kinaiya',
+                            if (_callAction != null) ...[
+                              FilledButton.icon(
+                                key: const ValueKey('call-kinaiya'),
+                                onPressed: _callAction,
+                                icon: Icon(
+                                  _armed || _micStopUnconfirmed
+                                      ? Icons.call_end_rounded
+                                      : Icons.mic_none,
+                                ),
+                                label: Text(
+                                  _armed ||
+                                          _micStopUnconfirmed ||
+                                          _micStopPending
+                                      ? _callLabel
+                                      : 'Talk with Kinaiya',
+                                ),
                               ),
-                            ),
-                            OutlinedButton(
-                              key: const ValueKey('home-setup'),
-                              onPressed:
-                                  widget.onModelSettings ?? _openVoiceOptions,
-                              child: const Text('Setup'),
-                            ),
+                              OutlinedButton(
+                                key: const ValueKey('home-setup'),
+                                onPressed: _homeSetupAction,
+                                child: Text(_homeSetupLabel),
+                              ),
+                            ] else ...[
+                              FilledButton.icon(
+                                key: const ValueKey('home-setup'),
+                                onPressed: _homeSetupAction,
+                                icon: const Icon(Icons.tune_rounded),
+                                label: Text(_homeSetupLabel),
+                              ),
+                              OutlinedButton.icon(
+                                key: const ValueKey('call-kinaiya'),
+                                onPressed: null,
+                                icon: const Icon(Icons.mic_none),
+                                label: Text(
+                                  _micStopPending
+                                      ? _callLabel
+                                      : 'Talk with Kinaiya',
+                                ),
+                              ),
+                            ],
                             _ownerSleepControl(),
                           ],
                         ),
