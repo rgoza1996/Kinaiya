@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -54,8 +56,9 @@ class _ControlState extends State<_Control> {
 }
 
 class _Harness extends StatefulWidget {
-  const _Harness({super.key, this.initialKeys = const ['a', 'b']});
+  const _Harness({super.key, this.initialKeys = const ['a', 'b'], this.random});
   final List<String> initialKeys;
+  final Random? random;
 
   @override
   State<_Harness> createState() => _HarnessState();
@@ -91,6 +94,7 @@ class _HarnessState extends State<_Harness> {
         height: size.height,
         child: FloatingBubbles(
           key: const ValueKey('field'),
+          random: widget.random,
           children: {
             for (final name in order)
               name: _Control(
@@ -124,9 +128,12 @@ class _HarnessState extends State<_Harness> {
 Future<_HarnessState> _mount(
   WidgetTester tester, {
   List<String> keys = const ['a', 'b'],
+  Random? random,
 }) async {
   final key = GlobalKey<_HarnessState>();
-  await tester.pumpWidget(_Harness(key: key, initialKeys: keys));
+  await tester.pumpWidget(
+    _Harness(key: key, initialKeys: keys, random: random),
+  );
   await _frames(tester, 2);
   addTearDown(() async {
     await tester.pumpWidget(const SizedBox.shrink());
@@ -198,17 +205,34 @@ void main() {
     );
   }
 
+  testWidgets('a short centering move remains a tap without starting a pan', (
+    tester,
+  ) async {
+    final host = await _mount(tester, keys: ['a'], random: Random(2403));
+    host.configure(motion: false);
+    await tester.pump();
+    final field = tester.getRect(find.byKey(const ValueKey('field')));
+    final centeringDelta = field.center - tester.getCenter(_body('a'));
+    expect(centeringDelta.distance, lessThan(kTouchSlop));
+    await tester.drag(_body('a'), centeringDelta);
+    await tester.pump();
+    expect(host.controls['a']!.currentState!.taps, 1);
+    expect(host.started, isEmpty);
+    expect(host.ended, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'release velocity launches the body within the engine speed cap',
     (tester) async {
-      final host = await _mount(tester, keys: ['a']);
+      final host = await _mount(tester, keys: ['a'], random: Random(0));
       host.configure(motion: false);
       await tester.pump();
       final field = tester.getRect(find.byKey(const ValueKey('field')));
-      await tester.drag(
-        _body('a'),
-        field.center - tester.getCenter(_body('a')),
-      );
+      final centeringDelta = field.center - tester.getCenter(_body('a'));
+      // The setup move must become a pan before testing the later fling.
+      expect(centeringDelta.distance, greaterThan(2 * kTouchSlop));
+      await tester.drag(_body('a'), centeringDelta);
       await tester.pump();
       host.configure(motion: true);
       await _frames(tester, 2);
