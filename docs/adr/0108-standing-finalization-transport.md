@@ -67,11 +67,16 @@ format (777 files), contract export/schema identity and diff checks pass.
 Every tracked pin and HEAD remained unchanged during each qualification run.
 Counts from repeated or overlapping runs must not be summed as unique coverage.
 
-The four old binding/seal methods retain their original paths and behavior.
-Their inherited missing post-receipt-validation clock check is separately
+At this increment, the four old binding/seal methods retained their original
+paths and behavior. Their inherited missing post-receipt-validation clock check was separately
 [recorded](https://github.com/rgoza1996/Kinaiya/issues/239#issuecomment-6572228960)
-as a source-review finding; this increment does not silently repair it. The
-earlier capability-absence result and six reproduced deadline failures remain
+as a source-review finding; this initial increment did not repair it. The
+later [client return-deadline correction](../../evaluation/evidence/standing-resources-client-return-deadline-2026-11-02.json)
+checks the original deadline after the complete receipt join and before any
+successful return, including lookup-null. Complete validation and original
+HTTP/sole-close ownership remain unchanged. A late-return refusal does not
+establish that a binding/seal failed to commit or authorize a replacement attempt.
+The earlier capability-absence result and six reproduced deadline failures remain
 in the record. Raw logs/JUnit/receipts are ignored local artifacts identified by
 hash, not claimed as published CI artifacts.
 
