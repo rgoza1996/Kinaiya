@@ -712,6 +712,23 @@ class StandingSettlementOwner:
         )
 
     def _history(self):
+        from packages.contracts import standing_agent_settlement as agent_codec
+        from packages.contracts import standing_resource_finalization as resource_codec
+
+        # Only immediately parsed new-family roots use these encoders. Each
+        # call still walks the complete actual graph; old bridges stay below.
+        def fresh_agent_bytes(value):
+            try:
+                return agent_codec._encode(value)
+            except agent_codec._FAILURES:
+                raise ValueError(agent_codec._ERROR) from None
+
+        def fresh_resource_bytes(value):
+            try:
+                return resource_codec._encode(value)
+            except resource_codec._FAILURES:
+                raise ValueError(resource_codec._ERROR) from None
+
         history = self._initial_history()
         meta, generations, coverage = history.meta, history.generations, history.coverage
         members, active = history.members, history.active
@@ -729,9 +746,9 @@ class StandingSettlementOwner:
                 kind = _BODIES[table][2]
                 value = kind.from_json(row[field].encode("utf-8"))
                 wire = (
-                    value.canonical_bytes()
+                    fresh_agent_bytes(value)
                     if table in {_REGISTRATIONS, _SETTLEMENTS}
-                    else finalization_bytes(value)
+                    else fresh_resource_bytes(value)
                     if table in {_BINDINGS, _REPORTS}
                     else canonical_bytes(value)
                 )
@@ -865,6 +882,8 @@ class StandingSettlementOwner:
         ):
             raise StandingConflict
         observation = self._observation(item, coverage)
+        # The complete constructor rebuilds every child and verifies the full
+        # request/claim/initial/reservation joins on these fresh locals.
         return StandingResourceFinalizeContext(
             schema_version="1.0",
             request=request,
@@ -874,7 +893,7 @@ class StandingSettlementOwner:
             context_digest=resource_finalize_context_digest(
                 request, item.binding, item.closure, observation
             ),
-        ).validate_request(request)
+        )
 
     def _settlement_joins(self, item, request):
         if (
