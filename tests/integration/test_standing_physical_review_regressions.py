@@ -65,6 +65,50 @@ async def joined_operations(value):
     await asyncio.wait_for(join_client(value.gateway), 5)
 
 
+async def settle_revision_originals(value):
+    """Join original handles without converting failed settlement into proof."""
+    producer = value.coordinator.standing_finalization
+    gate = value.coordinator.standing_handoff
+    barrier = value.coordinator.standing_barrier
+    originals, scopes = set(), set()
+
+    async def settle():
+        while True:
+            tasks = set(producer.observers) | set(gate.native)
+            current_scopes = set(barrier.operations)
+            current_scopes.update(life.scope for life in producer.lifecycles.values())
+            originals.update(tasks)
+            scopes.update(current_scopes)
+            if tasks:
+                await asyncio.gather(
+                    *(asyncio.shield(task) for task in tasks), return_exceptions=True
+                )
+            if current_scopes:
+                await asyncio.gather(*(scope.join() for scope in current_scopes))
+            await join_client(value.gateway)
+            await asyncio.sleep(0)
+            if not producer.observers and not gate.native and not barrier.operations:
+                break
+
+    await asyncio.wait_for(settle(), 8)
+    assert all(task.done() for task in originals)
+    assert all(not scope.handles for scope in scopes)
+    return {
+        "original_tasks": len(originals),
+        "original_task_failures": [
+            "cancelled" if task.cancelled() else type(task.exception()).__name__
+            for task in originals
+            if task.cancelled() or task.exception() is not None
+        ],
+        "original_scopes": len(scopes),
+        "failed_original_scopes": sum(scope.failed for scope in scopes),
+        "all_observed_handles_settled": True,
+        "producer_failed": producer.failed,
+        "gateway_cleanup_failed": value.gateway._submit_cleanup_failed,
+        "interpretation": "Settlement only; failed owners remain uncertain and grant no testimony",
+    }
+
+
 async def test_genuine_restored_worker_reports_without_a_second_restore(barriers, monkeypatch):
     value = await barriers()
     binding, lease = await acquired(value)
@@ -230,29 +274,48 @@ async def test_wire_revision_overflow_refuses_before_covered_effects(
     except REFUSALS:
         refused = True
     observed_effects = list(effects)
-    # This is independent owner authority, including with a revision that
-    # prevents testimony. It must still perform genuine cleanup successfully.
-    off = await action(coordinator, "converse", enabled=False)
-    assert off["ok"] and coordinator.state.record.phase == "off"
-    assert manager.owned_identity("whistle") is None
     record_property(
-        "actual_revision_boundary",
+        "actual_revision_before_off",
         json.dumps(
             {
                 "revision": which,
                 "stage": stage,
                 "refused": refused,
                 "effects_before_off": observed_effects,
-                "independent_off_ok": off["ok"],
                 "native_reports": report_count(value),
             },
             sort_keys=True,
         ),
     )
-    assert refused
-    assert observed_effects == [], "Wire-invalid testimony started physical effects"
-    assert report_count(value) == 0
-    assert not any(path == REPORT for path, _, _ in value.boundary.requests)
+    try:
+        # This is independent owner authority, including with a revision that
+        # prevents testimony. A distinct request must not conflict with setup On.
+        off = await action(coordinator, "converse", key="review-overflow-off", enabled=False)
+        assert off["ok"] and coordinator.state.record.phase == "off"
+        assert manager.owned_identity("whistle") is None
+        record_property(
+            "actual_revision_boundary",
+            json.dumps(
+                {
+                    "revision": which,
+                    "stage": stage,
+                    "refused": refused,
+                    "effects_before_off": observed_effects,
+                    "independent_off_ok": off["ok"],
+                    "native_reports": report_count(value),
+                },
+                sort_keys=True,
+            ),
+        )
+        assert refused
+        assert observed_effects == [], "Wire-invalid testimony started physical effects"
+        assert report_count(value) == 0
+        assert not any(path == REPORT for path, _, _ in value.boundary.requests)
+    finally:
+        record_property(
+            "actual_revision_owner_settlement",
+            json.dumps(await settle_revision_originals(value), sort_keys=True),
+        )
 
 
 class HeldReportBody(NativeBody):
