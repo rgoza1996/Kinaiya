@@ -415,14 +415,14 @@ class StandingFinalization:
         key = capture.context.standing.claim.claim_id
 
         def local_binding():
-            with self.gate._transaction(capture.guard):
+            with self.gate._transaction(capture.reconcile):
                 self.barrier._schema()
                 return self.gate.db.execute(
                     "SELECT 1 FROM standing_resource_claims WHERE claim_id=?", (key,)
                 ).fetchone()
 
         bound = await self.gate._database(local_binding, capture)
-        capture.guard()
+        capture.reconcile()
         if bound is None:
             # Compatibility is only for already-admitted legacy work. It adds
             # no coverage and cannot adopt a known native binding whose local
@@ -435,7 +435,7 @@ class StandingFinalization:
                 resource_instance=capture.instance,
             )
             known = await capture.gateway.standing_resource_binding_lookup(binding)
-            capture.guard()
+            capture.reconcile()
             if known is not None:
                 raise StandingUnavailable
             capture.witness_legacy = True
@@ -462,14 +462,18 @@ class StandingFinalization:
                 ),
             )
 
-        await self.gate._database(lambda: self._change(key, pending), capture)
-        capture.guard()
-        self.effect_revisions()
+        if key in self.captures and self.captures[key] is not capture:
+            raise StandingUnavailable
+        # Enroll before the native write can commit or its original thread can
+        # be held on return. The observer joins this capture and every child.
         capture.witness_complete = False
         capture.ownership.physical_claim = key
         self.active_key = key
         self.captures[key] = capture
         capture.witness_observer = self._observe(self._capture_settled(key, capture), key)
+        await self.gate._database(lambda: self._change(key, pending), capture)
+        capture.guard()
+        self.effect_revisions()
 
     async def acquired(self, capture):
         if (
@@ -518,7 +522,12 @@ class StandingFinalization:
                 )
                 return
             elif capture.effects_started:
-                phase, restoration = "failed", "uncertain"
+                if capture.suppression is None:
+                    phase, restoration = "failed", "uncertain"
+                else:
+                    # Healthy trusted phase suppression is not restoration.
+                    # Retain the need to restore without permitting acquisition.
+                    phase, restoration = "pending", "pending"
             else:
                 phase, restoration = "never", "not-required"
             self.gate.db.execute(
@@ -963,15 +972,22 @@ class StandingFinalization:
                     raise StandingUnavailable
             elif _wire(reservation) != _wire(context.observation.reservation):
                 raise StandingUnavailable
-            elif row["phase"] == "acquired":
+            elif row["phase"] == "acquired" or (
+                row["phase"] == "pending" and row["effects"] and not row["acquired"]
+            ):
                 state = self.owner.state.record
-                if (
+                if row["acquired"] and (
                     state.phase != "local_work"
                     or state.lease_id != reservation.lease_id
                     or state.lease_task_id != binding.claim.request.task.task_id
                 ):
                     raise StandingUnavailable
+                if not row["acquired"] and (state.lease_id is not None or self.active_key != key):
+                    raise StandingUnavailable
                 self.active_key = key
+                # A pre-allocation stop has no lease to discover. Enroll only
+                # this exact covered claim's necessary existing restore path.
+                call.scope.physical_claim = key
                 self.effect_revisions()
                 call.guard()
                 await self.owner._restore_locked()

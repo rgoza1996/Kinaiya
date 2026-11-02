@@ -112,7 +112,8 @@ class _Capture:
             self.suppression = phase
         self.active = False
 
-    def guard(self):
+    def reconcile(self):
+        """Check original integrity without granting another physical phase."""
         gate, owner = self.gate, self.gate.owner
         try:
             current = asyncio.current_task()
@@ -140,6 +141,10 @@ class _Capture:
         ):
             self.suppress()
             raise StandingUnavailable
+
+    def guard(self):
+        self.reconcile()
+        gate, owner = self.gate, self.gate.owner
         if (
             not self.active
             or gate.closed
@@ -425,9 +430,17 @@ class StandingHandoff:
             )
 
     def _recorded(self, capture):
-        capture.guard()
-        with self._transaction(capture.guard):
+        # This records the ACK of an already issued reservation, including
+        # after a trusted fence. It cannot start or repeat a resource effect.
+        capture.reconcile()
+        with self._transaction(capture.reconcile):
             self._schema()
+            if (
+                type(capture.request) is not StandingResourceReservation
+                or type(capture.receipt) is not StandingResourceReservationReceipt
+            ):
+                raise StandingUnavailable
+            receipt = capture.receipt.validate_request(capture.request)
             row = self.db.execute(
                 f"SELECT * FROM {_INTENTS} WHERE action_key=?",
                 (capture.payload["idempotency_key"],),
@@ -442,7 +455,7 @@ class StandingHandoff:
             self.db.execute(
                 f"UPDATE {_INTENTS} SET receipt=? WHERE action_key=?",
                 (
-                    capture.receipt.canonical_bytes().decode(),
+                    receipt.canonical_bytes().decode(),
                     capture.payload["idempotency_key"],
                 ),
             )
@@ -495,15 +508,15 @@ class StandingHandoff:
                 await self._database(lambda: self._pending(capture), capture)
                 capture.guard()
                 receipt = await reserve(capture.request)
-                capture.guard()
+                capture.reconcile()
                 if type(receipt) is not StandingResourceReservationReceipt:
                     raise StandingUnavailable
                 capture.receipt = receipt.validate_request(capture.request)
                 await self._database(lambda: self._recorded(capture), capture)
-                capture.guard()
+                capture.reconcile()
                 if capture.receipt.disposition != "created":
                     raise StandingUnavailable
-            capture.guard()
+            capture.reconcile()
             await self.owner.standing_finalization.begin_capture(capture)
             capture.guard()
             result = await invoke(capture.payload, capture=capture)
@@ -514,9 +527,9 @@ class StandingHandoff:
                 capture.ownership.fail()
             return result
         except _CaptureSuppressed:
-            capture.witness_complete = not capture.effects_started
+            capture.witness_complete = True
             # This guard adds no physical claim and clears no child failure.
-            # Actual operation handles must still positively retire at source.
+            # Actual owners must retire, and crossed effects still need restore.
             raise
         except (StandingConflict, StandingUnavailable):
             if capture.effects_started:
