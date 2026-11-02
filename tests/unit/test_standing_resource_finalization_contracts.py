@@ -58,6 +58,18 @@ GOLDEN_HASHES = {
     "finalization": "cad9088e0dd6c2a8c7dcff1f0893f586aa6932d3b3451b1ce5079cb2750bc80c",
 }
 OLD_SCHEMA_HASH = "21351c70f152823480441448d140c49cd561aa9be0a9a4e760c1d8035257328a"
+# PR271 deliberately evolved these two schemas on approved main e537923.
+# Pin their complete new bytes before reconstructing the original aggregate.
+APPROVED_NATIVE_D1_SCHEMAS = {
+    "DecisionsCallStart.json": (
+        "b19b393cc29869957aa839fd0f3391c9a4e5c8c243d7ad276355027847a5afad",
+        (b'            "native_d1_systemone",\n', b'        "native_d1_systemone",\n'),
+    ),
+    "DecisionsModelPin.json": (
+        "c2e129f2448e6cf6bc7af60ef481ee61ccbf2d8344d0e1d8e985f48e68f090ce",
+        (b'        "native_d1_systemone",\n',),
+    ),
+}
 
 
 def encoded(value):
@@ -289,11 +301,22 @@ def graph_depth(value):
 
 def schema_pin():
     root = Path(__file__).resolve().parents[2] / "packages" / "contracts" / "schemas"
-    # The original 184 stay exact; six finalization and two later #255 schemas
-    # are additive families whose names are explicitly outside this old pin.
+    # Preserve the original184 pin plus the exact approved two-schema evolution.
+    # Six finalization and two later #255 schemas are additive families.
     additive = set(CAPS) | {"TranscriptScanPage", "TranscriptScanRequest"}
     paths = sorted(path for path in root.glob("*.json") if path.stem not in additive)
-    body = b"".join(path.name.encode() + b"\0" + path.read_bytes() + b"\0" for path in paths)
+    body = bytearray()
+    for path in paths:
+        raw = path.read_bytes()
+        if path.name in APPROVED_NATIVE_D1_SCHEMAS:
+            expected, approved_lines = APPROVED_NATIVE_D1_SCHEMAS[path.name]
+            assert hashlib.sha256(raw).hexdigest() == expected
+            lines = raw.splitlines(keepends=True)
+            for line in approved_lines:
+                assert lines.count(line) == 1
+                lines.remove(line)
+            raw = b"".join(lines)
+        body.extend(path.name.encode() + b"\0" + raw + b"\0")
     return len(paths), hashlib.sha256(body).hexdigest()
 
 
