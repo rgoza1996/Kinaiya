@@ -255,7 +255,22 @@ async def test_snapshot_observes_original_held_context_without_advancing_owners(
     # This is a healthy observation control, not a forced timeout or a claim
     # that the historical eight-second CI failures have been explained.
     gate.release.set()
-    receipt = await asyncio.wait_for(public, 8)
+    try:
+        receipt = await asyncio.wait_for(public, 8)
+    except TimeoutError as error:
+        try:
+            error.add_note(
+                "Physical finalization timeout observation: "
+                + json.dumps(snapshot(value), ensure_ascii=True, separators=(",", ":"))
+            )
+        except BaseException as diagnostic:
+            try:
+                error.add_note(
+                    "Physical observation unavailable: " + type(diagnostic).__name__[:64]
+                )
+            except BaseException:
+                pass
+        raise
     assert type(receipt) is StandingResourceFinalizationReceipt
     assert receipt.validate_request(value.request) == receipt
     assert receipt.finalization.resource_disposition == "no-reservation"
