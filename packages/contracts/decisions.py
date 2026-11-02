@@ -59,6 +59,12 @@ class DecisionsCallStart(CaptureModel):
             raise ValueError("A submitted call requires its actual request")
         if self.request_format == "reused" and self.reused_from_call_id is None:
             raise ValueError("Reuse requires the original call identity")
+        if self.provider == "native_d1" and self.request_format not in {
+            "native_d1_systemone",
+            "not_submitted",
+            "reused",
+        }:
+            raise ValueError("Native d1 capture requires its exact submitted protocol")
         if self.request_format == "native_d1_systemone" and (
             self.provider != "native_d1"
             or self.artifact_sha256 is not None
