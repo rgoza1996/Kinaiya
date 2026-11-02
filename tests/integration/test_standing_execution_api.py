@@ -104,7 +104,11 @@ async def factory(tmp_path):
         wall = SimpleNamespace(value=datetime(2026, 11, 1, 11, 59, 50, tzinfo=UTC))
         mono = SimpleNamespace(value=1000)
         app = create_app(
-            store, AUTH, standing_clock=lambda: wall.value, standing_monotonic_ms=lambda: mono.value
+            store,
+            AUTH,
+            standing_clock=lambda: wall.value,
+            standing_monotonic_ms=lambda: mono.value,
+            standing_protocol=1,
         )
         lifespan = app.router.lifespan_context(app)
         await lifespan.__aenter__()

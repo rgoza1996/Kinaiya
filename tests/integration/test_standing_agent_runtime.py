@@ -267,7 +267,13 @@ async def stack(factory, tmp_path):
         transport = NativeBoundary(env.app)
         journal = JournalClient("http://standing.test", "a" * 32, transport=transport)
         base = MeasuredFiles()
-        runtime = AgentRuntime(journal, base, workspace, ToolPolicy(workspace, allow_write=True))
+        runtime = AgentRuntime(
+            journal,
+            base,
+            workspace,
+            ToolPolicy(workspace, allow_write=True),
+            standing_protocol=1,
+        )
         owner = bind_workspace(runtime, tmp_path / f"workspace-owner-{len(opened)}")
         context = owner.active_context()
         made = []
@@ -773,7 +779,9 @@ async def test_native_subset_cannot_be_bypassed_without_permissions_owner(
 async def test_restart_reads_retained_initial_without_replacement_models_or_worker(stack):
     value = await stack()
     accepted = await value.journal.standing_admit(value.original, capability=SECRET)
-    replacement = AgentRuntime(value.journal, value.base, value.workspace, value.runtime.policy)
+    replacement = AgentRuntime(
+        value.journal, value.base, value.workspace, value.runtime.policy, standing_protocol=1
+    )
     try:
         assert callable(getattr(replacement, "submit_standing", None)), (
             "Standing launch adapter absent"
