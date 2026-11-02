@@ -1142,6 +1142,25 @@ class StandingSettlementOwner:
         self._guard(deadline, cancelled)
         created = False
 
+        def remaining_runs(history):
+            record = self.claims.owner._current_record(request.responsibility_id, history.meta)
+            if (
+                record is None
+                or record.receipt.revision != request.authorization_revision
+                or record.receipt.authorization_digest != request.authorization_digest
+                or record.record_digest != request.record_digest
+            ):
+                raise StandingConflict
+            # Every retained preparation spends its original revision's grant,
+            # including uncertain, migrated, unlaunched and settled claims.
+            used = sum(
+                item.claim.request.expected_backend == request.expected_backend
+                and item.claim.request.responsibility_id == request.responsibility_id
+                and item.claim.request.authorization_revision == request.authorization_revision
+                for item in history.members.values()
+            )
+            return record.receipt.request.authorization.maximum_runs - used
+
         def final():
             history = self._checked_history()
             item = self._select(history, request)
@@ -1151,6 +1170,8 @@ class StandingSettlementOwner:
                 if _utc(self._launch(history, request, deadline, cancelled)) < _utc(
                     item.claim.prepared_utc
                 ):
+                    raise StandingUnavailable
+                if remaining_runs(history) < 0:
                     raise StandingUnavailable
             self._guard(deadline, cancelled)
 
@@ -1172,6 +1193,8 @@ class StandingSettlementOwner:
                 self.tasks._task_available(request.task.task_id)
                 if len(history.members) >= HISTORY_LIMIT:
                     raise StandingUnavailable
+                if remaining_runs(history) < 1:
+                    raise StandingConflict
                 claim = StandingExecutionClaim(
                     schema_version="1.0",
                     request=request,
