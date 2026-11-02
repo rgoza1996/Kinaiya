@@ -19,7 +19,12 @@ from packages.contracts.decisions_models import (
 )
 from packages.providers.decision_capture import CaptureNativeUnavailable
 from packages.providers.text import ProviderCleanupError, owned_http_stream_cleanup
-from services.decisions.provider_factory import inspect_recipe, open_recipe, provider_info
+from services.decisions.provider_factory import (
+    inspect_recipe,
+    open_recipe,
+    provider_info,
+    provider_protocol,
+)
 from services.settings.provider_catalog import _storage
 
 BOUNDARY = "settled_decisions_operations"
@@ -324,7 +329,7 @@ class DecisionsModelSettings:
                 provider=info.provider,
                 model=info.model,
                 local=info.local,
-                protocol="laya_systemone" if info.provider == "laya" else "host_configured",
+                protocol=provider_protocol(info.provider),
             )
         except Exception:
             if adapter is not None:
@@ -377,13 +382,15 @@ class DecisionsModelSettings:
                     recipe = inspect_recipe(self.catalog, declaration)
                     selectable, reason, metadata = (
                         True,
-                        "Typed Laya declaration; runtime not checked",
+                        "Typed Laya declaration; runtime not checked"
+                        if recipe.info.provider == "laya"
+                        else "Native d1 declaration; runtime not checked",
                         recipe.info.model_dump(),
                     )
                 except Exception:
                     selectable, reason, metadata = (
                         False,
-                        "Only an available exact typed Laya generation is eligible",
+                        "Only an available exact typed classifier generation is eligible",
                         None,
                     )
                 profiles.append(
@@ -394,7 +401,7 @@ class DecisionsModelSettings:
                         "selectable": selectable,
                         "provider": metadata,
                         "reason": reason,
-                        "protocol": "laya_systemone" if selectable else None,
+                        "protocol": provider_protocol(metadata["provider"]) if selectable else None,
                         "qualification": "not_checked",
                         "readiness": "unknown",
                     }
@@ -413,8 +420,8 @@ class DecisionsModelSettings:
             "host": {
                 "provider": host_info,
                 "selectable": host_info is not None,
-                "protocol": "laya_systemone"
-                if host_info and host_info["provider"] == "laya"
+                "protocol": provider_protocol(host_info["provider"])
+                if host_info
                 else "host_configured",
             },
             "catalog_profiles": profiles,

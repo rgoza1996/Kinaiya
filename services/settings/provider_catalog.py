@@ -181,6 +181,31 @@ class LayaProfile(TextProfile):
         return self
 
 
+class NativeD1Profile(TextProfile):
+    kind: Literal["native_d1"]
+    allow_cloud: Literal[False] = False
+    credential: CredentialBinding | None = None
+    timeout_s: int = Field(default=5, ge=1, le=120)
+    min_confidence: float = Field(ge=0, le=1, allow_inf_nan=False)
+
+    @field_validator("allow_cloud", mode="before")
+    @classmethod
+    def local_only(cls, value):
+        if type(value) is not bool or value is not False:
+            raise ValueError("Native d1 is local only")
+        return value
+
+    @model_validator(mode="after")
+    def native(self):
+        parsed = urlsplit(self.base_url)
+        self.base_url = _origin(self.base_url, cloud=False)
+        if parsed.port is None or parsed.path not in {"", "/"}:
+            raise ValueError("Native d1 requires an explicit loopback port and server root")
+        if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,127}", self.model) is None:
+            raise ValueError("Native d1 requires a bounded canonical model alias")
+        return self
+
+
 class MetaSTTProfile(StrictSettings):
     kind: Literal["meta_stt"]
     base_url: str = Field(min_length=1, max_length=2048)
@@ -235,6 +260,7 @@ ProfileConfig = Annotated[
     | CompatibleProfile
     | LMStudioProfile
     | LayaProfile
+    | NativeD1Profile
     | MetaSTTProfile
     | OpenRouterTTSProfile,
     Field(discriminator="kind"),
@@ -584,7 +610,7 @@ class ProviderCatalog:
                     else ["stt"]
                     if kind == "meta_stt"
                     else ["decisions"]
-                    if kind == "laya"
+                    if kind in {"laya", "native_d1"}
                     else ["agent", "converse", "auxiliary"]
                     if kind == "lmstudio"
                     else ["agent", "converse", "decisions", "auxiliary"],

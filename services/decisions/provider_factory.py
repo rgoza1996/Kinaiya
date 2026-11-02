@@ -1,4 +1,4 @@
-"""Exact typed Laya recipes; inspection never constructs an adapter or key."""
+"""Exact typed classifier recipes; inspection constructs no adapter or key."""
 
 import json
 from dataclasses import dataclass
@@ -6,6 +6,13 @@ from dataclasses import dataclass
 from packages.contracts.decisions_models import DecisionsModelSelection
 from packages.contracts.models import ProviderInfo
 from services.settings.provider_factory import declaration_info
+
+
+def provider_protocol(name):
+    return {
+        "laya": "laya_systemone",
+        "native_d1": "native_d1_systemone",
+    }.get(name, "host_configured")
 
 
 @dataclass(frozen=True)
@@ -31,8 +38,8 @@ def _recipe(catalog, selection):
     profile = catalog.profile(binding.id, binding.generation, for_new=True)
     if profile["configuration_sha256"] != binding.configuration_sha256:
         raise ValueError("Classifier catalog configuration changed")
-    if profile["config"]["kind"] != "laya":
-        raise ValueError("Only typed Laya catalog classifiers are supported")
+    if profile["config"]["kind"] not in {"laya", "native_d1"}:
+        raise ValueError("Only exact typed catalog classifiers are supported")
     return DecisionsRecipe(
         selection,
         catalog._revision()[0],
@@ -73,16 +80,28 @@ def open_recipe(catalog, selection, *, resource_state=None):
     except BaseException:
         catalog.db.rollback()
         raise
-    adapter = LayaRoutingProvider(
-        config["base_url"],
-        config["model"],
-        api_key=key,
-        allow_cloud=config["allow_cloud"],
-        timeout=config["timeout_s"],
-        max_len=config["max_len"],
-        head_max_len=config["head_max_len"],
-        expected_artifact_sha256=config["expected_artifact_sha256"],
-    )
+    if config["kind"] == "native_d1":
+        from packages.providers.native_d1 import NativeD1RoutingProvider
+
+        adapter = NativeD1RoutingProvider(
+            config["base_url"],
+            config["model"],
+            api_key=key,
+            allow_cloud=config["allow_cloud"],
+            timeout=config["timeout_s"],
+            min_confidence=config["min_confidence"],
+        )
+    else:
+        adapter = LayaRoutingProvider(
+            config["base_url"],
+            config["model"],
+            api_key=key,
+            allow_cloud=config["allow_cloud"],
+            timeout=config["timeout_s"],
+            max_len=config["max_len"],
+            head_max_len=config["head_max_len"],
+            expected_artifact_sha256=config["expected_artifact_sha256"],
+        )
     key = None
     provider = adapter
     if resource_state is not None:

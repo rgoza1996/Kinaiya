@@ -68,7 +68,7 @@ class DecisionsModelPin(_Closed):
     provider: str = Field(min_length=1, max_length=256)
     model: str = Field(min_length=1, max_length=256)
     local: bool
-    protocol: Literal["laya_systemone", "host_configured"]
+    protocol: Literal["laya_systemone", "native_d1_systemone", "host_configured"]
 
     @field_validator("provider", "model")
     @classmethod
@@ -81,8 +81,15 @@ class DecisionsModelPin(_Closed):
     def exact_catalog(self):
         if (self.selection.source == "host") != (self.catalog_revision is None):
             raise ValueError("Classifier pin requires its exact catalog provenance")
-        if self.selection.source == "catalog" and (
-            self.provider != "laya" or self.protocol != "laya_systemone"
+        if self.provider == "native_d1" and (
+            self.protocol != "native_d1_systemone" or self.local is not True
         ):
-            raise ValueError("Only typed Laya catalog classifiers are supported")
+            raise ValueError("Native d1 requires its exact protocol")
+        if self.protocol == "native_d1_systemone" and self.provider != "native_d1":
+            raise ValueError("Native d1 protocol requires its exact provider")
+        if self.selection.source == "catalog" and (self.provider, self.protocol) not in {
+            ("laya", "laya_systemone"),
+            ("native_d1", "native_d1_systemone"),
+        }:
+            raise ValueError("Only exact typed classifier protocol pairs are supported")
         return self
