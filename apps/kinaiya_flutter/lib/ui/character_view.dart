@@ -1759,6 +1759,28 @@ class _CharacterViewState extends State<CharacterView> {
     return 'Ready to talk';
   }
 
+  ConverseStageState get _converseStageState {
+    if (_micStopPending ||
+        _micStopUnconfirmed ||
+        _s.resourceStatusStale ||
+        (_s.resourceConverseDesired == true &&
+            (_s.resourcePhase == 'restoring' ||
+                _s.resourcePhase == 'initializing')) ||
+        (_s.resourcesConfigured == true && _s.resourcePhase == 'failed') ||
+        !_s.converseEnabled ||
+        !_s.sessionAuthenticated ||
+        !_s.converseInferenceAllowed) {
+      return ConverseStageState.unavailable;
+    }
+    if (_speaking) return ConverseStageState.speaking;
+    if (_s.busyConverse || _liveStatus == 'Preparing a reply') {
+      return ConverseStageState.thinking;
+    }
+    if (_recording) return ConverseStageState.recording;
+    if (_armed) return ConverseStageState.listening;
+    return ConverseStageState.muted;
+  }
+
   CharacterSignals get _characterSignals {
     final work = _s.characterWorkActivity;
     return CharacterSignals(
@@ -2798,6 +2820,7 @@ class _CharacterViewState extends State<CharacterView> {
                 composer: composer,
                 modelSummary: ConverseModelSummary(state: _s),
                 status: _status,
+                stageState: _converseStageState,
                 callLabel: _armed || _micStopPending || _micStopUnconfirmed
                     ? _callLabel
                     : 'Talk with Kinaiya',
