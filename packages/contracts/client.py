@@ -250,7 +250,9 @@ class _JournalMetadataExchange(_SubmitExchange):
                 raise AgentSubmitUnavailable
             raw = bytearray()
             async for chunk in self.response.stream:
-                if type(chunk) is not bytes or len(raw) + len(chunk) > self.maximum:
+                if type(chunk) is not bytes or (
+                    self.maximum is not None and len(raw) + len(chunk) > self.maximum
+                ):
                     raise AgentSubmitUnavailable
                 raw.extend(chunk)
             return bytes(raw) if self.raw else json.loads(bytes(raw))
@@ -682,7 +684,7 @@ class JournalClient:
     async def session(self, session_id):
         if current_owner() is not None:
             return Session.model_validate(
-                await self._owned_metadata("GET", f"/v1/sessions/{session_id}")
+                await self._owned_metadata("GET", f"/v1/sessions/{session_id}", maximum=None)
             )
         response = await self.http.get(f"/v1/sessions/{session_id}")
         response.raise_for_status()
@@ -726,8 +728,12 @@ class JournalClient:
 
     async def entry(self, event_id):
         if current_owner() is not None:
+            # This existing route has no response-byte cap. Enrollment must
+            # preserve its complete value rather than borrow publication limits.
             return JournalEntry.model_validate(
-                await self._owned_metadata("GET", f"/v1/transcript/entries/{event_id}")
+                await self._owned_metadata(
+                    "GET", f"/v1/transcript/entries/{event_id}", maximum=None
+                )
             )
         response = await self.http.get(f"/v1/transcript/entries/{event_id}")
         response.raise_for_status()
@@ -737,7 +743,10 @@ class JournalClient:
         if current_owner() is not None:
             return JournalEntry.model_validate(
                 await self._owned_metadata(
-                    "GET", f"/v1/transcript/entries/{event_id}", params={"resolve": True}
+                    "GET",
+                    f"/v1/transcript/entries/{event_id}",
+                    params={"resolve": True},
+                    maximum=None,
                 )
             )
         response = await self.http.get(
