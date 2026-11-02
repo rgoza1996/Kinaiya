@@ -1,0 +1,290 @@
+{
+  "base": "7d77d6759ed314ba74025143e1478a59784e40f2",
+  "date": "2026-11-02",
+  "environment": "Existing pinned Python3.12.3 venv, explicit isolated worktree PYTHONPATH, serial non-live pytest/no cache/function loop/xunit1. No local dependency install.",
+  "historical_ci": {
+    "failed_cases": [
+      "test_finalizer_restores_only_exact_original_reserved_lease",
+      "test_complete_genuine_large_graph_and_native_reply_exceed_old262144_cap"
+    ],
+    "known": "Original report finalizers/exchanges remained running, response unacquired. Local immutable report commit and prior lookup-null had returned. Outer ASGIcall_next did not expose inner native ingress/thread/COMMIT/serialization phase.",
+    "merge": "83e79fe0326fdbc4bc374454e1bfae884c7da017",
+    "new_mechanism": "Observe only existing native _execute registry/await/Event state on a future timeout. It does not expose the inner thread or prove native COMMIT; no _call phase hook is added.",
+    "platforms": "Flutter/Android/iOS passed.",
+    "python311": "Cancelled near34percent after failure progress; no complete suite result/pass/cleanup qualification.",
+    "python312": "10841passed2failed6skipped2deselected1warning2081.20s",
+    "raw_log_sha256": "423198e7dc5f54076f4be330203fb142fdc776367afbd1b88d3d8a100d261847",
+    "run": 41425838218,
+    "source_map_sha256": "e5c23433f4e363c851f474646aad69d1c39ceebb14741f78628e46e8c069e92a",
+    "tree": "b4c77f0a77f46ee37f58d320c1b08acbf42cd1b6",
+    "tree_exact_to_head52c": true,
+    "unknown": "Cause, native report COMMIT and eventual actual cleanup. State ready/off, prior closed streams and unlocked Resources locks do not establish these."
+  },
+  "implementation": {
+    "author_commit": "29994dd03e958fca5b41d15af07df05c83a22888",
+    "author_seal_sha256": "c28b890bea6ddb452ac236ea81add6ca30024d0ca00b0d29e1e2d2c51959bc45",
+    "bounds": "Existing collections32/awaitchains24/qualnames64/fullJSON32768 and pruning remain. Data only contains scrubbed primitive metadata. No IO/new Tasks/timers/waits/SQL/status/global-task scan/frame locals/user task names/raw requests or authorization change.",
+    "contract": {
+      "local_ignored_artifact": ".dev-run/239-native-timeout-observation-contract-v1.md",
+      "sha256": "95b76117b38e928556191a99b4fadc08adc54939424a8b44ae7e13fddb5789cb"
+    },
+    "helper_sha256": "2b5387a5c35a369081db2a43efd3a47eba1b907b54096f530780d501dfcf8687",
+    "independent_source_review_sha256": "eb0aeba0d977e0bb93cc2ae21913a09a7db2772dd153f26ae01cba777808325d",
+    "path": "tests/integration/test_standing_physical_finalization.py",
+    "scope": "Only _physical_timeout_snapshot grows36lines. Existing exact ten top-level sections remain. One session-operations descriptor in operations reports existing cached component/shared-dictionary identity, component closed flag, pending count and atmost32 original _execute Tasks/cancellation Event states. Missing cached registry is unavailable; empty available registry is count0. Shared data may contain other standing families.",
+    "sha256": "91281aed3a37f14ee5bf7f6d25179bde373d421d6f6a1eb5a10a0712c90c09a0",
+    "unchanged": "All production/public contracts/schemas/docs, surrounding test module bytes/AST,233 assertions,42 protected calls,three original8s wrappers, cleanup and original exception/fallback behavior."
+  },
+  "limits": [
+    "Local new control demonstrates the mechanism using a deliberately held real native thread, not reproduction/explanation/repair of the historical eight-second timeout.",
+    "Existing affected11 cover both original CI435 cases, two unchanged parent helper controls and all seven capture-fence cases; the full older510/62 groups were not rerun in this test-only slice. They previously passed on312's unchanged production. Exact-head full CI remains required.",
+    "Eventual fixture cleanup on both failures and passes is separate from timely operation or historical CI cleanup; repeated/overlapping counts are not unique coverage.",
+    "No inference/model-accuracy/provider/account/paid/GPU/device/install/live service/config/preview action or new deadline/retry.",
+    "No Agent retirement/settlement/slot release/recurrence/inbox caller or roadmap/demo completion.",
+    "Raw artifacts remain local ignored files identified by SHA; no published CI artifact claim. Following evidence-only commit will not change qualified production/helper/oracle."
+  ],
+  "oracle": {
+    "calibration": "Cold failed exactly because native descriptor absent, after genuine held operation and non-advancement guards. First hot passed all snapshot/native Task/Event/await/guard checks and receipt/native/scope/exchange-close joins, then failed a wrong assumption that response.stream is directly Body. Pinned HTTPX0.28.1 wraps it in BoundAsyncStream. Minimal8ef34a2 reads retained native Body and adds exact response.stream._stream is Body identity. All65 original assertions/awaits/gates/deadlines remain, plus1 identity assertion. Original frozen hot is NOT claimed to pass unchanged.",
+    "calibration_commit": "8ef34a2a79423be1d864c6fabb036920602e67ab",
+    "calibration_receipt_sha256": "c8c77c10561b7396e08326beae632bebceeb5a2037f2a7366c5d4148495407af",
+    "frozen_commit": "ec7de7ce3b6525243376cdc464ed32ba71bd3729",
+    "frozen_receipt_sha256": "a8918152d2b65ce704de6df56b3be7f491868ef2b0960dbd39b5437312e18a66",
+    "frozen_sha256": "f53eed7525b706bd073fd75811c142545ceed3f81318556b92905bff8a7fa71b",
+    "independence": "Contract-first, no candidate source consultation. Real original Session report callable transparently held before invoking the same original; its shared registry Task/Event, full Resources/client/native owners and SQL are observed without advancement. Guarded helper interval forbids IO/SQL/new Tasks/task scan/Event mutation/wait/cancellation/owner mutation, with before-after actual DB/task/queue/handle checks.",
+    "independent_calibration_review_sha256": "7e527d394134cb1bf9de8a37982ed3cc8fb31b025c05d128e426d773f31aeae9",
+    "path": "tests/integration/test_standing_native_timeout_observation.py",
+    "positive_control": "After releasing same original native callable, require complete validated receipt, authoritative native lookup, exact original Task/scope/exchange/sole-close/Body joins, no worker start/effect or model call.",
+    "sha256": "deb570774b9f0cc7c00cfdab2308df1b8b6e56143d87a20498e952e555bd0142"
+  },
+  "qualified_source": "5a2c12d8cad82197fc0c892d28decbd60032c591",
+  "requirement": [
+    "#239 original Resources/native owners",
+    "#228 integration",
+    "AGENTS truthful bounded diagnostic evidence"
+  ],
+  "runs": {
+    "affected_existing_controls_and_ci_cases": {
+      "changed_pins": [],
+      "eventual_physical_cleanup_records": 11,
+      "exit_code": 0,
+      "head": "5a2c12d8cad82197fc0c892d28decbd60032c591",
+      "head_after": "5a2c12d8cad82197fc0c892d28decbd60032c591",
+      "historical_cleanup_errors": [],
+      "inference_calls": 0,
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "0",
+          "skipped": "0",
+          "tests": "11",
+          "time": "83.427"
+        }
+      ],
+      "junit_xml": {
+        "local_ignored_artifact": ".dev-run/239-native-observer-affected-v1-z9d0kaet/junit.xml",
+        "sha256": "8a537e3c62c8414fe94256621839c1edd89a87670fbe4d492f05140dabb8769c"
+      },
+      "log": {
+        "local_ignored_artifact": ".dev-run/239-native-observer-affected-v1-z9d0kaet/pytest.log",
+        "sha256": "2d4ccfeb80f1c7a676b9efe05ee0e192f3e9ae1d1322cef67e384eea526e1753"
+      },
+      "manifest": {
+        "local_ignored_artifact": ".dev-run/239-native-observer-affected-v1-z9d0kaet/manifest.json",
+        "sha256": "c2693b7e52eb16e95296d6f42dbae9219dba9828b8ccf66dbc0d724f2edd0c36"
+      },
+      "pins_preserved": true,
+      "positive_eventual_original_close_reap_http_stream_joins": true,
+      "receipt": {
+        "local_ignored_artifact": ".dev-run/239-native-observer-affected-v1-z9d0kaet/receipt.json",
+        "sha256": "f3a83210ddb2b3cc329a52265b9222dafffd8b94edce20cf64d4d37fb7ddfbd1"
+      },
+      "subprocess_seconds": 84.1673493269991,
+      "targets": [
+        "tests/integration/test_standing_physical_timeout_observation.py",
+        "tests/integration/test_standing_physical_timeout_controls.py",
+        "tests/integration/test_standing_physical_finalization.py::test_finalizer_restores_only_exact_original_reserved_lease",
+        "tests/integration/test_standing_physical_finalization.py::test_complete_genuine_large_graph_and_native_reply_exceed_old262144_cap",
+        "tests/integration/test_standing_physical_capture_fences.py"
+      ],
+      "tracked_inputs": 1504
+    },
+    "calibrated_hot": {
+      "changed_pins": [],
+      "eventual_physical_cleanup_records": 1,
+      "exit_code": 0,
+      "head": "5a2c12d8cad82197fc0c892d28decbd60032c591",
+      "head_after": "5a2c12d8cad82197fc0c892d28decbd60032c591",
+      "historical_cleanup_errors": [],
+      "inference_calls": 0,
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "0",
+          "skipped": "0",
+          "tests": "1",
+          "time": "3.490"
+        }
+      ],
+      "junit_xml": {
+        "local_ignored_artifact": ".dev-run/239-native-observer-hot-v2-_g7_2w74/junit.xml",
+        "sha256": "9c7a21f28db0a4225bcaa8e24120a9895551053536f73f07da5f1501d56a557f"
+      },
+      "log": {
+        "local_ignored_artifact": ".dev-run/239-native-observer-hot-v2-_g7_2w74/pytest.log",
+        "sha256": "9cc188b31162fef5b4f711387d4a0128864719bf6ac6108bc3d70baa66a375fc"
+      },
+      "manifest": {
+        "local_ignored_artifact": ".dev-run/239-native-observer-hot-v2-_g7_2w74/manifest.json",
+        "sha256": "e9245c4ba43a6c9a654f4d0acc4eb3fef688b686da3c5b8758b26431f391fd2b"
+      },
+      "pins_preserved": true,
+      "positive_eventual_original_close_reap_http_stream_joins": true,
+      "receipt": {
+        "local_ignored_artifact": ".dev-run/239-native-observer-hot-v2-_g7_2w74/receipt.json",
+        "sha256": "f27b6fb8eddeb1f7048958f0648ce547cc91fecbd1208e1acd742404ce16719d"
+      },
+      "subprocess_seconds": 3.850655916001415,
+      "targets": [
+        "tests/integration/test_standing_native_timeout_observation.py"
+      ],
+      "tracked_inputs": 1504
+    },
+    "cold_absent_native_descriptor": {
+      "changed_pins": [],
+      "eventual_physical_cleanup_records": 1,
+      "exit_code": 1,
+      "head": "1616fc5e37f84a675abd690c4ac989983aacbba8",
+      "head_after": "1616fc5e37f84a675abd690c4ac989983aacbba8",
+      "historical_cleanup_errors": [],
+      "inference_calls": 0,
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "1",
+          "skipped": "0",
+          "tests": "1",
+          "time": "3.201"
+        }
+      ],
+      "junit_xml": {
+        "local_ignored_artifact": ".dev-run/239-native-observer-cold-v1-847m09fq/junit.xml",
+        "sha256": "113efaf41297e804e227c0cf88802b260c5842e78b60e7ff709c25a1237a136b"
+      },
+      "log": {
+        "local_ignored_artifact": ".dev-run/239-native-observer-cold-v1-847m09fq/pytest.log",
+        "sha256": "83571330e567335a9664f58bef56f60700a420fdfdc59b3a84bceb9cb34cfb15"
+      },
+      "manifest": {
+        "local_ignored_artifact": ".dev-run/239-native-observer-cold-v1-847m09fq/manifest.json",
+        "sha256": "d0e79873b2cf30f3a6a1cb985596e65796184d92e91f103b114f8f6aab00fde8"
+      },
+      "pins_preserved": true,
+      "positive_eventual_original_close_reap_http_stream_joins": true,
+      "receipt": {
+        "local_ignored_artifact": ".dev-run/239-native-observer-cold-v1-847m09fq/receipt.json",
+        "sha256": "60d4e4b91e44b348b113ea3d4d682ff2572f44641ad784577ba3aa46c75e8b6c"
+      },
+      "subprocess_seconds": 3.631260927999392,
+      "targets": [
+        "tests/integration/test_standing_native_timeout_observation.py"
+      ],
+      "tracked_inputs": 1504
+    },
+    "first_hot_transport_body_fixture_failure": {
+      "changed_pins": [],
+      "eventual_physical_cleanup_records": 1,
+      "exit_code": 1,
+      "head": "66cf0be4cb081ec89c7bcaa78923b429d2abee6c",
+      "head_after": "66cf0be4cb081ec89c7bcaa78923b429d2abee6c",
+      "historical_cleanup_errors": [],
+      "inference_calls": 0,
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "1",
+          "skipped": "0",
+          "tests": "1",
+          "time": "3.148"
+        }
+      ],
+      "junit_xml": {
+        "local_ignored_artifact": ".dev-run/239-native-observer-hot-v1-931lbiww/junit.xml",
+        "sha256": "638b1eca73f32b67285c22afa870630228ff47a1c208d598b7af945630fe3e66"
+      },
+      "log": {
+        "local_ignored_artifact": ".dev-run/239-native-observer-hot-v1-931lbiww/pytest.log",
+        "sha256": "83c389ac23d7f78196fc7064de76ace06ed2ea721de432336f219fff347e6eba"
+      },
+      "manifest": {
+        "local_ignored_artifact": ".dev-run/239-native-observer-hot-v1-931lbiww/manifest.json",
+        "sha256": "176e50af49ff4c714380ee36a1714c19927f66fe98743c2a13062edbebf5dc00"
+      },
+      "pins_preserved": true,
+      "positive_eventual_original_close_reap_http_stream_joins": true,
+      "receipt": {
+        "local_ignored_artifact": ".dev-run/239-native-observer-hot-v1-931lbiww/receipt.json",
+        "sha256": "e212969f61550c2b650382c7a67e3714258ec55d33cfdaabb69dfa33b37474c3"
+      },
+      "subprocess_seconds": 3.4972104389962624,
+      "targets": [
+        "tests/integration/test_standing_native_timeout_observation.py"
+      ],
+      "tracked_inputs": 1504
+    }
+  },
+  "static": {
+    "base": "7d77d6759ed314ba74025143e1478a59784e40f2",
+    "changed_paths": [
+      "tests/integration/test_standing_native_timeout_observation.py",
+      "tests/integration/test_standing_physical_finalization.py"
+    ],
+    "checks": [
+      {
+        "command": [
+          "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/ruff",
+          "check",
+          "."
+        ],
+        "exit_code": 0,
+        "stderr": "",
+        "stdout": "All checks passed!\n"
+      },
+      {
+        "command": [
+          "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/ruff",
+          "format",
+          "--check",
+          "."
+        ],
+        "exit_code": 0,
+        "stderr": "",
+        "stdout": "782 files already formatted\n"
+      },
+      {
+        "command": [
+          "git",
+          "diff",
+          "--check",
+          "7d77d6759ed314ba74025143e1478a59784e40f2",
+          "HEAD"
+        ],
+        "exit_code": 0,
+        "stderr": "",
+        "stdout": ""
+      }
+    ],
+    "helper_await_yield_count": 0,
+    "not_run": "No schema export/platform rebuild: no production/schema/UI changes; exact published-head CI remains required.",
+    "pins_and_head_stable": true,
+    "production_contract_schema_docs_unchanged": true,
+    "qualified_head": "5a2c12d8cad82197fc0c892d28decbd60032c591",
+    "receipt": {
+      "local_ignored_artifact": ".dev-run/239-native-observer-static-v1-8l40dldn/receipt.json",
+      "sha256": "e712781532707edf120cbe52080fcb332bc6876165703d133e93b5ddf3507171"
+    },
+    "tracked_inputs": 1504,
+    "unchanged_old_assertions": 233,
+    "whole_rest_of_module_bytes_and_ast_exact": true
+  },
+  "status": "Test-only native operation observation qualified offline; historical timeout cause and all red parent integration gates remain unresolved."
+}
