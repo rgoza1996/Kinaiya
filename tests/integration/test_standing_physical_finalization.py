@@ -1657,6 +1657,41 @@ async def test_gap_after_exact_local_work_save_never_becomes_never_acquired(phys
     assert reports(value) == []
 
 
+async def join_restoration_http_originals(value, originals):
+    call, work, life, observer, control_task, body = originals
+    deadline = asyncio.get_running_loop().time() + 25
+    tasks = {work, observer, control_task}
+    # A facade cancellation does not join these original owners. Neither this
+    # bounded observation nor a timeout cancels their actual work or sole close.
+    done, pending = await asyncio.wait(
+        tasks, timeout=max(0, deadline - asyncio.get_running_loop().time())
+    )
+    assert done == tasks and not pending
+    async with asyncio.timeout(max(0, deadline - asyncio.get_running_loop().time())):
+        await life.scope.join()
+        await call.scope.join()
+    assert not work.cancelled()
+    logical_error = work.exception()
+    assert logical_error is None or type(logical_error) is StandingUnavailable
+    assert not observer.cancelled() and observer.exception() is None
+    assert not control_task.cancelled() and control_task.exception() is None
+    assert body.closes == 1 and body.closed and not body.failed and not body.cancelled
+    assert not life.scope.failed and not call.scope.failed
+    assert not value.coordinator.standing_finalization.failed
+    assert not value.coordinator.standing_barrier.uncertain
+    value.context_retirements.append(
+        {
+            "kind": "restoration-http",
+            "logical_work_error": None if logical_error is None else type(logical_error).__name__,
+            "original_work_joined": True,
+            "original_control_and_close_joined": True,
+            "original_lifecycle_observer_joined": True,
+            "lifecycle_scope_failed": life.scope.failed,
+            "call_scope_failed": call.scope.failed,
+        }
+    )
+
+
 @pytest.mark.parametrize("phase", ["read", "close"])
 async def test_original_converse_restoration_http_owner_must_settle_before_report(physical, phase):
     value = await physical()
@@ -1665,13 +1700,37 @@ async def test_original_converse_restoration_http_owner_must_settle_before_repor
     gate = value.control_transport.gate = Gate("/v1/converse/enabled", phase)
     operation = begin(value)
     await gate_entered(gate.entered)
+    originals = [entry for entry in value.original_calls if entry[0] == "finalize"]
+    assert len(originals) == 1
+    _, call, work = originals[0]
+    life = value.coordinator.standing_finalization.lifecycles[value.claim.claim_id]
+    observer, control_task = life.observer, gate.exchange_task
+    bodies = [body for body in value.control_transport.bodies if body.gate is gate]
+    assert len(bodies) == 1
+    body = bodies[0]
+    assert type(work) is type(observer) is type(control_task) is asyncio.Task
+    assert len({work, observer, control_task}) == 3
+    assert call.gateway is value.gateway and value.coordinator.converse is value.control
+    assert life.key == life.scope.physical_claim == value.claim.claim_id
+    assert work in call.scope.handles and life.scope in call.scope.handles
+    assert control_task in life.scope.handles
+    assert not work.done() and not control_task.done()
+    if phase == "close":
+        assert gate.close_task is control_task
+    request_bytes = value.request.canonical_bytes()
     operation.cancel()
     await asyncio.sleep(0)
     assert reports(value) == [] and not value.control.http.is_closed
     gate.release.set()
     await asyncio.gather(operation, return_exceptions=True)
+    assert operation.cancelled() and not call.active
+    await join_restoration_http_originals(value, (call, work, life, observer, control_task, body))
+    starts, stops = tuple(value.starts), tuple(value.stops)
     await completed(value, "matching-lease-finalized", "restored", reservation)
     assert gate.close_task is None or gate.close_task.done()
+    assert value.request.canonical_bytes() == request_bytes
+    assert tuple(value.starts) == starts and tuple(value.stops) == stops
+    assert len(reports(value)) == 1
 
 
 async def test_actual_native_report_sole_close_precedes_positive_and_dependency_retirement(
