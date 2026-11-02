@@ -1,0 +1,89 @@
+{
+  "author_commit": "4635ce783f0a3cba4ce7136e011b158e16ae229f",
+  "base": "5966105f3fa2c311e2605f2bacdeecff0bc6c49a",
+  "change": [
+    "Forward optional Random through the test harness using the existing production entropy seam. Other original tests retain null/fresh entropy.",
+    "Launch regression selects far seed0 and verifies measured setup distance exceeds twice pan slop before the original drag and fling.",
+    "Add near seed2403 control: below-slop movement remains a legitimate InkWell tap, with no pan callbacks."
+  ],
+  "controlled_diagnostic": {
+    "far_centering_distance_px": 238.401928,
+    "far_fling_taps": [
+      0,
+      0
+    ],
+    "far_seed": 0,
+    "far_setup_taps": [
+      0,
+      0
+    ],
+    "fling_distance_px_both": 53.466219,
+    "limits": "Proves a reachable setup-fixture fault, not reconstruction of the first failure. First ignored logger attempt stalled; retained and stopped. Only ignored logging switched to synchronous IO before the two passes.",
+    "near_centering_distance_px": 3.176313,
+    "near_fling_taps": [
+      1,
+      1
+    ],
+    "near_seed": 2403,
+    "near_setup_taps": [
+      0,
+      1
+    ],
+    "passed": 2,
+    "receipt_sha256": "2bf02769c73749cdf1fef2673fa0602c7c3e8be8f0139f874b59f9bd4a4dbe0c",
+    "unchanged_distance_bounds": ">8 and <=58.6 px"
+  },
+  "date": "2026-11-01",
+  "fixture_path": "apps/kinaiya_flutter/test/bubble_drag_field_test.dart",
+  "fixture_sha256": "6ae7b2632160547efb5cc0ad40ad19f775c42a45a1fccf1501ba150c68052e5c",
+  "independent_review": {
+    "findings": [],
+    "receipt_sha256": "cf74edc5811320514ce9bdb0d2aeb8741d601cc895d870536606573602002b23",
+    "scope": "Exact fixture patch and unchanged production gesture/physics path; source-only, not a claim of independent test execution."
+  },
+  "issue": "https://github.com/rgoza1996/Kinaiya/issues/270",
+  "original_failure": {
+    "assertion": "Expected total tap count0, observed1 at original line225.",
+    "case": "release velocity launches the body within the engine speed cap",
+    "failed": 1,
+    "limits": "The first failing random seed was not recorded; reruns do not erase the failure.",
+    "main_based_native_run_passed": 1016,
+    "retained_receipt_sha256": "c61ef24e34de38f18dbb6858ae7f004762de931422daf76faa2c7f1fdb7f582a",
+    "unchanged_case_rerun_passed": 1,
+    "unchanged_module_rerun_passed": 12
+  },
+  "preserved_checks": {
+    "launch_bounds_and_no_tap": "Unchanged. No tap-count reset, assertion relaxation, frame reduction or production change.",
+    "original_duration_calls": 2,
+    "original_expect_expressions": 57,
+    "original_fling_calls": 2,
+    "original_frames_invocations": 13,
+    "verification": "Balanced lexical comparison, not claimed Dart AST analysis."
+  },
+  "publication": "Exact published-head CI required separately before merge. No inference, device, live provider/configuration, deployment or preview change.",
+  "qualification": {
+    "analyze": "pass; no issues",
+    "app_pins_stable": 324,
+    "commands": [
+      "flutter test --no-pub --reporter expanded",
+      "flutter analyze --no-pub",
+      "dart format --output=none --set-exit-if-changed lib test",
+      "flutter build web --no-pub --release --no-web-resources-cdn"
+    ],
+    "commit": "850cf6fc6ad2f83f42a048f15b845c5583119b16",
+    "errors": 0,
+    "failed": 0,
+    "flutter_full_passed": 982,
+    "format": "pass;227 files unchanged",
+    "head_stable": true,
+    "other_old_test_tree_files_byte_exact": 93,
+    "receipt_sha256": "efae6cc879dc3ddf200bedc9ae319fd8c81f828181f32f44e40d904e102a4b11",
+    "release_web_build": "pass; existing icon-font warning; artifact only",
+    "sdk": "737ba8f885dc774b53b442759999a312c9461e4e",
+    "skipped": 0,
+    "tracked_pins_stable": 1266
+  },
+  "qualified_source_commit": "850cf6fc6ad2f83f42a048f15b845c5583119b16",
+  "schema_version": "1.0",
+  "scope": "Only the existing bubble_drag_field_test.dart fixture changes; all runtime/build files remain byte exact main."
+}
