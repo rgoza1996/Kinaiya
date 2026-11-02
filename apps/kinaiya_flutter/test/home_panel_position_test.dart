@@ -325,4 +325,116 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     },
   );
+
+  testWidgets(
+    'Home displays actionable prerequisite and connection recovery copy without repeating liveRegion announcements',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      tester.view.physicalSize = const Size(1280, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final helperFinder = find.byKey(const ValueKey('home-helper-copy'));
+      final audio = LayoutAudio();
+
+      // 1. Disconnected (no error yet): directs to Connect / Setup.
+      final disconnected = AppState();
+      await tester.pumpWidget(KinaiyaApp(state: disconnected, audio: audio));
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(helperFinder, findsOneWidget);
+      expect(
+        find.text(
+          'Not connected to a Kinaiya host. Open Connect / Setup to enter your host URLs and owner token.',
+        ),
+        findsOneWidget,
+      );
+
+      // 2. Known connection failure: shows concise cause and next real action.
+      disconnected
+        ..connectionError = 'Session timeout on 127.0.0.1:8760'
+        ..touch();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(
+        find.text(
+          'Connection failed: Session timeout on 127.0.0.1:8760. Open Connect / Setup to check your host URLs and owner token, then retry.',
+        ),
+        findsOneWidget,
+      );
+      await tester.pumpWidget(const SizedBox.shrink());
+      disconnected.dispose();
+
+      // 3. Connected with missing prerequisite (model/disclosure not yet qualified).
+      final api = SleepApi();
+      final state = wired(api);
+      state
+        ..converseProvider = {'provider': 'ollama', 'model': 'llama3'}
+        ..converseInferenceAllowed = false;
+      await pumpHome(tester, state, audio);
+      expect(
+        find.text(
+          'Prerequisite needed: select a qualified Converse model and confirm privacy disclosure in Setup.',
+        ),
+        findsOneWidget,
+      );
+
+      // 4. Connecting / pending control operation.
+      state
+        ..converseInferenceAllowed = true
+        ..converseControlPending = true
+        ..converseControlTarget = true;
+      await pumpHome(tester, state, audio);
+      expect(
+        find.text('Waiting for the host to confirm Converse is awake.'),
+        findsOneWidget,
+      );
+
+      // 5. Unknown / uncertain state stays explicitly unknown and points to Check host status.
+      state
+        ..converseControlPending = false
+        ..converseControlUncertain = true;
+      await pumpHome(tester, state, audio);
+      expect(
+        find.text(
+          'Converse status is unconfirmed. Use Check host status below or open Setup.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('home-owner-refresh')), findsOneWidget);
+
+      state
+        ..converseControlUncertain = false
+        ..resourceStatusStale = true;
+      await pumpHome(tester, state, audio);
+      expect(
+        find.text(
+          'Resource status is unconfirmed; voice readiness is unknown until the host responds.',
+        ),
+        findsOneWidget,
+      );
+
+      // Verify helper semantics do not mark liveRegion (no endless repeat on polling).
+      final node = tester.getSemantics(helperFinder);
+      expect(node.getSemanticsData().flagsCollection.isLiveRegion, isFalse);
+
+      // 6. Ready state clears prerequisite helper copy.
+      state.resourceStatusStale = false;
+      state.applyConverseHealth(availability(true, 1));
+      await pumpHome(tester, state, audio);
+      expect(helperFinder, findsNothing);
+
+      // 7. 320px at 2x text scale renders helper copy without overflow.
+      tester.view.physicalSize = const Size(320, 568);
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      state.converseInferenceAllowed = false;
+      await pumpHome(tester, state, audio);
+      expect(helperFinder, findsOneWidget);
+      expect(tester.takeException(), isNull);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      state.dispose();
+      semantics.dispose();
+    },
+  );
 }
