@@ -26,6 +26,27 @@ abstract final class AgentDesign {
   static const double composerBreakpoint = 620;
 }
 
+/// Semantic state variant for an [AgentTask] based strictly on owner-confirmed
+/// state and grounding evidence.
+///
+/// Ungrounded `succeeded` and unknown states never receive [SemanticStateVariant.completed].
+SemanticStateVariant agentSemanticStateVariant(AgentTask task) {
+  if (task.isGroundedSuccess) return SemanticStateVariant.completed;
+  if (task.state == 'failed' || task.state == 'blocked') {
+    return SemanticStateVariant.failedOrBlocked;
+  }
+  if (task.state == 'awaiting_approval' || task.state == 'succeeded') {
+    return SemanticStateVariant.needsAttention;
+  }
+  if (task.state == 'running' || task.state == 'verifying') {
+    return SemanticStateVariant.active;
+  }
+  if (task.state == 'queued' || task.state == 'accepted') {
+    return SemanticStateVariant.pending;
+  }
+  return SemanticStateVariant.unavailableOrUnknown;
+}
+
 /// Theme-aware tone for the actual task state.
 ///
 /// Grounded success uses the theme primary, failure uses the theme error,
@@ -33,18 +54,19 @@ abstract final class AgentDesign {
 /// (running, accepted, awaiting approval, ungrounded success) uses theme
 /// secondary/tertiary accents. The chip label itself stays on the theme
 /// surface ink; the tone only tints the chip fill and border.
-Color agentStatusTone(BuildContext context, AgentTask task) {
-  final scheme = Theme.of(context).colorScheme;
-  if (task.isGroundedSuccess) return scheme.primary;
-  if (task.state == 'failed') return scheme.error;
-  if (task.state == 'cancelled') return scheme.outline;
-  if (task.state == 'awaiting_approval') return scheme.tertiary;
-  return scheme.secondary;
-}
+Color agentStatusTone(BuildContext context, AgentTask task) =>
+    KinaiyaDesign.semanticState(context, agentSemanticStateVariant(task)).tone;
 
-/// Actual-state chip for a real task; the text is always the task state.
-Widget agentStatusChip(BuildContext context, AgentTask task) =>
-    StatusChip(text: task.state, tone: agentStatusTone(context, task));
+/// Actual-state chip for a real task; pairs the literal task state with its
+/// non-color semantic meaning and icon.
+Widget agentStatusChip(BuildContext context, AgentTask task) {
+  final variant = agentSemanticStateVariant(task);
+  return StatusChip(
+    text: task.state,
+    tone: KinaiyaDesign.semanticState(context, variant).tone,
+    variant: variant,
+  );
+}
 
 /// Leading icon for a real task: terminal tasks show a completed mark,
 /// active tasks show a pending mark. No project or harness iconography.
