@@ -71,6 +71,14 @@ corrections retained. Flutter analysis, format and a local release web build
 passed. The first main-based full Flutter run had 1,016 passes and one existing
 random bubble-drag failure; unchanged exact-case/module reruns passed without
 erasing that result. Exact published-head CI remains a separate merge gate.
+After the independently reviewed bubble and cancellation fixtures merged in
+main `30fc0bf`, the complete native app passed all 1,018 Flutter tests and the
+160 native checks at `bc724bb`. All 1,281 tracked pins stayed unchanged during
+qualification. Production app inputs remain byte identical to the earlier
+analysis/format/release-build source. The same evidence retains the original
+failures and distinguishes this later pass; new exact-head CI is still required.
+These controlled-response tests qualify harness behavior, independently of model
+accuracy and model-dependent latency measurements.
 Direct multimodal Decisions, native Omni speech, model quality/latency/VRAM and
 the complete local demonstration remain unqualified under [#204](https://github.com/rgoza1996/Kinaiya/issues/204).
 This increment does not change the historical cutoff or close the full roadmap.

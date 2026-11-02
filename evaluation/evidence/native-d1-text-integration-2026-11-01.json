@@ -277,5 +277,73 @@
       }
     ],
     "provenance_limit": "Before the original test seal, a source author sent one unpinned-capture review finding. Test author reported no candidate inspection or design change from that message; lead protocol regressions are attributed separately."
+  },
+  "post_fixture_requalification": {
+    "head": "bc724bb60feef4296e8df90a1cdcb574aae61d6e",
+    "merged_main": "30fc0bfb0005537a42bd09b0f662eb3feb1cddbd",
+    "main_fixtures": "Merged PR275 and PR276, each independently reviewed and all five exact-head CI jobs successful. Original native CI402 failure and first Flutter1016/1 run remain preserved.",
+    "python": {
+      "passed": 160,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "warnings": 0,
+      "pytest_seconds": 4.96,
+      "wall_seconds": 5.3847927679962595,
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-W",
+        "error",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "junit_family=xunit1",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "--junitxml=/home/roggoz/.codex/worktrees/native-tool-capabilities/Kinaiya/.dev-run/204-native-current-main-v1/python.xml",
+        "-m",
+        "not live",
+        "tests/unit/test_native_d1_provider.py",
+        "tests/integration/test_native_d1_selection.py",
+        "tests/contracts/test_native_d1_protocol_provenance.py",
+        "tests/unit/test_native_d1_catalog_numbers.py"
+      ]
+    },
+    "flutter": {
+      "passed": 1018,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "runner_elapsed": "01:16",
+      "wall_seconds": 79.1290503900018,
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/flutter/bin/flutter",
+        "test",
+        "--no-pub",
+        "--reporter",
+        "expanded"
+      ]
+    },
+    "all1281_tracked_pins_stable": true,
+    "production_app_files_byte_exact_previous_qualified_a7f7c5": 230,
+    "prior_analysis_format_release_build": "Remain valid for byte-identical production app; full tests rerun to qualify previously failing fixture. No new build/preview deployment claimed.",
+    "static": "Whole-project Ruff and format pass (662 files); schema export no diff; diff checks pass.",
+    "qualification": "Harness configuration/protocol/selection/cancellation and Flutter behavior using controlled responses; no model accuracy or inference measurement. Exact new published-head CI still required.",
+    "receipts": {
+      "python-receipt.json": {
+        "path": ".dev-run/204-native-current-main-v1/python-receipt.json",
+        "sha256": "57408a70db628b860734a651a7d3d4de6e9f226d5a4c49d4ef70b5a92e5300f6",
+        "availability": "Retained locally; raw artifacts are not published by this summary"
+      },
+      "flutter-receipt.json": {
+        "path": ".dev-run/204-native-current-main-v1/flutter-receipt.json",
+        "sha256": "697381c0b7b4697590553819bbd53673b080b0174359deb2a5f1c0c7ca5cdcab",
+        "availability": "Retained locally; raw artifacts are not published by this summary"
+      }
+    }
   }
 }
