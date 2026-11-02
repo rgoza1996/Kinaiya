@@ -39,6 +39,7 @@ from packages.contracts.standing_resource_finalization import (
 from packages.contracts.standing_work import StandingUnavailable
 from packages.providers.text import ProviderCleanupError
 from services.resources.standing_client import StandingResourceClient
+from services.session.store import JournalError
 
 FINALIZE = "/v1/resources/standing/finalization"
 FINAL_LOOKUP = FINALIZE + "/lookup"
@@ -802,36 +803,46 @@ async def test_owned_context_preserves_raw_json_strictness_and_exact_bound(facto
 
 
 @pytest.mark.parametrize("method", ("entry", "resolve"))
-async def test_review_derived_owned_entry_keeps_uncapped_complete_native_value(factory, method):
-    """Source-aware addendum after the independently reported publication-cap bug.
+async def test_review_derived_owned_entry_preserves_native_append_byte_boundary(factory, method):
+    """Source-aware native-bound calibration of the invalid >1MiB addendum.
 
-    The original six ownership cases are unchanged by that report. This stored
-    value is real SQLite/native ASGI; no widened context or read-page cap follows.
+    Store accepts at most 65536 serialized AppendRequest bytes. Use its actual
+    API, retain complete entry metadata, and reject the otherwise identical
+    next byte. This is no wider producer, context or read-page capability.
     """
     value = await metadata_fixture(factory)
-    text = "Public synthetic complete entry: " + "x" * (1024 * 1024 + 257)
-    entry = value.env.store.append(
-        AppendRequest(
-            session_id=value.session.session_id,
-            thread_id=value.session.thread_id,
-            epoch=value.session.epoch,
-            kind="conversation.user",
-            payload={
-                "text": text,
-                "final": True,
-                "revision": 1,
-                "content_scope": "public_synthetic",
-            },
-            idempotency_key="metadata-large-complete",
-        ),
-        "converse",
+    request = AppendRequest(
+        session_id=value.session.session_id,
+        thread_id=value.session.thread_id,
+        epoch=value.session.epoch,
+        kind="conversation.user",
+        payload={
+            "text": "Public synthetic complete entry: ",
+            "final": True,
+            "revision": 1,
+            "content_scope": "public_synthetic",
+        },
+        idempotency_key="metadata-native-bound",
     )
+    padding = 65536 - len(request.model_dump_json().encode("utf-8"))
+    assert padding > 0
+    request.payload["text"] += "x" * padding
+    text = request.payload["text"]
+    assert text.isascii() and len(request.model_dump_json().encode("utf-8")) == 65536
+    entry = value.env.store.append(request, "converse")
+    before = value.env.store.read(session_id=value.session.session_id, limit=200)
+    too_large = request.model_copy(deep=True)
+    too_large.payload["text"] += "x"
+    assert len(too_large.model_dump_json().encode("utf-8")) == 65537
+    with pytest.raises(JournalError):
+        value.env.store.append(too_large, "converse")
+    assert value.env.store.read(session_id=value.session.session_id, limit=200) == before
     invoke = getattr(value.client, method)
     gate = Gate("/v1/transcript/entries/" + entry.event_id, "close")
     public = None
     try:
         unowned = await invoke(entry.event_id)
-        assert unowned == entry and len(unowned.model_dump_json().encode()) > 1024 * 1024
+        assert unowned == entry and unowned.payload["text"] == text
         value.transport.gate = gate
         scope = ActualOperation(lambda _: None)
         with actual_owner(scope):
