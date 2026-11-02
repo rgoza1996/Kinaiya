@@ -17,6 +17,8 @@ import asyncio
 import os
 import re
 import stat
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 
 from packages.contracts.operation_ownership import ActualOperation, actual_owner, current_owner
@@ -34,6 +36,7 @@ from packages.contracts.standing_work import StandingConflict, StandingUnavailab
 
 _MAX_CLAIMS = 10000
 _MAX_REVISION = (1 << 53) - 1
+_wire_revision_scope = ContextVar("kinaiya_standing_wire_revision_scope", default=None)
 _TABLE = "standing_resource_witnesses"
 _SQL = f"CREATE TABLE {_TABLE}(claim_id TEXT PRIMARY KEY,binding TEXT NOT NULL,action_key TEXT,reservation TEXT,lease_id TEXT,phase TEXT NOT NULL,acquired INTEGER NOT NULL,effects INTEGER NOT NULL,restoration TEXT NOT NULL,policy_revision INTEGER,owner_intent_revision INTEGER,report TEXT)"
 _COLUMNS = (
@@ -54,6 +57,18 @@ _COLUMNS = (
 
 def _wire(value):
     return finalization_bytes(value).decode("utf-8")
+
+
+@contextmanager
+def _lifecycle_owner(scope, *, require_wire_revision):
+    # A reused ownership scope retains earlier children, but each invocation
+    # keeps its own revision policy, including children copied from its context.
+    token = _wire_revision_scope.set(scope if require_wire_revision else None)
+    try:
+        with actual_owner(scope):
+            yield
+    finally:
+        _wire_revision_scope.reset(token)
 
 
 @dataclass(eq=False)
@@ -573,7 +588,8 @@ class StandingFinalization:
         return _PhysicalProof(tuple(workers), tuple(endpoints), restoration)
 
     def restoration_guard(self):
-        if getattr(current_owner(), "require_wire_revision", False):
+        scope = current_owner()
+        if scope is not None and _wire_revision_scope.get() is scope:
             self.effect_revisions()
 
     def capture_restored(self):
@@ -725,9 +741,8 @@ class StandingFinalization:
         # Cover initialization before enrollment can add a completing child.
         # This also roots a reused scope across the next pending SQL await.
         scope.hold(root)
-        scope.require_wire_revision = (
-            getattr(scope, "require_wire_revision", False)
-            or getattr(parent, "physical_finalize", False)
+        require_wire_revision = (
+            getattr(parent, "physical_finalize", False)
             or getattr(parent, "physical_claim", None) is not None
         )
 
@@ -748,7 +763,7 @@ class StandingFinalization:
         except Exception:
             self.failed = True
             try:
-                with actual_owner(scope):
+                with _lifecycle_owner(scope, require_wire_revision=require_wire_revision):
                     return await invoke()
             finally:
                 self._release_initial(scope, root, key)
@@ -757,7 +772,7 @@ class StandingFinalization:
             raise
 
         async def work():
-            with actual_owner(scope):
+            with _lifecycle_owner(scope, require_wire_revision=require_wire_revision):
                 self.restoration_guard()
                 result = await invoke()
                 try:
