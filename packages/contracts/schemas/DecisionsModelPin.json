@@ -122,6 +122,7 @@
     "protocol": {
       "enum": [
         "laya_systemone",
+        "native_d1_systemone",
         "host_configured"
       ],
       "title": "Protocol",

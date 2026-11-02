@@ -1,0 +1,349 @@
+{
+  "bubble_diagnostic": {
+    "bubble_source_byte_exact_main": "5966105f3fa2c311e2605f2bacdeecff0bc6c49a",
+    "far_seed": 0,
+    "far_setup_distance_px": 238.401928,
+    "far_taps_before_after_fling": [
+      0,
+      0
+    ],
+    "far_taps_before_after_setup": [
+      0,
+      0
+    ],
+    "fling_distance_px_both": 53.466219,
+    "limits": "Reachable fixture fault, not reconstructed first random seed. First ignored logging attempt stalled and was stopped; only ignored logger changed to synchronous IO before passing diagnostic. No production/test tracked edit.",
+    "near_seed": 2403,
+    "near_setup_distance_px": 3.176313,
+    "near_taps_before_after_fling": [
+      1,
+      1
+    ],
+    "near_taps_before_after_setup": [
+      0,
+      1
+    ],
+    "original_distance_bounds_px": {
+      "exclusive_min": 8,
+      "inclusive_max": 58.6
+    },
+    "passed": 2,
+    "receipt_sha256": "2bf02769c73749cdf1fef2673fa0602c7c3e8be8f0139f874b59f9bd4a4dbe0c",
+    "source_commit": "5978bbbca9575446d28f7583e92fb8041a858475"
+  },
+  "checks": {
+    "ci": "Pending exact published-head GitHub Actions; local checks do not establish a CI pass.",
+    "contracts": "scripts/export_contracts.py and git diff --exit-code packages/contracts/schemas passed",
+    "diff": "git diff --check passed",
+    "flutter_exact_main_app": {
+      "analyze": "pass; no issues",
+      "errors": 0,
+      "failed": 1,
+      "first_failure": "bubble_drag_field_test.dart: release velocity launches the body within the engine speed cap; expected tap count0, observed1.",
+      "followup_issue": "https://github.com/rgoza1996/Kinaiya/issues/270",
+      "format": "pass;229 files unchanged",
+      "original_failure_preserved": true,
+      "passed": 1016,
+      "receipt": {
+        "path": ".dev-run/204-native-d1-main-flutter-v1/receipt.json",
+        "sha256": "c61ef24e34de38f18dbb6858ae7f004762de931422daf76faa2c7f1fdb7f582a"
+      },
+      "release_web_build": "pass; existing icon-font warning; artifact only",
+      "skipped": 0,
+      "unchanged_exact_case_rerun_passed": 1,
+      "unchanged_module_rerun_passed": 12
+    },
+    "legacy_and_authority_497": {
+      "commit": "fbb46ba82ffe1eaeac6cfebdf772477108bf0b25",
+      "errors": 0,
+      "failed": 0,
+      "passed": 497,
+      "pytest_seconds": 27.67,
+      "receipt": {
+        "path": ".dev-run/204-native-d1-main-legacy-v1/receipt.json",
+        "sha256": "b8af5d157b5a90a2e8bc78fdef0983d2a5214531d48b49e86cd9d91ba99f17e5"
+      },
+      "skipped": 0,
+      "warning": "Existing Starlette TestClient httpx2 deprecation; project CI warning policy, no suppression or dependency installation.",
+      "warnings": 1
+    },
+    "native_160": {
+      "commit": "fbb46ba82ffe1eaeac6cfebdf772477108bf0b25",
+      "errors": 0,
+      "failed": 0,
+      "passed": 160,
+      "pytest_seconds": 5.12,
+      "receipt": {
+        "path": ".dev-run/204-native-d1-main-final-v1/receipt.json",
+        "sha256": "74ee3a94ec96aba9cb3da222947c0e047410e2aab697f83aa0910d5a667787e4"
+      },
+      "skipped": 0,
+      "warnings_as_errors": true
+    },
+    "post_main_merge_193": {
+      "commit": "a7f7c534f3ca835f8edc7c437da94fec24088f62",
+      "errors": 0,
+      "failed": 0,
+      "overlap": "Includes the native160; adds10 existing Linux CLI and23 distribution build cases. Counts are not additive.",
+      "passed": 193,
+      "pytest_seconds": 5.91,
+      "receipt": {
+        "path": ".dev-run/204-native-d1-main-postmerge-v1/receipt.json",
+        "sha256": "2f862e02d899e7d24cdb579c56e30ac5a3958b81979ce6b03a85a9622e5dfa6f"
+      },
+      "skipped": 0,
+      "warnings": 0
+    },
+    "python_ruff": "check . passed; format --check . passed,659 files already formatted"
+  },
+  "date": "2026-11-01",
+  "design": "docs/adr/0106-native-d1-decisions.md",
+  "frozen_interface_sha256": "6dc063ae928e76805bf5c692b016206807cd2ffcd4f57e2e105552c81d40390e",
+  "implementation": [
+    "Explicit local-only native_d1 Decisions declaration, host and exact catalog selection.",
+    "Bound native model/state/questions request with autoload=false, exact model/answer/usage validation and owner-required confidence cutoff.",
+    "Distinct native_d1_systemone protocol, actual capture bytes, generation/model pins and original-call reuse provenance.",
+    "Original HTTP send/read/sole-close ownership retained through cancellation, deadline and cleanup failure; late cancelled/expired success fenced after actual cleanup.",
+    "Flutter provider and Decisions editors; native confidence JSON/digest parity and narrowly scoped persisted fractional numbers."
+  ],
+  "issue": "https://github.com/rgoza1996/Kinaiya/issues/204",
+  "limits": [
+    "All new HTTP/model responses were public synthetic in-process ASGI or HTTPX transports, not actual inference.",
+    "No new paid inference, provider/account probe, model/GPU load, capture, microphone/camera/device action, live setting or service/preview change.",
+    "Native d1 input is text-only in this increment. Direct audio/video/image Decisions, native Omni speech input/output and physical cancellation/history alignment remain unfinished.",
+    "No measured model quality, calibrated confidence, VRAM, TTFT/RTF or complete local demo readiness follows.",
+    "The first exact-main Flutter full suite remains failed; later unchanged targeted passes do not erase it. Separate deterministic bubble-fixture investigation is in progress.",
+    "No budget reset, release, milestone closure or full-goal completion is asserted."
+  ],
+  "main_base": "5966105f3fa2c311e2605f2bacdeecff0bc6c49a",
+  "native_protocol_audit_commit": "ddf48f85c933c1f438212a02eb21e7b001d2d37d",
+  "preserved_failures": [
+    {
+      "baseline": "9a1de6a0e2b74d57844106ca879f316e41d08c76",
+      "classification": "108 missing-new-module capability assertions;4 absent native-profile discriminators;1 absent native pin protocol;1 absent launcher kind.13 passing catalog negatives were unsupported-kind controls;1 was a genuine legacy-Laya control. Not114 behavioral failures.",
+      "errors": 0,
+      "failed": 114,
+      "passed": 14,
+      "phase": "Independent new Python baseline",
+      "receipt": {
+        "path": ".dev-run/204-native-d1-python-oracles-v1/receipt.json",
+        "sha256": "45aab8a2e810f25f3b528839f4e3502285d00e16230759223bf8cf07bc52c11e"
+      },
+      "skipped": 0
+    },
+    {
+      "classification": "5 saved-decimal catalog failures;2 caller cancellations swallowed by transport;2 expected ProviderInfo maps omitted inherited schema_version;1 host fixture used catalog timeout_s instead of existing host timeout. Original failures retained.",
+      "failed": 10,
+      "passed": 128,
+      "phase": "First main-based candidate",
+      "receipt": {
+        "path": ".dev-run/204-native-d1-main-integration-v1/receipt.json",
+        "sha256": "0e57611d4abdf7a7cab4736aefd562b7467ae14c0575fe5b635eead391bdd842"
+      }
+    },
+    {
+      "classification": "Actual native HTTP deadlines were swallowed during original send/read; historical nonzero cancellation control passed. Tests frozen before reading the repair.",
+      "failed": 2,
+      "passed": 1,
+      "phase": "Additional independent deadline baseline",
+      "receipt": {
+        "path": ".dev-run/204-native-d1-deadline-oracles-v1/receipt.json",
+        "sha256": "071ee9d222b58e02f6df21b2b614ea35a6296bcc38bd1f85775ce03f5643bd69"
+      }
+    },
+    {
+      "classification": "Two newly reached fixture defects: positive generation test supplied a correction without any target tasks; reuse assertion read a field directly from JournalEntry rather than its payload. Routing and journal APIs retained.",
+      "failed": 2,
+      "passed": 139,
+      "phase": "Repaired main candidate",
+      "receipt": {
+        "path": ".dev-run/204-native-d1-main-repaired-v1/receipt.json",
+        "sha256": "40b9638cd873e647674c5b77ee9be9da1f4dfd32ff750a12e8ef6d05b7ff621f"
+      }
+    }
+  ],
+  "qualified_commit_file_sha256": {
+    "apps/kinaiya_flutter/lib/api/decisions_model_settings.dart": "637c55da13f1cc53065d2d6715810fbb92c4340c5abcfaadd3c637e166dd6ed8",
+    "apps/kinaiya_flutter/lib/api/provider_settings.dart": "dc105cc4ab0de9d79b0729d9cbbb9aadf7eddcbc42223e938bfddb0cb2cc70a4",
+    "apps/kinaiya_flutter/lib/ui/options_decisions_model.dart": "41aaf6ac53ca30e95d09876849e1e79f20ee4b1db1cc664105a5f7ab73a5be5e",
+    "apps/kinaiya_flutter/lib/ui/options_provider_editor.dart": "5417b74ec47486b1f25c99b206926482c18add16d3c4043791b5ce0cf21ae9a1",
+    "apps/kinaiya_flutter/test/native_d1_options_test.dart": "ed1539793794627b5f0ba28b1931dae44fba10d0362fb8ce95587dc604aee657",
+    "apps/kinaiya_flutter/test/native_d1_settings_test.dart": "e1907bf92ac2459c9b0c0ce84fa38d02045ecd506e5cc4f4f0e01ba57733280e",
+    "docs/adr/0106-native-d1-decisions.md": "3446435a5834557fd5990d9545f33a15a9e11c050c47202cea7f02d0ebbe6e6e",
+    "docs/provider-catalog-api.md": "e9fc40c11ad2911cca198282501d428c89fe3021ab92bde0033adcf5a56730b3",
+    "packages/contracts/decisions.py": "19bbb07c0392095a7fb9fc98b18614660153f3aaa883574e30c87ecab94a8648",
+    "packages/contracts/decisions_models.py": "c954087f2c1adb90d28d4e137a99cd2228f5fdf24f51b046510afd9b232bcbed",
+    "packages/contracts/schemas/DecisionsCallStart.json": "b19b393cc29869957aa839fd0f3391c9a4e5c8c243d7ad276355027847a5afad",
+    "packages/contracts/schemas/DecisionsModelPin.json": "c2e129f2448e6cf6bc7af60ef481ee61ccbf2d8344d0e1d8e985f48e68f090ce",
+    "packages/providers/native_d1.py": "aef19d21a74b64955eb7e1019bf894e6f8e0caae33289f6b81b9ddc26d02f59e",
+    "services/decisions/model_settings.py": "ec10787957865cfb8f72c8f2cf3046fd4924d46c8666c5f39352eeff0ae9259d",
+    "services/decisions/provider_factory.py": "2f9a1793f2e0f8863d8f72f1db6165b0204deb4f3d8584b891c809b28ce80709",
+    "services/launcher.py": "ce1cdb3e52f783a2cae7b1787a81208fdac4287352376c2bff42b1e57adbabcd",
+    "services/settings/provider_catalog.py": "73cec73cf1537a66d3034130ed29e8ccb311f13dece9eadd6e1fc5a81930aff0",
+    "services/settings/provider_factory.py": "9995f30ef9de4dd5df74e4b7fae45a097ce29afcc2b5e084815debd6700c824d",
+    "tests/contracts/test_native_d1_protocol_provenance.py": "13a88ac903d13b75bf53e75b3ddab8f2908baaddbcbcf17634f0c7e6356d2c1a",
+    "tests/integration/test_native_d1_selection.py": "de1c46f396d70e9852552c0950bdbc793eb36e1b6f9f8370cce13794e5bc2852",
+    "tests/unit/test_native_d1_catalog_numbers.py": "309a9778aa1249a22d034061da8d41fa85564e6ac4755adb1adf14f3abb6b6b8",
+    "tests/unit/test_native_d1_provider.py": "8821393ccc9760803a5dc81a6cb8cb987fe5e2c6631d12565e16da8b9a17b86e"
+  },
+  "qualified_source_commit": "a7f7c534f3ca835f8edc7c437da94fec24088f62",
+  "reproduction": {
+    "environment": "Existing Python3.12.3; httpx0.28.1; Pydantic2.14.1; pytest9.1.1. Dependencies were not installed or changed. Set PYTHONPATH to the isolated checkout.",
+    "full_exact_commands": "Retained in the hashed local receipts; the following interpreter/output-path-normalized argument lists are portable equivalents.",
+    "portable_invocations": {
+      "legacy_and_authority_497": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "junit_family=xunit1",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "--junitxml=.dev-run/204-native-d1-main-legacy-v1/hot.xml",
+        "-m",
+        "not live",
+        "tests/unit/test_laya_provider.py",
+        "tests/integration/test_laya_decisions.py",
+        "tests/integration/test_decisions_inspection.py",
+        "tests/integration/test_decisions_typed_disclosure.py",
+        "tests/unit/test_decisions_model_screen.py",
+        "tests/unit/test_model_settings_bound_authority.py",
+        "tests/unit/test_runtime_settings_authority.py",
+        "tests/integration/test_auxiliary_models.py",
+        "tests/integration/test_model_change_authority.py",
+        "tests/integration/test_model_commands_authority.py",
+        "tests/integration/test_model_command_audit_recovery.py",
+        "tests/integration/test_model_command_uncertainty.py"
+      ],
+      "native_160": [
+        "python",
+        "-Werror",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "junit_family=xunit1",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "--junitxml=.dev-run/204-native-d1-main-final-v1/hot.xml",
+        "tests/unit/test_native_d1_provider.py",
+        "tests/integration/test_native_d1_selection.py",
+        "tests/contracts/test_native_d1_protocol_provenance.py",
+        "tests/unit/test_native_d1_catalog_numbers.py"
+      ],
+      "post_main_merge_193": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "junit_family=xunit1",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "--junitxml=.dev-run/204-native-d1-main-postmerge-v1/hot.xml",
+        "tests/unit/test_native_d1_provider.py",
+        "tests/integration/test_native_d1_selection.py",
+        "tests/contracts/test_native_d1_protocol_provenance.py",
+        "tests/unit/test_native_d1_catalog_numbers.py",
+        "tests/unit/test_linux_cli.py",
+        "tests/unit/test_distribution_build.py",
+        "-m",
+        "not live"
+      ]
+    }
+  },
+  "schema_version": "1.0",
+  "status": "offline_native_text_protocol_verified; model_and_audio_qualification_pending",
+  "test_change_policy": {
+    "correction_scope": "New tests only: inherited schema_version, existing host timeout name, explicit adapter transport injection preserving RequestBoundAsyncClient, usable untargeted positive route, JournalEntry payload access. No assertion/deadline/cancellation expectation weakened.",
+    "existing_main_flutter_test_tree_files_byte_exact": 94,
+    "existing_main_python_test_files_byte_exact": 248,
+    "independence": "Original128 Python tests frozen before candidate source inspection. Additional3 deadline/history tests frozen before repair inspection.10 protocol and19 persisted-number tests are lead-review-derived, not claimed independent.",
+    "new_test_fixture_corrections": [
+      {
+        "path": ".dev-run/204-native-d1-fixture-corrections-v1/receipt.json",
+        "sha256": "e19a19c055a2a79d374bfec45c4bbe59e2403f97aa07207a89ccccbf49b47b27"
+      },
+      {
+        "path": ".dev-run/204-native-d1-latent-fixture-corrections-v1/receipt.json",
+        "sha256": "d0d86fd4af500519b5c9a6e04b75971ab05cc82a70ef43a60411b98f953bfee3"
+      }
+    ],
+    "provenance_limit": "Before the original test seal, a source author sent one unpinned-capture review finding. Test author reported no candidate inspection or design change from that message; lead protocol regressions are attributed separately."
+  },
+  "post_fixture_requalification": {
+    "head": "bc724bb60feef4296e8df90a1cdcb574aae61d6e",
+    "merged_main": "30fc0bfb0005537a42bd09b0f662eb3feb1cddbd",
+    "main_fixtures": "Merged PR275 and PR276, each independently reviewed and all five exact-head CI jobs successful. Original native CI402 failure and first Flutter1016/1 run remain preserved.",
+    "python": {
+      "passed": 160,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "warnings": 0,
+      "pytest_seconds": 4.96,
+      "wall_seconds": 5.3847927679962595,
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-W",
+        "error",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "junit_family=xunit1",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "--junitxml=/home/roggoz/.codex/worktrees/native-tool-capabilities/Kinaiya/.dev-run/204-native-current-main-v1/python.xml",
+        "-m",
+        "not live",
+        "tests/unit/test_native_d1_provider.py",
+        "tests/integration/test_native_d1_selection.py",
+        "tests/contracts/test_native_d1_protocol_provenance.py",
+        "tests/unit/test_native_d1_catalog_numbers.py"
+      ]
+    },
+    "flutter": {
+      "passed": 1018,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "runner_elapsed": "01:16",
+      "wall_seconds": 79.1290503900018,
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/flutter/bin/flutter",
+        "test",
+        "--no-pub",
+        "--reporter",
+        "expanded"
+      ]
+    },
+    "all1281_tracked_pins_stable": true,
+    "production_app_files_byte_exact_previous_qualified_a7f7c5": 230,
+    "prior_analysis_format_release_build": "Remain valid for byte-identical production app; full tests rerun to qualify previously failing fixture. No new build/preview deployment claimed.",
+    "static": "Whole-project Ruff and format pass (662 files); schema export no diff; diff checks pass.",
+    "qualification": "Harness configuration/protocol/selection/cancellation and Flutter behavior using controlled responses; no model accuracy or inference measurement. Exact new published-head CI still required.",
+    "receipts": {
+      "python-receipt.json": {
+        "path": ".dev-run/204-native-current-main-v1/python-receipt.json",
+        "sha256": "57408a70db628b860734a651a7d3d4de6e9f226d5a4c49d4ef70b5a92e5300f6",
+        "availability": "Retained locally; raw artifacts are not published by this summary"
+      },
+      "flutter-receipt.json": {
+        "path": ".dev-run/204-native-current-main-v1/flutter-receipt.json",
+        "sha256": "697381c0b7b4697590553819bbd53673b080b0174359deb2a5f1c0c7ca5cdcab",
+        "availability": "Retained locally; raw artifacts are not published by this summary"
+      }
+    }
+  }
+}

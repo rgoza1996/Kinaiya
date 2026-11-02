@@ -9,7 +9,7 @@ import 'package:kinaiya_flutter/ui/converse_mouth.dart';
 import 'package:kinaiya_flutter/ui/moonlit_home.dart';
 
 const _boundary = ValueKey('portrait-render-proof');
-const _atlas = AssetImage('assets/design/kinaiya-expression-reference.png');
+const _atlas = AssetImage('assets/design/kinaiya-expression-reference-v2.png');
 const _mouthAtlas = AssetImage(
   'assets/design/kinaiya-speech-mouth-portraits-v1.png',
 );

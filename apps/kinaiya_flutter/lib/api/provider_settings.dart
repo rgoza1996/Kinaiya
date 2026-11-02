@@ -11,6 +11,7 @@ const providerKinds = [
   'lmstudio',
   'compatible',
   'laya',
+  'native_d1',
   'meta_stt',
   'openrouter_tts',
 ];
@@ -91,6 +92,7 @@ Map<String, Object?> providerConfig(Object? value) {
   if (!providerKinds.contains(kind)) _bad();
   if (kind == 'meta_stt') return _metaSttConfig(raw);
   if (kind == 'openrouter_tts') return _openRouterTtsConfig(raw);
+  if (kind == 'native_d1') return _nativeD1Config(raw);
   final allowed = <String>{'kind', 'base_url', 'model', 'allow_cloud'};
   if (kind != 'laya') allowed.addAll(['max_tokens', 'reasoning_effort']);
   if (kind != 'lmstudio') allowed.add('credential');
@@ -198,6 +200,53 @@ Map<String, Object?> providerConfig(Object? value) {
         : _digest(raw['expected_artifact_sha256']);
   }
   return Map.unmodifiable(result);
+}
+
+Map<String, Object?> _nativeD1Config(Map<String, Object?> raw) {
+  const fields = {
+    'kind',
+    'base_url',
+    'model',
+    'allow_cloud',
+    'credential',
+    'timeout_s',
+    'min_confidence',
+  };
+  if (raw.keys.any((key) => !fields.contains(key))) _bad();
+  final endpoint = _text(raw['base_url'], 2048);
+  final origin = RegExp(
+    r'^https?://(?:localhost|127\.0\.0\.1|\[::1\]):([0-9]+)/?$',
+    caseSensitive: false,
+  ).firstMatch(endpoint);
+  final port = origin == null ? null : int.tryParse(origin.group(1)!);
+  final cloud = raw.containsKey('allow_cloud') ? raw['allow_cloud'] : false;
+  if (origin?.end != endpoint.length ||
+      port == null ||
+      port < 1 ||
+      port > 65535 ||
+      cloud != false) {
+    _bad();
+  }
+  final model = _text(raw['model'], 128);
+  if (!RegExp(r'^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$').hasMatch(model)) _bad();
+  final floor = raw['min_confidence'];
+  if (floor is! num || !floor.isFinite || floor < 0 || floor > 1) _bad();
+  final credential = raw['credential'];
+  return Map.unmodifiable({
+    'kind': 'native_d1',
+    'base_url': endpoint.replaceFirst(RegExp(r'/$'), ''),
+    'model': model,
+    'allow_cloud': false,
+    'credential': credential == null
+        ? null
+        : ProviderCredentialBinding.fromJson(credential).toJson(),
+    'timeout_s': _integer(
+      raw.containsKey('timeout_s') ? raw['timeout_s'] : 5,
+      1,
+      120,
+    ),
+    'min_confidence': floor.toDouble(),
+  });
 }
 
 /// The dedicated audio declaration never acquires text-generation defaults.
@@ -325,9 +374,33 @@ Object? _canonical(Object? value) => value is Map<String, Object?>
     ? value.map(_canonical).toList()
     : value;
 
-String providerConfigurationDigest(Map<String, Object?> config) => sha256
-    .convert(utf8.encode(jsonEncode(_canonical(providerConfig(config)))))
-    .toString();
+// Match the catalog's Python JSON float spelling without changing old kinds.
+String _confidenceJson(double value) {
+  final text = value.toString();
+  final exponentAt = text.indexOf('e');
+  if (exponentAt >= 0) {
+    final exponent = int.parse(text.substring(exponentAt + 1));
+    return '${text.substring(0, exponentAt)}e-${(-exponent).toString().padLeft(2, '0')}';
+  }
+  if (value > 0 && value < 0.0001) {
+    final digits = text.substring(2);
+    final first = digits.indexOf(RegExp('[1-9]'));
+    final significant = digits.substring(first);
+    final coefficient = significant.length == 1
+        ? significant
+        : '${significant[0]}.${significant.substring(1)}';
+    return '${coefficient}e-${(first + 1).toString().padLeft(2, '0')}';
+  }
+  return text;
+}
+
+String providerConfigurationDigest(Map<String, Object?> config) {
+  final normalized = _canonical(providerConfig(config)) as Map<String, Object?>;
+  final body = normalized['kind'] == 'native_d1'
+      ? '{${normalized.entries.map((entry) => '${jsonEncode(entry.key)}:${entry.key == 'min_confidence' ? _confidenceJson(entry.value as double) : jsonEncode(entry.value)}').join(',')}}'
+      : jsonEncode(normalized);
+  return sha256.convert(utf8.encode(body)).toString();
+}
 
 class ProviderProfile {
   ProviderProfile.fromJson(Object? value) {
@@ -348,12 +421,19 @@ class ProviderProfile {
         inputs = capability['supported_inputs'];
     final stt = config['kind'] == 'meta_stt';
     final tts = config['kind'] == 'openrouter_tts';
+    final nativeD1 = config['kind'] == 'native_d1';
     if (roles is! List ||
         roles.isEmpty ||
         roles.length > 4 ||
         roles.toSet().length != roles.length ||
-        (stt || tts
-            ? roles.length != 1 || roles.single != (stt ? 'stt' : 'tts')
+        (stt || tts || nativeD1
+            ? roles.length != 1 ||
+                  roles.single !=
+                      (stt
+                          ? 'stt'
+                          : tts
+                          ? 'tts'
+                          : 'decisions')
             : roles.any(
                 (r) => !{
                   'agent',
@@ -370,7 +450,9 @@ class ProviderProfile {
     declaredRoles = List.unmodifiable(roles.cast<String>());
     measuredComplete = _flag(capability['measured_complete_interface']);
     measuredStream = _flag(capability['measured_stream_interface']);
-    if ((stt || tts) && (measuredComplete || measuredStream)) _bad();
+    if ((stt || tts || nativeD1) && (measuredComplete || measuredStream)) {
+      _bad();
+    }
   }
   late final String id, label, configurationSha256;
   late final int generation;
@@ -531,6 +613,11 @@ class ProviderChangeReceipt {
 /// Reject duplicate fields, unsafe integer spellings and deep/oversized JSON.
 Object? providerJsonDecode(List<int> bytes) => _JsonReader(bytes).read();
 
+class _ConfidenceNumber {
+  const _ConfidenceNumber(this.value);
+  final double value;
+}
+
 class _JsonReader {
   _JsonReader(List<int> bytes)
     : text = utf8.decode(bytes, allowMalformed: false) {
@@ -548,7 +635,30 @@ class _JsonReader {
     final result = _value(0);
     _space();
     if (at != text.length) _bad();
+    _confidenceNumbers(result);
     return result;
+  }
+
+  // Only the new native confidence field admits fractional wire numbers.
+  // Delay this check until the whole object is known, independent of key order.
+  void _confidenceNumbers(Object? value) {
+    if (value is Map<String, Object?>) {
+      for (final key in value.keys) {
+        final child = value[key];
+        if (child is _ConfidenceNumber) {
+          if (value['kind'] != 'native_d1' || key != 'min_confidence') _bad();
+          value[key] = child.value;
+        } else {
+          _confidenceNumbers(child);
+        }
+      }
+    } else if (value is List<Object?>) {
+      for (final child in value) {
+        _confidenceNumbers(child);
+      }
+    } else if (value is _ConfidenceNumber) {
+      _bad();
+    }
   }
 
   Object? _value(int depth) {
@@ -616,11 +726,39 @@ class _JsonReader {
     }
     if (at == digits) _bad();
     final magnitude = text.substring(digits, at);
-    if ((magnitude.length > 1 && magnitude.startsWith('0')) ||
-        magnitude.length > 16 ||
+    if (magnitude.length > 1 && magnitude.startsWith('0')) _bad();
+    var fractional = false;
+    if (at < text.length && text[at] == '.') {
+      fractional = true;
+      at++;
+      final startFraction = at;
+      while (at < text.length &&
+          text.codeUnitAt(at) >= 48 &&
+          text.codeUnitAt(at) <= 57) {
+        at++;
+      }
+      if (at == startFraction) _bad();
+    }
+    if (at < text.length && 'eE'.contains(text[at])) {
+      fractional = true;
+      at++;
+      if (at < text.length && '+-'.contains(text[at])) at++;
+      final startExponent = at;
+      while (at < text.length &&
+          text.codeUnitAt(at) >= 48 &&
+          text.codeUnitAt(at) <= 57) {
+        at++;
+      }
+      if (at == startExponent) _bad();
+    }
+    if (fractional) {
+      final value = double.tryParse(text.substring(start, at));
+      if (value == null || !value.isFinite) _bad();
+      return _ConfidenceNumber(value);
+    }
+    if (magnitude.length > 16 ||
         (magnitude.length == 16 &&
-            magnitude.compareTo('9007199254740991') > 0) ||
-        (at < text.length && '.eE'.contains(text[at]))) {
+            magnitude.compareTo('9007199254740991') > 0)) {
       _bad();
     }
     return int.parse(text.substring(start, at));

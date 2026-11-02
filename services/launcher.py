@@ -142,13 +142,19 @@ def provider(config, role, *, resource_state=None, service_token=None, workspace
         # must not share the primary Agent's active operation/cleanup state.
         # Its constructor permits only reasoning_effort="none".
         result = LMStudioProvider(**profile)
-    elif kind in {"compatible", "laya"}:
+    elif kind in {"compatible", "laya", "native_d1"}:
         if kind == "laya" and role != "decisions":
             raise SystemExit("Laya is a typed Decisions provider, not an Agent or Converse model")
+        if kind == "native_d1" and role != "decisions":
+            raise SystemExit("Native d1 is a typed Decisions provider only")
         key_ref = profile.pop("api_key_env", None)
         if key_ref:
             profile["api_key"] = os.environ.get(key_ref, "")
-        if kind == "laya":
+        if kind == "native_d1":
+            from packages.providers.native_d1 import NativeD1RoutingProvider
+
+            result = NativeD1RoutingProvider(**profile)
+        elif kind == "laya":
             from packages.providers.laya import LayaRoutingProvider
 
             result = LayaRoutingProvider(**profile)

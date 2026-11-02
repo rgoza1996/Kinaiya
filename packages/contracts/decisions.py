@@ -36,7 +36,12 @@ class DecisionsCallStart(CaptureModel):
     model: str | None = Field(default=None, max_length=256)
     artifact_sha256: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
     request_format: Literal[
-        "laya_systemone", "chat_completions", "responses", "not_submitted", "reused"
+        "laya_systemone",
+        "native_d1_systemone",
+        "chat_completions",
+        "responses",
+        "not_submitted",
+        "reused",
     ]
     request: dict[str, Any] | None = None
     reused_from_call_id: Identifier | None = None
@@ -54,15 +59,35 @@ class DecisionsCallStart(CaptureModel):
             raise ValueError("A submitted call requires its actual request")
         if self.request_format == "reused" and self.reused_from_call_id is None:
             raise ValueError("Reuse requires the original call identity")
+        if self.provider == "native_d1" and self.request_format not in {
+            "native_d1_systemone",
+            "not_submitted",
+            "reused",
+        }:
+            raise ValueError("Native d1 capture requires its exact submitted protocol")
+        if self.request_format == "native_d1_systemone" and (
+            self.provider != "native_d1"
+            or self.artifact_sha256 is not None
+            or set(self.request) != {"model", "state", "questions"}
+            or not isinstance(self.model, str)
+            or self.request["model"] != self.model
+            or not isinstance(self.request["state"], str)
+            or not isinstance(self.request["questions"], dict)
+        ):
+            raise ValueError("Native d1 capture requires its actual request and identity")
         if self.model_pin is not None and (
             (self.provider, self.model) != (self.model_pin.provider, self.model_pin.model)
             or (
-                self.request_format == "laya_systemone"
-                and self.model_pin.protocol != "laya_systemone"
+                self.request_format in {"laya_systemone", "native_d1_systemone"}
+                and self.model_pin.protocol != self.request_format
+            )
+            or (
+                self.model_pin.protocol == "native_d1_systemone"
+                and self.request_format not in {"native_d1_systemone", "not_submitted", "reused"}
             )
             or (
                 self.model_pin.selection.source == "catalog"
-                and self.request_format not in {"laya_systemone", "not_submitted"}
+                and self.request_format not in {self.model_pin.protocol, "not_submitted", "reused"}
             )
         ):
             raise ValueError("Classifier capture model pin does not match its request")
