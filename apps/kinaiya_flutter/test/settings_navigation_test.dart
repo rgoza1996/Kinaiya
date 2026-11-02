@@ -1061,4 +1061,116 @@ void main() {
       await f.dispose(tester);
     },
   );
+
+  testWidgets(
+    'Models Options displays plain-language purpose and truthful reported status for Converse, Agent, Decisions, STT, and TTS',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1280, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final f = NavigationFixture();
+      await f.mount(tester);
+      await openSettings(tester);
+      await chooseSettings(tester, OptionsPage.models);
+
+      expect(
+        find.byKey(const ValueKey('options-models-role-overview')),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('model-role-purpose-converse')),
+            )
+            .data,
+        'Handles live voice and text conversation responses with Kinaiya.',
+      );
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('model-role-purpose-agent')),
+            )
+            .data,
+        'Plans and executes bounded background tasks, file edits, and tool calls.',
+      );
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('model-role-purpose-decisions')),
+            )
+            .data,
+        'Classifies conversation turns and timing for potential Agent handoff.',
+      );
+      expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey('model-role-purpose-stt')))
+            .data,
+        'Transcribes spoken microphone audio into text before Converse processes it.',
+      );
+      expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey('model-role-purpose-tts')))
+            .data,
+        'Synthesizes Kinaiya responses into spoken audio output.',
+      );
+
+      // Cloud provider without disclosure consent reports cloud disclosure required.
+      f.state
+        ..converseOnline = true
+        ..converseInferenceAllowed = false
+        ..converseProvider = {
+          'provider': 'meta',
+          'model': 'muse-spark-1.3-contributor',
+          'local': false,
+        };
+      f.state.touch();
+      await tester.pump();
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('model-role-status-converse')),
+            )
+            .data,
+        contains(
+          'Selection: muse-spark-1.3-contributor · Reported: Needs attention (meta · Cloud disclosure required)',
+        ),
+      );
+
+      // Missing Decisions URL is marked Unavailable rather than implicitly ready.
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('model-role-status-decisions')),
+            )
+            .data,
+        contains('Unavailable — configure Decisions URL'),
+      );
+
+      // Disconnecting marks all roles Unavailable (not connected).
+      f.state.disconnect();
+      await routePump(tester);
+      for (final role in ['converse', 'agent', 'decisions', 'stt', 'tts']) {
+        expect(
+          tester
+              .widget<Text>(find.byKey(ValueKey('model-role-status-$role')))
+              .data,
+          contains('Unavailable (not connected)'),
+        );
+      }
+
+      // STT shortcut navigates to Audio & speech without mutating state.
+      final sttAction = find.byKey(const ValueKey('model-role-action-stt'));
+      await tester.ensureVisible(sttAction);
+      await tester.tap(sttAction);
+      await routePump(tester);
+      expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey('options-breadcrumb-page')))
+            .data,
+        'Audio',
+      );
+      expect(f.dispatchedEffect, isFalse);
+      expect(tester.takeException(), isNull);
+      await f.dispose(tester);
+    },
+  );
 }
