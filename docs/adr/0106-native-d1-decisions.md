@@ -99,6 +99,21 @@ pending close into retirement. Cleanup failure stays visible and blocks new
 selection/admission. Closing a socket is not evidence that external model
 inference stopped.
 
+The adapter also fences the successful-return path after that cleanup: a
+transport that suppresses cancellation cannot turn a cancelled or expired HTTP
+exchange into a routing result. A new caller cancellation is re-raised; an
+expired native request deadline produces a provider error, even if the
+transport eventually returns valid bytes. When both occurred, the caller
+cancellation takes precedence. An actual cleanup failure keeps its original
+sticky failure instead. Historical cancellation counts from before the
+exchange are not treated as a new cancellation.
+
+Catalog confidence values retain their fractional JSON value on reread. This
+permission applies only to the native profile's top-level `min_confidence`;
+receipt counters, legacy profiles and nested fields retain their existing
+integer-only stored-document rules. Catalog `timeout_s` maps to the adapter's
+`timeout`; a host launcher declaration uses the existing `timeout` field.
+
 ## Verification boundary
 
 Offline protocol and native selection checks must distinguish fixture transport,
@@ -106,4 +121,3 @@ actual service/source routing, cleanup ownership and model inference. Existing
 Laya checks remain required. The dated [negative and mixed model evidence](../evidence/multimodal-2026-10-31/README.md)
 is retained. No new model, paid inference, GPU, capture, device, service or live
 configuration action is part of this implementation increment.
-

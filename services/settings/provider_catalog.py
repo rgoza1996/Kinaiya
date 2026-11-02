@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import math
 import os
 import re
 import secrets
@@ -340,7 +341,7 @@ def _canonical(value):
     )
 
 
-def _stored_json(value, limit):
+def _stored_json(value, limit, *, profile_config=False):
     """Parse a projected bounded stored document without duplicate/unsafe JSON."""
     if type(value) is not str or not 1 <= len(value.encode("utf-8")) <= limit:
         raise ValueError("Stored provider document exceeds its bound")
@@ -358,26 +359,40 @@ def _stored_json(value, limit):
 
     try:
         decoded = json.loads(value, object_pairs_hook=unique, parse_constant=constant)
-        pending, nodes = [(decoded, 0)], 0
+        pending, nodes = [(decoded, 0, False)], 0
         while pending:
-            item, depth = pending.pop()
+            item, depth, confidence = pending.pop()
             nodes += 1
             if depth > 16 or nodes > 1024:
                 raise ValueError("Stored provider document exceeds its structural bound")
             if type(item) is dict:
                 if len(item) > 32:
                     raise ValueError("Stored provider document exceeds its field bound")
-                pending.extend((key, depth + 1) for key in item)
-                pending.extend((child, depth + 1) for child in item.values())
+                pending.extend((key, depth + 1, False) for key in item)
+                pending.extend(
+                    (
+                        child,
+                        depth + 1,
+                        profile_config
+                        and depth == 0
+                        and item.get("kind") == "native_d1"
+                        and key == "min_confidence",
+                    )
+                    for key, child in item.items()
+                )
             elif type(item) is list:
                 if len(item) > 64:
                     raise ValueError("Stored provider document exceeds its item bound")
-                pending.extend((child, depth + 1) for child in item)
+                pending.extend((child, depth + 1, False) for child in item)
             elif type(item) is str:
                 item.encode("utf-8")
             elif type(item) is int:
                 if not -MAX_REVISION <= item <= MAX_REVISION:
                     raise ValueError("Stored provider document has an unsafe integer")
+            elif type(item) is float and confidence and math.isfinite(item) and 0 <= item <= 1:
+                # Only this new declaration field admits fractional JSON. Keep
+                # receipt counters, legacy profiles and nested fields integral.
+                pass
             elif item is not None and type(item) is not bool:
                 raise ValueError("Stored provider document has an invalid primitive")
         return decoded
@@ -560,7 +575,7 @@ class ProviderCatalog:
         from pydantic import TypeAdapter
 
         config = TypeAdapter(ProfileConfig).validate_python(
-            _stored_json(version[2], _CONFIG_BYTES), strict=True
+            _stored_json(version[2], _CONFIG_BYTES, profile_config=True), strict=True
         )
         canonical = _canonical(config.model_dump(mode="json"))
         if hashlib.sha256(canonical.encode("utf-8")).hexdigest() != version[1]:

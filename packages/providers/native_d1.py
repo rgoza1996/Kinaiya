@@ -322,8 +322,11 @@ class NativeD1RoutingProvider:
     async def _request(self, client, body, check):
         from packages.providers.decision_capture import capture_error_response, capture_response
 
+        owner = asyncio.current_task()
+        cancellations = owner.cancelling()
+        deadline = asyncio.timeout(self.timeout)
         try:
-            async with asyncio.timeout(self.timeout):
+            async with deadline:
                 async with complete_stream(
                     client, _PATH, body, check, _OwnedHTTPStream
                 ) as response:
@@ -349,6 +352,14 @@ class NativeD1RoutingProvider:
             raise ProviderError("Native d1 request exceeded its total deadline") from None
         except httpx.HTTPError:
             raise ProviderError("Native d1 endpoint is unavailable") from None
+        # A transport may suppress cancellation while settling its real work.
+        # Retire its original response/sole close first, but never turn that
+        # cancelled or expired exchange into a usable routing decision. Raised
+        # cleanup failures bypass these success-path fences and remain sticky.
+        if owner.cancelling() > cancellations:
+            raise asyncio.CancelledError
+        if deadline.expired():
+            raise ProviderError("Native d1 request exceeded its total deadline")
         return _json_object(bytes(raw), MAX_RESPONSE_BYTES)
 
     def _map_answers(self, payload, state, mode, questions, *, model, min_confidence):
