@@ -13,7 +13,10 @@ from packages.contracts.models import JournalEntry
 from packages.contracts.standing_execution import (
     StandingExecutionClaim,
     StandingExecutionIntent,
-    standing_initial_request,
+    _initial_request_from_checked_claim,
+)
+from packages.contracts.standing_execution import (
+    standing_initial_request as standing_initial_request,
 )
 from packages.contracts.standing_work import (
     _checked,
@@ -139,7 +142,8 @@ def _entry_json(entry):
 
 
 def _request_json(claim):
-    request = standing_initial_request(claim)
+    # Every caller has just checked its full claim or enclosing initial proof.
+    request = _initial_request_from_checked_claim(claim)
     if len(request.model_dump_json().encode("utf-8")) > _MAX_REQUEST_BYTES:
         raise ValueError(_ERROR)
     raw = request.model_dump(mode="json")

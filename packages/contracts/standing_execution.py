@@ -386,66 +386,71 @@ class StandingExecutionClaimAdmission(_Execution):
             raise ValueError(_PROOF_ERROR) from None
 
 
+def _initial_request_from_checked_claim(claim: StandingExecutionClaim) -> AppendRequest:
+    """Build from this invocation's freshly revalidated complete claim only."""
+    intent = claim.request
+    task = intent.task
+    session = task.task_session
+    request = AppendRequest(
+        schema_version="1.0",
+        session_id=session.session_id,
+        thread_id=session.thread_id,
+        epoch=session.epoch,
+        kind="agent.standing-command",
+        causes=[],
+        task_refs=[task.task_id],
+        idempotency_key=f"agent:{task.task_id}:agent.standing-command:1",
+        payload={
+            "op": "submit",
+            "actor": "standing",
+            "task_id": task.task_id,
+            "state": "accepted",
+            "session_id": session.session_id,
+            "thread_id": session.thread_id,
+            "epoch": session.epoch,
+            "objective": task.objective,
+            "objective_revision": 1,
+            "source_event_ids": [],
+            "source_revision": 1,
+            "requested_content_scope": task.content_scope,
+            "content_scope": task.content_scope,
+            "idempotency_key": f"standing:{claim.occurrence_id}",
+            "payload_digest": claim.intent_digest,
+            "harness_version": task.harness_version,
+            "model_pin": task.model_pin.model_dump(mode="python"),
+            "workspace_pin": task.workspace_pin.model_dump(mode="python"),
+            "auxiliary_models": {},
+            "plugin_versions": {},
+            "explicit_skill": None,
+            "standing": {
+                "schema_version": "1.0",
+                "claim_id": claim.claim_id,
+                "claim_digest": claim.claim_digest,
+                "occurrence_id": claim.occurrence_id,
+                "intent_digest": claim.intent_digest,
+                "responsibility_id": intent.responsibility_id,
+                "authorization_revision": intent.authorization_revision,
+                "authorization_digest": intent.authorization_digest,
+                "record_digest": intent.record_digest,
+                "dispatch_epoch": intent.dispatch_epoch,
+                "activation_digest": intent.activation_digest,
+                "control_revision": intent.control_revision,
+                "producer_id": intent.producer.request.producer_id,
+                "executor_id": intent.executor_id,
+                "capability_sha256": intent.capability_sha256,
+                "tool_subset": task.tool_subset,
+            },
+        },
+    )
+    if len(request.model_dump_json().encode("utf-8")) > _MAX_INITIAL_REQUEST_BYTES:
+        raise ValueError(_ERROR)
+    return request
+
+
 def standing_initial_request(claim: StandingExecutionClaim) -> AppendRequest:
     """Build the explicit new family without admitting it or selecting origin."""
     try:
         claim = _checked(claim, StandingExecutionClaim)
-        intent = claim.request
-        task = intent.task
-        session = task.task_session
-        request = AppendRequest(
-            schema_version="1.0",
-            session_id=session.session_id,
-            thread_id=session.thread_id,
-            epoch=session.epoch,
-            kind="agent.standing-command",
-            causes=[],
-            task_refs=[task.task_id],
-            idempotency_key=f"agent:{task.task_id}:agent.standing-command:1",
-            payload={
-                "op": "submit",
-                "actor": "standing",
-                "task_id": task.task_id,
-                "state": "accepted",
-                "session_id": session.session_id,
-                "thread_id": session.thread_id,
-                "epoch": session.epoch,
-                "objective": task.objective,
-                "objective_revision": 1,
-                "source_event_ids": [],
-                "source_revision": 1,
-                "requested_content_scope": task.content_scope,
-                "content_scope": task.content_scope,
-                "idempotency_key": f"standing:{claim.occurrence_id}",
-                "payload_digest": claim.intent_digest,
-                "harness_version": task.harness_version,
-                "model_pin": task.model_pin.model_dump(mode="python"),
-                "workspace_pin": task.workspace_pin.model_dump(mode="python"),
-                "auxiliary_models": {},
-                "plugin_versions": {},
-                "explicit_skill": None,
-                "standing": {
-                    "schema_version": "1.0",
-                    "claim_id": claim.claim_id,
-                    "claim_digest": claim.claim_digest,
-                    "occurrence_id": claim.occurrence_id,
-                    "intent_digest": claim.intent_digest,
-                    "responsibility_id": intent.responsibility_id,
-                    "authorization_revision": intent.authorization_revision,
-                    "authorization_digest": intent.authorization_digest,
-                    "record_digest": intent.record_digest,
-                    "dispatch_epoch": intent.dispatch_epoch,
-                    "activation_digest": intent.activation_digest,
-                    "control_revision": intent.control_revision,
-                    "producer_id": intent.producer.request.producer_id,
-                    "executor_id": intent.executor_id,
-                    "capability_sha256": intent.capability_sha256,
-                    "tool_subset": task.tool_subset,
-                },
-            },
-        )
-        if len(request.model_dump_json().encode("utf-8")) > _MAX_INITIAL_REQUEST_BYTES:
-            raise ValueError(_ERROR)
-        return request
+        return _initial_request_from_checked_claim(claim)
     except _FAILURES:
         raise ValueError(_ERROR) from None
