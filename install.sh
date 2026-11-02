@@ -9,6 +9,7 @@ import argparse
 import ctypes.util
 import gzip
 import hashlib
+import io
 import json
 import os
 import platform
@@ -20,6 +21,7 @@ import tarfile
 import tempfile
 import time
 import zlib
+from contextlib import contextmanager
 from pathlib import Path, PurePosixPath
 from urllib.error import HTTPError
 from urllib.parse import urlsplit
@@ -195,6 +197,14 @@ def unpack(archive, destination):
     return destination
 
 
+@contextmanager
+def open_terminal():
+    # Buffered r+ requires seeking, which controlling terminals do not support.
+    with open("/dev/tty", "r+b", buffering=0) as raw:
+        with io.TextIOWrapper(raw, encoding="utf-8", line_buffering=True, write_through=True) as terminal:
+            yield terminal
+
+
 def run(argv=None):
     parser = argparse.ArgumentParser(description="Verified native Linux Kinaiya bootstrap; never installs system packages")
     parser.add_argument("--channel", choices=("stable", "nightly"), default="stable")
@@ -207,7 +217,7 @@ def run(argv=None):
     manifest, artifact = resolve(args.channel)
     print(json.dumps({"channel": args.channel, "source_sha": manifest["source_sha"], "download_bytes": artifact["size"], "install": str(Path.home() / ".local/share/kinaiya/install"), "dependencies": "hash-locked isolated venv; no voice/model downloads", "trust": "official GitHub HTTPS plus artifact SHA-256, not publisher signing"}), flush=True)
     if not args.yes:
-        with open("/dev/tty", "r+", encoding="utf-8", buffering=1) as tty:
+        with open_terminal() as tty:
             tty.write("Review the plan. Type yes to download and install: ")
             require(tty.readline().strip() == "yes", "Installation cancelled; no files changed")
     cache = Path.home() / ".cache/kinaiya"
