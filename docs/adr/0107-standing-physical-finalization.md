@@ -1,7 +1,9 @@
 # ADR0107: Retained physical Resources finalization
 
-Status: implementation under qualification for #239 / #228. This increment
-provides an in-process producer; Agent-triggered finalization, claim-wide Agent
+Status: in-process implementation qualified in the offline harness at
+`40c239e8721340a8764a54d2b1997fdca983dd16`; main integration and exact-head CI
+remain pending for #239 / #228. This increment provides an in-process producer;
+Agent-triggered finalization, claim-wide Agent
 retirement, native settlement, recurrence and inbox delivery remain separate.
 It does not establish M7, a live model stack or demo readiness.
 
@@ -88,3 +90,20 @@ fixture maintenance and later qualifications must remain separately recorded.
 An empty registry, terminal task or mocked result alone proves no physical
 retirement. No model accuracy, inference, live GPU/device operation or preview
 change is part of this qualification.
+
+The [qualification record](../../evaluation/evidence/standing-physical-finalization-2026-11-01.json)
+retains the full original 53-pass/two-timeout run and the corrected 99-case
+physical/ownership run, alongside 1,291 passing contract/client cases and
+unchanged schemas. These groups overlap. The two original eight-second gates
+pass after removing repeated semantic reconstruction only for freshly parsed
+local witness snapshots in one synchronous call; every encoding still walks
+the complete actual graph. Public parsing, caps, canonical/native joins and
+all checks after awaits remain unchanged. This is no general timing guarantee.
+
+Source-aware fixture corrections positively join original owners before retry
+and observe the actual fence before releasing held work; their old assertions,
+expected dispositions and finalization deadlines are retained. A separate
+failed-Off race first reproduced false-positive publication, then passed with
+durable failed-witness preservation. Passing cleanup-negative cases preserves
+uncertainty rather than proving healthy retirement. PR259's failed worker-start
+CI remains unresolved and is not cleared by these local checks.
