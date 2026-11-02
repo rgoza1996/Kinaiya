@@ -1,9 +1,8 @@
 name: distribution
 on:
-  workflow_run:
-    workflows: [deterministic-ci]
-    types: [completed]
-    branches: [main]
+  schedule:
+    - cron: '0 0 * * *'
+      timezone: America/Los_Angeles
   workflow_dispatch:
     inputs:
       dry_run:
@@ -32,11 +31,7 @@ jobs:
   prepare:
     if: >-
       github.repository == 'rgoza1996/Kinaiya' &&
-      (github.event_name == 'workflow_dispatch' ||
-       (github.event.workflow_run.conclusion == 'success' &&
-        github.event.workflow_run.event == 'push' &&
-        github.event.workflow_run.head_branch == 'main' &&
-        github.event.workflow_run.head_repository.full_name == 'rgoza1996/Kinaiya'))
+      (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule')
     runs-on: ubuntu-22.04
     timeout-minutes: 5
     permissions:

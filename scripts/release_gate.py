@@ -56,7 +56,9 @@ def qualify_candidate(
     _require(type(build_number) is int and 1 <= build_number < 2**63, "Invalid build number")
     inputs = event.get("inputs") or {}
     kind = event.get("kind")
-    _require(kind in ("workflow_run", "workflow_dispatch"), "Unsupported release trigger")
+    _require(
+        kind in ("workflow_run", "workflow_dispatch", "schedule"), "Unsupported release trigger"
+    )
     raw_dry = inputs.get("dry_run", True)
     _require(raw_dry in (True, False, "true", "false"), "Invalid dry-run flag")
     dry_run = kind == "workflow_dispatch" and raw_dry in (True, "true")
@@ -87,7 +89,9 @@ def qualify_candidate(
             publish_enabled is True, "Publication disabled; configure RELEASE_PUBLISH_ENABLED first"
         )
         _require(
-            source_sha == main_sha if channel == "nightly" else source_on_main,
+            source_sha == main_sha
+            if channel == "nightly" and kind != "schedule"
+            else source_on_main,
             "Source is stale or not qualified on main",
         )
         _require(
@@ -134,7 +138,16 @@ def _api(endpoint):
     return json.loads(raw)
 
 
-def prepare(event, *, repo, build_number, github_ref, workflow_ref, publish_enabled=False):
+def prepare(
+    event,
+    *,
+    repo,
+    build_number,
+    github_ref,
+    workflow_ref,
+    publish_enabled=False,
+    expected_source_sha=None,
+):
     """Read authoritative exact-source CI and environment settings before building."""
     kind = event.get("kind")
     inputs = event.get("inputs") or {}
@@ -163,6 +176,8 @@ def prepare(event, *, repo, build_number, github_ref, workflow_ref, publish_enab
     _require(
         isinstance(source, str) and re.fullmatch(r"[0-9a-f]{40}", source), "Invalid source SHA"
     )
+    if kind == "schedule":
+        _require(source == expected_source_sha, "Scheduled snapshot must match trusted GITHUB_SHA")
     main_sha = _git(repo, "rev-parse", "refs/remotes/origin/main")
     ci_runs, environment, source_on_main = [], None, False
     if not dry_run:
@@ -173,7 +188,9 @@ def prepare(event, *, repo, build_number, github_ref, workflow_ref, publish_enab
             f"repos/{REPOSITORY}/actions/workflows/ci.yml/runs?head_sha={source}&branch=main&event=push&per_page=100"
         )["workflow_runs"]
         environment = _api(f"repos/{REPOSITORY}/environments/release-{channel}")
-        if channel == "stable":
+        if channel == "stable" or kind == "schedule":
+            # A scheduled run pins the event snapshot even if main moves while
+            # it builds; never substitute a newer or older unqualified commit.
             source_on_main = _git(repo, "merge-base", source, main_sha) == source
     return qualify_candidate(
         event,
@@ -202,6 +219,7 @@ def main():
             github_ref=os.environ["GITHUB_REF"],
             workflow_ref=os.environ["GITHUB_WORKFLOW_REF"],
             publish_enabled=os.environ.get("RELEASE_PUBLISH_ENABLED") == "true",
+            expected_source_sha=os.environ.get("GITHUB_SHA"),
         )
         with args.output.open("a", encoding="utf-8") as output:
             for key, value in result.items():

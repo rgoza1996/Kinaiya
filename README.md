@@ -47,7 +47,7 @@ The candidate baseline is Ubuntu 22.04/24.04, Python 3.11–3.13 with `venv`/`en
 Download the bootstrap from this reviewed, immutable source revision, inspect it, then select the experimental nightly channel explicitly:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/rgoza1996/Kinaiya/e5a3a849c92a39f9ac1ecafa86e71be42cc7e9bc/install.sh -o kinaiya-install.sh
+curl -fsSL https://raw.githubusercontent.com/rgoza1996/Kinaiya/517e460c21bd9626cedd35a44a0fe4fc0ff604cb/install.sh -o kinaiya-install.sh
 # Review kinaiya-install.sh before executing downloaded code.
 sh kinaiya-install.sh --channel nightly
 export PATH="$HOME/.local/bin:$PATH"
@@ -55,7 +55,7 @@ kinaiya version
 kinaiya update --check
 ```
 
-Nightly installs only a qualified, pinned GitHub release—not arbitrary commits from `main`. **Stable is a separate approval-gated channel:** when no approved stable release exists, the default installer refuses rather than silently choosing an alpha/nightly. Review the [release policy and trust limits](docs/releases.md).
+Nightly installs only a qualified, pinned GitHub release—not arbitrary commits from `main`. Nightly builds are scheduled for **midnight Las Vegas time (`America/Los_Angeles`)**, rather than after every commit; publication still requires passing checks and may be delayed or skipped. **Stable is a separate approval-gated channel:** when no approved stable release exists, the default installer refuses rather than silently choosing an alpha/nightly. Review the [release policy and trust limits](docs/releases.md).
 
 After choosing and validating a supported provider configuration, use `kinaiya serve host` for Agent-only services and `kinaiya web` for a matching release's prebuilt web client. Setup and update do not prove provider/model readiness or start work. Optional [Converse setup](docs/converse-setup.md), the [web client guide](apps/kinaiya_flutter/README.md), and the [manual development-host path](#run-the-host) remain separate. Windows support is deferred; Android/iOS distribution and native calling remain separate qualification work.
 
