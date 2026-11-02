@@ -111,6 +111,8 @@ class StandingResourceClient:
                     if kind is StandingExecutionClaim
                     else result.validate_request(original)
                 )
+            if loop.time() >= deadline:
+                raise StandingUnavailable
             return result
         except asyncio.CancelledError:
             if exchange is not None:
