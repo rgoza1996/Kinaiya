@@ -919,24 +919,35 @@ class StandingSettlementOwner:
         session = original.task_session
         if (
             _json_bytes({key: value[key] for key in request}) != request_wire
-            or row["writer"] != "agent"
-            or row["kind"] != "agent.outcome"
             or row["event_id"] != entry.event_id
             or row["sequence"] != entry.sequence
             or row["session_id"] != entry.session_id
             or row["thread_id"] != entry.thread_id
             or row["epoch"] != entry.epoch
+            or row["kind"] != entry.kind
             or row["idem"] != entry.idempotency_key
-            or entry.origin != "agent-supervisor"
-            or entry.kind != "agent.outcome"
             or entry.created_at.tzinfo is None
             or entry.created_at.utcoffset() != timedelta(0)
+        ):
+            raise StandingUnavailable
+        if (
+            type(task.epoch) is not int
+            or type(task.objective_revision) is not int
+            or not 1 <= task.objective_revision <= MAX_AGENT_CONTROL_INTEGER
+        ):
+            raise StandingUnavailable
+        # A complete native row can be valid but inapplicable to this claim.
+        # Retained history still normalizes any such join failure to unavailable.
+        if (
+            row["writer"] != "agent"
+            or entry.origin != "agent-supervisor"
+            or entry.kind != "agent.outcome"
             or (entry.session_id, entry.thread_id, entry.epoch)
             != (session.session_id, session.thread_id, session.epoch)
             or entry.task_refs != [original.task_id]
             or entry.sequence <= item.initial.sequence
         ):
-            raise StandingUnavailable
+            raise StandingConflict
         if (
             reference.event_id != entry.event_id
             or reference.sequence != entry.sequence
@@ -946,12 +957,9 @@ class StandingSettlementOwner:
             or reference.request_sha256 != hashlib.sha256(request_wire).hexdigest()
             or reference.entry_sha256 != hashlib.sha256(entry_wire).hexdigest()
         ):
-            raise StandingUnavailable
+            raise StandingConflict
         if (
-            type(task.epoch) is not int
-            or type(task.objective_revision) is not int
-            or not 1 <= task.objective_revision <= MAX_AGENT_CONTROL_INTEGER
-            or task.task_id != original.task_id
+            task.task_id != original.task_id
             or (task.session_id, task.thread_id, task.epoch)
             != (session.session_id, session.thread_id, session.epoch)
             or task.harness_version != original.harness_version
@@ -959,11 +967,11 @@ class StandingSettlementOwner:
             or task.idempotency_key != "standing:" + item.claim.occurrence_id
             or task.auxiliary_models != {}
         ):
-            raise StandingUnavailable
+            raise StandingConflict
         # Compare the complete validated declaration, preserving old nullable
         # catalog-pin wire omissions without changing their stored bytes.
         if task.model_pin is None or task.model_pin.__dict__ != original.model_pin.__dict__:
-            raise StandingUnavailable
+            raise StandingConflict
         mirrored = (
             "task_id",
             "session_id",
@@ -980,14 +988,14 @@ class StandingSettlementOwner:
         if any(key not in body for key in mirrored) or _json_bytes(
             {key: body[key] for key in mirrored}
         ) != _json_bytes({key: snapshot[key] for key in mirrored}):
-            raise StandingUnavailable
+            raise StandingConflict
         optional = tuple(
             key for key in ("summary", "error", "remaining_required_work") if key in body
         )
         if _json_bytes({key: body[key] for key in optional}) != _json_bytes(
             {key: snapshot[key] for key in optional}
         ):
-            raise StandingUnavailable
+            raise StandingConflict
         return entry
 
     def _select(self, history, original, *, missing=False):
