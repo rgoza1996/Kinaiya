@@ -819,6 +819,7 @@ async def test_http_steer_uncooperative_preflight_is_bounded_and_remains_owned(
 
     _, _, runtime, journal, client, task, _ = http_stack
     entered, release, cancelled = asyncio.Event(), asyncio.Event(), asyncio.Event()
+    read_completion = asyncio.Event()
     original = journal.session
     operation = None
     native_read = None
@@ -833,6 +834,9 @@ async def test_http_steer_uncooperative_preflight_is_bounded_and_remains_owned(
         result = await original(session_id)
         if read_completion_delay:
             await asyncio.sleep(read_completion_delay)
+            # Both timers can be overdue; hold completion until the real
+            # cancellation handler records the still-pending original read.
+            await read_completion.wait()
         return result
 
     async def observe_read_response(response):
@@ -854,8 +858,11 @@ async def test_http_steer_uncooperative_preflight_is_bounded_and_remains_owned(
             except asyncio.CancelledError:
                 if native_read.cancelled():
                     raise
-                cancellation_phases.append("read" if not native_read.done() else "read-finished")
+                read_pending = not native_read.done()
+                cancellation_phases.append("read" if read_pending else "read-finished")
                 cancelled.set()
+                if read_pending:
+                    read_completion.set()
         while not release.is_set():
             try:
                 await release.wait()
@@ -897,6 +904,7 @@ async def test_http_steer_uncooperative_preflight_is_bounded_and_remains_owned(
         assert runtime._tasks[task.task_id].steer_attempt.active is False
     finally:
         release.set()
+        read_completion.set()
         try:
             if operation is not None:
                 await asyncio.wait_for(asyncio.gather(operation, return_exceptions=True), 2)
