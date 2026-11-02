@@ -18,7 +18,6 @@ import sqlite3
 import sys
 import tempfile
 import threading
-from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -31,12 +30,11 @@ from test_resource_processes import make_spec, write_script
 from test_standing_dispatch_api import AUTH
 from test_standing_execution_api import SECRET, original
 from test_standing_execution_api import factory as factory
-from test_standing_resource_finalization_api import large_original, post, safe_response
+from test_standing_resource_finalization_api import large_original
 from test_standing_resources_registration import join_client
 
 from packages.contracts.client import JournalClient
 from packages.contracts.models import ProviderInfo
-from packages.contracts.standing_execution import StandingExecutionIntent
 from packages.contracts.standing_resource_finalization import (
     StandingResourceBindingReceipt,
     StandingResourceFinalizationReceipt,
@@ -48,12 +46,7 @@ from packages.contracts.standing_resources import (
     TaskResourceQuery,
     checked_resource,
 )
-from packages.contracts.standing_work import (
-    StandingChange,
-    StandingChangeReceipt,
-    StandingConflict,
-    StandingUnavailable,
-)
+from packages.contracts.standing_work import StandingConflict, StandingUnavailable
 from packages.providers.text import ScriptedProvider
 from packages.resources import WorkerManager
 from services.converse.api import create_app as converse_app
@@ -349,38 +342,119 @@ def test_frozen_physical_producer_capability_is_present():
     feature()
 
 
-async def large_physical_original(session):
-    # The no-reservation context has fewer copies than the old reservation
-    # fixture. Use a new genuine owner grant rather than lowering the byte test.
-    value = await large_original(session)
-    standing = session.app.state.standing_owner
-    before = standing.snapshot(value.responsibility_id).record
-    change_raw = before.receipt.request.model_dump(mode="json")
-    change_raw.update(
-        idempotency_key="physical:large-grant", expected_revision=before.receipt.revision
+async def retire_setup_client(client):
+    """Follow the exact original exchanges, then retire this unused dependency."""
+    registry = client._submit_exchanges
+    stt_closes = client._submit_stt_closes
+    assert type(registry) is set and type(stt_closes) is set and not stt_closes
+    captured = set()
+    while registry:
+        assert client._submit_exchanges is registry
+        captured.update(registry)
+        tasks = {
+            task
+            for exchange in registry
+            for task in (exchange.task, exchange.close_task)
+            if task is not None
+        }
+        assert all(type(task) is asyncio.Task for task in tasks)
+        await asyncio.gather(*(asyncio.shield(task) for task in tasks), return_exceptions=True)
+        assert client._submit_exchanges is registry
+        await asyncio.sleep(0)
+    assert (
+        client._submit_exchanges is registry
+        and client._submit_stt_closes is stt_closes
+        and not stt_closes
     )
-    change_raw["authorization"]["objective"] = "\0" * 16000
-    change_raw["authorization"]["schedule"]["local_time"] = "12:02"
-    change = StandingChange.model_validate(change_raw)
-    reply = await post(session, "/v1/standing/changes", change_raw, role="owner")
-    safe_response(reply, 200)
-    StandingChangeReceipt.from_json(reply.content).validate_request(change)
-    actual = standing.snapshot(value.responsibility_id).record
-    raw = value.model_dump(mode="json")
-    raw.update(
-        authorization_revision=actual.receipt.revision,
-        authorization_digest=actual.receipt.authorization_digest,
-        record_digest=actual.record_digest,
-    )
-    raw["task"]["objective"] = actual.receipt.request.authorization.objective
-    raw["occurrence"]["due_utc"] = "2026-11-01T12:02:00Z"
-    session.wall.value = datetime(2026, 11, 1, 12, 2, 10, tzinfo=UTC)
-    return StandingExecutionIntent.model_validate(raw)
+    outcomes = []
+    failed = client._submit_cleanup_failed
+    for exchange in captured:
+        assert exchange.owner is client and exchange.task.done()
+        close = exchange.close_task
+        if exchange.response is not None:
+            assert type(close) is asyncio.Task and close.done()
+        close_failed = close is not None and (close.cancelled() or close.exception() is not None)
+        failed |= close_failed
+        outcomes.append(
+            {
+                "work_cancelled": exchange.task.cancelled(),
+                "work_error": None
+                if exchange.task.cancelled() or exchange.task.exception() is None
+                else type(exchange.task.exception()).__name__,
+                "close_failed": close_failed,
+            }
+        )
+    await client.close()
+    if failed:
+        raise StandingUnavailable
+    return outcomes
+
+
+async def unwind_setup(setup):
+    """One retained cleanup owner for factories not transferred to the fixture."""
+    failures = []
+
+    async def retire(name, operation):
+        try:
+            result = await operation()
+            setup.retirement[name] = {"settled": True, "result": result}
+            return True
+        except BaseException as exc:
+            setup.retirement[name] = {"settled": False, "error": type(exc).__name__}
+            failures.append(exc)
+            return False
+
+    def retire_sync(name, operation):
+        try:
+            operation()
+            setup.retirement[name] = {"settled": True}
+        except BaseException as exc:
+            setup.retirement[name] = {"settled": False, "error": type(exc).__name__}
+            failures.append(exc)
+
+    manager_retired = setup.manager is None
+    if setup.coordinator is not None:
+
+        async def coordinator_close():
+            try:
+                await setup.coordinator.close()
+            except StandingUnavailable:
+                setup.retirement["coordinator_facade_error"] = "StandingUnavailable"
+            owner = setup.coordinator._close_owner
+            assert type(owner) is asyncio.Task
+            await asyncio.shield(owner)
+
+        manager_retired = await retire("coordinator", coordinator_close)
+    else:
+        if setup.manager is not None:
+            manager_retired = await retire("manager", setup.manager.close)
+        if setup.gateway is not None:
+            await retire("gateway", lambda: retire_setup_client(setup.gateway))
+        if setup.control is not None:
+            await retire("control", setup.control.close)
+        for number, connection in enumerate(setup.connections):
+            retire_sync(f"connection-{number}", connection.close)
+        if setup.state is not None:
+            retire_sync("state", setup.state.close)
+    if setup.runtime is not None:
+        await retire("runtime", setup.runtime.close)
+    if setup.agent is not None:
+        await retire("agent", lambda: retire_setup_client(setup.agent))
+    if setup.http is not None:
+        await retire("http", setup.http.aclose)
+    if manager_retired:
+        if setup.endpoint is not None:
+            retire_sync("endpoint", setup.endpoint.close)
+        elif setup.directory is not None:
+            retire_sync("directory", setup.directory.rmdir)
+    if failures:
+        raise BaseExceptionGroup("Physical fixture setup cleanup failed", failures)
 
 
 @pytest.fixture
 async def physical(factory, tmp_path, monkeypatch, record_property):
     opened = []
+    setups = []
     actual_effects = _Capture.begin_effects
 
     def effects(capture):
@@ -407,23 +481,63 @@ async def physical(factory, tmp_path, monkeypatch, record_property):
     monkeypatch.setattr(_Capture, "begin_effects", effects)
 
     async def make(*, session=None, claim=None, path=None, large=False):
-        path = path or tmp_path / f"physical-{len(opened)}"
-        path.mkdir(mode=0o700, exist_ok=True)
-        # Keep the real Unix socket path below its native length limit.
-        endpoint_directory = Path(tempfile.mkdtemp(prefix="kw239-", dir="/tmp"))
-        endpoint = WhistleEndpoint(endpoint_directory)
+        # Owner packet validation uses only the already-owned Session factory.
+        # No private directory/client exists if this fails.
         session = session or await factory()
-        agent = JournalClient(
-            "http://127.0.0.1:8760", "a" * 32, transport=httpx.ASGITransport(app=session.app)
-        )
         packet = (
             claim.request
             if claim is not None
-            else await (large_physical_original(session) if large else original(session))
+            else await (large_original(session) if large else original(session))
+        )
+        setup = SimpleNamespace(
+            directory=None,
+            endpoint=None,
+            agent=None,
+            manager=None,
+            state=None,
+            runtime=None,
+            control=None,
+            gateway=None,
+            coordinator=None,
+            http=None,
+            connections=[],
+            transferred=False,
+            cleanup=None,
+            retirement={},
+        )
+        setups.append(setup)
+        try:
+            return await make_owned(setup, session, packet, claim, path)
+        except BaseException as primary:
+            if not setup.transferred:
+                setup.cleanup = asyncio.create_task(unwind_setup(setup))
+                while not setup.cleanup.done():
+                    try:
+                        await asyncio.shield(setup.cleanup)
+                    except asyncio.CancelledError:
+                        pass
+                    except BaseException:
+                        assert setup.cleanup.done()
+                try:
+                    setup.cleanup.result()
+                except BaseException as cleanup:
+                    raise BaseExceptionGroup(
+                        "Physical fixture setup and original cleanup failed", [primary, cleanup]
+                    ) from None
+            raise
+
+    async def make_owned(setup, session, packet, claim, path):
+        path = path or tmp_path / f"physical-{len(opened)}"
+        path.mkdir(mode=0o700, exist_ok=True)
+        # Keep the real Unix socket path below its native length limit.
+        endpoint_directory = setup.directory = Path(tempfile.mkdtemp(prefix="kw239-", dir="/tmp"))
+        endpoint = setup.endpoint = WhistleEndpoint(endpoint_directory)
+        agent = setup.agent = JournalClient(
+            "http://127.0.0.1:8760", "a" * 32, transport=httpx.ASGITransport(app=session.app)
         )
         claim = claim or (await agent.standing_prepare(packet)).claim
         script = write_script(path, "disposable.py", DRIVER)
-        manager = WorkerManager(
+        manager = setup.manager = WorkerManager(
             [
                 make_spec(
                     "whistle",
@@ -434,18 +548,20 @@ async def physical(factory, tmp_path, monkeypatch, record_property):
             ],
             readiness=endpoint.probe,
         )
-        state = ResourceState(path / "control/resources-state.json")
+        state = setup.state = ResourceState(path / "control/resources-state.json")
         intent = ConverseIntent(state.path.parent / "converse-intent.json", initial_enabled=False)
         provider = ScriptedProvider([])
         provider.info = ProviderInfo(provider="synthetic-cloud", model="no-inference", local=False)
-        runtime = ConverseRuntime(
+        runtime = setup.runtime = ConverseRuntime(
             LocalJournal(session.store, "converse"), provider, intent=intent, resources_managed=True
         )
         control_transport = Native(converse_app(runtime, AUTH))
-        control = ConverseControl("http://127.0.0.1:8762", "r" * 32, transport=control_transport)
+        control = setup.control = ConverseControl(
+            "http://127.0.0.1:8762", "r" * 32, transport=control_transport
+        )
         native = Native(session.app, resources=True)
-        gateway = JournalClient("http://127.0.0.1:8760", "r" * 32, transport=native)
-        connections, starts, stops, memories = [], [], [], []
+        gateway = setup.gateway = JournalClient("http://127.0.0.1:8760", "r" * 32, transport=native)
+        connections, starts, stops, memories = setup.connections, [], [], []
         connect = sqlite3.connect
 
         def connect_owned(*args, **kwargs):
@@ -458,7 +574,7 @@ async def physical(factory, tmp_path, monkeypatch, record_property):
             return 2 * 1024 * MiB
 
         with patch.object(sqlite3, "connect", connect_owned):
-            coordinator = ResourceCoordinator(
+            coordinator = setup.coordinator = ResourceCoordinator(
                 manager,
                 state,
                 control,
@@ -469,6 +585,9 @@ async def physical(factory, tmp_path, monkeypatch, record_property):
             broker = WhistleBroker(coordinator, endpoint)
             coordinator.register_whistle_lifecycle(abort=broker.abort_active, drain=broker.drain)
             app = resources_app(coordinator, AUTH, whistle=broker)
+            http = setup.http = httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app), base_url="http://127.0.0.1:8764"
+            )
             value = SimpleNamespace(
                 session=session,
                 agent=agent,
@@ -484,6 +603,7 @@ async def physical(factory, tmp_path, monkeypatch, record_property):
                 provider=provider,
                 endpoint=endpoint,
                 broker=broker,
+                http=http,
                 connections=connections,
                 starts=starts,
                 stops=stops,
@@ -506,6 +626,7 @@ async def physical(factory, tmp_path, monkeypatch, record_property):
             )
             native.value = value
             opened.append(value)
+            setup.transferred = True
             actual_start, actual_stop = manager.start, manager.stop
             actual_reserve = gateway.standing_resource_reserve
             actual_work = coordinator.standing_barrier._work
@@ -539,15 +660,16 @@ async def physical(factory, tmp_path, monkeypatch, record_property):
             monkeypatch.setattr(gateway, "standing_resource_reserve", reserve)
             monkeypatch.setattr(coordinator.standing_barrier, "_work", work)
             await coordinator.initialize()
-        value.http = httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app), base_url="http://127.0.0.1:8764"
-        )
         feature(value)
         return value
 
     try:
         yield make
     finally:
+        record_property(
+            "physical_partial_setup_cleanup",
+            json.dumps([setup.retirement for setup in setups if not setup.transferred]),
+        )
         cleanup = []
         for value in reversed(opened):
             for boundary in (value.native, value.control_transport):
@@ -1321,12 +1443,29 @@ async def test_owner_off_wins_restore_race_without_restarting_converse(physical,
     assert value.coordinator.manager.owned_identity("whistle") is None
 
 
-async def test_failed_off_ack_after_cleared_ids_is_negative_not_owner_off(physical):
+async def test_failed_off_ack_after_cleared_ids_is_negative_not_owner_off(physical, monkeypatch):
     value = await physical()
     await acquired(value)
+    off_snapshots = []
+    actual_save = value.coordinator.state.save
+
+    def save(**changes):
+        record = actual_save(**changes)
+        if changes.get("phase") == "off":
+            # Observe the actual durable intermediate Off before the raised
+            # bad acknowledgment makes the outer action record failure.
+            off_snapshots.append((record, json.loads(value.coordinator.state.path.read_bytes())))
+        return record
+
+    monkeypatch.setattr(value.coordinator.state, "save", save)
     value.control_transport.bad_off_ack = True
     result = await action(value.coordinator, "converse", key="physical:failed-off", enabled=False)
-    assert result["ok"] is False and value.coordinator.state.record.phase == "off"
+    assert len(off_snapshots) == 1
+    committed, persisted = off_snapshots[0]
+    assert result["ok"] is False and committed.phase == "off"
+    assert committed.lease_id is None and committed.lease_task_id is None
+    assert persisted == committed.model_dump(mode="json")
+    assert value.coordinator.state.record.phase == "failed"
     assert value.coordinator.state.record.lease_id is None
     await closure(value)
     with pytest.raises(REFUSALS):
@@ -1462,8 +1601,13 @@ async def test_controller_replacement_while_actual_context_read_is_held_cannot_c
 async def test_complete_genuine_large_graph_and_native_reply_exceed_old262144_cap(physical):
     value = await physical(large=True)
     await bound(value)
+    # The registered graph carries the additional complete original that makes
+    # the valid old10500-NUL fixture exceed262144; no child cap is widened.
+    refused = await handoff(value)
+    assert refused["ok"] is False and value.effect_checks == 0 and value.starts == []
+    reservation = recorded_reservation(value)
     await closure(value)
-    result = await completed(value, "no-reservation", "not-required")
+    result = await completed(value, "registered-no-lease", "not-required", reservation)
     assert len(result.canonical_bytes()) > 262144
     assert len(result.canonical_bytes()) <= 819200
     assert len(result.finalization.canonical_bytes()) <= 802816
