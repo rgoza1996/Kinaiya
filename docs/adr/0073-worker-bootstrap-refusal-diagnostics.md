@@ -22,3 +22,15 @@ or authorize recovery. Full startup reliability and the M6 gate remain open.
 The [contract](../worker-bootstrap-diagnostics.md) and
 [verification record](../../evaluation/evidence/worker-bootstrap-diagnostics-2026-10-31.json)
 retain the original failing CI and bounded local checks.
+
+The bounded #278 follow-up adds closed details from the same existing command
+read, emitted only for its corresponding coarse command refusal after handle
+closure. Per-invocation capture prevents stale or copied-context observations
+from becoming another invocation's detail. Cached original Process exit status
+is recorded before grant-writer closure and after the existing reap attempt;
+neither cached `None` nor a later EOF exit proves earlier liveness or cause.
+The [follow-up contract](../worker-bootstrap-command-observations.md) and
+[verification record](../../evaluation/evidence/worker-bootstrap-command-observations-2026-11-01.json)
+retain the CI411 recurrence, independent oracle freeze/review, first fixture
+failure and explicit native-wait maintenance. This remains diagnostics, with
+no retry, additional native read, authority change or startup-reliability claim.

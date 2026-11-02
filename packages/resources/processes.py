@@ -40,6 +40,7 @@ import sys
 import time
 import weakref
 from collections.abc import Awaitable, Callable, Mapping
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -321,17 +322,131 @@ def _make_config_fd(raw: bytes) -> tuple[int, Any | None]:
     return fd, None
 
 
+class _CommandCapture:
+    __slots__ = ("active",)
+
+    def __init__(self):
+        self.active = True
+
+
+_COMMAND_CAPTURE = ContextVar("worker_bootstrap_command_observation", default=None)
+_COMMAND_RESULTS = frozenset(
+    {
+        "read_failed",
+        "empty_read",
+        "decode_failed",
+        "missing_nonce",
+        "missing_bootstrap",
+        "missing_both",
+        "matched",
+    }
+)
+_BOOTSTRAP_EXIT_RESULTS = frozenset(
+    {"not_reported", "exited_zero", "exited_nonzero", "terminated", "unavailable"}
+)
+
+
+def _record_command_observation(result):
+    capture = None
+    try:
+        state = _COMMAND_CAPTURE.get()
+        if type(state) is not tuple or len(state) != 2:
+            return
+        capture, outcomes = state
+        if type(capture) is not _CommandCapture or not capture.active:
+            return
+        if outcomes is None:
+            return
+        if (
+            type(outcomes) is not tuple
+            or outcomes
+            or type(result) is not str
+            or result not in _COMMAND_RESULTS
+        ):
+            _COMMAND_CAPTURE.set((capture, None))
+            return
+        # Immutable context-local data cannot be changed by a copied context.
+        _COMMAND_CAPTURE.set((capture, (result,)))
+    except BaseException:
+        if type(capture) is _CommandCapture:
+            capture.active = False
+
+
+def _observed_cmdline_has(pid, nonce, bootstrap):
+    """One fresh, bounded slot around each existing verifier helper call."""
+    capture = token = None
+    try:
+        capture = _CommandCapture()
+        token = _COMMAND_CAPTURE.set((capture, ()))
+    except BaseException:
+        # If storage fails during reentrancy, omit the outer observation too;
+        # its slot must not accidentally capture this invocation's outcome.
+        try:
+            previous = _COMMAND_CAPTURE.get()
+            if previous is not None:
+                previous[0].active = False
+        except BaseException:
+            pass
+        capture = None
+    try:
+        result = _cmdline_has(pid, nonce, bootstrap)
+        detail = None
+        try:
+            state = _COMMAND_CAPTURE.get()
+            if (
+                capture is not None
+                and capture.active
+                and state[0] is capture
+                and len(state[1]) == 1
+            ):
+                detail = state[1][0]
+        except BaseException:
+            pass
+        return result, detail
+    finally:
+        if capture is not None:
+            capture.active = False
+        if token is not None:
+            try:
+                _COMMAND_CAPTURE.reset(token)
+            except BaseException:
+                pass
+
+
 def _cmdline_has(pid: int, nonce: str, bootstrap: str) -> bool:
     try:
         with open(f"/proc/{pid}/cmdline", "rb") as fh:
-            parts = fh.read(65536).split(b"\x00")
+            raw = fh.read(65536)
+            parts = raw.split(b"\x00")
     except OSError:
+        _record_command_observation("read_failed")
         return False
     try:
         texts = [p.decode("utf-8", "replace") for p in parts]
     except Exception:
+        _record_command_observation("decode_failed")
         return False
-    return nonce in texts and bootstrap in texts
+    result = nonce in texts and bootstrap in texts
+    try:
+        # Classify only after the original short-circuit predicate. These
+        # checks use the same decoded tokens and never decide authority.
+        if type(raw) is bytes and type(nonce) is str and type(bootstrap) is str:
+            detail = "matched"
+            if not raw:
+                detail = "empty_read"
+            elif not result:
+                has_nonce, has_bootstrap = nonce in texts, bootstrap in texts
+                detail = (
+                    "missing_both"
+                    if not has_nonce and not has_bootstrap
+                    else "missing_nonce"
+                    if not has_nonce
+                    else "missing_bootstrap"
+                )
+            _record_command_observation(detail)
+    except BaseException:
+        pass
+    return result
 
 
 _BOOTSTRAP_REASONS = frozenset(
@@ -380,6 +495,44 @@ def _bootstrap_refused(reason: str, error: OSError | None = None) -> tuple[None,
     return None, None
 
 
+def _bootstrap_command_refused(reason, detail):
+    result = _bootstrap_refused(reason)
+    try:
+        if type(detail) is str and detail in _COMMAND_RESULTS and detail != "matched":
+            LOG.warning("worker bootstrap command observation: result=%s", detail)
+    except BaseException:
+        pass
+    return result
+
+
+def _cached_bootstrap_exit(proc):
+    try:
+        code = proc.returncode
+        if code is None:
+            return "not_reported"
+        if type(code) is not int:
+            return "unavailable"
+        return "terminated" if code < 0 else "exited_zero" if code == 0 else "exited_nonzero"
+    except BaseException:
+        return "unavailable"
+
+
+def _bootstrap_refusal_exit(before, proc):
+    try:
+        after = _cached_bootstrap_exit(proc)
+        before = (
+            before if type(before) is str and before in _BOOTSTRAP_EXIT_RESULTS else "unavailable"
+        )
+        after = after if type(after) is str and after in _BOOTSTRAP_EXIT_RESULTS else "unavailable"
+        LOG.warning(
+            "worker bootstrap refusal exit: before_grant_close=%s after_reap_attempt=%s",
+            before,
+            after,
+        )
+    except BaseException:
+        pass
+
+
 def _verify_bootstrap(pid: int, nonce: str, bootstrap: str) -> tuple[int | None, int | None]:
     """Verify pre-grant bootstrap identity; return (pidfd, starttime) or (None, None).
 
@@ -398,8 +551,9 @@ def _verify_bootstrap(pid: int, nonce: str, bootstrap: str) -> tuple[int | None,
         return _bootstrap_refused("pre_group_mismatch")
     if sess != pid:
         return _bootstrap_refused("pre_session_mismatch")
-    if not _cmdline_has(pid, nonce, bootstrap):
-        return _bootstrap_refused("pre_command_mismatch")
+    cmd_ok, command_detail = _observed_cmdline_has(pid, nonce, bootstrap)
+    if not cmd_ok:
+        return _bootstrap_command_refused("pre_command_mismatch", command_detail)
     try:
         fd = os.pidfd_open(pid, 0)
     except OSError as exc:
@@ -408,7 +562,7 @@ def _verify_bootstrap(pid: int, nonce: str, bootstrap: str) -> tuple[int | None,
     try:
         after = _proc_stat_full(pid)
         bound = _pidfd_pid(fd)
-        cmd_ok = _cmdline_has(pid, nonce, bootstrap)
+        cmd_ok, command_detail = _observed_cmdline_has(pid, nonce, bootstrap)
     except Exception:
         after, bound, cmd_ok = None, None, False
         observation_error = True
@@ -426,7 +580,7 @@ def _verify_bootstrap(pid: int, nonce: str, bootstrap: str) -> tuple[int | None,
         elif bound != pid:
             reason = "pidfd_binding_mismatch"
         else:
-            reason = "post_command_mismatch"
+            return _bootstrap_command_refused("post_command_mismatch", command_detail)
         return _bootstrap_refused(reason)
     a_state, a_ppid, a_pgrp, a_sess, a_start = after
     if a_state in _ZOMBIE_STATES:
@@ -883,6 +1037,7 @@ class WorkerManager:
         managed.grant_w = grant_w
         fd, start = _verify_bootstrap(proc.pid, nonce, bootstrap)
         if fd is None:
+            before_grant_close = _cached_bootstrap_exit(proc)
             try:
                 os.close(grant_w)
             except OSError:
@@ -891,7 +1046,10 @@ class WorkerManager:
             managed.leader_fd = None
             managed.leader_starttime = None
             managed.granted = False
-            return await self._fail_unverified(managed, t0)
+            try:
+                return await self._fail_unverified(managed, t0)
+            finally:
+                _bootstrap_refusal_exit(before_grant_close, proc)
         managed.leader_fd = fd
         managed.leader_starttime = start
         managed.identity = WorkerIdentity(worker_id, proc.pid, start)
