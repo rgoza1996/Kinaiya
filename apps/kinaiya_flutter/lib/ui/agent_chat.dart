@@ -325,9 +325,6 @@ class _AgentChatState extends State<AgentChat> {
     _lastGeneration = _s.connectionGeneration;
     _lastWorkspaceAuth = _s.sessionAuthenticated;
     _selectedTaskId = _s.requestedAgentTaskId;
-    if (_s.requestedAgentTaskId != null) {
-      _detailsVisibilityOverride = true;
-    }
     _s.addListener(_handleStateChange);
     _AgentSubmissions.changed.addListener(_handleSubmissionChange);
     _loadRegistry();
@@ -432,7 +429,7 @@ class _AgentChatState extends State<AgentChat> {
     } else if (_s.requestedAgentTaskId != null &&
         _selectedTaskId != _s.requestedAgentTaskId) {
       _selectedTaskId = _s.requestedAgentTaskId;
-      _detailsVisibilityOverride = true;
+      _detailsVisibilityOverride = null;
     }
   }
 
@@ -447,7 +444,7 @@ class _AgentChatState extends State<AgentChat> {
     _lastJumpedMessage = null;
     _steerScopes.clear();
     _selectedTaskId = _s.requestedAgentTaskId;
-    _detailsVisibilityOverride = _s.requestedAgentTaskId == null ? null : true;
+    _detailsVisibilityOverride = null;
     if (_input.text != _s.agentDraft) _input.text = _s.agentDraft;
     for (final controller in _steer.values) {
       controller.clear();
@@ -2645,8 +2642,8 @@ class _AgentChatState extends State<AgentChat> {
 
   void _inspectTask(AgentTask task) {
     setState(() {
+      _s.requestedAgentTaskId = null;
       _selectedTaskId = task.taskId;
-      _s.requestedAgentTaskId = task.taskId;
       _detailsVisibilityOverride = true;
     });
     if (!_canShowDetailsInline) {

@@ -989,8 +989,9 @@ void main() {
       await tester.pump();
       expect(state.view, AppView.agent);
       expect(state.agentNotice, contains('Task task-1 is missing or retired'));
+      expect(find.byKey(const ValueKey('agent-details-panel')), findsNothing);
       expect(
-        find.text('Choose a task to inspect its status and evidence.'),
+        find.byKey(const ValueKey('agent-details-collapsed')),
         findsOneWidget,
       );
 
