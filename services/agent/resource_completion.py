@@ -1,17 +1,31 @@
 """Original claim retirement and dependent client/legacy-notification owners.
 
 Local cleanup alone is not physical Resources proof. Claim retirement consumes
-the genuine complete native report; neither owner implements Task settlement.
+the genuine complete native report before original-Agent Task settlement.
 """
 
 import asyncio
 import json
+import secrets
+import uuid
 
 from core.policy import PolicyDenied
 from packages.contracts.agent_submit import AgentSubmitUnavailable
 from packages.contracts.models import TaskState
 from packages.contracts.operation_ownership import ActualOperation, actual_owner
 from packages.contracts.standing_admission import StandingTaskAdmission
+from packages.contracts.standing_agent_settlement import (
+    StandingAgentRetirementRegistrationReceipt,
+    StandingAgentRetirementRegistrationRequest,
+    StandingAgentRetirementWork,
+    StandingAgentSettlementQuery,
+    StandingAgentSettlementReceipt,
+    StandingAgentSettlementRequest,
+    agent_retirement_capability_digest,
+    agent_retirement_registration_digest,
+    agent_settlement_digest,
+    checked_agent_settlement,
+)
 from packages.contracts.standing_closure import StandingAdmissionClosure
 from packages.contracts.standing_execution import StandingExecutionClaim, claim_id
 from packages.contracts.standing_resource_finalization import (
@@ -39,6 +53,7 @@ class StandingClaimOwner:
         if runtime._closed or len(runtime._standing_claims) >= 64 or len(dependencies) > 128:
             raise AgentSubmitUnavailable
         self.runtime, self.original = runtime, original
+        self.protocol = runtime._standing_protocol
         self.journal, self.resources = runtime.journal, runtime.standing_resource_client
         self.authority = (
             runtime.policy,
@@ -48,6 +63,10 @@ class StandingClaimOwner:
             runtime.capability_settings,
         )
         self._closure_capability = capability
+        # This purpose-separated authority exists before the first lookup or
+        # registration await. Historical native records cannot reconstruct it.
+        self._settlement_capability = secrets.token_bytes(32)
+        self._settlement_owner_id = str(uuid.uuid4())
         self.scope = ActualOperation(lambda _: runtime._workspace_settled())
         self.scope.standing_claim = self
         self._root = object()
@@ -59,6 +78,10 @@ class StandingClaimOwner:
         self.attempt = self.record = self.lease = None
         self.claim = self.binding = self.created = self.closure = self.receipt = None
         self.outcome = None
+        self.registration_request = self.registration = None
+        self.registration_operation = None
+        self.settlement_request = self.settlement = None
+        self.native_pending = False
         self.request = None
         self.bind_operation = None
         self.binding_started = False
@@ -78,6 +101,8 @@ class StandingClaimOwner:
             or self.failed
             or self.scope.failed
             or self.runtime._closed
+            or type(self.runtime._standing_protocol) is not int
+            or self.runtime._standing_protocol != self.protocol
             or self.runtime.journal is not self.journal
             or self.runtime.standing_resource_client is not self.resources
             or any(
@@ -159,7 +184,14 @@ class StandingClaimOwner:
 
     async def bind(self, claim):
         self.claim = checked_finalization(claim, StandingExecutionClaim)
-        if finalization_bytes(self.claim.request) != finalization_bytes(self.original):
+        if (
+            self.protocol == 2
+            and self.registration is None
+            or finalization_bytes(self.claim.request) != finalization_bytes(self.original)
+            or self.registration is not None
+            and finalization_bytes(self.registration.request.claim)
+            != finalization_bytes(self.claim)
+        ):
             raise StandingUnavailable
         self.binding_started = True
 
@@ -172,6 +204,57 @@ class StandingClaimOwner:
 
         self.bind_operation = self._child(original)
         return await asyncio.shield(self.bind_operation)
+
+    def _capture_registration(self, receipt):
+        receipt = checked_agent_settlement(
+            receipt, StandingAgentRetirementRegistrationReceipt
+        ).validate_request(self.registration_request)
+        record = receipt.registration
+        if self.registration is not None and (
+            self.registration.canonical_bytes() != record.canonical_bytes()
+        ):
+            raise StandingUnavailable
+        self.registration = record
+        return receipt
+
+    async def register(self, claim):
+        claim = checked_finalization(claim, StandingExecutionClaim)
+        if finalization_bytes(claim.request) != finalization_bytes(self.original):
+            raise StandingUnavailable
+        if self.registration_request is None:
+            self.claim = claim
+            key = (
+                "agent-standing-register:"
+                + claim_id(self.original)
+                + ":"
+                + self._settlement_owner_id
+            )
+            capability = agent_retirement_capability_digest(
+                claim, self._settlement_owner_id, key, self._settlement_capability
+            )
+            self.registration_request = StandingAgentRetirementRegistrationRequest(
+                schema_version="1.0",
+                claim=claim,
+                idempotency_key=key,
+                owner_id=self._settlement_owner_id,
+                capability_sha256=capability,
+                registration_digest=agent_retirement_registration_digest(
+                    claim, key, self._settlement_owner_id, capability
+                ),
+            )
+            # Until a matching native settlement is confirmed, this original
+            # owner stays retained even if all local cleanup has completed.
+            self.native_pending = True
+
+            async def original():
+                receipt = await self.journal.standing_retirement_register(self.registration_request)
+                # A genuine late ACK is knowledge; it cannot reopen launch.
+                return self._capture_registration(receipt)
+
+            self.registration_operation = self._child(original)
+        elif finalization_bytes(self.registration_request.claim) != finalization_bytes(claim):
+            raise StandingUnavailable
+        return await asyncio.shield(self.registration_operation)
 
     async def admit(self, capability):
         async def original():
@@ -298,6 +381,27 @@ class StandingClaimOwner:
 
     async def _retire(self):
         try:
+            if self.registration_operation is not None:
+                await asyncio.gather(
+                    asyncio.shield(self.registration_operation), return_exceptions=True
+                )
+            if self.registration_request is not None and self.registration is None:
+                # A facade ending is not evidence of registration absence.
+                # Reconcile only after its actual send/read/sole close retires.
+                await self._settle_work()
+                self._healthy(retired=True)
+                try:
+                    receipt = await self._joined_call(
+                        lambda: self.journal.standing_retirement_registration_lookup(
+                            self.registration_request
+                        )
+                    )
+                    if receipt is not None:
+                        self._capture_registration(receipt)
+                except Exception:
+                    self._healthy(retired=True)
+                if self.registration is None:
+                    return
             # A shielded bind must first reveal its own actual disposition.
             if self.bind_operation is not None:
                 await asyncio.gather(asyncio.shield(self.bind_operation), return_exceptions=True)
@@ -367,6 +471,8 @@ class StandingClaimOwner:
                 raise StandingUnavailable
             self._healthy(retired=True)
             self.receipt = receipt
+            if self.protocol == 2:
+                await self._settle_native()
         except BaseException:
             self.fail()
             raise
@@ -376,11 +482,60 @@ class StandingClaimOwner:
             self.final_scope.release(self._final_root)
             await self.final_scope.join()
             self._closure_capability = None
+            if not self.native_pending:
+                self._settlement_capability = None
+
+    async def _settle_native(self):
+        if self.registration is None or self.receipt is None:
+            raise StandingUnavailable
+        if self.closure.initial is None:
+            kind, outcome = "bound-never-admitted", None
+        elif self.worker is None:
+            kind, outcome = "created-unlaunched", None
+        elif self.outcome is None:
+            kind, outcome = "launched-outcome-unconfirmed", None
+        else:
+            kind, outcome = "launched-outcome-known", self.outcome.reference
+        work = StandingAgentRetirementWork(schema_version="1.0", kind=kind, outcome=outcome)
+        key = "agent-standing-settle:" + claim_id(self.original)
+        self.settlement_request = StandingAgentSettlementRequest(
+            schema_version="1.0",
+            idempotency_key=key,
+            registration=self.registration,
+            resources=self.receipt,
+            work=work,
+            settlement_digest=agent_settlement_digest(self.registration, self.receipt, work, key),
+        )
+        query = StandingAgentSettlementQuery(
+            schema_version="1.0", registration=self.registration, settlement_key=key
+        )
+        try:
+            receipt = await self._joined_call(
+                lambda: self.journal.standing_settle(
+                    self.settlement_request, secret32=self._settlement_capability
+                ),
+                lambda: self.journal.standing_settlement_lookup(query),
+            )
+            receipt = checked_agent_settlement(
+                receipt, StandingAgentSettlementReceipt
+            ).validate_request(self.settlement_request)
+            self._healthy(retired=True)
+            self.settlement = receipt
+            self.native_pending = False
+        except Exception:
+            # Unconfirmed native metadata is not a failed model/HTTP cleanup,
+            # nor permission to rewrite Task state or invent an outcome.
+            self._healthy(retired=True)
 
     def _retired(self, operation):
         if operation.cancelled() or operation.exception() is not None:
             self.fail()
-        if not self.failed and not self.scope.failed and not self.final_scope.failed:
+        if (
+            not self.failed
+            and not self.scope.failed
+            and not self.final_scope.failed
+            and not self.native_pending
+        ):
             self.runtime._standing_claims.discard(self)
         self.runtime._workspace_settled()
 

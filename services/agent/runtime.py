@@ -413,7 +413,13 @@ class AgentRuntime:
         plugin_service: Any | None = None,
         mcp_controller: Any | None = None,
         artifact_store: Any | None = None,
+        standing_protocol: int = 2,
     ) -> None:
+        if type(standing_protocol) is not int or standing_protocol not in {1, 2}:
+            raise ValueError("Standing protocol must be explicitly 1 or 2")
+        # Trusted composition only: never selected by a model, HTTP header or
+        # failed RPC. The default uses native registration and settlement.
+        self._standing_protocol = standing_protocol
         self.journal = journal
         self.provider = provider
         self.model_settings = None
@@ -518,7 +524,10 @@ class AgentRuntime:
                 not ex.task.done() or ex.close_task is not None and not ex.close_task.done()
                 for ex in exchanges
             ),
-            "pending_submits": 0 if self._closed else len(self._pending_submits),
+            "pending_submits": 0
+            if self._closed
+            else len(self._pending_submits)
+            + sum(owner.native_pending for owner in self._standing_claims),
             "ecosystem_operations": len(self._workspace_requests)
             + sum(not op.done() for op in self._workspace_operations)
             + sum(

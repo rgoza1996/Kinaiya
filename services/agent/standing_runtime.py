@@ -316,6 +316,9 @@ class _Attempt:
             claim = checked_finalization(claim, StandingExecutionClaim)
             if finalization_bytes(claim.request) != finalization_bytes(original):
                 raise AgentSubmitUnavailable
+            if self.claim_owner.protocol == 2:
+                await self.claim_owner.register(claim)
+                before_allocation()
             receipt = await self.claim_owner.bind(claim)
             before_allocation()
             if type(receipt) is not StandingResourceBindingReceipt:
