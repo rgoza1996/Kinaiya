@@ -1,0 +1,139 @@
+{
+  "record_date": "2026-11-01",
+  "scope": "Test-only cancellation-resistant steering preflight fixture. Production runtime, authorization, Session reads and whole request timing are unchanged.",
+  "issue": "https://github.com/rgoza1996/Kinaiya/issues/277",
+  "related_pull_request": "https://github.com/rgoza1996/Kinaiya/pull/276",
+  "source": {
+    "baseline": "6e9b0ec78f93671f2d336522c25c429d45e09993",
+    "first_commit": "1da700f323f6239c97804cbdda966816441812c5",
+    "qualified_commit": "ec44121b6bff885ff2d82bcf0371f64169b1d4b8",
+    "path": "tests/unit/test_agent_operating_mode_native.py",
+    "sha256": "6044fdb1bf819c9c0924f624e521b71e13823f3af8e2622f0483c818e2946484",
+    "production_changes": 0
+  },
+  "original_ci": {
+    "run_url": "https://github.com/rgoza1996/Kinaiya/actions/runs/41374489976",
+    "python312_job": 125051681942,
+    "result": {
+      "passed": 8175,
+      "failed": 1,
+      "skipped": 6,
+      "deselected": 2,
+      "warnings": 1,
+      "pytest_seconds": 361.89
+    },
+    "python311": "Cancelled",
+    "flutter_android_ios": "Passed",
+    "failure": "Original two-second entered.wait timed out before intended cancellation-resistant hold was observed. The original internal cancellation point is unknown."
+  },
+  "controlled_old_fixture": {
+    "result": {
+      "passed": 0,
+      "failed": 1,
+      "errors": 0,
+      "skipped": 0,
+      "pytest_seconds": 2.66
+    },
+    "change": "Ignored diagnostic added a100ms continuation after the genuine Session read and before the old entered marker; all original assertions/deadlines and tracked source/test pins remained unchanged.",
+    "observation": "Actual Session read returned once and its real response was closed. The50ms route cancellation reached that continuation before entered; real steer returned503, original operation ended cancelled and registry emptied. Both HTTP clients closed and Store.close returned.",
+    "limit": "Proves a reachable old-fixture path; does not reconstruct the original CI timing."
+  },
+  "implementation": {
+    "read_owner": "One actual original JournalClient.session child Task, retained through caller cancellation and shielded without replacing its actual result or HTTP owner. Actual child cancellation raises and child exceptions propagate.",
+    "phase_control": "Delayed child awaits an explicit completion Event after the actual read and100ms continuation. The real caller-cancellation handler records pending child before releasing the Event; finally independently releases it before original-owner joins.",
+    "route_bound_seconds": 0.05,
+    "entered_and_original_join_seconds": 2,
+    "response_and_cancel_wait_seconds": 1,
+    "preserved": "All95 original assertions and44 original protected calls; all102 preceding1da assertions and45 protected calls; other top-level ASTs and production runtime/Journal/Session bytes unchanged.",
+    "cleanup": "Nested finally joins the original registered preflight, original Session child and route caller before fixture HTTP/store retirement, including assertion failure. No retried read, prefetched Session, fabricated task or replacement close."
+  },
+  "review_correction": {
+    "first_commit": "1da700f323f6239c97804cbdda966816441812c5",
+    "retained_result": "Focused2 and full69 passed, but independent source review rejected the delay-only chronology control.",
+    "finding": "If both timers become due before the loop resumes,100ms versus50ms alone cannot prove the child is still pending when the parent handles cancellation. No forced reproduction was run.",
+    "resolution": "The explicit Event at ec44121 establishes the phase without moving or relaxing the whole50ms route bound. Original finding and first qualification remain retained."
+  },
+  "qualification": {
+    "source": "ec44121b6bff885ff2d82bcf0371f64169b1d4b8",
+    "focused": {
+      "passed": 2,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "pytest_seconds": 0.95
+    },
+    "full_module": {
+      "passed": 69,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "pytest_seconds": 8.03
+    },
+    "counts_overlap": true,
+    "all_tracked_pins_stable": 1270,
+    "static": "Ruff, format and diff checks passed.",
+    "actual_observations": "Both native read children completed successfully and both actual GET200 responses were closed. Both original preflights joined with expected AgentControlUnavailable after suppression, not healthy routing success. All seven actual HTTP fixtures had original workers done without exception, empty original-operation/exchange registries, closed Agent/Journal HTTP clients and Store.close returned."
+  },
+  "coherent_standing_branch_replay": {
+    "head": "8e345faab263e6737828d9d7d92f77757afc6c88",
+    "passed": 69,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "warnings": 0,
+    "pytest_seconds": 8.81,
+    "all_tracked_pins_stable": 1432,
+    "scope": "Separate actual standing-work branch with byte-identical fixture; passing original/new assertions and fixture teardown, not new physical Resources or claim-settlement proof."
+  },
+  "independent_review": {
+    "kind": "Source-only exact-commit audit; no tests/probes/application imports or oracle inspection.",
+    "initial_findings": 1,
+    "final_findings": [],
+    "qualified_source": "ec44121b6bff885ff2d82bcf0371f64169b1d4b8",
+    "limit": "This is automated independent source review, not human approval or original CI reconstruction."
+  },
+  "limits": [
+    "No forced additional child-self-cancellation/failure cases were run; their distinction was source reviewed.",
+    "No full-project exact-head CI pass from this local module; required before merge.",
+    "No model accuracy, inference, physical audio/resource, durable Agent retirement or native settlement qualification.",
+    "No provider/model/GPU/device/dependency/live configuration/service/preview changes."
+  ],
+  "artifacts": {
+    "final_qualification": {
+      "owner": "source_author",
+      "path": ".dev-run/277-steer-preflight-fixture-v2/seal.json",
+      "sha256": "c7460bb3e14c566b6c393ba817449e62f3747206329389ddc5745b14c5161c1b",
+      "availability": "Retained locally; raw artifacts are not published by this summary"
+    },
+    "first_qualification": {
+      "owner": "source_author",
+      "path": ".dev-run/277-steer-preflight-fixture-v1/seal.json",
+      "sha256": "ad7b873f00f3f90c06f27abf5bb8ecb06054c05a753ff3e992057f4ce34bb78a",
+      "availability": "Retained locally; raw artifacts are not published by this summary"
+    },
+    "first_review_finding": {
+      "owner": "independent_reviewer",
+      "path": ".dev-run/277-steer-preflight-source-review-v1/1da-first-review.json",
+      "sha256": "816a99be7aff18b34690c9c5724cbc89878116bdc7cd603b14ce45c743742c6b",
+      "availability": "Retained locally; raw artifacts are not published by this summary"
+    },
+    "final_review": {
+      "owner": "independent_reviewer",
+      "path": ".dev-run/277-steer-preflight-source-review-v1/ec441-final-review.json",
+      "sha256": "72b3e272c12ea5b246e0e52fe1c3364b738b468009c93d7c1fc454a187dfc886",
+      "availability": "Retained locally; raw artifacts are not published by this summary"
+    },
+    "original_ci_log": {
+      "owner": "integration",
+      "path": ".dev-run/276-ci-python312.log",
+      "sha256": "a77a540f89a41baec87c0d3ac9f863e555ee3a52332f5700e1bec0f80a054d22",
+      "availability": "Retained locally; raw artifacts are not published by this summary"
+    },
+    "standing_branch69": {
+      "owner": "integration",
+      "path": ".dev-run/228-277-steer-coherent-lo_conaa/receipt.json",
+      "sha256": "efc0a2f66e107751de9ee47a09403f60509807d5510305944a0e59a8a921619b",
+      "availability": "Retained locally; raw artifacts are not published by this summary"
+    }
+  }
+}
