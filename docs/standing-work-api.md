@@ -798,6 +798,14 @@ permission, native Task settlement, claim/slot release, recurrence or inbox.
 
 ## Native dispatch gate
 
+The subsequent working-branch [v2 settlement protocol](adr/0110-native-agent-settlement.md)
+adds original-Agent registration, complete Resources/actual-work retirement joins,
+immutable per-claim settlement and matching active-slot release. Its four new
+Agent-only routes, packet caps, purpose-separated capability and storage/replay
+limits are specified in ADR0110. Earlier dated v1 and finalization-only scope
+statements above remain historical. Capacity, broader regression and final CI
+qualification are pending; scheduler/inbox/editor acceptance remains unfinished.
+
 `services/session/standing_dispatch.py` implements explicit registration,
 producer renewal, gate observation, owner activation, historical lookup and
 target-epoch Stop against the same native Store and Agent controller. Opening

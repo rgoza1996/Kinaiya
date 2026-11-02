@@ -11,6 +11,22 @@ The owner requested reconciliation before further feature work. Inputs were the 
 
 ## November 2 merged prerequisites and Agent retirement
 
+The later working-branch [native Agent settlement](adr/0110-native-agent-settlement.md)
+passes 43 native SQLite/ASGI and 27 actual Agent controls at `e0721d2`, with
+controlled inference and original cleanup ownership. It adds immutable per-claim
+history and matching active-slot release. H64/max-valid-graph availability,
+broader regressions, final review and CI remain unqualified; recurrence, inbox
+and editor remain unfinished. This code is not part of merged main or PR315.
+
+[PR315 CI442](https://github.com/rgoza1996/Kinaiya/actions/runs/41478156959)
+is terminal: Python 3.11 passed 10,981 tests, export and audit; Python 3.12
+passed 10,979 but failed the same two eight-second physical-finalization cases,
+with export/audit skipped. Flutter/web and Android passed. iOS never acquired
+a hosted runner and was cancelled without build steps. PR315 stays draft and
+unmerged. Earlier local passes do not establish a timing repair. Issue #228 was
+reopened to match its unfinished acceptance chain; PR314's ambiguous negated
+closing-keyword phrase was also rewritten.
+
 [PR314](https://github.com/rgoza1996/Kinaiya/pull/314) merged the reviewed
 standing-work prerequisites into main `d2bbd30a`, whose tree exactly matches
 qualified head `a553a7d3`. All five
