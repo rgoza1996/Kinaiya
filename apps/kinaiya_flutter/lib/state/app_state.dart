@@ -236,12 +236,23 @@ class AppState extends ChangeNotifier {
   bool commandsAvailable = false;
 
   String agentNotice = '';
+  String? requestedAgentTaskId;
+  bool openedFromConverseHandoff = false;
 
   /// External refresh trigger (views must not call notifyListeners directly).
   void touch() => notifyListeners();
 
   void setView(AppView next) {
+    if (next != AppView.agent) {
+      openedFromConverseHandoff = false;
+    }
     view = next;
+    notifyListeners();
+  }
+
+  void returnFromHandoffTask() {
+    openedFromConverseHandoff = false;
+    view = AppView.character;
     notifyListeners();
   }
 
@@ -403,6 +414,8 @@ class AppState extends ChangeNotifier {
       _handoffDecisionCursors.clear();
       _handoffRecoveryOffset = 0;
       agentNotice = '';
+      requestedAgentTaskId = null;
+      openedFromConverseHandoff = false;
     }
     final generation = ++_connectionGeneration;
     connection = profile;
@@ -899,6 +912,120 @@ class AppState extends ChangeNotifier {
   HandoffNotice? handoffNotice(String sourceEventId) {
     final session = converseSession;
     return _handoffs.noticeForSource(sourceEventId, session);
+  }
+
+  HandoffTaskDestinationStatus handoffTaskDestinationStatus(
+    HandoffNotice notice,
+  ) {
+    if (!notice.hasConfirmedTaskIdentifier) {
+      return HandoffTaskDestinationStatus.none;
+    }
+    if (!connected || !sessionAuthenticated || client == null) {
+      return HandoffTaskDestinationStatus.unauthorized;
+    }
+    if (converseSession != null && !notice.matchesSession(converseSession!)) {
+      return HandoffTaskDestinationStatus.stale;
+    }
+    final task = tasks
+        .where((t) => t.taskId == notice.nativeTaskId)
+        .firstOrNull;
+    if (task == null) {
+      return HandoffTaskDestinationStatus.missing;
+    }
+    if (agentSession != null &&
+        agentSession!.sessionId == task.sessionId &&
+        (agentSession!.threadId != task.threadId ||
+            agentSession!.epoch != task.epoch)) {
+      return HandoffTaskDestinationStatus.stale;
+    }
+    for (final session in agentWorkspaceSessions) {
+      if (session.sessionId == task.sessionId &&
+          (session.threadId != task.threadId || session.epoch != task.epoch)) {
+        return HandoffTaskDestinationStatus.stale;
+      }
+    }
+    return HandoffTaskDestinationStatus.known;
+  }
+
+  void openHandoffTask(HandoffNotice notice) {
+    if (!notice.hasConfirmedTaskIdentifier) return;
+    final taskId = notice.nativeTaskId!;
+    final destination = handoffTaskDestinationStatus(notice);
+    switch (destination) {
+      case HandoffTaskDestinationStatus.none:
+        return;
+      case HandoffTaskDestinationStatus.unauthorized:
+        requestedAgentTaskId = taskId;
+        agentNotice =
+            'Cannot open task $taskId: connection is not authenticated.';
+        notifyListeners();
+        return;
+      case HandoffTaskDestinationStatus.stale:
+        requestedAgentTaskId = taskId;
+        openedFromConverseHandoff = true;
+        agentNotice =
+            'Task $taskId belongs to an earlier session or reset epoch and cannot be opened in the active session.';
+        view = AppView.agent;
+        notifyListeners();
+        return;
+      case HandoffTaskDestinationStatus.missing:
+        requestedAgentTaskId = taskId;
+        openedFromConverseHandoff = true;
+        agentNotice =
+            'Task $taskId is missing or retired in the current Agent task list.';
+        view = AppView.agent;
+        notifyListeners();
+        return;
+      case HandoffTaskDestinationStatus.known:
+        final task = tasks.firstWhere((t) => t.taskId == taskId);
+        final matchesActiveSession =
+            agentSession != null &&
+            agentSession!.sessionId == task.sessionId &&
+            agentSession!.threadId == task.threadId &&
+            agentSession!.epoch == task.epoch;
+        if (!matchesActiveSession) {
+          if (agentSession != null) {
+            _saveAgentWorkspace();
+          }
+          final workspaceMatch = agentWorkspaceSessions
+              .where(
+                (s) =>
+                    s.sessionId == task.sessionId &&
+                    s.threadId == task.threadId &&
+                    s.epoch == task.epoch,
+              )
+              .firstOrNull;
+          final targetSession =
+              workspaceMatch ??
+              SessionInfo(
+                sessionId: task.sessionId,
+                threadId: task.threadId,
+                epoch: task.epoch,
+                channel: 'agent',
+                harnessVersion: task.harnessVersion,
+              );
+          agentSession = targetSession;
+          _agentWorkspace.lastSession = targetSession;
+          _agentWorkspace.harness =
+              targetSession.harnessVersion ??
+              _agentWorkspace.harness ??
+              'unassociated';
+          final saved = _agentWorkspace.snapshots[_agentScope(targetSession)];
+          if (saved != null) {
+            _agentDraft = saved.draft;
+            _agentDraftScope = saved.scope;
+            agentHistory
+              ..clear()
+              ..addAll(saved.history);
+            agentCursor = saved.cursor;
+          }
+        }
+        requestedAgentTaskId = task.taskId;
+        openedFromConverseHandoff = true;
+        agentNotice = '';
+        view = AppView.agent;
+        notifyListeners();
+    }
   }
 
   void _applyHandoff(HandoffNotice notice) {

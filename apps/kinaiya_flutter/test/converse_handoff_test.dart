@@ -6,6 +6,7 @@ import 'package:kinaiya_flutter/api/client.dart';
 import 'package:kinaiya_flutter/config/connection.dart';
 import 'package:kinaiya_flutter/state/app_state.dart';
 import 'package:kinaiya_flutter/state/converse_handoff.dart';
+import 'package:kinaiya_flutter/ui/agent_chat.dart';
 import 'package:kinaiya_flutter/ui/character_view.dart';
 import 'package:kinaiya_flutter/ui/widgets.dart';
 
@@ -892,6 +893,204 @@ void main() {
         findsNothing,
       );
       semantics.dispose();
+      await tester.pumpWidget(const SizedBox.shrink());
+      state.dispose();
+      await tester.pump(const Duration(seconds: 1));
+    },
+  );
+
+  testWidgets(
+    'confirmed handoff links to exact known task, reports missing/stale/unauthorized destinations without selecting unrelated task, and preserves drafts/audio/back navigation',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1440, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final api = ReceiptApi();
+      final state = wired(api);
+      state.setDraft(AppView.character, 'keep converse draft');
+      state.setDraft(AppView.agent, 'keep agent draft');
+
+      state.converseHistory.add(
+        ChatMsg(role: 'user', text: 'Run the build', eventId: 'source'),
+      );
+      api.entries = [
+        source(id: 'source', sequence: 1, text: 'Run the build'),
+        decision(id: 'dec-1', sequence: 2),
+        receipt('accepted', id: 'r-acc', sequence: 3),
+      ];
+      await state.refreshNotices();
+
+      final unrelatedTask = AgentTask(
+        taskId: 'task-unrelated',
+        sessionId: 'agent-s1',
+        threadId: 'agent-t1',
+        epoch: 2,
+        objective: 'Unrelated background objective',
+        objectiveRevision: 1,
+        state: 'running',
+        idempotencyKey: 'k-unrelated',
+      );
+      final exactTask = AgentTask(
+        taskId: 'task-1',
+        sessionId: 'agent-s1',
+        threadId: 'agent-t1',
+        epoch: 2,
+        objective: 'Exact handoff build objective',
+        objectiveRevision: 1,
+        state: 'running',
+        idempotencyKey: 'k-1',
+      );
+
+      // 1. Missing destination: task-1 is not in state.tasks (only unrelatedTask is).
+      state.setTasks([unrelatedTask]);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ListenableBuilder(
+              listenable: state,
+              builder: (_, _) => IndexedStack(
+                index: state.view == AppView.agent ? 1 : 0,
+                children: [
+                  CharacterView(state: state, showCharacter: false),
+                  AgentChat(state: state),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(
+        find.byKey(const ValueKey('converse-handoff-open-task-source')),
+        findsNothing,
+      );
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(
+                const ValueKey('converse-handoff-destination-status-source'),
+              ),
+            )
+            .data,
+        contains('Task task-1 is unavailable or retired'),
+      );
+
+      // Attempting to open a missing destination reports the missing task and never selects unrelatedTask.
+      final notice = state.handoffNotice('source')!;
+      state.agentSession = SessionInfo(
+        sessionId: 'agent-s1',
+        threadId: 'agent-t1',
+        epoch: 2,
+        channel: 'agent',
+      );
+      state.openHandoffTask(notice);
+      await tester.pump();
+      expect(state.view, AppView.agent);
+      expect(state.agentNotice, contains('Task task-1 is missing or retired'));
+      expect(find.byKey(const ValueKey('agent-details-panel')), findsNothing);
+      expect(
+        find.byKey(const ValueKey('agent-details-collapsed')),
+        findsOneWidget,
+      );
+
+      // Return to Converse via Back to Converse button.
+      await tester.tap(find.byKey(const ValueKey('agent-return-to-converse')));
+      await tester.pump();
+      expect(state.view, AppView.character);
+
+      // 2. Stale destination: task-1 belongs to epoch 1 while active session is epoch 2.
+      state.setTasks([
+        unrelatedTask,
+        AgentTask(
+          taskId: 'task-1',
+          sessionId: 'agent-s1',
+          threadId: 'agent-t1',
+          epoch: 1,
+          objective: 'Stale epoch objective',
+          objectiveRevision: 1,
+          state: 'running',
+          idempotencyKey: 'k-1',
+        ),
+      ]);
+      await tester.pump();
+
+      expect(
+        find.byKey(const ValueKey('converse-handoff-open-task-source')),
+        findsNothing,
+      );
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(
+                const ValueKey('converse-handoff-destination-status-source'),
+              ),
+            )
+            .data,
+        contains('Task task-1 belongs to an earlier session or epoch'),
+      );
+
+      // 3. Unauthorized destination: unauthenticated session hides link and reports reconnect hint.
+      state.setTasks([unrelatedTask, exactTask]);
+      state.sessionAuthenticated = false;
+      state.touch();
+      await tester.pump();
+
+      expect(
+        find.byKey(const ValueKey('converse-handoff-open-task-source')),
+        findsNothing,
+      );
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(
+                const ValueKey('converse-handoff-destination-status-source'),
+              ),
+            )
+            .data,
+        contains('Reconnect to inspect task task-1'),
+      );
+
+      // 4. Known destination: authenticated session + matching task-1 shows Open task link.
+      state.sessionAuthenticated = true;
+      state.beginTurn(5);
+      final liveTurnNonce = state.turnNonce;
+      final liveVoiceNonce = state.voiceNonce;
+      final liveSpeechEpoch = state.speechEpoch;
+      state.touch();
+      await tester.pump();
+
+      final openTaskBtn = find.byKey(
+        const ValueKey('converse-handoff-open-task-source'),
+      );
+      expect(openTaskBtn, findsOneWidget);
+
+      await tester.tap(openTaskBtn);
+      await tester.pump();
+
+      expect(state.view, AppView.agent);
+      expect(state.requestedAgentTaskId, 'task-1');
+      expect(state.agentSession?.sessionId, 'agent-s1');
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('agent-details-panel')),
+          matching: find.text('Exact handoff build objective'),
+        ),
+        findsOneWidget,
+      );
+
+      // Drafts and active audio nonces/epochs are preserved across navigation and return.
+      expect(state.converseDraft, 'keep converse draft');
+      expect(state.agentDraft, 'keep agent draft');
+      expect(state.turnNonce, liveTurnNonce);
+      expect(state.voiceNonce, liveVoiceNonce);
+      expect(state.speechEpoch, liveSpeechEpoch);
+
+      await tester.tap(find.byKey(const ValueKey('agent-return-to-converse')));
+      await tester.pump();
+      expect(state.view, AppView.character);
+
       await tester.pumpWidget(const SizedBox.shrink());
       state.dispose();
       await tester.pump(const Duration(seconds: 1));

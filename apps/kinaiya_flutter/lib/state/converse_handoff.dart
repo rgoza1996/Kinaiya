@@ -455,6 +455,8 @@ enum HandoffStatus {
   unavailable,
 }
 
+enum HandoffTaskDestinationStatus { none, known, stale, missing, unauthorized }
+
 class HandoffNotice {
   const HandoffNotice(
     this.sourceEventId,
@@ -483,6 +485,11 @@ class HandoffNotice {
   final String? route;
   final String? nativeTaskId;
   final String? targetTaskId;
+
+  bool get hasConfirmedTaskIdentifier =>
+      (status == HandoffStatus.accepted || status == HandoffStatus.applied) &&
+      nativeTaskId != null &&
+      nativeTaskId!.isNotEmpty;
 
   String get statusLabel => switch (status) {
     HandoffStatus.queued => 'Queued',

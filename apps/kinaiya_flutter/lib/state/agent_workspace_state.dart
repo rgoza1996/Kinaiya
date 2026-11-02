@@ -256,6 +256,7 @@ extension AgentWorkspaceState on AppState {
       data.historyError = null;
       data.historyMore = false;
       agentSession = null;
+      requestedAgentTaskId = null;
       agentHistory.clear();
       agentCursor = 0;
       _agentDraft = '';
@@ -340,6 +341,7 @@ extension AgentWorkspaceState on AppState {
     data.verifiedHistoryScope = null;
     // Until authoritative identity arrives, the old destination cannot receive new work.
     agentSession = null;
+    requestedAgentTaskId = null;
     agentHistory.clear();
     agentCursor = 0;
     _agentDraft = '';

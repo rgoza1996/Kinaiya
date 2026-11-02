@@ -324,6 +324,7 @@ class _AgentChatState extends State<AgentChat> {
     _lastClient = _s.client;
     _lastGeneration = _s.connectionGeneration;
     _lastWorkspaceAuth = _s.sessionAuthenticated;
+    _selectedTaskId = _s.requestedAgentTaskId;
     _s.addListener(_handleStateChange);
     _AgentSubmissions.changed.addListener(_handleSubmissionChange);
     _loadRegistry();
@@ -425,6 +426,10 @@ class _AgentChatState extends State<AgentChat> {
       _lastSelection = _s.agentSelectionGeneration;
       _lastSessionScope = scope;
       _syncConnectionDraft();
+    } else if (_s.requestedAgentTaskId != null &&
+        _selectedTaskId != _s.requestedAgentTaskId) {
+      _selectedTaskId = _s.requestedAgentTaskId;
+      _detailsVisibilityOverride = null;
     }
   }
 
@@ -438,7 +443,7 @@ class _AgentChatState extends State<AgentChat> {
     _historyKeys.clear();
     _lastJumpedMessage = null;
     _steerScopes.clear();
-    _selectedTaskId = null;
+    _selectedTaskId = _s.requestedAgentTaskId;
     _detailsVisibilityOverride = null;
     if (_input.text != _s.agentDraft) _input.text = _s.agentDraft;
     for (final controller in _steer.values) {
@@ -2257,6 +2262,13 @@ class _AgentChatState extends State<AgentChat> {
                   ],
                 ),
               ),
+              if (_s.openedFromConverseHandoff)
+                TextButton.icon(
+                  key: const ValueKey('agent-return-to-converse'),
+                  onPressed: _s.returnFromHandoffTask,
+                  icon: const Icon(Icons.arrow_back_rounded),
+                  label: const Text('Back to Converse'),
+                ),
             ],
           ),
         ),
@@ -2408,8 +2420,11 @@ class _AgentChatState extends State<AgentChat> {
                   AgentDesign.conversationMinWidth;
       _canShowDetailsInline = canShowDetails;
       final tasks = _s.selectedAgentTasks;
-      final matches = tasks.where((t) => t.taskId == _selectedTaskId);
-      final selected = matches.firstOrNull ?? tasks.lastOrNull;
+      final effectiveTaskId = _selectedTaskId ?? _s.requestedAgentTaskId;
+      final matches = tasks.where((t) => t.taskId == effectiveTaskId);
+      final selected =
+          matches.firstOrNull ??
+          (effectiveTaskId != null ? null : tasks.lastOrNull);
       final showDetails = _effectiveShowDetails(selected);
       final panes = Column(
         children: [
@@ -2627,6 +2642,7 @@ class _AgentChatState extends State<AgentChat> {
 
   void _inspectTask(AgentTask task) {
     setState(() {
+      _s.requestedAgentTaskId = null;
       _selectedTaskId = task.taskId;
       _detailsVisibilityOverride = true;
     });
