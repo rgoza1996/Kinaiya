@@ -499,8 +499,8 @@ $$
 \mathrm{Usable}(p,a,\theta_a,r,t_{\mathrm{wall}},t_{\mathrm{mono}})\iff{}&
 p.h=h(a,\theta_a,r)\land p.r=r\\
 &\land\neg p.\mathrm{used}\land p.\mathrm{retired}=\varnothing\\
-&\land t_{\mathrm{wall}}<p.e_{\mathrm{wall}}\\
-&\land(p.e_{\mathrm{mono}}=\varnothing\lor t_{\mathrm{mono}}<p.e_{\mathrm{mono}}).
+&\land t_{\mathrm{wall}}\lt p.e_{\mathrm{wall}}\\
+&\land(p.e_{\mathrm{mono}}=\varnothing\lor t_{\mathrm{mono}}\lt p.e_{\mathrm{mono}}).
 \end{aligned}
 $$
 
@@ -658,10 +658,10 @@ unfinished; Agent and Decisions do not use this graph.
 For an edge from parent $u$ to child $v$, increasing creation ordinals enforce
 acyclicity:
 
-$$
+```math
 (u,v)\in E\Rightarrow o(u)<o(v),\qquad
  d(v)=1+\max_{u\in\mathrm{parents}(v)}d(u)\le16.
-$$
+```
 
 The empty-parent maximum is zero. Each namespace is bounded to 256 nodes and
 2,048 edges, with at most eight parents per node. Selected retrieval includes the
@@ -705,11 +705,11 @@ native authorization fences.
 
 Content composition takes the most restrictive disclosure scope:
 
-$$
+```math
 \sigma_{\mathrm{combined}}=\max_{\preceq}\{\sigma_i\},\qquad
-\mathrm{public\_synthetic}\prec
-\mathrm{private\_cloud\_authorized}\prec\mathrm{local\_only}.
-$$
+\text{public/synthetic}\prec
+\text{private-cloud-authorized}\prec\text{local-only}.
+```
 
 Missing or invalid scopes remain local-only. Contributor accepts public/synthetic
 input only; other remote profiles may also accept explicitly private-cloud-authorized
