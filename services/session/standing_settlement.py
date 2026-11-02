@@ -783,7 +783,10 @@ class StandingSettlementOwner:
         original = item.claim.request
         if field == "closure":
             closure = item.closure.validate_request(original)
-            if canonical_bytes(closure.initial) != canonical_bytes(item.initial):
+            if (closure.initial is None) != (item.initial is None) or (
+                item.initial is not None
+                and canonical_bytes(closure.initial) != canonical_bytes(item.initial)
+            ):
                 raise StandingUnavailable
         elif field == "reservation":
             value = item.reservation
@@ -1365,9 +1368,14 @@ class StandingSettlementOwner:
             return None
         claim = _checked(claim, StandingExecutionClaim)
         item = self._select(history, claim.request)
-        if canonical_bytes(item.claim) != canonical_bytes(claim) or canonical_bytes(
-            item.initial
-        ) != canonical_bytes(initial):
+        if (
+            canonical_bytes(item.claim) != canonical_bytes(claim)
+            or (item.initial is None) != (initial is None)
+            or (
+                item.initial is not None
+                and canonical_bytes(item.initial) != canonical_bytes(initial)
+            )
+        ):
             raise StandingUnavailable
         return item.closure
 
