@@ -193,11 +193,11 @@ class Qualification:
         self.record("rerun_same_release", "current", generation=before)
 
     def configure(self):
-        from services.distribution.installation import setup
-
-        result = setup(
-            self.layout, endpoint="http://127.0.0.1:8080/v1", model="qualification-no-provider"
-        )
+        # Use the installed launcher: setup imports runtime dependencies that live
+        # only in the managed environment, exactly as an owner's `kinaiya setup`.
+        argv = [str(self.layout.bin / "kinaiya"), "setup", "--yes", "--endpoint"]
+        argv += ["http://127.0.0.1:8080/v1", "--model", "qualification-no-provider"]
+        result = json.loads(_run(argv, timeout=120).stdout)
         _require(
             result["ready"] is False and result["provider_connection"] == "not_checked", result
         )
@@ -419,13 +419,14 @@ class Qualification:
                 log.close()
         self.record("services", "passed", **observed, provider_contacted=False, tasks_started=0)
 
-    def rollback(self):
-        from services.distribution.installation import rollback
+    def _cli(self, *args):
+        return json.loads(_run([str(self.layout.bin / "kinaiya"), *args], timeout=120).stdout)
 
-        result = rollback(self.layout, self.generation_1)
+    def rollback(self):
+        result = self._cli("rollback", "--generation", self.generation_1, "--yes")
         _require(_launcher_version(self.layout)["release"]["build_number"] == 1, "rollback failed")
         _require(result["database_restored"] is False, result)
-        result_forward = rollback(self.layout, self.generation_2)
+        result_forward = self._cli("rollback", "--generation", self.generation_2, "--yes")
         _require(
             _launcher_version(self.layout)["release"]["build_number"] == 2, "roll forward failed"
         )
@@ -439,9 +440,7 @@ class Qualification:
         )
 
     def uninstall(self):
-        from services.distribution.installation import uninstall
-
-        result = uninstall(self.layout)
+        result = self._cli("uninstall", "--yes")
         _require(not (self.layout.bin / "kinaiya").exists(), "launcher remained after uninstall")
         _require(self.layout.config.is_file() and self.layout.data.is_dir(), "user data removed")
         _require(_file_digest(self.layout.config) == self.config_digest, "config changed")
@@ -504,7 +503,7 @@ def main(argv=None):
     finally:
         args.evidence.parent.mkdir(parents=True, exist_ok=True)
         args.evidence.write_text(json.dumps(evidence, indent=2) + "\n", encoding="utf-8")
-        print(json.dumps({"result": evidence["result"]}), flush=True)
+        print(json.dumps({"result": evidence["result"], "failure": evidence.get("failure")}))
         # Leave generated runtimes for inspection only on failure.
         if status == 0:
             shutil.rmtree(args.root, ignore_errors=True)

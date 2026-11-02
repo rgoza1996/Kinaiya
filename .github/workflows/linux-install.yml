@@ -62,9 +62,22 @@ jobs:
           bwrap --version
           uname -srm
           cat /etc/os-release | grep -E '^(ID|VERSION_ID)='
-          # Recorded, never changed: a denied namespace probe must fail this job.
+          # Recorded, never relaxed globally: a denied namespace probe must fail this job.
           sysctl kernel.apparmor_restrict_unprivileged_userns 2>/dev/null || true
           sysctl kernel.unprivileged_userns_clone 2>/dev/null || true
+      - name: Apply the documented Ubuntu 24.04 bubblewrap AppArmor profile
+        # Ubuntu 23.10+ restricts unprivileged user namespaces. The documented
+        # administrator step permits only /usr/bin/bwrap to create them; the global
+        # restriction stays enabled for every other program (docs/linux-installation.md).
+        run: |
+          if test "$(sysctl -n kernel.apparmor_restrict_unprivileged_userns 2>/dev/null || echo 0)" = 1; then
+            sudo install -m 0644 docs/examples/apparmor-bwrap /etc/apparmor.d/kinaiya-bwrap
+            sudo apparmor_parser -r /etc/apparmor.d/kinaiya-bwrap
+            echo "Applied bwrap-only userns profile; global restriction remains:"
+            sysctl kernel.apparmor_restrict_unprivileged_userns
+          else
+            echo "Unprivileged user namespaces are not AppArmor-restricted on this image; no profile applied."
+          fi
       - name: Qualify installer lifecycle
         run: |
           python -m scripts.qualify_linux_install \
