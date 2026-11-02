@@ -13,6 +13,8 @@ from dataclasses import dataclass, field
 from types import SimpleNamespace
 
 import pytest
+from test_agent_standing_claim_retirement import FINALIZE, automatic_report
+from test_agent_standing_claim_retirement import claim_chain as claim_chain
 from test_standing_agent_runtime import TEXT
 from test_standing_agent_runtime import factory as factory
 from test_standing_agent_runtime import stack as stack
@@ -90,9 +92,10 @@ def record_observation(record_property, spy, **extra):
 
 @pytest.mark.parametrize("callback_error", [False, True], ids=["ack", "callback-failure"])
 async def test_restore_waits_for_actual_owned_model_close_and_keeps_work_truth(
-    stack, record_property, callback_error
+    claim_chain, record_property, callback_error
 ):
-    value = await stack()
+    chain = await claim_chain()
+    value = chain.agent
     spy = standing_spy(
         value,
         error=RuntimeError("Synthetic restore transport failed") if callback_error else None,
@@ -108,8 +111,11 @@ async def test_restore_waits_for_actual_owned_model_close_and_keeps_work_truth(
         "lease_settled": value.record.model_lease.settled,
         "adapter_closed": value.made[0].closed,
     }
+    assert chain.transport.paths(FINALIZE) == []
     gate.set()
     await joined(value.record.worker)
+    receipt = await automatic_report(chain)
+    assert receipt.finalization.context.closure.initial == value.record.standing_initial
     record_observation(record_property, spy, pending=pending, pending_callbacks=pending_callbacks)
     assert final.state == TaskState.SUCCEEDED
     assert pending == {
@@ -119,15 +125,11 @@ async def test_restore_waits_for_actual_owned_model_close_and_keeps_work_truth(
         "adapter_closed": False,
     }
     assert pending_callbacks == [], "terminal/done is not actual model retirement"
-    assert spy.calls == [
-        {
-            "task_id": value.task_id,
-            "lease_settled": True,
-            "adapter_closed": True,
-            "shared_base_closed": False,
-            "cleanup_uncertain": False,
-        }
-    ]
+    # A standing claim now restores through its full native finalizer. The
+    # configured legacy callback/error must be irrelevant to that retirement.
+    assert spy.calls == []
+    assert value.record.model_lease.settled and value.made[0].closed
+    assert value.record.standing_cleanup_uncertain is False
     evidence = [item for item in final.evidence if item.kind == "file"]
     assert evidence and evidence[-1].sha256 == hashlib.sha256(TEXT.encode()).hexdigest()
     assert (value.workspace / "result.txt").read_text() == TEXT
