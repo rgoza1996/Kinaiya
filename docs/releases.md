@@ -180,14 +180,19 @@ Flutter are commit-pinned; Python and runtime/development dependencies use locks
    days. It does not create a release/tag, attest, access a protected environment,
    use signing/store credentials or claim stable promotion. GitHub requires the
    workflow file on the default branch before it can be manually dispatched;
-   local CLI/tests are available before merge. No remote dispatch was run as part
-   of implementing this change.
-2. **Nightly publication:** a successful official-main `push` run of
-   `deterministic-ci`, or manual non-dry dispatch on main. Exact source must still
-   be current main and its latest CI attempt must have succeeded. Fork/PR/failed
-   events do not qualify. There is no automatic alpha promotion or nightly build
-   after an arbitrary scheduled checkout. This workflow does not promise daily
-   mobile availability or store processing.
+   local CLI/tests are available before merge. Public Linux/nightly verification
+   evidence is recorded separately in #261/#262; this does not qualify mobile installs.
+2. **Nightly publication:** scheduled daily at **00:00 America/Los_Angeles**
+   (Las Vegas/Pacific time), including daylight-saving changes. GitHub may delay a
+   scheduled run. The checkout is pinned to the scheduled event's trusted
+   `GITHUB_SHA`, representing the latest default-branch commit assigned to that run.
+   The exact source's latest official-main CI attempt must have succeeded; pending,
+   failed, missing or wrong-source CI blocks publication without selecting an older
+   commit. If main advances during the build, the qualified snapshot is retained
+   only while it remains on main's history. A successful push CI run **does not**
+   itself trigger publication. Manual non-dry nightly dispatch on main remains an
+   explicit maintenance/qualification override, not the normal cadence. Mobile
+   distribution and store processing are separate gates.
 3. **Stable publication:** manual non-dry dispatch on main, a matching final tag
    whose commit is on main with successful exact-source CI, plus an independent
    reviewer in the protected `release-stable` environment. Older successful CI
@@ -195,8 +200,8 @@ Flutter are commit-pinned; Python and runtime/development dependencies use locks
    after the environment gate.
 
 Publication is disabled until an administrator explicitly sets repository variable
-`RELEASE_PUBLISH_ENABLED=true`, protects main and configures `release-nightly` and
-`release-stable` environments for protected branches only. Stable must have
+`RELEASE_PUBLISH_ENABLED=true`, protects main and configures the selected channel's
+`release-nightly` or `release-stable` environment for protected branches only. Stable must have
 required reviewers and prevent self-review. Missing settings/API access fail
 closed; the workflow does not create a missing environment and call it approved.
 Configure GitHub release immutability/tag protections as defense in depth. The
