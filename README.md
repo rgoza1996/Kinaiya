@@ -47,7 +47,7 @@ The candidate baseline is Ubuntu 22.04/24.04, Python 3.11–3.13 with `venv`/`en
 Download the bootstrap from this reviewed, immutable source revision, inspect it, then select the experimental nightly channel explicitly:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/rgoza1996/Kinaiya/e5a3a849c92a39f9ac1ecafa86e71be42cc7e9bc/install.sh -o kinaiya-install.sh
+curl -fsSL https://raw.githubusercontent.com/rgoza1996/Kinaiya/517e460c21bd9626cedd35a44a0fe4fc0ff604cb/install.sh -o kinaiya-install.sh
 # Review kinaiya-install.sh before executing downloaded code.
 sh kinaiya-install.sh --channel nightly
 export PATH="$HOME/.local/bin:$PATH"
