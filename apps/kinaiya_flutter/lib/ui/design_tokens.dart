@@ -17,7 +17,6 @@ abstract final class KinaiyaDesign {
   static const fontFamily = 'Inter';
   static const moonlitBackground =
       'assets/design/kinaiya-moonlit-background-v1.png';
-  static const sleepingHome = 'assets/design/kinaiya-sleeping-home-v1.png';
   static const moonlitDesktop = MoonlitArtwork(
     asset: 'assets/design/kinaiya-moonlit-desktop-v2.png',
     sourceSize: Size(1536, 1024),

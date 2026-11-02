@@ -4,6 +4,7 @@ import 'package:kinaiya_flutter/app.dart';
 import 'package:kinaiya_flutter/config/connection.dart';
 import 'package:kinaiya_flutter/state/app_state.dart';
 import 'package:kinaiya_flutter/ui/model_setup.dart';
+import 'package:kinaiya_flutter/ui/widgets.dart';
 
 import 'client_test.dart' show mockClient;
 import 'concept_layout_test.dart' show openConverseChat, navigateTo;
@@ -23,6 +24,31 @@ AppState wiredState() {
 }
 
 void main() {
+  testWidgets(
+    'clicking the seated Home mascot opens setup with Agent offline',
+    (tester) async {
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final state = wiredState()..agentOnline = false;
+      await tester.pumpWidget(KinaiyaApp(state: state));
+      await tester.pump(const Duration(milliseconds: 300));
+
+      final mascot = find.byType(MascotWidget);
+      expect(mascot, findsOneWidget);
+      final rect = tester.getRect(mascot);
+      await tester.tapAt(
+        Offset(rect.left + rect.width * .6, rect.top + rect.height * .3),
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.byType(ModelSetupDialog), findsOneWidget);
+      expect(state.view, AppView.character);
+      await tester.pumpWidget(const SizedBox.shrink());
+      state.dispose();
+    },
+  );
+
   testWidgets(
     'mascot opens setup during a resource pause and Agent remains independent',
     (tester) async {

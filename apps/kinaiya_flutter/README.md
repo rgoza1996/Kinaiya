@@ -67,8 +67,9 @@ windows retain Decisions timing. See [ADR0079](../../docs/adr/0079-adaptive-vad-
 for defaults, bounds, prototype provenance and qualification limits.
 
 The [updated owner design](../../docs/adr/0059-home-and-optional-converse.md) opens
-on moonlit **Home**, with the animated mascot seated on water. **Talk with
-Kinaiya** arms the existing live browser listener; **End conversation** stops
+on moonlit **Home**, with the animated mascot seated on water. Drag the handle
+on the Home connection panel to move it around the scene; its position is kept
+while that Home view remains mounted. **Talk with Kinaiya** arms the existing live browser listener; **End conversation** stops
 that listener. The mascot and **Setup** open model/conversation settings.
 The optional **Converse** view uses the supplied close-up character art, complete
 scrollable transcript, text composer, microphone controls and model summary.
@@ -98,8 +99,9 @@ this host supports text dialogue with STT, not direct audio, image/video or came
 input. **Save setup** only saves the optional Converse view on this device.
 Hiding it preserves Home voice and does not change backend Converse enabled state.
 **Sleep** and **Wake Kinaiya** separately control the authenticated Converse
-owner intent. Only a confirmed owner-off state shows the supplied sleeping
-illustration; resource pauses and outages remain distinct. Waking waits for
+owner intent. Home shows the sleeping sprite on the same moonlit background when Converse is unavailable
+or the owner has explicitly put it to sleep; this appearance does not assert
+owner intent. A resource pause alone does not imply sleep. Waking waits for
 actual service readiness and does not start the microphone. Agent stays usable.
 
 Connection/disclosure, model selection and permissions remain separate owners.
