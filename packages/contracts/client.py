@@ -750,6 +750,11 @@ class JournalClient:
         params = {"session_id": session_id, "epoch": epoch, "utterance_id": utterance_id}
         if window_index is not None:
             params["window_index"] = window_index
+        if current_owner() is not None:
+            value = await self._owned_metadata(
+                "GET", "/v1/transcript/windows/latest", params=params
+            )
+            return JournalEntry.model_validate(value) if value is not None else None
         response = await self.http.get("/v1/transcript/windows/latest", params=params)
         response.raise_for_status()
         return JournalEntry.model_validate(response.json()) if response.json() is not None else None
@@ -791,6 +796,17 @@ class JournalClient:
         return [JournalEntry.model_validate(e) for e in response.json()]
 
     async def window_control(self, session_id, epoch, agent_interrupt=False):
+        if current_owner() is not None:
+            value = await self._owned_metadata(
+                "GET",
+                "/v1/transcript/windows/control",
+                params={
+                    "session_id": session_id,
+                    "epoch": epoch,
+                    "agent_interrupt": agent_interrupt,
+                },
+            )
+            return JournalEntry.model_validate(value) if value is not None else None
         response = await self.http.get(
             "/v1/transcript/windows/control",
             params={"session_id": session_id, "epoch": epoch, "agent_interrupt": agent_interrupt},
