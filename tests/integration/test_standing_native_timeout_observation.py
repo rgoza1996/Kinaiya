@@ -327,7 +327,8 @@ async def test_snapshot_retains_actual_native_report_task_event_and_shared_regis
     close = exchange.close_task
     assert type(close) is asyncio.Task and close.done() and not close.cancelled()
     assert close.exception() is None
-    body = exchange.response.stream
+    body = value.native.bodies[-1]
+    assert exchange.response.stream._stream is body
     assert isinstance(body, physical_module.Body) and body in value.native.bodies
     assert body.closes == 1 and body.closed and not body.cancelled and not body.failed
     native_receipt = await value.agent.standing_resource_finalization_lookup(value.request)
