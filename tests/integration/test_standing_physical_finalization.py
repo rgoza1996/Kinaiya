@@ -3,6 +3,10 @@
 Genuine Session SQLite/ASGI, typed packets, disposable CPU child, selected native
 stream registry and original HTTP/COMMIT/reaper owners. No inference, Agent
 retirement, Task settlement or global standing-slot release is established.
+
+Source-aware fixture maintenance uses the existing real Whistle native protocol
+driver with its synthetic engine. Manifest hello fields are protocol fixtures,
+not evidence that model weights were loaded or a transcription was performed.
 """
 
 import asyncio
@@ -12,29 +16,44 @@ import json
 import socket
 import sqlite3
 import sys
+import tempfile
 import threading
+from datetime import UTC, datetime
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
 import httpx
 import pytest
+from test_managed_whistle import DRIVER
 from test_resource_handoff import MiB, action, legacy_choice
-from test_resource_processes import READY_MEM, file_probe, make_spec, write_script
+from test_resource_processes import make_spec, write_script
 from test_standing_dispatch_api import AUTH
 from test_standing_execution_api import SECRET, original
 from test_standing_execution_api import factory as factory
-from test_standing_resource_finalization_api import large_original
+from test_standing_resource_finalization_api import large_original, post, safe_response
 from test_standing_resources_registration import join_client
 
 from packages.contracts.client import JournalClient
 from packages.contracts.models import ProviderInfo
+from packages.contracts.standing_execution import StandingExecutionIntent
 from packages.contracts.standing_resource_finalization import (
     StandingResourceBindingReceipt,
     StandingResourceFinalizationReceipt,
     StandingResourceFinalizeRequest,
 )
-from packages.contracts.standing_resources import StandingResourceReservation, TaskResourceQuery
-from packages.contracts.standing_work import StandingConflict, StandingUnavailable
+from packages.contracts.standing_resources import (
+    StandingResourceReservation,
+    StandingResourceReservationReceipt,
+    TaskResourceQuery,
+    checked_resource,
+)
+from packages.contracts.standing_work import (
+    StandingChange,
+    StandingChangeReceipt,
+    StandingConflict,
+    StandingUnavailable,
+)
 from packages.providers.text import ScriptedProvider
 from packages.resources import WorkerManager
 from services.converse.api import create_app as converse_app
@@ -73,6 +92,7 @@ OLD_COLUMNS = {
 }
 REFUSALS = (StandingConflict, StandingUnavailable)
 MARKER = "SYNTHETIC-PHYSICAL-PRODUCER-FAILURE"
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def wire(value):
@@ -153,6 +173,7 @@ class Gate:
         self.entered, self.release = asyncio.Event(), asyncio.Event()
         self.claimed = False
         self.close_task = None
+        self.exchange_task = None
 
 
 class Body(httpx.AsyncByteStream):
@@ -254,6 +275,8 @@ class Native(httpx.AsyncBaseTransport):
         body = Body(response.stream, gate if targeted else None)
         response.stream = body
         self.bodies.append(body)
+        if targeted:
+            gate.exchange_task = asyncio.current_task()
         if targeted and gate.phase == "acquire":
             gate.entered.set()
             await resistant(gate.release)
@@ -326,6 +349,35 @@ def test_frozen_physical_producer_capability_is_present():
     feature()
 
 
+async def large_physical_original(session):
+    # The no-reservation context has fewer copies than the old reservation
+    # fixture. Use a new genuine owner grant rather than lowering the byte test.
+    value = await large_original(session)
+    standing = session.app.state.standing_owner
+    before = standing.snapshot(value.responsibility_id).record
+    change_raw = before.receipt.request.model_dump(mode="json")
+    change_raw.update(
+        idempotency_key="physical:large-grant", expected_revision=before.receipt.revision
+    )
+    change_raw["authorization"]["objective"] = "\0" * 16000
+    change_raw["authorization"]["schedule"]["local_time"] = "12:02"
+    change = StandingChange.model_validate(change_raw)
+    reply = await post(session, "/v1/standing/changes", change_raw, role="owner")
+    safe_response(reply, 200)
+    StandingChangeReceipt.from_json(reply.content).validate_request(change)
+    actual = standing.snapshot(value.responsibility_id).record
+    raw = value.model_dump(mode="json")
+    raw.update(
+        authorization_revision=actual.receipt.revision,
+        authorization_digest=actual.receipt.authorization_digest,
+        record_digest=actual.record_digest,
+    )
+    raw["task"]["objective"] = actual.receipt.request.authorization.objective
+    raw["occurrence"]["due_utc"] = "2026-11-01T12:02:00Z"
+    session.wall.value = datetime(2026, 11, 1, 12, 2, 10, tzinfo=UTC)
+    return StandingExecutionIntent.model_validate(raw)
+
+
 @pytest.fixture
 async def physical(factory, tmp_path, monkeypatch, record_property):
     opened = []
@@ -357,8 +409,8 @@ async def physical(factory, tmp_path, monkeypatch, record_property):
     async def make(*, session=None, claim=None, path=None, large=False):
         path = path or tmp_path / f"physical-{len(opened)}"
         path.mkdir(mode=0o700, exist_ok=True)
-        endpoint_directory = path / "endpoint"
-        endpoint_directory.mkdir(mode=0o700, exist_ok=True)
+        # Keep the real Unix socket path below its native length limit.
+        endpoint_directory = Path(tempfile.mkdtemp(prefix="kw239-", dir="/tmp"))
         endpoint = WhistleEndpoint(endpoint_directory)
         session = session or await factory()
         agent = JournalClient(
@@ -367,15 +419,20 @@ async def physical(factory, tmp_path, monkeypatch, record_property):
         packet = (
             claim.request
             if claim is not None
-            else await (large_original(session) if large else original(session))
+            else await (large_physical_original(session) if large else original(session))
         )
         claim = claim or (await agent.standing_prepare(packet)).claim
-        ready = path / "ready"
-        ready.unlink(missing_ok=True)
-        script = write_script(path, "disposable.py", READY_MEM)
+        script = write_script(path, "disposable.py", DRIVER)
         manager = WorkerManager(
-            [make_spec("whistle", [sys.executable, str(script), str(ready), "2"], path)],
-            readiness=file_probe(ready),
+            [
+                make_spec(
+                    "whistle",
+                    [sys.executable, str(script), str(endpoint_directory), str(path / "entered")],
+                    ROOT,
+                    env={"PYTHONPATH": str(ROOT), "PYTHONDONTWRITEBYTECODE": "1"},
+                )
+            ],
+            readiness=endpoint.probe,
         )
         state = ResourceState(path / "control/resources-state.json")
         intent = ConverseIntent(state.path.parent / "converse-intent.json", initial_enabled=False)
@@ -441,12 +498,33 @@ async def physical(factory, tmp_path, monkeypatch, record_property):
                 request=None,
                 effect_checks=0,
                 effects_entered=asyncio.Event(),
+                reservation_receipts=[],
+                original_calls=[],
+                context_retirements=[],
                 closed=False,
                 cleanup_error=None,
             )
             native.value = value
             opened.append(value)
             actual_start, actual_stop = manager.start, manager.stop
+            actual_reserve = gateway.standing_resource_reserve
+            actual_work = coordinator.standing_barrier._work
+
+            async def reserve(request):
+                # Observe the actual Resources-role native ACK before a later
+                # capture guard can refuse. No new reservation or authority.
+                assert type(request) is StandingResourceReservation
+                checked = checked_resource(request, StandingResourceReservation)
+                receipt = await actual_reserve(request)
+                assert type(receipt) is StandingResourceReservationReceipt
+                value.reservation_receipts.append(receipt.validate_request(checked))
+                return receipt
+
+            async def work(call, name, request):
+                # The task created by the real barrier remains the original
+                # root, including operations/sole closes created after capture.
+                value.original_calls.append((name, call, asyncio.current_task()))
+                return await actual_work(call, name, request)
 
             async def start(worker_id):
                 starts.append(worker_id)
@@ -458,6 +536,8 @@ async def physical(factory, tmp_path, monkeypatch, record_property):
 
             monkeypatch.setattr(manager, "start", start)
             monkeypatch.setattr(manager, "stop", stop)
+            monkeypatch.setattr(gateway, "standing_resource_reserve", reserve)
+            monkeypatch.setattr(coordinator.standing_barrier, "_work", work)
             await coordinator.initialize()
         value.http = httpx.AsyncClient(
             transport=httpx.ASGITransport(app=app), base_url="http://127.0.0.1:8764"
@@ -503,6 +583,7 @@ async def physical(factory, tmp_path, monkeypatch, record_property):
                     and managed.drains == []
                 )
             assert not value.endpoint.stream_closes.pending
+            value.endpoint.close()
             assert all(
                 body.closes == 1 and (body.closed or body.cancelled)
                 for body in value.native.bodies + value.control_transport.bodies
@@ -528,6 +609,10 @@ async def physical(factory, tmp_path, monkeypatch, record_property):
                 }
             )
         record_property("physical_actual_cleanup", json.dumps(cleanup, sort_keys=True))
+        record_property(
+            "physical_context_retirement",
+            json.dumps([entry for value in opened for entry in value.context_retirements]),
+        )
 
 
 async def close_resources(value):
@@ -601,13 +686,65 @@ def handoff(value, body=None):
     return task
 
 
+def recorded_reservation(value):
+    # Native observation intentionally requires admission closure. Before that
+    # boundary inspect only the exact successful native registration ACK.
+    assert len(value.reservation_receipts) == 1
+    receipt = value.reservation_receipts[0]
+    assert receipt.disposition == "created"
+    assert receipt.validate_request(receipt.request) == receipt
+    return receipt.request
+
+
+def context_originals(value, gate):
+    originals = [entry for entry in value.original_calls if entry[0] == "finalize"]
+    assert len(originals) == 1
+    _, call, work = originals[0]
+    assert call.gateway is value.gateway and work in call.scope.handles
+    exchanges = [
+        exchange
+        for exchange in value.gateway._submit_exchanges
+        if exchange.actual_owner is call.scope and exchange.task is gate.exchange_task
+    ]
+    assert len(exchanges) == 1
+    bodies = [body for body in value.native.bodies if body.gate is gate]
+    assert len(bodies) == 1
+    return call.scope, work, exchanges[0], bodies[0]
+
+
+async def join_context_originals(value, originals):
+    scope, work, exchange, body = originals
+    # Join the captured original root and its dynamic children. A cancelled
+    # public facade or an empty current registry cannot prove these completed.
+    await asyncio.wait_for(scope.join(), 8)
+    assert work.done() and not work.cancelled()
+    logical_error = work.exception()
+    assert logical_error is None or type(logical_error) is StandingUnavailable
+    assert exchange.task.done() and not exchange.task.cancelled()
+    assert exchange.task.exception() is None
+    close = exchange.close_task
+    assert type(close) is asyncio.Task and close.done() and not close.cancelled()
+    assert close.exception() is None
+    assert body.closes == 1 and body.closed and not body.failed and not body.cancelled
+    assert not scope.failed and not value.gateway._submit_cleanup_failed
+    value.context_retirements.append(
+        {
+            "logical_work_error": None if logical_error is None else type(logical_error).__name__,
+            "original_work_joined": True,
+            "original_exchange_joined": True,
+            "original_sole_close_joined": True,
+            "scope_failed": scope.failed,
+            "client_cleanup_failed": value.gateway._submit_cleanup_failed,
+        }
+    )
+
+
 async def acquired(value):
     await bound(value)
     original_process = await ready(value)
     result = await handoff(value)
     assert result["ok"] is True and result["policy"]["phase"] == "local_work"
-    observation = await value.agent.standing_resource_observe(value.packet)
-    reservation = observation.reservation
+    reservation = recorded_reservation(value)
     assert (
         reservation is not None and value.coordinator.state.record.lease_id == reservation.lease_id
     )
@@ -711,7 +848,7 @@ async def test_registered_positive_before_effect_refusal_is_never_acquired(physi
     await bound(value)
     result = await handoff(value)
     assert result["ok"] is False and value.effect_checks == 0 and value.starts == []
-    reservation = (await value.agent.standing_resource_observe(value.packet)).reservation
+    reservation = recorded_reservation(value)
     assert reservation is not None and value.coordinator.state.record.lease_id is None
     await closure(value)
     await completed(value, "registered-no-lease", "not-required", reservation)
@@ -914,6 +1051,7 @@ async def test_actual_http_originals_survive_facade_cancel_and_only_healthy_retr
     await closure(value)
     finalizer = begin(value)
     await gate_entered(gate.entered)
+    originals = context_originals(value, gate) if path == CONTEXT else None
     finalizer.cancel()
     await asyncio.sleep(0)
     if not finalizer.cancelled():
@@ -923,6 +1061,8 @@ async def test_actual_http_originals_survive_facade_cancel_and_only_healthy_retr
     await asyncio.gather(
         finalizer, *([capture] if capture is not None else []), return_exceptions=True
     )
+    if originals is not None:
+        await join_context_originals(value, originals)
     result = await asyncio.wait_for(begin(value), 8)
     assert result.validate_request(value.request) == result
     if path == RESERVE:
@@ -1268,7 +1408,9 @@ async def test_forged_actual_typed_graph_never_drops_hidden_state(physical, muta
         class UntrustedRequest(StandingResourceFinalizeRequest):
             pass
 
-        request = UntrustedRequest.model_validate(request.model_dump(mode="json"))
+        request = UntrustedRequest.model_construct(
+            _fields_set=set(type(request).model_fields), **request.__dict__
+        )
     else:
         request = request.model_dump(mode="json")
     before = len(value.native.requests)
