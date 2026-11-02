@@ -56,6 +56,7 @@ class OptionsWorkspace extends StatefulWidget {
 
 class _OptionsWorkspaceState extends State<OptionsWorkspace> {
   late OptionsPage _page;
+  OptionsPage? _recentPage;
   String? _harness;
   String? _auxiliaryPurpose;
   String _query = '';
@@ -273,6 +274,9 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
     final previousQuery = _query.trim();
     _scaffold.currentState?.closeDrawer();
     setState(() {
+      if (page != OptionsPage.overview) {
+        _recentPage = page;
+      }
       _page = page;
       _harness = null;
       _lastSearchQuery = fromSearch && previousQuery.isNotEmpty
@@ -962,30 +966,127 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
 
   Widget _overview() => LayoutBuilder(
     builder: (context, bounds) {
-      if (!widget.presentation.preferences.showCharacter) {
-        return const SizedBox.expand();
-      }
+      final showCharacter = widget.presentation.preferences.showCharacter;
       final selection = widget.presentation.selected;
-      if (selection?.packageJson == null) {
-        return Image.asset(
-          'assets/design/kinaiya-options-gear-v1.png',
-          key: const ValueKey('options-overview-artwork'),
-          semanticLabel: 'Kinaiya cradles a gear in front of the full moon',
-          width: double.infinity,
-          height: double.infinity,
-          fit: BoxFit.contain,
-        );
-      }
-      return Center(
-        child: MascotWidget(
-          pack: selection!.pack,
-          bundle: selection.bundle,
-          mood: 'idle',
-          size: bounds.biggest.shortestSide,
-        ),
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          if (showCharacter)
+            Positioned.fill(
+              child: selection?.packageJson == null
+                  ? Image.asset(
+                      'assets/design/kinaiya-options-gear-v1.png',
+                      key: const ValueKey('options-overview-artwork'),
+                      semanticLabel:
+                          'Kinaiya cradles a gear in front of the full moon',
+                      width: double.infinity,
+                      height: double.infinity,
+                      fit: BoxFit.contain,
+                    )
+                  : Center(
+                      child: MascotWidget(
+                        pack: selection!.pack,
+                        bundle: selection.bundle,
+                        mood: 'idle',
+                        size: bounds.biggest.shortestSide,
+                      ),
+                    ),
+            ),
+          Align(
+            alignment: showCharacter ? Alignment.bottomLeft : Alignment.topLeft,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: _overviewShortcuts(),
+            ),
+          ),
+        ],
       );
     },
   );
+
+  Widget _overviewShortcuts() {
+    final textTheme = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+    final connected =
+        widget.state.connected && widget.state.sessionAuthenticated;
+    final statusHint = connected
+        ? 'Connected to host · Jump to a common configuration area.'
+        : 'Not connected to host · Configure connection, models, voice, or character.';
+    final recent = _recentPage;
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 680),
+      child: DesignPanel(
+        key: const ValueKey('options-overview-shortcuts'),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Quick setup shortcuts',
+              style: textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              statusHint,
+              key: const ValueKey('options-overview-status-hint'),
+              style: textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  key: const ValueKey('options-shortcut-connection'),
+                  onPressed: () => _select(OptionsPage.connection),
+                  icon: const Icon(Icons.link_outlined, size: 18),
+                  label: Text(
+                    connected ? 'Connection (Connected)' : 'Connection',
+                  ),
+                ),
+                OutlinedButton.icon(
+                  key: const ValueKey('options-shortcut-models'),
+                  onPressed: () => _select(OptionsPage.models),
+                  icon: const Icon(Icons.diamond_outlined, size: 18),
+                  label: const Text('Models'),
+                ),
+                OutlinedButton.icon(
+                  key: const ValueKey('options-shortcut-voice'),
+                  onPressed: () => _select(OptionsPage.voice),
+                  icon: const Icon(Icons.graphic_eq, size: 18),
+                  label: const Text('Voice'),
+                ),
+                OutlinedButton.icon(
+                  key: const ValueKey('options-shortcut-character'),
+                  onPressed: () => _select(OptionsPage.character),
+                  icon: const Icon(Icons.auto_awesome_outlined, size: 18),
+                  label: const Text('Character'),
+                ),
+                if (recent != null &&
+                    !const {
+                      OptionsPage.connection,
+                      OptionsPage.models,
+                      OptionsPage.voice,
+                      OptionsPage.character,
+                    }.contains(recent))
+                  OutlinedButton.icon(
+                    key: const ValueKey('options-shortcut-recent'),
+                    onPressed: () => _select(recent),
+                    icon: const Icon(Icons.history, size: 18),
+                    label: Text('Recent: ${recent.label}'),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   Widget _content() => switch (_page) {
     OptionsPage.overview => _overview(),
