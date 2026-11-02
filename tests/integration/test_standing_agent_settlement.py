@@ -7,6 +7,10 @@ engine performs no inference. Hand-authored trusted Agent testimony here tests
 native verification, not genuine Agent-owner retirement or permission to work.
 H64/H+1, worst valid graphs/storage and ordinary-Session availability remain
 separate required gates; this bounded suite does not qualify their capacity.
+
+Root source-aware fixture calibration: the shared old execution factory was
+explicitly pinned to v1 after these oracles froze. This local factory preserves
+their intended genuine default-v2 composition without changing any assertion.
 """
 
 import asyncio
@@ -21,7 +25,6 @@ from test_agent_export_admission import export_request
 from test_agent_submit_admission import proposal as ordinary_proposal
 from test_standing_dispatch_api import AUTH, headers, rows
 from test_standing_execution_api import BodyWitness, close_env, original
-from test_standing_execution_api import factory as factory
 from test_standing_execution_owner import build_native as build_native
 from test_standing_physical_finalization import (
     Gate,
@@ -38,7 +41,7 @@ from test_standing_physical_finalization import (
 from test_standing_physical_finalization import physical as physical
 from test_standing_resource_finalization_api import make_report
 
-from packages.contracts.models import AppendRequest, JournalEntry, ProviderInfo, Task
+from packages.contracts.models import AppendRequest, JournalEntry, ProviderInfo, SessionRequest, Task
 from packages.contracts.standing_agent_settlement import (
     StandingAgentOutcomeReference,
     StandingAgentRetirementRegistrationReceipt,
@@ -69,6 +72,7 @@ from services.session.api import create_app
 from services.session.standing_admission import StandingTaskOwner
 from services.session.standing_resource_finalization import StandingResourceFinalizationOwner
 from services.session.standing_resources import StandingResourceOwner
+from services.session.store import Store
 
 REGISTER = "/v1/standing/tasks/retirement/register"
 REGISTRATION = "/v1/standing/tasks/retirement/registration/lookup"
@@ -88,6 +92,48 @@ WORK = (
     "created-unlaunched",
     "bound-never-admitted",
 )
+
+
+@pytest.fixture
+async def factory(tmp_path):
+    opened = []
+
+    async def make(path=None):
+        path = tmp_path / f"native-settlement-{len(opened)}.sqlite" if path is None else path
+        store = Store(path)
+        sessions = store.sessions()
+        session = sessions[0] if sessions else store.create_session(SessionRequest(channel="agent"))
+        wall = SimpleNamespace(value=datetime(2026, 11, 1, 11, 59, 50, tzinfo=UTC))
+        mono = SimpleNamespace(value=1000)
+        # Intentionally omit the selector: this qualifies the production default.
+        app = create_app(
+            store, AUTH, standing_clock=lambda: wall.value, standing_monotonic_ms=lambda: mono.value
+        )
+        lifespan = app.router.lifespan_context(app)
+        await lifespan.__aenter__()
+        client = httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://standing.test"
+        )
+        env = SimpleNamespace(
+            path=path,
+            store=store,
+            session=session,
+            wall=wall,
+            mono=mono,
+            app=app,
+            lifespan=lifespan,
+            client=client,
+            closed=False,
+            operations=app.state.standing_owner_operations,
+        )
+        opened.append(env)
+        return env
+
+    try:
+        yield make
+    finally:
+        for env in reversed(opened):
+            await close_env(env)
 
 
 def wire(value):
