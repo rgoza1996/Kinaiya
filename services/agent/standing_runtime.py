@@ -133,10 +133,10 @@ class _Attempt:
     lease: TaskModelLease | None = None
     authority: tuple | None = None
 
-    def suppress(self):
+    def suppress(self, *, notify=True):
         self.active = False
         self.capability = None
-        if not self.suppressed.done():
+        if notify and not self.suppressed.done():
             self.suppressed.set_result(None)
         if not self.launched and self.lease is not None:
             self.lease.start_close()
@@ -427,7 +427,9 @@ class _Attempt:
             raise AgentSubmitUnavailable from None
         finally:
             if not self.launched:
-                self.claim_owner.fence()
+                # A resolved retained reply is knowledge, not a launch. Keep
+                # its facade alive through original unused-model cleanup.
+                self.claim_owner.fence(abort=not self.resolved)
                 if self.resolved:
                     self.active = False
                     self.capability = None

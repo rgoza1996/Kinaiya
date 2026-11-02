@@ -101,10 +101,10 @@ class StandingClaimOwner:
         self.failed = True
         self.runtime._workspace_cleanup_failed = True
 
-    def fence(self):
+    def fence(self, *, abort=True):
         self.fenced = True
         if self.attempt is not None:
-            self.attempt.suppress()
+            self.attempt.suppress(notify=abort)
 
     def retain_preflight(self, task):
         self.preflight = task
