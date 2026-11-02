@@ -344,7 +344,7 @@ def foreign_receipt(kind):
     elif kind == "controller":
         raw["request"]["resource_instance"] = OTHER_INSTANCE
     if kind != "claim-record":
-        rehash(raw, "request_digest", "kinaiya.standing.resource-binding.v1")
+        raw["request_digest"] = digest("kinaiya.standing.resource-binding.v1", raw["request"])
     return raw
 
 
