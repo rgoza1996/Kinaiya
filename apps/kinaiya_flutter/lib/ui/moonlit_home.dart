@@ -17,6 +17,7 @@ class MoonlitHome extends StatefulWidget {
     required this.callLabel,
     this.callTooltip = 'Start Live listen (armed mic)',
     this.setupLabel = 'Setup',
+    this.helperText,
     required this.onSetup,
     this.onCall,
     this.onAgent,
@@ -34,7 +35,7 @@ class MoonlitHome extends StatefulWidget {
   });
   final Widget character;
   final String status, callLabel, agentStatus, callTooltip, setupLabel;
-  final String? sessionName;
+  final String? sessionName, helperText;
   final VoidCallback onSetup;
   final VoidCallback? onCall, onAgent;
   final bool showConverseView,
@@ -187,18 +188,53 @@ class _MoonlitHomeState extends State<MoonlitHome>
                     child: Icon(Icons.drag_handle, size: 20),
                   ),
                 ),
-                Text(
-                  widget.sleeping ? 'Kinaiya is sleeping' : widget.status,
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.titleMedium,
+                Semantics(
+                  container: true,
+                  liveRegion: false,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        widget.sleeping ? 'Kinaiya is sleeping' : widget.status,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      if (widget.sleeping) const Text('Converse is offline'),
+                      if (widget.helperText != null &&
+                          widget.helperText!.trim().isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Text(
+                            widget.helperText!,
+                            key: const ValueKey('home-helper-copy'),
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
+                                ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
-                if (widget.sleeping) const Text('Converse is offline'),
-                const SizedBox(height: 10),
+                SizedBox(
+                  height:
+                      widget.helperText != null &&
+                          widget.helperText!.trim().isNotEmpty
+                      ? 8
+                      : 10,
+                ),
                 if (!widget.sleeping)
                   ExcludeSemantics(
                     child: Icon(
                       Icons.graphic_eq_rounded,
-                      size: 48,
+                      size:
+                          widget.helperText != null &&
+                              widget.helperText!.trim().isNotEmpty
+                          ? 36
+                          : 48,
                       color: Theme.of(context).colorScheme.primary,
                     ),
                   ),
