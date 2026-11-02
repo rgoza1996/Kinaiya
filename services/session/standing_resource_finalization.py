@@ -273,6 +273,16 @@ class StandingResourceFinalizationOwner:
         )
 
     def _schema(self, state):
+        from packages.contracts.standing_resource_finalization import _ERROR, _FAILURES, _encode
+
+        def fresh_bytes(value):
+            # Only freshly parsed/constructed new-family locals reach here.
+            # Every encoding still walks the complete actual graph.
+            try:
+                return _encode(value)
+            except _FAILURES:
+                raise ValueError(_ERROR) from None
+
         meta, generations, claim, initial, _, reservation, _ = state
         self._tables(meta)
         row = self._row(_BINDINGS, "request", MAX_STANDING_RESOURCE_BINDING_BYTES)
@@ -282,8 +292,8 @@ class StandingResourceFinalizationOwner:
             if (
                 claim is None
                 or row["claim_id"] != claim.claim_id
-                or finalization_bytes(binding).decode("utf-8") != row["request"]
-                or finalization_bytes(binding.claim) != finalization_bytes(claim)
+                or fresh_bytes(binding).decode("utf-8") != row["request"]
+                or fresh_bytes(binding.claim) != finalization_bytes(claim)
                 or binding.claim.request.expected_backend != meta["backend_id"]
             ):
                 raise StandingUnavailable
@@ -305,14 +315,14 @@ class StandingResourceFinalizationOwner:
                 claim is None
                 or binding is None
                 or row["claim_id"] != claim.claim_id
-                or finalization_bytes(report).decode("utf-8") != row["report"]
+                or fresh_bytes(report).decode("utf-8") != row["report"]
             ):
                 raise StandingUnavailable
             try:
                 expected = self._context(report.context.request, binding, state)
             except StandingConflict:
                 raise StandingUnavailable from None
-            if finalization_bytes(report.context) != finalization_bytes(expected):
+            if fresh_bytes(report.context) != fresh_bytes(expected):
                 raise StandingUnavailable
         return binding, report
 
