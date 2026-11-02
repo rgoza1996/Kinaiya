@@ -69,11 +69,21 @@ def _tree(value: Any) -> None:
         nodes += 1
         if depth > 12 or nodes > 2048:
             raise ValueError(_ERROR)
+        kind = type(item)
+        if kind is str:
+            item.encode("utf-8")
+            continue
+        if kind is int:
+            if abs(item) > _MAX_INT:
+                raise ValueError(_ERROR)
+            continue
+        if item is None or kind is bool:
+            continue
         if isinstance(item, BaseModel):
             # model_copy can place forbidden fields in the actual instance;
             # model_dump silently drops them. Inspect closure before any dump,
             # including nested models and Pydantic's separate field metadata.
-            fields = type(item).model_fields
+            fields = kind.model_fields
             values = getattr(item, "__dict__", None)
             supplied = getattr(item, "__pydantic_fields_set__", None)
             if (
@@ -85,18 +95,14 @@ def _tree(value: Any) -> None:
             ):
                 raise ValueError(_ERROR)
             item = values
-        if type(item) is dict:
+            kind = dict
+        if kind is dict:
             if any(type(key) is not str for key in item):
                 raise ValueError(_ERROR)
             pending.extend((child, depth + 1) for pair in item.items() for child in pair)
-        elif type(item) in (list, tuple):
+        elif kind in (list, tuple):
             pending.extend((child, depth + 1) for child in item)
-        elif type(item) is str:
-            item.encode("utf-8")
-        elif type(item) is int:
-            if abs(item) > _MAX_INT:
-                raise ValueError(_ERROR)
-        elif item is not None and type(item) is not bool:
+        else:
             raise ValueError(_ERROR)
 
 
