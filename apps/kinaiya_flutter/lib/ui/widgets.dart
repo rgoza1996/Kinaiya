@@ -429,12 +429,27 @@ class StatusChip extends StatelessWidget {
     return Semantics(
       label: style == null ? 'Status: $text' : style.accessibleLabel(text),
       child: Chip(
+        visualDensity: style == null ? null : VisualDensity.compact,
+        materialTapTargetSize: style == null
+            ? null
+            : MaterialTapTargetSize.shrinkWrap,
+        padding: style == null
+            ? null
+            : const EdgeInsets.symmetric(horizontal: 4),
+        labelPadding: style == null
+            ? null
+            : const EdgeInsets.symmetric(horizontal: 2),
         avatar: style == null
             ? null
-            : Icon(style.icon, size: 16, color: foreground),
+            : Icon(style.icon, size: 14, color: foreground),
         label: Text(
           style == null ? text : '$text · ${style.meaning}',
-          style: TextStyle(color: foreground),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: foreground,
+            fontSize: style == null ? null : 9,
+          ),
         ),
         backgroundColor: effectiveTone.withValues(alpha: 0.15),
         side: BorderSide(color: effectiveTone),
