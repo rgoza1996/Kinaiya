@@ -2,6 +2,21 @@ import 'package:flutter/material.dart';
 
 import 'design_tokens.dart';
 
+/// Distinct, plainly worded Converse stage states confirmed by the actual
+/// capture, playback, and session owners.
+enum ConverseStageState {
+  listening('Listening', Icons.mic),
+  recording('Recording clip', Icons.fiber_manual_record),
+  muted('Microphone muted', Icons.mic_off_outlined),
+  thinking('Thinking', Icons.hourglass_top_rounded),
+  speaking('Playing response', Icons.volume_up_outlined),
+  unavailable('Unavailable', Icons.cloud_off_outlined);
+
+  const ConverseStageState(this.label, this.icon);
+  final String label;
+  final IconData icon;
+}
+
 /// Passive Converse composition. The owner supplies all content and actions;
 /// this widget never owns a session, microphone, audio adapter or character.
 class ConverseInteraction extends StatelessWidget {
@@ -13,6 +28,7 @@ class ConverseInteraction extends StatelessWidget {
     required this.modelSummary,
     required this.status,
     required this.callLabel,
+    this.stageState,
     this.onCall,
     this.onMicrophone,
     required this.microphoneLabel,
@@ -25,6 +41,7 @@ class ConverseInteraction extends StatelessWidget {
 
   final Widget character, transcript, composer, modelSummary;
   final String status, callLabel, microphoneLabel;
+  final ConverseStageState? stageState;
   final VoidCallback? onCall, onMicrophone;
   final VoidCallback onModelSettings, onHistory, onVoiceOptions, onMemory;
   final bool activeVoice;
@@ -198,7 +215,7 @@ class ConverseInteraction extends StatelessWidget {
         children: [
           Wrap(
             crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 24,
+            spacing: 12,
             runSpacing: 8,
             children: [
               Text(
@@ -208,6 +225,8 @@ class ConverseInteraction extends StatelessWidget {
                   fontWeight: FontWeight.w600,
                 ),
               ),
+              if (stageState case final state?)
+                _stageStateBadge(context, state),
               Semantics(
                 liveRegion: true,
                 child: Text(
@@ -248,6 +267,52 @@ class ConverseInteraction extends StatelessWidget {
           ),
           _controls(context),
         ],
+      ),
+    );
+  }
+
+  Widget _stageStateBadge(BuildContext context, ConverseStageState state) {
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    final active =
+        state == ConverseStageState.listening ||
+        state == ConverseStageState.recording ||
+        state == ConverseStageState.speaking;
+    final background = active
+        ? scheme.primaryContainer
+        : state == ConverseStageState.thinking
+        ? scheme.secondaryContainer
+        : scheme.surfaceContainerHigh;
+    final foreground = active
+        ? scheme.onPrimaryContainer
+        : state == ConverseStageState.thinking
+        ? scheme.onSecondaryContainer
+        : scheme.onSurfaceVariant;
+    return DecoratedBox(
+      key: const ValueKey('converse-stage-state-badge'),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: scheme.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(state.icon, size: 16, color: foreground),
+            const SizedBox(width: 6),
+            Text(
+              state.label,
+              key: const ValueKey('converse-stage-state-label'),
+              semanticsLabel: 'Stage state: ${state.label}',
+              style: textTheme.labelMedium?.copyWith(
+                color: foreground,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
