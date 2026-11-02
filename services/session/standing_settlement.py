@@ -1116,18 +1116,16 @@ class StandingSettlementOwner:
                     schema_version="1.0", disposition="retained", claim=item.claim
                 ).validate_request(request)
             else:
-                if (
-                    history.active is not None
-                    or len(history.members) >= HISTORY_LIMIT
-                    or any(
-                        item.claim.occurrence_id == occurrence_id(request)
-                        or item.claim.request.task.task_id == request.task.task_id
-                        for item in history.members.values()
-                    )
+                if history.active is not None or any(
+                    item.claim.occurrence_id == occurrence_id(request)
+                    or item.claim.request.task.task_id == request.task.task_id
+                    for item in history.members.values()
                 ):
                     raise StandingConflict
                 prepared = self._launch(history, request, deadline, cancelled)
                 self.tasks._task_available(request.task.task_id)
+                if len(history.members) >= HISTORY_LIMIT:
+                    raise StandingUnavailable
                 claim = StandingExecutionClaim(
                     schema_version="1.0",
                     request=request,
