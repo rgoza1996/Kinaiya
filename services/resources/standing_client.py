@@ -68,12 +68,14 @@ class StandingResourceClient:
             if pending:
                 raise StandingUnavailable
 
-    async def _exchange(self, suffix, original, kind, result_type, *, nullable=False):
+    async def _exchange(self, suffix, original, kind, result_type, *, nullable=False, _deadline=None):
         exchange = None
         loop = asyncio.get_running_loop()
-        deadline = loop.time() + 25
+        deadline = loop.time() + 25 if _deadline is None else _deadline
         try:
             await self._settle_ready(deadline)
+            if _deadline is not None and loop.time() >= deadline:
+                raise StandingUnavailable
             self.require_available()
             if len(self._submit_exchanges) >= 64:
                 raise StandingUnavailable
@@ -152,25 +154,32 @@ class StandingResourceClient:
     async def finalize_standing_claim(
         self, request: StandingResourceFinalizeRequest
     ) -> StandingResourceFinalizationReceipt:
-        original = _freeze_finalization_request(request)
-        return await self._exchange(
-            "finalization",
-            original,
-            StandingResourceFinalizeRequest,
-            StandingResourceFinalizationReceipt,
-        )
+        return await self._finalization("finalization", request)
 
     async def lookup_standing_finalization(
         self, request: StandingResourceFinalizeRequest
     ) -> StandingResourceFinalizationReceipt | None:
+        return await self._finalization("finalization/lookup", request, nullable=True)
+
+    async def _finalization(self, suffix, request, *, nullable=False):
+        # One public-operation budget includes complete detached input and the
+        # final fresh receipt join, not only the retained HTTP exchange.
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + 25
         original = _freeze_finalization_request(request)
-        return await self._exchange(
-            "finalization/lookup",
+        if loop.time() >= deadline:
+            raise StandingUnavailable
+        result = await self._exchange(
+            suffix,
             original,
             StandingResourceFinalizeRequest,
             StandingResourceFinalizationReceipt,
-            nullable=True,
+            nullable=nullable,
+            _deadline=deadline,
         )
+        if loop.time() >= deadline:
+            raise StandingUnavailable
+        return result
 
     async def _close_owned(self):
         # Original exchanges remain the sole response-close owners. Retiring
