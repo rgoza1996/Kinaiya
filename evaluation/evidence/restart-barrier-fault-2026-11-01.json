@@ -1,0 +1,107 @@
+{
+  "actual_cleanup": {
+    "all_original_http_clients_closed_and_submit_registries_empty": true,
+    "fault_waits_zero": true,
+    "focused_cases": 12,
+    "focused_controllers_pending_zero": 12,
+    "focused_original_after_fault_close_tasks": 4,
+    "full_negative_cleanup_cases": 12,
+    "full_original_after_fault_close_tasks": 26,
+    "full_stores_closed": 158,
+    "limits": "The12 existing intentional provider-cleanup failures correctly retain failed controller records; original generation tasks are done/cancelled. They are not reported as positive physical provider cleanup. ASGI/LocalJournal tests do not establish model/audio/device/inference-stop behavior."
+  },
+  "assertions": {
+    "all_originals_retained": true,
+    "asyncio_timeout_and_wait_for_calls": 41,
+    "current": 214,
+    "old_test_decorators_and_parameter_values": "AST identical",
+    "original": 202,
+    "scope_change": "Intentional20ms scope correction for this restart family only; other existing waits and actual controller-timeout cases retained."
+  },
+  "author_commit": "e1b7d6712615f082f77169f769d280614c590368",
+  "base": "f253c447a1374554da839178d7729ac2d89b88ec",
+  "date": "2026-11-01",
+  "file": "tests/integration/test_converse_window_recovery.py",
+  "file_sha256": "dc04b1a769d173d5c71f599aae06fccb90d184139b7c845296cef5d83a0a7e31",
+  "independent_review": {
+    "findings": [],
+    "receipt_sha256": "5ccde3ade1d3346d6a2386c9f6ec796f42e2b9296a3ac569931d9794723d3442",
+    "scope": "Source-only audit; no independent test execution claimed."
+  },
+  "issue": "https://github.com/rgoza1996/Kinaiya/issues/273",
+  "limits": [
+    "Only synthetic fixtures; no production source changes.",
+    "Original failed CI and local observations retained; no model accuracy benchmark.",
+    "Exact published-head CI required separately before merge. No paid inference, hardware/device, live configuration/service or preview action."
+  ],
+  "observed_unchanged_replay": {
+    "cause": "The fixture applied20ms to the entire native epoch transaction. First attempt timed out at intended held append. Second barrier append and delivery-stop append returned; its final ordinary session GET was then cancelled by that enclosing timer. A third barrier retry followed, with inference still once.",
+    "errors": 0,
+    "failed": 1,
+    "limits": "Directly observed local reachable cause; original CI internal timeout point was not recorded and is not asserted identical.",
+    "passed": 0,
+    "python": "3.12",
+    "receipt_sha256": "81140b1f3de0c7c7fe2c0017153b7671dabbfceb0029a2dbc07149ff4b9f81e3",
+    "second_barrier_ms": 11.235,
+    "second_epoch_ms": 20.75,
+    "second_stop_ms": 7.014,
+    "seconds": 1.2,
+    "skipped": 0,
+    "third_epoch_ms": 5.057
+  },
+  "original_ci": {
+    "assertion": "Expected two restart-barrier submissions, observed three; provider.calls1 and deltas2 assertions passed.",
+    "case": "test_playback_restart_barrier_reuses_exact_generation_after_uncertain_append[http-before_timeout]",
+    "deselected": 2,
+    "failed": 1,
+    "head": "27dec11a624fce746a3f967eac82ca50c251f875",
+    "job": 125043217862,
+    "other_jobs": "Python3.12 passed8320 plus schema/audit; Flutter,Android,iOS passed.",
+    "passed": 8319,
+    "python": "3.11",
+    "run": 41371657607,
+    "skipped": 6
+  },
+  "qualification": {
+    "author_focus": {
+      "errors": 0,
+      "failed": 0,
+      "passed": 12,
+      "seconds": 5.36,
+      "skipped": 0
+    },
+    "author_full_recovery_module": {
+      "errors": 0,
+      "failed": 0,
+      "passed": 158,
+      "seal_sha256": "095920c4ab8ef4d1ac08ec5ace6d84b33292f862ec73b4749bcb2e23e94d04b1",
+      "seconds": 71.08,
+      "skipped": 0
+    },
+    "commands": [
+      "python -m pytest -q -p no:cacheprovider -o junit_family=xunit1 -m \"not live\" tests/integration/test_converse_window_recovery.py",
+      "python -m pytest -q -p no:cacheprovider -o junit_family=xunit1 -m \"not live\" tests/integration/test_converse_window_recovery.py::test_playback_restart_barrier_reuses_exact_generation_after_uncertain_append"
+    ],
+    "environment": "Existing pinned dependencies; project CI warning policy; isolated checkout PYTHONPATH; no installs.",
+    "main_integration": {
+      "errors": 0,
+      "failed": 0,
+      "nine_runtime_test_pins_match_author": true,
+      "overlap": "These12 are a subset of the158, not additive.",
+      "passed": 12,
+      "seal_sha256": "f61f3365e60ba27455cd8485dc9ff131e2991234cdbf4a25ddabd20e49365932",
+      "seconds": 4.51,
+      "skipped": 0,
+      "unchanged_runtime_policy_pins": 8
+    },
+    "static": "Ruff check/format, compile and git diff --check passed."
+  },
+  "qualified_source_commit": "3da877d8cd60e5639e417eacef1fcb9f3ddc2ae2",
+  "repair": [
+    "Keep the same20ms injected timeout and held Event, using existing Faults.timeout_s at the deliberately blocked append. Production controller ordinary-I/O timeout remains default1s; runtime policy is unchanged.",
+    "Add0/.05s ordinary-session-read controls after actual restart and delivery-stop append acknowledgements. Preserve exact two identical barrier requests and all generation/delivery/reply/no-inference-replay assertions.",
+    "Observe the exact first request cancellation and timeout, and no leftover fault wait.",
+    "If an after-append fault acquired an original HTTP response, retain and shield/join its sole actual response.aclose task in finally, including timeout/cancellation. Propagate actual close failure."
+  ],
+  "schema_version": "1.0"
+}
