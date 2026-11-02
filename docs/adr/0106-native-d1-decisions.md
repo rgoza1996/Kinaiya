@@ -121,3 +121,11 @@ actual service/source routing, cleanup ownership and model inference. Existing
 Laya checks remain required. The dated [negative and mixed model evidence](../evidence/multimodal-2026-10-31/README.md)
 is retained. No new model, paid inference, GPU, capture, device, service or live
 configuration action is part of this implementation increment.
+
+The [dated integration evidence](../../evaluation/evidence/native-d1-text-integration-2026-11-01.json)
+records exact source/test hashes, retained failed baselines, the independently
+authored native protocol/selection and deadline checks, scoped numeric controls,
+legacy compatibility and the post-main-merge launcher/packaging run. It also
+retains the intermittent unchanged bubble-drag test failure from the first
+main-based Flutter run. Applicable exact-head CI is still required before
+merging; these offline checks do not qualify a model or native media runtime.

@@ -55,6 +55,26 @@ gap for that text role only. It is under source/static review; later PR-specific
 CI and runtime evidence remain separate. Decisions/STT/TTS editing, fallback,
 direct multimodal capture and the other full Options acceptance groups stay open.
 
+## November 1 native d1 text Decisions increment
+
+[ADR0106](adr/0106-native-d1-decisions.md) adds an explicit local native d1
+provider, exact catalog/host selection, native request captures and model pins,
+and embedded provider/Decisions editors. Its owner-entered confidence cutoff is
+a refusal policy. Saving does not load a model or establish readiness. Native
+send/read/sole-close ownership survives cancellation; a cancelled or expired
+exchange cannot become a routing result after cleanup.
+
+[Offline evidence](../evaluation/evidence/native-d1-text-integration-2026-11-01.json)
+records 160 native checks, 497 legacy/authority checks and 193 post-main-merge
+checks (including those 160), with original failures and justified new-fixture
+corrections retained. Flutter analysis, format and a local release web build
+passed. The first main-based full Flutter run had 1,016 passes and one existing
+random bubble-drag failure; unchanged exact-case/module reruns passed without
+erasing that result. Exact published-head CI remains a separate merge gate.
+Direct multimodal Decisions, native Omni speech, model quality/latency/VRAM and
+the complete local demonstration remain unqualified under [#204](https://github.com/rgoza1996/Kinaiya/issues/204).
+This increment does not change the historical cutoff or close the full roadmap.
+
 ## Milestone status
 
 The [native operating-mode prerequisite](adr/0105-agent-operating-modes.md) for
