@@ -827,8 +827,17 @@ class StandingSettlementOwner:
             ):
                 raise StandingUnavailable
         elif field == "report":
+            from packages.contracts import standing_resource_finalization as resource_codec
+
+            def fresh_resource_bytes(value):
+                # Parsed report children and the new context retain full checks.
+                try:
+                    return resource_codec._encode(value)
+                except resource_codec._FAILURES:
+                    raise ValueError(resource_codec._ERROR) from None
+
             expected = self._context(item.report.context.request, item, meta, generations, coverage)
-            if finalization_bytes(expected) != finalization_bytes(item.report.context):
+            if fresh_resource_bytes(expected) != fresh_resource_bytes(item.report.context):
                 raise StandingUnavailable
         elif field == "registration":
             value = item.registration
@@ -896,12 +905,30 @@ class StandingSettlementOwner:
         )
 
     def _settlement_joins(self, item, request):
+        from packages.contracts import standing_agent_settlement as agent_codec
+        from packages.contracts import standing_resource_finalization as resource_codec
+
+        # Both callers supply fully parsed/rebuilt new-family packet graphs.
+        # Each encoding still inspects the complete actual graph independently.
+        def fresh_agent_bytes(value):
+            try:
+                return agent_codec._encode(value)
+            except agent_codec._FAILURES:
+                raise ValueError(agent_codec._ERROR) from None
+
+        def fresh_resource_bytes(value):
+            try:
+                return resource_codec._encode(value)
+            except resource_codec._FAILURES:
+                raise ValueError(resource_codec._ERROR) from None
+
         if (
             item.registration is None
             or item.report is None
             or item.closure is None
-            or request.registration.canonical_bytes() != item.registration.canonical_bytes()
-            or finalization_bytes(request.resources.finalization) != finalization_bytes(item.report)
+            or fresh_agent_bytes(request.registration) != fresh_agent_bytes(item.registration)
+            or fresh_resource_bytes(request.resources.finalization)
+            != fresh_resource_bytes(item.report)
         ):
             raise StandingConflict
         if request.work.kind == "bound-never-admitted":
