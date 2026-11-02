@@ -224,6 +224,42 @@ def _physical_timeout_snapshot(value):
                 break
             operations.append(describe(item))
 
+    state = getattr(getattr(getattr(value, "session", None), "app", None), "state", None)
+    cached = getattr(state, "_state", None)
+    cached = cached if type(cached) is dict else {}
+    component = cached.get("standing_resource_finalization_operations")
+    details = getattr(component, "__dict__", None)
+    registry = details.get("_operations") if type(details) is dict else None
+    shared = cached.get("standing_owner_operations")
+    shared_details = getattr(shared, "__dict__", None)
+    shared_registry = shared_details.get("_operations") if type(shared_details) is dict else None
+    session_operations = {
+        "id": None if component is None else id(component),
+        "kind": "session-operations",
+        "available": type(registry) is dict,
+        "shared": None,
+        "closed": None,
+        "pending_count": None,
+        "tasks": [],
+    }
+    if type(registry) is dict:
+        session_operations.update(
+            shared=registry is shared_registry if type(shared_registry) is dict else None,
+            closed=flag(details.get("_closed")),
+            pending_count=number(len(registry)),
+            tasks=[
+                {
+                    "id": id(original),
+                    "kind": "session-operation",
+                    "task": task(original),
+                    "cancellation_requested": flag(event(cancelled))
+                    if type(cancelled) is threading.Event
+                    else None,
+                }
+                for original, cancelled in first(registry.items())
+            ],
+        )
+    collect((session_operations,), lambda item: item)
     collect(barrier.operations, scope)
     collect(
         handoff.operations,
