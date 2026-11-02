@@ -71,6 +71,7 @@ class Faults:
         self.cancelled = []
         self.timeouts = []
         self.waiting = 0
+        self.closes = []
 
     async def run(self, target, body, operation):
         if target != self.target or target is None:
@@ -80,24 +81,40 @@ class Faults:
             return await operation()
         self.remaining -= 1
         result = await operation() if self.when == "after" else None
-        self.entered.set()
-        if self.release is not None:
-            self.waiting += 1
-            try:
-                async with asyncio.timeout(self.timeout_s):
-                    try:
-                        await self.release.wait()
-                    except asyncio.CancelledError:
-                        self.cancelled.append(body)
-                        raise
-            except TimeoutError:
-                self.timeouts.append(body)
-                raise
-            finally:
-                self.waiting -= 1
         close = getattr(result, "aclose", None)
-        if callable(close):
-            await close()
+        self.entered.set()
+        try:
+            if self.release is not None:
+                self.waiting += 1
+                try:
+                    async with asyncio.timeout(self.timeout_s):
+                        try:
+                            await self.release.wait()
+                        except asyncio.CancelledError:
+                            self.cancelled.append(body)
+                            raise
+                except TimeoutError:
+                    self.timeouts.append(body)
+                    raise
+                finally:
+                    self.waiting -= 1
+        finally:
+            if callable(close):
+                # The transport acquired this actual response before injecting
+                # a lost ACK. Keep its sole close through timeout/cancellation.
+                closing = asyncio.create_task(close())
+                self.closes.append((body, result, closing))
+                interrupted = False
+                while not closing.done():
+                    try:
+                        await asyncio.shield(closing)
+                    except asyncio.CancelledError:
+                        interrupted = True
+                    except Exception:
+                        break
+                closing.result()
+                if interrupted:
+                    raise asyncio.CancelledError
         raise httpx.ReadTimeout("Synthetic native journal outage")
 
 
@@ -211,6 +228,41 @@ def preparing_timeouts(env, monkeypatch, request):
             return result
         return await original(session_id)
 
+    monkeypatch.setattr(env.journal, "session", session)
+    return observed
+
+
+@pytest.fixture(params=[0, 0.05], ids=["ordinary-io", "delayed-ordinary-io"])
+def restart_ordinary_io(env, monkeypatch, request):
+    # Observe genuine append ACKs before delaying their ordinary currentness
+    # read. The short fault timer belongs only to the deliberately held append.
+    observed = SimpleNamespace(restart=None, stop=None, entered=0, completed=0, cancelled=0)
+    original_append, original_session = env.journal.append, env.journal.session
+
+    async def append(value):
+        result = await original_append(value)
+        body = value.model_dump(mode="json")
+        target = append_target(body)
+        if target == "playback_restart_barrier":
+            observed.restart = body
+        elif target == "stop" and observed.restart is not None:
+            observed.stop = body
+        return result
+
+    async def session(session_id):
+        if observed.stop is not None and not observed.entered:
+            observed.entered += 1
+            try:
+                await asyncio.sleep(request.param)
+                result = await original_session(session_id)
+            except asyncio.CancelledError:
+                observed.cancelled += 1
+                raise
+            observed.completed += 1
+            return result
+        return await original_session(session_id)
+
+    monkeypatch.setattr(env.journal, "append", append)
     monkeypatch.setattr(env.journal, "session", session)
     return observed
 
@@ -1148,19 +1200,36 @@ async def seed_previous_generation(env):
 
 @pytest.mark.parametrize("failure", ["before_timeout", "after_timeout", "after_lost_ack"])
 async def test_playback_restart_barrier_reuses_exact_generation_after_uncertain_append(
-    env, failure
+    env, failure, restart_ordinary_io
 ):
     await seed_previous_generation(env)
     env.faults.target, env.faults.remaining = "playback_restart_barrier", 1
     env.faults.when = "before" if failure == "before_timeout" else "after"
     if failure.endswith("timeout"):
-        env.controller._journal_timeout_s = 0.02
+        env.faults.timeout_s = 0.02
         env.faults.release = asyncio.Event()
     await decision(env)
     await settle(env)
     assert env.provider.calls == 1 and env.provider.deltas == 2
     assert len(env.faults.requests) == 2
     assert env.faults.requests[0] == env.faults.requests[1]
+    assert restart_ordinary_io.restart == env.faults.requests[1]
+    assert restart_ordinary_io.stop is not None
+    assert restart_ordinary_io.entered == restart_ordinary_io.completed == 1
+    assert restart_ordinary_io.cancelled == 0
+    if failure.endswith("timeout"):
+        assert env.faults.cancelled == [env.faults.requests[0]]
+        assert env.faults.timeouts == [env.faults.requests[0]]
+    else:
+        assert env.faults.cancelled == env.faults.timeouts == []
+    assert env.faults.waiting == 0
+    assert len(env.faults.closes) == int(
+        isinstance(env.journal, JournalClient) and failure != "before_timeout"
+    )
+    for body, response, closing in env.faults.closes:
+        assert body == env.faults.requests[0]
+        assert closing.done() and not closing.cancelled() and closing.exception() is None
+        assert response.is_closed
     barriers = [
         e
         for e in env.store.read(kinds=["converse.safety"])
