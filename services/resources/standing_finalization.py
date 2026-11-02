@@ -896,6 +896,23 @@ class StandingFinalization:
             raise StandingConflict
         return retained
 
+    def _require_report_lease_scope(self, row, context):
+        if self.owner.state.record.lease_id is None:
+            return
+        # Fresh, drained coverage with no use of this claim does not authorize
+        # changing or certifying an unrelated current manual/ordinary lease.
+        if not (
+            context.observation.reservation is None
+            and row["reservation"] is None
+            and row["phase"] == "covered"
+            and row["action_key"] is None
+            and row["lease_id"] is None
+            and row["acquired"] == 0
+            and row["effects"] == 0
+            and row["restoration"] == "not-required"
+        ):
+            raise StandingUnavailable
+
     async def run(self, call, request, *, lookup):
         if type(request) is not StandingResourceFinalizeRequest:
             raise StandingUnavailable
@@ -990,8 +1007,7 @@ class StandingFinalization:
             if report is None:
                 if row["phase"] not in {"covered", "never", "complete"}:
                     raise StandingUnavailable
-                if state.lease_id is not None:
-                    raise StandingUnavailable
+                self._require_report_lease_scope(row, context)
                 if (
                     reservation is not None
                     and row["restoration"] != "not-required"
@@ -1032,6 +1048,7 @@ class StandingFinalization:
                         or self.owner.intent.read() != choice
                     ):
                         raise StandingUnavailable
+                    self._require_report_lease_scope(row, context)
                     self.gate.db.execute(
                         f"UPDATE {_TABLE} SET report=?,policy_revision=?,owner_intent_revision=? WHERE claim_id=?",
                         (_wire(report), state.revision, choice.revision, key),
@@ -1043,6 +1060,12 @@ class StandingFinalization:
                     self.effect_revisions()
                     if self.owner.state.record is not state or self.owner.intent.read() != choice:
                         raise StandingUnavailable
+                    current = self.gate.db.execute(
+                        f"SELECT * FROM {_TABLE} WHERE claim_id=?", (key,)
+                    ).fetchone()
+                    if current is None:
+                        raise StandingUnavailable
+                    self._require_report_lease_scope(current, context)
                     if row["restoration"] in {"restored", "owner-off"}:
                         self._proof_current(key, self.proofs.get(key))
 
