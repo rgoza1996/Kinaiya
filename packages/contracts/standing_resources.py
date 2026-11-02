@@ -175,6 +175,10 @@ def _context_body(query, backend_id, family, standing, ordinary):
         standing = _complete(standing, StandingInitialProof)
     if ordinary is not None:
         ordinary = _complete(ordinary, AgentTaskIdentity)
+    return _context_body_from_fields(query, backend_id, family, standing, ordinary)
+
+
+def _context_body_from_fields(query, backend_id, family, standing, ordinary):
     if family == "standing":
         if (
             standing is None
@@ -231,8 +235,11 @@ class TaskResourceContext(_Resource):
 
     @model_validator(mode="after")
     def full_identity(self):
-        if self.context_digest != task_resource_context_digest(
-            self.query, self.backend_id, self.family, self.standing, self.ordinary
+        if self.context_digest != _hash(
+            b"kinaiya.standing.resource-context.v1",
+            _context_body_from_fields(
+                self.query, self.backend_id, self.family, self.standing, self.ordinary
+            ),
         ):
             raise ValueError(_ERROR)
         return self
@@ -268,10 +275,14 @@ class StandingResourceReservation(_Resource):
         return self
 
 
+def _reservation_digest(original):
+    return _hash(b"kinaiya.standing.resource-reservation.v1", original)
+
+
 def standing_resource_digest(original: StandingResourceReservation) -> str:
     try:
         original = checked_resource(original, StandingResourceReservation)
-        return _hash(b"kinaiya.standing.resource-reservation.v1", original)
+        return _reservation_digest(original)
     except _FAILURES:
         raise ValueError(_ERROR) from None
 
@@ -289,7 +300,7 @@ class StandingResourceReservationReceipt(_Resource):
 
     @model_validator(mode="after")
     def full_digest(self):
-        if self.request_digest != standing_resource_digest(self.request):
+        if self.request_digest != _reservation_digest(self.request):
             raise ValueError(_ERROR)
         return self
 
@@ -330,6 +341,21 @@ def _observation_body(body):
     reservation = result["reservation"]
     if reservation is not None:
         reservation = _complete(reservation, StandingResourceReservation)
+    result["reservation"] = reservation
+    return _observation_body_from_fields(result)
+
+
+def _observation_body_from_fields(result):
+    sequence = result["accepted_sequence"]
+    coverage = (
+        "accepted-after-bootstrap"
+        if sequence is not None and sequence > result["coverage_sequence"]
+        else "legacy-or-unadmitted"
+    )
+    if type(result["coverage"]) is not str or result["coverage"] != coverage:
+        raise ValueError(_ERROR)
+    reservation = result["reservation"]
+    if reservation is not None:
         initial = reservation.context.standing
         if (
             initial.claim.intent_digest != result["intent_digest"]
@@ -368,7 +394,10 @@ class StandingResourceObservation(_Resource):
     @model_validator(mode="after")
     def full_observation(self):
         body = {key: value for key, value in self.__dict__.items() if key != "observation_digest"}
-        if self.observation_digest != standing_resource_observation_digest(body):
+        _actual(body)
+        if self.observation_digest != _hash(
+            b"kinaiya.standing.resource-observation.v1", _observation_body_from_fields(body)
+        ):
             raise ValueError(_ERROR)
         return self
 
