@@ -252,5 +252,95 @@
     "No paid/provider/account/model/config/dependency/live-service/preview action occurred.",
     "Raw logs/JUnit/receipts are local ignored artifacts identified by hash; this record does not claim they are published CI artifacts.",
     "Applicable exact integrated-head CI must pass before merge; this record does not qualify a future changed tree."
-  ]
+  ],
+  "post_main_integration": {
+    "main_source": "e537923e16135126b670d1d3b492458783954e85",
+    "prerequisite_merge": "3d1aae06c1723f4f7be72ce067de520b4f69d01a",
+    "fixture_commit": "bd9c612d436120cbf9cfdc7a09a2c16ed7a6a5f9",
+    "combined_test_head": "52c1792e4d3df59e4703066e78afc6c8295c433b",
+    "physical_and_metadata_files_still_match_source_sha256_above": true,
+    "combined_before_fixture": {
+      "source_head": "1b1a2fb9a8c16f321bd23c39a558f5d497491a5f",
+      "receipt_local": ".dev-run/239-main-combined-ownership-hot-v1-j1fxo26y/receipt.json",
+      "receipt_sha256": "03048b3a9e825009d678096d4bd720dee23d729450deafad98cc91fed8a821f4",
+      "tracked_inputs": 1493,
+      "pins_preserved": true,
+      "outcomes": {
+        "tests": 1309,
+        "failures": 1,
+        "errors": 0,
+        "skipped": 0
+      },
+      "pytest_wall_s": 139.305
+    },
+    "combined_contracts_after_fixture": {
+      "source_head": "52c1792e4d3df59e4703066e78afc6c8295c433b",
+      "receipt_local": ".dev-run/239-main-schema-reconciled-contracts-hot-v1-81cgyuxm/receipt.json",
+      "receipt_sha256": "7b00e22acc595e11e7f954d9b765a00c02eff674b5864cf5e83ca8d6813a2fb5",
+      "tracked_inputs": 1493,
+      "pins_preserved": true,
+      "outcomes": {
+        "tests": 1291,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "pytest_wall_s": 38.92
+    },
+    "combined_static": {
+      "source_head": "52c1792e4d3df59e4703066e78afc6c8295c433b",
+      "receipt_local": ".dev-run/239-main-combined-static-v1/receipt.json",
+      "receipt_sha256": "a26734bc6238a1a989254c4063b2171e9266be9a6c3564fffd7f3b8ce0411556",
+      "tracked_inputs": 1493,
+      "pins_preserved": true,
+      "commands": [
+        {
+          "command": [
+            "check",
+            "."
+          ],
+          "exit_code": 0,
+          "output": "All checks passed!\n"
+        },
+        {
+          "command": [
+            "format",
+            "--check",
+            "."
+          ],
+          "exit_code": 0,
+          "output": "774 files already formatted\n"
+        },
+        {
+          "command": [
+            "-B",
+            "scripts/export_contracts.py"
+          ],
+          "exit_code": 0,
+          "output": ""
+        },
+        {
+          "command": [
+            "diff",
+            "--exit-code",
+            "--",
+            "packages/contracts/schemas"
+          ],
+          "exit_code": 0,
+          "output": ""
+        },
+        {
+          "command": [
+            "diff",
+            "--check"
+          ],
+          "exit_code": 0,
+          "output": ""
+        }
+      ]
+    },
+    "schema_fixture": "The only combined-run failure was the old184 schema pin. Pin both complete approved-main Decisions schema files, remove only three exact counted added enum lines, then retain the unchanged original184 aggregate. Every old test function and codec/depth assertion is unchanged. No source/schema/cap/deadline or file exclusion change.",
+    "physical_scope": "The18 combined physical/bootstrap checks passed before this test-only fixture correction; the full99 belongs to the earlier stated40c source. No fresh full99 claim is made for the combined tree.",
+    "ci": "PR259 prerequisite exact-head CI430 runs atbd9c612. Its result is separate and does not qualify the physical producer; producer exact-head CI remains pending."
+  }
 }

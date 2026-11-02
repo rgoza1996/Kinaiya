@@ -1,8 +1,9 @@
 # ADR0107: Retained physical Resources finalization
 
 Status: in-process implementation qualified in the offline harness at
-`40c239e8721340a8764a54d2b1997fdca983dd16`; main integration and exact-head CI
-remain pending for #239 / #228. This increment provides an in-process producer;
+`40c239e8721340a8764a54d2b1997fdca983dd16`, followed by scoped combined-main
+checks at `52c1792e4d3df59e4703066e78afc6c8295c433b`; exact-head CI remains
+pending for #239 / #228. This increment provides an in-process producer;
 Agent-triggered finalization, claim-wide Agent
 retirement, native settlement, recurrence and inbox delivery remain separate.
 It does not establish M7, a live model stack or demo readiness.
@@ -107,3 +108,13 @@ failed-Off race first reproduced false-positive publication, then passed with
 durable failed-witness preservation. Passing cleanup-negative cases preserves
 uncertainty rather than proving healthy retirement. PR259's failed worker-start
 CI remains unresolved and is not cleared by these local checks.
+
+The main reconciliation preserves all eight producer/metadata source files.
+Its 18 selected physical/bootstrap checks passed; one old schema-pin fixture
+failed because approved main PR271 deliberately evolved two Decisions schemas.
+The correction pins those complete new files and reconstructs only the three
+approved added enum lines before requiring the unchanged old 184-file hash.
+All original codec/depth assertions remain. The combined branch then passed
+all 1,291 contract/client checks and whole static/schema checks. The record
+keeps the original mismatch and source boundaries; this does not claim a new
+full 99-case run on the combined tree or a completed CI gate.
