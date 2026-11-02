@@ -154,6 +154,7 @@ class _Capture:
 
     def begin_effects(self):
         self.guard()
+        self.gate.owner.standing_finalization.permit(self)
         if self.context is None or (
             self.context.family == "standing"
             and (
@@ -501,13 +502,17 @@ class StandingHandoff:
                 if capture.receipt.disposition != "created":
                     raise StandingUnavailable
             capture.guard()
+            await self.owner.standing_finalization.begin_capture(capture)
+            capture.guard()
             result = await invoke(capture.payload, capture=capture)
+            capture.witness_complete = True
             if capture.effects_started and (
                 type(result) is not dict or result.get("ok") is not True
             ):
                 capture.ownership.fail()
             return result
         except _CaptureSuppressed:
+            capture.witness_complete = not capture.effects_started
             # This guard adds no physical claim and clears no child failure.
             # Actual operation handles must still positively retire at source.
             raise
@@ -516,6 +521,9 @@ class StandingHandoff:
                 capture.ownership.fail()
             raise
         except asyncio.CancelledError:
+            capture.witness_complete = (
+                not capture.effects_started and capture.suppression is not None
+            )
             if capture.effects_started:
                 capture.ownership.fail()
             raise

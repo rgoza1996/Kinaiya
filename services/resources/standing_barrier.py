@@ -348,6 +348,7 @@ class StandingBarrier:
                     _wire(binding),
                 ),
             )
+            self.owner.standing_finalization.cover(binding)
 
     def _record(self, call, binding, receipt):
         call.guard()
@@ -419,6 +420,7 @@ class StandingBarrier:
                     raise StandingUnavailable
                 if not lookup:
                     self.owner.require_standing_ownership()
+                    await self.owner.standing_finalization.coverage(binding)
                 return receipt.validate_claim(claim)
             # Only the original controller may reconcile an uncertain bind.
             if binding.resource_instance != call.instance or not lookup:
@@ -562,6 +564,10 @@ class StandingBarrier:
             try:
                 if name in {"bind", "binding_lookup"}:
                     return await self._binding(call, original, lookup=name == "binding_lookup")
+                if name in {"finalize", "finalization_lookup"}:
+                    return await self.owner.standing_finalization.run(
+                        call, original, lookup=name == "finalization_lookup"
+                    )
                 return await self._seal(call, original, lookup=name == "seal_lookup")
             finally:
                 self.busy.discard(key)
