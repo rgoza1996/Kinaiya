@@ -171,6 +171,10 @@ def build_release(
             if path.is_dir():
                 continue
             name = validate_archive_name(path.relative_to(web_dir).as_posix())
+            # Flutter's build system writes a local cache marker into outputDir.
+            # It is neither a served asset nor deterministic release input.
+            if name == ".last_build_id":
+                continue
             if any(p.startswith(".") for p in name.split("/")):
                 raise ReleaseError("Hidden web build file is not permitted")
             if path.stat().st_size > MAX_FILE_BYTES or len(web_files) >= MAX_FILES:
