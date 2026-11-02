@@ -12,6 +12,7 @@ import '../character/pack.dart';
 import '../character/playback.dart';
 import '../presentation/controller.dart';
 import '../state/app_state.dart';
+import '../state/converse_handoff.dart';
 import 'book_sheet.dart';
 import 'converse_memory.dart';
 import 'converse_design.dart';
@@ -856,12 +857,22 @@ class _CharacterViewState extends State<CharacterView> {
             if (e.kind == 'conversation.user') {
               _s.appendHistory(
                 AppView.character,
-                ChatMsg(role: 'user', text: e.text),
+                ChatMsg(
+                  role: 'user',
+                  text: e.text,
+                  eventId: e.eventId,
+                  windowRevision: (e.payload['revision'] as num?)?.toInt() ?? 1,
+                ),
+              );
+              _s.acceptedConverseSource(
+                seedSession,
+                e.eventId,
+                _s.converseHistory.length - 1,
               );
             } else if (e.kind == 'conversation.converse') {
               _s.appendHistory(
                 AppView.character,
-                ChatMsg(role: 'kinaiya', text: e.text),
+                ChatMsg(role: 'kinaiya', text: e.text, eventId: e.eventId),
               );
             }
             if (e.sequence > _s.converseCursor) _s.converseCursor = e.sequence;
@@ -2082,17 +2093,74 @@ class _CharacterViewState extends State<CharacterView> {
     );
   }
 
-  Widget _transcript() => ListView(
-    padding: const EdgeInsets.symmetric(vertical: 12),
-    children: [
-      for (final m in _s.converseHistory)
-        MessageBubble(role: m.role, text: m.text, note: m.note),
-      if (_s.busyConverse && !_speaking)
-        const Padding(
-          padding: EdgeInsets.all(12),
-          child: Center(child: CircularProgressIndicator()),
-        ),
-    ],
+  Widget _transcript() => ListenableBuilder(
+    listenable: _s,
+    builder: (context, _) {
+      final attachedSources = <String>{
+        for (final m in _s.converseHistory)
+          if (m.role == 'user')
+            if (_s.handoffForMessage(m) case final notice?)
+              notice.sourceEventId,
+      };
+      return ListView(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        children: [
+          for (var i = 0; i < _s.converseHistory.length; i++)
+            switch (_s.converseHistory[i]) {
+              final m
+                  when m.role == 'system' &&
+                      m.note == 'Agent handoff' &&
+                      m.eventId != null &&
+                      m.eventId!.startsWith('handoff:') =>
+                attachedSources.contains(
+                      m.eventId!.substring('handoff:'.length),
+                    )
+                    ? const SizedBox.shrink()
+                    : switch (_s.handoffNotice(
+                        m.eventId!.substring('handoff:'.length),
+                      )) {
+                        final notice? => ConverseHandoffStatusBanner(
+                          key: ValueKey(
+                            'converse-handoff-${notice.sourceEventId}',
+                          ),
+                          notice: notice,
+                          attachedToMessage: false,
+                        ),
+                        null => MessageBubble(
+                          role: m.role,
+                          text: m.text,
+                          note: m.note,
+                        ),
+                      },
+              final m when m.role == 'user' => Column(
+                key: ValueKey(
+                  'converse-user-turn-${m.eventId ?? m.utteranceId ?? i}',
+                ),
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  MessageBubble(role: m.role, text: m.text, note: m.note),
+                  if (_s.handoffForMessage(m) case final notice?)
+                    ConverseHandoffStatusBanner(
+                      key: ValueKey('converse-handoff-${notice.sourceEventId}'),
+                      notice: notice,
+                    ),
+                ],
+              ),
+              final m => MessageBubble(
+                role: m.role,
+                text: m.text,
+                note: m.note,
+              ),
+            },
+          if (_s.busyConverse && !_speaking)
+            const Padding(
+              padding: EdgeInsets.all(12),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+        ],
+      );
+    },
   );
 
   /// Explicit, accessible entry to the complete transcript. The inline
@@ -3028,4 +3096,105 @@ class _CharacterViewState extends State<CharacterView> {
       },
     ),
   );
+}
+
+class ConverseHandoffStatusBanner extends StatelessWidget {
+  const ConverseHandoffStatusBanner({
+    super.key,
+    required this.notice,
+    this.attachedToMessage = true,
+  });
+
+  final HandoffNotice notice;
+  final bool attachedToMessage;
+
+  IconData get _icon => switch (notice.status) {
+    HandoffStatus.queued => Icons.schedule_rounded,
+    HandoffStatus.accepted => Icons.task_alt_rounded,
+    HandoffStatus.applied => Icons.published_with_changes_rounded,
+    HandoffStatus.rejected => Icons.block_rounded,
+    HandoffStatus.notApplied => Icons.do_not_disturb_on_outlined,
+    HandoffStatus.unknown => Icons.help_outline_rounded,
+    HandoffStatus.unavailable => Icons.cloud_off_rounded,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final (Color bg, Color fg, Color border) = switch (notice.status) {
+      HandoffStatus.accepted || HandoffStatus.applied => (
+        scheme.primaryContainer,
+        scheme.onPrimaryContainer,
+        scheme.primary,
+      ),
+      HandoffStatus.queued => (
+        scheme.secondaryContainer,
+        scheme.onSecondaryContainer,
+        scheme.secondary,
+      ),
+      HandoffStatus.rejected => (
+        scheme.errorContainer,
+        scheme.onErrorContainer,
+        scheme.error,
+      ),
+      HandoffStatus.notApplied ||
+      HandoffStatus.unknown ||
+      HandoffStatus.unavailable => (
+        scheme.surfaceContainerHighest,
+        scheme.onSurface,
+        scheme.outline,
+      ),
+    };
+    return Semantics(
+      container: true,
+      liveRegion: true,
+      label: notice.semanticSummary,
+      child: Align(
+        alignment: attachedToMessage
+            ? Alignment.centerRight
+            : Alignment.centerLeft,
+        child: Container(
+          margin: attachedToMessage
+              ? const EdgeInsets.fromLTRB(24, 2, 8, 6)
+              : const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: border),
+          ),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(_icon, size: 16, color: fg),
+                  const SizedBox(width: 4),
+                  Text(
+                    notice.statusLabel,
+                    key: ValueKey(
+                      'converse-handoff-status-${notice.sourceEventId}',
+                    ),
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: fg,
+                    ),
+                  ),
+                ],
+              ),
+              Text(
+                notice.text,
+                key: ValueKey('converse-handoff-text-${notice.sourceEventId}'),
+                style: TextStyle(fontSize: 12, color: fg, height: 1.35),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

@@ -882,6 +882,25 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  HandoffNotice? handoffForMessage(ChatMsg message) {
+    final session = converseSession;
+    if (session == null) return null;
+    return _handoffs.noticeForTurn(
+      current: session,
+      role: message.role,
+      eventId: message.eventId,
+      utteranceId: message.utteranceId,
+      windowIndex: message.windowIndex,
+      windowRevision: message.windowRevision,
+      text: message.text,
+    );
+  }
+
+  HandoffNotice? handoffNotice(String sourceEventId) {
+    final session = converseSession;
+    return _handoffs.noticeForSource(sourceEventId, session);
+  }
+
   void _applyHandoff(HandoffNotice notice) {
     final id = 'handoff:${notice.sourceEventId}';
     final index = converseHistory.indexWhere(
@@ -900,8 +919,71 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  void _pruneInvalidatedHandoffs(SessionInfo session) {
+    converseHistory.removeWhere((message) {
+      final id = message.eventId;
+      if (message.role != 'system' ||
+          message.note != 'Agent handoff' ||
+          id == null ||
+          !id.startsWith('handoff:')) {
+        return false;
+      }
+      final sourceId = id.substring('handoff:'.length);
+      return _handoffs.noticeForSource(sourceId, session) == null;
+    });
+  }
+
   void _observeHandoff(JournalEntry entry, SessionInfo session) {
     final notice = _handoffs.observe(entry, session);
+    if (entry.kind == 'conversation.user' &&
+        entry.origin == 'authenticated-user') {
+      final rev = (entry.payload['revision'] as num?)?.toInt() ?? 1;
+      final index = converseHistory.indexWhere(
+        (m) => m.role == 'user' && m.eventId == entry.eventId,
+      );
+      if (index >= 0 && rev > converseHistory[index].windowRevision) {
+        final old = converseHistory[index];
+        converseHistory[index] = ChatMsg(
+          role: old.role,
+          text: entry.text.isNotEmpty ? entry.text : old.text,
+          eventId: old.eventId,
+          note: old.note,
+          grounded: old.grounded,
+          utteranceId: old.utteranceId,
+          windowIndex: old.windowIndex,
+          windowRevision: rev,
+        );
+      }
+      _pruneInvalidatedHandoffs(session);
+    } else if (entry.kind == 'conversation.revision' &&
+        const {'authenticated-user', 'converse'}.contains(entry.origin)) {
+      final targetId = entry.payload['target_event_id'];
+      final rev = entry.payload['revision'];
+      if (targetId is String && rev is int) {
+        final index = converseHistory.indexWhere(
+          (m) => m.role == 'user' && m.eventId == targetId,
+        );
+        if (index >= 0 && rev >= converseHistory[index].windowRevision) {
+          final old = converseHistory[index];
+          final updatedText = entry.payload['text'];
+          converseHistory[index] = ChatMsg(
+            role: old.role,
+            text: updatedText is String && updatedText.isNotEmpty
+                ? updatedText
+                : old.text,
+            eventId: old.eventId,
+            note: old.note,
+            grounded: old.grounded,
+            utteranceId: old.utteranceId,
+            windowIndex: old.windowIndex,
+            windowRevision: rev,
+          );
+        }
+      }
+      _pruneInvalidatedHandoffs(session);
+    } else if (entry.kind == 'conversation.window') {
+      _pruneInvalidatedHandoffs(session);
+    }
     if (notice != null) _applyHandoff(notice);
     for (final recovered in _handoffs.drainPending(session)) {
       _applyHandoff(recovered);
