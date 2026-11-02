@@ -74,6 +74,7 @@ class CharacterView extends StatefulWidget {
     this.voiceOnlyControls = false,
     this.surface = CharacterSurface.legacy,
     this.onModelSettings,
+    this.onConnectionSetup,
     this.showConverseView = true,
     this.setupOpen = false,
     this.animateTransitions = true,
@@ -93,6 +94,7 @@ class CharacterView extends StatefulWidget {
   final bool voiceOnlyControls;
   final CharacterSurface surface;
   final VoidCallback? onModelSettings;
+  final VoidCallback? onConnectionSetup;
   final bool showConverseView, setupOpen, animateTransitions, speechMouthMotion;
   final bool richArtifactsEnabled;
   final ValueChanged<bool>? onRichArtifactsEnabled;
@@ -1787,11 +1789,17 @@ class _CharacterViewState extends State<CharacterView> {
     }
     return Semantics(
       button: true,
-      label: widget.onModelSettings == null
+      label: widget.onModelSettings == null && widget.onConnectionSetup == null
           ? 'Open Agent Chat'
           : 'Open Kinaiya setup',
       child: InkWell(
-        onTap: widget.onModelSettings ?? _openAgent,
+        onTap:
+            (widget.surface == CharacterSurface.home && !_s.connected
+                ? widget.onConnectionSetup
+                : null) ??
+            widget.onModelSettings ??
+            widget.onConnectionSetup ??
+            _openAgent,
         borderRadius: BorderRadius.circular(24),
         child: pack == null
             ? SizedBox(width: size, height: size)
@@ -2603,6 +2611,14 @@ class _CharacterViewState extends State<CharacterView> {
     );
   }
 
+  String get _homeSetupLabel => !_s.connected ? 'Connect / Setup' : 'Setup';
+
+  VoidCallback get _homeSetupAction =>
+      (!_s.connected ? widget.onConnectionSetup : null) ??
+      widget.onModelSettings ??
+      widget.onConnectionSetup ??
+      _openVoiceOptions;
+
   Widget _homeSurface(CharacterPack? pack, Widget banner) => MoonlitHome(
     character: LayoutBuilder(
       builder: (_, bounds) => _mascot(pack, bounds.maxWidth),
@@ -2642,7 +2658,8 @@ class _CharacterViewState extends State<CharacterView> {
         : _micReady
         ? 'Start Live listen (armed mic)'
         : 'Microphone unavailable here',
-    onSetup: widget.onModelSettings ?? _openVoiceOptions,
+    setupLabel: _homeSetupLabel,
+    onSetup: _homeSetupAction,
     agentStatus: !_s.agentOnline
         ? 'Not connected'
         : !_s.sessionAuthenticated || _s.tasksStatusStale
@@ -2813,22 +2830,46 @@ class _CharacterViewState extends State<CharacterView> {
                           spacing: 12,
                           runSpacing: 12,
                           children: [
-                            FilledButton.icon(
-                              key: const ValueKey('call-kinaiya'),
-                              onPressed: _callAction,
-                              icon: const Icon(Icons.mic_none),
-                              label: Text(
-                                _armed || _micStopUnconfirmed || _micStopPending
-                                    ? _callLabel
-                                    : 'Talk with Kinaiya',
+                            if (_callAction != null) ...[
+                              FilledButton.icon(
+                                key: const ValueKey('call-kinaiya'),
+                                onPressed: _callAction,
+                                icon: Icon(
+                                  _armed || _micStopUnconfirmed
+                                      ? Icons.call_end_rounded
+                                      : Icons.mic_none,
+                                ),
+                                label: Text(
+                                  _armed ||
+                                          _micStopUnconfirmed ||
+                                          _micStopPending
+                                      ? _callLabel
+                                      : 'Talk with Kinaiya',
+                                ),
                               ),
-                            ),
-                            OutlinedButton(
-                              key: const ValueKey('home-setup'),
-                              onPressed:
-                                  widget.onModelSettings ?? _openVoiceOptions,
-                              child: const Text('Setup'),
-                            ),
+                              OutlinedButton(
+                                key: const ValueKey('home-setup'),
+                                onPressed: _homeSetupAction,
+                                child: Text(_homeSetupLabel),
+                              ),
+                            ] else ...[
+                              FilledButton.icon(
+                                key: const ValueKey('home-setup'),
+                                onPressed: _homeSetupAction,
+                                icon: const Icon(Icons.tune_rounded),
+                                label: Text(_homeSetupLabel),
+                              ),
+                              OutlinedButton.icon(
+                                key: const ValueKey('call-kinaiya'),
+                                onPressed: null,
+                                icon: const Icon(Icons.mic_none),
+                                label: Text(
+                                  _micStopPending
+                                      ? _callLabel
+                                      : 'Talk with Kinaiya',
+                                ),
+                              ),
+                            ],
                             _ownerSleepControl(),
                           ],
                         ),
