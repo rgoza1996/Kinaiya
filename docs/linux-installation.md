@@ -16,6 +16,14 @@ error, never permission to install `main`, an alpha, or nightly. See
 - The actual bubblewrap namespace probe must succeed. A container/VPS kernel may
   deny it even with bubblewrap installed. Fix the host policy with the host
   administrator, or use a supported host; **never disable isolation** to install.
+- **Ubuntu 24.04** enables `kernel.apparmor_restrict_unprivileged_userns=1` by
+  default, which denies the probe. Do not set that sysctl to `0` globally; have an
+  administrator review and load the bwrap-only profile in
+  [`docs/examples/apparmor-bwrap`](examples/apparmor-bwrap)
+  (`sudo install -m 0644 docs/examples/apparmor-bwrap /etc/apparmor.d/kinaiya-bwrap`
+  then `sudo apparmor_parser -r /etc/apparmor.d/kinaiya-bwrap`). It permits only
+  `/usr/bin/bwrap` to create user namespaces; the restriction stays on for every
+  other program.
 - Windows, macOS, WSL, other distros, Python 3.14, GPUs and optional voice/model
   backends are not qualified by this installer.
 
