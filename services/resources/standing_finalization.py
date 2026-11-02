@@ -720,8 +720,11 @@ class StandingFinalization:
             scope.physical_lifecycle = True
             life = _Lifecycle(key, scope)
             self.lifecycles[key] = life
-            self.owner.manager.retain_operations(scope)
         scope = life.scope
+        root = object()
+        # Cover initialization before enrollment can add a completing child.
+        # This also roots a reused scope across the next pending SQL await.
+        scope.hold(root)
         scope.require_wire_revision = (
             getattr(scope, "require_wire_revision", False)
             or getattr(parent, "physical_finalize", False)
@@ -737,15 +740,21 @@ class StandingFinalization:
             )
 
         try:
+            if parent is not None and parent is not scope:
+                parent.hold(scope)
+                scope.on_retire(lambda: parent.release(scope, failed=scope.failed))
+            self.owner.manager.retain_operations(scope)
             await self.gate._database(lambda: self._change(key, pending))
         except Exception:
             self.failed = True
-            return await invoke()
-        root = object()
-        scope.hold(root)
-        if parent is not None and parent is not scope:
-            parent.hold(scope)
-            scope.on_retire(lambda: parent.release(scope, failed=scope.failed))
+            try:
+                with actual_owner(scope):
+                    return await invoke()
+            finally:
+                self._release_initial(scope, root, key)
+        except BaseException:
+            self._release_initial(scope, root, key)
+            raise
 
         async def work():
             with actual_owner(scope):
@@ -773,8 +782,12 @@ class StandingFinalization:
                     scope.fail()
                 return result
 
-        task = asyncio.create_task(work())
-        scope.retain_task(task, cleanup=True)
+        try:
+            task = asyncio.create_task(work())
+            scope.retain_task(task, cleanup=True)
+        except BaseException:
+            self._release_initial(scope, root, key)
+            raise
         scope.release(root)
         if life.observer is None or life.observer.done():
             life.observer = self._observe(self._lifecycle_settled(life), key)
@@ -789,6 +802,14 @@ class StandingFinalization:
                 if task.done():
                     raise
                 interrupted = True
+
+    def _release_initial(self, scope, root, key):
+        self.failed = True
+        scope.fail()
+        # Keep initialization's original children through shutdown even when
+        # no physical lifecycle task could be created. Only this root is freed.
+        self._observe(scope.join(), key)
+        scope.release(root)
 
     async def _lifecycle_settled(self, life):
         await life.scope.join()
