@@ -18,6 +18,7 @@ from test_standing_physical_finalization import (
     gate_entered,
     handoff,
 )
+from test_standing_physical_finalization import factory as factory
 from test_standing_physical_finalization import physical as physical
 
 from packages.resources.processes import REAP_GRACE_S, SPAWN_SETTLE_S
