@@ -210,6 +210,17 @@ class StandingBarrier:
             self._checked_row(row)
 
     def _checked_row(self, row):
+        from packages.contracts.standing_resource_finalization import _ERROR, _FAILURES, _encode
+
+        def fresh_wire(value):
+            # Only freshly parsed/checked locals and their exact children are
+            # encoded here. Each encoding still checks the whole actual graph.
+            try:
+                raw = _encode(value)
+            except _FAILURES:
+                raise ValueError(_ERROR) from None
+            return raw.decode("utf-8")
+
         if any(
             type(row[name]) is not str
             for name in (
@@ -234,9 +245,9 @@ class StandingBarrier:
         )
         binding = StandingResourceBindingRequest.from_json(row["binding"].encode())
         if (
-            _wire(claim) != row["claim"]
-            or _wire(binding) != row["binding"]
-            or _wire(binding.claim) != row["claim"]
+            fresh_wire(claim) != row["claim"]
+            or fresh_wire(binding) != row["binding"]
+            or fresh_wire(binding.claim) != row["claim"]
             or claim.claim_id != row["claim_id"]
             or claim.request.task.task_id != row["task_id"]
             or claim.request.expected_backend != row["session_backend"]
@@ -248,24 +259,30 @@ class StandingBarrier:
             raise StandingUnavailable
         receipt = seal = context = None
         if row["receipt"] is not None:
-            receipt = StandingResourceBindingReceipt.from_json(
-                row["receipt"].encode()
-            ).validate_request(binding)
-            if _wire(receipt) != row["receipt"]:
+            receipt = StandingResourceBindingReceipt.from_json(row["receipt"].encode())
+            if fresh_wire(receipt.request) != fresh_wire(binding):
+                raise ValueError(_ERROR) from None
+            if fresh_wire(receipt) != row["receipt"]:
                 raise StandingUnavailable
         if row["seal"] is not None:
             seal = StandingResourceFinalizeRequest.from_json(row["seal"].encode())
-            self._join_request(binding, seal)
-            if _wire(seal) != row["seal"]:
+            if (
+                fresh_wire(binding.claim.request) != fresh_wire(seal.original)
+                or seal.expected_resource_backend != binding.resource_backend
+                or seal.expected_resource_instance != binding.resource_instance
+            ):
+                raise StandingConflict
+            if fresh_wire(seal) != row["seal"]:
                 raise StandingUnavailable
         if row["context"] is not None:
             if seal is None:
                 raise StandingUnavailable
-            context = StandingResourceFinalizeContext.from_json(
-                row["context"].encode()
-            ).validate_request(seal)
-            self._join_context(binding, context)
-            if _wire(context) != row["context"]:
+            context = StandingResourceFinalizeContext.from_json(row["context"].encode())
+            if fresh_wire(context.request) != fresh_wire(seal):
+                raise ValueError(_ERROR) from None
+            if fresh_wire(context.binding) != fresh_wire(binding):
+                raise StandingUnavailable
+            if fresh_wire(context) != row["context"]:
                 raise StandingUnavailable
         if (
             (row["phase"] == "pending") != (receipt is None)
