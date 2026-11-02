@@ -123,10 +123,13 @@ class ConverseInteraction extends StatelessWidget {
                             wide: wide,
                             transcriptHeight: transcriptHeight,
                           ),
-                          const SizedBox(height: 22),
+                          const SizedBox(height: 12),
                           DesignPanel(
                             key: const ValueKey('converse-model-summary'),
-                            padding: EdgeInsets.all(wide ? 24 : 16),
+                            padding: EdgeInsets.symmetric(
+                              horizontal: wide ? 16 : 12,
+                              vertical: 10,
+                            ),
                             child: modelSummary,
                           ),
                         ],

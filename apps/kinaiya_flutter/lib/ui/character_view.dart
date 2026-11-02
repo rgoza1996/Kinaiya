@@ -2818,7 +2818,11 @@ class _CharacterViewState extends State<CharacterView> {
                 character: character,
                 transcript: transcript,
                 composer: composer,
-                modelSummary: ConverseModelSummary(state: _s),
+                modelSummary: ConverseModelSummary(
+                  state: _s,
+                  onModelSettings: widget.onModelSettings ?? _openVoiceOptions,
+                  onConnectionSetup: widget.onConnectionSetup,
+                ),
                 status: _status,
                 stageState: _converseStageState,
                 callLabel: _armed || _micStopPending || _micStopUnconfirmed
