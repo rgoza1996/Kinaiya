@@ -36,9 +36,10 @@ Penpot file. SHA256:
 It contains Kinaiya asleep on the water and the decorative scene, with no baked
 controls. It was generated in the owner's separate Penpot setup chat; this
 implementation reuses that supplied asset without another image generation.
-The sleeping illustration is a static state reference. It is shown only for a
-confirmed owner-off Converse state; an outage or resource handoff is not evidence
-that the owner put Converse to sleep.
+The refreshed v2 artwork remains a static design reference. Home uses separate
+animated sleeping sprites over the existing responsive moonlit background for
+confirmed owner-off or unavailable Converse, independent of Agent. The visual
+does not assert owner intent; a resource handoff alone does not imply sleep.
 
 `kinaiya-options-gear-v1.png` is the approved Options overview illustration from
 this owner's design session: Kinaiya reclining before the full moon, cradling a
@@ -49,3 +50,11 @@ The app honors Show character and uses an imported pack's fallback mascot when
 a custom character is selected.
 
 Options illustration SHA256: `db007a16d63b8d9b5fd7fe177ef380c012f65d593c3ddfb71a76946f0ea4d50a`.
+
+The owner’s refreshed Penpot assets `kinaiya-expression-reference-v2.png`
+(SHA256 `594d8d8675517d0d66467ea20e289f6903d2f7d301af188d1586c066691658de`)
+and `kinaiya-sleeping-home-v2.png` (SHA256
+`ec2cd865ea3434a53868b0abad767c5de1dd9064f94ca6c0edb35104f5f9a673`)
+were generated with the built-in image tool in the Penpot design session and
+copied unchanged. They remove the hair ornaments and add moonlight highlights;
+the expression atlas also includes the small chest mole.

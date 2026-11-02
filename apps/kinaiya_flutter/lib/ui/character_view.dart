@@ -2608,6 +2608,13 @@ class _CharacterViewState extends State<CharacterView> {
       builder: (_, bounds) => _mascot(pack, bounds.maxWidth),
     ),
     sleeping: _homeSleeping,
+    animateCharacter: widget.animateTransitions,
+    // This is a visual availability cue, not a claim about owner intent.
+    offlineResting:
+        !_s.converseOnline &&
+        !_micStopPending &&
+        !_micStopUnconfirmed &&
+        !_speaking,
     ownerControl: _ownerSleepControl(),
     status: _homeSleeping
         ? 'Offline · Sleeping'
@@ -2617,6 +2624,8 @@ class _CharacterViewState extends State<CharacterView> {
               : 'Putting Kinaiya to sleep…')
         : !_s.connected
         ? 'Connect to talk with Kinaiya'
+        : !_s.converseOnline
+        ? 'Converse unavailable'
         : _armed || _recording
         ? _status
         : _s.busyConverse || _speaking
