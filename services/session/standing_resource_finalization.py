@@ -474,7 +474,7 @@ class StandingResourceFinalizationOwner:
     def _receipt(report, disposition):
         return StandingResourceFinalizationReceipt(
             schema_version="1.0", disposition=disposition, finalization=report
-        ).validate_request(report.context.request)
+        )
 
     @_native
     def report(
@@ -486,11 +486,8 @@ class StandingResourceFinalizationOwner:
         created = False
 
         def final():
-            state, binding, retained = self._observation()
+            state, _, retained = self._observation()
             if retained is None or finalization_bytes(retained) != finalization_bytes(original):
-                raise StandingUnavailable
-            expected = self._context(original.context.request, binding, state)
-            if finalization_bytes(expected) != finalization_bytes(original.context):
                 raise StandingUnavailable
             self._guard(deadline, cancelled)
             if created:
