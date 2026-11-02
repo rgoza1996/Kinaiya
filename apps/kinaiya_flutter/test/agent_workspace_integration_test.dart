@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:kinaiya_flutter/api/client.dart';
 import 'package:kinaiya_flutter/config/connection.dart';
+import 'package:kinaiya_flutter/config/options_navigation.dart';
 import 'package:kinaiya_flutter/api/models.dart';
 import 'package:kinaiya_flutter/api/agent_workspace.dart';
 import 'package:kinaiya_flutter/state/app_state.dart';
@@ -143,14 +144,16 @@ class TransportWorkspaceUiApi extends WorkspaceUiApi {
   }
 }
 
-Widget host(AppState state) => MaterialApp(
-  home: Scaffold(
-    body: ListenableBuilder(
-      listenable: state,
-      builder: (_, _) => AgentChat(state: state),
-    ),
-  ),
-);
+Widget host(AppState state, {ValueChanged<OptionsPage>? onOpenOptions}) =>
+    MaterialApp(
+      home: Scaffold(
+        body: ListenableBuilder(
+          listenable: state,
+          builder: (_, _) =>
+              AgentChat(state: state, onOpenOptions: onOpenOptions),
+        ),
+      ),
+    );
 Future<void> settle(WidgetTester tester) async {
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 100));
@@ -456,6 +459,229 @@ void main() {
       expect(state.agentDraft, 'Draft B');
       expect(state.agentHistory, isEmpty);
       expect(state.agentSession!.sessionId, 'b');
+      expect(tester.takeException(), isNull);
+      await close(tester, state);
+    },
+  );
+  testWidgets(
+    'actionable empty state guides disconnected, no-harness, no-session, and ready workspaces across narrow and desktop',
+    (tester) async {
+      for (final size in [const Size(360, 800), const Size(1600, 1000)]) {
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = size;
+        addTearDown(tester.view.resetDevicePixelRatio);
+        addTearDown(tester.view.resetPhysicalSize);
+
+        // 1. Disconnected state offers Open Connection via existing owner navigation.
+        final state = AppState()..connectionError = 'Session unreachable';
+        final openedOptions = <OptionsPage>[];
+        await tester.pumpWidget(host(state, onOpenOptions: openedOptions.add));
+        await settle(tester);
+        expect(find.text('Connect to use Agent'), findsOneWidget);
+        expect(find.textContaining('Session unreachable'), findsOneWidget);
+        expect(find.text('What would you like to work on?'), findsNothing);
+        final connectButton = find.byKey(
+          const ValueKey('agent-empty-open-connection'),
+        );
+        await tester.ensureVisible(connectButton);
+        await tester.tap(connectButton);
+        await tester.pump();
+        expect(openedOptions, [OptionsPage.connection]);
+
+        // 2. Connected with no eligible harness offers Refresh harnesses (and Open Harnesses on narrow).
+        final noHarnessApi = WorkspaceUiApi()
+          ..catalogHook = () async => AgentHarnessPage.fromJson({
+            'schema_version': '1.0',
+            'configured': false,
+            'items': [
+              {
+                ...harnessJson('ineligible-v1', selectable: false),
+                'eligibility': 'approval_required',
+              },
+            ],
+            'next_cursor': null,
+          });
+        state
+          ..connect(ConnectionProfile.defaults(), injected: noHarnessApi)
+          ..sessionAuthenticated = true;
+        await state.refreshAgentHarnesses();
+        await settle(tester);
+        expect(
+          find.text('No eligible Agent harness available'),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('agent-empty-refresh-harnesses')),
+          findsOneWidget,
+        );
+        if (size.width < 900) {
+          expect(
+            find.byKey(const ValueKey('agent-empty-open-harnesses')),
+            findsOneWidget,
+          );
+        }
+
+        // 3. Connected with eligible harness in catalog while an ineligible harness is selected offers switching to the eligible harness.
+        final api = WorkspaceUiApi();
+        state
+          ..connect(ConnectionProfile.defaults(), injected: api)
+          ..sessionAuthenticated = true;
+        await state.refreshAgentHarnesses();
+        await settle(tester);
+        expect(state.agentSession, isNull);
+        expect(
+          find.text('Selected harness cannot start a new session'),
+          findsOneWidget,
+        );
+        final selectEligibleBtn = find.byKey(
+          const ValueKey('agent-empty-select-eligible-harness'),
+        );
+        await tester.ensureVisible(selectEligibleBtn);
+        await tester.tap(selectEligibleBtn);
+        await settle(tester);
+
+        // 4. Connected with eligible harness selected and no active session offers session selection/creation.
+        expect(state.selectedAgentHarness, 'seed-v1');
+        expect(find.text('Choose or create an Agent session'), findsOneWidget);
+        expect(
+          find.byKey(const ValueKey('agent-empty-select-session')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('agent-empty-create-session')),
+          findsOneWidget,
+        );
+        if (size.width < 900) {
+          expect(
+            find.byKey(const ValueKey('agent-empty-open-workspace')),
+            findsOneWidget,
+          );
+        }
+
+        // Tapping Create session creates a real session via the owner and transitions to Ready-but-empty.
+        final createBtn = find.byKey(
+          const ValueKey('agent-empty-create-session'),
+        );
+        await tester.ensureVisible(createBtn);
+        await tester.tap(createBtn);
+        await settle(tester);
+        expect(api.creates, 1);
+        expect(state.agentSession, isNotNull);
+        expect(find.text('What would you like to work on?'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+        await close(tester, state);
+      }
+    },
+  );
+
+  testWidgets(
+    'Task details pane collapses when no task is selected, opens on task selection, and preserves explicit collapse across refresh and session switches',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1560, 1000);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final api = WorkspaceUiApi()
+        ..fixtures = [
+          AgentTask(
+            taskId: 't-1',
+            sessionId: 'b',
+            threadId: 'thread-b',
+            epoch: 1,
+            objective: 'First synthetic task',
+            objectiveRevision: 1,
+            state: 'running',
+            idempotencyKey: 'k-1',
+          ),
+          AgentTask(
+            taskId: 't-2',
+            sessionId: 'b',
+            threadId: 'thread-b',
+            epoch: 1,
+            objective: 'Second synthetic task',
+            objectiveRevision: 1,
+            state: 'succeeded',
+            idempotencyKey: 'k-2',
+          ),
+        ];
+
+      final state = wired(api);
+      await state.refreshAgentHarnesses();
+      await state.selectAgentHarness('seed-v1');
+      await state.selectAgentSession('a');
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ListenableBuilder(
+              listenable: state,
+              builder: (_, _) => AgentChat(state: state),
+            ),
+          ),
+        ),
+      );
+      await settle(tester);
+
+      // 1. Fresh no-task workspace leaves details collapsed with accessible expand affordance.
+      expect(find.byKey(const ValueKey('agent-details-panel')), findsNothing);
+      expect(
+        find.byKey(const ValueKey('agent-details-collapsed')),
+        findsOneWidget,
+      );
+      expect(find.byTooltip('Expand details'), findsOneWidget);
+
+      // 2. Switching to a session with tasks makes details visible; entering a draft keeps it across details toggles.
+      await state.selectAgentSession('b');
+      await settle(tester);
+      await tester.enterText(
+        find.byKey(const ValueKey('agent-input')),
+        'Draft for task session',
+      );
+      await tester.pump();
+      expect(find.byKey(const ValueKey('agent-details-panel')), findsOneWidget);
+      expect(find.text('Second synthetic task'), findsWidgets);
+      expect(state.agentDraft, 'Draft for task session');
+
+      // 3. Explicit collapse choice is preserved across routine refresh/polling.
+      await tester.tap(find.byTooltip('Collapse details'));
+      await tester.pump();
+      expect(find.byKey(const ValueKey('agent-details-panel')), findsNothing);
+      expect(
+        find.byKey(const ValueKey('agent-details-collapsed')),
+        findsOneWidget,
+      );
+      await tester.pump(const Duration(seconds: 5));
+      await settle(tester);
+      expect(find.byKey(const ValueKey('agent-details-panel')), findsNothing);
+
+      // 4. Selecting a task via Inspect task reopens the inline details pane on desktop without losing drafts.
+      await tester.tap(find.widgetWithText(TextButton, 'Inspect task').first);
+      await settle(tester);
+      expect(find.byKey(const ValueKey('agent-details-panel')), findsOneWidget);
+      expect(state.agentDraft, 'Draft for task session');
+
+      // 5. Switching back to an empty session collapses details again.
+      await state.selectAgentSession('a');
+      await settle(tester);
+      expect(find.byKey(const ValueKey('agent-details-panel')), findsNothing);
+      expect(
+        find.byKey(const ValueKey('agent-details-collapsed')),
+        findsOneWidget,
+      );
+
+      // 6. Narrow layout keeps task inspection reachable via modal bottom sheet.
+      tester.view.physicalSize = const Size(360, 800);
+      await state.selectAgentSession('b');
+      await settle(tester);
+      await tester.ensureVisible(
+        find.widgetWithText(TextButton, 'Inspect task').first,
+      );
+      await tester.tap(find.widgetWithText(TextButton, 'Inspect task').first);
+      await settle(tester);
+      expect(find.text('Task details'), findsOneWidget);
+      Navigator.of(tester.element(find.text('Task details'))).pop();
+      await settle(tester);
+
       expect(tester.takeException(), isNull);
       await close(tester, state);
     },

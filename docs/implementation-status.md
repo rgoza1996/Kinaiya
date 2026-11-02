@@ -18,14 +18,28 @@ history and matching active-slot release. H64/max-valid-graph availability,
 broader regressions, final review and CI remain unqualified; recurrence, inbox
 and editor remain unfinished. This code is not part of merged main or PR315.
 
-[PR315 CI442](https://github.com/rgoza1996/Kinaiya/actions/runs/41478156959)
-is terminal: Python 3.11 passed 10,981 tests, export and audit; Python 3.12
-passed 10,979 but failed the same two eight-second physical-finalization cases,
-with export/audit skipped. Flutter/web and Android passed. iOS never acquired
-a hosted runner and was cancelled without build steps. PR315 stays draft and
-unmerged. Earlier local passes do not establish a timing repair. Issue #228 was
-reopened to match its unfinished acceptance chain; PR314's ambiguous negated
-closing-keyword phrase was also rewritten.
+The subsequent [fresh native-graph reuse](../evaluation/evidence/native-report-fresh-reuse-2026-11-02.json)
+qualifies source `5bae42ea` with all 188 affected regressions passing unchanged
+tests/deadlines. Only same-call repeated validation of fresh private graphs is
+removed; complete constructors, canonical graph walks, fresh observations and
+pre-commit/cleanup guards remain. Independent source and artifact reviews pass.
+This remains a local gate: PR315 is draft/unmerged and needs changed-head CI.
+
+[CI442](https://github.com/rgoza1996/Kinaiya/actions/runs/41478156959) for earlier
+`102913a7` is terminal: Python 3.11 passed 10,981 plus export/audit; Python 3.12
+passed 10,979 but failed the same two unchanged eight-second finalization cases,
+with export/audit skipped. Flutter/web and Android passed. iOS never acquired a
+hosted runner and was cancelled before any step. No rerun, assertion/deadline
+waiver or causal timing-fix claim follows from the later local passes.
+
+Issue #228 was reopened to match its unfinished acceptance chain; PR314's
+ambiguous negated closing-keyword phrase was also rewritten.
+
+While this correction was qualified, main advanced to `19b8363` with six UI
+increments. Normal merge `1f4623e` preserves all 12 newer Dart app/test files
+exactly, while qualified Python/runtime/test/schema inputs remain unchanged.
+The combined publication still requires its own complete CI gate; the 188 local
+Python checks do not qualify the newly integrated Flutter behavior.
 
 [PR314](https://github.com/rgoza1996/Kinaiya/pull/314) merged the reviewed
 standing-work prerequisites into main `d2bbd30a`, whose tree exactly matches

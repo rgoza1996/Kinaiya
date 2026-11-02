@@ -297,10 +297,11 @@ class _AgentChatState extends State<AgentChat> {
   final Map<String, GlobalKey> _historyKeys = {};
   int _historyJump = 0;
   String? _lastJumpedMessage;
-  bool _detailsInline = false;
-  bool _harnessCollapsed = false,
-      _sessionsCollapsed = false,
-      _showDetails = true;
+  bool _canShowDetailsInline = false;
+  bool _harnessCollapsed = false, _sessionsCollapsed = false;
+  bool? _detailsVisibilityOverride;
+  bool _effectiveShowDetails(AgentTask? selected) =>
+      _detailsVisibilityOverride ?? (selected != null);
   double _harnessWidth = 246;
   double _sessionsWidth = 260;
   double _detailsWidth = AgentDesign.detailsWidth;
@@ -438,6 +439,7 @@ class _AgentChatState extends State<AgentChat> {
     _lastJumpedMessage = null;
     _steerScopes.clear();
     _selectedTaskId = null;
+    _detailsVisibilityOverride = null;
     if (_input.text != _s.agentDraft) _input.text = _s.agentDraft;
     for (final controller in _steer.values) {
       controller.clear();
@@ -1749,7 +1751,7 @@ class _AgentChatState extends State<AgentChat> {
         const SizedBox(height: 8),
         IconButton(
           tooltip: 'Expand details',
-          onPressed: () => setState(() => _showDetails = true),
+          onPressed: () => setState(() => _detailsVisibilityOverride = true),
           icon: const Icon(Icons.chevron_left),
         ),
       ],
@@ -1946,7 +1948,213 @@ class _AgentChatState extends State<AgentChat> {
     return widgets;
   }
 
-  Widget _conversation() {
+  Widget _emptyState({required bool wide}) {
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    final connected =
+        _s.connected && _s.sessionAuthenticated && _s.client != null;
+
+    IconData icon;
+    String title;
+    String description;
+    final actions = <Widget>[];
+
+    if (!connected) {
+      icon = Icons.link_off_rounded;
+      title = 'Connect to use Agent';
+      final error = _s.connectionError?.trim();
+      description = error != null && error.isNotEmpty
+          ? 'Connection error: $error. Open Connection setup to verify your host URLs and owner token.'
+          : 'Connect to a running Kinaiya host and authenticate your session before inspecting harnesses, sessions, or tasks.';
+      actions.add(
+        FilledButton.icon(
+          key: const ValueKey('agent-empty-open-connection'),
+          onPressed: widget.onOpenOptions == null
+              ? null
+              : () => widget.onOpenOptions!(OptionsPage.connection),
+          icon: const Icon(Icons.tune_rounded),
+          label: const Text('Open Connection'),
+        ),
+      );
+    } else if (_s.agentSession == null) {
+      final eligible = _s.agentHarnesses.where((h) => h.selectable).firstOrNull;
+      if (eligible == null) {
+        icon = Icons.account_tree_outlined;
+        title = _s.agentHarnessesLoading
+            ? 'Loading Agent harnesses…'
+            : 'No eligible Agent harness available';
+        description = _s.agentHarnessesLoading
+            ? 'Checking registered Agent harnesses on the connected host.'
+            : _s.agentHarnessError != null
+            ? 'Could not load Agent harnesses (${_s.agentHarnessError}). Retry loading harnesses to check eligibility.'
+            : 'No selectable Agent harness is currently registered. Refresh harnesses or inspect historical sessions in the workspace.';
+        actions.add(
+          FilledButton.icon(
+            key: const ValueKey('agent-empty-refresh-harnesses'),
+            onPressed: _s.agentHarnessesLoading
+                ? null
+                : () => unawaited(_s.refreshAgentHarnesses()),
+            icon: const Icon(Icons.refresh),
+            label: const Text('Refresh harnesses'),
+          ),
+        );
+        if (!wide) {
+          actions.add(
+            OutlinedButton.icon(
+              key: const ValueKey('agent-empty-open-harnesses'),
+              onPressed: () => _showSidebar(true),
+              icon: const Icon(Icons.account_tree_outlined),
+              label: const Text('Open Harnesses'),
+            ),
+          );
+        }
+      } else if (_s.selectedAgentHarnessInfo?.selectable != true) {
+        icon = Icons.rule_folder_outlined;
+        title = 'Selected harness cannot start a new session';
+        final currentName =
+            _s.selectedAgentHarnessInfo?.name ?? 'The selected harness';
+        final reason =
+            _s.selectedAgentHarnessInfo?.eligibility ??
+            'not eligible for new sessions';
+        description =
+            '$currentName is $reason. Select an eligible harness or open an existing session.';
+        actions.add(
+          FilledButton.icon(
+            key: const ValueKey('agent-empty-select-eligible-harness'),
+            onPressed: () =>
+                unawaited(_s.selectAgentHarness(eligible.versionId)),
+            icon: const Icon(Icons.account_tree_outlined),
+            label: Text('Select ${eligible.name}'),
+          ),
+        );
+        if (_s.agentWorkspaceSessions.isNotEmpty) {
+          final first = _s.agentWorkspaceSessions.first;
+          actions.add(
+            OutlinedButton.icon(
+              key: const ValueKey('agent-empty-select-session'),
+              onPressed: _s.agentIdentitySelecting
+                  ? null
+                  : () => unawaited(_s.selectAgentSession(first.sessionId)),
+              icon: const Icon(Icons.folder_open_outlined),
+              label: Text(
+                'Open ${first.name.isEmpty ? first.sessionId : first.name}',
+              ),
+            ),
+          );
+        }
+        if (!wide) {
+          actions.add(
+            OutlinedButton.icon(
+              key: const ValueKey('agent-empty-open-harnesses'),
+              onPressed: () => _showSidebar(true),
+              icon: const Icon(Icons.account_tree_outlined),
+              label: const Text('Open Harnesses'),
+            ),
+          );
+        }
+      } else {
+        icon = Icons.view_sidebar_outlined;
+        title = 'Choose or create an Agent session';
+        final harnessName =
+            _s.selectedAgentHarnessInfo?.name ?? 'the selected harness';
+        final hasSessions = _s.agentWorkspaceSessions.isNotEmpty;
+        description = hasSessions
+            ? 'Select an existing session for $harnessName or create a new session to give Agent a task.'
+            : 'No sessions exist yet for $harnessName. Create a new session to give Agent a task.';
+        if (hasSessions) {
+          final first = _s.agentWorkspaceSessions.first;
+          actions.add(
+            FilledButton.icon(
+              key: const ValueKey('agent-empty-select-session'),
+              onPressed: _s.agentIdentitySelecting
+                  ? null
+                  : () => unawaited(_s.selectAgentSession(first.sessionId)),
+              icon: const Icon(Icons.folder_open_outlined),
+              label: Text(
+                'Open ${first.name.isEmpty ? first.sessionId : first.name}',
+              ),
+            ),
+          );
+          actions.add(
+            FilledButton.tonalIcon(
+              key: const ValueKey('agent-empty-create-session'),
+              onPressed: _s.canCreateAgentSession
+                  ? () => unawaited(_s.createSelectedAgentSession())
+                  : null,
+              icon: const Icon(Icons.add),
+              label: const Text('Create session'),
+            ),
+          );
+        } else {
+          actions.add(
+            FilledButton.icon(
+              key: const ValueKey('agent-empty-create-session'),
+              onPressed: _s.canCreateAgentSession
+                  ? () => unawaited(_s.createSelectedAgentSession())
+                  : null,
+              icon: const Icon(Icons.add),
+              label: const Text('Create session'),
+            ),
+          );
+        }
+        if (!wide) {
+          actions.add(
+            OutlinedButton.icon(
+              key: const ValueKey('agent-empty-open-workspace'),
+              onPressed: () => _showSidebar(false),
+              icon: const Icon(Icons.view_sidebar_outlined),
+              label: const Text('Open Workspace'),
+            ),
+          );
+        }
+      }
+    } else {
+      icon = Icons.auto_awesome_outlined;
+      title = 'What would you like to work on?';
+      description =
+          'Give Agent a task, inspect its work, and review approvals here. Your conversation stays in Converse.';
+      if (_s.commandsAvailable) {
+        actions.add(
+          OutlinedButton.icon(
+            key: const ValueKey('agent-empty-open-commands'),
+            onPressed: _showCommands,
+            icon: const Icon(Icons.terminal_rounded),
+            label: const Text('Browse commands'),
+          ),
+        );
+      }
+    }
+
+    return Padding(
+      key: const ValueKey('agent-empty-state'),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 36, color: scheme.onSurfaceVariant),
+          const SizedBox(height: 12),
+          Text(title, style: textTheme.titleLarge, textAlign: TextAlign.center),
+          const SizedBox(height: 8),
+          Text(
+            description,
+            textAlign: TextAlign.center,
+            style: agentMutedStyle(context, textTheme.bodyMedium),
+          ),
+          if (actions.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              alignment: WrapAlignment.center,
+              children: actions,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _conversation({required bool wide}) {
     final tasksById = {for (final t in _s.tasks) t.taskId: t};
     final sessionTasks = _s.selectedAgentTasks;
     final markers = _navigationMessages;
@@ -1970,10 +2178,17 @@ class _AgentChatState extends State<AgentChat> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      _s.agentSession?.name.isNotEmpty == true
+                      !_s.connected ||
+                              !_s.sessionAuthenticated ||
+                              _s.client == null
+                          ? 'Connect to a Kinaiya host to inspect harnesses and sessions.'
+                          : _s.agentSession?.name.isNotEmpty == true
                           ? 'Session: ${_s.agentSession!.name}'
                           : _s.agentHistoryLoading
                           ? 'Verifying session…'
+                          : !_s.agentHarnessesLoading &&
+                                !_s.agentHarnesses.any((h) => h.selectable)
+                          ? 'No eligible harness available; refresh or inspect historical sessions.'
                           : 'Choose a session or create one for the selected harness.',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
@@ -2052,6 +2267,8 @@ class _AgentChatState extends State<AgentChat> {
                         ),
                       ),
                     for (final task in sessionTasks.reversed) _taskCard(task),
+                    if (sessionTasks.isEmpty && _s.agentHistory.isEmpty)
+                      _emptyState(wide: wide),
                     Builder(
                       builder: (context) {
                         final owner = _s;
@@ -2074,40 +2291,6 @@ class _AgentChatState extends State<AgentChat> {
                             ? null
                             : () => unawaited(_s.refreshAgentHistory()),
                         child: const Text('Load more recorded history'),
-                      ),
-                    if (sessionTasks.isEmpty && _s.agentHistory.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 32,
-                          vertical: 40,
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.auto_awesome_outlined,
-                              size: 40,
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurfaceVariant,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'What would you like to work on?',
-                              style: Theme.of(context).textTheme.titleLarge,
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              'Give Agent a task, inspect its work, and review approvals here. Your conversation stays in Converse.',
-                              textAlign: TextAlign.center,
-                              style: agentMutedStyle(
-                                context,
-                                Theme.of(context).textTheme.bodyMedium,
-                              ),
-                            ),
-                          ],
-                        ),
                       ),
                   ],
                 ),
@@ -2166,10 +2349,11 @@ class _AgentChatState extends State<AgentChat> {
                   3 * AgentDesign.sidebarResizeWidth +
                   AgentDesign.detailsMinWidth +
                   AgentDesign.conversationMinWidth;
-      _detailsInline = canShowDetails && _showDetails;
+      _canShowDetailsInline = canShowDetails;
       final tasks = _s.selectedAgentTasks;
       final matches = tasks.where((t) => t.taskId == _selectedTaskId);
       final selected = matches.firstOrNull ?? tasks.lastOrNull;
+      final showDetails = _effectiveShowDetails(selected);
       final panes = Column(
         children: [
           if (!wide)
@@ -2206,7 +2390,7 @@ class _AgentChatState extends State<AgentChat> {
                       ? 2 * AgentDesign.sidebarResizeWidth
                       : 0.0;
                   final detailsMinimum = canShowDetails
-                      ? (_showDetails
+                      ? (showDetails
                                 ? AgentDesign.detailsMinWidth
                                 : AgentDesign.sidebarCollapsedWidth) +
                             AgentDesign.sidebarResizeWidth
@@ -2249,7 +2433,7 @@ class _AgentChatState extends State<AgentChat> {
                     maximumDetailsWidth,
                   );
                   final detailsOccupied = canShowDetails
-                      ? (_showDetails
+                      ? (showDetails
                                 ? detailsWidth
                                 : AgentDesign.sidebarCollapsedWidth) +
                             AgentDesign.sidebarResizeWidth
@@ -2327,41 +2511,42 @@ class _AgentChatState extends State<AgentChat> {
                         ),
                       Expanded(
                         key: const ValueKey('agent-conversation-pane'),
-                        child: _conversation(),
+                        child: _conversation(wide: wide),
                       ),
                       if (canShowDetails) ...[
                         _SidebarResizeHandle(
                           key: const ValueKey('agent-details-resize-handle'),
                           label: 'task details',
-                          width: _showDetails
+                          width: showDetails
                               ? detailsWidth
                               : AgentDesign.sidebarCollapsedWidth,
                           minimum: AgentDesign.detailsMinWidth,
                           maximum: maximumDetailsWidth,
                           growsRight: false,
-                          collapsed: !_showDetails,
+                          collapsed: !showDetails,
                           restoreWidth: _detailsWidth,
                           onResize: (value) =>
                               setState(() => _detailsWidth = value),
                           onCollapse: (previous) => setState(() {
                             _detailsWidth = previous;
-                            _showDetails = false;
+                            _detailsVisibilityOverride = false;
                           }),
                           onExpand: (value) => setState(() {
                             _detailsWidth = value;
-                            _showDetails = true;
+                            _detailsVisibilityOverride = true;
                           }),
                         ),
-                        if (_showDetails)
+                        if (showDetails)
                           SizedBox(
                             width: detailsWidth,
                             child: _details(
                               selected,
-                              onCollapse: () =>
-                                  setState(() => _showDetails = false),
+                              onCollapse: () => setState(
+                                () => _detailsVisibilityOverride = false,
+                              ),
                             ),
                           ),
-                        if (!_showDetails) _collapsedDetails(),
+                        if (!showDetails) _collapsedDetails(),
                       ],
                     ],
                   );
@@ -2384,8 +2569,11 @@ class _AgentChatState extends State<AgentChat> {
   );
 
   void _inspectTask(AgentTask task) {
-    setState(() => _selectedTaskId = task.taskId);
-    if (!_detailsInline) {
+    setState(() {
+      _selectedTaskId = task.taskId;
+      _detailsVisibilityOverride = true;
+    });
+    if (!_canShowDetailsInline) {
       showModalBottomSheet<void>(
         context: context,
         isScrollControlled: true,
