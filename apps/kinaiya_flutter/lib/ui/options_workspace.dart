@@ -1216,6 +1216,7 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
       const Text(
         'Model defaults by role. Harness-specific choices live in Harness Customization.',
       ),
+      _modelRolesOverview(),
       ..._errors,
       OptionsConverseModel(
         key: ObjectKey(client),
@@ -1277,6 +1278,208 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
         active: current,
       ),
     ]);
+  }
+
+  Widget _modelRolesOverview() {
+    final owner = widget.state;
+    final connected = owner.connected && owner.sessionAuthenticated;
+    final converseInfo = owner.converseProvider;
+    final converseModel = (converseInfo?['model'] as String?)?.trim();
+    final converseProvider = (converseInfo?['provider'] as String?)?.trim();
+    final converseLocal = converseInfo?['local'] == true;
+    final converseSelection = converseModel != null && converseModel.isNotEmpty
+        ? converseModel
+        : 'Unavailable — configure below';
+    final converseStatus = !connected
+        ? 'Unavailable (not connected)'
+        : !owner.converseOnline || converseInfo == null
+        ? 'Unavailable · Configure Converse model below'
+        : converseLocal
+        ? 'Configured (${converseProvider ?? 'local'} · Local) · Readiness not pre-checked'
+        : owner.converseInferenceAllowed
+        ? 'Configured (${converseProvider ?? 'cloud'} · Cloud disclosure active) · Readiness not pre-checked'
+        : 'Needs attention (${converseProvider ?? 'cloud'} · Cloud disclosure required)';
+
+    final agentInfo =
+        owner.agentProvider ??
+        (_agent?['provider'] is Map
+            ? (_agent!['provider'] as Map).cast<String, Object?>()
+            : null);
+    final agentSelection = _models != null
+        ? _models!.bindingLabel(_models!.defaultBinding)
+        : (agentInfo?['model'] as String?)?.trim().isNotEmpty == true
+        ? (agentInfo!['model'] as String).trim()
+        : 'Unavailable — configure below';
+    final agentProvider = (agentInfo?['provider'] as String?)?.trim();
+    final agentLocal = agentInfo?['local'] == true;
+    final agentStatus = !connected
+        ? 'Unavailable (not connected)'
+        : !owner.agentOnline || (_models == null && agentInfo == null)
+        ? 'Unavailable · Configure Agent model below'
+        : agentInfo == null
+        ? 'Configured on host · Readiness not pre-checked'
+        : agentLocal
+        ? 'Configured (${agentProvider ?? 'local'} · Local) · Readiness not pre-checked'
+        : owner.agentInferenceAllowed
+        ? 'Configured (${agentProvider ?? 'cloud'} · Cloud disclosure active) · Readiness not pre-checked'
+        : 'Needs attention (${agentProvider ?? 'cloud'} · Cloud disclosure required)';
+
+    final decisionsInfo = owner.decisionsModelOptions?.selectedInfo;
+    final decisionsConfigured =
+        owner.connection?.decisionsUrl != null &&
+        owner.connection!.decisionsUrl!.trim().isNotEmpty;
+    final decisionsSelection = decisionsInfo != null
+        ? decisionsInfo.model
+        : !connected || !decisionsConfigured
+        ? 'Unavailable — configure Decisions URL'
+        : 'Inspect in Decisions section below';
+    final decisionsStatus = !connected
+        ? 'Unavailable (not connected)'
+        : !decisionsConfigured
+        ? 'Unavailable · Configure Decisions URL in Connection'
+        : decisionsInfo != null
+        ? 'Declared (${decisionsInfo.provider} · ${decisionsInfo.local ? 'Local' : 'Cloud'}) · Readiness not pre-checked'
+        : owner.decisionsModelOptionsStatus;
+
+    final speechReachable = connected && owner.converseOnline;
+    final sttSelection = speechReachable
+        ? 'Configured in Audio & speech'
+        : 'Unavailable — configure in Audio & speech';
+    final sttStatus = !connected
+        ? 'Unavailable (not connected)'
+        : !owner.converseOnline
+        ? 'Unavailable · Converse service unreachable'
+        : 'Independent speech recognizer · Readiness not pre-checked';
+    final ttsSelection = speechReachable
+        ? 'Configured in Audio & speech'
+        : 'Unavailable — configure in Audio & speech';
+    final ttsStatus = !connected
+        ? 'Unavailable (not connected)'
+        : !owner.converseOnline
+        ? 'Unavailable · Converse service unreachable'
+        : 'Independent speech synthesizer · Readiness not pre-checked';
+
+    return DesignPanel(
+      key: const ValueKey('options-models-role-overview'),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Independently configurable model roles',
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Each role has its own native owner and selection. Configured or declared models do not imply runtime readiness or cloud disclosure consent.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 12),
+          _rolePurposeRow(
+            roleKey: 'converse',
+            title: 'Converse',
+            purpose:
+                'Handles live voice and text conversation responses with Kinaiya.',
+            selection: converseSelection,
+            status: converseStatus,
+          ),
+          const Divider(height: 16),
+          _rolePurposeRow(
+            roleKey: 'agent',
+            title: 'Agent',
+            purpose:
+                'Plans and executes bounded background tasks, file edits, and tool calls.',
+            selection: agentSelection,
+            status: agentStatus,
+          ),
+          const Divider(height: 16),
+          _rolePurposeRow(
+            roleKey: 'decisions',
+            title: 'Decisions',
+            purpose:
+                'Classifies conversation turns and timing for potential Agent handoff.',
+            selection: decisionsSelection,
+            status: decisionsStatus,
+          ),
+          const Divider(height: 16),
+          _rolePurposeRow(
+            roleKey: 'stt',
+            title: 'Speech-to-text (STT)',
+            purpose:
+                'Transcribes spoken microphone audio into text before Converse processes it.',
+            selection: sttSelection,
+            status: sttStatus,
+            actionLabel: 'Open Audio & speech',
+            onAction: () => _select(OptionsPage.audio),
+          ),
+          const Divider(height: 16),
+          _rolePurposeRow(
+            roleKey: 'tts',
+            title: 'Text-to-speech (TTS)',
+            purpose: 'Synthesizes Kinaiya responses into spoken audio output.',
+            selection: ttsSelection,
+            status: ttsStatus,
+            actionLabel: 'Open Audio & speech',
+            onAction: () => _select(OptionsPage.audio),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _rolePurposeRow({
+    required String roleKey,
+    required String title,
+    required String purpose,
+    required String selection,
+    required String status,
+    String? actionLabel,
+    VoidCallback? onAction,
+  }) {
+    final textTheme = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      key: ValueKey('model-role-card-$roleKey'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 12,
+          runSpacing: 4,
+          children: [
+            Text(
+              title,
+              style: textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            if (actionLabel != null && onAction != null)
+              TextButton(
+                key: ValueKey('model-role-action-$roleKey'),
+                onPressed: onAction,
+                child: Text(actionLabel),
+              ),
+          ],
+        ),
+        const SizedBox(height: 2),
+        Text(
+          purpose,
+          key: ValueKey('model-role-purpose-$roleKey'),
+          style: textTheme.bodyMedium,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Selection: $selection · Reported: $status',
+          key: ValueKey('model-role-status-$roleKey'),
+          style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+        ),
+      ],
+    );
   }
 
   Widget _harnesses() {
