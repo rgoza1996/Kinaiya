@@ -32,6 +32,9 @@ close, as the coarse warning does. Missing detail emits no invented observation.
 Success stays silent. Other prior refusal predicates retain precedence even
 when the later command read also fails.
 
+The detail warning format is fixed:
+`worker bootstrap command observation: result=%s`.
+
 On actual verifier refusal, sample the original asyncio Process's cached
 `returncode` immediately before the existing grant-writer close. Sample it
 again after the existing unverified-child reap/pipe cleanup. Record only
@@ -39,6 +42,10 @@ again after the existing unverified-child reap/pipe cleanup. Record only
 These are cached observations, not new process probes. A post-close/reap exit
 does not establish an exit before grant closure. No PID, descriptor, raw exit
 number, argv, path, nonce, payload, exception text or traceback may be logged.
+The exit warning format is fixed:
+`worker bootstrap refusal exit: before_grant_close=%s after_reap_attempt=%s`.
+`not_reported` means the watcher has not reported a code; it is not liveness
+evidence. An unfinished reap attempt must not be described as completed reap.
 
 Observation/capture/logger exceptions must not alter the preexisting boolean,
 tuple, returned lifecycle error, grant decision, close sequence or exception
