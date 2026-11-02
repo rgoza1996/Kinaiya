@@ -108,7 +108,10 @@ def capture_outcome(original, initial, request, entry):
             envelope["origin"] != "agent-supervisor"
             or type(envelope["sequence"]) is not int
             or not initial.sequence < envelope["sequence"] <= _MAX_INTEGER
-            or {name: envelope[name] for name in AppendRequest.model_fields} != body
+            or _encode(
+                {name: envelope[name] for name in AppendRequest.model_fields}, _REQUEST_BYTES
+            )
+            != raw_request
             or body["kind"] != "agent.outcome"
             or (body["session_id"], body["thread_id"], body["epoch"], body["task_refs"])
             != (session.session_id, session.thread_id, session.epoch, [task.task_id])
@@ -145,7 +148,8 @@ def capture_outcome(original, initial, request, entry):
             != finalization_bytes(task.workspace_pin)
             or _encode(snapshot["model_pin"], _REQUEST_BYTES) != finalization_bytes(task.model_pin)
             or any(
-                name not in payload or payload[name] != snapshot[name]
+                name not in payload
+                or _encode(payload[name], _REQUEST_BYTES) != _encode(snapshot[name], _REQUEST_BYTES)
                 for name in (
                     "task_id",
                     "session_id",
@@ -160,7 +164,10 @@ def capture_outcome(original, initial, request, entry):
                 )
             )
             or any(
-                name in payload and payload[name] != snapshot[name] for name in ("summary", "error")
+                name in payload
+                and _encode(payload[name], _REQUEST_BYTES)
+                != _encode(snapshot[name], _REQUEST_BYTES)
+                for name in ("summary", "error")
             )
         ):
             raise ValueError(_ERROR)

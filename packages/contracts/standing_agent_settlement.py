@@ -386,10 +386,7 @@ def agent_retirement_capability_digest(claim, owner_id, registration_key, secret
             "registration_key": registration_key,
         }
         return hashlib.sha256(
-            b"kinaiya.standing.agent-retirement-capability.v1\0"
-            + _encode(body)
-            + b"\0"
-            + secret32
+            b"kinaiya.standing.agent-retirement-capability.v1\0" + _encode(body) + b"\0" + secret32
         ).hexdigest()
     except _FAILURES:
         raise ValueError(_ERROR) from None
@@ -629,9 +626,7 @@ class StandingAgentSettlementRequest(_Settlement):
         return self
 
 
-def _settlement_record_body(
-    request, backend_id, settled_instance, settled_utc, *, validated=False
-):
+def _settlement_record_body(request, backend_id, settled_instance, settled_utc, *, validated=False):
     if not validated:
         request = checked_agent_settlement(request, StandingAgentSettlementRequest)
         fields = {
