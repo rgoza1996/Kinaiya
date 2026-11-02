@@ -412,7 +412,7 @@ class _OptionsDecisionsModelState extends State<OptionsDecisionsModel> {
       children.addAll([
         const SizedBox(height: 12),
         Text(
-          'Saved selection: ${snapshot.selection.source == 'host' ? 'Host configuration · legacy compatibility' : '${snapshot.selection.catalog!.id} · generation ${snapshot.selection.catalog!.generation}'}',
+          'Saved selection: ${snapshot.selection.source == 'host' ? (snapshot.hostInfo?.provider == 'native_d1' ? 'Host configuration · native d1' : 'Host configuration · legacy compatibility') : '${snapshot.selection.catalog!.id} · generation ${snapshot.selection.catalog!.generation}'}',
         ),
         if (snapshot.selectedInfo case final provider?)
           Text(
@@ -432,14 +432,18 @@ class _OptionsDecisionsModelState extends State<OptionsDecisionsModel> {
             DropdownMenuItem(
               value: 'host',
               enabled: snapshot.hostSelectable,
-              child: const Text('Host configuration · legacy compatibility'),
+              child: Text(
+                snapshot.hostInfo?.provider == 'native_d1'
+                    ? 'Host configuration · native d1'
+                    : 'Host configuration · legacy compatibility',
+              ),
             ),
             for (final profile in snapshot.profiles)
               DropdownMenuItem(
                 value: profile.binding.identity,
                 enabled: profile.selectable,
                 child: Text(
-                  '${profile.label} · generation ${profile.binding.generation}${profile.selectable ? ' · typed Laya' : ' · unavailable'}',
+                  '${profile.label} · generation ${profile.binding.generation}${profile.selectable ? (profile.provider?.provider == 'native_d1' ? ' · native d1 · text Decisions' : ' · typed Laya') : ' · unavailable'}',
                 ),
               ),
             if (choice.source == 'catalog' &&
@@ -467,7 +471,7 @@ class _OptionsDecisionsModelState extends State<OptionsDecisionsModel> {
         ),
         const SizedBox(height: 8),
         const Text(
-          'Catalog selection supports exact typed Laya generations only. Saving inspects declarations; it does not contact a model, test readiness, or grant disclosure.',
+          'Catalog selection supports exact typed Decisions generations: Laya or native d1. Native d1 supports text only. Saving inspects declarations; it does not contact a model, test readiness, or grant disclosure.',
         ),
         if (!snapshot.sameBase(draft.base))
           const Text(
@@ -564,9 +568,12 @@ class _OptionsDecisionsModelState extends State<OptionsDecisionsModel> {
       );
     }
     return DesignPanel(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: children,
+      child: Material(
+        type: MaterialType.transparency,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: children,
+        ),
       ),
     );
   }

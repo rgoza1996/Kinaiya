@@ -123,6 +123,10 @@ class DecisionsModelProvider {
     model = _text(raw['model'], 256);
     local = _boolean(raw['local']);
     streaming = _boolean(raw['streaming']);
+    if (provider == 'native_d1') {
+      _match(model, r'[A-Za-z0-9][A-Za-z0-9._/-]{0,127}');
+      if (!local || streaming) _bad();
+    }
   }
   late final String provider, model;
   late final bool local, streaming;
@@ -153,9 +157,7 @@ class DecisionsCatalogProfile {
     if (binding.id != id ||
         raw['qualification'] != 'not_checked' ||
         raw['readiness'] != 'unknown' ||
-        (selectable
-            ? protocol != 'laya_systemone' || provider?.provider != 'laya'
-            : protocol != null)) {
+        (selectable ? !_typedPair(provider, protocol) : protocol != null)) {
       _bad();
     }
   }
@@ -165,6 +167,13 @@ class DecisionsCatalogProfile {
   late final DecisionsModelProvider? provider;
   late final bool selectable;
 }
+
+bool _typedPair(DecisionsModelProvider? provider, String? protocol) =>
+    provider?.provider == 'laya' && protocol == 'laya_systemone' ||
+    provider?.provider == 'native_d1' &&
+        protocol == 'native_d1_systemone' &&
+        provider!.local &&
+        !provider.streaming;
 
 class DecisionsModelsSnapshot {
   DecisionsModelsSnapshot.fromJson(Object? value) {
@@ -208,7 +217,14 @@ class DecisionsModelsSnapshot {
         : DecisionsModelProvider.fromJson(host['provider']);
     hostSelectable = _boolean(host['selectable']);
     hostProtocol = _text(host['protocol'], 32);
-    if (!{'laya_systemone', 'host_configured'}.contains(hostProtocol) ||
+    final expectedHostProtocol = hostInfo?.provider == 'laya'
+        ? 'laya_systemone'
+        : hostInfo?.provider == 'native_d1'
+        ? 'native_d1_systemone'
+        : 'host_configured';
+    if (hostProtocol != expectedHostProtocol ||
+        hostInfo?.provider == 'native_d1' &&
+            !_typedPair(hostInfo, hostProtocol) ||
         hostSelectable != (hostInfo != null)) {
       _bad();
     }
