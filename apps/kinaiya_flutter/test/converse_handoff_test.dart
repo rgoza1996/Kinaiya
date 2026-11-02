@@ -1413,4 +1413,241 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
     },
   );
+
+  testWidgets(
+    'restrained handoff microfeedback highlights only fresh authenticated transitions and respects reduced motion across 320px and desktop (#298)',
+    (tester) async {
+      ConverseHandoffStatusBanner.resetMicrofeedbackForTesting();
+      addTearDown(ConverseHandoffStatusBanner.resetMicrofeedbackForTesting);
+      await tester.binding.setSurfaceSize(const Size(1280, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final api = ReceiptApi();
+      final state = wired(api);
+      state.agentSession = SessionInfo(
+        sessionId: 'agent-s1',
+        threadId: 'agent-t1',
+        epoch: 2,
+        channel: 'agent',
+      );
+      state.setTasks([
+        AgentTask(
+          taskId: 'task-1',
+          sessionId: 'agent-s1',
+          threadId: 'agent-t1',
+          epoch: 2,
+          objective: 'Update configuration',
+          objectiveRevision: 1,
+          state: 'running',
+          idempotencyKey: 'k-1',
+        ),
+      ]);
+      state.converseHistory.add(
+        ChatMsg(
+          role: 'user',
+          text: 'Update configuration',
+          eventId: 'source',
+          windowRevision: 1,
+        ),
+      );
+      api.entries = [
+        source(id: 'source', sequence: 1, text: 'Update configuration'),
+        decision(id: 'dec-1', sequence: 2),
+        receipt('queued', id: 'r-q', sequence: 3),
+      ];
+      await state.refreshNotices();
+
+      var animateTransitions = true;
+      var disableAnimations = false;
+
+      Widget buildHarness() => MediaQuery(
+        data: MediaQueryData(disableAnimations: disableAnimations),
+        child: MaterialApp(
+          home: Scaffold(
+            body: ListenableBuilder(
+              listenable: state,
+              builder: (_, _) => IndexedStack(
+                index: state.view == AppView.agent ? 1 : 0,
+                children: [
+                  CharacterView(
+                    state: state,
+                    showCharacter: false,
+                    animateTransitions: animateTransitions,
+                  ),
+                  AgentChat(state: state),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpWidget(buildHarness());
+      await tester.pump();
+
+      // 1. Initial queued state is static (no transition microfeedback yet).
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-status-source')),
+            )
+            .data,
+        'Queued',
+      );
+      expect(
+        find.byKey(
+          const ValueKey('converse-handoff-microfeedback-active-source'),
+        ),
+        findsNothing,
+      );
+
+      // 2. Fresh authenticated transition (queued -> unknown) animates briefly, with no perpetual spinner.
+      api.entries = [receipt('unknown', id: 'r-u', sequence: 4)];
+      await state.refreshNotices();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 60));
+
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-status-source')),
+            )
+            .data,
+        'Unconfirmed',
+      );
+      expect(
+        find.byKey(
+          const ValueKey('converse-handoff-microfeedback-active-source'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('converse-handoff-source')),
+          matching: find.byType(CircularProgressIndicator),
+        ),
+        findsNothing,
+      );
+
+      // Settles after 220ms and does not re-trigger on subsequent polls or rebuilds.
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(
+        find.byKey(
+          const ValueKey('converse-handoff-microfeedback-active-source'),
+        ),
+        findsNothing,
+      );
+      await state.refreshNotices();
+      state.touch();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 60));
+      expect(
+        find.byKey(
+          const ValueKey('converse-handoff-microfeedback-active-source'),
+        ),
+        findsNothing,
+      );
+
+      // 3. Rapid state change (unknown -> accepted) highlights briefly while controls stay usable at 320px.
+      await tester.binding.setSurfaceSize(const Size(320, 800));
+      await tester.pump();
+
+      api.entries = [receipt('accepted', id: 'r-acc', sequence: 5)];
+      await state.refreshNotices();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 40));
+
+      expect(
+        find.byKey(
+          const ValueKey('converse-handoff-microfeedback-active-source'),
+        ),
+        findsOneWidget,
+      );
+      final openTaskFinder = find.byKey(
+        const ValueKey('converse-handoff-open-task-source'),
+      );
+      await tester.ensureVisible(openTaskFinder);
+      // Task control is immediately usable mid-transition on 320px layout.
+      await tester.tap(openTaskFinder);
+      await tester.pump();
+      expect(state.view, AppView.agent);
+      await tester.tap(find.byKey(const ValueKey('agent-return-to-converse')));
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(
+        find.byKey(
+          const ValueKey('converse-handoff-microfeedback-active-source'),
+        ),
+        findsNothing,
+      );
+
+      // 4. Reduced motion (animateTransitions: false and MediaQuery disableAnimations: true) renders static immediately.
+      animateTransitions = false;
+      disableAnimations = true;
+      state.converseHistory.add(
+        ChatMsg(
+          role: 'user',
+          text: 'Second request',
+          eventId: 'source-2',
+          windowRevision: 1,
+        ),
+      );
+      api.entries = [
+        source(id: 'source-2', sequence: 6, text: 'Second request'),
+        decision(
+          id: 'dec-2',
+          decisionId: 'decision-2',
+          sequence: 7,
+          cause: 'source-2',
+          sourceId: 'source-2',
+          sourceSequence: 6,
+        ),
+        receipt(
+          'queued',
+          id: 'r-q2',
+          sequence: 8,
+          sourceId: 'source-2',
+          sourceSequence: 6,
+          decisionId: 'decision-2',
+          cause: 'source-2',
+        ),
+      ];
+      await state.refreshNotices();
+      await tester.pumpWidget(buildHarness());
+      await tester.pump();
+
+      api.entries = [
+        receipt(
+          'rejected',
+          id: 'r-rej2',
+          sequence: 9,
+          sourceId: 'source-2',
+          sourceSequence: 6,
+          decisionId: 'decision-2',
+          cause: 'source-2',
+        ),
+      ];
+      await state.refreshNotices();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 40));
+
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-status-source-2')),
+            )
+            .data,
+        'Rejected',
+      );
+      expect(
+        find.byKey(
+          const ValueKey('converse-handoff-microfeedback-active-source-2'),
+        ),
+        findsNothing,
+      );
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      state.dispose();
+      await tester.pump(const Duration(seconds: 1));
+    },
+  );
 }
