@@ -56,6 +56,10 @@ async def _exchange(
             headers[_HEADER] = secret32.hex()
         elif request_type is StandingAgentSettlementRequest:
             raise StandingUnavailable
+        # Shared-client defaults cannot supply or silently replace a call's
+        # explicit original authority, even when build_request would override it.
+        if any(name.startswith("x-kinaiya-standing-") for name in owner.http.headers):
+            raise StandingUnavailable
         available()
         request = owner.http.build_request(
             "POST", path, content=body, headers=headers, timeout=None
