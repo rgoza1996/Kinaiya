@@ -947,6 +947,186 @@ class AppState extends ChangeNotifier {
     return HandoffTaskDestinationStatus.known;
   }
 
+  /// Resolves verified post-handoff task progress and final outcome for an
+  /// already authorized, known task identifier using current owner task and
+  /// approval state. Never infers success from generated Converse text, route
+  /// choice, or a published artifact alone.
+  HandoffTaskProgressSummary? handoffTaskProgress(HandoffNotice notice) {
+    if (!notice.hasConfirmedTaskIdentifier) return null;
+    final taskId = notice.nativeTaskId!;
+    final destination = handoffTaskDestinationStatus(notice);
+    switch (destination) {
+      case HandoffTaskDestinationStatus.none:
+        return null;
+      case HandoffTaskDestinationStatus.unauthorized:
+        return HandoffTaskProgressSummary(
+          kind: HandoffTaskLifecycleKind.unknown,
+          stateLabel: 'Task status: Unknown',
+          detailText: 'Reconnect to check task $taskId progress.',
+        );
+      case HandoffTaskDestinationStatus.stale:
+        return HandoffTaskProgressSummary(
+          kind: HandoffTaskLifecycleKind.unknown,
+          stateLabel: 'Task status: Unknown',
+          detailText: 'Task $taskId belongs to an earlier session or epoch.',
+        );
+      case HandoffTaskDestinationStatus.missing:
+        return HandoffTaskProgressSummary(
+          kind: HandoffTaskLifecycleKind.unknown,
+          stateLabel: 'Task status: Unknown',
+          detailText: 'Task $taskId is unavailable in current Agent tasks.',
+        );
+      case HandoffTaskDestinationStatus.known:
+        if (tasksStatusStale) {
+          return HandoffTaskProgressSummary(
+            kind: HandoffTaskLifecycleKind.unknown,
+            stateLabel: 'Task status: Unknown',
+            detailText:
+                'Agent task status is currently unavailable for $taskId.',
+          );
+        }
+        final task = tasks.firstWhere((t) => t.taskId == taskId);
+        final pendingApprovals = approvals
+            .where(
+              (a) =>
+                  a.taskId == task.taskId &&
+                  a.sessionId == task.sessionId &&
+                  a.threadId == task.threadId &&
+                  a.epoch == task.epoch &&
+                  a.objectiveRevision == task.objectiveRevision &&
+                  a.status == 'pending' &&
+                  !a.isExpired,
+            )
+            .toList();
+        final currentEvidence = task.evidence
+            .where((e) => e.objectiveRevision == task.objectiveRevision)
+            .toList();
+        final nativeEvidence = currentEvidence
+            .where(
+              (e) => const {
+                'file',
+                'command',
+                'read',
+                'search',
+                'test',
+              }.contains(e.kind),
+            )
+            .toList();
+        switch (task.state) {
+          case 'accepted':
+          case 'queued':
+            return const HandoffTaskProgressSummary(
+              kind: HandoffTaskLifecycleKind.queued,
+              stateLabel: 'Task queued',
+              detailText: 'Waiting to run in Agent.',
+              actionLabel: 'Open task',
+            );
+          case 'running':
+          case 'verifying':
+            return HandoffTaskProgressSummary(
+              kind: HandoffTaskLifecycleKind.running,
+              stateLabel: task.state == 'verifying'
+                  ? 'Task verifying'
+                  : 'Task running',
+              detailText: currentEvidence.isEmpty
+                  ? 'Running in Agent.'
+                  : 'Running in Agent · ${currentEvidence.length} receipt${currentEvidence.length == 1 ? '' : 's'} recorded.',
+              actionLabel: currentEvidence.isNotEmpty
+                  ? 'Inspect evidence'
+                  : 'Open task',
+              evidenceCount: currentEvidence.length,
+            );
+          case 'awaiting_approval':
+            final toolLabel =
+                pendingApprovals.isNotEmpty &&
+                    pendingApprovals.first.tool.isNotEmpty
+                ? ' for ${pendingApprovals.first.tool}'
+                : '';
+            return HandoffTaskProgressSummary(
+              kind: HandoffTaskLifecycleKind.awaitingApproval,
+              stateLabel: 'Approval needed',
+              detailText: 'Awaiting owner approval$toolLabel in Agent.',
+              actionLabel: 'Review approval',
+              pendingApprovalsCount: pendingApprovals.length,
+            );
+          case 'blocked':
+          case 'paused':
+          case 'cancel_requested':
+            final stateLabel = switch (task.state) {
+              'paused' => 'Task paused',
+              'cancel_requested' => 'Cancellation requested',
+              _ => 'Task blocked',
+            };
+            final reason = (task.error != null && task.error!.trim().isNotEmpty)
+                ? task.error!.trim()
+                : (task.summary.trim().isNotEmpty
+                      ? task.summary.trim()
+                      : 'Action required or blocked in Agent.');
+            return HandoffTaskProgressSummary(
+              kind: HandoffTaskLifecycleKind.blocked,
+              stateLabel: stateLabel,
+              detailText: reason,
+              actionLabel: pendingApprovals.isNotEmpty
+                  ? 'Review approval'
+                  : 'Open task',
+              pendingApprovalsCount: pendingApprovals.length,
+            );
+          case 'failed':
+          case 'cancelled':
+            final stateLabel = task.state == 'cancelled'
+                ? 'Task cancelled'
+                : 'Task failed';
+            final reason = (task.error != null && task.error!.trim().isNotEmpty)
+                ? task.error!.trim()
+                : (task.summary.trim().isNotEmpty
+                      ? task.summary.trim()
+                      : 'Task did not complete in Agent.');
+            return HandoffTaskProgressSummary(
+              kind: HandoffTaskLifecycleKind.failed,
+              stateLabel: stateLabel,
+              detailText: reason,
+              actionLabel: currentEvidence.isNotEmpty
+                  ? 'Inspect evidence'
+                  : 'Open task',
+              evidenceCount: currentEvidence.length,
+            );
+          case 'succeeded':
+            final verified =
+                task.isGroundedSuccess && nativeEvidence.isNotEmpty;
+            if (verified) {
+              final summaryText = task.summary.trim().isNotEmpty
+                  ? '${task.summary.trim()} (${nativeEvidence.length} verified receipt${nativeEvidence.length == 1 ? '' : 's'})'
+                  : 'Succeeded with ${nativeEvidence.length} verified receipt${nativeEvidence.length == 1 ? '' : 's'}.';
+              return HandoffTaskProgressSummary(
+                kind: HandoffTaskLifecycleKind.succeededWithEvidence,
+                stateLabel: 'Task succeeded',
+                detailText: summaryText,
+                actionLabel: 'Inspect evidence',
+                evidenceCount: nativeEvidence.length,
+              );
+            }
+            final unverifiedDetail = task.hasUnverifiedExternalOnly
+                ? 'Finished with a tool or computation receipt only; task effects need independent evidence.'
+                : (currentEvidence.isNotEmpty && nativeEvidence.isEmpty
+                      ? 'Finished with artifact publication only; no independent completion evidence.'
+                      : 'Finished without independent completion evidence.');
+            return HandoffTaskProgressSummary(
+              kind: HandoffTaskLifecycleKind.succeededUnverified,
+              stateLabel: 'Finished (unverified)',
+              detailText: unverifiedDetail,
+              actionLabel: 'Open task',
+              evidenceCount: currentEvidence.length,
+            );
+          default:
+            return HandoffTaskProgressSummary(
+              kind: HandoffTaskLifecycleKind.unknown,
+              stateLabel: 'Task status: Unknown',
+              detailText: 'Task $taskId reported an unrecognized state.',
+            );
+        }
+    }
+  }
+
   void openHandoffTask(HandoffNotice notice) {
     if (!notice.hasConfirmedTaskIdentifier) return;
     final taskId = notice.nativeTaskId!;

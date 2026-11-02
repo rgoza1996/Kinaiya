@@ -1096,4 +1096,321 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
     },
   );
+
+  testWidgets(
+    'verified post-handoff task progress and final result reflect native task state without inferring success (#297)',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1440, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final api = ReceiptApi();
+      final state = wired(api);
+      state.converseHistory.addAll([
+        ChatMsg(
+          role: 'user',
+          text: 'Run test suite and write report',
+          eventId: 'source',
+          windowRevision: 1,
+        ),
+        ChatMsg(
+          role: 'kinaiya',
+          text: 'All done! Your report has been written and verified.',
+          eventId: 'assistant-1',
+        ),
+      ]);
+      api.entries = [
+        source(
+          id: 'source',
+          sequence: 1,
+          text: 'Run test suite and write report',
+        ),
+        decision(id: 'dec-1', sequence: 2),
+        receipt('accepted', id: 'r-acc', sequence: 3),
+      ];
+      await state.refreshNotices();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ListenableBuilder(
+              listenable: state,
+              builder: (_, _) => IndexedStack(
+                index: state.view == AppView.agent ? 1 : 0,
+                children: [
+                  CharacterView(state: state, showCharacter: false),
+                  AgentChat(state: state),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // 1. Missing/unavailable task data is labeled Unknown, never inferred from assistant prose.
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-task-state-source')),
+            )
+            .data,
+        'Task status: Unknown',
+      );
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-task-detail-source')),
+            )
+            .data,
+        contains('unavailable in current Agent tasks'),
+      );
+
+      // 2. Accepted-but-pending (queued -> running).
+      AgentTask buildTask({
+        required String taskState,
+        int epoch = 2,
+        List<Evidence> evidence = const [],
+        String summary = '',
+        String? error,
+      }) => AgentTask(
+        taskId: 'task-1',
+        sessionId: 'agent-s1',
+        threadId: 'agent-t1',
+        epoch: epoch,
+        objective: 'Run test suite and write report',
+        objectiveRevision: 1,
+        state: taskState,
+        idempotencyKey: 'k-1',
+        evidence: evidence,
+        summary: summary,
+        error: error,
+      );
+
+      state.agentSession = SessionInfo(
+        sessionId: 'agent-s1',
+        threadId: 'agent-t1',
+        epoch: 2,
+        channel: 'agent',
+      );
+      state.setTasks([buildTask(taskState: 'queued')]);
+      await tester.pump();
+
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-task-state-source')),
+            )
+            .data,
+        'Task queued',
+      );
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-task-detail-source')),
+            )
+            .data,
+        'Waiting to run in Agent.',
+      );
+
+      state.setTasks([buildTask(taskState: 'running')]);
+      await tester.pump();
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-task-state-source')),
+            )
+            .data,
+        'Task running',
+      );
+
+      // 3. Approval-needed shows Review approval link to existing Agent controls.
+      state.recordApprovals([
+        ApprovalRequest(
+          approvalId: 'app-1',
+          taskId: 'task-1',
+          tool: 'write_file',
+          actionDigest:
+              'sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+          objectiveRevision: 1,
+          arguments: const {'path': 'report.md'},
+          reason: 'Write report',
+          sessionId: 'agent-s1',
+          threadId: 'agent-t1',
+          epoch: 2,
+          status: 'pending',
+          reissueSupported: true,
+        ),
+      ]);
+      state.setTasks([buildTask(taskState: 'awaiting_approval')]);
+      await tester.pump();
+
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-task-state-source')),
+            )
+            .data,
+        'Approval needed',
+      );
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-task-detail-source')),
+            )
+            .data,
+        contains('write_file'),
+      );
+      final actionFinder = find.byKey(
+        const ValueKey('converse-handoff-task-action-source'),
+      );
+      expect(actionFinder, findsOneWidget);
+      expect(
+        find.descendant(
+          of: actionFinder,
+          matching: find.text('Review approval'),
+        ),
+        findsOneWidget,
+      );
+
+      // 4. Published artifact alone without native work evidence never shows verified Task succeeded.
+      state.recordApprovals(const []);
+      state.setTasks([
+        buildTask(
+          taskState: 'succeeded',
+          evidence: [
+            Evidence(
+              kind: 'artifact',
+              summary: 'Published preview card',
+              objectiveRevision: 1,
+              path: 'artifact://art-1',
+              sha256:
+                  '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+              output:
+                  '{"artifact_id":"art-1","kind":"markdown","title":"Report preview"}',
+            ),
+          ],
+        ),
+      ]);
+      await tester.pump();
+
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-task-state-source')),
+            )
+            .data,
+        'Finished (unverified)',
+      );
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-task-detail-source')),
+            )
+            .data,
+        contains('artifact publication only'),
+      );
+
+      // 5. Succeeded with verified native execution evidence shows Task succeeded + Inspect evidence.
+      state.setTasks([
+        buildTask(
+          taskState: 'succeeded',
+          summary: 'Wrote report.md',
+          evidence: [
+            Evidence(
+              kind: 'file',
+              summary: 'wrote report.md',
+              objectiveRevision: 1,
+              path: 'report.md',
+              sha256:
+                  '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+            ),
+          ],
+        ),
+      ]);
+      await tester.pump();
+
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-task-state-source')),
+            )
+            .data,
+        'Task succeeded',
+      );
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-task-detail-source')),
+            )
+            .data,
+        contains('1 verified receipt'),
+      );
+      expect(
+        find.descendant(
+          of: actionFinder,
+          matching: find.text('Inspect evidence'),
+        ),
+        findsOneWidget,
+      );
+
+      await tester.tap(actionFinder);
+      await tester.pump();
+      expect(state.view, AppView.agent);
+      expect(state.requestedAgentTaskId, 'task-1');
+
+      await tester.tap(find.byKey(const ValueKey('agent-return-to-converse')));
+      await tester.pump();
+      expect(state.view, AppView.character);
+
+      // 6. Failure and stale/unavailable task states.
+      state.setTasks([
+        buildTask(taskState: 'failed', error: 'Test suite exited with code 1.'),
+      ]);
+      await tester.pump();
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-task-state-source')),
+            )
+            .data,
+        'Task failed',
+      );
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-task-detail-source')),
+            )
+            .data,
+        'Test suite exited with code 1.',
+      );
+
+      // Stale task status (e.g. outage) marks task progress Unknown.
+      state.markTasksUnavailable();
+      await tester.pump();
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-task-state-source')),
+            )
+            .data,
+        'Task status: Unknown',
+      );
+
+      // Stale session/epoch marks task progress Unknown.
+      state.setTasks([buildTask(taskState: 'running', epoch: 1)]);
+      await tester.pump();
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-task-state-source')),
+            )
+            .data,
+        'Task status: Unknown',
+      );
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      state.dispose();
+      await tester.pump(const Duration(seconds: 1));
+    },
+  );
 }

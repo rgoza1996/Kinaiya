@@ -457,6 +457,35 @@ enum HandoffStatus {
 
 enum HandoffTaskDestinationStatus { none, known, stale, missing, unauthorized }
 
+enum HandoffTaskLifecycleKind {
+  queued,
+  running,
+  awaitingApproval,
+  blocked,
+  failed,
+  succeededWithEvidence,
+  succeededUnverified,
+  unknown,
+}
+
+class HandoffTaskProgressSummary {
+  const HandoffTaskProgressSummary({
+    required this.kind,
+    required this.stateLabel,
+    required this.detailText,
+    this.actionLabel,
+    this.pendingApprovalsCount = 0,
+    this.evidenceCount = 0,
+  });
+
+  final HandoffTaskLifecycleKind kind;
+  final String stateLabel;
+  final String detailText;
+  final String? actionLabel;
+  final int pendingApprovalsCount;
+  final int evidenceCount;
+}
+
 class HandoffNotice {
   const HandoffNotice(
     this.sourceEventId,
