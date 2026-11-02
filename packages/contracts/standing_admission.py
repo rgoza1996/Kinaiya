@@ -48,6 +48,8 @@ _TIMESTAMP = re.compile(
     r"([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})"
     r"(?:\.([0-9]{6}))?Z"
 )
+_EVENT_ID_ADAPTER = TypeAdapter(SafeId)
+_SEQUENCE_ADAPTER = TypeAdapter(PositiveInteger)
 
 
 def _timestamp(value):
@@ -67,13 +69,13 @@ def _event_id(value):
     if type(value) is not str or "\0" in value:
         raise ValueError(_ERROR)
     value.encode("utf-8")
-    return TypeAdapter(SafeId).validate_python(value, strict=True)
+    return _EVENT_ID_ADAPTER.validate_python(value, strict=True)
 
 
 def _sequence(value):
     if type(value) is not int:
         raise ValueError(_ERROR)
-    return TypeAdapter(PositiveInteger).validate_python(value, strict=True)
+    return _SEQUENCE_ADAPTER.validate_python(value, strict=True)
 
 
 def _json_graph(value):
