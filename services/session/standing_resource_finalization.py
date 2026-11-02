@@ -67,6 +67,7 @@ class StandingResourceFinalizationOwner:
         self._connection, self._lock = store.db, store.lock
         self._registered = self._closed = self._failed = False
         self._backend = self._instance = None
+        self._settlement_owner = None
 
     def close(self) -> None:
         self._closed = True
@@ -322,6 +323,8 @@ class StandingResourceFinalizationOwner:
 
     def check_reservation(self, original):
         """Join a possible new reservation inside its caller's transaction."""
+        if self._settlement_owner is not None:
+            return self._settlement_owner.check_reservation(original)
         self._available()
         if not self._connection.in_transaction:
             raise StandingUnavailable
@@ -410,6 +413,8 @@ class StandingResourceFinalizationOwner:
     def bind(
         self, request: StandingResourceBindingRequest, *, deadline=None, cancelled=None
     ) -> StandingResourceBindingReceipt:
+        if self._settlement_owner is not None:
+            return self._settlement_owner.bind(request, deadline=deadline, cancelled=cancelled)
         deadline = self.tasks.claims._options(deadline, cancelled)
         original = checked_finalization(request, StandingResourceBindingRequest)
         self._guard(deadline, cancelled)
@@ -451,6 +456,8 @@ class StandingResourceFinalizationOwner:
     def binding_lookup(
         self, request: StandingResourceBindingRequest
     ) -> StandingResourceBindingReceipt | None:
+        if self._settlement_owner is not None:
+            return self._settlement_owner.binding_lookup(request)
         original = checked_finalization(request, StandingResourceBindingRequest)
         with self._transaction(self._available):
             state, retained, _ = self._observation()
@@ -465,6 +472,8 @@ class StandingResourceFinalizationOwner:
     def context(
         self, finalize_request: StandingResourceFinalizeRequest
     ) -> StandingResourceFinalizeContext:
+        if self._settlement_owner is not None:
+            return self._settlement_owner.finalization_context(finalize_request)
         original = checked_finalization(finalize_request, StandingResourceFinalizeRequest)
         with self._transaction(self._available):
             state, binding, _ = self._observation()
@@ -480,6 +489,10 @@ class StandingResourceFinalizationOwner:
     def report(
         self, finalization: StandingResourceFinalization, *, deadline=None, cancelled=None
     ) -> StandingResourceFinalizationReceipt:
+        if self._settlement_owner is not None:
+            return self._settlement_owner.report(
+                finalization, deadline=deadline, cancelled=cancelled
+            )
         deadline = self.tasks.claims._options(deadline, cancelled)
         original = checked_finalization(finalization, StandingResourceFinalization)
         self._guard(deadline, cancelled)
@@ -517,6 +530,8 @@ class StandingResourceFinalizationOwner:
     def lookup(
         self, finalize_request: StandingResourceFinalizeRequest
     ) -> StandingResourceFinalizationReceipt | None:
+        if self._settlement_owner is not None:
+            return self._settlement_owner.finalization_lookup(finalize_request)
         original = checked_finalization(finalize_request, StandingResourceFinalizeRequest)
         with self._transaction(self._available):
             state, binding, retained = self._observation()

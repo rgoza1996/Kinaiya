@@ -53,6 +53,8 @@ from services.session.standing_resource_finalization_api import (
     install_standing_resource_finalization_routes,
 )
 from services.session.standing_resources import StandingResourceOwner
+from services.session.standing_settlement import StandingSettlementOwner
+from services.session.standing_settlement_api import install_standing_settlement_routes
 from services.session.standing_work import StandingOwner
 from services.session.standing_work_api import install_standing_owner_routes
 from services.session.store import JournalError, Store
@@ -67,11 +69,14 @@ def create_app(
     agent_enabled: bool | None = None,
     standing_clock=None,
     standing_monotonic_ms=None,
+    standing_protocol: int = 2,
 ) -> FastAPI:
     if auth is None or not hasattr(auth, "require"):
         raise RuntimeError("Session control requires configured authentication")
     if agent_enabled is not None and type(agent_enabled) is not bool:
         raise ValueError("Legacy Agent bootstrap must be an explicit boolean")
+    if type(standing_protocol) is not int or standing_protocol not in {1, 2}:
+        raise ValueError("Standing storage protocol must be explicitly 1 or 2")
     # This app owns its registration; another app using the same Store never
     # upgrades this object's generation or acquires its write authority.
     control = AgentControl(store, new_store=store.agent_control.new_store)
@@ -106,39 +111,55 @@ def create_app(
         store, control, standing_owner, standing_dispatch_owner, clock=standing_clock
     )
     standing_execution_initialized = False
-    try:
-        standing_execution_owner.register()
-        standing_execution_initialized = True
-    except (StandingConflict, StandingUnavailable):
-        pass
     standing_task_owner = StandingTaskOwner(
         store, control, standing_owner, standing_dispatch_owner, standing_execution_owner
     )
     standing_task_initialized = False
-    try:
-        standing_task_owner.register()
-        standing_task_initialized = True
-    except (StandingConflict, StandingUnavailable):
-        pass
     standing_resource_owner = StandingResourceOwner(store, control, standing_task_owner)
     standing_resource_initialized = False
-    try:
-        standing_resource_owner.register()
-        standing_resource_initialized = True
-    except (StandingConflict, StandingUnavailable):
-        pass
     standing_resource_finalization_owner = StandingResourceFinalizationOwner(
         store, control, standing_task_owner, standing_resource_owner
     )
     standing_resource_owner.register_finalization_owner(standing_resource_finalization_owner)
     standing_resource_finalization_initialized = False
-    try:
-        standing_resource_finalization_owner.register()
-        standing_resource_finalization_initialized = True
-    except (StandingConflict, StandingUnavailable):
-        pass
+    standing_settlement_owner = StandingSettlementOwner(
+        store,
+        control,
+        standing_task_owner,
+        standing_resource_owner,
+        standing_resource_finalization_owner,
+    )
+    standing_settlement_initialized = False
+    if standing_protocol == 2:
+        try:
+            standing_settlement_owner.register()
+            standing_execution_initialized = standing_task_initialized = True
+            standing_resource_initialized = standing_resource_finalization_initialized = True
+            standing_settlement_initialized = True
+        except (StandingConflict, StandingUnavailable):
+            pass
+    else:
+        # Explicit Python composition is the only compatibility selector.
+        # Unsupported v2 storage is refused by these unchanged v1 registrations.
+        for owner in (
+            standing_execution_owner,
+            standing_task_owner,
+            standing_resource_owner,
+            standing_resource_finalization_owner,
+        ):
+            try:
+                owner.register()
+            except (StandingConflict, StandingUnavailable):
+                pass
+        standing_execution_initialized = standing_execution_owner._registered
+        standing_task_initialized = standing_task_owner._registered
+        standing_resource_initialized = standing_resource_owner._registered
+        standing_resource_finalization_initialized = (
+            standing_resource_finalization_owner._registered
+        )
     standing_operations = None
     standing_resource_finalization_operations = None
+    standing_settlement_operations = None
     transcript_scan_operations = None
 
     @asynccontextmanager
@@ -152,6 +173,7 @@ def create_app(
                 # operation owner; their shared registry stays globally bounded.
                 standing_operations._closed = True
                 standing_resource_finalization_operations._closed = True
+                standing_settlement_operations._closed = True
                 transcript_scan_operations._closed = True
                 for event in standing_operations._operations.values():
                     event.set()
@@ -159,9 +181,12 @@ def create_app(
                     await transcript_scan_operations.close()
                 finally:
                     try:
-                        await standing_resource_finalization_operations.close()
+                        await standing_settlement_operations.close()
                     finally:
-                        await standing_operations.close()
+                        try:
+                            await standing_resource_finalization_operations.close()
+                        finally:
+                            await standing_operations.close()
 
             shutdown = asyncio.create_task(close_operations())
             interrupted = False
@@ -179,6 +204,7 @@ def create_app(
                 app.state.standing_owner_shutdown_unconfirmed = True
                 raise
             finally:
+                standing_settlement_owner.close()
                 try:
                     try:
                         try:
@@ -227,6 +253,9 @@ def create_app(
     app.state.standing_resource_finalization_initialized = (
         standing_resource_finalization_initialized
     )
+    app.state.standing_settlement_owner = standing_settlement_owner
+    app.state.standing_settlement_initialized = standing_settlement_initialized
+    app.state.standing_protocol = standing_protocol
     standing_operations = install_standing_owner_routes(
         app,
         standing_owner,
@@ -241,6 +270,10 @@ def create_app(
         app, standing_resource_finalization_owner, auth, shared=standing_operations
     )
     app.state.standing_resource_finalization_operations = standing_resource_finalization_operations
+    standing_settlement_operations = install_standing_settlement_routes(
+        app, standing_settlement_owner, auth, shared=standing_operations
+    )
+    app.state.standing_settlement_operations = standing_settlement_operations
     from services.session.transcript_scan_api import install_transcript_scan_routes
 
     transcript_scan_operations = install_transcript_scan_routes(

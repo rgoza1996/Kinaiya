@@ -74,6 +74,7 @@ class StandingExecutionOwner:
         self._failed = False
         self._backend = None
         self._instance = None
+        self._settlement_owner = None
 
     def _sql(self, statement, args=()):
         return self.store.db.execute(statement, args)
@@ -416,6 +417,8 @@ class StandingExecutionOwner:
     def prepare(
         self, request: StandingExecutionIntent, *, deadline=None, cancelled=None
     ) -> StandingExecutionClaimAdmission:
+        if self._settlement_owner is not None:
+            return self._settlement_owner.prepare(request, deadline=deadline, cancelled=cancelled)
         deadline = self._options(deadline, cancelled)
         request = _checked(request, StandingExecutionIntent)
         created = False
@@ -476,6 +479,8 @@ class StandingExecutionOwner:
 
     @_native
     def lookup(self, request: StandingExecutionIntent) -> StandingExecutionClaim | None:
+        if self._settlement_owner is not None:
+            return self._settlement_owner.claim_lookup(request)
         request = _checked(request, StandingExecutionIntent)
         with self._transaction():
             meta, generations, _, _, _, claim = self._observation()
@@ -490,5 +495,7 @@ class StandingExecutionOwner:
 
     @_native
     def unresolved(self) -> StandingExecutionClaim | None:
+        if self._settlement_owner is not None:
+            return self._settlement_owner.unresolved()
         with self._transaction():
             return self._observation()[-1]

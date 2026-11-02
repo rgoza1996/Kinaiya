@@ -526,56 +526,68 @@ class Store:
                         "WHERE type='text' AND value=?)) LIMIT 1",
                         (request.task_id,) * 4,
                     ).fetchone()
-                    table = self.db.execute(
-                        "SELECT type FROM sqlite_schema WHERE name='standing_task_admissions'"
-                    ).fetchone()
-                    if table is not None:
-                        if table["type"] != "table":
-                            raise JournalError("Standing export authority is unavailable")
-                        from packages.contracts.standing_admission import StandingInitialProof
-                        from packages.contracts.standing_work import canonical_bytes
-
-                        links = self.db.execute(
-                            "SELECT CASE WHEN typeof(claim_id)='text' "
-                            "AND length(CAST(claim_id AS BLOB))=64 THEN claim_id END AS claim_id,"
-                            "CASE WHEN typeof(event_id)='text' "
-                            "AND length(CAST(event_id AS BLOB)) BETWEEN 1 AND 512 "
-                            "THEN event_id END AS event_id,"
-                            "CASE WHEN typeof(sequence)='integer' THEN sequence END AS sequence,"
-                            "CASE WHEN typeof(proof)='text' "
-                            "AND length(CAST(proof AS BLOB)) BETWEEN 1 AND 163840 "
-                            "THEN proof END AS body FROM standing_task_admissions LIMIT 2"
-                        ).fetchall()
-                        if len(links) > 1:
-                            raise JournalError("Standing export authority is unavailable")
-                        linked = None
-                        for link in links:
-                            if type(link["body"]) is not str:
-                                raise JournalError("Standing export authority is unavailable")
-                            proof = StandingInitialProof.from_json(link["body"].encode("utf-8"))
-                            if (
-                                proof.canonical_bytes().decode("utf-8") != link["body"]
-                                or link["claim_id"] != proof.claim.claim_id
-                                or link["event_id"] != proof.event_id
-                                or type(link["sequence"]) is not int
-                                or link["sequence"] != proof.sequence
-                            ):
-                                raise JournalError("Standing export authority is unavailable")
-                            claims = self.db.execute(
-                                "SELECT CASE WHEN typeof(claim)='text' "
-                                "AND length(CAST(claim AS BLOB)) BETWEEN 1 AND 147456 "
-                                "THEN claim END AS body FROM standing_execution_claims "
-                                "WHERE claim_id=? LIMIT 2",
-                                (proof.claim.claim_id,),
-                            ).fetchall()
-                            if len(claims) != 1 or claims[0]["body"] != canonical_bytes(
-                                proof.claim
-                            ).decode("utf-8"):
-                                raise JournalError("Standing export authority is unavailable")
-                            if proof.claim.request.task.task_id == request.task_id:
-                                linked = True
+                    settlement = getattr(self, "_standing_settlement_owner", None)
+                    if settlement is not None:
+                        linked = True if settlement.ordinary_export_link(request.task_id) else None
+                    elif self.db.execute(
+                        "SELECT 1 FROM sqlite_schema WHERE lower(name) IN "
+                        "('standing_settlement_meta','standing_claim_origins',"
+                        "'standing_agent_retirement_registrations','standing_agent_settlements') "
+                        "LIMIT 1"
+                    ).fetchone():
+                        # A missing v2 composition cannot downgrade to a v1 grant.
+                        raise JournalError("Standing export authority is unavailable")
                     else:
-                        linked = None
+                        table = self.db.execute(
+                            "SELECT type FROM sqlite_schema WHERE name='standing_task_admissions'"
+                        ).fetchone()
+                        if table is not None:
+                            if table["type"] != "table":
+                                raise JournalError("Standing export authority is unavailable")
+                            from packages.contracts.standing_admission import StandingInitialProof
+                            from packages.contracts.standing_work import canonical_bytes
+
+                            links = self.db.execute(
+                                "SELECT CASE WHEN typeof(claim_id)='text' "
+                                "AND length(CAST(claim_id AS BLOB))=64 THEN claim_id END AS claim_id,"
+                                "CASE WHEN typeof(event_id)='text' "
+                                "AND length(CAST(event_id AS BLOB)) BETWEEN 1 AND 512 "
+                                "THEN event_id END AS event_id,"
+                                "CASE WHEN typeof(sequence)='integer' THEN sequence END AS sequence,"
+                                "CASE WHEN typeof(proof)='text' "
+                                "AND length(CAST(proof AS BLOB)) BETWEEN 1 AND 163840 "
+                                "THEN proof END AS body FROM standing_task_admissions LIMIT 2"
+                            ).fetchall()
+                            if len(links) > 1:
+                                raise JournalError("Standing export authority is unavailable")
+                            linked = None
+                            for link in links:
+                                if type(link["body"]) is not str:
+                                    raise JournalError("Standing export authority is unavailable")
+                                proof = StandingInitialProof.from_json(link["body"].encode("utf-8"))
+                                if (
+                                    proof.canonical_bytes().decode("utf-8") != link["body"]
+                                    or link["claim_id"] != proof.claim.claim_id
+                                    or link["event_id"] != proof.event_id
+                                    or type(link["sequence"]) is not int
+                                    or link["sequence"] != proof.sequence
+                                ):
+                                    raise JournalError("Standing export authority is unavailable")
+                                claims = self.db.execute(
+                                    "SELECT CASE WHEN typeof(claim)='text' "
+                                    "AND length(CAST(claim AS BLOB)) BETWEEN 1 AND 147456 "
+                                    "THEN claim END AS body FROM standing_execution_claims "
+                                    "WHERE claim_id=? LIMIT 2",
+                                    (proof.claim.claim_id,),
+                                ).fetchall()
+                                if len(claims) != 1 or claims[0]["body"] != canonical_bytes(
+                                    proof.claim
+                                ).decode("utf-8"):
+                                    raise JournalError("Standing export authority is unavailable")
+                                if proof.claim.request.task.task_id == request.task_id:
+                                    linked = True
+                        else:
+                            linked = None
                     if standing is not None or linked is not None:
                         raise JournalError("Standing tasks require standing export admission")
                 except Exception:

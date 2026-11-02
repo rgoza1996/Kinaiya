@@ -85,6 +85,7 @@ class StandingTaskOwner:
         from services.session.standing_closure import StandingAdmissionClosures
 
         self._closures = StandingAdmissionClosures(self)
+        self._settlement_owner = None
 
     def close(self) -> None:
         self._closed = True
@@ -393,6 +394,10 @@ class StandingTaskOwner:
     def admit(
         self, request: StandingExecutionIntent, *, capability: bytes, deadline=None, cancelled=None
     ) -> StandingTaskAdmission:
+        if self._settlement_owner is not None:
+            return self._settlement_owner.admit(
+                request, capability=capability, deadline=deadline, cancelled=cancelled
+            )
         deadline = self.claims._options(deadline, cancelled)
         request = _checked(request, StandingExecutionIntent)
         created = False
@@ -454,16 +459,24 @@ class StandingTaskOwner:
     def close_admission(
         self, original: StandingExecutionIntent, *, capability: bytes, deadline=None, cancelled=None
     ) -> StandingAdmissionClosure:
+        if self._settlement_owner is not None:
+            return self._settlement_owner.close_admission(
+                original, capability=capability, deadline=deadline, cancelled=cancelled
+            )
         return self._closures.close_admission(
             original, capability=capability, deadline=deadline, cancelled=cancelled
         )
 
     @_native
     def lookup_closure(self, original: StandingExecutionIntent) -> StandingAdmissionClosure | None:
+        if self._settlement_owner is not None:
+            return self._settlement_owner.closure_lookup(original)
         return self._closures.lookup(original)
 
     @_native
     def lookup(self, request: StandingExecutionIntent) -> StandingInitialProof | None:
+        if self._settlement_owner is not None:
+            return self._settlement_owner.initial_lookup(request)
         request = _checked(request, StandingExecutionIntent)
         with self._transaction():
             meta, generations, _, _, _, claim, proof = self._observation()
@@ -481,6 +494,10 @@ class StandingTaskOwner:
     def export_admission(
         self, original: StandingExportRequest, *, deadline=None, cancelled=None
     ) -> StandingExportAdmission:
+        if self._settlement_owner is not None:
+            return self._settlement_owner.export_admission(
+                original, deadline=deadline, cancelled=cancelled
+            )
         deadline = self.claims._options(deadline, cancelled)
         if type(original) is not StandingExportRequest:
             raise StandingUnavailable

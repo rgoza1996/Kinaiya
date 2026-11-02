@@ -46,6 +46,8 @@ class StandingAdmissionClosures:
         self.owner = owner
 
     def blocks_admission(self):
+        if self.owner._settlement_owner is not None:
+            return self.owner._settlement_owner.blocks_admission()
         # The caller has just validated the full observation in this same
         # transaction. No separate lookup can open the first-admission gate.
         return self.owner._one(f"SELECT 1 FROM {_ROWS} LIMIT 1") is not None
@@ -71,6 +73,8 @@ class StandingAdmissionClosures:
         return created
 
     def observe(self, meta, claim, initial):
+        if self.owner._settlement_owner is not None:
+            return self.owner._settlement_owner.closure_observe(meta, claim, initial)
         owner = self.owner
         for name, (sql, expected) in _TABLES.items():
             definition = owner._one("SELECT type,sql FROM sqlite_schema WHERE name=?", (name,))
@@ -152,6 +156,10 @@ class StandingAdmissionClosures:
         return closure.validate_request(claim.request)
 
     def close_admission(self, original, *, capability, deadline=None, cancelled=None):
+        if self.owner._settlement_owner is not None:
+            return self.owner._settlement_owner.close_admission(
+                original, capability=capability, deadline=deadline, cancelled=cancelled
+            )
         owner = self.owner
         deadline = owner.claims._options(deadline, cancelled)
         original = _original(original)
@@ -211,6 +219,8 @@ class StandingAdmissionClosures:
         return closure
 
     def lookup(self, original):
+        if self.owner._settlement_owner is not None:
+            return self.owner._settlement_owner.closure_lookup(original)
         owner = self.owner
         original = _original(original)
         with owner._transaction():

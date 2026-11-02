@@ -57,6 +57,7 @@ class StandingResourceOwner:
         self._registered = self._closed = self._failed = False
         self._backend = self._instance = None
         self._finalization_owner = None
+        self._settlement_owner = None
 
     def register_finalization_owner(self, owner):
         from services.session.standing_resource_finalization import (
@@ -338,6 +339,8 @@ class StandingResourceOwner:
 
     @_native
     def context(self, query: TaskResourceQuery) -> TaskResourceContext:
+        if self._settlement_owner is not None:
+            return self._settlement_owner.resource_context(query)
         query = checked_resource(query, TaskResourceQuery)
         with self._transaction():
             meta, _, claim, initial, _, _ = self._observation()
@@ -387,6 +390,8 @@ class StandingResourceOwner:
     def reserve(
         self, original: StandingResourceReservation, *, deadline=None, cancelled=None
     ) -> StandingResourceReservationReceipt:
+        if self._settlement_owner is not None:
+            return self._settlement_owner.reserve(original, deadline=deadline, cancelled=cancelled)
         deadline = self.tasks.claims._options(deadline, cancelled)
         original = checked_resource(original, StandingResourceReservation)
         self._guard(deadline, cancelled)
@@ -429,6 +434,8 @@ class StandingResourceOwner:
 
     @_native
     def observe(self, original: StandingExecutionIntent) -> StandingResourceObservation:
+        if self._settlement_owner is not None:
+            return self._settlement_owner.resource_observe(original)
         original = checked_resource(original, StandingExecutionIntent)
         with self._transaction():
             meta, generations, claim, initial, coverage, reservation = self._observation()
