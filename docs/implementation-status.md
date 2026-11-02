@@ -430,6 +430,22 @@ original-close controls, and 77 passing integrated cases at `ee758e7`. A pending
 close still prevents retirement and a failed close remains unavailable. This
 does not establish full-project CI, model readiness or physical finalization.
 
+The next full CI run at `9a1de6a` passed 10,140 Python3.11 cases but failed the
+unchanged four-second Resources handoff case; Python3.12 was cancelled. The
+original trigger remains unresolved. Read-only local phase observations and a
+profiler-induced timeout are retained without treating either as a reconstruction
+of that CI failure. A reviewed six-line change now reuses two compiled scalar
+validators while freshly validating every actual input; no payload, proof,
+authority or validation result is cached. At coherent source `15c222b`, the
+[qualification record](../evaluation/evidence/standing-ci-coherent-2026-11-01.json)
+records 215 passing Python cases and all 1,071 Flutter tests, plus analysis,
+format and an artifact-only web build. The Python group includes the unchanged
+four-second case and the reviewed Converse recovery fixture. These are harness
+checks with controlled responses, not model-accuracy tests. Passing intentional
+failed-cleanup cases demonstrates retained uncertainty, not positive retirement.
+Exact-head full-project CI and the physical/settlement/recurrence chain remain
+required; the disconnected preview is unchanged.
+
 ## Initial Agent submission durability
 
 The bounded [#199](https://github.com/rgoza1996/Kinaiya/issues/199) implementation
