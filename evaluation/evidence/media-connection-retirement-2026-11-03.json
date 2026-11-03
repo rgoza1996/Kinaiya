@@ -1,0 +1,242 @@
+{
+  "additional_muse_source_review": {
+    "bundle": "muse204-retirement-source-review-6tvpo3ck",
+    "model": "muse-spark-1.3-contributor",
+    "model_calls": 1,
+    "reasoning_effort": "xhigh",
+    "receipt_sha256": "6fbbaf3aa2b66b1e7d815bc2651c2d1159757fc5b06a137fc6cc713260097ef3",
+    "review_sha256": "d1646868f586d4d0671c5844c9e8f9e137f56460a6866c73ddff2b241a81ae75",
+    "scope": "Supplied public source excerpts, no tools, test-body reads or execution. No actionable finding within those excerpts, not CI or runtime qualification.",
+    "terminal_exit": 0
+  },
+  "behavior": "Cleanup joins the same original connection retirement Task through native publication, even after physical join or hub registry removal. A failed original cannot release source custody, including after SQL publication committed.",
+  "checks": {
+    "git_diff_check": "pass",
+    "junit_properties": 0,
+    "prior176_ordered_case_ids_non_time_attributes_and_children": "exact",
+    "ruff_check": "pass",
+    "ruff_format_check": "827 files already formatted",
+    "schemas": "unchanged"
+  },
+  "cold_control": {
+    "failed": 2,
+    "failures": [
+      "Cleanup returned False before the held original native publication retired.",
+      "Cleanup released the source after SQL commit despite the same original retirement Task failing."
+    ],
+    "limits": "This controlled baseline failure does not establish the actual cause of CI527. Disposable teardown of unknown originals is not positive native cleanup.",
+    "passed": 2,
+    "unchanged_production_parent": "91e96530836fc80e984eaa4affabfeef2c130644"
+  },
+  "historical_ci": {
+    "cause": "The new controlled race is compatible with the old teardown failure, but its incidence in CI527 is unproved.",
+    "failure": "test_current_status_is_read_only_and_never_renews_original_lease fixture shutdown: Original media shutdown is unconfirmed; retained cleanup Task returned False",
+    "platform_jobs": "Flutter/web, Android and iOS passed",
+    "python311": "cancelled during pytest; no final count",
+    "python312": {
+      "deselected": 2,
+      "failed": 1,
+      "passed": 12033,
+      "skipped": 6,
+      "warnings": 1
+    },
+    "run_id": 41667287864,
+    "schema_exports_and_dependency_audits": "skipped",
+    "source_tree": "50ff5eab666d6e03f1534abc859661dbd46dc66c",
+    "url": "https://github.com/rgoza1996/Kinaiya/actions/runs/41667287864"
+  },
+  "issues": [
+    204,
+    357
+  ],
+  "limits": [
+    "Narrow fixed5 overlaps broader180, whose first176 are the prior suite; counts are not additive.",
+    "Negative controls retain unknown/failed originals and source reservation; no physical cleanup is inferred from disposed test handles.",
+    "Raw evidence and sealed reviews remain ignored local bundles identified by hashes, not uploaded CI artifacts.",
+    "New-head CI and parent/latest-main integration remain required before merge.",
+    "No decoder launch, native media model transport, physical audio/video/capture, model accuracy, full standing64 capacity or sign-language/news demonstration qualification.",
+    "These tests used no paid inference, GPU/device operation, live application configuration change or preview replacement. A separate Contributor xhigh code-excerpt review used restored Meta access and did not run tests."
+  ],
+  "module_cases": {
+    "connection_retirement": 4,
+    "legacy_events": 13,
+    "lifecycle": 16,
+    "owner": 51,
+    "receipt_parser": 96
+  },
+  "pull_request": 378,
+  "reviews": {
+    "broader_raw": {
+      "bundle": "204-connection-retirement-broader180-independent-raw-v1",
+      "receipt_sha256": "8e276a6c470c34eb1b6535102ad0990e48149b078c1b435b32bdcb8e1423a977",
+      "role_overlap": "Reviewer authored the earlier legacy13 oracle in the suite; not new production, connection fixture or runner.",
+      "scope": "Static artifact verification after terminal completion; new production body unread; earlier legacy13 authorship is disclosed.",
+      "seal_sha256": "07a7b3c8fff5526982e9b2f8520a50ef680ccb8a3499058f8569756ff65cbb95"
+    },
+    "cold_raw": {
+      "bundle": "204-connection-retirement-cold4-independent-raw-v1",
+      "receipt_sha256": "9c2984cb617d02a2bd67678f53d70e5af4bcd14355ffee85cdb077a10e5245af",
+      "scope": "Static artifact verification by the new oracle author; independent raw reconciliation, not author-independent oracle review.",
+      "seal_sha256": "e54012eb4b259e3bae76ae7e8e285deda7f5d3a7b92c3d928bf66f17083e9ad0"
+    },
+    "fixed_raw": {
+      "bundle": "204-connection-retirement-fixed5-independent-raw-v1",
+      "receipt_sha256": "1a9ef6f5a53d0b7062cc53c72d74101556711a330f96087f32929900c89a340c",
+      "scope": "Static artifact verification by a non-author of the new fixture/product/runner; new production body unread.",
+      "seal_sha256": "69c78e7d96822788a2c5d109344ffc69b58fb301ec33dd27c47d2f41f40afb34"
+    },
+    "fixture": {
+      "bundle": "204-connection-retirement-join-independent-fixture-v1",
+      "receipt_sha256": "d98f60f3b71ad6ba0fa4a795dd6787418261fcc40c77274e1200786bbcb1416c",
+      "scope": "Independent non-author review of the new oracle and existing native fixture before execution; new production/proposal unread.",
+      "seal_sha256": "36e612adc016bd85d1494e721fc08ae764cb6097b5e81dc5ff81b41790004fc8"
+    },
+    "source_root": {
+      "bundle": "204-connection-retirement-join-root-source-v1",
+      "receipt_sha256": "a496df7ab4f4093b1f0155d30a03f2713dc2f4df150d9f8b7fe56260d27afd49",
+      "scope": "Lead source review before reading the new oracle body; not an independent review.",
+      "seal_sha256": "be7be86fb7a8e121a011599458be4abbc0ebb41ed7f684e7eab13607936b8bf7"
+    }
+  },
+  "runs": {
+    "broader180": {
+      "bundle": "204-connection-retirement-broader180-v1-inmwb069",
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+        "-u",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-m",
+        "not live",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "-o",
+        "junit_family=xunit1",
+        "tests/integration/test_session_media_owner.py",
+        "tests/integration/test_session_media_lifecycle_guards.py",
+        "tests/unit/test_legacy_events.py",
+        "tests/unit/test_media_owner_receipts.py",
+        "tests/integration/test_media_connection_retirement_join.py",
+        "--basetemp=/home/roggoz/Disks/SN750/Kinaiya/.worktrees/239-published-graph/.dev-run/204-connection-retirement-broader180-v1-inmwb069/pytest-tmp",
+        "--junitxml=/home/roggoz/Disks/SN750/Kinaiya/.worktrees/239-published-graph/.dev-run/204-connection-retirement-broader180-v1-inmwb069/junit.xml"
+      ],
+      "elapsed_wall_s": 576.5105767350033,
+      "exit_code": 0,
+      "head": "aa5223afa0d38193ebe4d8cd25fc82fef63f32da",
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "0",
+          "hostname": "roggoz",
+          "name": "pytest",
+          "skipped": "0",
+          "tests": "180",
+          "time": "575.277",
+          "timestamp": "2026-11-03T09:06:43.410952-08:00"
+        }
+      ],
+      "junit_sha256": "7bb46a984fa8111d40acddbf8e5be6281330f37f04b7ede2a305b9396eb903f6",
+      "log_sha256": "45e542ba159b73eed22d8d2300d8f47a37dd1e2121f99a89bfb9b7967258b6be",
+      "manifest_sha256": "13fb9b3008958d78b0b8758352f748dcc4daf4f00ea1fa300fbf70a134cf59c6",
+      "qualified_inputs_stable": true,
+      "receipt_sha256": "b8bebcd86dff95466dee4d710f12ba49ee9626bc55cda0325a1ca02d28c3a920",
+      "tracked_input_count": 1796
+    },
+    "cold4": {
+      "bundle": "204-connection-retirement-cold4-v1-_1fo84ji",
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+        "-u",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-m",
+        "not live",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "-o",
+        "junit_family=xunit1",
+        "tests/integration/test_media_connection_retirement_join.py",
+        "--basetemp=/home/roggoz/Disks/SN750/Kinaiya/.worktrees/239-published-graph/.dev-run/204-connection-retirement-cold4-v1-_1fo84ji/pytest-tmp",
+        "--junitxml=/home/roggoz/Disks/SN750/Kinaiya/.worktrees/239-published-graph/.dev-run/204-connection-retirement-cold4-v1-_1fo84ji/junit.xml"
+      ],
+      "elapsed_wall_s": 23.587129067993374,
+      "exit_code": 1,
+      "head": "9dd961b68806b2a54dc4e1c03de1f08abf0c23b3",
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "2",
+          "hostname": "roggoz",
+          "name": "pytest",
+          "skipped": "0",
+          "tests": "4",
+          "time": "23.171",
+          "timestamp": "2026-11-03T09:03:08.692024-08:00"
+        }
+      ],
+      "junit_sha256": "721e1e4a38959651497520be6b1845ee0bd90d5b64338027a215f435871ddcd0",
+      "log_sha256": "fa8a4406cf02cfd4ee090fca2e2fcfc07f9063c89c35fa3b844fa2298842468f",
+      "manifest_sha256": "4cd1a5c141adaaf7ab13faaa9d8cea32758c58193777e84242e5f8b9ef4fc801",
+      "qualified_inputs_stable": true,
+      "receipt_sha256": "1271e69785844b30b894e2c67df94f49278077717dbbf7db114bd5893630b078",
+      "tracked_input_count": 1796
+    },
+    "fixed5": {
+      "bundle": "204-connection-retirement-fixed5-v1-n6o2eh31",
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+        "-u",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-m",
+        "not live",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "-o",
+        "junit_family=xunit1",
+        "tests/integration/test_media_connection_retirement_join.py",
+        "tests/integration/test_session_media_owner.py::test_current_status_is_read_only_and_never_renews_original_lease",
+        "--basetemp=/home/roggoz/Disks/SN750/Kinaiya/.worktrees/239-published-graph/.dev-run/204-connection-retirement-fixed5-v1-n6o2eh31/pytest-tmp",
+        "--junitxml=/home/roggoz/Disks/SN750/Kinaiya/.worktrees/239-published-graph/.dev-run/204-connection-retirement-fixed5-v1-n6o2eh31/junit.xml"
+      ],
+      "elapsed_wall_s": 37.28954426699784,
+      "exit_code": 0,
+      "head": "aa5223afa0d38193ebe4d8cd25fc82fef63f32da",
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "0",
+          "hostname": "roggoz",
+          "name": "pytest",
+          "skipped": "0",
+          "tests": "5",
+          "time": "36.822",
+          "timestamp": "2026-11-03T09:05:03.772831-08:00"
+        }
+      ],
+      "junit_sha256": "e5f8a17e5d6c8b30d670065fa43b14db506e891fcfd0b38b4c4f690b3826b4c4",
+      "log_sha256": "b5c6357f473e7ccad05c40ec9a04242cb9827982c93f1ef921112a31b6d82105",
+      "manifest_sha256": "78aa38ff08c57de443a0a6855517c2cc9a7a40bda1965663d3c71590f2e858dc",
+      "qualified_inputs_stable": true,
+      "receipt_sha256": "212b7af83bd75308bdfb3e20ec188b59c2ede3458990fbd477e766aa8704e90f",
+      "tracked_input_count": 1796
+    }
+  },
+  "scope": "Offline synthetic native Session connection retirement and owner/lifecycle/event-channel/receipt regression; no decoder or provider/demo qualification",
+  "source_head": "aa5223afa0d38193ebe4d8cd25fc82fef63f32da",
+  "source_sha256": "d864913e6b93ac2d98f08905f4e8072967d4dcbf7ff6c49f5023acb4bf7043a6",
+  "source_tree": "3819eada248f1338a936b73dd854bb843e034ba9",
+  "test_sha256": "872450d6c934467884782d5bb4d570ebf1bbf6c793261e45c580822859951425"
+}
