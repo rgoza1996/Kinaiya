@@ -60,6 +60,8 @@ _METADATA_LIMIT = 1_073_741_824
 # Reserve one ordinary bounded metadata envelope per retained original. This is
 # a quota reservation, not an eviction threshold or a lifetime child limit.
 _REGISTRATION_BYTES = 65_536
+# Charge before each descendant pidfd attempt, including refused/uncertain opens.
+_MEMBER_BYTES = 65_536
 _BLOCK = 65_536
 _WAIT = 5.0
 
@@ -341,6 +343,8 @@ class MediaLaunch:
         self._outer_positive = self._io_positive = self._dependencies_positive = False
         self._grant_positive = False
         self._close_unknown = False
+        self._metadata_unknown = False
+        self._member_reservations = 0
         self._members = {}
         self._leader = None
         self._verified = False
@@ -413,6 +417,7 @@ class MediaLaunch:
                 and self._io_positive
                 and self._dependencies_positive
                 and not self._close_unknown
+                and not self._metadata_unknown
             )
 
     def _task(self, coro, *, io=False):
@@ -630,6 +635,8 @@ class MediaLaunch:
         for pid in members:
             if pid == managed.process.pid or pid in self._members:
                 continue
+            if not self._pool._reserve_member(self):
+                return
             fd = _adopt_member(managed.pgid, pid)
             if fd is not None:
                 owner = self._owner(fd)
@@ -660,7 +667,7 @@ class MediaLaunch:
                 members, ok = _scan_group(managed.pgid)
                 if ok and not any(state not in {"Z", "X", "x"} for state, _, _ in members.values()):
                     await proc.wait()
-                    return True
+                    return not self._metadata_unknown
             if loop.time() >= deadline:
                 if escalated:
                     return False
@@ -782,6 +789,17 @@ class MediaWorkerPool:
         if type(launch) is not MediaLaunch or getattr(launch, "_pool", None) is not self:
             _error("conflict")
         launch._owned()
+
+    def _reserve_member(self, launch):
+        # No PID/open/owner may be added before its permanent envelope charge.
+        # A failed adoption can conceal an ambiguous close; never refund it.
+        with self._lock:
+            if launch._metadata_unknown or self._metadata + _MEMBER_BYTES > _METADATA_LIMIT:
+                launch._metadata_unknown = True
+                return False
+            self._metadata += _MEMBER_BYTES
+            launch._member_reservations += 1
+            return True
 
     def register(self, binding):
         binding = _binding(binding)
