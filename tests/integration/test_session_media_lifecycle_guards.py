@@ -1285,7 +1285,7 @@ async def test_pending_sixteen_slot_cap_reuse_conflict_and_known_no_effect_relea
             assert env.owner.begin_session_change(sid, "reset") is first
             _assert_native_error(lambda: env.owner.begin_session_change(sid, "deleted"), "conflict")
             _assert_native_error(
-                lambda: env.owner.begin_session_change("seventeenth", "reset"), "conflict"
+                lambda: env.owner.begin_session_change("seventeenth", "reset"), "capacity"
             )
             _assert_native_error(lambda: env.store.reset(sid, _media_change=first), "unknown_ref")
             pending.pop(0)

@@ -106,8 +106,11 @@ The owner-only HTTP routes enroll before their first await. A native controller
 retains one original worker across cancelled or timed-out HTTP observations;
 five seconds bounds the observation, not physical completion. The selected
 bookkeeping limit is 16 pending/unresolved changes and 64 recent terminal
-originals. Its fixed 10,813,440-byte lifetime reserve belongs to the existing
-1 GiB metadata budget. With no registered owner, persisted `media_` tables still
+originals. Exhausting pending-change or native-worker slots returns the fixed
+`capacity` error (HTTP 429). Conflicting commands and additional in-flight
+observers return `conflict` (HTTP 409). Its fixed 10,813,440-byte lifetime reserve
+belongs to the existing 1 GiB metadata budget. With no registered owner,
+persisted `media_` tables still
 prevent reset/deletion from bypassing original custody.
 
 This is the selected integration contract. It does not qualify decoder launch,
