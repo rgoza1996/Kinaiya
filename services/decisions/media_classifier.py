@@ -175,6 +175,7 @@ class MediaProjectedState:
     context: tuple[dict[str, str], ...]
     recognition_hypothesis: str | None
     rendered_state: str
+    intent_eligible: bool | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -466,7 +467,55 @@ def project_media_state(
         context=norm_context,
         recognition_hypothesis=clean_hypothesis,
         rendered_state=rendered_state,
+        intent_eligible=(allowed_effect == "owner_command"),
     )
+
+
+def _validate_projected_state(state: MediaProjectedState) -> MediaProjectedState:
+    if not isinstance(state, MediaProjectedState):
+        raise ProviderRefusal("parse_media_answers requires a MediaProjectedState")
+    if (
+        type(state.ranges) is not tuple
+        or not all(isinstance(r, MediaRangeBinding) for r in state.ranges)
+        or type(state.tasks) is not tuple
+        or not all(isinstance(t, MediaTaskCandidate) for t in state.tasks)
+        or type(state.context) is not tuple
+        or type(state.through_source_seq) is not int
+        or type(state.rendered_state) is not str
+        or type(state.intent_eligible) not in {bool, type(None)}
+    ):
+        raise ProviderRefusal("MediaProjectedState contains malformed or unnormalized fields")
+    reprojected = project_media_state(
+        purpose=state.purpose,
+        allowed_operation=state.allowed_operation,
+        source=state.source,
+        fence=state.fence,
+        consumer=state.consumer,
+        ranges=state.ranges,
+        speaker_posture=state.speaker_posture,
+        owner_intent=state.owner_intent,
+        anchor=state.anchor,
+        tasks=state.tasks,
+        context=state.context,
+        recognition_hypothesis=state.recognition_hypothesis,
+    )
+    if (
+        state.allowed_effect != reprojected.allowed_effect
+        or (
+            state.intent_eligible is not None
+            and state.intent_eligible is not reprojected.intent_eligible
+        )
+        or state.through_source_seq != reprojected.through_source_seq
+        or state.ranges != reprojected.ranges
+        or state.tasks != reprojected.tasks
+        or state.context != reprojected.context
+        or state.recognition_hypothesis != reprojected.recognition_hypothesis
+        or state.rendered_state != reprojected.rendered_state
+    ):
+        raise ProviderRefusal(
+            "MediaProjectedState violates the purpose/speaker/intent/effect lattice"
+        )
+    return reprojected
 
 
 def build_media_questions(state: MediaProjectedState) -> dict[str, dict]:
@@ -548,8 +597,7 @@ def parse_media_answers(
     min_confidence: float,
 ) -> MediaDecisionProjection:
     """Validate SystemOne choice answers and bind them to immutable caller refs."""
-    if not isinstance(state, MediaProjectedState):
-        raise ProviderRefusal("parse_media_answers requires a MediaProjectedState")
+    state = _validate_projected_state(state)
     if type(questions) is not dict or not questions:
         raise ProviderRefusal("parse_media_answers requires the requested questions dict")
     floor = _validate_confidence_floor(min_confidence)
