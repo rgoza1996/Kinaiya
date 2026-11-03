@@ -20,11 +20,11 @@ Installer & Setup Wizard decision tree with all choice branches (`#261`, `#335`,
 | Team | `aed0c863-4a2a-8195-8008-de835100d87c` |
 | Project | `aed0c863-4a2a-8195-8008-de835102e964` |
 | Current page | `1521d820-51cc-4a49-a496-12d9c823c47e` — **00 · Home & Converse · Updated** |
-| Final archive revision | 57, modified `2026-11-03T22:10:00.000000Z` |
+| Final archive revision | 58, modified `2026-11-03T23:10:00.000000Z` |
 | Export | `penpot/export-files` v1, Penpot `2.18.5-RC1` |
 | Git LFS file | `assets/penpot/Kinaiya-Converse-Agent.penpot` |
-| Size | 232,685,398 bytes |
-| SHA-256 | `48b3bb4448b9d4bd5155dba59ae34a19efd6cdfaccde8df7c541105ea39b35b2` |
+| Size | 232,727,891 bytes |
+| SHA-256 | `ec2dacaf99160eff3bc19eca26a46ab35f8791451e4dd7288f4a714a4be180f7` |
 
 The previous tracked revisions were revision 56 (`228,859,935` bytes, SHA-256
 `739417a5f93a0f46783032fa18b599f8a83e02fdad18519d76f605934a584eec`), revision
@@ -84,7 +84,7 @@ The following recovery/final versions were saved in Penpot:
 6. **November 2 UI/UX review usability sync · Home, Converse, Agent and Options text layers** (revision 54).
 7. **Unlimited custom OpenAI-compatible .env API prototype boards & hidden Converse recovery sync** (revision 55).
 8. **Custom endpoint path fields, optional blank max output tokens, and global/per-model reasoning effort sync** (revision 56).
-9. **14-step CLI Installer & Setup Wizard decision tree with all choice branches** (revision 57).
+9. **14-step standalone OS terminal CLI Installer & Setup Wizard decision tree with deterministic 68×14 ASCII Home Moon and all choice branches** (revisions 57–58).
 
 Visual review caught labels hidden beneath imported backgrounds in the scoped
 patch. A guarded repair reordered 840 existing interface layers on 14 boards.
@@ -99,11 +99,11 @@ The [archive review record](../assets/penpot/options-sync-review.json) records:
 
 - Same 14 page identities; other 13 page payloads byte-exact.
 - All 267 original, 329 revision-54, and 341 revision-56 real board identities, names and geometry preserved.
-- Exactly 102 added detail/state boards on the current page (including 12 paired Custom API `.env` prototype boards in revision 55 and 28 paired CLI Installer & Setup Wizard prototype boards in revision 57).
+- Exactly 102 added detail/state boards on the current page (including 12 paired Custom API `.env` prototype boards in revision 55 and 28 paired standalone-terminal CLI Installer & Setup Wizard prototype boards in revisions 57–58).
 - Shapes outside the updated content targets unchanged.
 - All 100 uploaded media metadata/blob paths byte-exact, including mascot art.
 - All 1,126 first-patch interactions preserved; all 230 permission links,
-  286 Custom API prototype links, and 702 CLI Installer prototype links resolve
+  286 Custom API prototype links, and 668 CLI Installer prototype links resolve
   to real boards with valid motion (220ms dissolve on motion-on, instant on
   motion-off).
 - Stacking order places background groups first, editable text layers second,

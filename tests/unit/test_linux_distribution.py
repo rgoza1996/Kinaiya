@@ -366,8 +366,11 @@ def test_mascot_falls_back_for_narrow_and_noninteractive_output():
     except ModuleNotFoundError:
         pytest.fail("terminal mascot is not implemented")
     full = wizard.mascot(width=80, interactive=True)
-    assert "(" in full and "~" in full and "*" in full
+    assert "(" in full and "~" in full and "*" in full and "@" in full
     assert "\x1b" not in full
+    assert len(full.splitlines()) == 15
+    assert max(map(len, full.splitlines())) == 68
+    assert wizard.render_moon_ascii_from_image() == wizard.MASCOT
     assert wizard.mascot(width=80, interactive=False) == "Kinaiya"
     assert max(map(len, wizard.mascot(width=12, interactive=True).splitlines())) <= 12
 

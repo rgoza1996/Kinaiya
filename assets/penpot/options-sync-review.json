@@ -4,10 +4,10 @@
   "file_id": "aed0c863-4a2a-8195-8008-defdd82e75a3",
   "page_id": "1521d820-51cc-4a49-a496-12d9c823c47e",
   "archive": {
-    "bytes": 232685398,
-    "sha256": "48b3bb4448b9d4bd5155dba59ae34a19efd6cdfaccde8df7c541105ea39b35b2",
-    "revision": 57,
-    "modified_at": "2026-11-03T22:10:00.000000Z"
+    "bytes": 232727891,
+    "sha256": "ec2dacaf99160eff3bc19eca26a46ab35f8791451e4dd7288f4a714a4be180f7",
+    "revision": 58,
+    "modified_at": "2026-11-03T23:10:00.000000Z"
   },
   "checks": {
     "same_14_page_ids": true,
@@ -19,6 +19,8 @@
     "102_added_details_in_same_primary_page": true,
     "12_custom_api_prototype_boards_added": true,
     "28_cli_installer_prototype_boards_added": true,
+    "cli_installer_boards_use_standalone_terminal_without_gui_chrome": true,
+    "cli_installer_mascot_uses_deterministic_68x14_ascii_home_moon": true,
     "20_uiux_review_text_layers_synchronized": true,
     "all_100_uploaded_media_paths_byte_exact": true,
     "repair_kept_every_shape_id": true,
@@ -26,7 +28,7 @@
     "all_1126_native_patch_interactions_preserved": true,
     "230_scoped_links_resolve_with_valid_motion": true,
     "286_custom_api_links_resolve_with_valid_motion": true,
-    "702_cli_installer_links_resolve_with_valid_motion": true
+    "668_cli_installer_links_resolve_with_valid_motion": true
   },
   "all_checks_passed": true,
   "real_boards": {
@@ -52,10 +54,10 @@
     }
   },
   "new_cli_installer_interactions": {
-    "count": 702,
+    "count": 668,
     "motion": {
-      "on_dissolve_220ms": 351,
-      "off_instant": 351
+      "on_dissolve_220ms": 334,
+      "off_instant": 334
     }
   },
   "visual_review": [
@@ -63,7 +65,7 @@
     "Corrected default Permissions and linked Task unsaved edit / unknown receipt route after stacking repair",
     "November 2 UI/UX review text layer sync across Home, Converse, Agent, Options Overview and Models boards (#286-#310)",
     "Unlimited custom OpenAI-compatible .env provider list, Add/Edit Custom API, GET /models discovery, manual fallback, and removal confirmation prototype boards (#352-#353)",
-    "14-step CLI Installer & Setup Wizard prototype boards covering bootstrap channel/install-root choices, preflight/APT strict no-upgrade refusals, [y/N] plan consent, 5-stage progress, Quick vs Advanced vs --section wizard modes, local/cloud/picker provider choices, Converse toggle & independent role profiles, masked API key & disclosure consent, first-run custom .env profile creation, bounded connection probe states, completion summary, kinaiya start / doctor / rotate-owner, and update/recover/rollback/uninstall lifecycle branches (#261, #335, #336, #381-#402)"
+    "14-step standalone Linux terminal CLI Installer & Setup Wizard prototype boards (no Harness GUI chrome; deterministic 68x14 ASCII Moon from Moonlit Home screen) covering bootstrap channel/install-root choices, preflight/APT strict no-upgrade refusals, [y/N] plan consent, 5-stage progress, Quick vs Advanced vs --section wizard modes, local/cloud/picker provider choices, Converse toggle & independent role profiles, masked API key & disclosure consent, first-run custom .env profile creation, bounded connection probe states, completion summary, kinaiya start / doctor / rotate-owner, and update/recover/rollback/uninstall lifecycle branches (#261, #335, #336, #381-#402)"
   ],
   "limitations": [
     "Selected prototype paths reviewed; not every control manually exercised.",
@@ -80,8 +82,8 @@
     "broken_cli_installer_links": []
   },
   "publication": {
-    "oid": "sha256:48b3bb4448b9d4bd5155dba59ae34a19efd6cdfaccde8df7c541105ea39b35b2",
-    "size": 232685398,
+    "oid": "sha256:ec2dacaf99160eff3bc19eca26a46ab35f8791451e4dd7288f4a714a4be180f7",
+    "size": 232727891,
     "remote_download_hash_verified": true,
     "destination": "rgoza1996/Kinaiya Git LFS",
     "protocol": "standard repository-authenticated LFS batch/basic upload and download"
