@@ -1,13 +1,20 @@
-"""Owner-only provider catalog routes; no adapter construction or discovery."""
+"""Owner-only provider catalog and custom .env provider routes."""
 
 import json
 import math
+from pathlib import Path
 import re
 import sqlite3
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
+from services.settings.custom_providers_env import (
+    CustomProviderError,
+    CustomProviderReferencedError,
+    CustomProvidersEnvStore,
+)
 from services.settings.provider_catalog import ProviderCatalogConflict, ProviderChange
 
 _MAX_REQUEST_BYTES = 65536
@@ -17,12 +24,8 @@ def _error(status, detail):
     return HTTPException(status, detail, headers={"Cache-Control": "no-store"})
 
 
-async def _change_body(request):
-    """Bound the body and redact validation errors before handling any secret.
-
-    FastAPI's ordinary 422 details can include rejected input values. A raw
-    credential must never be reflected even in an owner's malformed request.
-    """
+async def _json_body(request):
+    """Read and bound a JSON object body without reflecting raw credentials."""
     raw = bytearray()
     async for chunk in request.stream():
         if len(raw) + len(chunk) > _MAX_REQUEST_BYTES:
@@ -40,30 +43,58 @@ async def _change_body(request):
     def constant(_):
         raise ValueError("Nonfinite number")
 
+    value = json.loads(raw.decode("utf-8"), object_pairs_hook=unique, parse_constant=constant)
+    pending, nodes = [(value, 0)], 0
+    while pending:
+        item, depth = pending.pop()
+        nodes += 1
+        if depth > 32 or nodes > 4096:
+            raise ValueError("JSON bound")
+        if type(item) is str:
+            item.encode("utf-8")
+        elif type(item) is float and not math.isfinite(item):
+            raise ValueError("Nonfinite number")
+        elif type(item) is dict:
+            pending.extend((key, depth + 1) for key in item)
+            pending.extend((child, depth + 1) for child in item.values())
+        elif type(item) is list:
+            pending.extend((child, depth + 1) for child in item)
+    if type(value) is not dict:
+        raise ValueError("JSON root must be an object")
+    return value
+
+
+async def _change_body(request):
+    """Bound the body and redact validation errors before handling any secret.
+
+    FastAPI's ordinary 422 details can include rejected input values. A raw
+    credential must never be reflected even in an owner's malformed request.
+    """
     try:
-        value = json.loads(raw.decode("utf-8"), object_pairs_hook=unique, parse_constant=constant)
-        pending, nodes = [(value, 0)], 0
-        while pending:
-            item, depth = pending.pop()
-            nodes += 1
-            if depth > 32 or nodes > 4096:
-                raise ValueError("JSON bound")
-            if type(item) is str:
-                item.encode("utf-8")
-            elif type(item) is float and not math.isfinite(item):
-                raise ValueError("Nonfinite number")
-            elif type(item) is dict:
-                pending.extend((key, depth + 1) for key in item)
-                pending.extend((child, depth + 1) for child in item.values())
-            elif type(item) is list:
-                pending.extend((child, depth + 1) for child in item)
+        value = await _json_body(request)
         return ProviderChange.model_validate(value)
+    except HTTPException:
+        raise
     except (ValueError, TypeError, UnicodeError, RecursionError, ValidationError):
         raise _error(422, "Provider change requires the strict versioned operation shape") from None
 
 
-def router(catalog, auth):
+def _resolve_custom_store(catalog, custom_store):
+    if custom_store is not None:
+        return custom_store
+    if catalog is not None and getattr(catalog, "path", None) is not None:
+        cat_path = Path(catalog.path).resolve()
+        workspace = Path(getattr(catalog, "workspace", cat_path.parent)).resolve()
+        return CustomProvidersEnvStore(
+            cat_path.parent / "custom_providers.env",
+            workspace=workspace,
+        )
+    return None
+
+
+def router(catalog, auth, custom_store=None):
     routes = APIRouter(prefix="/v1/providers", dependencies=[Depends(auth.require("owner"))])
+    resolved_custom = _resolve_custom_store(catalog, custom_store)
 
     @routes.get("")
     async def inspect(response: Response):
@@ -74,6 +105,57 @@ def router(catalog, auth):
             return catalog.snapshot()
         except (OSError, ValueError, TypeError, sqlite3.Error):
             raise _error(503, "Provider catalog inspection is unavailable") from None
+
+    @routes.get("/custom")
+    async def inspect_custom(response: Response):
+        response.headers["Cache-Control"] = "no-store"
+        if resolved_custom is None:
+            raise _error(503, "Custom provider .env store is not enabled on this host")
+        try:
+            return resolved_custom.snapshot()
+        except (OSError, CustomProviderError, ValueError):
+            raise _error(503, "Custom provider .env inspection is unavailable") from None
+
+    @routes.post("/custom")
+    async def change_custom(request: Request, response: Response):
+        response.headers["Cache-Control"] = "no-store"
+        if resolved_custom is None:
+            raise _error(503, "Custom provider .env store is not enabled on this host")
+        try:
+            payload = await _json_body(request)
+        except HTTPException:
+            raise
+        except (ValueError, TypeError, UnicodeError, RecursionError):
+            raise _error(422, "Custom provider request requires a valid JSON object") from None
+        try:
+            return resolved_custom.apply_action(payload)
+        except CustomProviderReferencedError as exc:
+            return JSONResponse(
+                status_code=409,
+                headers={"Cache-Control": "no-store"},
+                content={
+                    "detail": str(exc),
+                    "error": "custom_provider_referenced",
+                    "profile_id": exc.profile_id,
+                    "referenced_by": exc.referenced_by,
+                },
+            )
+        except CustomProviderError as exc:
+            raise _error(400, str(exc)) from None
+        except OSError:
+            raise _error(503, "Custom provider .env persistence failed") from None
+
+    @routes.post("/custom/{profile_id}/discover")
+    async def discover_custom(profile_id: str, response: Response):
+        response.headers["Cache-Control"] = "no-store"
+        if resolved_custom is None:
+            raise _error(503, "Custom provider .env store is not enabled on this host")
+        try:
+            return resolved_custom.discover_models(profile_id)
+        except CustomProviderError as exc:
+            raise _error(400, str(exc)) from None
+        except OSError:
+            raise _error(503, "Custom provider model discovery failed") from None
 
     @routes.post("/changes")
     async def change(request: Request, response: Response):

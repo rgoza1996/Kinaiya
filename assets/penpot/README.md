@@ -41,12 +41,20 @@ model dropdown demonstrates changing a selection in each harness. Values are
 prototype examples and do not save application settings.
 
 The current provider catalog designs distinguish saved profile declarations from
-credential references and immutable generations. They include native Meta text,
-LM Studio, compatible endpoints and Laya declarations. Saving a profile does not
-prove readiness or make every adapter eligible for Agent text completion.
-Credentials are represented by synthetic references; the design contains no
-owner key. Earlier Meta account sign-in explorations are historical proposals,
-not an implemented authentication path.
+credential references and immutable generations. Adding a provider profile sticks
+to custom OpenAI-compatible `.env` profiles (`#352`) with configurable endpoint
+paths (chat completions, models discovery, and optional engine-specific routes
+such as `/v1/systemone` on `llama.cpp` vs standard `/v1` on `LM Studio`),
+optional maximum output tokens (leaving blank delegates token limits to the
+model/engine), per-profile `GET /models` discovery, manual model ID fallback,
+masked API key preservation/rotation, and `(provider_profile_id, model_id)` role
+identity. Reasoning effort is configured globally or per-model in `Models`
+rather than per provider. Saving a profile or discovering
+`/models` does not prove readiness or make every adapter eligible for measured
+Agent text completion. Credentials are represented by synthetic references or
+masked `.env` placeholders; the design contains no real owner key. Earlier Meta
+account sign-in explorations are historical proposals, not an implemented
+authentication path.
 
 The current Models and Harness Customization boards show host versus exact
 catalog-generation selection, unavailable generations, inheritance, dedicated
@@ -119,26 +127,30 @@ status indicators distinguishable from the behavior of the running product.
 ## Reviewed native Options and November 2 UI/UX synchronization
 
 The current Git LFS archive is the same **Kinaiya — Master design** file, revision
-54, modified `2026-11-02T20:00:00.000000Z`. It contains fourteen pages and 329
-real top-level boards (251 on the current page), excluding root sentinels.
-Archive size: **227,769,664 bytes**; SHA-256:
-`892a4867e0c613b5d9f4e3d97274e13e6f0581a7a7da7977c7592154a15542c5`.
+56, modified `2026-11-03T04:15:00.000000Z`. It contains fourteen pages and 341
+real top-level boards (263 on the current page), excluding root sentinels.
+Archive size: **228,859,935 bytes**; SHA-256:
+`739417a5f93a0f46783032fa18b599f8a83e02fdad18519d76f605934a584eec`.
 
 Sixty-two existing Options content areas were updated and sixty-two paired
-motion detail/state boards were added in revision 53, and revision 54 synchronizes
+motion detail/state boards were added in revision 53, revision 54 synchronized
 twenty editable text layers across the Home, Converse, Agent and Options
-Overview/Models boards (both motion-on and motion-off variants) with the November 2
-usability review improvements (`#286–#310`): Home Connect/Setup recovery and
-prerequisite copy, Converse listening/muted/thinking/speaking state chips and
-compact provider/privacy model summary, causal Converse→Agent handoff status and
-verified task progress, Agent objective/state/evidence-first header hierarchy, and
-Options search, setup shortcuts and plain-language model role copy. All 329 real
-board identities, names and geometry remain; the other thirteen pages and all 100
-uploaded artwork metadata/blob paths remain byte-exact.
+Overview/Models boards (`#286–#310`), and revisions 55–56 update the Provider,
+Models, and Home/Character boards (`#352–#353`) and add twelve paired Custom API
+prototype boards (`#352`: custom OpenAI-compatible `.env` profiles, custom
+endpoint fields such as `/v1/systemone` for `llama.cpp` vs standard `/v1` for
+`LM Studio`, optional blank maximum output tokens delegated to the model,
+global/per-model reasoning effort in `Models` instead of per-provider reasoning
+effort, `GET /models` discovery, error & manual model ID fallback, and
+referenced-profile removal confirmation, in both motion-on and motion-off
+variants). All prior real board identities, names and geometry remain; the other
+thirteen pages and all 100 uploaded artwork metadata/blob paths remain
+byte-exact.
 
-Selected Models, Providers, profile editing, Permissions, Task edit and unknown
-receipt paths were visually reviewed. Offline archive analysis resolves 1,126
-native Options and 230 scoped permission links. This does not claim every
-prototype control was exercised or runtime acceptance completed. See the
+Selected Models, Providers, Custom API `.env` prototype flows, profile editing,
+Permissions, Task edit and unknown receipt paths were reviewed. Offline archive
+analysis resolves 1,126 native Options, 230 scoped permission, and 286 Custom
+API prototype links. This does not claim every prototype control was exercised
+or runtime acceptance completed. See the
 [review record](options-sync-review.json) and
 [synchronization notes](../../docs/penpot-options-sync-plan.md).

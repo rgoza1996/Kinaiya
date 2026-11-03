@@ -52,6 +52,45 @@ class ProviderApi {
   Future<ProviderCatalogSnapshot> inspect() =>
       _request('GET', '/v1/providers', null, ProviderCatalogSnapshot.fromJson);
 
+  Future<CustomProvidersSnapshot> inspectCustomProviders() => _request(
+    'GET',
+    '/v1/providers/custom',
+    null,
+    CustomProvidersSnapshot.fromJson,
+  );
+
+  Future<CustomProvidersSnapshot> changeCustomProvider(
+    Map<String, Object?> request,
+  ) {
+    Map<String, Object?> body;
+    try {
+      body = jsonDecode(jsonEncode(request)) as Map<String, Object?>;
+    } catch (_) {
+      throw const ProviderFailure('Invalid custom provider change');
+    }
+    return _request(
+      'POST',
+      '/v1/providers/custom',
+      body,
+      CustomProvidersSnapshot.fromJson,
+    ).whenComplete(() {
+      body.remove('api_key');
+    });
+  }
+
+  Future<CustomModelsDiscoveryResult> discoverCustomModels(String profileId) {
+    final clean = profileId.trim().toLowerCase();
+    if (!RegExp(r'^p[0-9]{2,6}$').hasMatch(clean)) {
+      throw const ProviderFailure('Invalid custom provider ID');
+    }
+    return _request(
+      'POST',
+      '/v1/providers/custom/${Uri.encodeComponent(clean)}/discover',
+      const <String, Object?>{},
+      CustomModelsDiscoveryResult.fromJson,
+    );
+  }
+
   Future<ProviderChangeReceipt> change(Map<String, Object?> request) {
     // Detach exactly once; this contains a key only for an explicit import.
     // Request bodies and failure details are never interpolated into errors.

@@ -495,6 +495,8 @@ def _storage(path, workspace, *, report_created=False):
 
 class ProviderCatalog:
     def __init__(self, path, workspace, *, env_refs=None):
+        self.path = Path(path)
+        self.workspace = Path(workspace)
         self.db = _storage(path, workspace)
         try:
             self.db.execute("PRAGMA synchronous=FULL")

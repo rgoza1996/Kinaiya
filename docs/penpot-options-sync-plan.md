@@ -1,13 +1,14 @@
 # Options: editable Penpot synchronization
 
-Updated November 2, 2026 for [#208](https://github.com/rgoza1996/Kinaiya/issues/208) and [#286](https://github.com/rgoza1996/Kinaiya/issues/286).
+Updated November 2, 2026 for [#208](https://github.com/rgoza1996/Kinaiya/issues/208), [#286](https://github.com/rgoza1996/Kinaiya/issues/286), and [#352](https://github.com/rgoza1996/Kinaiya/issues/352).
 **Status: applied to the existing master, selected paths visually reviewed, and
 final native archive inspected. The Git LFS object was uploaded and its full
 remote download rehashed successfully; the pointer/docs are submitted by PR.**
 This increment synchronizes provider/catalog, Agent models, immutable notes,
-three-tool scoped permissions, and the November 2 UI/UX review usability
-improvements (`#286–#310`). It does not complete the full
-[Options delivery goal](options-delivery-plan.md).
+three-tool scoped permissions, the November 2 UI/UX review usability
+improvements (`#286–#310`), and the unlimited custom OpenAI-compatible `.env`
+provider & model discovery prototype boards (`#352–#353`). It does not complete
+the full [Options delivery goal](options-delivery-plan.md).
 
 ## Exact master and export
 
@@ -17,18 +18,22 @@ improvements (`#286–#310`). It does not complete the full
 | Team | `aed0c863-4a2a-8195-8008-de835100d87c` |
 | Project | `aed0c863-4a2a-8195-8008-de835102e964` |
 | Current page | `1521d820-51cc-4a49-a496-12d9c823c47e` — **00 · Home & Converse · Updated** |
-| Final archive revision | 54, modified `2026-11-02T20:00:00.000000Z` |
+| Final archive revision | 56, modified `2026-11-03T04:15:00.000000Z` |
 | Export | `penpot/export-files` v1, Penpot `2.18.5-RC1` |
 | Git LFS file | `assets/penpot/Kinaiya-Converse-Agent.penpot` |
-| Size | 227,769,664 bytes |
-| SHA-256 | `892a4867e0c613b5d9f4e3d97274e13e6f0581a7a7da7977c7592154a15542c5` |
+| Size | 228,859,935 bytes |
+| SHA-256 | `739417a5f93a0f46783032fa18b599f8a83e02fdad18519d76f605934a584eec` |
 
-The previous tracked revisions were revision 53 (`228,277,854` bytes, SHA-256
+The previous tracked revisions were revision 55 (`228,843,262` bytes, SHA-256
+`198427eef1e7aafd65b0ef3013ac76e2fabd43cbaefdff6126c5e2a3f3325bf0`), revision
+54 (`227,769,664` bytes, SHA-256
+`892a4867e0c613b5d9f4e3d97274e13e6f0581a7a7da7977c7592154a15542c5`), revision
+53 (`228,277,854` bytes, SHA-256
 `ba1f0e61d133eccb6539c3aee5504292a4ed61e77416e63e99fd98ef27e3f8be`) and
 revision 50 (`213,963,957` bytes, SHA-256
 `4e53fc62fff1b897b0a89e2d8997cc84a6dc6c00328f4e4fcc7ad9abdb946b22`).
-The final export has fourteen pages and 329 real top-level boards, excluding
-fourteen root sentinels. The current page grows from 189 to 251 real boards.
+The final export has fourteen pages and 341 real top-level boards, excluding
+fourteen root sentinels. The current page grows from 189 to 263 real boards.
 All changes were made in the same master; no replacement draft was imported.
 
 ## Applied content and source mapping
@@ -36,12 +41,13 @@ All changes were made in the same master; no replacement draft was imported.
 | Area | Applied design | Native/source reference |
 | --- | --- | --- |
 | Provider profiles | Declaration forms, exact generations, Meta text, native LM Studio, compatible and Laya entries, explicit edit/remove and unknown outcomes. | [ADR0086](adr/0086-owner-provider-catalog.md), [catalog API](provider-catalog-api.md), `options_provider_editor.dart` |
+| Custom OpenAI-compatible `.env` APIs (`#352`) | Unlimited custom OpenAI-compatible profiles (`p01..p06+`, no 5-slot cap) persisted in user-local `0600` `.env` (`KINAIYA_CUSTOM_PROVIDER_IDS`), custom endpoint path fields (`chat_completions_path`, `models_path`, and optional engine-specific endpoints such as `/v1/systemone` for `llama.cpp` vs standard `/v1` for `LM Studio`), optional maximum output tokens (blank = up to model), global/per-model reasoning effort in `Models` instead of per-provider reasoning effort, Add/Edit Custom API, masked key rotation, `GET {base_url}{models_path}` discovery, manual model ID fallback, `(provider_profile_id, model_id)` disambiguation, and referenced-profile removal confirmation. | [#352](https://github.com/rgoza1996/Kinaiya/issues/352), `services/settings/custom_providers_env.py`, `options_provider_editor.dart`, `options_model_editor.dart` |
 | Credentials | Imported key/reference forms, rotation into immutable generations and explicit profile rebinding; synthetic values only. | Same editor and protected native credential owner |
 | Agent models | Host versus saved generation, exact configuration identity, retained unavailable generations and explicit new-generation choice. | [ADR0089](adr/0089-agent-catalog-models.md), `options_model_editor.dart` |
 | Harness and auxiliary | Dedicated exact-harness editors, inheritance/custom states and the five supported auxiliary text purposes. | [ADR0082](adr/0082-task-pinned-auxiliary-models.md), ADR0089 |
 | Converse notes | Scope/use, source inspection, immutable creation/revision, dependent-note forgetting and uncertain-operation recovery. | [ADR0085](adr/0085-converse-note-editor.md), `converse_memory_editor.dart` |
 | Scoped permissions | Default/Workspace/Session/Task precedence, exact read_file/write_file/shell rules, inheritance, unsaved task edit, receipt uncertainty, same-instance fencing and retired-scope reset. | [ADR0096](adr/0096-scoped-native-tool-permissions.md), `options_tool_permissions.dart` |
-| November 2 UI/UX review (`#286–#310`) | Home Connect/Setup priority & prerequisite guidance (`#287–#289`), Agent empty state & objective/state/evidence-first header (`#290–#292`), Converse voice state chips, compact model/privacy summary & causal handoff/task progress (`#293–#298`), Options search, orientation, setup shortcuts & grouped role copy (`#299–#308`). | `home_view.dart`, `character_view.dart`, `agent_chat.dart`, `options_view.dart`, `options_model_editor.dart` |
+| November 2 UI/UX review (`#286–#310`, `#353`) | Home Connect/Setup priority, hidden Converse recovery (`#353`) & prerequisite guidance (`#287–#289`), Agent empty state & objective/state/evidence-first header (`#290–#292`), Converse voice state chips, compact model/privacy summary & causal handoff/task progress (`#293–#298`), Options search, orientation, setup shortcuts & grouped role copy (`#299–#308`). | `home_view.dart`, `moonlit_home.dart`, `character_view.dart`, `agent_chat.dart`, `options_view.dart`, `options_model_editor.dart` |
 
 Flutter filenames above are within `apps/kinaiya_flutter/lib/ui/`. Actual editors
 are embedded scrollable forms. Separate detail boards illustrate their states;
@@ -71,6 +77,8 @@ The following recovery/final versions were saved in Penpot:
 4. **Before scoped permission stacking repair**.
 5. **Scoped permission text and controls · corrected stacking** (revision 53).
 6. **November 2 UI/UX review usability sync · Home, Converse, Agent and Options text layers** (revision 54).
+7. **Unlimited custom OpenAI-compatible .env API prototype boards & hidden Converse recovery sync** (revision 55).
+8. **Custom endpoint path fields, optional blank max output tokens, and global/per-model reasoning effort sync** (revision 56).
 
 Visual review caught labels hidden beneath imported backgrounds in the scoped
 patch. A guarded repair reordered 840 existing interface layers on 14 boards.
@@ -84,13 +92,15 @@ patches are single-use and must not be rerun against the changed master.
 The [archive review record](../assets/penpot/options-sync-review.json) records:
 
 - Same 14 page identities; other 13 page payloads byte-exact.
-- All 267 original real board identities, names and geometry preserved.
-- Exactly 62 added detail/state boards on the current page.
-- Shapes outside the 62 existing content targets unchanged.
+- All 267 original and 329 revision-54 real board identities, names and geometry preserved.
+- Exactly 74 added detail/state boards on the current page (including 12 paired Custom API `.env` prototype boards in revision 55).
+- Shapes outside the updated content targets unchanged.
 - All 100 uploaded media metadata/blob paths byte-exact, including mascot art.
-- All1,126 first-patch interactions preserved; all 230 new permission links
-  resolve to real boards with valid motion (115 dissolve, 115 instant).
-- Stacking repair preserves every shape and only permutes existing child lists.
+- All 1,126 first-patch interactions preserved; all 230 permission links and
+  286 Custom API prototype links resolve to real boards with valid motion
+  (220ms dissolve on motion-on, instant on motion-off).
+- Stacking order places background groups first, editable text layers second,
+  and clickable interaction rects last.
 
 Selected desktop paths were reviewed in the browser: Models, Providers, exact
 LM Studio profile editing, corrected Permissions, the Task unsaved edit and

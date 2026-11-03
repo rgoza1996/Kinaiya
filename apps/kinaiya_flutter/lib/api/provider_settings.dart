@@ -793,3 +793,270 @@ class _JsonReader {
     _bad();
   }
 }
+
+const kMaskedCustomApiKey = '••••••••••••';
+
+class CustomProviderProfile {
+  const CustomProviderProfile({
+    required this.profileId,
+    required this.name,
+    required this.baseUrl,
+    this.chatCompletionsPath = '/chat/completions',
+    this.modelsPath = '/models',
+    this.customEndpoints = '',
+    this.maxOutputTokens,
+    required this.enabled,
+    required this.hasApiKey,
+    required this.maskedApiKey,
+    required this.selectedModel,
+    required this.qualifiedModelId,
+    required this.discoveredModels,
+    required this.allowRemoteHttp,
+    required this.referencedBy,
+    required this.capabilities,
+  });
+
+  final String profileId;
+  final String name;
+  final String baseUrl;
+  final String chatCompletionsPath;
+  final String modelsPath;
+  final String customEndpoints;
+  final int? maxOutputTokens;
+  final bool enabled;
+  final bool hasApiKey;
+  final String maskedApiKey;
+  final String selectedModel;
+  final String qualifiedModelId;
+  final List<String> discoveredModels;
+  final bool allowRemoteHttp;
+  final List<String> referencedBy;
+  final Map<String, Object?> capabilities;
+
+  factory CustomProviderProfile.fromJson(Object? raw) {
+    final m = _map(raw);
+    final rawDiscovered = m['discovered_models'];
+    final discovered = <String>[];
+    if (rawDiscovered is List<Object?>) {
+      for (final item in rawDiscovered) {
+        if (item is String && item.trim().isNotEmpty) {
+          discovered.add(item.trim());
+        }
+      }
+    }
+    final rawRefs = m['referenced_by'];
+    final refs = <String>[];
+    if (rawRefs is List<Object?>) {
+      for (final item in rawRefs) {
+        if (item is String && item.trim().isNotEmpty) {
+          refs.add(item.trim());
+        }
+      }
+    }
+    final rawCaps = m['capabilities'];
+    final caps = rawCaps is Map<String, Object?>
+        ? Map<String, Object?>.unmodifiable(rawCaps)
+        : const <String, Object?>{
+            'chat': 'unverified',
+            'streaming': 'unverified',
+            'reasoning': 'unverified',
+            'multimodal': 'unverified',
+            'tool_use': 'unverified',
+            'agent_qualified': false,
+          };
+    final pid = (m['profile_id'] as String?)?.trim() ?? '';
+    final selected = (m['selected_model'] as String?)?.trim() ?? '';
+    final rawChatPath = (m['chat_completions_path'] as String?)?.trim() ?? '';
+    final rawModelsPath = (m['models_path'] as String?)?.trim() ?? '';
+    final rawMaxTokens = m['max_output_tokens'];
+    int? parsedMaxTokens;
+    if (rawMaxTokens is int && rawMaxTokens > 0) {
+      parsedMaxTokens = rawMaxTokens;
+    } else if (rawMaxTokens is String && rawMaxTokens.trim().isNotEmpty) {
+      final v = int.tryParse(rawMaxTokens.trim());
+      if (v != null && v > 0) parsedMaxTokens = v;
+    }
+    return CustomProviderProfile(
+      profileId: pid,
+      name: (m['name'] as String?)?.trim() ?? pid.toUpperCase(),
+      baseUrl: (m['base_url'] as String?)?.trim() ?? '',
+      chatCompletionsPath: rawChatPath.isEmpty
+          ? '/chat/completions'
+          : rawChatPath,
+      modelsPath: rawModelsPath.isEmpty ? '/models' : rawModelsPath,
+      customEndpoints: (m['custom_endpoints'] as String?)?.trim() ?? '',
+      maxOutputTokens: parsedMaxTokens,
+      enabled: m['enabled'] is! bool || (m['enabled'] as bool),
+      hasApiKey: m['has_api_key'] == true,
+      maskedApiKey: (m['masked_api_key'] as String?) ?? '',
+      selectedModel: selected,
+      qualifiedModelId:
+          (m['qualified_model_id'] as String?) ??
+          (selected.isNotEmpty ? '$pid:$selected' : ''),
+      discoveredModels: List.unmodifiable(discovered),
+      allowRemoteHttp: m['allow_remote_http'] == true,
+      referencedBy: List.unmodifiable(refs),
+      capabilities: caps,
+    );
+  }
+}
+
+class CustomProviderRoleBinding {
+  const CustomProviderRoleBinding({
+    required this.profileId,
+    required this.providerName,
+    required this.baseUrl,
+    required this.enabled,
+    required this.modelId,
+    required this.qualifiedModelId,
+    this.reasoningEffort,
+    this.effectiveReasoningEffort = 'medium',
+  });
+
+  final String profileId;
+  final String providerName;
+  final String baseUrl;
+  final bool enabled;
+  final String modelId;
+  final String qualifiedModelId;
+  final String? reasoningEffort;
+  final String effectiveReasoningEffort;
+
+  factory CustomProviderRoleBinding.fromJson(Object? raw) {
+    final m = _map(raw);
+    final pid = (m['profile_id'] as String?)?.trim() ?? '';
+    final mid = (m['model_id'] as String?)?.trim() ?? '';
+    final rawEffort = (m['reasoning_effort'] as String?)?.trim();
+    final rawEffective = (m['effective_reasoning_effort'] as String?)?.trim();
+    return CustomProviderRoleBinding(
+      profileId: pid,
+      providerName: (m['provider_name'] as String?)?.trim() ?? pid,
+      baseUrl: (m['base_url'] as String?)?.trim() ?? '',
+      enabled: m['enabled'] is! bool || (m['enabled'] as bool),
+      modelId: mid,
+      qualifiedModelId: (m['qualified_model_id'] as String?) ?? '$pid:$mid',
+      reasoningEffort: (rawEffort != null && rawEffort.isNotEmpty)
+          ? rawEffort
+          : null,
+      effectiveReasoningEffort:
+          (rawEffective != null && rawEffective.isNotEmpty)
+          ? rawEffective
+          : (rawEffort != null && rawEffort.isNotEmpty ? rawEffort : 'medium'),
+    );
+  }
+}
+
+class CustomProvidersSnapshot {
+  const CustomProvidersSnapshot({
+    required this.schemaVersion,
+    required this.envFileName,
+    required this.unlimited,
+    this.globalReasoningEffort = 'medium',
+    required this.profiles,
+    required this.roleBindings,
+  });
+
+  const CustomProvidersSnapshot.empty()
+    : schemaVersion = 1,
+      envFileName = 'custom_providers.env',
+      unlimited = true,
+      globalReasoningEffort = 'medium',
+      profiles = const [],
+      roleBindings = const {};
+
+  final int schemaVersion;
+  final String envFileName;
+  final bool unlimited;
+  final String globalReasoningEffort;
+  final List<CustomProviderProfile> profiles;
+  final Map<String, CustomProviderRoleBinding?> roleBindings;
+
+  factory CustomProvidersSnapshot.fromJson(Object? raw) {
+    final m = _map(raw);
+    final rawProfiles = m['profiles'];
+    final parsedProfiles = <CustomProviderProfile>[];
+    if (rawProfiles is List<Object?>) {
+      for (final item in rawProfiles) {
+        parsedProfiles.add(CustomProviderProfile.fromJson(item));
+      }
+    }
+    final rawRoles = m['role_bindings'];
+    final parsedRoles = <String, CustomProviderRoleBinding?>{};
+    if (rawRoles is Map<String, Object?>) {
+      for (final entry in rawRoles.entries) {
+        parsedRoles[entry.key] = entry.value == null
+            ? null
+            : CustomProviderRoleBinding.fromJson(entry.value);
+      }
+    }
+    final rawGlobalEffort =
+        (m['global_reasoning_effort'] as String?)?.trim() ?? '';
+    return CustomProvidersSnapshot(
+      schemaVersion: m['schema_version'] is int
+          ? m['schema_version'] as int
+          : 1,
+      envFileName:
+          (m['env_file_name'] as String?)?.trim() ?? 'custom_providers.env',
+      unlimited: m['unlimited'] is! bool || (m['unlimited'] as bool),
+      globalReasoningEffort: rawGlobalEffort.isEmpty
+          ? 'medium'
+          : rawGlobalEffort,
+      profiles: List.unmodifiable(parsedProfiles),
+      roleBindings: Map.unmodifiable(parsedRoles),
+    );
+  }
+}
+
+class CustomModelsDiscoveryResult {
+  const CustomModelsDiscoveryResult({
+    required this.profileId,
+    required this.providerName,
+    required this.modelsUrl,
+    required this.status,
+    required this.httpStatus,
+    required this.modelIds,
+    required this.manualFallbackAllowed,
+    required this.message,
+    required this.snapshot,
+  });
+
+  final String profileId;
+  final String providerName;
+  final String modelsUrl;
+  final String status;
+  final int? httpStatus;
+  final List<String> modelIds;
+  final bool manualFallbackAllowed;
+  final String message;
+  final CustomProvidersSnapshot snapshot;
+
+  factory CustomModelsDiscoveryResult.fromJson(Object? raw) {
+    final m = _map(raw);
+    final rawModels = m['models'];
+    final ids = <String>[];
+    if (rawModels is List<Object?>) {
+      for (final item in rawModels) {
+        if (item is Map<String, Object?> && item['model_id'] is String) {
+          ids.add((item['model_id'] as String).trim());
+        } else if (item is String) {
+          ids.add(item.trim());
+        }
+      }
+    }
+    return CustomModelsDiscoveryResult(
+      profileId: (m['profile_id'] as String?)?.trim() ?? '',
+      providerName: (m['provider_name'] as String?)?.trim() ?? '',
+      modelsUrl: (m['models_url'] as String?)?.trim() ?? '',
+      status: (m['status'] as String?)?.trim() ?? 'unknown',
+      httpStatus: m['http_status'] is int ? m['http_status'] as int : null,
+      modelIds: List.unmodifiable(ids),
+      manualFallbackAllowed:
+          m['manual_fallback_allowed'] is! bool ||
+          (m['manual_fallback_allowed'] as bool),
+      message: (m['message'] as String?)?.trim() ?? '',
+      snapshot: m['snapshot'] != null
+          ? CustomProvidersSnapshot.fromJson(m['snapshot'])
+          : const CustomProvidersSnapshot.empty(),
+    );
+  }
+}
