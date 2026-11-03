@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 
@@ -7,7 +9,8 @@ import '../state/app_state.dart';
 import 'visual_theme.dart';
 import 'widgets.dart';
 
-/// Connection setup: service URLs plus an owner access token password field.
+/// Connection setup: trusted local auto-connect status plus advanced manual
+/// service URLs and owner access token field.
 /// Everything stays in memory; nothing is persisted, logged or URL-encoded.
 class SetupDialog extends StatefulWidget {
   const SetupDialog({
@@ -15,9 +18,11 @@ class SetupDialog extends StatefulWidget {
     required this.state,
     this.embedded = false,
     this.privacyOnly = false,
+    this.localSignInExchange,
   });
   final AppState state;
   final bool embedded, privacyOnly;
+  final LocalSignInExchange? localSignInExchange;
 
   @override
   State<SetupDialog> createState() => _SetupDialogState();
@@ -31,8 +36,11 @@ class _SetupDialogState extends State<SetupDialog> {
   late final TextEditingController _token;
   BackendProfile _profile = BackendProfile.clean;
   String? _error;
-  bool _showEndpoints = true;
+  late bool _showServiceEndpointFields;
   bool _showAdvanced = false;
+
+  bool get _showEndpoints => _showServiceEndpointFields;
+  set _showEndpoints(bool value) => _showServiceEndpointFields = value;
 
   @override
   void initState() {
@@ -44,6 +52,35 @@ class _SetupDialogState extends State<SetupDialog> {
     _decisions = TextEditingController(text: c.decisionsUrl ?? '');
     _token = TextEditingController();
     _profile = c.backendProfile;
+    final isLocalFirstRun =
+        widget.localSignInExchange != null ||
+        widget.state.isTrustedLocalFirstRun ||
+        kIsWeb;
+    _showServiceEndpointFields = !isLocalFirstRun;
+    if ((widget.localSignInExchange != null ||
+            widget.state.localSignInExchange != null) &&
+        widget.state.localSignInState == LocalHostSignInState.idle &&
+        !widget.state.connected) {
+      unawaited(_retryLocalSignIn());
+    }
+  }
+
+  Future<void> _retryLocalSignIn() async {
+    if (mounted) {
+      setState(() => _error = null);
+    }
+    await widget.state.attemptLocalSignIn(
+      exchange: widget.localSignInExchange,
+      backendProfile: _profile,
+    );
+    if (!mounted) return;
+    final c = widget.state.connection;
+    if (c != null) {
+      _session.text = c.sessionUrl;
+      _agent.text = c.agentUrl;
+      _converse.text = c.converseUrl;
+      _decisions.text = c.decisionsUrl ?? '';
+    }
   }
 
   @override
@@ -64,7 +101,7 @@ class _SetupDialogState extends State<SetupDialog> {
       decisionsUrl: _decisions.text,
       ownerToken:
           _token.text.isEmpty &&
-              widget.embedded &&
+              (widget.state.connection?.ownerToken.isNotEmpty ?? false) &&
               _session.text == widget.state.connection?.sessionUrl &&
               _agent.text == widget.state.connection?.agentUrl &&
               _converse.text == widget.state.connection?.converseUrl &&
@@ -122,6 +159,109 @@ class _SetupDialogState extends State<SetupDialog> {
       widget.embedded &&
       (widget.state.connection?.ownerToken.isNotEmpty ?? false);
 
+  Widget _buildLocalHostCard(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+    final isConnecting =
+        widget.state.localSignInState == LocalHostSignInState.connecting ||
+        widget.state.connectionError == 'Checking services…';
+    final isConnected =
+        widget.state.connected && widget.state.sessionAuthenticated;
+
+    return Container(
+      key: const Key('local-host-connection-card'),
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: scheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Local Host Connection',
+            style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 6),
+          if (isConnecting)
+            Text(
+              'Connecting to local Kinaiya host...',
+              key: const Key('local-host-status-connecting'),
+              style: textTheme.bodyMedium,
+            )
+          else if (isConnected) ...[
+            Text(
+              'Connected to local Kinaiya host',
+              key: const Key('local-host-status-connected'),
+              style: textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              widget.state.hostRoleStatusSummary,
+              key: const Key('local-host-role-summary'),
+              style: textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+          ] else ...[
+            Text(
+              'Local automatic sign-in unavailable',
+              key: const Key('local-host-status-unavailable'),
+              style: textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              widget.state.sessionAuthenticated && !widget.state.agentOnline
+                  ? 'Agent host unreachable'
+                  : (widget.state.localSignInError ??
+                        'Retry automatic local sign-in or open Advanced connection to enter custom URLs or a manual owner token.'),
+              key: const Key('local-host-role-summary'),
+              style: textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              if (!isConnecting && !isConnected)
+                OutlinedButton.icon(
+                  key: const Key('local-host-retry-signin'),
+                  onPressed: _retryLocalSignIn,
+                  icon: const Icon(Icons.refresh, size: 18),
+                  label: const Text('Retry local sign-in'),
+                ),
+              TextButton.icon(
+                key: const Key('setup-toggle-endpoint-fields'),
+                onPressed: () => setState(
+                  () =>
+                      _showServiceEndpointFields = !_showServiceEndpointFields,
+                ),
+                icon: Icon(
+                  _showServiceEndpointFields
+                      ? Icons.expand_less
+                      : Icons.expand_more,
+                  size: 18,
+                ),
+                label: Text(
+                  _showServiceEndpointFields
+                      ? 'Hide advanced connection'
+                      : 'Advanced connection',
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   String get _endpointsSummary {
     final session = _session.text.trim();
     final agent = _agent.text.trim();
@@ -156,6 +296,7 @@ class _SetupDialogState extends State<SetupDialog> {
             ),
             const SizedBox(height: 12),
             if (!widget.privacyOnly) ...[
+              _buildLocalHostCard(context),
               Wrap(
                 alignment: WrapAlignment.spaceBetween,
                 crossAxisAlignment: WrapCrossAlignment.center,
@@ -231,18 +372,34 @@ class _SetupDialogState extends State<SetupDialog> {
                   keyboardType: TextInputType.url,
                 ),
                 const SizedBox(height: 16),
-              ],
-              TextField(
-                controller: _token,
-                decoration: const InputDecoration(
-                  labelText: 'Owner access token',
-                  helperText:
-                      'Memory only: never stored, logged or put in URLs.',
+                TextField(
+                  controller: _token,
+                  decoration: const InputDecoration(
+                    labelText: 'Owner access token',
+                    helperText:
+                        'Memory only: never stored, logged or put in URLs.',
+                  ),
+                  obscureText: true,
+                  enableSuggestions: false,
+                  autocorrect: false,
                 ),
-                obscureText: true,
-                enableSuggestions: false,
-                autocorrect: false,
-              ),
+                if (kIsWeb) ...[
+                  const SizedBox(height: 8),
+                  TextButton.icon(
+                    onPressed: () async {
+                      final token = await chooseCredential();
+                      if (mounted && token != null) {
+                        setState(() {
+                          _token.text = token;
+                          _error = null;
+                        });
+                      }
+                    },
+                    icon: const Icon(Icons.folder_open),
+                    label: const Text('Load local access token'),
+                  ),
+                ],
+              ],
               if (_hasExistingMemoryToken && _token.text.isEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 6),
@@ -254,22 +411,6 @@ class _SetupDialogState extends State<SetupDialog> {
                     ),
                   ),
                 ),
-              if (kIsWeb) ...[
-                const SizedBox(height: 8),
-                TextButton.icon(
-                  onPressed: () async {
-                    final token = await chooseCredential();
-                    if (mounted && token != null) {
-                      setState(() {
-                        _token.text = token;
-                        _error = null;
-                      });
-                    }
-                  },
-                  icon: const Icon(Icons.folder_open),
-                  label: const Text('Load local access token'),
-                ),
-              ],
             ],
             const SizedBox(height: 12),
             Text(
@@ -344,7 +485,7 @@ class _SetupDialogState extends State<SetupDialog> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Service reachability: Agent ${widget.state.agentOnline ? 'reachable' : 'unreachable'} · Converse ${widget.state.converseOnline ? 'reachable' : 'unreachable'}',
+                      'Service reachability: Agent ${widget.state.agentOnline ? 'reachable' : 'Agent host unreachable'} · Converse ${widget.state.converseOnline ? 'reachable' : 'Converse optional / not enabled'}',
                       style: textTheme.bodySmall,
                     ),
                     const SizedBox(height: 4),
