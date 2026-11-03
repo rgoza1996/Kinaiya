@@ -1,8 +1,10 @@
-"""Independent first-Session media oracles, before new owner/API source reads.
+"""First-Session media oracles, with a separate source-informed fixture correction.
 
 Actual temporary SQLite/spool, native authenticated submit admission and ASGI
 HTTP/WebSocket are exercised by the eventual root run. Only synthetic bytes and
 credentials are used. No provider/model/decoder/task execution is qualified.
+Original source-blind cut: 4312fa6. Corrections follow C's sealed F1-F4 review,
+root's F5 selection and exposed native lifetime seams; they are not source-blind.
 """
 
 import asyncio
@@ -11,8 +13,11 @@ import copy
 import hashlib
 import json
 import re
+import sqlite3
 import stat
 import struct
+import sys
+import tempfile
 import threading
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -25,17 +30,20 @@ import pytest
 from packages.contracts import media
 from packages.contracts.models import AppendRequest, TaskRequest
 from services.common.auth import Auth
+from services.common.media_wire import MediaWireError
+from services.session.agent_control import AgentControlUnavailable
 from services.session.api import create_app
 from services.session.media_clients import MediaGrantKeyStore
 from services.session.media_owner import MediaSessionOwner
 from services.session.media_spool import MediaSpool
-from services.session.store import Store
+from services.session.store import JournalError, Store
 
 _WAIT = 10
 _ORIGIN = "http://synthetic-owner.test"
 _CAPABILITY = "X-Kinaiya-Media-Client-Capability"
 _NONCE_HEADER = "X-Kinaiya-Media-Bootstrap-Nonce"
 _NONCE = bytes(range(32)).hex()
+_RETAINED_FIXTURES = []
 _TOKENS = {
     role: char * 32
     for role, char in zip(
@@ -316,6 +324,8 @@ class _Env:
     reserve_calls: list
     dropper: _DropFirstAdmit | None
     key_path: Path
+    owner: MediaSessionOwner
+    cleanup_observations: list
 
     def ref(self, receipt):
         return {
@@ -394,7 +404,15 @@ class _Env:
             _no_secrets(associated, grant)
             yield channel
         finally:
-            await channel.close()
+            primary = sys.exception()
+            try:
+                await channel.close()
+            except BaseException as error:
+                if primary is None:
+                    raise
+                primary.add_note(
+                    "Additional original WebSocket retirement error: " + type(error).__name__
+                )
 
     def put_header(self, source, *, key="chunk-a", index=0, offset=0, body=b"abcdef"):
         return {
@@ -518,15 +536,108 @@ def _submit_proposal(
 
 
 @asynccontextmanager
-async def _stack(tmp_path, *, limits=None, lose_first_ack=False):
-    workspace = tmp_path / "workspace"
+async def _stack(tmp_path, *, limits=None, lose_first_ack=False, allow_unknown_shutdown=False):
+    # The checkout's ancestor permissions cannot stand in for a private native
+    # key/DB root. Retain the actual temporary directory on unjoined custody.
+    private = tempfile.TemporaryDirectory(prefix="kinaiya-test-native-media-", dir="/tmp")
+    custody = {"dispose": False}
+    try:
+        async with _native_stack(
+            Path(private.name),
+            limits=limits,
+            lose_first_ack=lose_first_ack,
+            allow_unknown_shutdown=allow_unknown_shutdown,
+            custody=custody,
+        ) as env:
+            yield env
+    finally:
+        if custody["dispose"]:
+            primary = sys.exception()
+            try:
+                private.cleanup()
+            except BaseException as error:
+                if primary is None:
+                    raise
+                primary.add_note(
+                    "Additional private-directory teardown error: " + type(error).__name__
+                )
+        else:
+            # Do not let TemporaryDirectory's GC/atexit cleanup unlink backing
+            # files under a retained original. This is a failed teardown.
+            private._finalizer.detach()
+            _RETAINED_FIXTURES.append((private, custody))
+
+
+async def _finish_stack(owner, app, lifespan, initial_tasks, uploads, allow_unknown, observations):
+    errors = []
+    confirmed = False
+    try:
+        await lifespan.__aexit__(None, None, None)
+        confirmed = True
+        observations.append("native owner shutdown positively confirmed")
+    except BaseException as error:
+        unknown = getattr(app.state, "media_owner_shutdown_unconfirmed", False) is True
+        observations.append("native owner shutdown unknown")
+        if not (allow_unknown and unknown and isinstance(error, RuntimeError)):
+            errors.append(error)
+
+    # A fixture-intent flag cannot retire a writer, reader or channel. Observe
+    # the exact retained Tasks/native thread wrappers without cancelling them.
+    with owner._mutex:
+        jobs = tuple(owner._native_jobs.values())
+    tasks = (set(asyncio.all_tasks()) - initial_tasks) | {job for job in jobs if job is not None}
+    tasks.discard(asyncio.current_task())
+    pending = {task for task in tasks if not task.done()}
+    if pending:
+        _, pending = await asyncio.wait(pending, timeout=_WAIT)
+    # Joining those Tasks can run native callbacks. Re-observe the retained
+    # registries before any synchronous backing-handle disposal.
+    with owner._mutex:
+        jobs = tuple(owner._native_jobs.values())
+    tasks = (set(asyncio.all_tasks()) - initial_tasks) | {job for job in jobs if job is not None}
+    tasks.discard(asyncio.current_task())
+    pending |= {task for task in tasks if not task.done()}
+    readers = any(upload._readers for upload in uploads.values())
+    if pending or any(job is None for job in jobs) or readers:
+        observations.append("backing custody retained: actual users not positively retired")
+        errors.append(RuntimeError("Fixture backing custody still has unjoined native users"))
+        return False, errors
+
+    observations.append("fixture Tasks/thread wrappers joined; no registered source readers")
+    if not confirmed:
+        # There is no decoder/provider launch in this fixture. All actual
+        # fixture users above have retired. This disposes their local handles;
+        # it does not turn retained native metadata uncertainty into settlement.
+        observations.append("disposable handle teardown only; native settlement remains unknown")
+    try:
+        if owner.spool.close() is not True:
+            raise RuntimeError("Disposable spool handle retirement remained unknown")
+        try:
+            owner.store.close()
+        except JournalError:
+            if confirmed:
+                raise
+            try:
+                owner.store.agent_control.close()
+            except AgentControlUnavailable:
+                pass
+            sqlite3.Connection.close(owner.store.db)
+        if owner.keys.close() is not True:
+            raise RuntimeError("Disposable key handle retirement remained unknown")
+    except BaseException as error:
+        errors.append(error)
+        return False, errors
+    return True, errors
+
+
+@asynccontextmanager
+async def _native_stack(native_root, *, limits, lose_first_ack, allow_unknown_shutdown, custody):
+    initial_tasks = set(asyncio.all_tasks())
+    workspace = native_root / "workspace"
     workspace.mkdir()
-    spool_root = tmp_path / "spool"
+    spool_root = native_root / "spool"
     spool_root.mkdir(mode=0o700)
     spool_root.chmod(0o700)
-    native_root = tmp_path / "native"
-    native_root.mkdir(mode=0o700)
-    native_root.chmod(0o700)
     store = Store(native_root / "session.sqlite")
     limits = limits if limits is not None else _limits()
     profile = _profile(limits)
@@ -554,6 +665,8 @@ async def _stack(tmp_path, *, limits=None, lose_first_ack=False):
     uploads = {}
     reserve_calls = []
     native_reserve = spool.reserve
+    observations = []
+    custody.update(owner=owner, store=store, spool=spool, keys=keys)
 
     def observe_reserve(source_id, reserved_bytes):
         reserve_calls.append((source_id, reserved_bytes))
@@ -561,99 +674,136 @@ async def _stack(tmp_path, *, limits=None, lose_first_ack=False):
         uploads[source_id] = original
         return original
 
+    lifespan = app.router.lifespan_context(app)
+    entered = False
+    primary = None
     try:
         with patch.object(spool, "reserve", side_effect=observe_reserve):
-            async with app.router.lifespan_context(app):
-                async with httpx.AsyncClient(
-                    transport=httpx.ASGITransport(app=exposed_app),
-                    base_url="http://session.test",
-                ) as client:
-                    created = await client.post("/v1/sessions", json={}, headers=_headers())
-                    assert created.status_code == 200
-                    session = {
-                        name: created.json()[name] for name in ("session_id", "thread_id", "epoch")
-                    }
-                    control = await client.get("/v1/agent-control/state", headers=_headers())
-                    assert control.status_code == 200
-                    backend = control.json()["backend_id"]
-                    owner_request = AppendRequest(
-                        **session,
-                        kind="conversation.user",
-                        payload={"text": _OBJECTIVE, "final": True, "revision": 1},
-                        idempotency_key="authenticated-owner-objective",
-                    )
-                    written = await client.post(
-                        "/v1/transcript/entries",
-                        json=owner_request.model_dump(mode="json"),
-                        headers=_headers(),
-                    )
-                    assert written.status_code == 200
-                    event = written.json()
-                    original = _submit_proposal(session, event)
-                    submitted = await client.post(
-                        "/v1/transcript/agent-submits",
-                        json=original.model_dump(mode="json"),
-                        headers=_headers("agent"),
-                    )
-                    assert submitted.status_code == 200
-                    submit = submitted.json()["entry"]
-                    proof_request = {
-                        "v": 1,
-                        "key": "task-proof",
-                        "session": session,
-                        "original_admission_id": submit["event_id"],
-                    }
-                    proof_response = await client.post(
-                        "/v1/media/anchors/task-proof",
-                        content=_json(proof_request),
-                        headers=_headers("agent"),
-                    )
-                    proof = _typed_receipt(
-                        proof_response, "TaskProofRequest", "TaskProof", proof_request
-                    )
-                    proof_ref = {
-                        "backend_id": backend,
-                        "receipt_id": proof["id"],
-                        "sha256": proof["sha256"],
-                    }
-                    anchor_request = {
-                        "v": 1,
-                        "key": "one-analyze-anchor",
-                        "owner_objective": {"kind": "owner_text", "event_ref": event["event_id"]},
-                        "scope": "local_only",
-                        "submit": None,
-                        "task_admission": proof_ref,
-                    }
-                    anchor_response = await client.post(
-                        "/v1/media/anchors/admit", content=_json(anchor_request), headers=_headers()
-                    )
-                    anchor = _typed_receipt(
-                        anchor_response, "AnchorAdmission", "AnalyzeTaskAnchor", anchor_request
-                    )
-                    yield _Env(
-                        client,
-                        exposed_app,
-                        store,
-                        spool,
-                        auth,
-                        profile,
-                        clock,
-                        session,
-                        backend,
-                        anchor,
-                        proof,
-                        event,
-                        submit,
-                        uploads,
-                        reserve_calls,
-                        dropper,
-                        key_path,
-                    )
+            await lifespan.__aenter__()
+            entered = True
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=exposed_app),
+                base_url="http://session.test",
+            ) as client:
+                created = await client.post("/v1/sessions", json={}, headers=_headers())
+                assert created.status_code == 200
+                session = {
+                    name: created.json()[name] for name in ("session_id", "thread_id", "epoch")
+                }
+                control = await client.get("/v1/agent-control/state", headers=_headers())
+                assert control.status_code == 200
+                backend = control.json()["backend_id"]
+                owner_request = AppendRequest(
+                    **session,
+                    kind="conversation.user",
+                    payload={"text": _OBJECTIVE, "final": True, "revision": 1},
+                    idempotency_key="authenticated-owner-objective",
+                )
+                written = await client.post(
+                    "/v1/transcript/entries",
+                    json=owner_request.model_dump(mode="json"),
+                    headers=_headers(),
+                )
+                assert written.status_code == 200
+                event = written.json()
+                original = _submit_proposal(session, event)
+                submitted = await client.post(
+                    "/v1/transcript/agent-submits",
+                    json=original.model_dump(mode="json"),
+                    headers=_headers("agent"),
+                )
+                assert submitted.status_code == 200
+                submit = submitted.json()["entry"]
+                proof_request = {
+                    "v": 1,
+                    "key": "task-proof",
+                    "session": session,
+                    "original_admission_id": submit["event_id"],
+                }
+                proof_response = await client.post(
+                    "/v1/media/anchors/task-proof",
+                    content=_json(proof_request),
+                    headers=_headers("agent"),
+                )
+                proof = _typed_receipt(
+                    proof_response, "TaskProofRequest", "TaskProof", proof_request
+                )
+                proof_ref = {
+                    "backend_id": backend,
+                    "receipt_id": proof["id"],
+                    "sha256": proof["sha256"],
+                }
+                anchor_request = {
+                    "v": 1,
+                    "key": "one-analyze-anchor",
+                    "owner_objective": {"kind": "owner_text", "event_ref": event["event_id"]},
+                    "scope": "local_only",
+                    "submit": None,
+                    "task_admission": proof_ref,
+                }
+                anchor_response = await client.post(
+                    "/v1/media/anchors/admit", content=_json(anchor_request), headers=_headers()
+                )
+                anchor = _typed_receipt(
+                    anchor_response, "AnchorAdmission", "AnalyzeTaskAnchor", anchor_request
+                )
+                env = _Env(
+                    client,
+                    exposed_app,
+                    store,
+                    spool,
+                    auth,
+                    profile,
+                    clock,
+                    session,
+                    backend,
+                    anchor,
+                    proof,
+                    event,
+                    submit,
+                    uploads,
+                    reserve_calls,
+                    dropper,
+                    key_path,
+                    owner,
+                    observations,
+                )
+                try:
+                    yield env
+                except BaseException as error:
+                    primary = error
+                    raise
     finally:
-        # These attempts retire actual fixture owners; their return is not a
-        # cleanup assertion for any earlier unknown media operation.
-        spool.close()
-        store.close()
+        active = sys.exception()
+        primary = primary if primary is not None else active
+        errors = []
+        if entered:
+            try:
+                custody["dispose"], errors = await _finish_stack(
+                    owner,
+                    app,
+                    lifespan,
+                    initial_tasks,
+                    uploads,
+                    allow_unknown_shutdown,
+                    observations,
+                )
+            except BaseException as error:
+                errors.append(error)
+        else:
+            errors.append(RuntimeError("Fixture setup did not establish native shutdown ownership"))
+        if primary is not None:
+            for observation in observations:
+                primary.add_note("Fixture teardown: " + observation)
+            for error in errors:
+                primary.add_note("Additional fixture teardown error: " + type(error).__name__)
+            if active is not None and active is not primary:
+                primary.add_note(
+                    "Additional fixture transport exit error: " + type(active).__name__
+                )
+                raise primary
+        elif errors:
+            raise BaseExceptionGroup("Native media fixture teardown failed", errors)
 
 
 def _submits(env):
@@ -860,7 +1010,9 @@ async def test_fragmented_upload_exact_replay_key_lookup_and_lookup_kind(tmp_pat
 
 @pytest.mark.parametrize("failure", ["trailing", "hash", "partial", "out_of_order", "sparse"])
 async def test_invalid_body_or_order_has_no_complete_ack_or_spool_progress(tmp_path, failure):
-    async with _stack(tmp_path) as env:
+    async with _stack(
+        tmp_path, allow_unknown_shutdown=failure in {"trailing", "hash", "partial"}
+    ) as env:
         source, grant = await env.admit()
         async with env.connected(source, grant):
             header = env.put_header(source)
@@ -952,7 +1104,7 @@ async def test_source_reservation_refuses_capacity_without_eviction(tmp_path):
 
 
 async def test_native_seal_whole_hash_owner_denial_and_original_reader(tmp_path):
-    async with _stack(tmp_path) as env:
+    async with _stack(tmp_path, allow_unknown_shutdown=True) as env:
         source, grant = await env.admit()
         async with env.connected(source, grant):
             assert (await env.put(env.put_header(source), b"abcdef", grant)).status_code == 200
@@ -1030,6 +1182,13 @@ async def test_actual_disconnect_fences_old_grant_without_new_websocket_claim(tm
             await env.post("/v1/media/control", stop), "Control", "Status", stop
         )
         assert stopped["body"]["desired"] == "stopped"
+        native_source = env.owner._sources[source["body"]["source_id"]]
+        original_cleanup = native_source.delete_task
+        assert isinstance(original_cleanup, asyncio.Task)
+        assert await asyncio.wait_for(asyncio.shield(original_cleanup), _WAIT) is True
+        # The stop's actual original cleanup has positively settled; the next
+        # authorized request observes it rather than assuming a scheduled task
+        # already completed just because the previous HTTP response returned.
         current = await env.current_status(source)
         deletion = {
             "v": 1,
@@ -1147,8 +1306,11 @@ async def test_old_events_hello_still_delivers_real_journal_without_media_grant(
             await channel.close()
 
 
-async def test_body_cancellation_before_true_eof_never_acknowledges_or_writes(tmp_path):
-    async with _stack(tmp_path) as env:
+@pytest.mark.parametrize("complete_after_cancel", [False, True])
+async def test_observer_cancellation_keeps_original_body_outcome_truthful(
+    tmp_path, complete_after_cancel
+):
+    async with _stack(tmp_path, allow_unknown_shutdown=not complete_after_cancel) as env:
         source, grant = await env.admit()
         async with env.connected(source, grant):
             header = env.put_header(source)
@@ -1160,7 +1322,8 @@ async def test_body_cancellation_before_true_eof_never_acknowledges_or_writes(tm
                     yield struct.pack(">I", len(encoded)) + encoded + b"abc"
                     entered.set()
                     await release.wait()
-                    yield b"def"
+                    if complete_after_cancel:
+                        yield b"def"
                 finally:
                     producer_retired.set()
 
@@ -1171,15 +1334,36 @@ async def test_body_cancellation_before_true_eof_never_acknowledges_or_writes(tm
             )
             try:
                 await asyncio.wait_for(entered.wait(), _WAIT)
+                # This is the actual retained native intake Task, not the
+                # cancelled HTTP observer or a reconstructed owner record.
+                intakes = [
+                    intake
+                    for intake in env.owner._intakes.values()
+                    if intake["source_id"] == source["body"]["source_id"]
+                ]
+                assert len(intakes) == 1
+                body_owner = intakes[0]["task"]
+                assert isinstance(body_owner, asyncio.Task) and body_owner is not original
                 original.cancel()
                 with pytest.raises(asyncio.CancelledError):
                     await asyncio.wait_for(asyncio.shield(original), _WAIT)
-                # A shielded original body owner may still be retained. Let
-                # that real producer terminate; outer cancellation alone is
-                # never used as positive cleanup or a free-capacity assertion.
+                # Observer cancellation cannot decide the original producer's
+                # outcome. Now let it reach a genuinely incomplete or complete
+                # EOF, and join that exact retained owner before observing it.
                 release.set()
                 await asyncio.wait_for(producer_retired.wait(), _WAIT)
-                assert env.uploads[source["body"]["source_id"]].next_offset == 0
+                if complete_after_cancel:
+                    response = await asyncio.wait_for(asyncio.shield(body_owner), _WAIT)
+                    assert response.status_code == 200
+                else:
+                    with pytest.raises(MediaWireError) as refused:
+                        await asyncio.wait_for(asyncio.shield(body_owner), _WAIT)
+                    assert refused.value.code == "bad_packet"
+                assert body_owner.done()
+                if complete_after_cancel:
+                    assert env.uploads[source["body"]["source_id"]].next_offset == 6
+                else:
+                    assert env.uploads[source["body"]["source_id"]].next_offset == 0
                 assert env.spool.reserved_bytes == 6
                 lookup = await env.post(
                     "/v1/media/lookup-key",
@@ -1191,8 +1375,30 @@ async def test_body_cancellation_before_true_eof_never_acknowledges_or_writes(tm
                     },
                 )
                 assert lookup.status_code == 200
-                assert lookup.json() == {"v": 1, "found": False, "value": None}
-                # Absent ACK is not cleanup evidence or permission to retry.
+                if complete_after_cancel:
+                    found = lookup.json()
+                    assert found["v"] == 1 and found["found"] is True
+                    ack = found["value"]
+                    assert ack["key"] == header["key"]
+                    assert ack["request_sha256"] == _digest("UploadPut", header)
+                    assert ack["body"] == {
+                        "v": 1,
+                        "source": env.ref(source),
+                        "index": 0,
+                        "offset": 0,
+                        "body_bytes": 6,
+                        "body_sha256": _sha(b"abcdef"),
+                        "next_offset": 6,
+                    }
+                    assert ack["sha256"] == _digest(
+                        "R<UploadAck>",
+                        {key: value for key, value in ack.items() if key != "sha256"},
+                    )
+                    assert lookup.content == _json(found)
+                else:
+                    assert lookup.json() == {"v": 1, "found": False, "value": None}
+                # Neither a historical ACK nor its absence grants new ingress
+                # authority or proves physical cleanup after observer loss.
             finally:
                 release.set()
                 if not original.done():
@@ -1204,18 +1410,21 @@ async def test_body_cancellation_before_true_eof_never_acknowledges_or_writes(tm
 
 
 async def test_stop_while_original_append_is_blocked_retains_charge_and_no_new_attempt(tmp_path):
-    async with _stack(tmp_path) as env:
+    async with _stack(tmp_path, allow_unknown_shutdown=True) as env:
         source, grant = await env.admit()
         upload = env.uploads[source["body"]["source_id"]]
         native_append = upload.append
         entered, release = threading.Event(), threading.Event()
         calls = []
+        progress = []
 
         def held_append(*args):
             calls.append(args)
             entered.set()
             assert release.wait(_WAIT), "Synthetic original append was not released"
-            return native_append(*args)
+            result = native_append(*args)
+            progress.append(result)
+            return result
 
         async with env.connected(source, grant):
             with patch.object(upload, "append", side_effect=held_append):
@@ -1233,7 +1442,11 @@ async def test_stop_while_original_append_is_blocked_retains_charge_and_no_new_a
                     release.set()
                     result = await asyncio.wait_for(asyncio.shield(original), _WAIT)
                     assert result.status_code in {409, 503}
-                    assert upload.next_offset == 0
+                    # Stop fenced publication after this original native call
+                    # had already entered. Its real successful append remains
+                    # physical history, without a current successful ACK.
+                    assert len(progress) == 1 and progress[0].next_offset == 6
+                    assert upload.next_offset == progress[0].next_offset
                     assert env.spool.reserved_bytes == 6
                     # Same original header cannot start another append after a fence.
                     replay = await env.put(header, b"abcdef", grant)
@@ -1253,12 +1466,103 @@ async def test_actual_reader_holds_native_delete_and_session_delete_until_positi
             sealed, request = await env.seal(source, grant)
             _typed_receipt(sealed, "SealRequest", "Seal", request)
             upload = env.uploads[source["body"]["source_id"]]
+            native_source = env.owner._sources[source["body"]["source_id"]]
+            begin_change = env.owner.begin_session_change
+            changes = []
+
+            def observe_change(*args, **kwargs):
+                change = begin_change(*args, **kwargs)
+                changes.append(change)
+                return change
+
+            reader = upload.open_reader()
+            with patch.object(env.owner, "begin_session_change", side_effect=observe_change):
+                try:
+                    assert reader.read(3) == b"abc"
+                    deletion = {
+                        "v": 1,
+                        "key": "delete-with-reader",
+                        "source": env.ref(source),
+                        "fence": source["body"]["fence"],
+                    }
+                    pending = _typed_receipt(
+                        await env.post("/v1/media/delete", deletion, grant=grant),
+                        "DeleteRequest",
+                        "DeleteReceipt",
+                        deletion,
+                    )
+                    assert pending["body"]["state"] == "local_delete_pending"
+                    assert pending["body"]["local_spool_unlinked"] is False
+                    assert pending["body"]["local_processing_reservation_released"] is False
+                    assert upload.deleted is False and env.spool.reserved_bytes == 6
+                    session_delete = await env.client.delete(
+                        f"/v1/sessions/{env.session['session_id']}", headers=_headers()
+                    )
+                    assert session_delete.status_code in {409, 503}
+                    assert (
+                        env.store.session(env.session["session_id"]).epoch == env.session["epoch"]
+                    )
+                    assert len(changes) == 1
+                    original_change = changes[0]
+                    checkpoint_task = native_source.delete_task
+                    assert isinstance(checkpoint_task, asyncio.Task)
+                    assert await asyncio.wait_for(asyncio.shield(checkpoint_task), _WAIT) is False
+                    assert reader in upload._readers
+                    assert env.owner._sources[source["body"]["source_id"]] is native_source
+                    assert upload.deleted is False and env.spool.reserved_bytes == 6
+                finally:
+                    reader.close()
+
+                # The committed Session fence still owns the pending change.
+                # A fresh authenticated Session DELETE must reconcile that SAME
+                # actual checkpoint; it cannot require new media admission.
+                recovery = await env.client.delete(
+                    f"/v1/sessions/{env.session['session_id']}", headers=_headers()
+                )
+                assert recovery.status_code in {200, 409}
+                assert changes and all(change is original_change for change in changes)
+                continuation = native_source.cleanup_continuation
+                assert continuation is not None
+                assert continuation.checkpoint.task is checkpoint_task
+                assert continuation.authority.change is original_change
+                assert continuation.original is original_change
+                assert continuation.authority.dispatch is original_change.dispatch
+                continuation_task = continuation.task
+                assert isinstance(continuation_task, asyncio.Task)
+                assert await asyncio.wait_for(asyncio.shield(continuation_task), _WAIT) is True
+                assert continuation.entered_task is continuation_task
+                assert continuation.completed_task is continuation_task
+                assert continuation.unknown is False
+                assert pending["body"]["state"] == "local_delete_pending"
+                assert upload.deleted is True and env.spool.reserved_bytes == 0
+                if recovery.status_code != 200:
+                    final_session_delete = await env.client.delete(
+                        f"/v1/sessions/{env.session['session_id']}", headers=_headers()
+                    )
+                else:
+                    final_session_delete = recovery
+                assert final_session_delete.status_code == 200
+                assert all(change is original_change for change in changes)
+
+
+async def test_reader_checkpoint_needs_new_authorized_media_delete_and_actual_continuation(
+    tmp_path,
+):
+    """Source-aware addition: pure media deletion, without a pending Session gate."""
+    async with _stack(tmp_path) as env:
+        source, grant = await env.admit()
+        async with env.connected(source, grant):
+            assert (await env.put(env.put_header(source), b"abcdef", grant)).status_code == 200
+            sealed, request = await env.seal(source, grant)
+            _typed_receipt(sealed, "SealRequest", "Seal", request)
+            upload = env.uploads[source["body"]["source_id"]]
+            native_source = env.owner._sources[source["body"]["source_id"]]
             reader = upload.open_reader()
             try:
                 assert reader.read(3) == b"abc"
                 deletion = {
                     "v": 1,
-                    "key": "delete-with-reader",
+                    "key": "media-delete-with-reader",
                     "source": env.ref(source),
                     "fence": source["body"]["fence"],
                 }
@@ -1271,20 +1575,45 @@ async def test_actual_reader_holds_native_delete_and_session_delete_until_positi
                 assert pending["body"]["state"] == "local_delete_pending"
                 assert pending["body"]["local_spool_unlinked"] is False
                 assert pending["body"]["local_processing_reservation_released"] is False
+                checkpoint_task = native_source.delete_task
+                assert isinstance(checkpoint_task, asyncio.Task)
+                assert await asyncio.wait_for(asyncio.shield(checkpoint_task), _WAIT) is False
                 assert upload.deleted is False and env.spool.reserved_bytes == 6
-                session_delete = await env.client.delete(
-                    f"/v1/sessions/{env.session['session_id']}", headers=_headers()
-                )
-                assert session_delete.status_code in {409, 503}
-                assert env.store.session(env.session["session_id"]).epoch == env.session["epoch"]
             finally:
                 reader.close()
-            # An owner-only revocation can reconcile after a grant is fenced;
-            # it cannot confer new ingress/start authority.
+
+            current = await env.current_status(source)
+            continued_request = {
+                **deletion,
+                "key": "media-delete-after-reader-close",
+                "fence": current["body"]["fence"],
+            }
+            continued = _typed_receipt(
+                await env.post("/v1/media/delete", continued_request),
+                "DeleteRequest",
+                "DeleteReceipt",
+                continued_request,
+            )
+            assert continued["body"]["state"] in {"local_delete_pending", "local_deleted"}
+            continuation = native_source.cleanup_continuation
+            assert continuation is not None
+            assert continuation.checkpoint.task is checkpoint_task
+            assert continuation.original is env.owner._operations[continued_request["key"]]
+            assert continuation.authority.original is continuation.original
+            continuation_task = continuation.task
+            assert isinstance(continuation_task, asyncio.Task)
+            assert await asyncio.wait_for(asyncio.shield(continuation_task), _WAIT) is True
+            assert continuation.entered_task is continuation_task
+            assert continuation.completed_task is continuation_task
+            assert continuation.unknown is False
+            assert upload.deleted is True and env.spool.reserved_bytes == 0
+            # The first pending receipt remains its original snapshot. A new
+            # authorized current-fence request obtains the completed snapshot.
+            assert pending["body"]["state"] == "local_delete_pending"
             current = await env.current_status(source)
             completed_request = {
                 **deletion,
-                "key": "delete-after-reader-close",
+                "key": "media-delete-settled-snapshot",
                 "fence": current["body"]["fence"],
             }
             completed = _typed_receipt(
@@ -1303,6 +1632,122 @@ async def test_actual_reader_holds_native_delete_and_session_delete_until_positi
                 f"/v1/sessions/{env.session['session_id']}", headers=_headers()
             )
             assert final_session_delete.status_code == 200
+
+
+@pytest.mark.parametrize("facade_kind", ["future", "task"])
+async def test_cleanup_scheduler_facade_cannot_release_original_custody(tmp_path, facade_kind):
+    """Source-informed fault regression; a scheduler facade is no native receipt."""
+    async with _stack(tmp_path, allow_unknown_shutdown=True) as env:
+        source, grant = await env.admit()
+        async with env.connected(source, grant):
+            assert (await env.put(env.put_header(source), b"abcdef", grant)).status_code == 200
+            sealed, request = await env.seal(source, grant)
+            _typed_receipt(sealed, "SealRequest", "Seal", request)
+            upload = env.uploads[source["body"]["source_id"]]
+            native_source = env.owner._sources[source["body"]["source_id"]]
+            reader = upload.open_reader()
+            try:
+                assert reader.read(3) == b"abc"
+                deletion = {
+                    "v": 1,
+                    "key": "facade-reader-delete",
+                    "source": env.ref(source),
+                    "fence": source["body"]["fence"],
+                }
+                pending = _typed_receipt(
+                    await env.post("/v1/media/delete", deletion, grant=grant),
+                    "DeleteRequest",
+                    "DeleteReceipt",
+                    deletion,
+                )
+                assert pending["body"]["state"] == "local_delete_pending"
+                checkpoint_task = native_source.delete_task
+                assert isinstance(checkpoint_task, asyncio.Task)
+                assert await asyncio.wait_for(asyncio.shield(checkpoint_task), _WAIT) is False
+                assert upload.deleted is False and env.spool.reserved_bytes == 6
+            finally:
+                reader.close()
+
+            create_task = asyncio.create_task
+
+            async def completed_facade():
+                return True
+
+            if facade_kind == "future":
+                facade = asyncio.get_running_loop().create_future()
+                facade.set_result(True)
+            else:
+                facade = create_task(completed_facade())
+                assert await asyncio.wait_for(asyncio.shield(facade), _WAIT) is True
+            assert facade.done() and facade.result() is True
+            dispatched = []
+
+            def dispatch_but_return_facade(coroutine, *args, **kwargs):
+                # Only the selected native continuation is intercepted. Its
+                # actual coroutine is dispatched and retained by this fixture;
+                # every other native task uses the real scheduler unchanged.
+                if (
+                    getattr(getattr(coroutine, "cr_code", None), "co_name", None)
+                    == "_continue_cleanup"
+                ):
+                    actual = create_task(coroutine, *args, **kwargs)
+                    dispatched.append(actual)
+                    return facade
+                return create_task(coroutine, *args, **kwargs)
+
+            try:
+                current = await env.current_status(source)
+                continued_request = {
+                    **deletion,
+                    "key": "facade-authorized-reader-recovery",
+                    "fence": current["body"]["fence"],
+                }
+                with patch("asyncio.create_task", side_effect=dispatch_but_return_facade):
+                    response = await env.post("/v1/media/delete", continued_request)
+                    assert response.status_code in {200, 409, 503}
+                    assert len(dispatched) == 1
+                    assert isinstance(dispatched[0], asyncio.Task) and dispatched[0] is not facade
+                    continuation = native_source.cleanup_continuation
+                    assert continuation is not None
+                    assert continuation.checkpoint.task is checkpoint_task
+                    assert continuation.assigned.is_set() is False
+                    assert continuation.unknown is True
+                    if response.status_code == 200:
+                        observed = _typed_receipt(
+                            response, "DeleteRequest", "DeleteReceipt", continued_request
+                        )
+                        assert observed["body"]["state"] == "local_delete_pending"
+                        assert observed["body"]["local_children_settled"] is False
+                        assert observed["body"]["local_spool_unlinked"] is False
+                        assert observed["body"]["local_processing_reservation_released"] is False
+                    assert upload.deleted is False and env.spool.reserved_bytes == 6
+                    session_delete = await env.client.delete(
+                        f"/v1/sessions/{env.session['session_id']}", headers=_headers()
+                    )
+                    assert session_delete.status_code in {409, 503}
+                    assert (
+                        env.store.session(env.session["session_id"]).epoch == env.session["epoch"]
+                    )
+                    assert await env.owner.close() is False
+                    assert upload.deleted is False and env.spool.reserved_bytes == 6
+                    assert len(dispatched) == 1
+                    assert continuation.assigned.is_set() is False
+                    assert continuation.unknown is True
+            finally:
+                # This retires only the exact hidden synthetic scheduler task,
+                # AFTER the negative native ownership assertions. It grants no
+                # settlement to the native owner, which remains unknown.
+                for actual in dispatched:
+                    if not actual.done():
+                        actual.cancel()
+                    try:
+                        await asyncio.wait_for(asyncio.shield(actual), _WAIT)
+                    except asyncio.CancelledError:
+                        pass
+                    except Exception:
+                        if not actual.done():
+                            raise
+                    assert actual.done()
 
 
 async def test_credential_change_invalidates_old_media_context_not_just_old_bearer(tmp_path):
