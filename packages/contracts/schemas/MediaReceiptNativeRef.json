@@ -1,0 +1,85 @@
+{
+  "$defs": {
+    "MediaNativeRef": {
+      "additionalProperties": false,
+      "properties": {
+        "backend_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Backend Id",
+          "type": "string"
+        },
+        "receipt_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Receipt Id",
+          "type": "string"
+        },
+        "sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "backend_id",
+        "receipt_id",
+        "sha256"
+      ],
+      "title": "MediaNativeRef",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "body": {
+      "$ref": "#/$defs/MediaNativeRef"
+    },
+    "id": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[0-9a-f]{32}$",
+      "title": "Id",
+      "type": "string"
+    },
+    "key": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Key",
+      "type": "string"
+    },
+    "request_sha256": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Request Sha256",
+      "type": "string"
+    },
+    "sha256": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Sha256",
+      "type": "string"
+    },
+    "v": {
+      "const": 1,
+      "title": "V",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "v",
+    "id",
+    "key",
+    "request_sha256",
+    "body",
+    "sha256"
+  ],
+  "title": "MediaReceipt[MediaNativeRef]",
+  "type": "object"
+}

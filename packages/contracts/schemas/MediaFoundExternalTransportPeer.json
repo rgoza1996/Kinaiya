@@ -1,0 +1,106 @@
+{
+  "$defs": {
+    "MediaExternalTransportPeer": {
+      "additionalProperties": false,
+      "properties": {
+        "exchange_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Exchange Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "external_transport",
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "exchange_id"
+      ],
+      "title": "MediaExternalTransportPeer",
+      "type": "object"
+    },
+    "MediaReceipt_MediaExternalTransportPeer_": {
+      "additionalProperties": false,
+      "properties": {
+        "body": {
+          "$ref": "#/$defs/MediaExternalTransportPeer"
+        },
+        "id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "key": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Key",
+          "type": "string"
+        },
+        "request_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Request Sha256",
+          "type": "string"
+        },
+        "sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "v": {
+          "const": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "v",
+        "id",
+        "key",
+        "request_sha256",
+        "body",
+        "sha256"
+      ],
+      "title": "MediaReceipt[MediaExternalTransportPeer]",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "found": {
+      "title": "Found",
+      "type": "boolean"
+    },
+    "v": {
+      "const": 1,
+      "title": "V",
+      "type": "integer"
+    },
+    "value": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MediaReceipt_MediaExternalTransportPeer_"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "v",
+    "found",
+    "value"
+  ],
+  "title": "MediaFound[MediaExternalTransportPeer]",
+  "type": "object"
+}

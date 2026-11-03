@@ -1,0 +1,226 @@
+{
+  "$defs": {
+    "MediaNativeRef": {
+      "additionalProperties": false,
+      "properties": {
+        "backend_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Backend Id",
+          "type": "string"
+        },
+        "receipt_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Receipt Id",
+          "type": "string"
+        },
+        "sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "backend_id",
+        "receipt_id",
+        "sha256"
+      ],
+      "title": "MediaNativeRef",
+      "type": "object"
+    },
+    "MediaReceipt_MediaWorkerCleanup_": {
+      "additionalProperties": false,
+      "properties": {
+        "body": {
+          "$ref": "#/$defs/MediaWorkerCleanup"
+        },
+        "id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "key": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Key",
+          "type": "string"
+        },
+        "request_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Request Sha256",
+          "type": "string"
+        },
+        "sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "v": {
+          "const": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "v",
+        "id",
+        "key",
+        "request_sha256",
+        "body",
+        "sha256"
+      ],
+      "title": "MediaReceipt[MediaWorkerCleanup]",
+      "type": "object"
+    },
+    "MediaWorkerCleanup": {
+      "additionalProperties": false,
+      "properties": {
+        "binding_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Binding Sha256",
+          "type": "string"
+        },
+        "child_instance": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Child Instance",
+          "type": "string"
+        },
+        "kind": {
+          "const": "native_owner",
+          "title": "Kind",
+          "type": "string"
+        },
+        "operation_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Operation Id",
+          "type": "string"
+        },
+        "original_owner": {
+          "$ref": "#/$defs/MediaNativeRef"
+        },
+        "outcome": {
+          "anyOf": [
+            {
+              "enum": [
+                "completed",
+                "cancelled",
+                "failed",
+                "not_started"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Outcome"
+        },
+        "proof": {
+          "enum": [
+            "local_join",
+            "pidfd_reap",
+            "owned_worker_receipt",
+            "client_playback",
+            "transport_only",
+            "none"
+          ],
+          "title": "Proof",
+          "type": "string"
+        },
+        "publication": {
+          "enum": [
+            "settled",
+            "unknown"
+          ],
+          "title": "Publication",
+          "type": "string"
+        },
+        "scope": {
+          "enum": [
+            "native_task",
+            "local_process",
+            "owned_worker",
+            "client_playback",
+            "external_unknown"
+          ],
+          "title": "Scope",
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "settled",
+            "unknown"
+          ],
+          "title": "State",
+          "type": "string"
+        },
+        "v": {
+          "const": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "v",
+        "kind",
+        "operation_id",
+        "child_instance",
+        "binding_sha256",
+        "original_owner",
+        "state",
+        "outcome",
+        "proof",
+        "publication",
+        "scope"
+      ],
+      "title": "MediaWorkerCleanup",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "found": {
+      "title": "Found",
+      "type": "boolean"
+    },
+    "v": {
+      "const": 1,
+      "title": "V",
+      "type": "integer"
+    },
+    "value": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MediaReceipt_MediaWorkerCleanup_"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "v",
+    "found",
+    "value"
+  ],
+  "title": "MediaFound[MediaWorkerCleanup]",
+  "type": "object"
+}

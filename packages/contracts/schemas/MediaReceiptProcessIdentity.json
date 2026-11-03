@@ -1,0 +1,99 @@
+{
+  "$defs": {
+    "MediaProcessIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "boot_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Boot Id",
+          "type": "string"
+        },
+        "nonce": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Nonce",
+          "type": "string"
+        },
+        "pid": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Pid",
+          "type": "integer"
+        },
+        "pidfd_owner": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Pidfd Owner",
+          "type": "string"
+        },
+        "start_tick": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Start Tick",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "pid",
+        "start_tick",
+        "boot_id",
+        "nonce",
+        "pidfd_owner"
+      ],
+      "title": "MediaProcessIdentity",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "body": {
+      "$ref": "#/$defs/MediaProcessIdentity"
+    },
+    "id": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[0-9a-f]{32}$",
+      "title": "Id",
+      "type": "string"
+    },
+    "key": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Key",
+      "type": "string"
+    },
+    "request_sha256": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Request Sha256",
+      "type": "string"
+    },
+    "sha256": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Sha256",
+      "type": "string"
+    },
+    "v": {
+      "const": 1,
+      "title": "V",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "v",
+    "id",
+    "key",
+    "request_sha256",
+    "body",
+    "sha256"
+  ],
+  "title": "MediaReceipt[MediaProcessIdentity]",
+  "type": "object"
+}
