@@ -58,13 +58,48 @@ def run_wizard(layout, *, tty=None):
     tty.write("No models, voice packs or optional UI tools will be downloaded.\n")
     workspace = ask("Authorized workspace", str(layout.workspace))
     data = ask("Private data directory", str(layout.data))
-    endpoint = ask("OpenAI-compatible provider endpoint", "http://127.0.0.1:8080/v1")
+    endpoint_input = ask(
+        "Agent provider endpoint (or adapter=endpoint, e.g. lmstudio=http://127.0.0.1:1234)",
+        "http://127.0.0.1:1234",
+    )
+    if "=" in endpoint_input and "://" not in endpoint_input.split("=", 1)[0]:
+        adapter_raw, endpoint_raw = endpoint_input.split("=", 1)
+        adapter: str | None = adapter_raw.strip()
+        endpoint = endpoint_raw.strip()
+    else:
+        adapter = None
+        endpoint = endpoint_input
     model = ask("Exact model name (required)")
     allow_cloud = (
         ask("Allow disclosure of authorized content to this cloud provider? yes/no", "no") == "yes"
     )
     credential_env = ask("Credential environment variable NAME only; never paste a key") or None
     converse = ask("Enable optional Converse text services? yes/no", "no") == "yes"
+    converse_profile = None
+    decisions_profile = None
+    if converse:
+        converse_adapter = ask("Converse provider adapter (lmstudio/compatible/meta)", "compatible")
+        converse_endpoint = ask("Converse provider endpoint", endpoint)
+        converse_model = ask("Exact Converse model name", model)
+        converse_profile = {
+            "kind": converse_adapter,
+            "endpoint": converse_endpoint,
+            "model": converse_model,
+            "allow_cloud": allow_cloud,
+            "credential_env": credential_env,
+        }
+        decisions_adapter = ask(
+            "Decisions provider adapter (compatible/laya/native_d1/meta)", "compatible"
+        )
+        decisions_endpoint = ask("Decisions provider endpoint", converse_endpoint)
+        decisions_model = ask("Exact Decisions model name", converse_model)
+        decisions_profile = {
+            "kind": decisions_adapter,
+            "endpoint": decisions_endpoint,
+            "model": decisions_model,
+            "allow_cloud": allow_cloud,
+            "credential_env": credential_env,
+        }
     chosen = replace(layout, workspace=Path(workspace).expanduser(), data=Path(data).expanduser())
     tty.write(
         f"Planned config: {chosen.config}\nData: {chosen.data}\nWorkspace: {chosen.workspace}\n"
@@ -72,11 +107,17 @@ def run_wizard(layout, *, tty=None):
     tty.write("Provider connection is not checked; saved configuration does not mean ready.\n")
     if ask("Write configuration and private service tokens? type yes", "no") != "yes":
         raise InstallError("Setup cancelled; no configuration written")
-    return setup(
-        chosen,
-        endpoint=endpoint,
-        model=model,
-        allow_cloud=allow_cloud,
-        credential_env=credential_env,
-        converse=converse,
-    )
+    setup_kwargs: dict = {
+        "endpoint": endpoint,
+        "model": model,
+        "allow_cloud": allow_cloud,
+        "credential_env": credential_env,
+        "converse": converse,
+    }
+    if adapter is not None:
+        setup_kwargs["adapter"] = adapter
+    if converse_profile is not None:
+        setup_kwargs["converse_profile"] = converse_profile
+    if decisions_profile is not None:
+        setup_kwargs["decisions_profile"] = decisions_profile
+    return setup(chosen, **setup_kwargs)

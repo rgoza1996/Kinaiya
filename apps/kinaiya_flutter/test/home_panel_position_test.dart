@@ -183,6 +183,132 @@ void main() {
   );
 
   testWidgets(
+    'connection panel resizes like a window from all sides and corners while respecting bounds',
+    (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      var opened = 0;
+      await tester.pumpWidget(home(onSetup: () => opened++));
+      await tester.pump();
+      final card = find.byKey(const ValueKey('home-action-card'));
+      final leftEdge = find.byKey(const ValueKey('home-panel-resize-left'));
+      final rightEdge = find.byKey(const ValueKey('home-panel-resize-right'));
+      final topEdge = find.byKey(const ValueKey('home-panel-resize-top'));
+      final bottomEdge = find.byKey(const ValueKey('home-panel-resize-bottom'));
+      final topLeftCorner = find.byKey(
+        const ValueKey('home-panel-resize-top-left'),
+      );
+
+      // 1. Right side: drag right to expand, drag left to shrink; left edge stays anchored.
+      final start = tester.getRect(card);
+      await tester.drag(rightEdge, const Offset(140, 0));
+      await tester.pump();
+      final rightExpanded = tester.getRect(card);
+      expect(rightExpanded.width, greaterThan(start.width + 100));
+      expect(rightExpanded.left, closeTo(start.left, 1));
+      expect(rightExpanded.bottom, closeTo(start.bottom, 1));
+
+      await tester.drag(rightEdge, const Offset(-80, 0));
+      await tester.pump();
+      final rightShrunk = tester.getRect(card);
+      expect(rightShrunk.width, lessThan(rightExpanded.width - 50));
+      expect(rightShrunk.left, closeTo(rightExpanded.left, 1));
+
+      // 2. Left side: drag left to expand, drag right to shrink; right edge stays anchored.
+      await tester.drag(leftEdge, const Offset(-120, 0));
+      await tester.pump();
+      final leftExpanded = tester.getRect(card);
+      expect(leftExpanded.width, greaterThan(rightShrunk.width + 80));
+      expect(leftExpanded.right, closeTo(rightShrunk.right, 1));
+
+      await tester.drag(leftEdge, const Offset(90, 0));
+      await tester.pump();
+      final leftShrunk = tester.getRect(card);
+      expect(leftShrunk.width, lessThan(leftExpanded.width - 60));
+      expect(leftShrunk.right, closeTo(leftExpanded.right, 1));
+
+      // 3. Top side: drag up to make taller, drag down to make shorter; bottom edge stays anchored.
+      await tester.drag(topEdge, const Offset(0, -100));
+      await tester.pump();
+      final topExpanded = tester.getRect(card);
+      expect(topExpanded.height, greaterThan(leftShrunk.height + 70));
+      expect(topExpanded.bottom, closeTo(leftShrunk.bottom, 1));
+
+      await tester.drag(topEdge, const Offset(0, 80));
+      await tester.pump();
+      final topShrunk = tester.getRect(card);
+      expect(topShrunk.height, lessThan(topExpanded.height - 40));
+      expect(topShrunk.bottom, closeTo(topExpanded.bottom, 1));
+
+      // 4. Bottom side: drag up to make shorter, drag down to make taller; top edge stays anchored.
+      await tester.drag(bottomEdge, const Offset(0, -80));
+      await tester.pump();
+      final bottomShrunk = tester.getRect(card);
+      expect(bottomShrunk.height, lessThan(topShrunk.height - 40));
+      expect(bottomShrunk.top, closeTo(topShrunk.top, 1));
+
+      await tester.drag(bottomEdge, const Offset(0, 70));
+      await tester.pump();
+      final bottomExpanded = tester.getRect(card);
+      expect(bottomExpanded.height, greaterThan(bottomShrunk.height + 30));
+      expect(bottomExpanded.top, closeTo(bottomShrunk.top, 1));
+
+      // 5. Corner resize: top-left corner adjusts both width and height while anchoring bottom-right.
+      await tester.drag(topLeftCorner, const Offset(-80, -70));
+      await tester.pump();
+      final cornerExpanded = tester.getRect(card);
+      expect(cornerExpanded.width, greaterThan(bottomExpanded.width + 40));
+      expect(cornerExpanded.height, greaterThan(bottomExpanded.height + 30));
+      expect(cornerExpanded.right, closeTo(bottomExpanded.right, 1));
+      expect(cornerExpanded.bottom, closeTo(bottomExpanded.bottom, 1));
+
+      // 6. Rapid multi-step moves within the same frame.
+      final gesture = await tester.startGesture(tester.getCenter(rightEdge));
+      await gesture.moveBy(const Offset(30, 0));
+      await tester.pump();
+      final beforeRapidMoves = tester.getSize(card).width;
+      await gesture.moveBy(const Offset(30, 0));
+      await gesture.moveBy(const Offset(30, 0));
+      await tester.pump();
+      expect(tester.getSize(card).width, closeTo(beforeRapidMoves + 60, 1));
+      await gesture.up();
+
+      // 7. Keyboard arrow-key resizing.
+      final beforeKey = tester.getSize(card).width;
+      await tester.tap(rightEdge);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pump();
+      expect(tester.getSize(card).width, closeTo(beforeKey - 24, 1));
+
+      // 8. Minimum and maximum bounds clamping and viewport shrink safety.
+      await tester.drag(rightEdge, const Offset(-2000, 0));
+      await tester.pump();
+      expect(tester.getSize(card).width, closeTo(320, 1));
+      await tester.drag(topEdge, const Offset(0, 2000));
+      await tester.pump();
+      expect(tester.getSize(card).height, closeTo(120, 1));
+
+      await tester.tap(find.byKey(const ValueKey('home-setup')));
+      expect(opened, 1);
+
+      await tester.drag(rightEdge, const Offset(3000, 0));
+      await tester.pump();
+      await tester.pump();
+      expect(tester.getRect(card).left, greaterThanOrEqualTo(7));
+      expect(tester.getRect(card).right, lessThanOrEqualTo(1193));
+
+      tester.view.physicalSize = const Size(500, 800);
+      await tester.pump();
+      await tester.pump();
+      expect(tester.getRect(card).right, lessThanOrEqualTo(493));
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+
+  testWidgets(
     'Home prioritizes Connect/Setup when Call is unavailable and switches to Call when ready or active',
     (tester) async {
       tester.view.physicalSize = const Size(1280, 800);

@@ -15,9 +15,13 @@ class OptionsProviderEditor extends StatefulWidget {
     super.key,
     required this.api,
     required this.active,
+    this.startNewProfile = false,
+    this.onNewProfileStarted,
   });
   final ProviderApi? api;
   final bool Function() active;
+  final bool startNewProfile;
+  final VoidCallback? onNewProfileStarted;
   @override
   State<OptionsProviderEditor> createState() => _OptionsProviderEditorState();
 }
@@ -55,6 +59,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
   bool _cloud = false, _import = true, _reading = false;
   String? _error, _notice, _formError;
   int _readVersion = 0;
+  bool _newProfileRequested = false;
 
   bool _current(ProviderApi api, bool Function() capturedActive) =>
       mounted &&
@@ -73,6 +78,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
   @override
   void initState() {
     super.initState();
+    _newProfileRequested = widget.startNewProfile;
     _observedPending = _operation;
     _pendingEvents.addListener(_pendingChanged);
     unawaited(_refresh());
@@ -170,6 +176,11 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
         setState(() {
           _reading = false;
         });
+        if (_newProfileRequested && _enabled) {
+          _newProfileRequested = false;
+          _profileForm();
+          widget.onNewProfileStarted?.call();
+        }
       }
     }
   }
