@@ -135,6 +135,14 @@ no active owner. Recovered old-runtime replies remain ineligible under existing
 playback barriers. Shared Session/speech clients stay retained under actual
 unfinished users and cleanup.
 
+## Interruption qualification
+
+The [November 3 qualification record](../../evaluation/evidence/tts-interruption-settlement-2026-11-03.json)
+binds the supported native-worker recovery path, independent source/fixture reviews,
+retained failed run and changed-fixture speech checks to their actual revisions.
+Its synthetic CPU/ASGI/SQLite scope does not establish real model, GPU, acoustic
+playback or universal provider settlement. Integrated-head CI remains required.
+
 ## Remaining work
 
 Unified budget administration, local worker/profile reconfiguration, additional
