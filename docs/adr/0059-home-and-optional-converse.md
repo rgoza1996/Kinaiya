@@ -2,12 +2,15 @@
 
 Issue: [#138](https://github.com/rgoza1996/Kinaiya/issues/138), following #128.
 
-**Later UI update:** [#351](https://github.com/rgoza1996/Kinaiya/issues/351)
-adds bounded, keyboard-accessible window-style edge and corner resizing (width
-and height) to the movable Home panel, while clicking the Home or Converse
-mascot opens the floating setup bubbles (`ModelSetupDialog`).
-[#350](https://github.com/rgoza1996/Kinaiya/issues/350) adds a compact picker
-using the native selection and recovery flow described in [ADR 0091](0091-converse-text-model-settings.md).
+**Later UI update:** [#349](https://github.com/rgoza1996/Kinaiya/issues/349)
+changes the mascot gesture described below: Home and Converse now reveal
+conversation suggestions with a shortcut to the floating setup bubbles
+(`ModelSetupDialog`). Suggestions only add to the existing draft; they do not
+send a turn. [#351](https://github.com/rgoza1996/Kinaiya/issues/351) adds
+bounded, keyboard-accessible window-style edge and corner resizing (width and
+height) to the movable Home panel. [#350](https://github.com/rgoza1996/Kinaiya/issues/350)
+adds a compact picker using the native selection and recovery flow described in
+[ADR 0091](0091-converse-text-model-settings.md).
 
 The owner updated the native Penpot design on October 30, 2026. The connected
 sidebar file now has a moonlit Home, a separate optional Converse interaction,

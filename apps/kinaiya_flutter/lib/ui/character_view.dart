@@ -76,6 +76,7 @@ class CharacterView extends StatefulWidget {
     this.surface = CharacterSurface.legacy,
     this.onModelSettings,
     this.onConnectionSetup,
+    this.onOpenConverse,
     this.onOpenModelOptions,
     this.onAddModel,
     this.showConverseView = true,
@@ -98,7 +99,7 @@ class CharacterView extends StatefulWidget {
   final CharacterSurface surface;
   final VoidCallback? onModelSettings;
   final VoidCallback? onConnectionSetup;
-  final VoidCallback? onOpenModelOptions, onAddModel;
+  final VoidCallback? onOpenConverse, onOpenModelOptions, onAddModel;
   final bool showConverseView, setupOpen, animateTransitions, speechMouthMotion;
   final bool richArtifactsEnabled;
   final ValueChanged<bool>? onRichArtifactsEnabled;
@@ -1813,6 +1814,101 @@ class _CharacterViewState extends State<CharacterView> {
     );
   }
 
+  static const _mascotSuggestions = <String>[
+    'What can we explore today?',
+    'Help me think something through.',
+    'Tell me something interesting.',
+  ];
+
+  void _selectMascotSuggestion(String choice) {
+    if (choice == 'setup') {
+      (widget.onModelSettings ??
+          widget.onConnectionSetup ??
+          _openVoiceOptions)();
+      return;
+    }
+    final previous = _s.converseDraft;
+    final next = previous.trim().isEmpty ? choice : '$previous\n$choice';
+    if (next.length > 16000) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('There is not enough room in the current draft.'),
+        ),
+      );
+      return;
+    }
+    _s.setDraft(AppView.character, next);
+    _input.value = TextEditingValue(
+      text: next,
+      selection: TextSelection.collapsed(offset: next.length),
+    );
+    if (widget.surface == CharacterSurface.home) {
+      if (widget.onOpenConverse != null) {
+        widget.onOpenConverse!();
+      } else {
+        unawaited(_openTextConversation());
+      }
+    }
+  }
+
+  Widget _mascotPrompts(Widget child) => MenuAnchor(
+    key: const ValueKey('mascot-prompt-trigger'),
+    style: const MenuStyle(
+      alignment: AlignmentDirectional.topEnd,
+      shape: WidgetStatePropertyAll(
+        RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(18)),
+        ),
+      ),
+    ),
+    alignmentOffset: const Offset(8, 0),
+    menuChildren: [
+      for (final suggestion in _mascotSuggestions)
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+          child: MenuItemButton(
+            autofocus: suggestion == _mascotSuggestions.first,
+            onPressed: () => _selectMascotSuggestion(suggestion),
+            style: ButtonStyle(
+              shape: const WidgetStatePropertyAll(
+                RoundedRectangleBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(16)),
+                ),
+              ),
+              backgroundColor: WidgetStatePropertyAll(
+                Theme.of(context).colorScheme.surfaceContainerHigh,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.chat_bubble_outline_rounded, size: 18),
+                const SizedBox(width: 10),
+                Flexible(child: Text(suggestion)),
+              ],
+            ),
+          ),
+        ),
+      const Divider(),
+      MenuItemButton(
+        onPressed: () => _selectMascotSuggestion('setup'),
+        child: const Text('Open Kinaiya setup'),
+      ),
+    ],
+    builder: (context, controller, _) => Tooltip(
+      message: 'Show conversation suggestions',
+      child: Semantics(
+        label: 'Show conversation suggestions',
+        button: true,
+        child: InkWell(
+          onTap: () =>
+              controller.isOpen ? controller.close() : controller.open(),
+          child: child,
+        ),
+      ),
+    ),
+  );
+
   Widget _mascot(CharacterPack? pack, double size) {
     if (!widget.showCharacter) {
       return Semantics(
@@ -1824,6 +1920,18 @@ class _CharacterViewState extends State<CharacterView> {
         ),
       );
     }
+    final artwork = pack == null
+        ? SizedBox(width: size, height: size)
+        : MascotWidget(
+            pack: pack,
+            bundle: widget.character?.bundle,
+            size: size,
+            mood: _characterSignals.semantic,
+            signals: _characterSignals,
+          );
+    if (widget.surface != CharacterSurface.legacy) {
+      return _mascotPrompts(artwork);
+    }
     return Semantics(
       button: true,
       label: widget.onModelSettings == null && widget.onConnectionSetup == null
@@ -1832,15 +1940,7 @@ class _CharacterViewState extends State<CharacterView> {
       child: InkWell(
         onTap: widget.onModelSettings ?? widget.onConnectionSetup ?? _openAgent,
         borderRadius: BorderRadius.circular(24),
-        child: pack == null
-            ? SizedBox(width: size, height: size)
-            : MascotWidget(
-                pack: pack,
-                bundle: widget.character?.bundle,
-                size: size,
-                mood: _characterSignals.semantic,
-                signals: _characterSignals,
-              ),
+        child: artwork,
       ),
     );
   }
@@ -2811,14 +2911,7 @@ class _CharacterViewState extends State<CharacterView> {
     setupLabel: _homeSetupLabel,
     onSetup: _homeSetupAction,
     onConverseSetup: widget.onModelSettings ?? _homeSetupAction,
-    sleepingCharacterWrapper: (artwork) => Semantics(
-      button: true,
-      label: 'Open Kinaiya setup',
-      child: InkWell(
-        onTap: widget.onModelSettings ?? _homeSetupAction,
-        child: artwork,
-      ),
-    ),
+    sleepingCharacterWrapper: _mascotPrompts,
     agentStatus: !_s.agentOnline
         ? 'Not connected'
         : !_s.sessionAuthenticated || _s.tasksStatusStale
@@ -2850,9 +2943,8 @@ class _CharacterViewState extends State<CharacterView> {
       widget.showCharacter &&
           widget.character?.packageJson == null &&
           pack?.fallback != true
-      ? InkWell(
-          onTap: widget.onModelSettings,
-          child: ValueListenableBuilder<SpeechMouthFrame>(
+      ? _mascotPrompts(
+          ValueListenableBuilder<SpeechMouthFrame>(
             valueListenable: _mouthFrame,
             builder: (context, frame, _) => ConversePortrait(
               speaking: _speaking,

@@ -290,6 +290,8 @@ void main() {
       await tester.pump();
       expect(tester.getSize(card).height, closeTo(120, 1));
 
+      await tester.ensureVisible(find.byKey(const ValueKey('home-setup')));
+      await tester.pump();
       await tester.tap(find.byKey(const ValueKey('home-setup')));
       expect(opened, 1);
 
