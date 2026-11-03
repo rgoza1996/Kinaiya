@@ -136,9 +136,13 @@ def test_quick_setup_opting_into_advanced_customizes_paths_and_role_adapters(
             "compatible",  # converse adapter
             "http://127.0.0.1:8081/v1",  # converse endpoint
             "converse-custom-model",  # converse model
+            "no",  # independent Converse cloud disclosure
+            "",  # independent Converse credential variable name
             "native_d1",  # decisions adapter
             "http://127.0.0.1:8082",  # decisions endpoint
             "decisions-d1-model",  # decisions model
+            "no",  # independent Decisions cloud disclosure
+            "",  # independent Decisions credential variable name
             "yes",  # confirm write
         ]
     )

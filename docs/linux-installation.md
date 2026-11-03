@@ -113,15 +113,52 @@ stale launcher. Keep the saved layout, or use a separately reviewed relocation.
 
 ## Setup and launch
 
+For a new configuration, choose one setup form:
+
 ```sh
 kinaiya setup
-# Noninteractive: credential references are environment VARIABLE NAMES, not keys.
-kinaiya setup --yes --endpoint http://127.0.0.1:8080/v1 --model explicit-local-model
-# Cloud requires affirmative disclosure consent and HTTPS:
-kinaiya setup --yes --endpoint https://provider.example/v1 --model explicit-model \
-  --allow-cloud --credential-env MY_PROVIDER_KEY
+# Or noninteractive Agent-only setup; credentials are VARIABLE NAMES, not keys:
+kinaiya setup --yes --adapter lmstudio \
+  --endpoint http://127.0.0.1:1234 --model explicit-local-agent
+# Or a cloud Agent, with its own explicit cloud setting and credential reference:
+kinaiya setup --yes --adapter meta \
+  --endpoint https://agent.example.invalid/v1 --model explicit-cloud-agent \
+  --allow-cloud --credential-env AGENT_API_KEY
+# Or independent providers for optional Converse text services and Decisions:
+kinaiya setup --yes --adapter lmstudio \
+  --endpoint http://127.0.0.1:1234 --model explicit-local-agent \
+  --converse-adapter compatible \
+  --converse-endpoint https://converse.example.invalid/v1 \
+  --converse-model explicit-converse --converse-credential-env CONVERSE_API_KEY \
+  --converse-allow-cloud \
+  --decisions-adapter compatible --decisions-endpoint http://127.0.0.1:8080/v1 \
+  --decisions-model explicit-decisions
+# After the chosen setup:
 kinaiya serve host
 ```
+
+Replace illustrative endpoints/model names with your selected provider settings.
+The setup adapter choices are:
+
+| Role | Adapter option | Supported values |
+| --- | --- | --- |
+| Agent | `--adapter` | `lmstudio`, `meta` |
+| Converse | `--converse-adapter` | `lmstudio`, `compatible`, `meta` |
+| Decisions | `--decisions-adapter` | `compatible`, `laya`, `native_d1`, `meta` |
+
+Supplying any `--converse-*` option requires its own `--converse-endpoint` and
+`--converse-model`; any `--decisions-*` option requires its own
+`--decisions-endpoint` and `--decisions-model`. Their `--converse-credential-env` / `--decisions-credential-env`
+and `--converse-allow-cloud` / `--decisions-allow-cloud` settings are independent
+of Agent settings. Explicit role profiles do not inherit Agent cloud permission
+or credential references. The wizard asks for each role separately, defaulting
+to no cloud permission and no credential reference.
+
+Bare `--converse` retains its existing implicit provider defaults. All effective
+enabled profiles, including those defaults, are validated before directories,
+private tokens or configuration are written. For example, a loopback WebSocket LM Studio Agent
+endpoint needs an explicit HTTP(S) Decisions profile when its implicit
+`compatible` profile would be invalid; refusal leaves a fresh setup untouched.
 
 Setup reuses native `kinaiya init`, creates private service credentials/config,
 and retains the native default policy: no general writes, shell, network or YOLO.
@@ -130,8 +167,10 @@ must not be pasted into prompts/arguments; only an environment variable referenc
 is written to config. Load credential values through your protected host secret
 mechanism, not into conversation or shell-history arguments.
 
-Agent-only `serve host` starts **session + Agent**. `setup --converse` or affirmative
-wizard selection adds Converse text + Decisions on the next `serve host`.
+Agent-only `serve host` starts **session + Agent**. `setup --converse`, an explicit
+Converse profile, or affirmative wizard selection adds Converse text + Decisions
+on the next `serve host`. A Decisions profile without a Converse profile or
+`--converse` does not enable Converse.
 No `voice`/`resources` declaration, model/voice download or license consent is
 inferred. Optional model/voice installation is a separate explicit developer path
 with its own license/download-size review; see [Converse setup](converse-setup.md).
@@ -141,7 +180,9 @@ Agent-only default.
 Setup reports `ready: false` and `provider_connection: not_checked`. It does not
 contact a provider or claim the selected model exists/is loaded. Validate the
 chosen provider/model and local service readiness explicitly before authorizing
-work. No automatic test task is submitted to make setup look successful.
+work. Saving a provider profile does not replace native content-scope and task
+permission checks. No automatic test task is
+submitted to make setup look successful.
 The embedded ASCII mascot has plain-text, narrow-terminal and noninteractive
 fallbacks. It is an original text adaptation of
 `assets/mascot/kinaiya-mascot.png` under the repository Apache-2.0 license, with

@@ -489,6 +489,34 @@ def setup(
         else None
     )
 
+    if converse_built is not None:
+        effective_converse = converse_built
+    elif converse:
+        converse_default_kind = "lmstudio" if agent_built["kind"] == "lmstudio" else "compatible"
+        effective_converse = _build_role_profile(
+            "converse",
+            endpoint=agent_built["base_url"],
+            model=agent_built["model"],
+            kind=converse_default_kind,
+            allow_cloud=agent_built["allow_cloud"],
+            credential_env=agent_built.get("api_key_env"),
+        )
+    else:
+        effective_converse = None
+    if decisions_built is not None:
+        effective_decisions = decisions_built
+    elif converse:
+        effective_decisions = _build_role_profile(
+            "decisions",
+            endpoint=agent_built["base_url"],
+            model=agent_built["model"],
+            kind="compatible",
+            allow_cloud=agent_built["allow_cloud"],
+            credential_env=agent_built.get("api_key_env"),
+        )
+    else:
+        effective_decisions = None
+
     for directory in (layout.config.parent, layout.data, layout.workspace):
         directory.mkdir(parents=True, exist_ok=True, mode=0o700)
     with redirect_stdout(io.StringIO()):
@@ -497,29 +525,10 @@ def setup(
     config.pop("voice", None)
 
     config["providers"]["agent"] = dict(agent_built)
-    if converse_built is not None:
-        config["providers"]["converse"] = dict(converse_built)
-    elif converse:
-        converse_default_kind = "lmstudio" if agent_built["kind"] == "lmstudio" else "compatible"
-        config["providers"]["converse"] = _build_role_profile(
-            "converse",
-            endpoint=agent_built["base_url"],
-            model=agent_built["model"],
-            kind=converse_default_kind,
-            allow_cloud=agent_built["allow_cloud"],
-            credential_env=agent_built.get("api_key_env"),
-        )
-    if decisions_built is not None:
-        config["providers"]["decisions"] = dict(decisions_built)
-    elif converse:
-        config["providers"]["decisions"] = _build_role_profile(
-            "decisions",
-            endpoint=agent_built["base_url"],
-            model=agent_built["model"],
-            kind="compatible",
-            allow_cloud=agent_built["allow_cloud"],
-            credential_env=agent_built.get("api_key_env"),
-        )
+    if effective_converse is not None:
+        config["providers"]["converse"] = dict(effective_converse)
+    if effective_decisions is not None:
+        config["providers"]["decisions"] = dict(effective_decisions)
 
     config["distribution"] = {"converse": bool(converse or converse_built is not None)}
     atomic_json(layout.config, config)
