@@ -1274,8 +1274,18 @@ class MediaSessionOwner:
             refuse()
         kind = getattr(m, "Media" + _KINDS[row["kind"]])
         receipt = m.media_json(bytes(row["canonical_receipt"]), m.MediaReceipt[kind])
+        # The fresh parse already rebuilt every child and checked its digest.
+        # Re-encode its complete actual graph without another reconstruction.
+        try:
+            canonical = m._canonical(receipt)
+        except m.MediaContractError:
+            raise
+        except m.ValidationError as error:
+            raise m._normalize_error(error) from None
+        except (ValueError, TypeError, UnicodeError, RecursionError, OverflowError):
+            raise m.MediaContractError() from None
         if (
-            m.media_bytes(receipt) != bytes(row["canonical_receipt"])
+            canonical != bytes(row["canonical_receipt"])
             or receipt.id != row["receipt_id"]
             or receipt.key != row["key"]
             or receipt.request_sha256 != row["request_sha256"]
