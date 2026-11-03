@@ -19,7 +19,12 @@ from packages.providers.decision_capture import (
 )
 from packages.providers.disclosure import combine_scopes, entry_allowed, source_scope
 from packages.providers.text import ProviderRefusal
-from services.decisions.window_routing import acknowledged_task, dispatch_failure
+from services.decisions.window_routing import (
+    _task_projection,
+    acknowledged_task,
+    dispatch_failure,
+    is_ambiguous_multi_task_target,
+)
 
 DISPATCH_TIMEOUT = 15  # Match the existing Agent HTTP client's admission bound.
 MAX_ATTEMPTS = 2
@@ -176,14 +181,7 @@ class ModelClassifier:
                     for e in included_context
                 ],
                 "latest": {"kind": source.kind, "text": source.payload.get("text", "")},
-                "tasks": [
-                    {
-                        "task_id": t.task_id,
-                        "objective_revision": t.objective_revision,
-                        "state": t.state,
-                    }
-                    for t in tasks[:8]
-                ],
+                "tasks": _task_projection(tasks, provider_info=self.provider.info, limit=8),
             }
         )
         if len(body) > self.window_chars:
@@ -192,14 +190,7 @@ class ModelClassifier:
                 {
                     "context": [],
                     "latest": {"kind": source.kind, "text": source.payload.get("text", "")},
-                    "tasks": [
-                        {
-                            "task_id": t.task_id,
-                            "objective_revision": t.objective_revision,
-                            "state": t.state,
-                        }
-                        for t in tasks[:5]
-                    ],
+                    "tasks": _task_projection(tasks, provider_info=self.provider.info, limit=5),
                 }
             )
         if len(body) > self.window_chars:
@@ -478,6 +469,38 @@ class DecisionsWorker:
                 current=lease.current,
             )
 
+    def _active_provider_info(self):
+        if self.model_settings is not None:
+            state = self.model_settings._state()
+            info, _ = self.model_settings._selection_info(state[2])
+            return info
+        provider = getattr(self.classifier, "provider", None)
+        return getattr(provider, "info", None)
+
+    async def _scoped_tasks(self, tasks):
+        if len(tasks) <= 1 or not (
+            hasattr(self.journal, "entry") and hasattr(self.journal, "resolve")
+        ):
+            return tasks
+        scoped = []
+        for task in tasks:
+            scope = getattr(task, "content_scope", "local_only") or "local_only"
+            source_ids = getattr(task, "source_event_ids", None) or []
+            for source_id in source_ids:
+                if not isinstance(source_id, str) or not source_id:
+                    continue
+                try:
+                    floor = await source_scope(self.journal, source_id)
+                    scope = combine_scopes(scope, floor)
+                except Exception:
+                    scope = "local_only"
+            if scope != getattr(task, "content_scope", "local_only") and hasattr(
+                task, "model_copy"
+            ):
+                task = task.model_copy(update={"content_scope": scope})
+            scoped.append(task)
+        return scoped
+
     async def _process(self, source):
         session = await self.journal.session(source.session_id)
         if source.epoch != session.epoch or session.channel != "converse":
@@ -553,6 +576,7 @@ class DecisionsWorker:
                     and t.epoch == source.epoch
                     and t.state not in {"succeeded", "failed", "cancelled"}
                 ]
+                tasks = await self._scoped_tasks(tasks)
                 if not self.enabled:
                     result = {"route": "ignore", "reason_code": "agent_disabled_no_replay"}
                 elif source.kind == "conversation.converse":
@@ -612,6 +636,10 @@ class DecisionsWorker:
                     or target.objective_revision != result.get("expected_objective_revision")
                 ):
                     result = {"route": "ignore", "reason_code": "unknown_or_stale_target"}
+                elif result["route"] in {"steer", "interrupt"} and is_ambiguous_multi_task_target(
+                    target, tasks, provider_info=self._active_provider_info()
+                ):
+                    result = {"route": "ignore", "reason_code": "ambiguous_target"}
                 decision = Decision(
                     **result,
                     source_event_ids=[source.payload["target_event_id"]]

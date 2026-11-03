@@ -29,6 +29,7 @@ MAX_CONTEXT_ENTRIES = 12
 MAX_CONTEXT_ENTRY_CHARS = 2000
 MAX_TEXT_CHARS = 16000
 MAX_TASKS = 8
+MAX_TASK_DESCRIPTION_CHARS = 240
 MAX_RESPONSE_BYTES = 128 * 1024
 
 FINAL_KINDS = {"conversation.user", "conversation.revision", "conversation.converse"}
@@ -157,9 +158,12 @@ def _target_choices_with_tasks(tasks: list) -> dict:
     labels = [("NONE", "No single task is the unambiguous target; use NONE.")]
     for i, task in enumerate(tasks):
         desc = (
-            f"Task ID {task['task_id']} revision {task['objective_revision']} "
-            f"state {task['state']}."
+            f"Task ID {task['task_id']} revision {task['objective_revision']} state {task['state']}"
         )
+        if task.get("description"):
+            desc += f": {task['description']}."
+        else:
+            desc += "."
         labels.append((f"t{i}", desc[:500]))
     return _choice_question(
         "Select the single unambiguous native task target. If ambiguous, choose NONE. "
@@ -449,6 +453,7 @@ class LayaRoutingProvider:
             task_id = task.get("task_id")
             revision = task.get("objective_revision")
             tstate = task.get("state")
+            description = task.get("description")
             if (
                 not isinstance(task_id, str)
                 or not task_id
@@ -459,15 +464,24 @@ class LayaRoutingProvider:
                 or not isinstance(tstate, str)
                 or not tstate
                 or len(tstate) > 64
+                or (
+                    description is not None
+                    and (
+                        not isinstance(description, str)
+                        or not description.strip()
+                        or len(description) > MAX_TASK_DESCRIPTION_CHARS
+                    )
+                )
             ):
                 raise ProviderRefusal("Laya decisions tasks are malformed")
-            trimmed_tasks.append(
-                {
-                    "task_id": task_id,
-                    "objective_revision": revision,
-                    "state": tstate,
-                }
-            )
+            item = {
+                "task_id": task_id,
+                "objective_revision": revision,
+                "state": tstate,
+            }
+            if description is not None:
+                item["description"] = description.strip()
+            trimmed_tasks.append(item)
         if mode == "window":
             trimmed_latest = {
                 "text": text,

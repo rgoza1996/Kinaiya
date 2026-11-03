@@ -129,15 +129,53 @@ def _entry_text(entry: JournalEntry) -> str:
     return text if isinstance(text, str) else ""
 
 
-def _task_projection(tasks: list) -> list[dict]:
-    return [
-        {
+MAX_TASK_DESCRIPTION_CHARS = 240
+
+
+def task_description_admissible(task, provider_info=None) -> bool:
+    objective = getattr(task, "objective", None)
+    if not isinstance(objective, str) or not objective.strip():
+        return False
+    scope = getattr(task, "content_scope", "local_only")
+    if not isinstance(scope, str):
+        scope = "local_only"
+    if provider_info is None:
+        return True
+    return scope_allowed(provider_info, scope)
+
+
+def is_ambiguous_multi_task_target(target, tasks: list, *, provider_info=None) -> bool:
+    bounded = list(tasks)[:MAX_TASKS]
+    if len(bounded) <= 1 or target is None:
+        return False
+    if not task_description_admissible(target, provider_info):
+        return True
+    target_desc = getattr(target, "objective", "").strip()[:MAX_TASK_DESCRIPTION_CHARS]
+    for other in bounded:
+        if other.task_id == target.task_id:
+            continue
+        if (
+            task_description_admissible(other, provider_info)
+            and getattr(other, "objective", "").strip()[:MAX_TASK_DESCRIPTION_CHARS] == target_desc
+        ):
+            return True
+    return False
+
+
+def _task_projection(tasks: list, *, provider_info=None, limit: int = MAX_TASKS) -> list[dict]:
+    bounded = list(tasks)[:limit]
+    include_descriptions = len(bounded) > 1
+    projected = []
+    for t in bounded:
+        item = {
             "task_id": t.task_id,
             "objective_revision": t.objective_revision,
             "state": str(t.state.value if hasattr(t.state, "value") else t.state),
         }
-        for t in list(tasks)[:MAX_TASKS]
-    ]
+        if include_descriptions and task_description_admissible(t, provider_info):
+            item["description"] = t.objective.strip()[:MAX_TASK_DESCRIPTION_CHARS]
+        projected.append(item)
+    return projected
 
 
 def admissible_window_projection(
@@ -153,8 +191,8 @@ def admissible_window_projection(
 ) -> tuple[bool, list[JournalEntry], list[dict], list[dict], str]:
     """Project the exact bounded admissible classifier input and its canonical digest.
 
-    Withheld/private context entries are excluded before projection so forbidden
-    text never enters the request or the cache digest.
+    Withheld/private context entries and private task descriptions are excluded
+    before projection so forbidden text never enters the request or the cache digest.
     """
     window = SpeechWindow.model_validate(source.payload)
     if provider_info is None:
@@ -175,7 +213,7 @@ def admissible_window_projection(
                 "text": _entry_text(entry)[:MAX_ENTRY_CHARS],
             }
         )
-    task_refs = _task_projection(tasks)
+    task_refs = _task_projection(tasks, provider_info=provider_info, limit=MAX_TASKS)
     body = json.dumps(
         {
             "latest": {
@@ -193,7 +231,7 @@ def admissible_window_projection(
     if len(body) > window_chars:
         admissible_entries = []
         kept_context = []
-        task_refs = task_refs[:5]
+        task_refs = _task_projection(tasks, provider_info=provider_info, limit=5)
     canonical = {
         "hypothesis": {
             "text": window.text,
@@ -270,14 +308,7 @@ class WindowClassifier:
         if not scope_allowed(self.provider.info, window.content_scope):
             raise ValueError("Window disclosure does not permit this provider")
         kept, _ = self._filter_context(context)
-        task_refs = [
-            {
-                "task_id": t.task_id,
-                "objective_revision": t.objective_revision,
-                "state": str(t.state.value if hasattr(t.state, "value") else t.state),
-            }
-            for t in list(tasks)[:MAX_TASKS]
-        ]
+        task_refs = _task_projection(tasks, provider_info=self.provider.info, limit=MAX_TASKS)
         body = json.dumps(
             {
                 "latest": {
@@ -301,7 +332,7 @@ class WindowClassifier:
                         "capture_ended": window.capture_ended,
                     },
                     "context": [],
-                    "tasks": task_refs[:5],
+                    "tasks": _task_projection(tasks, provider_info=self.provider.info, limit=5),
                 }
             )
         if len(body) > self.window_chars:

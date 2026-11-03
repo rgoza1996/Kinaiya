@@ -19,7 +19,10 @@ from packages.providers.decision_capture import (
 )
 from packages.providers.disclosure import combine_scopes, source_scope
 from packages.providers.text import ProviderError, ProviderRefusal
-from services.decisions.window_routing import admissible_window_projection
+from services.decisions.window_routing import (
+    admissible_window_projection,
+    is_ambiguous_multi_task_target,
+)
 
 MAX_PENDING = 32
 MAX_ATTEMPTS = 2
@@ -251,6 +254,32 @@ class WindowDecisionsWorker:
         provider = getattr(self.classifier, "provider", None)
         return getattr(provider, "info", None)
 
+    async def _scoped_tasks(self, tasks):
+        if len(tasks) <= 1 or not (
+            hasattr(self.journal, "entry")
+            and hasattr(self.journal, "resolve")
+            and hasattr(self.journal, "read")
+        ):
+            return tasks
+        scoped = []
+        for task in tasks:
+            scope = getattr(task, "content_scope", "local_only") or "local_only"
+            source_ids = getattr(task, "source_event_ids", None) or []
+            for source_id in source_ids:
+                if not isinstance(source_id, str) or not source_id:
+                    continue
+                try:
+                    floor = await source_scope(self.journal, source_id)
+                    scope = combine_scopes(scope, floor)
+                except Exception:
+                    scope = "local_only"
+            if scope != getattr(task, "content_scope", "local_only") and hasattr(
+                task, "model_copy"
+            ):
+                task = task.model_copy(update={"content_scope": scope})
+            scoped.append(task)
+        return scoped
+
     async def _classify(self, source, *, attempt=None):
         if not await self._ready(source):
             return
@@ -274,6 +303,7 @@ class WindowDecisionsWorker:
                 ]
             except Exception:
                 tasks, available = [], False
+        tasks = await self._scoped_tasks(tasks)
         self.agent_available = available if self.agent_enabled else None
         if self.agent_enabled and not available:
             await self.status(source, "agent_unavailable", "agent_status_unavailable")
@@ -363,6 +393,16 @@ class WindowDecisionsWorker:
                 "reason_code": "no_transcript_text",
             }
             original_call = None
+        if labels.get("agent_route") in {"STEER_CURRENT_TASK", "INTERRUPT_CURRENT_TASK"}:
+            target = next((t for t in tasks if t.task_id == labels.get("target_task_id")), None)
+            if is_ambiguous_multi_task_target(target, tasks, provider_info=provider_info):
+                labels = {
+                    **labels,
+                    "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
+                    "target_task_id": None,
+                    "expected_objective_revision": None,
+                    "reason_code": "ambiguous_target",
+                }
         self.outputs[key] = (input_digest, hypothesis(source), dict(labels), original_call)
         self.output_models[key] = model_stamp
         self.outputs.move_to_end(key)
