@@ -157,3 +157,18 @@ Decoder execution remains unavailable until those interfaces, per-segment
 resource enforcement and original peer/control/body/publication settlement are
 implemented and verified. Parsing, storage checks and descriptor tests do not
 pass AT64–AT66 or establish a sign-language demonstration.
+
+## Native Session regression evidence
+
+The [November 3 qualification record](../evaluation/evidence/media-session-owner-2026-11-03.json)
+records 176 offline owner, lifecycle, ordinary event-channel and receipt-parser
+checks at the exact tested source. This includes the unchanged all-index ACK
+history case, which previously failed teardown. The earlier 79-pass/one-failure
+run remains recorded separately. New receipt parsing preserves all stored-byte,
+identity, semantic and resource-bound checks while avoiding an immediate second
+reconstruction of a fresh, unexposed parsed receipt.
+
+These checks do not establish a timing cause or qualify decoder/model/device
+behavior, physical cleanup of arbitrary operations, the standing64 capacity
+gate or the complete Omni demo. Changed-head CI and parent integration remain
+required.
