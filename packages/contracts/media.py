@@ -5,6 +5,8 @@ runtime availability. Native owners resolve references, permissions, policy,
 currentness, original files/processes and cleanup.
 """
 
+import base64
+import binascii
 import hashlib
 import json
 import re
@@ -29,6 +31,9 @@ MAX_MEDIA_CONTROL_BYTES = 65_536
 MAX_MEDIA_BODY_BYTES = 16_777_216
 MAX_MEDIA_DEPTH = 24
 MAX_MEDIA_NODES = 8_192
+MAX_MEDIA_ADMISSION_BYTES = 262_144
+MAX_MEDIA_ADMISSION_DEPTH = 32
+MAX_MEDIA_ADMISSION_NODES = 32_768
 _ERROR = "Invalid media contract"
 
 
@@ -115,7 +120,7 @@ class _MediaModel(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def _strict_version(cls, value):
-        _graph(value)
+        _checked_graph(value, cls, construction=True)
         if type(value) is dict and "v" in cls.model_fields:
             if type(value.get("v")) is not int or value["v"] != 1:
                 _bad()
@@ -123,7 +128,7 @@ class _MediaModel(BaseModel):
 
     @model_validator(mode="after")
     def _complete_size(self) -> Self:
-        _canonical(self)
+        _canonical(self, construction=True)
         return self
 
 
@@ -1041,6 +1046,504 @@ class MediaDecodeBudget(_MediaModel):
     state: Literal["running", "ended", "unknown"]
 
 
+class MediaOwnerTextObjective(_MediaModel):
+    kind: Literal["owner_text"]
+    event_ref: _Ref
+
+
+class MediaOwnerMediaObjective(_MediaModel):
+    kind: Literal["owner_media"]
+    intent: MediaNativeRef
+
+
+MediaOwnerObjective = Annotated[
+    MediaOwnerTextObjective | MediaOwnerMediaObjective, Field(discriminator="kind")
+]
+
+
+class MediaTaskProofRequest(_MediaModel):
+    v: Literal[1]
+    key: _Key
+    session: MediaSession
+    original_admission_id: _Ref
+
+
+class MediaTaskProof(_MediaModel):
+    v: Literal[1]
+    session: MediaSession
+    task_id: _Ref
+    objective_revision: _P
+    owner_objective: MediaOwnerObjective
+    request_sha256: _Hash
+    original_admission_id: _Ref
+    state: Literal["accepted", "unknown"]
+
+
+class MediaAnalyzeTaskAnchor(_MediaModel):
+    v: Literal[1]
+    owner_objective: MediaOwnerObjective
+    session: MediaSession
+    task_id: _Ref
+    initial_objective_revision: _P
+    task_admission: MediaNativeRef
+    scope: _Scope
+    allowed_operation: Literal["evidence_only"]
+
+
+class MediaLegacyTaskBody(_MediaModel):
+    contract: Literal["TaskRequest"]
+    canonical_utf8_b64: _text(87_384)
+    sha256: _Hash
+
+    @model_validator(mode="after")
+    def _legacy(self) -> Self:
+        # The exception is an inline envelope allowance, not a larger or
+        # different legacy TaskRequest parser or an admission authority.
+        from packages.contracts.models import TaskRequest
+
+        try:
+            raw = base64.b64decode(self.canonical_utf8_b64, validate=True)
+            if base64.b64encode(raw).decode("ascii") != self.canonical_utf8_b64:
+                _bad()
+            if len(raw) > MAX_MEDIA_CONTROL_BYTES:
+                _bound()
+            if hashlib.sha256(raw).hexdigest() != self.sha256:
+                _bad()
+            text = raw.decode("utf-8")
+            _lexical_bounds(text)
+            value = json.loads(
+                text,
+                object_pairs_hook=_pairs,
+                parse_int=_integer,
+                parse_float=_reject_number,
+                parse_constant=_reject_number,
+            )
+            if _canonical(value) != raw:
+                _bad()
+            TaskRequest.model_validate(value)
+        except MediaContractError:
+            raise
+        except ValidationError as error:
+            raise _normalize_error(error) from None
+        except (binascii.Error, UnicodeError, ValueError, TypeError):
+            raise MediaContractError() from None
+        return self
+
+
+class MediaAnchorAdmission(_MediaModel):
+    v: Literal[1]
+    key: _Key
+    owner_objective: MediaOwnerObjective
+    scope: _Scope
+    submit: MediaLegacyTaskBody | None
+    task_admission: MediaNativeRef | None
+
+    @model_validator(mode="after")
+    def _one_admission(self) -> Self:
+        if (self.submit is None) == (self.task_admission is None):
+            _bad()
+        if self.submit is not None and type(self.owner_objective) is not MediaOwnerTextObjective:
+            _bad()
+        return self
+
+
+class MediaProcessIdentity(_MediaModel):
+    pid: _P
+    start_tick: _N
+    boot_id: _Id
+    nonce: _Id
+    pidfd_owner: _Id
+
+
+class MediaLocalProcessPeer(_MediaModel):
+    kind: Literal["local_process"]
+    identity: MediaProcessIdentity
+
+
+class MediaNativeTaskPeer(_MediaModel):
+    kind: Literal["native_task"]
+    backend_instance: _Id
+    task_id: _Id
+    request_sha256: _Hash
+
+
+class MediaOwnedWorkerPeer(_MediaModel):
+    kind: Literal["owned_worker"]
+    instance: _Id
+    request_sha256: _Hash
+
+
+class MediaClientPlaybackPeer(_MediaModel):
+    kind: Literal["client_playback"]
+    client_instance: _Id
+    generation_epoch: _P
+
+
+class MediaExternalTransportPeer(_MediaModel):
+    kind: Literal["external_transport"]
+    exchange_id: _Id
+
+
+MediaPeer = Annotated[
+    MediaLocalProcessPeer
+    | MediaNativeTaskPeer
+    | MediaOwnedWorkerPeer
+    | MediaClientPlaybackPeer
+    | MediaExternalTransportPeer,
+    Field(discriminator="kind"),
+]
+_ChildKind = Literal[
+    "upload",
+    "decoder",
+    "converse_provider",
+    "decisions_provider",
+    "input_asr",
+    "assistant_asr",
+    "tts_provider",
+    "playback",
+    "agent_media",
+    "agent_delivery",
+]
+_Outcome = Literal["completed", "cancelled", "failed", "not_started"]
+_Reason = Literal[
+    "none",
+    "denied",
+    "stale",
+    "superseded",
+    "target_changed",
+    "owner_stop",
+    "disconnect",
+    "lease_expired",
+    "reset",
+    "replacement",
+    "eof",
+    "expired",
+    "deleted",
+    "overrun",
+    "quota",
+    "decode_error",
+    "provider_error",
+    "publication_unknown",
+    "cleanup_unknown",
+    "representation_conflict",
+]
+
+
+class MediaChildOwner(_MediaModel):
+    v: Literal[1]
+    kind: _ChildKind
+    instance: _Id
+    operation_id: _Id
+    source: MediaNativeRef
+    consumer: MediaConsumerRef | None
+    binding_sha256: _Hash
+    backend_id: _Id
+    peer: MediaPeer
+
+
+class MediaChild(_MediaModel):
+    kind: _ChildKind
+    instance: _Id
+    operation_id: _Id
+    owner: MediaNativeRef
+    binding_sha256: _Hash
+    state: Literal["reserved", "running", "fenced", "closing", "settled", "unknown"]
+    outcome: _Outcome | None
+    cleanup: MediaNativeRef | None
+
+    @model_validator(mode="after")
+    def _settlement_shape(self) -> Self:
+        if (self.state == "settled") != (self.outcome is not None):
+            _bad()
+        if self.state == "settled" and self.cleanup is None:
+            _bad()
+        return self
+
+
+class MediaWorkerCleanup(_MediaModel):
+    v: Literal[1]
+    kind: Literal["native_owner"]
+    operation_id: _Id
+    child_instance: _Id
+    binding_sha256: _Hash
+    original_owner: MediaNativeRef
+    state: Literal["settled", "unknown"]
+    outcome: _Outcome | None
+    proof: Literal[
+        "local_join",
+        "pidfd_reap",
+        "owned_worker_receipt",
+        "client_playback",
+        "transport_only",
+        "none",
+    ]
+    publication: Literal["settled", "unknown"]
+    scope: Literal[
+        "native_task", "local_process", "owned_worker", "client_playback", "external_unknown"
+    ]
+
+    @model_validator(mode="after")
+    def _settlement_shape(self) -> Self:
+        if self.state == "unknown":
+            if self.outcome is not None:
+                _bad()
+        elif (
+            self.outcome is None
+            or self.publication != "settled"
+            or {
+                "native_task": "local_join",
+                "local_process": "pidfd_reap",
+                "owned_worker": "owned_worker_receipt",
+                "client_playback": "client_playback",
+            }.get(self.scope)
+            != self.proof
+        ):
+            _bad()
+        return self
+
+
+class MediaLocalExchangeCleanup(_MediaModel):
+    v: Literal[1]
+    kind: Literal["local_exchange"]
+    operation_id: _Id
+    child_instance: _Id
+    binding_sha256: _Hash
+    original_owner: MediaNativeRef
+    exchange_owner: MediaNativeRef
+    state: Literal["settled", "unknown"]
+    outcome: _Outcome | None
+    local_task_joined: bool
+    transport_sole_closed: bool
+    body_fd_closed: bool
+    all_readers_settled: bool
+    publications_settled: bool
+    observations: Annotated[list[MediaNativeRef], Field(max_length=64)]
+    remote_liability: MediaNativeRef
+
+    @model_validator(mode="after")
+    def _settlement_shape(self) -> Self:
+        if self.state == "unknown":
+            if self.outcome is not None:
+                _bad()
+        elif (
+            self.outcome is None
+            or not all(
+                (
+                    self.local_task_joined,
+                    self.transport_sole_closed,
+                    self.body_fd_closed,
+                    self.all_readers_settled,
+                    self.publications_settled,
+                )
+            )
+            or not self.observations
+        ):
+            _bad()
+        if len({(ref.backend_id, ref.receipt_id) for ref in self.observations}) != len(
+            self.observations
+        ):
+            _bad()
+        return self
+
+
+MediaCleanupReceipt = Annotated[
+    MediaWorkerCleanup | MediaLocalExchangeCleanup, Field(discriminator="kind")
+]
+
+
+class MediaStatus(_MediaModel):
+    v: Literal[1]
+    source: MediaNativeRef
+    fence: MediaFence
+    desired: Literal["running", "stopped", "deleted"]
+    local_actual: Literal[
+        "reserved",
+        "uploading",
+        "sealed",
+        "ready",
+        "running",
+        "fenced",
+        "closing",
+        "settled",
+        "unknown",
+        "deleted",
+    ]
+    children: Annotated[list[MediaChild], Field(max_length=16)]
+    remote_state: Literal["none", "unknown"]
+    remote_liability_head: MediaNativeRef | None
+    reason: _Reason
+    reservation: MediaReservation
+    raw_state: Literal["buffered", "retained", "expired", "delete_pending", "deleted"]
+
+    @model_validator(mode="after")
+    def _status_shape(self) -> Self:
+        if (self.remote_state == "none") != (self.remote_liability_head is None):
+            _bad()
+        if len({child.instance for child in self.children}) != len(self.children):
+            _bad()
+        if self.local_actual in ("settled", "deleted") and any(
+            child.state != "settled" for child in self.children
+        ):
+            _bad()
+        if self.local_actual == "deleted" and self.raw_state != "deleted":
+            _bad()
+        return self
+
+
+class MediaControl(_MediaModel):
+    v: Literal[1]
+    key: _Key
+    source: MediaNativeRef
+    fence: MediaFence
+    command: Literal["start", "heartbeat", "stop", "seek", "reset", "resume"]
+    position: MediaQ | None
+
+    @model_validator(mode="after")
+    def _position_shape(self) -> Self:
+        if (self.command == "seek") != (self.position is not None):
+            _bad()
+        return self
+
+
+class MediaDeleteRequest(_MediaModel):
+    v: Literal[1]
+    key: _Key
+    source: MediaNativeRef
+    fence: MediaFence
+
+
+class MediaDeleteReceipt(_MediaModel):
+    v: Literal[1]
+    source: MediaNativeRef
+    fence: MediaFence
+    state: Literal["local_delete_pending", "local_deleted"]
+    local_children_settled: bool
+    local_spool_unlinked: bool
+    local_processing_reservation_released: bool
+    remote_state: Literal["none", "unknown"]
+    remote_liability_head: MediaNativeRef | None
+
+    @model_validator(mode="after")
+    def _deletion_shape(self) -> Self:
+        if (self.remote_state == "none") != (self.remote_liability_head is None):
+            _bad()
+        if self.state == "local_deleted" and not all(
+            (
+                self.local_children_settled,
+                self.local_spool_unlinked,
+                self.local_processing_reservation_released,
+            )
+        ):
+            _bad()
+        return self
+
+
+_LookupKind = Literal[
+    "source",
+    "upload_ack",
+    "capture_ack",
+    "seal",
+    "capture_ready",
+    "decode_ready",
+    "decode_end",
+    "decode_budget",
+    "input_end",
+    "task_proof",
+    "anchor",
+    "owner_arming",
+    "arming_revocation",
+    "utterance_lineage",
+    "intent",
+    "consumer",
+    "range",
+    "blob",
+    "record",
+    "manifest_page",
+    "manifest_seal",
+    "word_page",
+    "alignment_page",
+    "speaker",
+    "derived_source",
+    "reply",
+    "native_duplex_timing",
+    "decision",
+    "evidence",
+    "text_bridge",
+    "admission_request",
+    "action",
+    "native_admission",
+    "dependency_head",
+    "delivery",
+    "apply_head",
+    "agent_owner",
+    "dispatcher_owner",
+    "agent_observation",
+    "dispatcher_observation",
+    "delivery_retirement",
+    "admission_retirement",
+    "supervisor",
+    "asr",
+    "asr_backend_state",
+    "stream_entry",
+    "producer_set_page",
+    "publication_plan",
+    "producer_watermark",
+    "watermark_page",
+    "stream_seal",
+    "stream_snapshot",
+    "local_exchange_owner",
+    "local_close_observation",
+    "remote_liability",
+    "child_owner",
+    "cleanup",
+    "status",
+    "delete",
+    "check",
+    "qualification_summary",
+    "artifact",
+]
+
+
+class MediaLookup(_MediaModel):
+    v: Literal[1]
+    kind: _LookupKind
+    ref: MediaNativeRef
+
+
+class MediaKeyLookup(_MediaModel):
+    v: Literal[1]
+    kind: _LookupKind
+    key: _Key
+    request_sha256: _Hash
+
+
+class MediaChildOwnerAppend(_MediaModel):
+    v: Literal[1]
+    key: _Key
+    consumer: MediaConsumerRef | None
+    source: MediaNativeRef | None
+    fence: MediaFence | None
+    value: MediaChildOwner
+
+
+class MediaWorkerCleanupAppend(_MediaModel):
+    v: Literal[1]
+    key: _Key
+    consumer: MediaConsumerRef | None
+    source: MediaNativeRef | None
+    fence: MediaFence | None
+    value: MediaWorkerCleanup
+
+
+class MediaStatusAppend(_MediaModel):
+    v: Literal[1]
+    key: _Key
+    consumer: MediaConsumerRef | None
+    source: MediaNativeRef | None
+    fence: MediaFence | None
+    value: MediaStatus
+
+
 _T = TypeVar("_T", bound=_MediaModel)
 
 
@@ -1121,6 +1624,32 @@ _RECORDS = (
     MediaDecodeResponse,
     MediaInputEnd,
     MediaDecodeBudget,
+    MediaOwnerTextObjective,
+    MediaOwnerMediaObjective,
+    MediaTaskProofRequest,
+    MediaTaskProof,
+    MediaAnalyzeTaskAnchor,
+    MediaLegacyTaskBody,
+    MediaAnchorAdmission,
+    MediaProcessIdentity,
+    MediaLocalProcessPeer,
+    MediaNativeTaskPeer,
+    MediaOwnedWorkerPeer,
+    MediaClientPlaybackPeer,
+    MediaExternalTransportPeer,
+    MediaChildOwner,
+    MediaChild,
+    MediaWorkerCleanup,
+    MediaLocalExchangeCleanup,
+    MediaStatus,
+    MediaControl,
+    MediaDeleteRequest,
+    MediaDeleteReceipt,
+    MediaLookup,
+    MediaKeyLookup,
+    MediaChildOwnerAppend,
+    MediaWorkerCleanupAppend,
+    MediaStatusAppend,
 )
 _short_names = {kind: kind.__name__.removeprefix("Media") for kind in _RECORDS}
 _schemas = {kind.__name__: kind for kind in _RECORDS}
@@ -1131,15 +1660,28 @@ for _kind in _RECORDS:
     _short_names[_found] = f"Found<{_short_names[_kind]}>"
     _schemas[f"MediaReceipt{_short_names[_kind]}"] = _receipt
     _schemas[f"MediaFound{_short_names[_kind]}"] = _found
-_receipt = MediaReceipt[MediaFormat]
-_found = MediaFound[MediaFormat]
-_short_names[_receipt] = "R<Format>"
-_short_names[_found] = "Found<Format>"
-_schemas["MediaReceiptFormat"] = _receipt
-_schemas["MediaFoundFormat"] = _found
+_ALIASES = MappingProxyType(
+    {
+        "MediaFormat": MediaFormat,
+        "MediaOwnerObjective": MediaOwnerObjective,
+        "MediaPeer": MediaPeer,
+        "MediaCleanupReceipt": MediaCleanupReceipt,
+    }
+)
+for _name, _alias in _ALIASES.items():
+    _short = _name.removeprefix("Media")
+    _receipt = MediaReceipt[_alias]
+    _found = MediaFound[_alias]
+    _short_names[_receipt] = f"R<{_short}>"
+    _short_names[_found] = f"Found<{_short}>"
+    _schemas[f"MediaReceipt{_short}"] = _receipt
+    _schemas[f"MediaFound{_short}"] = _found
 _SHORT_NAMES = MappingProxyType(_short_names)
 _BY_SHORT = MappingProxyType(
-    {**{name: kind for kind, name in _short_names.items()}, "Format": MediaFormat}
+    {
+        **{name: kind for kind, name in _short_names.items()},
+        **{name.removeprefix("Media"): alias for name, alias in _ALIASES.items()},
+    }
 )
 _GRAPH_KINDS = frozenset(_short_names) | {MediaCaptureTrackOffer}
 _FORMAT_KINDS = (MediaAudioFormat, MediaImageFormat, MediaClipFormat)
@@ -1151,6 +1693,58 @@ _FORMAT_TAGS = MappingProxyType(
         "video_clip": MediaClipFormat,
     }
 )
+_OWNER_KINDS = (MediaOwnerTextObjective, MediaOwnerMediaObjective)
+_PEER_KINDS = (
+    MediaLocalProcessPeer,
+    MediaNativeTaskPeer,
+    MediaOwnedWorkerPeer,
+    MediaClientPlaybackPeer,
+    MediaExternalTransportPeer,
+)
+_CLEANUP_KINDS = (MediaWorkerCleanup, MediaLocalExchangeCleanup)
+_UNIONS = (
+    (MediaFormat, _FORMAT_KINDS, _FORMAT_TAGS),
+    (
+        MediaOwnerObjective,
+        _OWNER_KINDS,
+        MappingProxyType(
+            {
+                "owner_text": MediaOwnerTextObjective,
+                "owner_media": MediaOwnerMediaObjective,
+            }
+        ),
+    ),
+    (
+        MediaPeer,
+        _PEER_KINDS,
+        MappingProxyType(
+            {
+                "local_process": MediaLocalProcessPeer,
+                "native_task": MediaNativeTaskPeer,
+                "owned_worker": MediaOwnedWorkerPeer,
+                "client_playback": MediaClientPlaybackPeer,
+                "external_transport": MediaExternalTransportPeer,
+            }
+        ),
+    ),
+    (
+        MediaCleanupReceipt,
+        _CLEANUP_KINDS,
+        MappingProxyType(
+            {
+                "native_owner": MediaWorkerCleanup,
+                "local_exchange": MediaLocalExchangeCleanup,
+            }
+        ),
+    ),
+)
+_INLINE_PATHS = MappingProxyType(
+    {
+        MediaAnchorAdmission: ("submit", "canonical_utf8_b64"),
+        MediaReceipt[MediaAnchorAdmission]: ("body", "submit", "canonical_utf8_b64"),
+        MediaFound[MediaAnchorAdmission]: ("value", "body", "submit", "canonical_utf8_b64"),
+    }
+)
 _SELF = MappingProxyType(
     {
         MediaRuntime: "manifest_sha256",
@@ -1159,18 +1753,24 @@ _SELF = MappingProxyType(
     }
 )
 MEDIA_SCHEMAS = MappingProxyType(_schemas)
-MEDIA_SCHEMA_ALIASES = MappingProxyType({"MediaFormat": MediaFormat})
-del _short_names, _schemas, _kind, _receipt, _found
+MEDIA_SCHEMA_ALIASES = _ALIASES
+del _short_names, _schemas, _kind, _receipt, _found, _name, _alias, _short
 
 
-def _graph(value) -> None:
+def _graph(
+    value,
+    *,
+    depth_limit=MAX_MEDIA_DEPTH,
+    nodes_limit=MAX_MEDIA_NODES,
+    text_limit=MAX_MEDIA_CONTROL_BYTES,
+) -> None:
     """Inspect actual metadata and values before any model can normalize them."""
     pending = [(value, 1)]
     nodes = 0
     while pending:
         item, depth = pending.pop()
         nodes += 1
-        if depth > MAX_MEDIA_DEPTH or nodes > MAX_MEDIA_NODES:
+        if depth > depth_limit or nodes > nodes_limit:
             _bound()
         if isinstance(item, BaseModel):
             kind = type(item)
@@ -1191,7 +1791,7 @@ def _graph(value) -> None:
                 _bad()
             item = values
         if type(item) is dict:
-            if nodes + len(pending) + len(item) > MAX_MEDIA_NODES:
+            if nodes + len(pending) + len(item) > nodes_limit:
                 _bound()
             for key, child in item.items():
                 if type(key) is not str:
@@ -1201,11 +1801,11 @@ def _graph(value) -> None:
                 key.encode("utf-8")
                 pending.append((child, depth + 1))
         elif type(item) is list:
-            if nodes + len(pending) + len(item) > MAX_MEDIA_NODES:
+            if nodes + len(pending) + len(item) > nodes_limit:
                 _bound()
             pending.extend((child, depth + 1) for child in item)
         elif type(item) is str:
-            if len(item) > MAX_MEDIA_CONTROL_BYTES:
+            if len(item) > text_limit:
                 _bound()
             item.encode("utf-8")
         elif type(item) is int:
@@ -1241,8 +1841,9 @@ def _field(value, annotation, typed: bool):
             nonnull = [variant for variant in variants if variant is not type(None)]
             if len(nonnull) == 1:
                 return _field(value, nonnull[0], typed)
-        if variants == _FORMAT_KINDS:
-            return _rebuild(value, _format_kind(value, typed))
+        for _, exact_variants, tags in _UNIONS:
+            if variants == exact_variants:
+                return _rebuild(value, _variant_kind(value, typed, exact_variants, tags))
         _bad()
     if isinstance(base, type) and issubclass(base, _MediaModel):
         if typed and type(value) is not base:
@@ -1252,21 +1853,27 @@ def _field(value, annotation, typed: bool):
 
 
 def _format_kind(value, typed: bool):
+    return _variant_kind(value, typed, _FORMAT_KINDS, _FORMAT_TAGS)
+
+
+def _variant_kind(value, typed: bool, variants, tags):
     if isinstance(value, BaseModel):
-        if type(value) not in _FORMAT_KINDS:
+        if type(value) not in variants:
             _bad()
         return type(value)
     if typed or type(value) is not dict or type(value.get("kind")) is not str:
         _bad()
-    kind = _FORMAT_TAGS.get(value["kind"])
+    kind = tags.get(value["kind"])
     if kind is None:
         _bad()
     return kind
 
 
 def _rebuild(value, kind):
-    if kind is MediaFormat:
-        kind = _format_kind(value, False)
+    for alias, variants, tags in _UNIONS:
+        if kind is alias:
+            kind = _variant_kind(value, False, variants, tags)
+            break
     typed = isinstance(value, BaseModel)
     if typed:
         if type(value) is not kind:
@@ -1284,13 +1891,55 @@ def _rebuild(value, kind):
     return kind(**fields)
 
 
-def _canonical(value) -> bytes:
+def _inline_metadata(value, path):
+    """Copy only the declared inline path; all other metadata stays bounded."""
+    if isinstance(value, BaseModel):
+        value = value.__dict__
+    if type(value) is not dict or path[0] not in value:
+        return None
+    child = value[path[0]]
+    if len(path) == 1:
+        if type(child) is not str:
+            return None
+        replacement = ""
+    else:
+        replacement = _inline_metadata(child, path[1:])
+        if replacement is None:
+            return None
+    return {**value, path[0]: replacement}
+
+
+def _checked_graph(value, kind=None, *, construction=False):
+    path = _INLINE_PATHS.get(kind)
+    if construction and kind is MediaLegacyTaskBody:
+        path = ("canonical_utf8_b64",)
+    if path is None:
+        _graph(value)
+        return MAX_MEDIA_CONTROL_BYTES
+    # The generous outer bound is available only to these exact roots and the
+    # one declared base64 field. Removing that field must leave ordinary-sized
+    # metadata; no other nested record gains a larger cap.
+    _graph(
+        value,
+        depth_limit=MAX_MEDIA_ADMISSION_DEPTH,
+        nodes_limit=MAX_MEDIA_ADMISSION_NODES,
+        text_limit=87_384,
+    )
+    metadata = _inline_metadata(value, path)
+    if metadata is None:
+        _graph(value)
+        return MAX_MEDIA_CONTROL_BYTES
+    _canonical(metadata)
+    return MAX_MEDIA_ADMISSION_BYTES
+
+
+def _canonical(value, kind=None, *, construction=False) -> bytes:
     def actual(item):
         if isinstance(item, BaseModel):
             return item.__dict__
         raise MediaContractError()
 
-    _graph(value)
+    limit = _checked_graph(value, type(value) if kind is None else kind, construction=construction)
     raw = json.dumps(
         value,
         default=actual,
@@ -1299,7 +1948,7 @@ def _canonical(value) -> bytes:
         separators=(",", ":"),
         allow_nan=False,
     ).encode("utf-8")
-    if len(raw) > MAX_MEDIA_CONTROL_BYTES:
+    if len(raw) > limit:
         _bound()
     return raw
 
@@ -1308,7 +1957,8 @@ def _hash(short_type: str, body, omitted: str | None = None) -> str:
     # Only a registered root self-field is removed. All nested hashes survive.
     value = body if omitted is None else {key: item for key, item in body.items() if key != omitted}
     return hashlib.sha256(
-        ("kinaiya.media.v1/" + short_type + "\0").encode("utf-8") + _canonical(value)
+        ("kinaiya.media.v1/" + short_type + "\0").encode("utf-8")
+        + _canonical(value, _BY_SHORT.get(short_type))
     ).hexdigest()
 
 
@@ -1334,7 +1984,7 @@ def _reject_number(_token):
     _bad()
 
 
-def _lexical_bounds(text: str) -> None:
+def _lexical_bounds(text: str, *, depth_limit=MAX_MEDIA_DEPTH, nodes_limit=MAX_MEDIA_NODES) -> None:
     """Bound nesting/nodes before the JSON decoder builds a recursive graph."""
     stack = []
     nodes = 0
@@ -1381,7 +2031,7 @@ def _lexical_bounds(text: str) -> None:
                 _integer(token)
             index += len(token)
         nodes += 1
-        if depth > MAX_MEDIA_DEPTH or nodes > MAX_MEDIA_NODES:
+        if depth > depth_limit or nodes > nodes_limit:
             _bound()
     if stack:
         _bad()
@@ -1390,14 +2040,20 @@ def _lexical_bounds(text: str) -> None:
 def media_json(raw: bytes, kind: type[_T]) -> _T:
     """Parse a registered DTO or exact MediaFormat alias into fresh typed values."""
     try:
+        alias = any(kind is candidate for candidate in _ALIASES.values())
         if type(raw) is not bytes or (
-            kind is not MediaFormat and (not isinstance(kind, type) or kind not in _SHORT_NAMES)
+            not alias and (not isinstance(kind, type) or kind not in _SHORT_NAMES)
         ):
             _bad()
-        if len(raw) > MAX_MEDIA_CONTROL_BYTES:
+        inline = kind in _INLINE_PATHS
+        if len(raw) > (MAX_MEDIA_ADMISSION_BYTES if inline else MAX_MEDIA_CONTROL_BYTES):
             _bound()
         text = raw.decode("utf-8")
-        _lexical_bounds(text)
+        _lexical_bounds(
+            text,
+            depth_limit=MAX_MEDIA_ADMISSION_DEPTH if inline else MAX_MEDIA_DEPTH,
+            nodes_limit=MAX_MEDIA_ADMISSION_NODES if inline else MAX_MEDIA_NODES,
+        )
         value = json.loads(
             text,
             object_pairs_hook=_pairs,
@@ -1405,7 +2061,8 @@ def media_json(raw: bytes, kind: type[_T]) -> _T:
             parse_float=_reject_number,
             parse_constant=_reject_number,
         )
-        _graph(value)
+        if len(raw) > _checked_graph(value, kind):
+            _bound()
         rebuilt = _rebuild(value, kind)
         _canonical(rebuilt)
         return rebuilt
@@ -1422,7 +2079,7 @@ def media_bytes(model: _T) -> bytes:
     try:
         if type(model) not in _SHORT_NAMES:
             _bad()
-        _graph(model)
+        _checked_graph(model, type(model))
         return _canonical(_rebuild(model, type(model)))
     except MediaContractError:
         raise
@@ -1438,7 +2095,7 @@ def media_digest(short_type: str, body: _MediaModel | dict) -> str:
         if type(short_type) is not str or short_type not in _BY_SHORT:
             _bad()
         kind = _BY_SHORT[short_type]
-        _graph(body)
+        _checked_graph(body, kind)
         self_field = _SELF.get(kind)
         if self_field is not None:
             typed = isinstance(body, BaseModel)
