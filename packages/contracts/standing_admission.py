@@ -179,32 +179,38 @@ def standing_entry(entry, claim: StandingExecutionClaim) -> JournalEntry:
         raise ValueError(_ERROR) from None
 
 
+def _standing_entry_digest(
+    claim: StandingExecutionClaim, event_id: str, sequence: int, created_at: str
+) -> str:
+    _event_id(event_id)
+    _sequence(sequence)
+    _timestamp(created_at)
+    expected = _request_json(claim)
+    entry = _entry_against_request(
+        {
+            **expected,
+            "event_id": event_id,
+            "sequence": sequence,
+            "origin": "standing-supervisor",
+            "created_at": created_at,
+        },
+        expected,
+    )
+    body = {
+        "claim_id": claim.claim_id,
+        "claim_digest": claim.claim_digest,
+        "entry": entry.model_dump(mode="json"),
+    }
+    return hashlib.sha256(b"kinaiya.standing.initial.v1\0" + _encode(body)).hexdigest()
+
+
 def standing_entry_digest(
     claim: StandingExecutionClaim, event_id: str, sequence: int, created_at: str
 ) -> str:
     """Hash complete claim-bound entry identity without minting metadata."""
     try:
         claim = _checked(claim, StandingExecutionClaim)
-        _event_id(event_id)
-        _sequence(sequence)
-        _timestamp(created_at)
-        expected = _request_json(claim)
-        entry = _entry_against_request(
-            {
-                **expected,
-                "event_id": event_id,
-                "sequence": sequence,
-                "origin": "standing-supervisor",
-                "created_at": created_at,
-            },
-            expected,
-        )
-        body = {
-            "claim_id": claim.claim_id,
-            "claim_digest": claim.claim_digest,
-            "entry": entry.model_dump(mode="json"),
-        }
-        return hashlib.sha256(b"kinaiya.standing.initial.v1\0" + _encode(body)).hexdigest()
+        return _standing_entry_digest(claim, event_id, sequence, created_at)
     except _FAILURES:
         raise ValueError(_ERROR) from None
 
@@ -257,7 +263,7 @@ class StandingInitialProof(_Initial):
 
     @model_validator(mode="after")
     def exact_entry(self):
-        if self.entry_digest != standing_entry_digest(
+        if self.entry_digest != _standing_entry_digest(
             self.claim, self.event_id, self.sequence, self.created_at
         ):
             raise ValueError(_ERROR)
@@ -308,14 +314,15 @@ def standing_initial_proof(claim: StandingExecutionClaim, entry) -> StandingInit
     """Construct detached metadata proof from one already existing entry."""
     try:
         claim = _checked(claim, StandingExecutionClaim)
-        raw = standing_entry(entry, claim).model_dump(mode="json")
+        expected = _request_json(claim)
+        raw = _entry_against_request(entry, expected).model_dump(mode="json")
         return StandingInitialProof(
             schema_version="1.0",
             claim=claim,
             event_id=raw["event_id"],
             sequence=raw["sequence"],
             created_at=raw["created_at"],
-            entry_digest=standing_entry_digest(
+            entry_digest=_standing_entry_digest(
                 claim, raw["event_id"], raw["sequence"], raw["created_at"]
             ),
         )

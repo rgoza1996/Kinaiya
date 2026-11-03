@@ -181,7 +181,14 @@ class StandingExecutionTask(_Execution):
     @field_validator("task_session", mode="before")
     @classmethod
     def complete_session(cls, value):
-        return _nested(value, StandingTaskSession, _SESSION_FIELDS)
+        _tree(value)
+        if isinstance(value, BaseModel):
+            if not isinstance(value, StandingTaskSession):
+                raise ValueError(_ERROR)
+            value = dict(value.__dict__)
+        if type(value) is not dict or value.keys() != _SESSION_FIELDS:
+            raise ValueError(_ERROR)
+        return value
 
     @field_validator("workspace_pin", mode="before")
     @classmethod
