@@ -160,13 +160,29 @@ pass AT64–AT66 or establish a sign-language demonstration.
 
 ## Native Session regression evidence
 
-The [November 3 qualification record](../evaluation/evidence/media-session-owner-2026-11-03.json)
-records 176 offline owner, lifecycle, ordinary event-channel and receipt-parser
-checks at the exact tested source. This includes the unchanged all-index ACK
-history case, which previously failed teardown. The earlier 79-pass/one-failure
-run remains recorded separately. New receipt parsing preserves all stored-byte,
-identity, semantic and resource-bound checks while avoiding an immediate second
-reconstruction of a fresh, unexposed parsed receipt.
+The [initial November 3 record](../evaluation/evidence/media-session-owner-2026-11-03.json)
+retains the 176-case owner, lifecycle, ordinary event-channel and receipt-parser
+qualification and the earlier 79-pass/one-failure result. Subsequent CI527 failed
+fixture shutdown in the read-only current-status case: its original cleanup
+Task returned false. That result remains a failure, with its precise cause
+unproved.
+
+The [connection-retirement record](../evaluation/evidence/media-connection-retirement-2026-11-03.json)
+qualifies the correction at source `aa5223a`: **180 passed**, including the prior
+176 unchanged cases and four new cases. A physical connection join can precede
+its original native publication. Source cleanup therefore joins that same
+retirement Task through publication and requires its positive result, even
+after hub registry removal. A failed original retains source custody even if
+its SQL publication committed. No replacement retirement Task, deadline
+extension or retry is introduced.
+
+The four new cases were independently reviewed before execution. Against the
+unchanged old production source, two failed and two passed; all four then
+passed with the correction. These controlled failures demonstrate the guarded
+interleavings, not their incidence in CI527. The separate five-case focused run
+overlaps the 180-case run; their counts are not additive. Intentionally failed
+originals keep unconfirmed cleanup and reservation; disposing fixture handles
+does not turn those outcomes into positive native cleanup.
 
 These checks do not establish a timing cause or qualify decoder/model/device
 behavior, physical cleanup of arbitrary operations, the standing64 capacity
