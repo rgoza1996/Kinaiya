@@ -9,6 +9,7 @@ A cancelled observer, fenced gate, or teardown is never physical cleanup proof.
 import asyncio
 import hashlib
 import json
+import os
 import re
 import sqlite3
 import struct
@@ -30,7 +31,7 @@ from services.session.agent_control import AgentControlUnavailable
 from services.session.api import create_app
 from services.session.media_clients import MediaGrantKeyStore, MediaSessionError
 from services.session.media_owner import MediaSessionOwner
-from services.session.media_spool import MediaSpool
+from services.session.media_spool import MediaSpool, MediaSpoolError
 from services.session.store import JournalError, Store
 
 _WAIT = 10
@@ -1113,6 +1114,11 @@ async def test_delete_final_claim_refusal_preserves_committed_fence_and_history(
             change = env.owner.begin_session_change(env.session["session_id"], "deleted")
             try:
                 assert reader.read(3) == b"abc"
+                with upload._spool._mutex:
+                    assert reader in upload._readers
+                    reader_fd = reader._fd
+                    original = os.fstat(reader_fd)
+                    reader_identity = original.st_dev, original.st_ino
                 with pytest.raises(MediaSessionError) as caught:
                     await asyncio.to_thread(_native_change, env, "deleted", change)
                 assert caught.value.code in {"conflict", "unavailable"}
@@ -1128,7 +1134,16 @@ async def test_delete_final_claim_refusal_preserves_committed_fence_and_history(
                 )
                 assert (await env.lookup("source", source)).json()["value"] == source
                 assert env.spool.reserved_bytes == 6 and upload.deleted is False
-                assert reader.read(3) == b"def", "The original reader remained physically owned"
+                with upload._spool._mutex:
+                    assert reader in upload._readers and reader._fd == reader_fd
+                    retained = os.fstat(reader._fd)
+                    assert (retained.st_dev, retained.st_ino) == reader_identity
+                    assert retained.st_size == 6
+                    # Logical revocation prevents reads while the SAME original
+                    # descriptor and charge remain owned until reader.close().
+                    with pytest.raises(MediaSpoolError) as revoked:
+                        reader.read(3)
+                    assert revoked.value.code == "expired"
                 assert (
                     env.owner.begin_session_change(env.session["session_id"], "deleted") is change
                 )
