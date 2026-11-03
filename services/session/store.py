@@ -469,62 +469,121 @@ class Store:
             raise JournalError("The original native media owner is unavailable")
         return None
 
-    def reset(self, session_id: str) -> Session:
-        owner, operations = None, ()
-        try:
+    def reset(self, session_id: str, *, _media_change=None) -> Session:
+        owner = self._media_owner
+        if owner is None:
+            if _media_change is not None:
+                raise JournalError("The original native media owner is unavailable")
             with self.lock, self.db:
+                if self._media_guard_locked(session_id) is not None:
+                    raise JournalError("Native media owner changed before Session reset")
                 session = self.session(session_id)
-                owner = self._media_guard_locked(session_id)
-                if owner is not None:
-                    # sqlite's connection context alone does not begin a
-                    # transaction. Fence and epoch change share the actual one.
-                    if not self.db.in_transaction:
-                        self.db.execute("BEGIN IMMEDIATE")
-                    operations = owner.fence_session_locked(session, "reset")
                 session.epoch += 1
                 self.db.execute(
                     "UPDATE sessions SET value=? WHERE session_id=?",
                     (session.model_dump_json(), session_id),
                 )
+            return session
+
+        # Enrollment installs the negative RAM gate before waiting for SQLite.
+        # A retained API controller passes its SAME original token to this call.
+        change = (
+            owner.begin_session_change(session_id, "reset")
+            if _media_change is None
+            else owner.validate_session_change(_media_change, session_id, "reset")
+        )
+        operations, failed = (), False
+        try:
+            with self.lock:
+                if self._media_guard_locked(session_id) is not owner:
+                    raise JournalError("Native media owner changed before Session reset")
+                with owner.session_change_transaction(change, "reset") as view:
+                    if view.replayed:
+                        session = view.result
+                        if session is None:
+                            raise JournalError("Original Session reset result is unavailable")
+                    else:
+                        session = view.session
+                        operations = owner.fence_session_locked(session, "reset")
+                        session.epoch += 1
+                        self.db.execute(
+                            "UPDATE sessions SET value=? WHERE session_id=?",
+                            (session.model_dump_json(), session_id),
+                        )
+        except BaseException:
+            failed = True
+            raise
         finally:
-            if owner is not None:
-                # This includes uncertain commit outcomes: retain/cancel the
-                # original work, with no OS work or awaits under SQL/Store.lock.
-                owner.request_session_retirements(operations)
+            if operations:
+                # Preserve the original transaction failure if retirement also
+                # fails. Empty requests cannot clear a prior unknown latch.
+                try:
+                    owner.request_session_retirements(operations)
+                except BaseException:
+                    if not failed:
+                        raise
+        # The native wrapper has confirmed commit and the actual E+1 result.
         return session
 
-    def delete(self, session_id: str):
-        owner, operations = None, ()
-        try:
+    def delete(self, session_id: str, *, _media_change=None):
+        owner = self._media_owner
+        if owner is None:
+            if _media_change is not None:
+                raise JournalError("The original native media owner is unavailable")
             with self.lock, self.db:
-                owner = self._media_guard_locked(session_id)
-                if owner is not None:
-                    if not self.db.in_transaction:
-                        self.db.execute("BEGIN IMMEDIATE")
-                    operations = owner.fence_session_locked(self.session(session_id), "deleted")
+                if self._media_guard_locked(session_id) is not None:
+                    raise JournalError("Native media owner changed before Session deletion")
+                if (
+                    self.db.execute(
+                        "SELECT 1 FROM entries WHERE session_id=? AND kind='agent.standing-command' LIMIT 1",
+                        (session_id,),
+                    ).fetchone()
+                    is not None
+                ):
+                    raise JournalError("Admitted standing task history must be retained")
+                self.db.execute("DELETE FROM sessions WHERE session_id=?", (session_id,))
+            return
+
+        change = (
+            owner.begin_session_change(session_id, "deleted")
+            if _media_change is None
+            else owner.validate_session_change(_media_change, session_id, "deleted")
+        )
+        operations, failed = (), False
+        try:
+            with self.lock:
+                if self._media_guard_locked(session_id) is not owner:
+                    raise JournalError("Native media owner changed before Session deletion")
+                with owner.session_change_transaction(change, "delete_fence") as view:
+                    if not view.replayed:
+                        operations = owner.fence_session_locked(view.session, "deleted")
+        except BaseException:
+            failed = True
+            raise
         finally:
-            if owner is not None:
-                owner.request_session_retirements(operations)
-        # The fence is already committed even if cleanup is pending. A second
-        # transaction verifies every original claim, including raced admissions,
-        # before any Session/history deletion. Refusal cannot roll back fencing.
-        with self.lock, self.db:
-            current_owner = self._media_guard_locked(session_id)
-            if current_owner is not owner:
+            if operations:
+                try:
+                    owner.request_session_retirements(operations)
+                except BaseException:
+                    if not failed:
+                        raise
+        # A committed fence survives a refused final deletion. Retrying the
+        # same original skips its fence DML and repeats only the settled check.
+        with self.lock:
+            if self._media_guard_locked(session_id) is not owner:
                 raise JournalError("Native media owner changed during Session deletion")
-            if owner is not None:
-                if not self.db.in_transaction:
-                    self.db.execute("BEGIN IMMEDIATE")
-                owner.require_delete_settled_locked(self.session(session_id))
-            if (
-                self.db.execute(
-                    "SELECT 1 FROM entries WHERE session_id=? AND kind='agent.standing-command' LIMIT 1",
-                    (session_id,),
-                ).fetchone()
-                is not None
-            ):
-                raise JournalError("Admitted standing task history must be retained")
-            self.db.execute("DELETE FROM sessions WHERE session_id=?", (session_id,))
+            with owner.session_change_transaction(change, "delete_finalize") as view:
+                if not view.replayed:
+                    owner.require_delete_settled_locked(view.session)
+                    if (
+                        self.db.execute(
+                            "SELECT 1 FROM entries WHERE session_id=? AND kind='agent.standing-command' LIMIT 1",
+                            (session_id,),
+                        ).fetchone()
+                        is not None
+                    ):
+                        raise JournalError("Admitted standing task history must be retained")
+                    self.db.execute("DELETE FROM sessions WHERE session_id=?", (session_id,))
 
     def entry(self, event_id: str) -> JournalEntry:
         with self.lock:

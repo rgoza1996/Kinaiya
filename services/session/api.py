@@ -466,11 +466,20 @@ def create_app(
 
     @app.post("/v1/sessions/{session_id}/reset", dependencies=[Depends(auth.require("owner"))])
     async def reset(session_id: str):
+        original_owner = store._media_owner
+        if original_owner is not None:
+            change = original_owner.begin_session_change(session_id, "reset")
+            return await original_owner.apply_session_change(change)
         return store.reset(session_id)
 
     @app.delete("/v1/sessions/{session_id}", dependencies=[Depends(auth.require("owner"))])
     async def delete(session_id: str):
-        store.delete(session_id)
+        original_owner = store._media_owner
+        if original_owner is not None:
+            change = original_owner.begin_session_change(session_id, "deleted")
+            await original_owner.apply_session_change(change)
+        else:
+            store.delete(session_id)
         return {"deleted": True}
 
     @app.post("/v1/transcript/entries")

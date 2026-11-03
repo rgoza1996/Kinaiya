@@ -86,6 +86,33 @@ cleanup. Native owners must compose every promised original dependency and
 recheck permission, session, source, lease, scope and reservation before effects
 and acknowledgment.
 
+## Session reset and deletion composition
+
+An enabled native media owner enrolls the original Session change and fences
+matching in-memory sources and preparations before waiting for the Store lock.
+The owner then controls the actual SQLite transaction, authorization recheck,
+commit/rollback outcome and original result. It never joins an already-open
+caller transaction. A reset advances the captured original epoch exactly once;
+replaying its retained token returns its original result without new DML.
+
+Deletion commits its negative fence first. Outside the transaction it requests
+retirement of the original operations, then checks all original claims in a
+separate guarded transaction before deleting Session/history. A pending cleanup
+refusal retains that committed fence and history. An explicit retry of the same
+original skips the fence DML. An uncertain transaction retains its claim and
+prevents automatic retry or a successful close claim.
+
+The owner-only HTTP routes enroll before their first await. A native controller
+retains one original worker across cancelled or timed-out HTTP observations;
+five seconds bounds the observation, not physical completion. The selected
+bookkeeping limit is 16 pending/unresolved changes and 64 recent terminal
+originals. Its fixed 10,813,440-byte lifetime reserve belongs to the existing
+1 GiB metadata budget. With no registered owner, persisted `media_` tables still
+prevent reset/deletion from bypassing original custody.
+
+This is the selected integration contract. It does not qualify decoder launch,
+real capture, model inference, device behavior or the complete Omni pipeline.
+
 ## Remaining decoder launch work
 
 The existing general worker launcher does not yet supply the original media
