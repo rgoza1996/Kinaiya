@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kinaiya_flutter/app.dart';
 import 'package:kinaiya_flutter/config/connection.dart';
 import 'package:kinaiya_flutter/state/app_state.dart';
 import 'package:kinaiya_flutter/ui/model_setup.dart';
+import 'package:kinaiya_flutter/ui/setup_dialog.dart';
 import 'package:kinaiya_flutter/ui/widgets.dart';
 
 import 'client_test.dart' show mockClient;
@@ -145,4 +147,89 @@ void main() {
     );
     expect(state.converseDraft, 'remember me');
   });
+
+  testWidgets(
+    'setup validation modal blocks background clicks and focus traversal and points to owner-login',
+    (tester) async {
+      final state = AppState();
+      addTearDown(state.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(body: SetupDialog(state: state, embedded: true)),
+        ),
+      );
+
+      expect(
+        find.textContaining('kinaiya --data-dir <dir> owner-login'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('KINAIYA_OWNER_TOKEN'), findsNothing);
+
+      await tester.enterText(
+        find.byType(TextField).at(0),
+        'http://127.0.0.1:18760',
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('setup-connect-primary-action')),
+      );
+      await tester.pump();
+
+      expect(
+        find.byKey(const ValueKey('setup-validation-alert-dialog')),
+        findsOneWidget,
+      );
+      expect(find.textContaining('owner-login.txt'), findsWidgets);
+
+      final okButton = tester.widget<FilledButton>(
+        find.byKey(const ValueKey('setup-validation-alert-ok')),
+      );
+      expect(okButton.focusNode?.hasFocus, isTrue);
+
+      // Background controls cannot be clicked or focused while the validation modal is open.
+      expect(
+        find
+            .byKey(const ValueKey('setup-connect-primary-action'))
+            .hitTestable(),
+        findsNothing,
+      );
+      expect(find.byType(TextField).at(0).hitTestable(), findsNothing);
+      expect(
+        find.byType(DropdownButtonFormField<BackendProfile>).hitTestable(),
+        findsNothing,
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('setup-endpoints-toggle')),
+        warnIfMissed: false,
+      );
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('setup-endpoints-summary')),
+        findsNothing,
+      );
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(okButton.focusNode?.hasFocus, isTrue);
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.pump();
+      expect(okButton.focusNode?.hasFocus, isTrue);
+
+      await tester.tap(find.byKey(const ValueKey('setup-validation-alert-ok')));
+      await tester.pump();
+
+      expect(
+        find.byKey(const ValueKey('setup-validation-alert-dialog')),
+        findsNothing,
+      );
+      final connectButton = tester.widget<FilledButton>(
+        find.byKey(const ValueKey('setup-connect-primary-action')),
+      );
+      expect(connectButton.focusNode?.hasFocus, isTrue);
+      expect(find.text('http://127.0.0.1:18760'), findsOneWidget);
+    },
+  );
 }

@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 
 import '../config/connection.dart';
 import '../config/credential_picker.dart';
@@ -30,14 +30,18 @@ class _SetupDialogState extends State<SetupDialog> {
   late final TextEditingController _converse;
   late final TextEditingController _decisions;
   late final TextEditingController _token;
+  final FocusNode _connectFocusNode = FocusNode(
+    debugLabel: 'setup-connect-primary-action',
+  );
   final FocusNode _okFocusNode = FocusNode(
     debugLabel: 'setup-validation-alert-ok',
   );
-  final GlobalKey _okButtonHitKey = GlobalKey(
-    debugLabel: 'setup-validation-alert-ok-hit',
+  final FocusScopeNode _alertFocusScopeNode = FocusScopeNode(
+    debugLabel: 'setup-validation-alert-scope',
   );
+  FocusNode? _triggerFocusNode;
   BackendProfile _profile = BackendProfile.clean;
-  String? _error;
+  String? _validationModalMessage;
   bool _showEndpoints = true;
   bool _showAdvanced = false;
 
@@ -60,7 +64,9 @@ class _SetupDialogState extends State<SetupDialog> {
     _converse.dispose();
     _decisions.dispose();
     _token.dispose();
+    _connectFocusNode.dispose();
     _okFocusNode.dispose();
+    _alertFocusScopeNode.dispose();
     super.dispose();
   }
 
@@ -84,16 +90,35 @@ class _SetupDialogState extends State<SetupDialog> {
     );
     final problem = profile.validate();
     if (problem != null) {
-      setState(() => _error = problem);
+      _triggerFocusNode = _connectFocusNode;
+      setState(() => _validationModalMessage = problem);
       _okFocusNode.requestFocus();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _validationModalMessage != null) {
+          _okFocusNode.requestFocus();
+        }
+      });
       return;
     }
     widget.state.connect(profile);
     if (!widget.embedded) {
       Navigator.of(context).pop();
     } else {
-      setState(() => _error = null);
+      setState(() => _validationModalMessage = null);
     }
+  }
+
+  void _dismissValidationAlert() {
+    if (_validationModalMessage == null) return;
+    final restoreNode = _triggerFocusNode ?? _connectFocusNode;
+    setState(() => _validationModalMessage = null);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted &&
+          _validationModalMessage == null &&
+          restoreNode.canRequestFocus) {
+        restoreNode.requestFocus();
+      }
+    });
   }
 
   String get _connectionStatusText {
@@ -246,7 +271,7 @@ class _SetupDialogState extends State<SetupDialog> {
                 decoration: const InputDecoration(
                   labelText: 'Owner access token',
                   helperText:
-                      'Host authentication token (KINAIYA_OWNER_TOKEN). Memory only: never stored, logged, or put in URLs.',
+                      'Export with kinaiya --data-dir <dir> owner-login (owner-login.txt) or use Load local access token. Memory only: never stored, logged, or put in URLs.',
                 ),
                 obscureText: true,
                 enableSuggestions: false,
@@ -271,7 +296,7 @@ class _SetupDialogState extends State<SetupDialog> {
                     if (mounted && token != null) {
                       setState(() {
                         _token.text = token;
-                        _error = null;
+                        _validationModalMessage = null;
                       });
                     }
                   },
@@ -367,10 +392,9 @@ class _SetupDialogState extends State<SetupDialog> {
           ],
         ),
       );
-      if (widget.embedded) {
-        return Stack(
-          children: [
-            Column(
+      final hasValidationAlert = _validationModalMessage != null;
+      final Widget dialogBody = widget.embedded
+          ? Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Expanded(child: form),
@@ -379,6 +403,7 @@ class _SetupDialogState extends State<SetupDialog> {
                   alignment: Alignment.centerLeft,
                   child: FilledButton(
                     key: const ValueKey('setup-connect-primary-action'),
+                    focusNode: _connectFocusNode,
                     style: kinaiyaPrimaryButtonStyle(
                       Theme.of(context).colorScheme,
                     ),
@@ -398,25 +423,37 @@ class _SetupDialogState extends State<SetupDialog> {
                   message: _connectionStatusText,
                 ),
               ],
-            ),
-            if (_error != null) _buildValidationAlertOverlay(scheme, textTheme),
-          ],
-        );
-      }
+            )
+          : AlertDialog(
+              title: const Text('Connect to Kinaiya services'),
+              content: form,
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  key: const ValueKey('setup-connect-primary-action'),
+                  focusNode: _connectFocusNode,
+                  onPressed: _connect,
+                  child: const Text('Connect'),
+                ),
+              ],
+            );
       return Stack(
         children: [
-          AlertDialog(
-            title: const Text('Connect to Kinaiya services'),
-            content: form,
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Cancel'),
+          ExcludeSemantics(
+            excluding: hasValidationAlert,
+            child: ExcludeFocus(
+              excluding: hasValidationAlert,
+              child: IgnorePointer(
+                ignoring: hasValidationAlert,
+                child: dialogBody,
               ),
-              FilledButton(onPressed: _connect, child: const Text('Connect')),
-            ],
+            ),
           ),
-          if (_error != null) _buildValidationAlertOverlay(scheme, textTheme),
+          if (hasValidationAlert)
+            _buildValidationAlertOverlay(scheme, textTheme),
         ],
       );
     },
@@ -426,81 +463,57 @@ class _SetupDialogState extends State<SetupDialog> {
     ColorScheme scheme,
     TextTheme textTheme,
   ) => Positioned.fill(
-    child: _HitTestOnlyTarget(
-      targetKey: _okButtonHitKey,
-      child: ColoredBox(
-        color: Colors.black54,
-        child: Center(
-          child: AlertDialog(
-            key: const ValueKey('setup-validation-alert-dialog'),
-            title: Row(
-              children: [
-                Icon(Icons.warning_amber_rounded, color: scheme.error),
-                const SizedBox(width: 8),
-                const Expanded(child: Text('Cannot connect to Kinaiya host')),
-              ],
-            ),
-            content: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 440),
-              child: Semantics(
-                liveRegion: true,
-                child: Text(
-                  _error!,
-                  key: const ValueKey('setup-validation-error'),
-                  style: textTheme.bodyMedium,
-                ),
+    child: CallbackShortcuts(
+      bindings: <ShortcutActivator, VoidCallback>{
+        const SingleActivator(LogicalKeyboardKey.escape):
+            _dismissValidationAlert,
+      },
+      child: FocusScope(
+        node: _alertFocusScopeNode,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            const Positioned.fill(
+              child: ModalBarrier(
+                key: ValueKey('setup-validation-alert-barrier'),
+                dismissible: false,
+                color: Colors.black54,
               ),
             ),
-            actions: [
-              KeyedSubtree(
-                key: _okButtonHitKey,
-                child: FilledButton(
+            AlertDialog(
+              key: const ValueKey('setup-validation-alert-dialog'),
+              title: Row(
+                children: [
+                  Icon(Icons.warning_amber_rounded, color: scheme.error),
+                  const SizedBox(width: 8),
+                  const Expanded(child: Text('Cannot connect to Kinaiya host')),
+                ],
+              ),
+              content: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 440),
+                child: Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    _validationModalMessage!,
+                    key: const ValueKey('setup-validation-error'),
+                    style: textTheme.bodyMedium,
+                  ),
+                ),
+              ),
+              actions: [
+                FilledButton(
                   key: const ValueKey('setup-validation-alert-ok'),
                   focusNode: _okFocusNode,
                   autofocus: true,
                   style: kinaiyaPrimaryButtonStyle(scheme),
-                  onPressed: () => setState(() => _error = null),
+                  onPressed: _dismissValidationAlert,
                   child: const Text('OK'),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
+          ],
         ),
       ),
     ),
   );
-}
-
-class _HitTestOnlyTarget extends SingleChildRenderObjectWidget {
-  const _HitTestOnlyTarget({required this.targetKey, required super.child});
-  final GlobalKey targetKey;
-
-  @override
-  RenderObject createRenderObject(BuildContext context) =>
-      _RenderHitTestOnlyTarget(targetKey);
-
-  @override
-  void updateRenderObject(
-    BuildContext context,
-    covariant _RenderHitTestOnlyTarget renderObject,
-  ) {
-    renderObject.targetKey = targetKey;
-  }
-}
-
-class _RenderHitTestOnlyTarget extends RenderProxyBox {
-  _RenderHitTestOnlyTarget(this.targetKey);
-  GlobalKey targetKey;
-
-  @override
-  bool hitTest(BoxHitTestResult result, {required Offset position}) {
-    final targetObject = targetKey.currentContext?.findRenderObject();
-    if (targetObject is RenderBox && targetObject.attached) {
-      final localInTarget = targetObject.globalToLocal(localToGlobal(position));
-      if (targetObject.size.contains(localInTarget)) {
-        return super.hitTest(result, position: position);
-      }
-    }
-    return false;
-  }
 }

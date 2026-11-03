@@ -98,9 +98,9 @@ class ConnectionProfile {
       if (problem != null) return '${entry.key}: $problem';
     }
     if (ownerToken.isEmpty) {
-      return 'Owner access token is required. Enter your host owner token '
-          '(from KINAIYA_OWNER_TOKEN in .env or Load local access token) '
-          'before clicking Connect.';
+      return 'Owner access token is required. Export your owner token with '
+          'kinaiya --data-dir <dir> owner-login (writes owner-login.txt) '
+          'and enter it or use Load local access token before clicking Connect.';
     }
     return null;
   }
