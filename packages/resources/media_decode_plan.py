@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from fractions import Fraction
 
 from packages.contracts import media
@@ -98,11 +98,21 @@ def _sequence(value, kind):
         _refuse()
     result = {}
     for item in value:
+        try:
+            item = kind(*(object.__getattribute__(item, field.name) for field in fields(kind)))
+        except AttributeError:
+            _refuse()
         index = _integer(item.probe_index)
         if index in result:
             _refuse("conflict")
         result[index] = item
     return result
+
+
+def _bounded_fraction(value):
+    if max(abs(value.numerator), value.denominator) > media.MAX_MEDIA_INTEGER:
+        _refuse("bound")
+    return value
 
 
 def _selected_geometry(probe, format_, transform):
@@ -221,9 +231,9 @@ def build_decode_plan(
             _refuse("conflict")
         if len(indices) > profile.limits.decode.track_limit:
             _refuse("bound")
-        if any(type(value.track_id) is not str for value in selections):
+        if any(type(value.track_id) is not str for value in choices.values()):
             _refuse()
-        if len(ready.tracks) != len(indices) or len({v.track_id for v in selections}) != len(
+        if len(ready.tracks) != len(indices) or len({v.track_id for v in choices.values()}) != len(
             indices
         ):
             _refuse("conflict")
@@ -262,7 +272,7 @@ def build_decode_plan(
             if track.clock_provenance != clock[3]:
                 _refuse("conflict")
             if clock[3] != "untimed_image":
-                timed_origins.append(Fraction(clock[0] * clock[1], clock[2]))
+                timed_origins.append(_bounded_fraction(Fraction(clock[0] * clock[1], clock[2])))
             width, height = _selected_geometry(original, format_, profile.transform)
             if width is not None and (
                 width > profile.limits.decode.max_edge
@@ -280,9 +290,9 @@ def build_decode_plan(
                     height,
                 )
             )
-        origin = min(timed_origins) if timed_origins else Fraction(0)
-        if max(abs(origin.numerator), origin.denominator) > media.MAX_MEDIA_INTEGER:
-            _refuse("bound")
+        origin = _bounded_fraction(min(timed_origins) if timed_origins else Fraction(0))
+        for first_position in timed_origins:
+            _bounded_fraction(first_position - origin)
         pair = (origin.numerator, origin.denominator)
         for track in ready.tracks:
             expected = (0, 1) if track.clock_provenance == "untimed_image" else pair

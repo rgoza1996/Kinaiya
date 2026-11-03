@@ -18,6 +18,28 @@ probe agreement. It accepts only finite recording plans for the selected PyAV
 driver with present implementation/runtime/schema metadata. Those declarations
 still need actual asset, isolation, codec and lifecycle qualification.
 
+The private native API has these required arguments (no defaults):
+
+```python
+ProbeClock(probe_index: int, pts: int, timebase_num: int,
+           timebase_den: int, provenance: str)
+TrackSelection(probe_index: int, track_id: str, format: MediaFormat)
+build_decode_plan(*, source_ref: MediaNativeRef, seal_ref: MediaNativeRef,
+                  admission: MediaSourceAdmission, seal: MediaSeal,
+                  profile: MediaDecoderProfile, probe: MediaProbeResult,
+                  ready: MediaDecodeReady,
+                  selections: tuple[TrackSelection, ...],
+                  clocks: tuple[ProbeClock, ...]) -> DecodePlan
+```
+
+Both input records are frozen dataclasses with slots. `DecodePlan.common_origin`
+is a reduced `(num, den)` pair; `tracks` is a tuple in original probe order.
+Each track plan contains `probe_index`, canonical `track_pin`/`format_pin` bytes,
+`first_pts`, `timebase_num`, `timebase_den`, `clock_provenance`, and optional
+`width`/`height`. Invalid input raises `MediaDecodePlanError` with the fixed
+message `Invalid native decoder plan` and a closed `code` of `bad_packet`,
+`bound`, `conflict` or `unavailable`.
+
 Every `TrackSelection` explicitly names an original `ProbeTrack.index`, an
 allocated native track ID and a complete selected Format. Every `ProbeClock`
 names that same original index and its first actual signed presentation PTS,
@@ -29,8 +51,12 @@ selected transform. Original dimensions/duration and selected output geometry
 remain bounded; an output scale does not waive original decode limits.
 
 For this initial driver, the common origin is selected as the exact minimum
-first presentation time among timed tracks. Arithmetic is rational, preserves
-negative original PTS and refuses an unrepresentable reduced result. Missing
+first presentation time among timed tracks. Arithmetic is rational and preserves
+negative original PTS. Missing native selection/clock fields produce a fixed
+`bad_packet` refusal; an unrepresentable reduced result produces `bound`. Each timed
+first position and its offset from the common origin must fit the reduced
+rational bounds, even when a smaller track's origin fits them. Large intermediate
+products that reduce within those bounds remain valid. Missing
 PTS, fabricated frame-index clocks and provider-reported timing cannot fill the
 original decoder observation. Untimed images use zero PTS/origin and retain
 their positive declared timebase, including a non-unit timebase. This selection
