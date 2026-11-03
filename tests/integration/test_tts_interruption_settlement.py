@@ -935,20 +935,49 @@ async def test_changed_binding_across_async_lookup_enforces_playback_ack_and_cas
         mutated_binding = exposed_binding.model_copy(update={"tts_operation_id": "c" * 32})
         mutated_json = _encode(mutated_binding.model_dump(mode="json"))
         real_confirms = reopened._journal_confirms_delivery
+        lookup_owner = None
+        post_lookup_delivery = asyncio.Event()
+        release_delivery = asyncio.Event()
 
-        async def confirms_then_mutates_binding(binding):
+        async def observe_genuine_lookup(binding):
+            nonlocal lookup_owner
+            proof = await real_lookup(binding)
+            lookup_owner = asyncio.current_task()
+            return proof
+
+        async def hold_post_lookup_delivery(binding):
             ok = await real_confirms(binding)
+            # The initial delivery check must leave the binding unchanged.
+            # Pause only this original reconciliation's check after real lookup.
+            if lookup_owner is not None and asyncio.current_task() is lookup_owner:
+                post_lookup_delivery.set()
+                await release_delivery.wait()
+            return ok
+
+        monkeypatch.setattr(tts_env.speech, "lookup_native_tts", observe_genuine_lookup)
+        monkeypatch.setattr(reopened, "_journal_confirms_delivery", hold_post_lookup_delivery)
+        reconciliation = asyncio.create_task(reopened.reconcile_admission(reconcile_req))
+        try:
+            async with asyncio.timeout(2):
+                await post_lookup_delivery.wait()
+            assert lookup_owner is not None
+            assert not reconciliation.done()
+            assert reopened._admission_records()[admission_id] == (identity, exposed_binding)
             reopened.db.execute(
                 "UPDATE tts_model_admissions SET binding=? WHERE id=? AND identity=?",
                 (mutated_json, admission_id, identity),
             )
             reopened.db.commit()
-            return ok
-
-        monkeypatch.setattr(reopened, "_journal_confirms_delivery", confirms_then_mutates_binding)
+        finally:
+            release_delivery.set()
+            # Always join the original observation; do not cancel it to end a failed test.
+            await asyncio.gather(reconciliation, return_exceptions=True)
         with pytest.raises(TTSModelConflict, match="changed"):
-            await reopened.reconcile_admission(reconcile_req)
+            reconciliation.result()
+        assert post_lookup_delivery.is_set()
         assert reopened.unknown_admissions() == 1
+        assert reopened._admission_records()[admission_id] == (identity, mutated_binding)
+        assert reopened.db.execute("SELECT COUNT(*) FROM tts_model_settlements").fetchone()[0] == 0
 
         # Restore the valid exposed_json binding and real _journal_confirms_delivery; now CAS succeeds.
         reopened.db.execute(
@@ -956,6 +985,7 @@ async def test_changed_binding_across_async_lookup_enforces_playback_ack_and_cas
             (exposed_json, admission_id, identity),
         )
         reopened.db.commit()
+        monkeypatch.setattr(tts_env.speech, "lookup_native_tts", real_lookup)
         monkeypatch.setattr(reopened, "_journal_confirms_delivery", real_confirms)
         retired = await reopened.reconcile_admission(reconcile_req)
         assert retired["state"] == "retired"
