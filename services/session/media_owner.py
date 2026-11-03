@@ -3097,30 +3097,34 @@ class MediaSessionOwner:
         if not self.store.db.in_transaction or not self.store.lock._is_owned():
             refuse()
         self._authority()
+        if self._closing:  # Authority reads may have overlapped the close fence.
+            refuse()
         with self._mutex:
-            for source in self._sources.values():
+            if self._closing:
+                refuse()
+            sources = tuple(self._sources.values())
+            candidates = tuple(self._operations.values())
+            originals = []
+            for source in sources:
                 if source.admission.session.session_id == session.session_id:
                     source.fenced.set()
                     source.reason = reason
-            originals = []
-            for source in self._sources.values():
-                if (
-                    source.admission.session.session_id == session.session_id
-                    and source.original is not None
-                ):
-                    originals.append(source.original)
-            for item in self._operations.values():
-                client = self._sql(
-                    "SELECT session_id FROM media_clients WHERE source_id=?", (item.source_id,)
-                ).fetchone()
-                if (
-                    client is not None
-                    and client[0] == session.session_id
-                    and not any(item is old for old in originals)
-                ):
-                    originals.append(item)
+                    if source.original is not None:
+                        originals.append(source.original)
             for original in originals:
                 original.fenced.set()
+        # The actual Store lock/transaction still protects every client/source
+        # binding. SQL may block; it must never hold the owner memory mutex and
+        # delay another original's synchronous negative fence.
+        for item in candidates:
+            client = self._sql(
+                "SELECT session_id FROM media_clients WHERE source_id=?", (item.source_id,)
+            ).fetchone()
+            if client is not None and client[0] == session.session_id:
+                with self._mutex:
+                    if not any(item is old for old in originals):
+                        originals.append(item)
+                    item.fenced.set()
         # The external Store owns this transaction; grant only the exact private
         # token while running the same native fence helper, with no OS work.
         previous = getattr(self._local, "token", None)
