@@ -22,9 +22,17 @@ SUPERTONIC_SDK_VERSION = "1.3.1"
 SUPERTONIC_ORT_VERSION = "1.23.1"
 VIBEVOICE_REVISION = "6bce5f06044837fe6d2c5d7a71a84f0416bd57e4"
 VIBEVOICE_VOICE = "en-Carter_man"
-SUPPORTED_TTS_PROFILES = ("Kokoro 82M", "Supertonic 3", "VibeVoice Realtime 0.5B")
+MING3_REVISION = "4715ef5a2f02901f75687d538b6920fd0dd11e6b"
+MING3_VOICE = "US_Emma"
+SUPPORTED_TTS_PROFILES = (
+    "Kokoro 82M",
+    "Supertonic 3",
+    "VibeVoice Realtime 0.5B",
+    "Ming 3 Tiny",
+)
 SUPERTONIC_VOICES = frozenset(f"{gender}{index}" for gender in ("F", "M") for index in range(1, 6))
 KOKORO_VOICES = frozenset({"af_heart"})
+MING3_VOICES = frozenset({MING3_VOICE})
 MAX_AUDIO_SECONDS = 120
 MAX_FRAME_SECONDS = 1
 _MANIFEST = Path(__file__).with_name("supertonic3_manifest.json")
@@ -55,6 +63,14 @@ _PROFILES = {
         "native_streaming",
         1200,
         VIBEVOICE_REVISION,
+        True,
+    ),
+    "Ming 3 Tiny": TTSProfile(
+        MING3_VOICE,
+        MING3_VOICES,
+        "buffered",
+        1200,
+        MING3_REVISION,
         True,
     ),
 }
@@ -94,7 +110,9 @@ def validate_tts_device(profile, device="cpu"):
     profile_settings(profile)
     if device not in ("cpu", "cuda") or not isinstance(device, str):
         raise ValueError("Unsupported configured voice device")
-    if device == "cuda" and profile != "Kokoro 82M":
+    if profile == "Ming 3 Tiny" and device != "cuda":
+        raise ValueError("Ming 3 Tiny requires GPU (cuda) execution")
+    if device == "cuda" and profile not in {"Kokoro 82M", "Ming 3 Tiny"}:
         raise ValueError("The selected retained TTS profile does not support GPU execution")
     return device
 
@@ -402,4 +420,12 @@ def create_tts_backend(profile, model_dir=None, voice=None, *, device="cpu"):
         from packages.providers.vibevoice_backend import VibeVoiceBackend
 
         return VibeVoiceBackend(Path(model_dir) if model_dir is not None else None, voice)
+    if profile == "Ming 3 Tiny":
+        from packages.providers.ming3_backend import Ming3TinyBackend
+
+        return Ming3TinyBackend(
+            Path(model_dir) if model_dir is not None else None,
+            voice,
+            device=device,
+        )
     return _SupertonicBackend(Path(model_dir) if model_dir is not None else None, voice)

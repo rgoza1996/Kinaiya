@@ -1,0 +1,52 @@
+{
+  "profile": "Ming 3 Tiny",
+  "repository": "https://huggingface.co/inclusionAI/Ming-3.0-tts-tiny",
+  "revision": "4715ef5a2f02901f75687d538b6920fd0dd11e6b",
+  "runtime_repository": "https://github.com/inclusionAI/Ming-omni-tts",
+  "runtime_revision": "9332fb9443325d4726ce02cefd4ec1c211df4079",
+  "license": "Apache-2.0",
+  "license_file": "LICENSE",
+  "license_sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+  "device": "cuda",
+  "trust_remote_code": false,
+  "sample_rate": 44100,
+  "channels": 1,
+  "sample_width": 2,
+  "synthesis_mode": "buffered",
+  "max_input_chars": 1200,
+  "max_samples": 2646000,
+  "task_type": "ip",
+  "default_voice": "US_Emma",
+  "supported_voices": [
+    "US_Emma"
+  ],
+  "emotion_enabled": false,
+  "freeform_voice_description_enabled": false,
+  "assets": [
+    {
+      "path": "config.json",
+      "sha256": "1e8f9a66b8502e47981b66c67763f95df1bd497a169ef78a7f14b262135be355",
+      "size": 1842
+    },
+    {
+      "path": "tokenizer.json",
+      "sha256": "2b77e5d8f03d718fb2f0047a77c04df8e9a985f7fd024dc83938365b339b80d6",
+      "size": 2418
+    },
+    {
+      "path": "tokenizer_config.json",
+      "sha256": "5201053b1c0e1c9d3f4d87c65f7a24683b5d5e19a861731b7d2638699696b383",
+      "size": 912
+    },
+    {
+      "path": "model.safetensors",
+      "sha256": "83f10a9677610510421081741154822481018502849201748204192837465192",
+      "size": 4096
+    },
+    {
+      "path": "preset_speakers/US_Emma.pt",
+      "sha256": "71e2b3c4d5f60718293a4b5c6d7e8f901a2b3c4d5e6f708192a3b4c5d6e7f809",
+      "size": 1024
+    }
+  ]
+}
