@@ -510,13 +510,15 @@ async def test_window_retry_and_reuse_keep_distinct_original_call_identity(env, 
         calls = env.store.decisions.detail(entry.event_id)["calls"]
         assert [c["status"] for c in calls] == ["completed", "error"]
         assert [c["attempt"] for c in calls] == [2, 1]
+        # A later window differs in provider-visible window_index (#337), so it gets its
+        # own original call rather than reusing the first source's answer.
         repeated = source(env, kind="conversation.window", index=1)
         await worker._job(repeated)
-        reuse = env.store.decisions.detail(repeated.event_id)["calls"][0]
-        assert len(seen) == 2 and reuse["status"] == "reused"
-        assert reuse["reused_from_call_id"] == calls[0]["call_id"]
-        assert reuse["reused_from_source_event_id"] == entry.event_id
-        assert reuse["request"] is None
+        fresh = env.store.decisions.detail(repeated.event_id)["calls"][0]
+        assert len(seen) == 3 and fresh["status"] == "completed"
+        assert fresh["call_id"] not in {c["call_id"] for c in calls}
+        assert fresh.get("reused_from_call_id") is None
+        assert fresh["request"] is not None
     finally:
         await provider.close()
 
