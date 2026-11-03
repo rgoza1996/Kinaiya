@@ -6,6 +6,47 @@ channel requires an explicitly approved release; an absent stable release is an
 error, never permission to install `main`, an alpha, or nightly. See
 [release policy](releases.md) for publication/signing gates.
 
+## First-use quickstart
+
+Every command below exists on the current `main` CLI. Items marked *planned* are
+in open pull requests and are **not shipped**; do not rely on them yet.
+
+```sh
+# 1. Bootstrap (prints the plan and asks before changing anything; never run as root):
+curl -fsSL https://raw.githubusercontent.com/rgoza1996/Kinaiya/main/install.sh | sh -s -- --channel nightly
+export PATH="$HOME/.local/bin:$PATH"
+
+# 2. Configure (the bootstrap normally launches this wizard for you):
+kinaiya setup
+
+# 3. Start the loopback host (Session + Agent; Converse/Decisions only if enabled):
+kinaiya serve host
+
+# 4. In a second terminal: export the owner sign-in file, then serve the web UI.
+kinaiya owner-login   # writes data/owner-login.txt with mode 0600; token is not printed
+kinaiya web           # http://127.0.0.1:8780
+```
+
+- **Location.** The default layout is described in [Locations and PATH](#locations-and-path).
+  Custom absolute `--workspace` / `--data-dir` paths (spaces allowed) must be
+  disjoint and symlink-free. *Planned:* choosing the invoking directory as the
+  install root (#383).
+- **Provider and API key.** Choose a measured Agent adapter and an explicit model.
+  For a cloud provider, setup records only an environment variable **name**
+  (`--credential-env MY_PROVIDER_KEY`) and your disclosure consent; export the key
+  from your protected secret mechanism before `serve host`. Never paste a key into
+  a command line or prompt. *Planned:* masked key entry saved to a private local
+  file (#389) and a searchable model picker (#390).
+- **Configured is not tested.** Setup reports `ready: false` and
+  `provider_connection: not_checked`; it does not contact the provider. Your first
+  real request is the first live inference. *Planned:* an explicit bounded
+  connection check (#391) and `kinaiya doctor` (#392).
+- **Owner credentials.** Internal service tokens in `data/service-tokens.json`
+  (mode 0600) are managed by Kinaiya; do not edit or share them. `owner-login`
+  exports only the owner credential for the local web UI. *Planned:* automatic
+  one-time local sign-in (#393, #396), owner-credential rotation (#394), and a
+  single `kinaiya start` command (#395).
+
 ## Candidate baseline and prerequisites
 
 - Native Ubuntu **22.04 or 24.04**, `x86_64` or `aarch64`.
@@ -211,6 +252,24 @@ boundary and requires identical declared state-schema compatibility. It restores
 migrations and backup/restore are **not implemented and are refused**; retaining a
 Git SHA is not a database rollback promise. Backup and service-readiness
 qualification remain separate release acceptance gates.
+
+## Troubleshooting and small recovery paths
+
+Each path preserves your journal, configuration, workspace and owner credential.
+None of them requires editing JSON or `.env` files by hand.
+
+| Symptom | What to do |
+| --- | --- |
+| **Unsupported host or sandbox refused** (bootstrap/setup preflight stops; `bwrap` namespaces denied) | Use a qualified host from [prerequisites](#candidate-baseline-and-prerequisites). On Ubuntu 24.04, install the narrow AppArmor profile described there; do not disable AppArmor or run as root. Rerun the same `install.sh` command afterwards. |
+| **Install destination inaccessible or protected** | Choose an absolute, user-owned, symlink-free path outside the Agent workspace and outside system directories, then rerun with `--workspace` / `--data-dir`. Nothing is written when preflight refuses. |
+| **Model endpoint unavailable** | Start or fix the provider (for local LM Studio, load the model and confirm the loopback endpoint), then restart `kinaiya serve host`. Setup's saved configuration stays valid; to change the endpoint or model, rerun `kinaiya setup`. |
+| **Invalid or missing API key** | Export the correct value into the environment variable named by `--credential-env` in the shell that runs `kinaiya serve host`, then restart it. To change which variable is used, rerun `kinaiya setup`. Never pass the key as an argument. |
+| **Missing web assets** (`kinaiya web` refuses) | The matching release has no prebuilt UI. Install a release that includes it (`kinaiya update --plan`, then `kinaiya update --yes`), or follow the developer path in [Owner web client](#owner-web-client) in a separate checkout. Kinaiya never downloads Flutter for you. |
+| **Interrupted install or update** | Stop managed services, then run `kinaiya recover --yes`. It reconciles the pending transaction without deleting the active generation or data. If a release is broken, `kinaiya rollback --generation <id> --yes` restores retained code/runtime only. |
+| **Lost owner sign-in file** | Run `kinaiya owner-login --output <new-path>`. It creates a new 0600 file and refuses to overwrite an existing one; internal service tokens are unchanged. Delete stale exports you no longer need. |
+
+Rerunning `install.sh` or `kinaiya setup` on an existing installation preserves
+existing configuration and refuses silent reinitialization.
 
 ## Uninstall
 
