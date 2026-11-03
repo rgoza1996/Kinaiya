@@ -408,3 +408,105 @@ def test_encoder_refuses_inconsistent_body_without_creating_a_frame(payload):
     with pytest.raises(MediaWireError) as failure:
         encode_ingress(header, payload)
     _assert_closed_error(failure, "bad_packet")
+
+
+async def test_immediately_ready_tiny_chunks_allow_concurrent_cancel_before_verification():
+    # Every producer await is immediately ready. A scheduled controller must get
+    # a turn while the native reader is accumulating this finite body.
+    payload = b"x" * 131072
+    header = json.loads(_UPLOAD_JSON)
+    header.update(body_bytes=len(payload), body_sha256=hashlib.sha256(payload).hexdigest())
+    body_started = asyncio.Event()
+    controller_ready = asyncio.Event()
+    cancel_results = []
+
+    class ImmediateChunks:
+        def __init__(self):
+            self.header_sent = False
+            self.body_pulls = 0
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            if not self.header_sent:
+                self.header_sent = True
+                return _frame(_json(header))
+            if self.body_pulls == len(payload):
+                raise StopAsyncIteration
+            self.body_pulls += 1
+            body_started.set()
+            return b"x"
+
+    chunks = ImmediateChunks()
+    body = await open_ingress(chunks, media.MediaUploadPut)
+    assert chunks.body_pulls == 0 and body.verified is False
+    consumer = None
+
+    async def controller():
+        controller_ready.set()
+        await body_started.wait()
+        cancel_results.append(consumer.cancel())
+
+    canceller = asyncio.create_task(controller())
+    try:
+        await controller_ready.wait()
+        consumer = asyncio.create_task(_consume(body))
+        with pytest.raises(asyncio.CancelledError):
+            await consumer
+        await canceller
+        assert cancel_results == [True]
+        assert 0 < chunks.body_pulls < len(payload)
+        assert body.verified is False
+    finally:
+        for task in (consumer, canceller):
+            if task is not None and not task.done():
+                task.cancel()
+                with pytest.raises(asyncio.CancelledError):
+                    await task
+
+
+async def test_true_eof_after_whole_ingress_deadline_never_sets_verified(monkeypatch):
+    from contextvars import ContextVar
+
+    loop = asyncio.get_running_loop()
+    original_time = loop.time
+    initial_time = original_time()
+    clock = {"now": initial_time}
+    operation_clock = ContextVar("media_eof_deadline_oracle", default=False)
+
+    def controlled_time():
+        # The scheduler/framework retains its real clock; operation child Tasks
+        # inherit this context, so no private wire/task state is consulted.
+        return clock["now"] if operation_clock.get() else original_time()
+
+    class EOFAdvance:
+        def __init__(self):
+            self.chunks = iter([_frame(_UPLOAD_JSON), b"abc"])
+            self.eof_reported = False
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            try:
+                return next(self.chunks)
+            except StopIteration:
+                self.eof_reported = True
+                clock["now"] = initial_time + 61
+                raise StopAsyncIteration from None
+
+    chunks = EOFAdvance()
+    with monkeypatch.context() as patch:
+        patch.setattr(loop, "time", controlled_time)
+        token = operation_clock.set(True)
+        try:
+            body = await open_ingress(chunks, media.MediaUploadPut)
+            assert body.verified is False
+            with pytest.raises(MediaWireError) as failure:
+                await _consume(body)
+            _assert_closed_error(failure, "unavailable")
+            assert chunks.eof_reported is True
+            assert body.verified is False
+        finally:
+            operation_clock.reset(token)
