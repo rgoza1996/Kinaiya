@@ -1923,6 +1923,8 @@ class MediaSessionOwner:
                     ):
                         refuse("conflict")
                 else:
+                    if self._poisoned:
+                        refuse("unavailable")
                     if session_id in self._session_changes:
                         refuse("conflict")
                     active = sum(
