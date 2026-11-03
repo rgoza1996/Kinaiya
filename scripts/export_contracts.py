@@ -18,6 +18,7 @@ from packages.contracts import (
     converse_setup,
     decisions,
     decisions_models,
+    media,
     memory,
     memory_catalog,
     memory_context,
@@ -191,5 +192,11 @@ for cls in (
 # Private capture records use their existing canonical key ordering.
 for cls in (decisions.DecisionsCallStart, decisions.DecisionsCallFinish):
     (target / f"{cls.__name__}.json").write_text(
+        json.dumps(cls.model_json_schema(), indent=2, sort_keys=True) + "\n"
+    )
+
+# Media has an exact concrete registry, including named generic roots.
+for name, cls in media.MEDIA_SCHEMAS.items():
+    (target / f"{name}.json").write_text(
         json.dumps(cls.model_json_schema(), indent=2, sort_keys=True) + "\n"
     )
