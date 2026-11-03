@@ -1761,6 +1761,23 @@ class LocalJournal:
             raise PermissionError("Decisions capture requires Decisions")
         return self.store.decisions.finish(call_id, request)
 
+    async def decisions_calls(
+        self,
+        *,
+        source_event_id: str,
+        session_id: str | None = None,
+        thread_id: str | None = None,
+        epoch: int | None = None,
+    ):
+        if self.role not in {"decisions", "owner"}:
+            raise PermissionError("Decisions call recovery requires Decisions or owner")
+        return self.store.decisions.calls(
+            source_event_id,
+            session_id=session_id,
+            thread_id=thread_id,
+            epoch=epoch,
+        )
+
     async def read(self, **kwargs):
         return self.store.read(**kwargs)
 

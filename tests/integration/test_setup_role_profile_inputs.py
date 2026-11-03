@@ -93,6 +93,14 @@ class _TTY(io.StringIO):
 
     def readline(self, *args, **kwargs):
         prompt = self.prompt
+        if prompt == (
+            "provider api key for p01 (enter to skip, paste masked key, or :env var; "
+            "saved to 0600 plaintext .env, not a vault): "
+        ):
+            self.role = "agent"
+            self.questions.append(("agent", "credential"))
+            credential = self.vector["agent"]["credential"]
+            return (":env " + credential if credential else "") + "\n"
         if "authorized workspace" in prompt or "private data directory" in prompt:
             return "\n"
         if "enable" in prompt and "converse" in prompt:
