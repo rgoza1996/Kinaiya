@@ -12,14 +12,14 @@ import json
 from fractions import Fraction
 
 import pytest
+
+from packages.contracts import media
 from packages.resources.media_decode_plan import (
     MediaDecodePlanError,
     ProbeClock,
     TrackSelection,
     build_decode_plan,
 )
-
-from packages.contracts import media
 
 _MAX = 9_007_199_254_740_991
 _ID = "a" * 32

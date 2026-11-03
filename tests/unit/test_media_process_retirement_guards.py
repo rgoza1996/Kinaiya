@@ -16,13 +16,13 @@ import signal
 import sys
 
 import pytest
+
+from packages.contracts import media
 from packages.resources.media_processes import (
     MediaLaunchBinding,
     MediaProcessError,
     MediaWorkerPool,
 )
-
-from packages.contracts import media
 from packages.resources.processes import WorkerSpec
 from services.session.media_spool import MediaSpool, MediaSpoolError
 
@@ -152,8 +152,8 @@ class _NativeObservation:
         else:
             reused = fcntl.fcntl(temporary, fcntl.F_DUPFD_CLOEXEC, fd)
             self.native_close(temporary)
-        assert reused == fd, "exact rejected pidfd integer was not available for reuse"
         self.sentinel_fd = reused
+        assert reused == fd, "exact rejected pidfd integer was not available for reuse"
         raise OSError(errno.EIO, "untrusted-pidfd-close-detail")
 
     def assert_sentinel(self):

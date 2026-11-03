@@ -16,13 +16,13 @@ import sys
 from types import SimpleNamespace
 
 import pytest
+
+from packages.contracts import media
 from packages.resources.media_processes import (
     MediaLaunchBinding,
     MediaProcessError,
     MediaWorkerPool,
 )
-
-from packages.contracts import media
 from packages.resources.processes import WorkerSpec
 from services.session.media_spool import MediaSpool, MediaSpoolError
 
@@ -459,8 +459,8 @@ async def test_parent_close_eio_discards_integer_and_never_closes_reused_sentine
         else:
             reused = fcntl.fcntl(temporary, fcntl.F_DUPFD_CLOEXEC, fd)
             native_close(temporary)
-        assert reused == fd
         sentinels.append(reused)
+        assert reused == fd
         raise OSError(errno.EIO, "untrusted-child-detail")
 
     try:

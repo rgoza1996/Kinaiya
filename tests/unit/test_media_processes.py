@@ -14,13 +14,13 @@ import os
 import sys
 
 import pytest
+
+from packages.contracts import media
 from packages.resources.media_processes import (
     MediaLaunchBinding,
     MediaProcessError,
     MediaWorkerPool,
 )
-
-from packages.contracts import media
 from packages.resources.processes import WorkerManager, WorkerSpec
 from services.session.media_spool import MediaSpool
 
@@ -590,8 +590,8 @@ async def test_one_pending_receiver_fence_joins_original_before_descriptor_reuse
             else:
                 reused = fcntl.fcntl(temporary, fcntl.F_DUPFD_CLOEXEC, fd)
                 os.close(temporary)
-            assert reused == fd, "old control descriptor did not become available for reuse"
             sentinels.append(reused)
+            assert reused == fd, "old control descriptor did not become available for reuse"
             callback(*args)
             assert os.read(reused, 64) == b"untouched sentinel"
     finally:
