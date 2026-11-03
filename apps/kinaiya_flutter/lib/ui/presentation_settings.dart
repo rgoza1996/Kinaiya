@@ -558,6 +558,23 @@ class _PresentationSettingsState extends State<PresentationSettings> {
                                 )
                               : null,
                         ),
+                        if (widget.section == PresentationSection.character)
+                          SwitchListTile(
+                            key: const ValueKey('character-show-converse-page'),
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('Show Converse page'),
+                            subtitle: const Text(
+                              'Keep the close-up interaction view in navigation. Home remains available.',
+                            ),
+                            value: preferences.showConverseView,
+                            onChanged: enabled
+                                ? (value) => _preferences(
+                                    preferences.copyWith(
+                                      showConverseView: value,
+                                    ),
+                                  )
+                                : null,
+                          ),
                         SwitchListTile(
                           contentPadding: EdgeInsets.zero,
                           title: const Text('Show captions'),
