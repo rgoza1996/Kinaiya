@@ -45,6 +45,7 @@ from packages.contracts.standing_work import StandingConflict, StandingUnavailab
 from packages.contracts.stt_settlement import STTPublication
 from services.common.auth import Auth
 from services.session.agent_control import AgentControl
+from services.session.legacy_events import serve_legacy_events
 from services.session.standing_admission import StandingTaskOwner
 from services.session.standing_dispatch import StandingDispatchOwner
 from services.session.standing_execution import StandingExecutionOwner
@@ -880,13 +881,7 @@ def create_app(
                 return
             after = int(hello.get("after", 0))
             session_id = hello.get("session_id")
-            while True:
-                entries = store.read(after=after, limit=100, session_id=session_id)
-                for event in entries:
-                    await ws.send_json(event.model_dump(mode="json"))
-                    after = event.sequence
-                if not entries:
-                    await asyncio.sleep(0.1)
+            await serve_legacy_events(ws, store, after=after, session_id=session_id)
         except (WebSocketDisconnect, TimeoutError, HTTPException, ValueError):
             await ws.close(code=1008)
 
