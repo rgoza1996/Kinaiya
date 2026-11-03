@@ -15,6 +15,7 @@ from packages.distribution.releases import (
     verify_artifact,
 )
 from services.distribution.installation import (
+    SUPPORTED_ROLE_ADAPTERS,
     InstallError,
     Layout,
     current_receipt,
@@ -56,9 +57,24 @@ def configure(commands):
     )
     setup_parser.add_argument("--endpoint")
     setup_parser.add_argument("--model")
+    setup_parser.add_argument("--adapter", choices=SUPPORTED_ROLE_ADAPTERS["agent"], default=None)
     setup_parser.add_argument("--credential-env")
     setup_parser.add_argument("--allow-cloud", action="store_true")
     setup_parser.add_argument("--converse", action="store_true")
+    setup_parser.add_argument(
+        "--converse-adapter", choices=SUPPORTED_ROLE_ADAPTERS["converse"], default=None
+    )
+    setup_parser.add_argument("--converse-endpoint", default=None)
+    setup_parser.add_argument("--converse-model", default=None)
+    setup_parser.add_argument("--converse-credential-env", default=None)
+    setup_parser.add_argument("--converse-allow-cloud", action="store_true")
+    setup_parser.add_argument(
+        "--decisions-adapter", choices=SUPPORTED_ROLE_ADAPTERS["decisions"], default=None
+    )
+    setup_parser.add_argument("--decisions-endpoint", default=None)
+    setup_parser.add_argument("--decisions-model", default=None)
+    setup_parser.add_argument("--decisions-credential-env", default=None)
+    setup_parser.add_argument("--decisions-allow-cloud", action="store_true")
     updater = commands.add_parser("update", help="Check or explicitly install a verified update")
     updater.add_argument("--channel", choices=("stable", "nightly"))
     updater.add_argument("--check", action="store_true")
@@ -195,13 +211,66 @@ def dispatch(args):
             return run_wizard(layout, mode=mode) if mode is not None else run_wizard(layout)
         if not args.endpoint or not args.model:
             raise InstallError("Noninteractive setup requires --yes --endpoint and --model")
+        converse_adapter = getattr(args, "converse_adapter", None)
+        converse_endpoint = getattr(args, "converse_endpoint", None)
+        converse_model = getattr(args, "converse_model", None)
+        converse_credential_env = getattr(args, "converse_credential_env", None)
+        converse_allow_cloud = getattr(args, "converse_allow_cloud", False)
+        decisions_adapter = getattr(args, "decisions_adapter", None)
+        decisions_endpoint = getattr(args, "decisions_endpoint", None)
+        decisions_model = getattr(args, "decisions_model", None)
+        decisions_credential_env = getattr(args, "decisions_credential_env", None)
+        decisions_allow_cloud = getattr(args, "decisions_allow_cloud", False)
+        converse_profile = None
+        if (
+            converse_adapter is not None
+            or converse_endpoint is not None
+            or converse_model is not None
+            or converse_credential_env is not None
+            or converse_allow_cloud
+        ):
+            if not (converse_endpoint and converse_model):
+                raise InstallError(
+                    "Converse role requires both --converse-endpoint and --converse-model"
+                )
+            converse_profile = {
+                "endpoint": converse_endpoint,
+                "model": converse_model,
+                "allow_cloud": bool(converse_allow_cloud),
+                "credential_env": converse_credential_env,
+            }
+            if converse_adapter is not None:
+                converse_profile["adapter"] = converse_adapter
+        decisions_profile = None
+        if (
+            decisions_adapter is not None
+            or decisions_endpoint is not None
+            or decisions_model is not None
+            or decisions_credential_env is not None
+            or decisions_allow_cloud
+        ):
+            if not (decisions_endpoint and decisions_model):
+                raise InstallError(
+                    "Decisions role requires both --decisions-endpoint and --decisions-model"
+                )
+            decisions_profile = {
+                "endpoint": decisions_endpoint,
+                "model": decisions_model,
+                "allow_cloud": bool(decisions_allow_cloud),
+                "credential_env": decisions_credential_env,
+            }
+            if decisions_adapter is not None:
+                decisions_profile["adapter"] = decisions_adapter
         return setup(
             layout,
             endpoint=args.endpoint,
             model=args.model,
+            adapter=getattr(args, "adapter", None),
             credential_env=args.credential_env,
             allow_cloud=args.allow_cloud,
             converse=args.converse,
+            converse_profile=converse_profile,
+            decisions_profile=decisions_profile,
         )
     if args.command in {"recover", "rollback", "uninstall"}:
         from services.distribution.installation import recover, rollback, uninstall
