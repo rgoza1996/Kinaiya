@@ -80,6 +80,8 @@ def dependency_install_command(missing: list[str] | tuple[str, ...]) -> list[str
 
 def install_missing_dependencies(missing: list[str] | tuple[str, ...]) -> list[str]:
     """Install missing system packages without updating or upgrading existing packages."""
+    from services.distribution.stage_progress import current_reporter, redact_install_log
+
     if not missing:
         return []
     for pkg in missing:
@@ -87,14 +89,27 @@ def install_missing_dependencies(missing: list[str] | tuple[str, ...]) -> list[s
             raise InstallError(f"Refusing invalid system dependency name: {pkg!r}")
     cmd = dependency_install_command(missing)
     env = {**os.environ, "DEBIAN_FRONTEND": "noninteractive"}
+    reporter = current_reporter()
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=300, env=env)
     except (OSError, subprocess.SubprocessError) as exc:
+        if reporter is not None:
+            reporter.log_subprocess("dependencies", cmd, 1, None, str(exc))
         raise InstallError(
-            f"Failed to install missing dependencies ({', '.join(missing)}) via `{' '.join(cmd)}`: {exc}"
+            f"Failed to install missing dependencies ({', '.join(missing)}) via `{' '.join(cmd)}`: {redact_install_log(str(exc))}"
         ) from None
+    if reporter is not None:
+        reporter.log_subprocess(
+            "dependencies",
+            cmd,
+            result.returncode,
+            getattr(result, "stdout", None),
+            getattr(result, "stderr", None),
+        )
     if result.returncode != 0:
-        detail = (getattr(result, "stderr", "") or getattr(result, "stdout", "") or "").strip()
+        detail = redact_install_log(
+            (getattr(result, "stderr", "") or getattr(result, "stdout", "") or "").strip()
+        )
         suffix = f" ({detail.splitlines()[-1]})" if detail else ""
         raise InstallError(
             f"Out-of-date system blocker: could not install missing dependencies ({', '.join(missing)}) "
@@ -661,6 +676,8 @@ def unpack_source(archive, destination, artifact):
 
 
 def prepare_runtime(generation, source):
+    from services.distribution.stage_progress import current_reporter
+
     python = generation / "runtime/bin/python"
     commands = [
         [sys.executable, "-m", "venv", str(generation / "runtime")],
@@ -685,10 +702,27 @@ def prepare_runtime(generation, source):
             "import services.launcher; import services.agent; import services.session.api",
         ],
     ]
+    reporter = current_reporter()
     for index, command in enumerate(commands):
         try:
-            subprocess.run(command, cwd=source, check=True, capture_output=True, timeout=600)
-        except (OSError, subprocess.SubprocessError):
+            proc = subprocess.run(command, cwd=source, check=True, capture_output=True, timeout=600)
+            if reporter is not None and proc is not None:
+                reporter.log_subprocess(
+                    "staging",
+                    command,
+                    getattr(proc, "returncode", 0),
+                    getattr(proc, "stdout", None),
+                    getattr(proc, "stderr", None),
+                )
+        except (OSError, subprocess.SubprocessError) as exc:
+            if reporter is not None:
+                reporter.log_subprocess(
+                    "staging",
+                    command,
+                    getattr(exc, "returncode", 1),
+                    getattr(exc, "stdout", None),
+                    getattr(exc, "stderr", str(exc)),
+                )
             raise InstallError(
                 f"Runtime stage {index + 1} failed; current install unchanged. Check Python venv, network and locked wheel availability"
             ) from None
