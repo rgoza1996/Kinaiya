@@ -150,6 +150,19 @@ class _Source:
     sealed_at: float | None = None
 
 
+@dataclass(slots=True)
+class _CloseOperation:
+    loop: asyncio.AbstractEventLoop
+    deadline: float
+    task: asyncio.Task | None = None
+    phases: dict = field(default_factory=dict)
+    originals: dict = field(default_factory=dict)
+    sources: dict = field(default_factory=dict)
+    retained: set = field(default_factory=set)
+    unknown: bool = False
+    sealed: bool = False
+
+
 class MediaSessionOwner:
     def __init__(
         self,
@@ -221,6 +234,7 @@ class MediaSessionOwner:
         self._loop = None
         self._retirement_requests = {}
         self._retirement_unknown = False
+        self._close_operation = None
         # This is the ONLY spool accounting snapshot, before Store.lock. Every
         # subsequent possible catalog/ledger effect has an original precharge.
         self._spool_metadata_snapshot = spool.metadata_bytes
@@ -445,6 +459,7 @@ class MediaSessionOwner:
         if (
             self._poisoned
             or self._closed
+            or self._closing
             or self._bound_control is None
             or self._auth_identity is None
         ):
@@ -476,6 +491,7 @@ class MediaSessionOwner:
         if (
             self._poisoned
             or self._closed
+            or self._closing
             or self._bound_control is None
             or self._auth_identity is None
         ):
@@ -498,6 +514,8 @@ class MediaSessionOwner:
         self._authority()
 
     async def authenticate(self, request, roles, *, capability=False):
+        if self._closing:
+            refuse()
         # Run the actual configured Auth dependency, not a supplied role string.
         authorization = request.headers.get("authorization", "")
         if len(authorization) > 8192:
@@ -517,6 +535,8 @@ class MediaSessionOwner:
         )
 
     def authenticate_websocket(self, ws, token, capability):
+        if self._closing:
+            refuse()
         origin = ws.headers.get("origin")
         if origin and origin not in self.auth.allowed_origins:
             refuse("denied")
@@ -536,6 +556,7 @@ class MediaSessionOwner:
 
     @contextmanager
     def _transaction(self, principal, roles):
+        self._principal_memory(principal, roles)
         with self._boundary() as token:
             self._principal(principal, roles)
             yield token
@@ -1255,6 +1276,14 @@ class MediaSessionOwner:
         return self._read_receipt(row)
 
     async def run_native(self, function, *args, **kwargs):
+        # Once the final logical barrier is sealed, only the two exact original
+        # close phases below can acquire native jobs. No caller flag bypasses it.
+        with self._mutex:
+            if self._close_operation is not None and self._close_operation.sealed:
+                refuse()
+        return await self._run_native_original(function, *args, **kwargs)
+
+    async def _run_native_original(self, function, *args, **kwargs):
         """Retain actual thread work through caller cancellation and late results."""
         marker = object()
         with self._mutex:
@@ -2693,6 +2722,12 @@ class MediaSessionOwner:
             await asyncio.sleep(1.0)
 
     def _schedule_cleanup(self, source):
+        # Closing observes the same original cleanup, including a false/unknown
+        # result; late callbacks cannot start a replacement physical attempt.
+        if self._closing and source.delete_task is not None:
+            return source.delete_task
+        if self._close_operation is not None and self._close_operation.sealed:
+            refuse()
         if source.delete_task is None or source.delete_task.done():
             source.delete_task = asyncio.create_task(self._cleanup_source(source))
 
@@ -3204,49 +3239,244 @@ class MediaSessionOwner:
             refuse("conflict")
 
     def store_close_confirmed(self) -> bool:
-        # A read-only actual positive latch: no SQL, OS or caller proof flag.
-        return self._closed is True
+        # Cached native task outcome only; no SQL/OS or caller proof flag.
+        operation = self._close_operation
+        return (
+            self._closed is True
+            and operation is not None
+            and not operation.unknown
+            and self._close_result(operation.task)
+        )
 
-    async def close(self):
-        self._closing = True
-        self._fence_all_memory("disconnect")
-        hub = asyncio.create_task(self.event_hub.close())
-        cleanups = [self._schedule_cleanup(source) for source in tuple(self._sources.values())]
-        originals = [
-            item.task for item in tuple(self._operations.values()) if item.task is not None
-        ]
-        observers = [
-            source.expiry_task
-            for source in self._sources.values()
-            if source.expiry_task is not None
-        ]
-        tasks = {hub, *cleanups, *originals, *observers}
-        if tasks:
-            done, pending = await asyncio.wait(tasks, timeout=5.0)
-            if pending or any(task.cancelled() for task in done):
-                return False
-        if (
-            hub.result() is not True
-            or any(item.unknown for item in self._operations.values())
-            or any(task.exception() is not None for task in observers)
-        ):
+    @staticmethod
+    def _close_result(task):
+        if task is None or not task.done() or task.cancelled():
             return False
-        for task in originals:
-            task.exception()  # Completed refusal is not an outstanding OS owner.
-        with self._mutex:
-            jobs = {task for task in self._native_jobs.values() if task is not None}
-            if self._intakes:
-                return False
-        if jobs:
-            _, pending = await asyncio.wait(jobs, timeout=5.0)
+        try:
+            return task.result() is True
+        except BaseException:
+            return False
+
+    def _close_phase(self, operation, name, factory):
+        if name in operation.phases:
+            return operation.phases[name]
+        if operation.unknown or operation.loop.time() >= operation.deadline:
+            return None
+        operation.phases[name] = None  # Enrollment precedes eager task creation.
+        try:
+            task = asyncio.create_task(factory())
+        except BaseException:
+            operation.unknown = True
+            raise
+        operation.phases[name] = task
+        operation.retained.add(task)
+        return task
+
+    async def _close_wait(self, operation, tasks):
+        tasks = set(tasks)
+        operation.retained.update(tasks)
+        if operation.unknown or operation.loop.time() >= operation.deadline:
+            return False
+        if tasks:
+            _, pending = await asyncio.wait(
+                tasks, timeout=max(0.0, operation.deadline - operation.loop.time())
+            )
             if pending:
                 return False
-        closed = await self.run_native(self.spool.close)
-        if closed is not True or not all(task.result() is True for task in cleanups):
+        if operation.loop.time() >= operation.deadline:
             return False
-        key_closed = await self.run_native(self.keys.close)
-        self._closed = key_closed is True
-        return self._closed
+        for task in tasks:
+            if task.cancelled():
+                operation.unknown = True
+                return False
+            error = task.exception()
+            if error is not None and not isinstance(error, Exception):
+                operation.unknown = True
+                return False
+        return True
+
+    def _close_capture(self, operation):
+        with self._mutex:
+            for source_id, source in self._sources.items():
+                known = operation.sources.get(source_id)
+                if known is not None and known is not source:
+                    operation.unknown = True
+                operation.sources[source_id] = source
+                if source.original is not None:
+                    operation.originals[id(source.original)] = source.original
+            for original in self._operations.values():
+                operation.originals[id(original)] = original
+            return tuple(operation.sources.values()), tuple(operation.originals.values())
+
+    def _close_barrier(self, operation):
+        # No await between this complete original-owner check and sealing the
+        # public job gate. Removals are permitted only because the retained
+        # original objects/tasks below still have their positive proof.
+        with self._mutex:
+            if self._intakes or self._native_jobs or operation.unknown:
+                return False
+            if any(
+                operation.sources.get(key) is not source for key, source in self._sources.items()
+            ):
+                return False
+            if any(
+                operation.originals.get(id(original)) is not original
+                for original in self._operations.values()
+            ):
+                return False
+            for original in operation.originals.values():
+                if (
+                    original.unknown
+                    or original.task is None
+                    or not original.task.done()
+                    or original.task.cancelled()
+                ):
+                    return False
+                original.task.exception()  # A joined refusal is not a live OS owner.
+            for source in operation.sources.values():
+                if not source.fenced.is_set() or not self._close_result(source.delete_task):
+                    return False
+                if source.expiry_task is not None and (
+                    not source.expiry_task.done()
+                    or source.expiry_task.cancelled()
+                    or source.expiry_task.exception() is not None
+                ):
+                    return False
+            return self._close_result(operation.phases.get("hub"))
+
+    async def _close_native_phase(self, operation, name):
+        if (
+            operation is not self._close_operation
+            or not operation.sealed
+            or operation.unknown
+            or name not in {"spool", "key"}
+            or operation.loop is not asyncio.get_running_loop()
+            or operation.loop.time() >= operation.deadline
+        ):
+            return False
+        function = self.spool.close if name == "spool" else self.keys.close
+        return await self._run_native_original(function)
+
+    async def _close_original(self, operation):
+        try:
+            hub = self._close_phase(operation, "hub", self.event_hub.close)
+            if hub is None:
+                return False
+            sources, originals = self._close_capture(operation)
+            for source in sources:
+                self._schedule_cleanup(source)
+            if any(original.task is None for original in originals):
+                operation.unknown = True
+                return False
+            if not await self._close_wait(operation, {hub, *(item.task for item in originals)}):
+                return False
+            if not self._close_result(hub):
+                return False
+
+            # An admitted reserve can publish its exact Source while the first
+            # wait is pending. Capture those late originals before physical
+            # spool/key closure, and join their own cleanup/publication owners.
+            sources, originals = self._close_capture(operation)
+            if any(original.task is None for original in originals):
+                operation.unknown = True
+                return False
+            cleanups = {self._schedule_cleanup(source) for source in sources}
+            observers = {source.expiry_task for source in sources if source.expiry_task is not None}
+            if not await self._close_wait(
+                operation, {*cleanups, *observers, *(item.task for item in originals)}
+            ):
+                return False
+            if (
+                any(original.unknown for original in originals)
+                or any(not self._close_result(task) for task in cleanups)
+                or any(task.exception() is not None for task in observers)
+            ):
+                return False
+
+            # Native workers are retained independently of their observers.
+            # A finished worker may still have a scheduled wrapper-finally that
+            # removes its exact registry entry; yield under the same deadline.
+            while True:
+                with self._mutex:
+                    jobs = tuple(self._native_jobs.values())
+                if not jobs:
+                    break
+                if not await self._close_wait(
+                    operation, {task for task in jobs if task is not None}
+                ):
+                    return False
+                await asyncio.sleep(0)
+
+            with self._mutex:
+                if (
+                    not self._close_barrier(operation)
+                    or operation.loop.time() >= operation.deadline
+                ):
+                    return False
+                operation.sealed = True
+
+            spool = self._close_phase(
+                operation, "spool", lambda: self._close_native_phase(operation, "spool")
+            )
+            if spool is None or not await self._close_wait(operation, {spool}):
+                return False
+            if not self._close_result(spool) or not self._close_barrier(operation):
+                return False
+            key = self._close_phase(
+                operation, "key", lambda: self._close_native_phase(operation, "key")
+            )
+            if key is None or not await self._close_wait(operation, {key}):
+                return False
+            with self._mutex:
+                if (
+                    not self._close_result(key)
+                    or not self._close_barrier(operation)
+                    or operation.loop.time() >= operation.deadline
+                ):
+                    return False
+                self._closed = True
+            return True
+        except BaseException as error:
+            operation.unknown = True
+            if not isinstance(error, Exception):
+                raise
+            return False
+
+    async def close(self):
+        # Charge even the synchronous fence work to the original observation
+        # window. Every native fence still precedes this method's first await.
+        loop = asyncio.get_running_loop()
+        began = loop.time()
+        self._closing = True
+        with self._mutex:
+            operation = self._close_operation
+            fresh = operation is None
+            if fresh:
+                operation = _CloseOperation(loop, began + 5.0)
+                self._close_operation = operation
+            self._fence_all_memory("disconnect")
+            if operation.loop is not loop:
+                return False
+            if fresh:
+                if self._loop is not None and self._loop is not loop:
+                    operation.unknown = True
+                    return False
+                try:
+                    operation.task = asyncio.create_task(self._close_original(operation))
+                except BaseException:
+                    operation.unknown = True
+                    raise
+            if operation.task is None:
+                return False
+        if operation.task.done():
+            return not operation.unknown and self._close_result(operation.task)
+        # asyncio.wait cancels neither the retained close task nor its physical
+        # phase futures when this observing caller is cancelled or times out.
+        remaining = operation.deadline - loop.time()
+        if remaining <= 0:
+            return False
+        _, pending = await asyncio.wait({operation.task}, timeout=remaining)
+        return not pending and not operation.unknown and self._close_result(operation.task)
 
     def admission_capability(self, receipt, principal, bootstrap_nonce):
         with self._transaction(principal, {"owner"}) as token:
