@@ -43,6 +43,7 @@ def configure(commands):
         "setup", help="Configure Agent without starting work or voice"
     )
     setup_parser.add_argument("--yes", action="store_true")
+    setup_parser.add_argument("--json", action="store_true")
     setup_parser.add_argument("--endpoint")
     setup_parser.add_argument("--model")
     setup_parser.add_argument("--credential-env")
@@ -179,13 +180,30 @@ def dispatch(args):
             return run_wizard(layout)
         if not args.endpoint or not args.model:
             raise InstallError("Noninteractive setup requires --yes --endpoint and --model")
-        return setup(
+        from services.distribution.wizard_summary import sanitize_completion_receipt
+
+        raw = setup(
             layout,
             endpoint=args.endpoint,
             model=args.model,
             credential_env=args.credential_env,
             allow_cloud=args.allow_cloud,
             converse=args.converse,
+        )
+        return sanitize_completion_receipt(
+            {
+                **(raw if isinstance(raw, dict) else {}),
+                "install": str(layout.install),
+                "launcher": str(layout.bin / "kinaiya"),
+                "config": str(layout.config),
+                "data": str(layout.data),
+                "workspace": str(layout.workspace),
+                "endpoint": args.endpoint,
+                "model": args.model,
+                "credential_env": args.credential_env,
+                "allow_cloud": args.allow_cloud,
+                "converse": args.converse,
+            }
         )
     if args.command in {"recover", "rollback", "uninstall"}:
         from services.distribution.installation import recover, rollback, uninstall

@@ -11,6 +11,11 @@ from pathlib import Path
 
 from services.distribution.installation import InstallError, check_outdated_system_blockers, setup
 from services.distribution.terminal import open_terminal
+from services.distribution.wizard_summary import (
+    format_json_receipt,
+    render_completion_summary,
+    sanitize_completion_receipt,
+)
 
 MASCOT = r"""          .-.( * ).
      ~~~ / ~   .-`\
@@ -120,4 +125,41 @@ def run_wizard(layout, *, tty=None):
         setup_kwargs["converse_profile"] = converse_profile
     if decisions_profile is not None:
         setup_kwargs["decisions_profile"] = decisions_profile
-    return setup(chosen, **setup_kwargs)
+    raw_result = setup(chosen, **setup_kwargs)
+    receipt = sanitize_completion_receipt(
+        {
+            **(raw_result if isinstance(raw_result, dict) else {}),
+            "install": str(chosen.install),
+            "launcher": str(chosen.bin / "kinaiya"),
+            "config": str(chosen.config),
+            "data": str(chosen.data),
+            "workspace": str(chosen.workspace),
+            "adapter": adapter or ("meta" if allow_cloud else "lmstudio"),
+            "endpoint": endpoint,
+            "model": model,
+            "allow_cloud": allow_cloud,
+            "credential_env": credential_env,
+            "converse": converse,
+            "converse_profile": converse_profile,
+        }
+    )
+    tty.write(
+        render_completion_summary(
+            receipt,
+            is_tty=True,
+            no_color=bool(shutil.get_terminal_size().columns < 40),
+            width=shutil.get_terminal_size().columns,
+        )
+    )
+    tty.flush()
+    return receipt
+
+
+__all__ = [
+    "MASCOT",
+    "format_json_receipt",
+    "mascot",
+    "render_completion_summary",
+    "run_wizard",
+    "sanitize_completion_receipt",
+]
