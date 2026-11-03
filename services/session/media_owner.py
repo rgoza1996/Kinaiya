@@ -1464,6 +1464,8 @@ class MediaSessionOwner:
                 if committed or self._poisoned or not isinstance(error, Exception):
                     self._poisoned = True
                     self._session_change_finish(change, "unknown", error_code="unavailable")
+                    if isinstance(error, Exception):
+                        raise MediaSessionError("unavailable") from None
                 elif not replay:
                     code = error.code if isinstance(error, MediaSessionError) else "unavailable"
                     if not (
