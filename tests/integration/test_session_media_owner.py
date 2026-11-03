@@ -1628,10 +1628,15 @@ async def test_reader_checkpoint_needs_new_authorized_media_delete_and_actual_co
             assert completed["body"]["local_processing_reservation_released"] is True
             assert completed["body"]["remote_state"] == "none"
             assert upload.deleted is True and env.spool.reserved_bytes == 0
+            assert native_source.delete_task is continuation_task
             final_session_delete = await env.client.delete(
                 f"/v1/sessions/{env.session['session_id']}", headers=_headers()
             )
             assert final_session_delete.status_code == 200
+            # Session fencing retains the same positively completed original;
+            # it must not replace that proof with another physical cleanup.
+            assert native_source.delete_task is continuation_task
+            assert continuation.completion_task is continuation_task
 
 
 @pytest.mark.parametrize("facade_kind", ["future", "task"])

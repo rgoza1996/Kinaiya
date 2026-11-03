@@ -4379,12 +4379,44 @@ class MediaSessionOwner:
                 if not isinstance(error, Exception):
                     raise
 
+    def _retirement_cleanup_task(self, source):
+        # Session retirement keeps the exact positively joined reader cleanup;
+        # fencing an already deleted source does not start its physical work again.
+        with self._mutex:
+            continuation = source.cleanup_continuation
+            if (
+                continuation is None
+                or source.delete_task is not continuation.task
+                or continuation.completion_task is not continuation.task
+                or source.upload is not continuation.checkpoint.upload
+                or source.connection is not continuation.checkpoint.connection
+                or not self._cleanup_probe_joined(source)
+                or not self._cleanup_continuation_joined(source)
+                or not self._close_result(continuation.task)
+                or not source.upload.deleted
+                or source.connection is not None
+                and (source.connection.unknown or not source.connection.joined)
+                or any(
+                    item.source_id == source.admission.source_id
+                    and (item.unknown or item.task is None or not item.task.done())
+                    for item in self._operations.values()
+                )
+                or any(
+                    item["source_id"] == source.admission.source_id
+                    for item in self._intakes.values()
+                )
+            ):
+                return None
+            return continuation.task
+
     def _dispatch_retirements(self):
         for original in tuple(self._retirement_requests.values()):
             source = self._sources.get(original.source_id)
             if source is not None:
                 source.fenced.set()
-                task = self._schedule_cleanup(source)
+                task = self._retirement_cleanup_task(source)
+                if task is None:
+                    task = self._schedule_cleanup(source)
 
                 def observed(done, operation=original):
                     if not done.cancelled() and done.exception() is None and done.result() is True:

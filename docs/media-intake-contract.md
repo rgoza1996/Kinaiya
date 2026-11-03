@@ -102,6 +102,13 @@ refusal retains that committed fence and history. An explicit retry of the same
 original skips the fence DML. An uncertain transaction retains its claim and
 prevents automatic retry or a successful close claim.
 
+If a registered reader-cleanup continuation already positively joined and
+deleted its original upload, Session retirement retains that exact completed
+Task when its probe, connection and original operations are also settled. It
+does not start another physical cleanup for that source. Other pending or
+unknown claims still block final deletion; this adds no general first-request
+completion guarantee and does not bypass the native final transaction checks.
+
 The owner-only HTTP routes enroll before their first await. A native controller
 retains one original worker across cancelled or timed-out HTTP observations;
 five seconds bounds the observation, not physical completion. The selected
