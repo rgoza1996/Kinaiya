@@ -304,6 +304,39 @@ def schema_pin():
     # Preserve the original184 pin plus the exact approved two-schema evolution.
     # Six finalization and two later #255 schemas are additive families.
     additive = set(CAPS) | {"TranscriptScanPage", "TranscriptScanRequest"}
+    # The first media intake family is additive too. Exclude only these exact
+    # 75 names; test_media_schema_exports separately pins their complete bytes.
+    additive |= {
+        f"Media{prefix}{name}"
+        for prefix in ("", "Receipt", "Found")
+        for name in (
+            "Q",
+            "SignedQ",
+            "Session",
+            "NativeRef",
+            "ConsumerRef",
+            "Fence",
+            "Reservation",
+            "SourceLimits",
+            "DecodeLimits",
+            "WireLimits",
+            "Limits",
+            "Admit",
+            "SourceAdmission",
+            "UploadPut",
+            "UploadAck",
+            "SealRequest",
+            "Seal",
+            "SourcePTS",
+            "CapturePut",
+            "CaptureAck",
+            "PacketHeader",
+            "ASRSession",
+            "ASRFeed",
+            "ASRFinish",
+            "Error",
+        )
+    }
     paths = sorted(path for path in root.glob("*.json") if path.stem not in additive)
     body = bytearray()
     for path in paths:
