@@ -133,6 +133,69 @@ class OriginalOperation:
     unknown: bool = False
 
 
+@dataclass(frozen=True, slots=True)
+class _CleanupCheckpoint:
+    task: asyncio.Task
+    upload: object
+    connection: object
+
+
+@dataclass(frozen=True, slots=True)
+class _MediaCleanupAuthority:
+    request: object
+    principal: NativeMediaPrincipal
+    original: OriginalOperation
+    fence: object
+
+
+@dataclass(frozen=True, slots=True)
+class _SessionCleanupAuthority:
+    change: _SessionChange
+    dispatch: _SessionChangeDispatch
+    session: bytes
+    reference: object
+    fence: object
+
+
+@dataclass(slots=True)
+class _CleanupProbe:
+    checkpoint: _CleanupCheckpoint
+    authority: _MediaCleanupAuthority | _SessionCleanupAuthority
+    loop: asyncio.AbstractEventLoop
+    marker: object = field(default_factory=object)
+    assigned: asyncio.Event = field(default_factory=asyncio.Event)
+    placeholder: asyncio.Future | None = None
+    coroutine: object = None
+    task: asyncio.Task | None = None
+    entered_task: asyncio.Task | None = None
+    completed_task: asyncio.Task | None = None
+    outcome: tuple | None = None
+    setup_complete: bool = False
+    no_dispatch: bool = False
+    retired: bool = False
+    unknown: bool = False
+
+
+@dataclass(slots=True)
+class _CleanupContinuation:
+    checkpoint: _CleanupCheckpoint
+    authority: _MediaCleanupAuthority | _SessionCleanupAuthority
+    loop: asyncio.AbstractEventLoop
+    assigned: asyncio.Event = field(default_factory=asyncio.Event)
+    placeholder: asyncio.Future | None = None
+    coroutine: object = None
+    task: asyncio.Task | None = None
+    entered_task: asyncio.Task | None = None
+    completed_task: asyncio.Task | None = None
+    completion_task: asyncio.Task | None = None
+    unknown: bool = False
+
+    @property
+    def original(self):
+        authority = self.authority
+        return authority.original if type(authority) is _MediaCleanupAuthority else authority.change
+
+
 @dataclass(slots=True)
 class _Source:
     admission: object
@@ -143,7 +206,7 @@ class _Source:
     reason: str = "none"
     connection: object = None
     sealed_result: tuple | None = None
-    delete_task: asyncio.Task | None = None
+    delete_task: asyncio.Future | None = None
     children: dict = field(default_factory=dict)
     reference: object = None
     original: OriginalOperation | None = None
@@ -152,6 +215,9 @@ class _Source:
     created_at: float = 0.0
     last_upload_at: float = 0.0
     sealed_at: float | None = None
+    cleanup_checkpoint: _CleanupCheckpoint | None = None
+    cleanup_probe: _CleanupProbe | None = None
+    cleanup_continuation: _CleanupContinuation | None = None
 
 
 @dataclass(slots=True)
@@ -174,9 +240,16 @@ class _SessionChangeDispatch:
     ordinal: int
     previous: int | None
     marker: object = field(default_factory=object)
+    assigned: asyncio.Event = field(default_factory=asyncio.Event)
     task: asyncio.Task | None = None
     coroutine: object = None
+    entered_task: asyncio.Task | None = None
+    completed_task: asyncio.Task | None = None
+    worker_assigned: asyncio.Event = field(default_factory=asyncio.Event)
     worker: asyncio.Task | None = None
+    worker_entered_task: asyncio.Task | None = None
+    worker_completed_task: asyncio.Task | None = None
+    worker_result: tuple | None = None
     worker_coroutine: object = None
     setup_error: BaseException | None = None
     outcome: str = "pending"
@@ -1489,7 +1562,11 @@ class MediaSessionOwner:
             return dispatch.outcome == "refused"
         task = dispatch.task
         return (
-            task is not None
+            type(task) is asyncio.Task
+            and task.get_loop() is dispatch.loop
+            and task.get_coro() is dispatch.coroutine
+            and dispatch.entered_task is task
+            and dispatch.completed_task is task
             and task.done()
             and not task.cancelled()
             and task.exception() is None
@@ -1534,6 +1611,34 @@ class MediaSessionOwner:
             return "error", error.code if isinstance(error, MediaSessionError) else "unavailable"
         return "returned", None
 
+    async def _session_change_worker(self, change, dispatch):
+        await dispatch.worker_assigned.wait()
+        current = asyncio.current_task()
+        if (
+            current is not dispatch.worker
+            or not self._actual_task(dispatch.worker, dispatch.loop, dispatch.worker_coroutine)
+            or dispatch.unknown
+        ):
+            self._session_dispatch_unknown(change, dispatch)
+            refuse()
+        dispatch.worker_entered_task = current
+        result = await asyncio.to_thread(self._session_change_store, change)
+        dispatch.worker_result = result
+        dispatch.worker_completed_task = current
+        return result
+
+    def _session_store_worker_joined(self, dispatch):
+        worker = dispatch.worker
+        return (
+            self._actual_task(worker, dispatch.loop, dispatch.worker_coroutine)
+            and dispatch.worker_entered_task is worker
+            and dispatch.worker_completed_task is worker
+            and worker.done()
+            and not worker.cancelled()
+            and worker.exception() is None
+            and worker.result() == dispatch.worker_result
+        )
+
     async def _run_session_change_native(self, change, dispatch):
         with self._mutex:
             if self._session_change_jobs.get(dispatch.marker) != (change, dispatch):
@@ -1544,9 +1649,15 @@ class MediaSessionOwner:
                 # This exact native branch precedes worker coroutine creation.
                 dispatch.no_dispatch = True
                 refuse()
-        dispatch.worker_coroutine = asyncio.to_thread(self._session_change_store, change)
+        dispatch.worker_coroutine = self._session_change_worker(change, dispatch)
         try:
             dispatch.worker = asyncio.create_task(dispatch.worker_coroutine)
+            if (
+                not self._actual_task(dispatch.worker, dispatch.loop, dispatch.worker_coroutine)
+                or dispatch.worker.done()
+            ):
+                refuse()
+            dispatch.worker_assigned.set()
         except BaseException as error:
             self._session_dispatch_unknown(change, dispatch, error)
             raise
@@ -1560,11 +1671,36 @@ class MediaSessionOwner:
             # An actual controller cancellation is distinct from an observer
             # leaving asyncio.wait; the original worker has still been joined.
             raise asyncio.CancelledError
-        return dispatch.worker.result()
+        if not self._session_store_worker_joined(dispatch):
+            self._session_dispatch_unknown(change, dispatch)
+            refuse()
+        return dispatch.worker_result
 
     async def _session_change_controller(self, change, dispatch):
         try:
+            await dispatch.assigned.wait()
+            current = asyncio.current_task()
+            if (
+                current is not dispatch.task
+                or not self._actual_task(dispatch.task, dispatch.loop, dispatch.coroutine)
+                or not dispatch.setup_complete
+                or dispatch.unknown
+            ):
+                self._session_dispatch_unknown(change, dispatch)
+                refuse()
+            dispatch.entered_task = current
             outcome, code = await self._run_session_change_native(change, dispatch)
+            if (
+                outcome == "error"
+                and code == "conflict"
+                and change.reason == "deleted"
+                and change.state == "pending"
+                and change.fence_committed
+                and not change.running
+            ):
+                # Only this explicit native async dispatch can reconcile a
+                # known reader checkpoint. Direct Store checks stay checks.
+                await self._session_reader_reconciliation(change, dispatch)
             with self._mutex:
                 if dispatch.unknown:
                     pass
@@ -1603,6 +1739,7 @@ class MediaSessionOwner:
             self._session_dispatch_unknown(change, dispatch, error)
         # Keep only a fixed native outcome in the Task, not a mutable Session
         # alias or an exception traceback retaining each completed SQL check.
+        dispatch.completed_task = asyncio.current_task()
         return dispatch.outcome
 
     async def apply_session_change(self, change):
@@ -1672,6 +1809,8 @@ class MediaSessionOwner:
             try:
                 dispatch.coroutine = self._session_change_controller(change, dispatch)
                 task = asyncio.create_task(dispatch.coroutine)
+                if not self._actual_task(task, dispatch.loop, dispatch.coroutine) or task.done():
+                    refuse()
             except BaseException as error:
                 self._session_dispatch_unknown(change, dispatch, error)
                 if not isinstance(error, Exception):
@@ -1694,6 +1833,7 @@ class MediaSessionOwner:
                 refuse()
             with self._mutex:
                 dispatch.setup_complete = True
+            dispatch.assigned.set()
             if task.done():
                 self._session_dispatch_done(change, dispatch, task)
         if dispatch.task is None:
@@ -3427,11 +3567,439 @@ class MediaSessionOwner:
             (receipt.id, dependency["dependency_id"]),
         )
 
-    async def _cleanup_source(self, source):
-        source.fenced.set()
+    @staticmethod
+    def _actual_task(task, loop, coroutine):
+        return (
+            type(task) is asyncio.Task and task.get_loop() is loop and task.get_coro() is coroutine
+        )
+
+    @staticmethod
+    def _cleanup_probe_joined(source):
+        probe = source.cleanup_probe
+        if probe is None:
+            return True
+        if probe.unknown:
+            return False
+        if probe.no_dispatch and probe.coroutine is None:
+            return probe.retired
+        task = probe.task
+        return (
+            MediaSessionOwner._actual_task(task, probe.loop, probe.coroutine)
+            and probe.entered_task is task
+            and probe.completed_task is task
+            and probe.setup_complete
+            and probe.retired
+            and task.done()
+            and not task.cancelled()
+            and task.exception() is None
+            and task.result() == probe.outcome
+        )
+
+    @staticmethod
+    def _cleanup_continuation_joined(source):
+        continuation = source.cleanup_continuation
+        return continuation is None or (
+            not continuation.unknown
+            and MediaSessionOwner._actual_task(
+                continuation.task, continuation.loop, continuation.coroutine
+            )
+            and continuation.entered_task is continuation.task
+            and continuation.completed_task is continuation.task
+            and continuation.task.done()
+            and not continuation.task.cancelled()
+            and continuation.task.exception() is None
+        )
+
+    def _cleanup_checkpoint_matches(self, source, checkpoint):
+        return (
+            not self._closing
+            and not (self._close_operation is not None and self._close_operation.sealed)
+            and self._sources.get(source.admission.source_id) is source
+            and type(checkpoint) is _CleanupCheckpoint
+            and source.cleanup_checkpoint is checkpoint
+            and source.cleanup_continuation is None
+            and (
+                source.delete_task is checkpoint.task
+                or source.cleanup_probe is not None
+                and not source.cleanup_probe.unknown
+                and source.cleanup_probe.checkpoint is checkpoint
+                and source.delete_task is source.cleanup_probe.placeholder
+            )
+            and source.upload is checkpoint.upload
+            and source.connection is checkpoint.connection
+            and (
+                source.connection is None
+                or source.connection.joined
+                and not source.connection.unknown
+            )
+            and checkpoint.task.done()
+            and not checkpoint.task.cancelled()
+            and checkpoint.task.exception() is None
+            and checkpoint.task.result() is False
+            and not any(
+                item.unknown
+                for item in self._operations.values()
+                if item.source_id == source.admission.source_id
+            )
+            and not any(
+                item["source_id"] == source.admission.source_id for item in self._intakes.values()
+            )
+        )
+
+    def _cleanup_reconcile_guard(self, request, principal, original, source, checkpoint, fence):
+        with self._transaction(principal, {"owner"}) as token:
+            operation = self._sql(
+                "SELECT * FROM media_operations WHERE key=?", (request.key,)
+            ).fetchone()
+            if (
+                operation is None
+                or self._operations.get(original.key) is not original
+                or operation["kind"] != "delete"
+                or operation["phase"] != "prepared"
+                or operation["original_operation_id"] != original.original_id
+                or operation["candidate_receipt_id"] != original.candidate_id
+                or operation["request_sha256"] != original.digest
+                or bytes(operation["canonical_request"]) != m.media_bytes(request)
+            ):
+                refuse()
+            _, selected = self._source_guard(
+                token, request.source, fence, principal, revocation=True
+            )
+            with self._mutex:
+                if (
+                    selected is not source
+                    or source.current_fence != fence
+                    or not self._cleanup_checkpoint_matches(source, checkpoint)
+                ):
+                    refuse("conflict")
+
+    def _session_cleanup_memory(self, authority):
+        change, dispatch = authority.change, authority.dispatch
+        self._session_change_registered(change)
+        if (
+            self._closing
+            or self._closed
+            or self._poisoned
+            or self._session_changes.get(change.session_id) is not change
+            or change.reason != "deleted"
+            or change.state != "pending"
+            or not change.fence_committed
+            or change.running
+            or change.original != authority.session
+            or change.dispatch is not dispatch
+            or self._session_change_jobs.get(dispatch.marker) != (change, dispatch)
+            or dispatch.unknown
+            or not dispatch.setup_complete
+            or not self._actual_task(dispatch.task, dispatch.loop, dispatch.coroutine)
+            or dispatch.entered_task is not dispatch.task
+            or dispatch.task.done()
+            or not self._session_store_worker_joined(dispatch)
+            or dispatch.worker_result != ("error", "conflict")
+        ):
+            refuse("conflict")
+
+    def _session_cleanup_guard(self, source, checkpoint, authority):
+        with self._boundary() as token:
+            self._authority()
+            with self._mutex:
+                self._session_cleanup_memory(authority)
+            current = self._session_change_read(authority.change.session_id)
+            expected = self._session_change_identity(authority.session)
+            if current is None or self._session_change_identity(current) != expected:
+                refuse("stale")
+            self._session_change_fences(authority.change)
+            receipt = self._lookup_ref(token, authority.reference, "source")
+            row = self._sql(
+                "SELECT * FROM media_sources WHERE source_id=?", (receipt.body.source_id,)
+            ).fetchone()
+            if (
+                row is None
+                or row["admission_receipt_id"] != receipt.id
+                or row["owner_realm_id"] != self.owner_realm_id
+                or (row["session_id"], row["thread_id"], row["epoch"]) != expected
+                or row["desired"] == "running"
+                or m.media_json(bytes(row["current_fence"]), m.MediaFence) != authority.fence
+                or source.reference != authority.reference
+            ):
+                refuse("conflict")
+            with self._mutex:
+                self._session_cleanup_memory(authority)
+                if source.current_fence != authority.fence or not self._cleanup_checkpoint_matches(
+                    source, checkpoint
+                ):
+                    refuse("conflict")
+            self._authority()
+
+    def _cleanup_authority_guard(self, source, checkpoint, authority):
+        if type(authority) is _MediaCleanupAuthority:
+            self._cleanup_reconcile_guard(
+                authority.request,
+                authority.principal,
+                authority.original,
+                source,
+                checkpoint,
+                authority.fence,
+            )
+        elif type(authority) is _SessionCleanupAuthority:
+            self._session_cleanup_guard(source, checkpoint, authority)
+        else:
+            refuse()
+
+    def _cleanup_authority_unknown(self, authority, error=None):
+        if type(authority) is _MediaCleanupAuthority:
+            authority.original.unknown = True
+        elif type(authority) is _SessionCleanupAuthority:
+            self._session_dispatch_unknown(authority.change, authority.dispatch, error)
+        else:
+            self._poisoned = True
+
+    def _reader_probe_sync(self, source, probe):
         try:
+            self._cleanup_authority_guard(source, probe.checkpoint, probe.authority)
+        except Exception as error:
+            if self._poisoned:
+                raise
+            # Only a positively rolled-back guard before close can be a known
+            # no-effect refusal. An exception's code never proves capacity.
+            return "refused", error.code if isinstance(error, MediaSessionError) else "unavailable"
+        closed = source.upload.close()
+        if type(closed) is not bool:
+            refuse()
+        if closed:
+            self._cleanup_authority_guard(source, probe.checkpoint, probe.authority)
+        return "returned", closed
+
+    async def _reader_probe_worker(self, source, probe):
+        await probe.assigned.wait()
+        current = asyncio.current_task()
+        if (
+            current is not probe.task
+            or not self._actual_task(probe.task, probe.loop, probe.coroutine)
+            or not probe.setup_complete
+            or probe.unknown
+            or source.cleanup_probe is not probe
+        ):
+            probe.unknown = True
+            self._cleanup_authority_unknown(probe.authority)
+            refuse()
+        probe.entered_task = current
+        try:
+            probe.outcome = await asyncio.to_thread(self._reader_probe_sync, source, probe)
+            probe.completed_task = current
+            return probe.outcome
+        except BaseException as error:
+            probe.unknown = True
+            self._cleanup_authority_unknown(probe.authority, error)
+            raise
+
+    def _reader_probe_done(self, source, probe, task):
+        with self._mutex:
+            if not probe.setup_complete:
+                return
+            if (
+                task is not probe.task
+                or not self._actual_task(task, probe.loop, probe.coroutine)
+                or probe.entered_task is not task
+                or probe.completed_task is not task
+                or not task.done()
+                or task.cancelled()
+                or task.exception() is not None
+                or task.result() != probe.outcome
+                or probe.unknown
+            ):
+                probe.unknown = True
+                self._cleanup_authority_unknown(probe.authority)
+                return
+            self._native_jobs.pop(probe.marker, None)
+            probe.retired = True
+            if source.delete_task is probe.placeholder:
+                source.delete_task = probe.checkpoint.task
+            if not probe.placeholder.done():
+                probe.placeholder.set_result(False)  # A close probe is not settlement.
+
+    async def _probe_reader_cleanup(self, source, checkpoint, authority):
+        loop = asyncio.get_running_loop()
+        probe = _CleanupProbe(checkpoint, authority, loop)
+        probe.placeholder = loop.create_future()
+        with self._mutex:
+            if (
+                source.current_fence != authority.fence
+                or not self._cleanup_checkpoint_matches(source, checkpoint)
+                or not self._cleanup_probe_joined(source)
+                or self._loop is not None
+                and self._loop is not loop
+            ):
+                return None  # No enrollment/effect; the existing claim stays pending.
+            source.cleanup_probe = probe
+            if len(self._native_jobs) >= 16:
+                # This native branch precedes coroutine creation or OS work.
+                probe.no_dispatch = probe.setup_complete = probe.retired = True
+                return None
+            self._loop = loop
+            self._native_jobs[probe.marker] = None
+            # Preserve this exact checkpoint while the explicit native probe
+            # owns the slot; unchanged generic scheduling sees a pending owner.
+            source.delete_task = probe.placeholder
+        try:
+            probe.coroutine = self._reader_probe_worker(source, probe)
+            probe.task = asyncio.create_task(probe.coroutine)
+            with self._mutex:
+                self._native_jobs[probe.marker] = probe.task
+            if not self._actual_task(probe.task, loop, probe.coroutine) or probe.task.done():
+                refuse()
+            probe.task.add_done_callback(lambda done: self._reader_probe_done(source, probe, done))
+            probe.setup_complete = True
+            probe.assigned.set()
+        except BaseException as error:
+            probe.unknown = True
+            self._cleanup_authority_unknown(authority, error)
+            raise
+        # Observation never cancels the retained native worker. A cancelled
+        # controller still leaves its probe/slot/Source claims reachable.
+        await asyncio.wait({probe.task})
+        self._reader_probe_done(source, probe, probe.task)
+        if not self._cleanup_probe_joined(source):
+            refuse()
+        outcome, value = probe.outcome
+        if outcome == "refused":
+            return None
+        if outcome != "returned" or type(value) is not bool:
+            probe.unknown = True
+            self._cleanup_authority_unknown(authority)
+            refuse()
+        if type(authority) is _MediaCleanupAuthority:
+            authority.original.effect_result = value
+        return value
+
+    async def _session_reader_reconciliation(self, change, dispatch):
+        # A synchronous Store.delete remains an attempt/check. This hook is
+        # owned only by an explicit, retained async apply dispatch after its
+        # SAME original Store worker returned a known pending-delete conflict.
+        with self._mutex:
+            sources = tuple(
+                source
+                for source in self._sources.values()
+                if source.admission.session.session_id == change.session_id
+            )
+        for source in sources:
+            with self._mutex:
+                checkpoint = source.cleanup_checkpoint
+                if not self._cleanup_checkpoint_matches(source, checkpoint):
+                    continue
+                if not self._cleanup_probe_joined(source):
+                    if source.cleanup_probe.unknown:
+                        self._cleanup_authority_unknown(source.cleanup_probe.authority)
+                        refuse()
+                    continue
+                authority = _SessionCleanupAuthority(
+                    change, dispatch, change.original, source.reference, source.current_fence
+                )
+                self._session_cleanup_memory(authority)
+            closed = await self._probe_reader_cleanup(source, checkpoint, authority)
+            if closed is True:
+                self._resume_reader_cleanup(source, checkpoint, authority)
+
+    async def _continue_cleanup(self, source, continuation):
+        await continuation.assigned.wait()
+        current = asyncio.current_task()
+        if (
+            current is not continuation.task
+            or not self._actual_task(continuation.task, continuation.loop, continuation.coroutine)
+            or continuation.unknown
+            or source.cleanup_continuation is not continuation
+        ):
+            continuation.unknown = True
+            self._cleanup_authority_unknown(continuation.authority)
+            return False
+        continuation.entered_task = current
+        try:
+            result = await self._cleanup_source(source, continuation)
+            if continuation.unknown:
+                self._cleanup_authority_unknown(continuation.authority)
+            continuation.completed_task = current
+            return result
+        except BaseException as error:
+            continuation.unknown = True
+            self._cleanup_authority_unknown(continuation.authority, error)
+            raise
+
+    def _resume_reader_cleanup(self, source, checkpoint, authority):
+        if type(authority) is _MediaCleanupAuthority:
+            self._principal_memory(authority.principal, {"owner"})
+        continuation = _CleanupContinuation(checkpoint, authority, asyncio.get_running_loop())
+        continuation.placeholder = continuation.loop.create_future()
+        with self._mutex:
+            if type(authority) is _SessionCleanupAuthority:
+                try:
+                    self._session_cleanup_memory(authority)
+                except MediaSessionError:
+                    if self._poisoned:
+                        raise
+                    return False
+            probe = source.cleanup_probe
+            if (
+                source.current_fence != authority.fence
+                or not self._cleanup_checkpoint_matches(source, checkpoint)
+                or not self._cleanup_probe_joined(source)
+                or probe is None
+                or probe.authority is not authority
+                or probe.checkpoint is not checkpoint
+                or probe.outcome != ("returned", True)
+            ):
+                return False
+            source.cleanup_continuation = continuation
+            # The original placeholder prevents generic scheduling during
+            # setup. A lost/foreign facade never opens the physical-work gate.
+            source.delete_task = continuation.placeholder
+        try:
+            continuation.coroutine = self._continue_cleanup(source, continuation)
+            continuation.task = asyncio.create_task(continuation.coroutine)
+            with self._mutex:
+                source.delete_task = continuation.task
+            if (
+                not self._actual_task(continuation.task, continuation.loop, continuation.coroutine)
+                or continuation.task.done()
+            ):
+                refuse()
+
+            def observed(done):
+                if done is not continuation.task or not self._cleanup_continuation_joined(source):
+                    continuation.unknown = True
+                    self._cleanup_authority_unknown(authority)
+                    positive = False
+                else:
+                    positive = done.result() is True
+                if not continuation.placeholder.done():
+                    continuation.placeholder.set_result(positive)
+                if positive and not continuation.unknown:
+                    with self._mutex:
+                        for key, item in tuple(self._retirement_requests.items()):
+                            if item.source_id == source.admission.source_id:
+                                self._retirement_requests.pop(key, None)
+
+            continuation.task.add_done_callback(observed)
+        except BaseException as error:
+            continuation.unknown = True
+            source.cleanup_checkpoint = None
+            self._cleanup_authority_unknown(authority, error)
+            raise
+        continuation.assigned.set()
+        return True
+
+    async def _cleanup_source(self, source, continuation=None):
+        source.fenced.set()
+        source.cleanup_checkpoint = None
+        try:
+            if (
+                not self._cleanup_probe_joined(source)
+                or source.cleanup_continuation is not None
+                and source.cleanup_continuation.unknown
+            ):
+                return False
             if source.connection is not None:
                 if source.connection.unknown:
+                    if continuation is not None:
+                        continuation.unknown = True
                     return False
                 if not source.connection.joined and not await self.event_hub.retire(
                     source.connection.instance
@@ -3460,13 +4028,26 @@ class MediaSessionOwner:
                 for item in self._operations.values()
                 if item.source_id == source.admission.source_id
             ):
+                if continuation is not None:
+                    continuation.unknown = True
                 return False
             closed = await self.run_native(source.upload.close)
             if closed is not True:
+                if continuation is not None:
+                    continuation.unknown = True
+                source.cleanup_checkpoint = _CleanupCheckpoint(
+                    asyncio.current_task(), source.upload, source.connection
+                )
                 return False
 
             def finish():
                 with self._boundary() as token:
+                    if (
+                        not self._cleanup_probe_joined(source)
+                        or source.cleanup_continuation is not None
+                        and source.cleanup_continuation.unknown
+                    ):
+                        return False
                     pending = self._sql(
                         "SELECT 1 FROM media_dependencies WHERE source_id=? AND kind NOT IN('upload','decoder') AND (state!='settled' OR publication_state!='settled') LIMIT 1",
                         (source.admission.source_id,),
@@ -3494,10 +4075,18 @@ class MediaSessionOwner:
                 or source.reason == "deleted"
             ):
                 if await self.run_native(source.upload.delete) is not True:
+                    if continuation is not None:
+                        continuation.unknown = True
                     return False
 
                 def deleted():
                     with self._boundary():
+                        if (
+                            not self._cleanup_probe_joined(source)
+                            or source.cleanup_continuation is not None
+                            and source.cleanup_continuation.unknown
+                        ):
+                            return False
                         pending = self._sql(
                             "SELECT 1 FROM media_dependencies WHERE source_id=? AND (state!='settled' OR publication_state!='settled') LIMIT 1",
                             (source.admission.source_id,),
@@ -3517,14 +4106,26 @@ class MediaSessionOwner:
                 positive = await self.run_native(deleted)
                 if positive is True:
                     with self._mutex:
+                        if source.cleanup_continuation is not None:
+                            source.cleanup_continuation.completion_task = asyncio.current_task()
                         retired = [
-                            key for key, item in self._sources.items() if item.upload.deleted
+                            key
+                            for key, item in self._sources.items()
+                            if item.upload.deleted
+                            and self._cleanup_probe_joined(item)
+                            and (
+                                item.cleanup_continuation is None
+                                or self._cleanup_continuation_joined(item)
+                                and self._close_result(item.cleanup_continuation.completion_task)
+                            )
                         ]
                         for key in retired[:-64]:
                             self._sources.pop(key, None)
                 return positive
             return True
         except BaseException as error:
+            if continuation is not None:
+                continuation.unknown = True
             if not isinstance(error, Exception):
                 raise
             return False
@@ -3537,7 +4138,7 @@ class MediaSessionOwner:
             with self._transaction(principal, {"owner"}) as token:
                 operation, fresh = self._prepare(token, request, "delete")
                 if not fresh:
-                    return self._existing(operation), None
+                    return self._existing(operation), None, None
                 row, source = self._source_guard(
                     token, request.source, request.fence, principal, revocation=True
                 )
@@ -3554,10 +4155,19 @@ class MediaSessionOwner:
                     "UPDATE media_sources SET logical_deleted=1,desired='deleted',raw_state='delete_pending',local_actual='closing' WHERE source_id=?",
                     (row["source_id"],),
                 )
-                return operation, source
+                fence = m.media_json(
+                    bytes(
+                        self._sql(
+                            "SELECT current_fence FROM media_sources WHERE source_id=?",
+                            (row["source_id"],),
+                        ).fetchone()[0]
+                    ),
+                    m.MediaFence,
+                )
+                return operation, source, fence
 
         async def work(value, original):
-            operation, source = await self.run_native(prepare, original)
+            operation, source, fence = await self.run_native(prepare, original)
             if source is None and hasattr(operation, "body"):
                 return operation
             # A delete result is a snapshot. Never block on unknown physical
@@ -3566,7 +4176,15 @@ class MediaSessionOwner:
             if source is not None:
                 prior = source.delete_task
                 if prior is not None and prior.done():
-                    positive = prior.result() is True
+                    positive = prior.result() is True and self._cleanup_continuation_joined(source)
+                    checkpoint = source.cleanup_checkpoint
+                    with self._mutex:
+                        reconcile = self._cleanup_checkpoint_matches(source, checkpoint)
+                    if not positive and reconcile:
+                        authority = _MediaCleanupAuthority(value, principal, original, fence)
+                        closed = await self._probe_reader_cleanup(source, checkpoint, authority)
+                        if closed is True:
+                            self._resume_reader_cleanup(source, checkpoint, authority)
                 elif prior is None:
                     # Observe cleanup separately; this receipt stays pending.
                     self._schedule_cleanup(source)
@@ -3593,7 +4211,15 @@ class MediaSessionOwner:
                 "SELECT 1 FROM media_dependencies WHERE source_id=? AND (state!='settled' OR publication_state!='settled') LIMIT 1",
                 (source_id,),
             ).fetchone()
-            released = positive is True and original.effect_result is True and dependencies is None
+            source = self._sources.get(source_id)
+            released = (
+                positive is True
+                and original.effect_result is True
+                and dependencies is None
+                and source is not None
+                and self._cleanup_probe_joined(source)
+                and self._cleanup_continuation_joined(source)
+            )
             if released:
                 self._sql(
                     "UPDATE media_sources SET local_actual='deleted',raw_state='deleted' WHERE source_id=?",
@@ -3793,6 +4419,8 @@ class MediaSessionOwner:
                     continue
                 if (
                     not source.upload.deleted
+                    or not self._cleanup_probe_joined(source)
+                    or not self._cleanup_continuation_joined(source)
                     or source.delete_task is None
                     or not source.delete_task.done()
                     or source.delete_task.cancelled()
@@ -3931,7 +4559,12 @@ class MediaSessionOwner:
                     return False
                 original.task.exception()  # A joined refusal is not a live OS owner.
             for source in operation.sources.values():
-                if not source.fenced.is_set() or not self._close_result(source.delete_task):
+                if (
+                    not source.fenced.is_set()
+                    or not self._cleanup_probe_joined(source)
+                    or not self._cleanup_continuation_joined(source)
+                    or not self._close_result(source.delete_task)
+                ):
                     return False
                 if source.expiry_task is not None and (
                     not source.expiry_task.done()
