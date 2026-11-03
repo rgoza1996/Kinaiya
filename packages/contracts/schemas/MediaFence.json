@@ -1,0 +1,66 @@
+{
+  "$defs": {
+    "MediaSession": {
+      "additionalProperties": false,
+      "properties": {
+        "epoch": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Epoch",
+          "type": "integer"
+        },
+        "session_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Session Id",
+          "type": "string"
+        },
+        "thread_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Thread Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_id",
+        "thread_id",
+        "epoch"
+      ],
+      "title": "MediaSession",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "generation": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Generation",
+      "type": "integer"
+    },
+    "lease_generation": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Lease Generation",
+      "type": "integer"
+    },
+    "session": {
+      "$ref": "#/$defs/MediaSession"
+    },
+    "source_revision": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Source Revision",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "session",
+    "source_revision",
+    "generation",
+    "lease_generation"
+  ],
+  "title": "MediaFence",
+  "type": "object"
+}
