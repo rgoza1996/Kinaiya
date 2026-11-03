@@ -133,6 +133,25 @@ class OriginalOperation:
     unknown: bool = False
 
 
+@dataclass(frozen=True, slots=True)
+class _CleanupCheckpoint:
+    task: asyncio.Task
+    upload: object
+    connection: object
+
+
+@dataclass(slots=True)
+class _CleanupContinuation:
+    checkpoint: _CleanupCheckpoint
+    original: OriginalOperation
+    assigned: asyncio.Event = field(default_factory=asyncio.Event)
+    placeholder: asyncio.Future | None = None
+    coroutine: object = None
+    task: asyncio.Task | None = None
+    completion_task: asyncio.Task | None = None
+    unknown: bool = False
+
+
 @dataclass(slots=True)
 class _Source:
     admission: object
@@ -143,7 +162,7 @@ class _Source:
     reason: str = "none"
     connection: object = None
     sealed_result: tuple | None = None
-    delete_task: asyncio.Task | None = None
+    delete_task: asyncio.Future | None = None
     children: dict = field(default_factory=dict)
     reference: object = None
     original: OriginalOperation | None = None
@@ -152,6 +171,8 @@ class _Source:
     created_at: float = 0.0
     last_upload_at: float = 0.0
     sealed_at: float | None = None
+    cleanup_checkpoint: _CleanupCheckpoint | None = None
+    cleanup_continuation: _CleanupContinuation | None = None
 
 
 @dataclass(slots=True)
@@ -3423,11 +3444,132 @@ class MediaSessionOwner:
             (receipt.id, dependency["dependency_id"]),
         )
 
-    async def _cleanup_source(self, source):
-        source.fenced.set()
+    @staticmethod
+    def _cleanup_continuation_joined(source):
+        continuation = source.cleanup_continuation
+        return continuation is None or (
+            not continuation.unknown
+            and continuation.task is not None
+            and continuation.task.done()
+            and not continuation.task.cancelled()
+            and continuation.task.exception() is None
+        )
+
+    def _cleanup_checkpoint_matches(self, source, checkpoint):
+        return (
+            not self._closing
+            and not (self._close_operation is not None and self._close_operation.sealed)
+            and self._sources.get(source.admission.source_id) is source
+            and type(checkpoint) is _CleanupCheckpoint
+            and source.cleanup_checkpoint is checkpoint
+            and source.cleanup_continuation is None
+            and source.delete_task is checkpoint.task
+            and source.upload is checkpoint.upload
+            and source.connection is checkpoint.connection
+            and (
+                source.connection is None
+                or source.connection.joined
+                and not source.connection.unknown
+            )
+            and checkpoint.task.done()
+            and not checkpoint.task.cancelled()
+            and checkpoint.task.exception() is None
+            and checkpoint.task.result() is False
+            and not any(
+                item.unknown
+                for item in self._operations.values()
+                if item.source_id == source.admission.source_id
+            )
+            and not any(
+                item["source_id"] == source.admission.source_id for item in self._intakes.values()
+            )
+        )
+
+    def _cleanup_reconcile_guard(self, request, principal, original, source, checkpoint, fence):
+        with self._transaction(principal, {"owner"}) as token:
+            operation = self._sql(
+                "SELECT * FROM media_operations WHERE key=?", (request.key,)
+            ).fetchone()
+            if (
+                operation is None
+                or self._operations.get(original.key) is not original
+                or operation["kind"] != "delete"
+                or operation["phase"] != "prepared"
+                or operation["original_operation_id"] != original.original_id
+                or operation["candidate_receipt_id"] != original.candidate_id
+                or operation["request_sha256"] != original.digest
+                or bytes(operation["canonical_request"]) != m.media_bytes(request)
+            ):
+                refuse()
+            _, selected = self._source_guard(
+                token, request.source, fence, principal, revocation=True
+            )
+            with self._mutex:
+                if (
+                    selected is not source
+                    or source.current_fence != fence
+                    or not self._cleanup_checkpoint_matches(source, checkpoint)
+                ):
+                    refuse("conflict")
+
+    async def _continue_cleanup(self, source, continuation):
+        await continuation.assigned.wait()
+        if continuation.unknown or source.cleanup_continuation is not continuation:
+            return False
+        return await self._cleanup_source(source, continuation)
+
+    def _resume_reader_cleanup(self, source, checkpoint, fence, principal, original):
+        self._principal_memory(principal, {"owner"})
+        continuation = _CleanupContinuation(checkpoint, original)
+        continuation.placeholder = asyncio.get_running_loop().create_future()
+        with self._mutex:
+            if source.current_fence != fence or not self._cleanup_checkpoint_matches(
+                source, checkpoint
+            ):
+                refuse("conflict")
+            source.cleanup_continuation = continuation
+            # Generic scheduling sees this retained pending owner during setup;
+            # an eager factory cannot start physical work before assignment.
+            source.delete_task = continuation.placeholder
+        original.unknown = True
         try:
+            continuation.coroutine = self._continue_cleanup(source, continuation)
+            continuation.task = asyncio.create_task(continuation.coroutine)
+            with self._mutex:
+                source.delete_task = continuation.task
+
+            def observed(done):
+                if done.cancelled() or done.exception() is not None:
+                    continuation.unknown = True
+                    positive = False
+                else:
+                    positive = done.result() is True
+                if not continuation.placeholder.done():
+                    continuation.placeholder.set_result(positive)
+                if positive and not continuation.unknown:
+                    with self._mutex:
+                        for key, item in tuple(self._retirement_requests.items()):
+                            if item.source_id == source.admission.source_id:
+                                self._retirement_requests.pop(key, None)
+
+            continuation.task.add_done_callback(observed)
+        except BaseException:
+            continuation.unknown = True
+            source.cleanup_checkpoint = None
+            raise
+        original.unknown = False
+        continuation.assigned.set()
+
+    async def _cleanup_source(self, source, continuation=None):
+        source.fenced.set()
+        source.cleanup_checkpoint = None
+        try:
+            if source.cleanup_continuation is not None and source.cleanup_continuation.unknown:
+                return False
             if source.connection is not None:
                 if source.connection.unknown:
+                    if continuation is not None:
+                        continuation.unknown = True
                     return False
                 if not source.connection.joined and not await self.event_hub.retire(
                     source.connection.instance
@@ -3456,13 +3598,25 @@ class MediaSessionOwner:
                 for item in self._operations.values()
                 if item.source_id == source.admission.source_id
             ):
+                if continuation is not None:
+                    continuation.unknown = True
                 return False
             closed = await self.run_native(source.upload.close)
             if closed is not True:
+                if continuation is not None:
+                    continuation.unknown = True
+                source.cleanup_checkpoint = _CleanupCheckpoint(
+                    asyncio.current_task(), source.upload, source.connection
+                )
                 return False
 
             def finish():
                 with self._boundary() as token:
+                    if (
+                        source.cleanup_continuation is not None
+                        and source.cleanup_continuation.unknown
+                    ):
+                        return False
                     pending = self._sql(
                         "SELECT 1 FROM media_dependencies WHERE source_id=? AND kind NOT IN('upload','decoder') AND (state!='settled' OR publication_state!='settled') LIMIT 1",
                         (source.admission.source_id,),
@@ -3490,10 +3644,17 @@ class MediaSessionOwner:
                 or source.reason == "deleted"
             ):
                 if await self.run_native(source.upload.delete) is not True:
+                    if continuation is not None:
+                        continuation.unknown = True
                     return False
 
                 def deleted():
                     with self._boundary():
+                        if (
+                            source.cleanup_continuation is not None
+                            and source.cleanup_continuation.unknown
+                        ):
+                            return False
                         pending = self._sql(
                             "SELECT 1 FROM media_dependencies WHERE source_id=? AND (state!='settled' OR publication_state!='settled') LIMIT 1",
                             (source.admission.source_id,),
@@ -3513,14 +3674,25 @@ class MediaSessionOwner:
                 positive = await self.run_native(deleted)
                 if positive is True:
                     with self._mutex:
+                        if source.cleanup_continuation is not None:
+                            source.cleanup_continuation.completion_task = asyncio.current_task()
                         retired = [
-                            key for key, item in self._sources.items() if item.upload.deleted
+                            key
+                            for key, item in self._sources.items()
+                            if item.upload.deleted
+                            and (
+                                item.cleanup_continuation is None
+                                or self._cleanup_continuation_joined(item)
+                                and self._close_result(item.cleanup_continuation.completion_task)
+                            )
                         ]
                         for key in retired[:-64]:
                             self._sources.pop(key, None)
                 return positive
             return True
         except BaseException as error:
+            if continuation is not None:
+                continuation.unknown = True
             if not isinstance(error, Exception):
                 raise
             return False
@@ -3533,7 +3705,7 @@ class MediaSessionOwner:
             with self._transaction(principal, {"owner"}) as token:
                 operation, fresh = self._prepare(token, request, "delete")
                 if not fresh:
-                    return self._existing(operation), None
+                    return self._existing(operation), None, None
                 row, source = self._source_guard(
                     token, request.source, request.fence, principal, revocation=True
                 )
@@ -3550,10 +3722,19 @@ class MediaSessionOwner:
                     "UPDATE media_sources SET logical_deleted=1,desired='deleted',raw_state='delete_pending',local_actual='closing' WHERE source_id=?",
                     (row["source_id"],),
                 )
-                return operation, source
+                fence = m.media_json(
+                    bytes(
+                        self._sql(
+                            "SELECT current_fence FROM media_sources WHERE source_id=?",
+                            (row["source_id"],),
+                        ).fetchone()[0]
+                    ),
+                    m.MediaFence,
+                )
+                return operation, source, fence
 
         async def work(value, original):
-            operation, source = await self.run_native(prepare, original)
+            operation, source, fence = await self.run_native(prepare, original)
             if source is None and hasattr(operation, "body"):
                 return operation
             # A delete result is a snapshot. Never block on unknown physical
@@ -3562,7 +3743,39 @@ class MediaSessionOwner:
             if source is not None:
                 prior = source.delete_task
                 if prior is not None and prior.done():
-                    positive = prior.result() is True
+                    positive = prior.result() is True and self._cleanup_continuation_joined(source)
+                    checkpoint = source.cleanup_checkpoint
+                    with self._mutex:
+                        reconcile = self._cleanup_checkpoint_matches(source, checkpoint)
+                    if not positive and reconcile:
+                        await self.run_native(
+                            self._cleanup_reconcile_guard,
+                            value,
+                            principal,
+                            original,
+                            source,
+                            checkpoint,
+                            fence,
+                        )
+                        original.unknown = True
+                        closed = await self.run_native(source.upload.close)
+                        original.effect_result = closed
+                        if type(closed) is not bool:
+                            refuse()
+                        original.unknown = False
+                        if closed is True:
+                            await self.run_native(
+                                self._cleanup_reconcile_guard,
+                                value,
+                                principal,
+                                original,
+                                source,
+                                checkpoint,
+                                fence,
+                            )
+                            self._resume_reader_cleanup(
+                                source, checkpoint, fence, principal, original
+                            )
                 elif prior is None:
                     # Observe cleanup separately; this receipt stays pending.
                     self._schedule_cleanup(source)
@@ -3589,7 +3802,14 @@ class MediaSessionOwner:
                 "SELECT 1 FROM media_dependencies WHERE source_id=? AND (state!='settled' OR publication_state!='settled') LIMIT 1",
                 (source_id,),
             ).fetchone()
-            released = positive is True and original.effect_result is True and dependencies is None
+            source = self._sources.get(source_id)
+            released = (
+                positive is True
+                and original.effect_result is True
+                and dependencies is None
+                and source is not None
+                and self._cleanup_continuation_joined(source)
+            )
             if released:
                 self._sql(
                     "UPDATE media_sources SET local_actual='deleted',raw_state='deleted' WHERE source_id=?",
@@ -3789,6 +4009,7 @@ class MediaSessionOwner:
                     continue
                 if (
                     not source.upload.deleted
+                    or not self._cleanup_continuation_joined(source)
                     or source.delete_task is None
                     or not source.delete_task.done()
                     or source.delete_task.cancelled()
@@ -3927,7 +4148,11 @@ class MediaSessionOwner:
                     return False
                 original.task.exception()  # A joined refusal is not a live OS owner.
             for source in operation.sources.values():
-                if not source.fenced.is_set() or not self._close_result(source.delete_task):
+                if (
+                    not source.fenced.is_set()
+                    or not self._cleanup_continuation_joined(source)
+                    or not self._close_result(source.delete_task)
+                ):
                     return False
                 if source.expiry_task is not None and (
                     not source.expiry_task.done()
