@@ -137,7 +137,7 @@ class StandingAdmissionClosure(_Closed):
             value = dict(value.__dict__)
         if type(value) is not dict or value.keys() != StandingInitialProof.model_fields.keys():
             raise ValueError(_ERROR)
-        return StandingInitialProof.model_validate(value)
+        return value
 
     @model_validator(mode="after")
     def exact_digest(self):
